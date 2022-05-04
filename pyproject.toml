@@ -1,0 +1,65 @@
+[project]
+name = "phidata"
+version = "0.1.41"
+description = "Build data products as code"
+requires-python = ">3.7"
+readme = "README.md"
+authors = [
+  {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
+]
+
+dependencies = [
+  "boto3",
+  "docker",
+  "kubernetes",
+  "phiterm>=0.1.41",
+  "pydantic",
+  "pyyaml",
+  "rich",
+  "types-PyYAML",
+  "typing-extensions",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "pytest",
+]
+
+[project.urls]
+homepage = "https://www.phidata.com"
+documentation = "https://www.phidata.com/docs"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+check_untyped_defs = true
+no_implicit_optional = true
+warn_unused_configs = true
+exclude = [
+  "phidata/asset/dev", # exclude dev assets from mypy
+  "phidata/workflow/dev", # exclude dev workflows from mypy
+  "phidata/product/dev", # exclude dev products from mypy
+  "phidata/task/dev", # exclude dev tasks from mypy
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "git",
+  "setuptools",
+  "boto3",
+  "boto3.*",
+  "botocore",
+  "botocore.*",
+  "typer",
+  "tiingo",
+  "docker.*",
+  "airflow.*",
+  "pandas.*",
+  "kubernetes.*",
+  "sqlalchemy.*",
+  "matplotlib.*",
+]
+ignore_missing_imports = true

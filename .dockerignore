@@ -1,0 +1,16 @@
+__pycache__
+.dockerignore
+.DS_Store
+.git
+build
+coverage
+Dockerfile
+Dockerfile.dev
+Dockerfile.prod
+Databox.dockerfile
+env
+htmlcov
+migrations
+node_modules
+package-lock.json
+*.egg-info

@@ -1,0 +1,2 @@
+class TaskFailure(Exception):
+    pass

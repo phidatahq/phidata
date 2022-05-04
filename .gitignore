@@ -1,0 +1,35 @@
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+/cypress/screenshots
+
+# production
+/build
+dist
+
+/.cache
+
+# misc
+env
+htmlcov
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.mypy_cache
+__pycache__
+*.egg-info
+*.pyc
+.local

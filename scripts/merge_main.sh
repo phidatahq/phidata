@@ -39,7 +39,7 @@ main() {
     space_to_continue
   fi
   git -C ${REPO_ROOT} add .
-  git -C ${REPO_ROOT} commit -am "Auto commit at $(date)"
+  git -C ${REPO_ROOT} commit -am "Auto commit on $(date)"
 
   print_info "Merging ${GIT_BRANCH} to main branch"
   git -C ${REPO_ROOT} checkout main

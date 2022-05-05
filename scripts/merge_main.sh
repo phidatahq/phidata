@@ -45,7 +45,7 @@ main() {
   git -C ${REPO_ROOT} checkout main
   git -C ${REPO_ROOT} merge --no-ff ${GIT_BRANCH}
   git -C ${REPO_ROOT} push -f origin main
-  print_info "philab pushed to main"
+  print_info "${REPO_ROOT} pushed to main"
 }
 
 main "$@"

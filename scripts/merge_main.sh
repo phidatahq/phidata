@@ -43,7 +43,7 @@ main() {
 
   print_info "Merging ${GIT_BRANCH} to main branch"
   git -C ${REPO_ROOT} checkout main
-  git -C ${REPO_ROOT} merge --no-ff ${GIT_BRANCH}
+  git -C ${REPO_ROOT} merge ${GIT_BRANCH}
   git -C ${REPO_ROOT} push origin main
   print_info "${REPO_ROOT} pushed to main"
 }

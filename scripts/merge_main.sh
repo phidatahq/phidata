@@ -14,9 +14,9 @@
 #
 ############################################################################
 
-SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$( dirname ${SCRIPTS_DIR} )"
-source ${SCRIPTS_DIR}/_utils.sh
+CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$( dirname ${CURR_DIR} )"
+source ${CURR_DIR}/_utils.sh
 
 main() {
   YES=0
@@ -44,7 +44,7 @@ main() {
   print_info "Merging ${GIT_BRANCH} to main branch"
   git -C ${REPO_ROOT} checkout main
   git -C ${REPO_ROOT} merge --no-ff ${GIT_BRANCH}
-  git -C ${REPO_ROOT} push -f origin main
+  git -C ${REPO_ROOT} push origin main
   print_info "${REPO_ROOT} pushed to main"
 }
 

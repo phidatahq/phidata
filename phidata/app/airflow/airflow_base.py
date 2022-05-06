@@ -98,8 +98,8 @@ class AirflowBaseArgs(PhidataAppArgs):
     # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path
     # airflow_dags_path is the directory in the container containing the airflow dags
     airflow_dags_path: Optional[str] = None
-    # Creates an airflow user with username: test, pass: test
-    create_airflow_test_user: bool = False
+    # Creates an airflow admin with username: admin, pass: admin
+    create_airflow_admin_user: bool = False
     executor: Literal[
         "DebugExecutor",
         "LocalExecutor",
@@ -248,8 +248,8 @@ class AirflowBase(PhidataApp):
         # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path,
         # airflow_dags_path is the directory in the container containing the airflow dags,
         airflow_dags_path: Optional[str] = None,
-        # Creates an airflow user with username: test, pass: test,
-        create_airflow_test_user: bool = False,
+        # Creates an airflow admin with username: admin, pass: admin,
+        create_airflow_admin_user: bool = False,
         executor: Literal[
             "DebugExecutor",
             "LocalExecutor",
@@ -369,7 +369,7 @@ class AirflowBase(PhidataApp):
                 aws_config_container_path=aws_config_container_path,
                 use_products_as_airflow_dags=use_products_as_airflow_dags,
                 airflow_dags_path=airflow_dags_path,
-                create_airflow_test_user=create_airflow_test_user,
+                create_airflow_admin_user=create_airflow_admin_user,
                 executor=executor,
                 init_airflow_db=init_airflow_db,
                 wait_for_db=wait_for_db,
@@ -581,7 +581,7 @@ class AirflowBase(PhidataApp):
             "DB_PORT": str(db_port),
             "WAIT_FOR_REDIS": str(self.args.wait_for_redis),
             "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
-            "CREATE_AIRFLOW_TEST_USER": str(self.args.create_airflow_test_user),
+            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
             "AIRFLOW__CORE__EXECUTOR": str(self.args.executor),
         }
 
@@ -880,7 +880,7 @@ class AirflowBase(PhidataApp):
             "DB_PORT": str(db_port),
             "WAIT_FOR_REDIS": str(self.args.wait_for_redis),
             "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
-            "CREATE_AIRFLOW_TEST_USER": str(self.args.create_airflow_test_user),
+            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
             "AIRFLOW__CORE__EXECUTOR": str(self.args.executor),
         }
 

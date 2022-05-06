@@ -110,8 +110,8 @@ class DataboxArgs(PhidataAppArgs):
     # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path
     # airflow_dags_path is the directory in the container containing the airflow dags
     airflow_dags_path: Optional[str] = None
-    # Creates an airflow user with username: test, pass: test
-    create_airflow_test_user: bool = False
+    # Creates an airflow admin with username: admin, pass: admin
+    create_airflow_admin_user: bool = False
     airflow_executor: Literal[
         "DebugExecutor",
         "LocalExecutor",
@@ -151,7 +151,8 @@ class DataboxArgs(PhidataAppArgs):
     init_airflow_webserver: bool = False
     # Open the port if init_airflow_webserver=True
     # webserver port on the container
-    airflow_webserver_container_port: int = 8080
+    # also used to set AIRFLOW__WEBSERVER__WEB_SERVER_PORT
+    airflow_webserver_container_port: int = 7080
     # webserver port on the host machine
     airflow_webserver_host_port: int = 8080
     # webserver port name on K8sContainer
@@ -264,8 +265,8 @@ class Databox(PhidataApp):
         # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path,
         # airflow_dags_path is the directory in the container containing the airflow dags,
         airflow_dags_path: Optional[str] = None,
-        # Creates an airflow user with username: test, pass: test,
-        create_airflow_test_user: bool = False,
+        # Creates an airflow admin with username: admin, pass: admin,
+        create_airflow_admin_user: bool = False,
         airflow_executor: Literal[
             "DebugExecutor",
             "LocalExecutor",
@@ -300,9 +301,10 @@ class Databox(PhidataApp):
         # Configure airflow webserver,
         # Init Airflow webserver when the container starts,
         init_airflow_webserver: bool = False,
-        # Open the port if init_airflow_webserver=True,
-        # webserver port on the container,
-        airflow_webserver_container_port: int = 8080,
+        # Open the port if init_airflow_webserver=True
+        # webserver port on the container
+        # also used to set AIRFLOW__WEBSERVER__WEB_SERVER_PORT
+        airflow_webserver_container_port: int = 7080,
         # webserver port on the host machine,
         airflow_webserver_host_port: int = 8080,
         # webserver port name on K8sContainer,
@@ -384,7 +386,7 @@ class Databox(PhidataApp):
                 init_airflow=init_airflow,
                 use_products_as_airflow_dags=use_products_as_airflow_dags,
                 airflow_dags_path=airflow_dags_path,
-                create_airflow_test_user=create_airflow_test_user,
+                create_airflow_admin_user=create_airflow_admin_user,
                 airflow_executor=airflow_executor,
                 init_airflow_db=init_airflow_db,
                 wait_for_airflow_db=wait_for_airflow_db,
@@ -539,7 +541,7 @@ class Databox(PhidataApp):
             "INIT_AIRFLOW_SCHEDULER": str(self.args.init_airflow_scheduler),
             "INIT_AIRFLOW_WEBSERVER": str(self.args.init_airflow_webserver),
             "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
-            "CREATE_AIRFLOW_TEST_USER": str(self.args.create_airflow_test_user),
+            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
             "AIRFLOW__CORE__EXECUTOR": str(self.args.airflow_executor),
         }
 
@@ -563,16 +565,16 @@ class Databox(PhidataApp):
                 except Exception as e:
                     logger.exception(e)
                     continue
-        # Update the container.environment to include airflow_env
-        if isinstance(container.environment, dict):
-            container.environment.update(airflow_env)
-        else:
-            logger.warning(
-                f"Could not update container environment because it is of type: {type(container.environment)}"
-            )
 
-        # Open the airflow webserver port if init_airflow_webserver = True
+        # if init_airflow_webserver = True
+        # 1. Set the webserver port in the container env
+        # 2. Open the airflow webserver port
         if self.args.init_airflow_webserver:
+            # Set the webserver port in the container env
+            airflow_env["AIRFLOW__WEBSERVER__WEB_SERVER_PORT"] = str(
+                self.args.airflow_webserver_container_port
+            )
+            # Open the port
             ws_port: Dict[str, int] = {
                 str(
                     self.args.airflow_webserver_container_port
@@ -581,6 +583,14 @@ class Databox(PhidataApp):
             if container.ports is None:
                 container.ports = {}
             container.ports.update(ws_port)
+
+        # Update the container.environment to include airflow_env
+        if isinstance(container.environment, dict):
+            container.environment.update(airflow_env)
+        else:
+            logger.warning(
+                f"Could not update container environment because it is of type: {type(container.environment)}"
+            )
 
     def get_docker_rg(
         self, docker_build_context: DockerBuildContext
@@ -835,7 +845,7 @@ class Databox(PhidataApp):
             "INIT_AIRFLOW_SCHEDULER": str(self.args.init_airflow_scheduler),
             "INIT_AIRFLOW_WEBSERVER": str(self.args.init_airflow_webserver),
             "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
-            "CREATE_AIRFLOW_TEST_USER": str(self.args.create_airflow_test_user),
+            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
             "AIRFLOW__CORE__EXECUTOR": str(self.args.airflow_executor),
         }
 
@@ -860,6 +870,23 @@ class Databox(PhidataApp):
                     logger.exception(e)
                     continue
 
+        # if init_airflow_webserver = True
+        # 1. Set the webserver port in the container env
+        # 2. Open the airflow webserver port
+        if self.args.init_airflow_webserver:
+            # Set the webserver port in the container env
+            airflow_env["AIRFLOW__WEBSERVER__WEB_SERVER_PORT"] = str(
+                self.args.airflow_webserver_container_port
+            )
+            # Open the port
+            ws_port = CreatePort(
+                name=self.args.airflow_webserver_port_name,
+                container_port=self.args.airflow_webserver_container_port,
+            )
+            if container.ports is None:
+                container.ports = []
+            container.ports.append(ws_port)
+
         airflow_env_cm = CreateConfigMap(
             cm_name=get_default_configmap_name("databox-airflow"),
             app_name=self.args.name,
@@ -872,16 +899,6 @@ class Databox(PhidataApp):
         if k8s_resource_group.config_maps is None:
             k8s_resource_group.config_maps = []
         k8s_resource_group.config_maps.append(airflow_env_cm)
-
-        # Open the airflow webserver port if init_airflow_webserver = True
-        if self.args.init_airflow_webserver:
-            ws_port = CreatePort(
-                name=self.args.airflow_webserver_port_name,
-                container_port=self.args.airflow_webserver_container_port,
-            )
-            if container.ports is None:
-                container.ports = []
-            container.ports.append(ws_port)
 
     def get_k8s_rg(
         self, k8s_build_context: K8sBuildContext

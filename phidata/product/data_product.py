@@ -676,7 +676,7 @@ class DataProduct(PhidataBase):
             return None
 
         from airflow import DAG
-        from airflow.models import BaseOperator
+        from airflow.models.operator import Operator
         from airflow.utils.dates import days_ago
 
         operator_default_args = default_args
@@ -732,7 +732,7 @@ class DataProduct(PhidataBase):
             # logger.info("Updating dependencies")
             for downstream_workflow, upstream_workflow_list in self.graph.items():
 
-                downstream_wf_start_task: Optional[BaseOperator] = None
+                downstream_wf_start_task: Optional[Operator] = None
                 downstream_wf_start_task_id = downstream_workflow.start_workflow_task_id
                 # logger.info(f"downstream_workflow_start: {downstream_wf_start_task_id}")
                 if dag.has_task(downstream_wf_start_task_id):
@@ -742,7 +742,7 @@ class DataProduct(PhidataBase):
                     continue
 
                 for workflow in upstream_workflow_list:
-                    upstream_wf_end_task: Optional[BaseOperator] = None
+                    upstream_wf_end_task: Optional[Operator] = None
                     upstream_wf_end_task_id = workflow.end_workflow_task_id
                     # logger.info(f"upstream_workflow_end: {upstream_wf_end_task_id}")
 

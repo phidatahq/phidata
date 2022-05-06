@@ -2,7 +2,7 @@
 
 ############################################################################
 #
-# Script to merge/push existing branch to the mainbranch:
+# Script to merge/push existing branch to the main branch:
 # Usage:
 #   ./scripts/merge_main.sh
 #     - commit current branch

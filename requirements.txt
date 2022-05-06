@@ -6,11 +6,11 @@
 #
 anyio==3.5.0
     # via httpcore
-boto3==1.22.7
+boto3==1.22.8
     # via
     #   phidata (setup.py)
     #   phiterm
-botocore==1.25.7
+botocore==1.25.8
     # via
     #   boto3
     #   s3transfer

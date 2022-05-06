@@ -140,6 +140,14 @@ class S3Object(DataAsset):
     ######################################################
 
     def download_file(self, file: File) -> bool:
+        """
+
+        :param file:
+        :return:
+
+        TODO: add params to this function using
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/customizations/s3.html#boto3.s3.transfer.TransferConfig
+        """
 
         ######################################################
         ## Validate
@@ -183,16 +191,18 @@ class S3Object(DataAsset):
             try:
                 s3_object.load()
                 s3_object_size = s3_object.content_length
-                logger.info("s3_object_size: {}".format(s3_object_size))
+                logger.debug("s3_object_size: {}".format(s3_object_size))
             except ClientError as e:
                 pass
             if s3_object_size == 0:
                 logger.info(f"Object {bucket_name}/{object_key} does not exist")
                 return False
-            logger.info("s3_object type: {}".format(type(s3_object)))
-            logger.info("s3_object: {}".format(s3_object))
 
             logger.info("Download S3Object to File")
+            # create parent dir if need
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Object.download_file
             s3_object.download_file(Filename=str(file_path.resolve()))
             logger.info("S3Object downloaded")
             return True

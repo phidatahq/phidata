@@ -176,7 +176,7 @@ class DockerImage(DockerResource):
                 self.active_resource_class = Image
                 return True
             else:
-                logger.debug("Image {} could not be built".format(self.tag))
+                logger.error("Image {} could not be built".format(self.tag))
         except Exception as e:
             logger.exception(e)
             logger.error("Error while creating image: {}".format(e))

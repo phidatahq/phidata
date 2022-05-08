@@ -15,4 +15,4 @@ source ${CURR_DIR}/_utils.sh
 print_info "Updating phidata dependencies"
 cd ${REPO_ROOT}
 CUSTOM_COMPILE_COMMAND="./scripts/update_dependencies.sh" \
-    pip-compile --upgrade --pip-args "--no-cache-dir"
+    pip-compile --upgrade --no-annotate --pip-args "--no-cache-dir"

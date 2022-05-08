@@ -63,7 +63,7 @@ kubernetes==23.3.0
     #   phiterm
 oauthlib==3.2.0
     # via requests-oauthlib
-phiterm==0.1.41
+phiterm==0.1.42
     # via phidata (setup.py)
 pyasn1==0.4.8
     # via

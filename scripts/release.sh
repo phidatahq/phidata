@@ -22,7 +22,7 @@ main() {
 
   print_info "Upgrading phiterm dependency"
   CUSTOM_COMPILE_COMMAND="./scripts/update_dependencies.sh" \
-    pip-compile --upgrade-package phiterm --pip-args "--no-cache-dir"
+    pip-compile --upgrade-package phiterm --no-annotate --pip-args "--no-cache-dir"
   print_info "Proceed?"
   space_to_continue
 

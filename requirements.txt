@@ -5,138 +5,46 @@
 #    ./scripts/update_dependencies.sh
 #
 anyio==3.5.0
-    # via httpcore
 boto3==1.22.8
-    # via
-    #   phidata (setup.py)
-    #   phiterm
 botocore==1.25.8
-    # via
-    #   boto3
-    #   s3transfer
 cachetools==5.0.0
-    # via google-auth
 certifi==2021.10.8
-    # via
-    #   httpcore
-    #   httpx
-    #   kubernetes
-    #   requests
 charset-normalizer==2.0.12
-    # via
-    #   httpx
-    #   requests
 click==8.1.3
-    # via
-    #   phiterm
-    #   typer
 commonmark==0.9.1
-    # via rich
 docker==5.0.3
-    # via
-    #   phidata (setup.py)
-    #   phiterm
 gitdb==4.0.9
-    # via gitpython
 gitpython==3.1.27
-    # via phiterm
 google-auth==2.6.6
-    # via kubernetes
 h11==0.12.0
-    # via httpcore
 httpcore==0.14.7
-    # via httpx
 httpx==0.22.0
-    # via phiterm
 idna==3.3
-    # via
-    #   anyio
-    #   requests
-    #   rfc3986
 jmespath==1.0.0
-    # via
-    #   boto3
-    #   botocore
 kubernetes==23.3.0
-    # via
-    #   phidata (setup.py)
-    #   phiterm
 oauthlib==3.2.0
-    # via requests-oauthlib
 phiterm==0.1.42
-    # via phidata (setup.py)
 pyasn1==0.4.8
-    # via
-    #   pyasn1-modules
-    #   rsa
 pyasn1-modules==0.2.8
-    # via google-auth
 pydantic==1.9.0
-    # via
-    #   phidata (setup.py)
-    #   phiterm
 pygments==2.12.0
-    # via rich
 python-dateutil==2.8.2
-    # via
-    #   botocore
-    #   kubernetes
 pyyaml==6.0
-    # via
-    #   kubernetes
-    #   phidata (setup.py)
-    #   phiterm
 requests==2.27.1
-    # via
-    #   docker
-    #   kubernetes
-    #   requests-oauthlib
 requests-oauthlib==1.3.1
-    # via kubernetes
 rfc3986[idna2008]==1.5.0
-    # via httpx
 rich==12.3.0
-    # via
-    #   phidata (setup.py)
-    #   phiterm
 rsa==4.8
-    # via google-auth
 s3transfer==0.5.2
-    # via boto3
 six==1.16.0
-    # via
-    #   google-auth
-    #   kubernetes
-    #   python-dateutil
 smmap==5.0.0
-    # via gitdb
 sniffio==1.2.0
-    # via
-    #   anyio
-    #   httpcore
-    #   httpx
 tomli==2.0.1
-    # via phiterm
 typer==0.4.1
-    # via phiterm
 types-pyyaml==6.0.7
-    # via
-    #   phidata (setup.py)
-    #   phiterm
 typing-extensions==4.2.0
-    # via
-    #   phidata (setup.py)
-    #   phiterm
-    #   pydantic
 urllib3==1.26.9
-    # via
-    #   botocore
-    #   kubernetes
-    #   requests
 websocket-client==1.3.2
-    # via
-    #   docker
-    #   kubernetes
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

@@ -56,7 +56,7 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # Image args
     image_name: str = "phidata/airflow"
-    image_tag: str = "1"
+    image_tag: str = "2.3.0"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -78,19 +78,20 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # Install python dependencies using a requirements.txt file
     install_requirements: bool = False
-    # Path to the requirements.txt file relative to the workspace root
+    # Path to the requirements.txt file relative to the workspace_root
     requirements_file_path: str = "requirements.txt"
 
     # Mount aws config on the container
     # Only on DockerContainers, for K8sContainers use IamRole
     mount_aws_config: bool = False
-    aws_config_volume_name: str = "airflow-aws-config-volume"
     # Aws config dir on the host
     aws_config_path: Path = Path.home().resolve().joinpath(".aws")
     # Aws config dir on the container
     aws_config_container_path: str = "/root/.aws"
 
     # Configure airflow
+    # The AIRFLOW_ENV defines the current airflow runtime and can be used by DAGs to separate dev vs prd code
+    airflow_env: Literal["dev", "stg", "prd"] = "dev"
     # If use_products_as_airflow_dags = True
     # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir
     use_products_as_airflow_dags: bool = True
@@ -142,21 +143,35 @@ class AirflowBaseArgs(PhidataAppArgs):
     # Configure the container
     container_name: Optional[str] = None
     image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT
-    # Open the container port if open_container_port=True
-    # Used by the airflow-webserver
-    open_container_port: bool = False
-    container_port: int = 8080
-    # Only used by the K8sContainer
-    container_port_name: str = "http"
-    # Only used by the DockerContainer
-    container_host_port: int = 8080
     container_detach: bool = True
     container_auto_remove: bool = True
     container_remove: bool = True
+    # Overwrite the PYTHONPATH env var, which is usually set to the workspace_root_container_path
+    python_path: Optional[str] = None
+    # Add container labels
+    container_labels: Optional[Dict[str, Any]] = None
 
-    # Open the worker log port if open_worker_log_port=True
+    # Open a container port if open_container_port=True
+    open_container_port: bool = False
+    # Port number on the container
+    container_port: int = 8000
+    # Port name: Only used by the K8sContainer
+    container_port_name: str = "http"
+    # Host port: Only used by the DockerContainer
+    container_host_port: int = 8000
+
+    # Open the webserver port if open_webserver_port=True
+    open_webserver_port: bool = False
+    # Webserver port number on the container
+    webserver_port: int = 8080
+    # Only used by the K8sContainer
+    webserver_port_name: str = "webserver"
+    # Only used by the DockerContainer
+    webserver_host_port: int = 8080
+
+    # Open the worker_log_port if open_worker_log_port=True
     # When you start an airflow worker, airflow starts a tiny web server subprocess to serve the workers
-    # local log files to the airflow main web server, who then builds pages and sends them to users.
+    # local log files to the airflow main web server, which then builds pages and sends them to users.
     # This defines the port on which the logs are served. It needs to be unused, and open visible from
     # the main web server to connect into the workers.
     open_worker_log_port: bool = False
@@ -165,6 +180,15 @@ class AirflowBaseArgs(PhidataAppArgs):
     worker_log_port_name: str = "worker"
     # Only used by the DockerContainer
     worker_log_host_port: int = 8793
+
+    # Open the flower port if open_flower_port=True
+    open_flower_port: bool = False
+    # Flower port number on the container
+    flower_port: int = 5555
+    # Only used by the K8sContainer
+    flower_port_name: str = "flower"
+    # Only used by the DockerContainer
+    flower_host_port: int = 5555
 
     # Add env variables to container env
     env: Optional[Dict[str, str]] = None
@@ -184,18 +208,34 @@ class AirflowBaseArgs(PhidataAppArgs):
     pod_node_selector: Optional[Dict[str, str]] = None
     restart_policy: RestartPolicy = RestartPolicy.ALWAYS
     termination_grace_period_seconds: Optional[int] = None
+    # Add deployment labels
+    deploy_labels: Optional[Dict[str, Any]] = None
 
-    # Configure the service
-    create_service: bool = False
-    service_name: Optional[str] = None
-    service_type: Optional[ServiceType] = None
+    # Configure the webserver service
+    create_webserver_service: bool = False
+    ws_service_name: Optional[str] = None
+    ws_service_type: Optional[ServiceType] = None
     # The port that will be exposed by the service.
-    service_port: int = 8080
-    # The node_port that will be exposed by the service if service_type = ServiceType.NODE_PORT
-    node_port: Optional[int] = None
-    # The target_port is the port to access on the pods targeted by the service.
+    ws_service_port: int = 8080
+    # The node_port that will be exposed by the service if ws_service_type = ServiceType.NODE_PORT
+    ws_node_port: Optional[int] = None
+    # The ws_target_port is the port to access on the pods targeted by the service.
     # It can be the port number or port name on the pod.
-    target_port: Optional[Union[str, int]] = None
+    ws_target_port: Optional[Union[str, int]] = None
+    # Add labels to webserver service
+    ws_service_labels: Optional[Dict[str, Any]] = None
+
+    # Configure the flower service
+    create_flower_service: bool = False
+    flower_service_name: Optional[str] = None
+    flower_service_type: Optional[ServiceType] = None
+    # The port that will be exposed by the service.
+    flower_service_port: int = 5555
+    # The flower_target_port is the port to access on the pods targeted by the service.
+    # It can be the port number or port name on the pod.
+    flower_target_port: Optional[Union[str, int]] = None
+    # Add labels to flower service
+    flower_service_labels: Optional[Dict[str, Any]] = None
 
     # Other args
     load_examples: bool = False
@@ -208,47 +248,48 @@ class AirflowBase(PhidataApp):
         name: str = "airflow",
         version: str = "1",
         enabled: bool = True,
-        # Image args,
+        # Image args
         image_name: str = "phidata/airflow",
-        image_tag: str = "1",
+        image_tag: str = "2.3.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
-        # Mount the workspace directory on the container,
+        # Mount the workspace directory on the container
         mount_workspace: bool = True,
         workspace_volume_name: Optional[str] = None,
-        # Path to mount the workspace volume under,
-        # This is the parent directory for the workspace on the container,
-        # i.e. the ws is mounted as a subdir in this dir,
-        # eg: if ws name is: idata, workspace_dir would be: /usr/local/workspaces/idata,
+        # Path to mount the workspace volume under
+        # This is the parent directory for the workspace on the container
+        # i.e. the ws is mounted as a subdir in this dir
+        # eg: if ws name is: idata, workspace_dir would be: /usr/local/workspaces/idata
         workspace_parent_container_path: str = "/usr/local/workspaces",
-        # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir,
-        # because we assume that DockerContainers are running locally on the user's machine,
-        # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
+        # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir
+        # because we assume that DockerContainers are running locally on the user's machine
+        # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
         create_git_sync_sidecar: bool = True,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
         git_sync_wait: int = 1,
-        # Install python dependencies using a requirements.txt file,
+        # Install python dependencies using a requirements.txt file
         install_requirements: bool = False,
-        # Path to the requirements.txt file relative to the workspace root,
+        # Path to the requirements.txt file relative to the workspace_root
         requirements_file_path: str = "requirements.txt",
-        # Mount aws config on the container,
-        # Only on DockerContainers, for K8sContainers use IamRole,
+        # Mount aws config on the container
+        # Only on DockerContainers, for K8sContainers use IamRole
         mount_aws_config: bool = False,
-        aws_config_volume_name: str = "airflow-aws-config-volume",
-        # Aws config dir on the host,
+        # Aws config dir on the host
         aws_config_path: Path = Path.home().resolve().joinpath(".aws"),
-        # Aws config dir on the container,
+        # Aws config dir on the container
         aws_config_container_path: str = "/root/.aws",
-        # Configure airflow,
-        # If use_products_as_airflow_dags = True,
-        # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir,
+        # Configure airflow
+        # The AIRFLOW_ENV defines the current airflow runtime and can be used by DAGs to separate dev vs prd code
+        airflow_env: Literal["dev", "stg", "prd"] = "dev",
+        # If use_products_as_airflow_dags = True
+        # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir
         use_products_as_airflow_dags: bool = True,
-        # If use_products_as_airflow_dags = False,
-        # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path,
-        # airflow_dags_path is the directory in the container containing the airflow dags,
+        # If use_products_as_airflow_dags = False
+        # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path
+        # airflow_dags_path is the directory in the container containing the airflow dags
         airflow_dags_path: Optional[str] = None,
-        # Creates an airflow admin with username: admin, pass: admin,
+        # Creates an airflow admin with username: admin, pass: admin
         create_airflow_admin_user: bool = False,
         executor: Literal[
             "DebugExecutor",
@@ -259,90 +300,128 @@ class AirflowBase(PhidataApp):
             "DaskExecutor",
             "KubernetesExecutor",
         ] = "SequentialExecutor",
-        # Configure airflow db,
-        # If init_airflow_db = True, initialize the airflow_db,
+        # Configure airflow db
+        # If init_airflow_db = True, initialize the airflow_db
         init_airflow_db: bool = False,
         wait_for_db: bool = False,
-        # Connect to database using DbApp,
+        # Connect to database using DbApp
         db_app: Optional[DbApp] = None,
-        # Connect to database manually,
+        # Connect to database manually
         db_user: Optional[str] = None,
         db_password: Optional[str] = None,
         db_schema: Optional[str] = None,
         db_host: Optional[str] = None,
-        db_port: Optional[str] = None,
+        db_port: Optional[int] = None,
         db_driver: str = "postgresql+psycopg2",
         db_result_backend_driver: str = "db+postgresql",
-        # Airflow db connections in the format { conn_id: conn_url },
-        # converted to env var: AIRFLOW_CONN__conn_id = conn_url,
+        # Airflow db connections in the format { conn_id: conn_url }
+        # converted to env var: AIRFLOW_CONN__conn_id = conn_url
         db_connections: Optional[Dict] = None,
-        # Configure airflow redis,
+        # Configure airflow redis
         wait_for_redis: bool = False,
-        # Connect to redis using PhidataApp,
+        # Connect to redis using PhidataApp
         redis_app: Optional[Any] = None,
-        # Connect to redis manually,
+        # Connect to redis manually
         redis_password: Optional[str] = None,
         redis_schema: Optional[str] = None,
         redis_host: Optional[str] = None,
-        redis_port: Optional[str] = None,
+        redis_port: Optional[int] = None,
         redis_driver: str = "redis",
-        # Configure the container,
+        # Configure the container
         container_name: Optional[str] = None,
         image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,
-        # Open the container port if open_container_port=True,
-        # Used by the airflow-webserver,
-        open_container_port: bool = False,
-        container_port: int = 8080,
-        # Only used by the K8sContainer,
-        container_port_name: str = "http",
-        # Only used by the DockerContainer,
-        container_host_port: int = 8080,
         container_detach: bool = True,
         container_auto_remove: bool = True,
         container_remove: bool = True,
-        # Open the worker log port if open_worker_log_port=True,
+        # Overwrite the PYTHONPATH env var, which is usually set to the workspace_root_container_path
+        python_path: Optional[str] = None,
+        # Add container labels
+        container_labels: Optional[Dict[str, Any]] = None,
+        # Open a container port if open_container_port=True
+        open_container_port: bool = False,
+        # Port number on the container
+        container_port: int = 8000,
+        # Port name: Only used by the K8sContainer
+        container_port_name: str = "http",
+        # Host port: Only used by the DockerContainer
+        container_host_port: int = 8000,
+        # Open the webserver port if open_webserver_port=True
+        open_webserver_port: bool = False,
+        # Webserver port number on the container
+        webserver_port: int = 8080,
+        # Only used by the K8sContainer
+        webserver_port_name: str = "webserver",
+        # Only used by the DockerContainer
+        webserver_host_port: int = 8080,
+        # Open the worker_log_port if open_worker_log_port=True
+        # When you start an airflow worker, airflow starts a tiny web server subprocess to serve the workers
+        # local log files to the airflow main web server, which then builds pages and sends them to users.
+        # This defines the port on which the logs are served. It needs to be unused, and open visible from
+        # the main web server to connect into the workers.
         open_worker_log_port: bool = False,
         worker_log_port: int = 8793,
-        # Only used by the K8sContainer,
+        # Only used by the K8sContainer
         worker_log_port_name: str = "worker",
-        # Only used by the DockerContainer,
+        # Only used by the DockerContainer
         worker_log_host_port: int = 8793,
-        # Add env variables to container env,
+        # Open the flower port if open_flower_port=True
+        open_flower_port: bool = False,
+        # Flower port number on the container
+        flower_port: int = 5555,
+        # Only used by the K8sContainer
+        flower_port_name: str = "flower",
+        # Only used by the DockerContainer
+        flower_host_port: int = 5555,
+        # Add env variables to container env
         env: Optional[Dict[str, str]] = None,
-        # Read env variables from a file in yaml format,
+        # Read env variables from a file in yaml format
         env_file: Optional[Path] = None,
-        # Configure the ConfigMap used for env variables that are not Secret,
+        # Configure the ConfigMap used for env variables that are not Secret
         config_map_name: Optional[str] = None,
-        # Configure the Secret used for env variables that are Secret,
+        # Configure the Secret used for env variables that are Secret
         secret_name: Optional[str] = None,
-        # Read secrets from a file in yaml format,
+        # Read secrets from a file in yaml format
         secrets_file: Optional[Path] = None,
-        # Configure the deployment,
+        # Configure the deployment
         deploy_name: Optional[str] = None,
         pod_name: Optional[str] = None,
         replicas: int = 1,
         pod_node_selector: Optional[Dict[str, str]] = None,
         restart_policy: RestartPolicy = RestartPolicy.ALWAYS,
         termination_grace_period_seconds: Optional[int] = None,
-        # Configure the service,
-        create_service: bool = False,
-        service_name: Optional[str] = None,
-        service_type: Optional[ServiceType] = None,
-        # The port that will be exposed by the service.,
-        service_port: int = 8080,
-        # The node_port that will be exposed by the service if service_type = ServiceType.NODE_PORT,
-        node_port: Optional[int] = None,
-        # The target_port is the port to access on the pods targeted by the service.,
-        # It can be the port number or port name on the pod.,
-        target_port: Optional[Union[str, int]] = None,
-        # Other args,
+        # Add deployment labels
+        deploy_labels: Optional[Dict[str, Any]] = None,
+        # Configure the webserver service
+        create_webserver_service: bool = False,
+        ws_service_name: Optional[str] = None,
+        ws_service_type: Optional[ServiceType] = None,
+        # The port that will be exposed by the service.
+        ws_service_port: int = 8080,
+        # The node_port that will be exposed by the service if ws_service_type = ServiceType.NODE_PORT
+        ws_node_port: Optional[int] = None,
+        # The ws_target_port is the port to access on the pods targeted by the service.
+        # It can be the port number or port name on the pod.
+        ws_target_port: Optional[Union[str, int]] = None,
+        # Add labels to webserver service
+        ws_service_labels: Optional[Dict[str, Any]] = None,
+        # Configure the flower service
+        create_flower_service: bool = False,
+        flower_service_name: Optional[str] = None,
+        flower_service_type: Optional[ServiceType] = None,
+        # The port that will be exposed by the service.
+        flower_service_port: int = 5555,
+        # The flower_target_port is the port to access on the pods targeted by the service.
+        # It can be the port number or port name on the pod.
+        flower_target_port: Optional[Union[str, int]] = None,
+        # Add labels to flower service
+        flower_service_labels: Optional[Dict[str, Any]] = None,
+        # Other args
         load_examples: bool = False,
         print_env_on_load: bool = True,
         # Additional args
-        # If True, skip resource creation if active resources with the same name exist.
+        # If True, use cached resources
+        # i.e. skip resource creation/deletion if active resources with the same name exist.
         use_cache: bool = True,
-        # If True, log extra debug messages
-        use_verbose_logs: bool = False,
     ):
         super().__init__()
         try:
@@ -364,9 +443,9 @@ class AirflowBase(PhidataApp):
                 install_requirements=install_requirements,
                 requirements_file_path=requirements_file_path,
                 mount_aws_config=mount_aws_config,
-                aws_config_volume_name=aws_config_volume_name,
                 aws_config_path=aws_config_path,
                 aws_config_container_path=aws_config_container_path,
+                airflow_env=airflow_env,
                 use_products_as_airflow_dags=use_products_as_airflow_dags,
                 airflow_dags_path=airflow_dags_path,
                 create_airflow_admin_user=create_airflow_admin_user,
@@ -391,17 +470,27 @@ class AirflowBase(PhidataApp):
                 redis_driver=redis_driver,
                 container_name=container_name,
                 image_pull_policy=image_pull_policy,
+                container_detach=container_detach,
+                container_auto_remove=container_auto_remove,
+                container_remove=container_remove,
+                python_path=python_path,
+                container_labels=container_labels,
                 open_container_port=open_container_port,
                 container_port=container_port,
                 container_port_name=container_port_name,
                 container_host_port=container_host_port,
-                container_detach=container_detach,
-                container_auto_remove=container_auto_remove,
-                container_remove=container_remove,
+                open_webserver_port=open_webserver_port,
+                webserver_port=webserver_port,
+                webserver_port_name=webserver_port_name,
+                webserver_host_port=webserver_host_port,
                 open_worker_log_port=open_worker_log_port,
                 worker_log_port=worker_log_port,
                 worker_log_port_name=worker_log_port_name,
                 worker_log_host_port=worker_log_host_port,
+                open_flower_port=open_flower_port,
+                flower_port=flower_port,
+                flower_port_name=flower_port_name,
+                flower_host_port=flower_host_port,
                 env=env,
                 env_file=env_file,
                 config_map_name=config_map_name,
@@ -413,16 +502,23 @@ class AirflowBase(PhidataApp):
                 pod_node_selector=pod_node_selector,
                 restart_policy=restart_policy,
                 termination_grace_period_seconds=termination_grace_period_seconds,
-                create_service=create_service,
-                service_name=service_name,
-                service_type=service_type,
-                service_port=service_port,
-                node_port=node_port,
-                target_port=target_port,
+                deploy_labels=deploy_labels,
+                create_webserver_service=create_webserver_service,
+                ws_service_name=ws_service_name,
+                ws_service_type=ws_service_type,
+                ws_service_port=ws_service_port,
+                ws_node_port=ws_node_port,
+                ws_target_port=ws_target_port,
+                ws_service_labels=ws_service_labels,
+                create_flower_service=create_flower_service,
+                flower_service_name=flower_service_name,
+                flower_service_type=flower_service_type,
+                flower_service_port=flower_service_port,
+                flower_target_port=flower_target_port,
+                flower_service_labels=flower_service_labels,
                 load_examples=load_examples,
                 print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
-                use_verbose_logs=use_verbose_logs,
             )
         except Exception as e:
             logger.error(f"Args for {self.__class__.__name__} are not valid")
@@ -431,11 +527,17 @@ class AirflowBase(PhidataApp):
     def get_container_name(self) -> str:
         return self.args.container_name or get_default_container_name(self.args.name)
 
-    def get_service_name(self) -> str:
-        return self.args.service_name or get_default_service_name(self.args.name)
+    def get_ws_service_name(self) -> str:
+        return self.args.ws_service_name or get_default_service_name(self.args.name)
 
-    def get_service_port(self) -> int:
-        return self.args.service_port
+    def get_ws_service_port(self) -> int:
+        return self.args.ws_service_port
+
+    def get_flower_service_name(self) -> str:
+        return self.args.flower_service_name or get_default_service_name(self.args.name)
+
+    def get_flower_service_port(self) -> int:
+        return self.args.flower_service_port
 
     def get_env_data_from_file(self) -> Optional[Dict[str, str]]:
         env_file_path = self.args.env_file
@@ -551,12 +653,15 @@ class AirflowBase(PhidataApp):
             f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
         )
 
+        # Container pythonpath
+        python_path = self.args.python_path or str(workspace_root_container_path)
+
         # Container Environment
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": str(workspace_root_container_path),
+            "PYTHONPATH": python_path,
             PHIDATA_RUNTIME_ENV_VAR: "airflow",
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
@@ -572,6 +677,7 @@ class AirflowBase(PhidataApp):
             # Env variables used by Airflow
             # INIT_AIRFLOW env var is required for phidata to generate DAGs
             "INIT_AIRFLOW": str(True),
+            "AIRFLOW_ENV": self.args.airflow_env,
             "WAIT_FOR_DB": str(self.args.wait_for_db),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "DB_USER": str(db_user),
@@ -716,17 +822,47 @@ class AirflowBase(PhidataApp):
         # For example:
         #   {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
         container_ports: Dict[str, int] = {}
+
+        # if open_container_port = True
         if self.args.open_container_port:
             container_ports[
                 str(self.args.container_port)
             ] = self.args.container_host_port
-        if self.args.open_worker_log_port:
+
+        # if open_webserver_port = True
+        # 1. Set the webserver_port in the container env
+        # 2. Open the webserver_port
+        if self.args.open_webserver_port:
+            # Set the webserver port in the container_env
+            container_env["AIRFLOW__WEBSERVER__WEB_SERVER_PORT"] = str(
+                self.args.webserver_port
+            )
+            # Open the port
             container_ports[
-                str(self.args.worker_log_port)
-            ] = self.args.worker_log_host_port
+                str(self.args.webserver_port)
+            ] = self.args.webserver_host_port
+
+        # if open_worker_log_port = True
+        # 1. Set the worker_log_port in the container env
+        # 2. Open the worker_log_port
+        if self.args.open_worker_log_port:
+            # Set the worker_log_port in the container_env
             container_env["AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT"] = str(
                 self.args.worker_log_port
             )
+            # Open the port
+            container_ports[
+                str(self.args.worker_log_port)
+            ] = self.args.worker_log_host_port
+
+        # if open_flower_port = True
+        # 1. Set the flower_port in the container env
+        # 2. Open the flower_port
+        if self.args.open_flower_port:
+            # Set the flower_port in the container_env
+            container_env["AIRFLOW__CELERY__FLOWER_PORT"] = str(self.args.flower_port)
+            # Open the port
+            container_ports[str(self.args.flower_port)] = self.args.flower_host_port
 
         # Create the container
         docker_container = DockerContainer(
@@ -739,12 +875,12 @@ class AirflowBase(PhidataApp):
             remove=self.args.container_remove,
             stdin_open=True,
             tty=True,
+            labels=self.args.container_labels,
             environment=container_env,
             network=docker_build_context.network,
             ports=container_ports if len(container_ports) > 0 else None,
             volumes=container_volumes,
             use_cache=self.args.use_cache,
-            use_verbose_logs=self.args.use_verbose_logs,
         )
         # logger.debug(f"Container Env: {docker_container.environment}")
 
@@ -781,6 +917,7 @@ class AirflowBase(PhidataApp):
         secrets: List[CreateSecret] = []
         volumes: List[CreateVolume] = []
         containers: List[CreateContainer] = []
+        services: List[CreateService] = []
         ports: List[CreatePort] = []
 
         # Workspace paths
@@ -850,12 +987,15 @@ class AirflowBase(PhidataApp):
             f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
         )
 
+        # Container pythonpath
+        python_path = self.args.python_path or str(workspace_root_container_path)
+
         # Container Environment
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": str(workspace_root_container_path),
+            "PYTHONPATH": python_path,
             PHIDATA_RUNTIME_ENV_VAR: "airflow",
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
@@ -871,6 +1011,7 @@ class AirflowBase(PhidataApp):
             # Env variables used by Airflow
             # INIT_AIRFLOW env var is required for phidata to create DAGs
             "INIT_AIRFLOW": str(True),
+            "AIRFLOW_ENV": self.args.airflow_env,
             "WAIT_FOR_DB": str(self.args.wait_for_db),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "DB_USER": str(db_user),
@@ -1029,25 +1170,75 @@ class AirflowBase(PhidataApp):
                     containers.append(git_sync_sidecar)
 
         # Create the ports to open
+        # if open_container_port = True
         if self.args.open_container_port:
             container_port = CreatePort(
                 name=self.args.container_port_name,
                 container_port=self.args.container_port,
-                service_port=self.args.service_port,
-                target_port=self.args.target_port or self.args.container_port_name,
             )
             ports.append(container_port)
-        if self.args.open_worker_log_port:
-            worker_log_port = CreatePort(
-                name=self.args.worker_log_port_name,
-                container_port=self.args.worker_log_port,
+
+        # if open_webserver_port = True
+        # 1. Set the webserver_port in the container env
+        # 2. Open the airflow webserver port
+        webserver_port: Optional[CreatePort] = None
+        if self.args.open_webserver_port:
+            # Set the webserver port in the container env
+            if container_env_cm.data is not None:
+                container_env_cm.data["AIRFLOW__WEBSERVER__WEB_SERVER_PORT"] = str(
+                    self.args.container_port
+                )
+            # Open the port
+            webserver_port = CreatePort(
+                name=self.args.webserver_port_name,
+                container_port=self.args.webserver_port,
+                service_port=self.get_ws_service_port(),
+                node_port=self.args.ws_node_port,
+                target_port=self.args.ws_target_port or self.args.webserver_port_name,
             )
+            ports.append(webserver_port)
+
+        # if open_worker_log_port = True
+        # 1. Set the worker_log_port in the container env
+        # 2. Open the worker_log_port
+        if self.args.open_worker_log_port:
+            # Set the worker_log_port in the container_env
             if container_env_cm.data is not None:
                 container_env_cm.data["AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT"] = str(
                     self.args.worker_log_port
                 )
+            # Open the port
+            worker_log_port = CreatePort(
+                name=self.args.worker_log_port_name,
+                container_port=self.args.worker_log_port,
+            )
             ports.append(worker_log_port)
 
+        # if open_flower_port = True
+        # 1. Set the flower_port in the container env
+        # 2. Open the flower_port
+        flower_port: Optional[CreatePort] = None
+        if self.args.open_flower_port:
+            # Set the flower_port in the container_env
+            if container_env_cm.data is not None:
+                container_env_cm.data["AIRFLOW__CELERY__FLOWER_PORT"] = str(
+                    self.args.flower_port
+                )
+            # Open the port
+            flower_port = CreatePort(
+                name=self.args.flower_port_name,
+                container_port=self.args.flower_port,
+                service_port=self.get_flower_service_port(),
+                target_port=self.args.flower_target_port or self.args.flower_port_name,
+            )
+            ports.append(flower_port)
+
+        container_labels: Optional[Dict[str, Any]] = self.args.container_labels
+        if k8s_build_context.labels is not None:
+            if container_labels:
+                container_labels.update(k8s_build_context.labels)
+            else:
+                container_labels = k8s_build_context.labels
         # Create the container
         k8s_container = CreateContainer(
             container_name=self.get_container_name(),
@@ -1069,7 +1260,7 @@ class AirflowBase(PhidataApp):
             else None,
             ports=ports if len(ports) > 0 else None,
             volumes=volumes if len(volumes) > 0 else None,
-            labels=k8s_build_context.labels,
+            labels=container_labels,
         )
         containers.append(k8s_container)
 
@@ -1079,6 +1270,12 @@ class AirflowBase(PhidataApp):
             "kubectl.kubernetes.io/default-container": k8s_container.container_name
         }
 
+        deploy_labels: Optional[Dict[str, Any]] = self.args.deploy_labels
+        if k8s_build_context.labels is not None:
+            if deploy_labels:
+                deploy_labels.update(k8s_build_context.labels)
+            else:
+                deploy_labels = k8s_build_context.labels
         # Create the deployment
         k8s_deployment = CreateDeployment(
             deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
@@ -1092,23 +1289,50 @@ class AirflowBase(PhidataApp):
             restart_policy=self.args.restart_policy,
             termination_grace_period_seconds=self.args.termination_grace_period_seconds,
             volumes=volumes if len(volumes) > 0 else None,
-            labels=k8s_build_context.labels,
+            labels=deploy_labels,
             pod_annotations=pod_annotations,
         )
 
-        # Create the service
-        k8s_service: Optional[CreateService] = None
-        if self.args.create_service:
-            k8s_service = CreateService(
-                service_name=self.get_service_name(),
+        # Create the services
+        if self.args.create_webserver_service:
+            ws_service_labels: Optional[Dict[str, Any]] = self.args.ws_service_labels
+            if k8s_build_context.labels is not None:
+                if ws_service_labels:
+                    ws_service_labels.update(k8s_build_context.labels)
+                else:
+                    ws_service_labels = k8s_build_context.labels
+            ws_service = CreateService(
+                service_name=self.get_ws_service_name(),
                 app_name=app_name,
                 namespace=k8s_build_context.namespace,
                 service_account_name=k8s_build_context.service_account_name,
-                service_type=self.args.service_type,
+                service_type=self.args.ws_service_type,
                 deployment=k8s_deployment,
-                ports=ports if len(ports) > 0 else None,
-                labels=k8s_build_context.labels,
+                ports=[webserver_port] if webserver_port else None,
+                labels=ws_service_labels,
             )
+            services.append(ws_service)
+
+        if self.args.create_flower_service:
+            flower_service_labels: Optional[
+                Dict[str, Any]
+            ] = self.args.flower_service_labels
+            if k8s_build_context.labels is not None:
+                if flower_service_labels:
+                    flower_service_labels.update(k8s_build_context.labels)
+                else:
+                    flower_service_labels = k8s_build_context.labels
+            flower_service = CreateService(
+                service_name=self.get_flower_service_name(),
+                app_name=app_name,
+                namespace=k8s_build_context.namespace,
+                service_account_name=k8s_build_context.service_account_name,
+                service_type=self.args.flower_service_type,
+                deployment=k8s_deployment,
+                ports=[flower_port] if flower_port else None,
+                labels=flower_service_labels,
+            )
+            services.append(flower_service)
 
         # Create the K8sResourceGroup
         k8s_resource_group = CreateK8sResourceGroup(
@@ -1116,7 +1340,7 @@ class AirflowBase(PhidataApp):
             enabled=self.args.enabled,
             config_maps=config_maps if len(config_maps) > 0 else None,
             secrets=secrets if len(secrets) > 0 else None,
-            services=[k8s_service] if k8s_service is not None else None,
+            services=services if len(services) > 0 else None,
             deployments=[k8s_deployment],
         )
 

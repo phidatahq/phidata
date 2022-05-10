@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from pathlib import Path
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Any
 from typing_extensions import Literal
 
 from phidata.app.db import DbApp
@@ -57,7 +57,7 @@ class DataboxArgs(PhidataAppArgs):
 
     # Image args
     image_name: str = "phidata/databox"
-    image_tag: str = "2.2.5"
+    image_tag: str = "2.3.0"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -79,11 +79,11 @@ class DataboxArgs(PhidataAppArgs):
 
     # Install python dependencies using a requirements.txt file
     install_requirements: bool = False
-    # Path to the requirements.txt file relative to the workspace root
+    # Path to the requirements.txt file relative to the workspace_root
     requirements_file_path: str = "requirements.txt"
 
-    # Only on DockerContainers, for K8sContainers use IamRole
     # Mount aws config on the container
+    # Only on DockerContainers, for K8sContainers use IamRole
     mount_aws_config: bool = False
     # Aws config dir on the host
     aws_config_path: Path = Path.home().resolve().joinpath(".aws")
@@ -101,8 +101,11 @@ class DataboxArgs(PhidataAppArgs):
 
     # Configure airflow
     # If init_airflow = True, this databox initializes airflow and
-    # add env var INIT_AIRFLOW = True which is required by phidata to build dags
+    # sets the env var INIT_AIRFLOW = True
+    # INIT_AIRFLOW = True is required by phidata to build dags
     init_airflow: bool = True
+    # The AIRFLOW_ENV defines the current airflow runtime and can be used by DAGs to separate dev vs prd code
+    airflow_env: Literal["dev", "stg", "prd"] = "dev"
     # If use_products_as_airflow_dags = True
     # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir
     use_products_as_airflow_dags: bool = True
@@ -165,6 +168,10 @@ class DataboxArgs(PhidataAppArgs):
     container_detach: bool = True
     container_auto_remove: bool = True
     container_remove: bool = True
+    # Overwrite the PYTHONPATH env var, which is usually set to the workspace_root_container_path
+    python_path: Optional[str] = None
+    # Add container labels
+    container_labels: Optional[Dict[str, Any]] = None
 
     # Add env variables to container env
     env: Optional[Dict[str, str]] = None
@@ -197,6 +204,8 @@ class DataboxArgs(PhidataAppArgs):
     pod_node_selector: Optional[Dict[str, str]] = None
     restart_policy: RestartPolicy = RestartPolicy.ALWAYS
     termination_grace_period_seconds: Optional[int] = None
+    # Add deployment labels
+    deploy_labels: Optional[Dict[str, Any]] = None
 
     # Other args
     load_examples: bool = False
@@ -205,7 +214,7 @@ class DataboxArgs(PhidataAppArgs):
     # Install phidata in development mode
     install_phidata_dev: bool = False
     phidata_volume_name: str = "databox-phidata-volume"
-    phidata_dir_path: Path = Path.home().joinpath("philab", "phidata")
+    phidata_dir_path: Path = Path.home().joinpath("lab", "phidata")
     phidata_dir_container_path: str = "/phidata"
 
 
@@ -237,7 +246,7 @@ class Databox(PhidataApp):
         git_sync_wait: int = 1,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
-        # Path to the requirements.txt file relative to the workspace root,
+        # Path to the requirements.txt file relative to the workspace_root
         requirements_file_path: str = "requirements.txt",
         # Only on DockerContainers, for K8sContainers use IamRole
         # Mount aws config on the container
@@ -246,18 +255,20 @@ class Databox(PhidataApp):
         aws_config_path: Path = Path.home().resolve().joinpath(".aws"),
         # Aws config dir on the container,
         aws_config_container_path: str = "/root/.aws",
-        # Only on DockerContainers,
-        # Mount airflow home from container to host machine,
-        # Useful when debugging the airflow conf,
+        # Mount aws config on the container
+        # Only on DockerContainers, for K8sContainers use IamRole
         mount_airflow_home: bool = False,
         # Path to the dir on host machine relative to the workspace root,
         airflow_home_dir: str = "airflow",
         # Path to airflow home on the container,
         airflow_home_container_path: str = "/usr/local/airflow",
         # Configure airflow,
-        # If init_airflow = True, this databox initializes airflow and,
-        # add env var INIT_AIRFLOW = True which is required by phidata to build dags,
+        # If init_airflow = True, this databox initializes airflow and
+        # sets the env var INIT_AIRFLOW = True
+        # INIT_AIRFLOW = True is required by phidata to build dags
         init_airflow: bool = True,
+        # The AIRFLOW_ENV defines the current airflow runtime and can be used by DAGs to separate dev vs prd code
+        airflow_env: Literal["dev", "stg", "prd"] = "dev",
         # If use_products_as_airflow_dags = True,
         # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir,
         use_products_as_airflow_dags: bool = True,
@@ -316,6 +327,10 @@ class Databox(PhidataApp):
         container_detach: bool = True,
         container_auto_remove: bool = True,
         container_remove: bool = True,
+        # Overwrite the PYTHONPATH env var, which is usually set to the workspace_root_container_path
+        python_path: Optional[str] = None,
+        # Add container labels
+        container_labels: Optional[Dict[str, Any]] = None,
         # Add env variables to container env,
         env: Optional[Dict[str, str]] = None,
         # Read env variables from a file in yaml format,
@@ -345,17 +360,17 @@ class Databox(PhidataApp):
         pod_node_selector: Optional[Dict[str, str]] = None,
         restart_policy: RestartPolicy = RestartPolicy.ALWAYS,
         termination_grace_period_seconds: Optional[int] = None,
+        # Add deployment labels
+        deploy_labels: Optional[Dict[str, Any]] = None,
         # Other args,
         load_examples: bool = False,
         print_env_on_load: bool = True,
         # Additional args
         # If True, skip resource creation if active resources with the same name exist.
         use_cache: bool = True,
-        # If True, log extra debug messages
-        use_verbose_logs: bool = False,
         install_phidata_dev: bool = False,
         phidata_volume_name: str = "devbox-phidata-volume",
-        phidata_dir_path: Path = Path.home().joinpath("philab", "phidata"),
+        phidata_dir_path: Path = Path.home().joinpath("lab", "phidata"),
         phidata_dir_container_path: str = "/phidata",
     ):
         super().__init__()
@@ -384,6 +399,7 @@ class Databox(PhidataApp):
                 airflow_home_dir=airflow_home_dir,
                 airflow_home_container_path=airflow_home_container_path,
                 init_airflow=init_airflow,
+                airflow_env=airflow_env,
                 use_products_as_airflow_dags=use_products_as_airflow_dags,
                 airflow_dags_path=airflow_dags_path,
                 create_airflow_admin_user=create_airflow_admin_user,
@@ -408,6 +424,8 @@ class Databox(PhidataApp):
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
                 container_remove=container_remove,
+                python_path=python_path,
+                container_labels=container_labels,
                 env=env,
                 env_file=env_file,
                 config_map_name=config_map_name,
@@ -420,10 +438,10 @@ class Databox(PhidataApp):
                 pod_node_selector=pod_node_selector,
                 restart_policy=restart_policy,
                 termination_grace_period_seconds=termination_grace_period_seconds,
+                deploy_labels=deploy_labels,
                 load_examples=load_examples,
                 print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
-                use_verbose_logs=use_verbose_logs,
                 install_phidata_dev=install_phidata_dev,
                 phidata_volume_name=phidata_volume_name,
                 phidata_dir_path=phidata_dir_path,
@@ -531,6 +549,7 @@ class Databox(PhidataApp):
 
         airflow_env: Dict[str, str] = {
             "INIT_AIRFLOW": str(self.args.init_airflow),
+            "AIRFLOW_ENV": self.args.airflow_env,
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "WAIT_FOR_AIRFLOW_DB": str(self.args.wait_for_airflow_db),
             "AIRFLOW_DB_USER": str(airflow_db_user),
@@ -641,12 +660,15 @@ class Databox(PhidataApp):
             else None
         )
 
+        # Container pythonpath
+        python_path = self.args.python_path or str(workspace_root_container_path)
+
         # Container Environment
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": str(workspace_root_container_path),
+            "PYTHONPATH": python_path,
             PHIDATA_RUNTIME_ENV_VAR: "airflow",
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
@@ -747,11 +769,11 @@ class Databox(PhidataApp):
             remove=self.args.container_remove,
             stdin_open=True,
             tty=True,
+            labels=self.args.container_labels,
             environment=container_env,
             network=docker_build_context.network,
             volumes=container_volumes,
             use_cache=self.args.use_cache,
-            use_verbose_logs=self.args.use_verbose_logs,
         )
         # Initialize airflow on container
         self.init_airflow_on_docker_container(docker_container)
@@ -835,6 +857,7 @@ class Databox(PhidataApp):
 
         airflow_env: Dict[str, str] = {
             "INIT_AIRFLOW": str(self.args.init_airflow),
+            "AIRFLOW_ENV": self.args.airflow_env,
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "WAIT_FOR_AIRFLOW_DB": str(self.args.wait_for_airflow_db),
             "AIRFLOW_DB_USER": str(airflow_db_user),
@@ -955,12 +978,15 @@ class Databox(PhidataApp):
             else None
         )
 
+        # Container pythonpath
+        python_path = self.args.python_path or str(workspace_root_container_path)
+
         # Container Environment
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": str(workspace_root_container_path),
+            "PYTHONPATH": python_path,
             PHIDATA_RUNTIME_ENV_VAR: "airflow",
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
@@ -1040,6 +1066,12 @@ class Databox(PhidataApp):
                     )
                     containers.append(git_sync_sidecar)
 
+        container_labels: Optional[Dict[str, Any]] = self.args.container_labels
+        if k8s_build_context.labels is not None:
+            if container_labels:
+                container_labels.update(k8s_build_context.labels)
+            else:
+                container_labels = k8s_build_context.labels
         # Create the container
         k8s_container = CreateContainer(
             container_name=self.get_container_name(),
@@ -1060,7 +1092,7 @@ class Databox(PhidataApp):
             if len(secrets) > 0
             else None,
             volumes=volumes if len(volumes) > 0 else None,
-            labels=k8s_build_context.labels,
+            labels=container_labels,
         )
         containers.append(k8s_container)
 
@@ -1070,6 +1102,12 @@ class Databox(PhidataApp):
             "kubectl.kubernetes.io/default-container": k8s_container.container_name
         }
 
+        deploy_labels: Optional[Dict[str, Any]] = self.args.deploy_labels
+        if k8s_build_context.labels is not None:
+            if deploy_labels:
+                deploy_labels.update(k8s_build_context.labels)
+            else:
+                deploy_labels = k8s_build_context.labels
         # Create the deployment
         k8s_deployment = CreateDeployment(
             deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
@@ -1083,7 +1121,7 @@ class Databox(PhidataApp):
             restart_policy=self.args.restart_policy,
             termination_grace_period_seconds=self.args.termination_grace_period_seconds,
             volumes=volumes if len(volumes) > 0 else None,
-            labels=k8s_build_context.labels,
+            labels=deploy_labels,
             pod_annotations=pod_annotations,
         )
 

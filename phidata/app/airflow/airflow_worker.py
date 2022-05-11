@@ -74,6 +74,8 @@ class AirflowWorker(AirflowBase):
         # If init_airflow_db = True, initialize the airflow_db,
         init_airflow_db: bool = False,
         wait_for_db: bool = True,
+        # wait for db to be initialized, used by scheduler & workers when running for the first time
+        wait_for_db_init: bool = False,
         # Connect to database using DbApp,
         db_app: Optional[DbApp] = None,
         # Connect to database manually,
@@ -175,6 +177,7 @@ class AirflowWorker(AirflowBase):
             executor=executor,
             init_airflow_db=init_airflow_db,
             wait_for_db=wait_for_db,
+            wait_for_db_init=wait_for_db_init,
             db_app=db_app,
             db_user=db_user,
             db_password=db_password,

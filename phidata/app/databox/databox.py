@@ -145,21 +145,34 @@ class DataboxArgs(PhidataAppArgs):
     # converted to env var: AIRFLOW_CONN__conn_id = conn_url
     db_connections: Optional[Dict] = None
 
+    # Start airflow standalone
+    start_airflow_standalone: bool = False
+    # Open the airflow_standalone_container_port on the container
+    # if start_airflow_standalone=True
+    airflow_standalone_container_port: int = 8080
+    # standalone port on the host machine
+    airflow_standalone_host_port: int = 8080
+    # standalone port name on K8sContainer
+    airflow_standalone_port_name: str = "standalone"
+
     # Configure airflow scheduler
     # Init Airflow scheduler as a daemon process
+    # DEPRECATED: use start_airflow_standalone
     init_airflow_scheduler: bool = False
 
     # Configure airflow webserver
     # Init Airflow webserver when the container starts
+    # DEPRECATED: use start_airflow_standalone
     init_airflow_webserver: bool = False
-    # Open the port if init_airflow_webserver=True
-    # webserver port on the container
-    # also used to set AIRFLOW__WEBSERVER__WEB_SERVER_PORT
+
+    # Open the airflow_webserver_container_port on the container
+    # if init_airflow_webserver=True
+    # This is also used to set AIRFLOW__WEBSERVER__WEB_SERVER_PORT
     airflow_webserver_container_port: int = 7080
     # webserver port on the host machine
     airflow_webserver_host_port: int = 8080
     # webserver port name on K8sContainer
-    airflow_webserver_port_name: str = "http"
+    airflow_webserver_port_name: str = "webserver"
 
     # Configure the container
     container_name: Optional[str] = None
@@ -226,7 +239,7 @@ class Databox(PhidataApp):
         enabled: bool = True,
         # Image args,
         image_name: str = "phidata/databox",
-        image_tag: str = "2.2.5",
+        image_tag: str = "2.3.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Mount the workspace directory on the container,
@@ -306,20 +319,31 @@ class Databox(PhidataApp):
         # Airflow db connections in the format { conn_id: conn_url },
         # converted to env var: AIRFLOW_CONN__conn_id = conn_url,
         db_connections: Optional[Dict] = None,
+        # Start airflow standalone
+        start_airflow_standalone: bool = False,
+        # Open the airflow_standalone_container_port on the container
+        # if start_airflow_standalone=True
+        airflow_standalone_container_port: int = 8080,
+        # standalone port on the host machine
+        airflow_standalone_host_port: int = 8080,
+        # standalone port name on K8sContainer
+        airflow_standalone_port_name: str = "standalone",
         # Configure airflow scheduler,
         # Init Airflow scheduler as a daemon process,
+        # DEPRECATED: use start_airflow_standalone
         init_airflow_scheduler: bool = False,
         # Configure airflow webserver,
         # Init Airflow webserver when the container starts,
+        # DEPRECATED: use start_airflow_standalone
         init_airflow_webserver: bool = False,
-        # Open the port if init_airflow_webserver=True
-        # webserver port on the container
-        # also used to set AIRFLOW__WEBSERVER__WEB_SERVER_PORT
+        # Open the airflow_webserver_container_port on the container
+        # if init_airflow_webserver=True
+        # This is also used to set AIRFLOW__WEBSERVER__WEB_SERVER_PORT
         airflow_webserver_container_port: int = 7080,
         # webserver port on the host machine,
         airflow_webserver_host_port: int = 8080,
         # webserver port name on K8sContainer,
-        airflow_webserver_port_name: str = "http",
+        airflow_webserver_port_name: str = "webserver",
         # Configure the container,
         container_name: Optional[str] = None,
         image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,
@@ -414,6 +438,10 @@ class Databox(PhidataApp):
                 airflow_db_port=airflow_db_port,
                 airflow_db_driver=airflow_db_driver,
                 db_connections=db_connections,
+                start_airflow_standalone=start_airflow_standalone,
+                airflow_standalone_container_port=airflow_standalone_container_port,
+                airflow_standalone_host_port=airflow_standalone_host_port,
+                airflow_standalone_port_name=airflow_standalone_port_name,
                 init_airflow_scheduler=init_airflow_scheduler,
                 init_airflow_webserver=init_airflow_webserver,
                 airflow_webserver_container_port=airflow_webserver_container_port,
@@ -559,15 +587,16 @@ class Databox(PhidataApp):
             "AIRFLOW_DB_PORT": str(airflow_db_port),
             "INIT_AIRFLOW_SCHEDULER": str(self.args.init_airflow_scheduler),
             "INIT_AIRFLOW_WEBSERVER": str(self.args.init_airflow_webserver),
+            "INIT_AIRFLOW_STANDALONE": str(self.args.start_airflow_standalone),
             "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
             "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
             "AIRFLOW__CORE__EXECUTOR": str(self.args.airflow_executor),
         }
 
-        # Set the AIRFLOW__CORE__SQL_ALCHEMY_CONN
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__CORE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            airflow_env["AIRFLOW__CORE__SQL_ALCHEMY_CONN"] = db_connection_url
+            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            airflow_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
         if self.args.mount_workspace and self.args.use_products_as_airflow_dags:
@@ -602,6 +631,19 @@ class Databox(PhidataApp):
             if container.ports is None:
                 container.ports = {}
             container.ports.update(ws_port)
+
+        # if start_airflow_standalone = True
+        # 1. Open the airflow standalone port
+        if self.args.start_airflow_standalone:
+            # Open the port
+            standalone_port: Dict[str, int] = {
+                str(
+                    self.args.airflow_standalone_container_port
+                ): self.args.airflow_standalone_host_port,
+            }
+            if container.ports is None:
+                container.ports = {}
+            container.ports.update(standalone_port)
 
         # Update the container.environment to include airflow_env
         if isinstance(container.environment, dict):
@@ -867,15 +909,17 @@ class Databox(PhidataApp):
             "AIRFLOW_DB_PORT": str(airflow_db_port),
             "INIT_AIRFLOW_SCHEDULER": str(self.args.init_airflow_scheduler),
             "INIT_AIRFLOW_WEBSERVER": str(self.args.init_airflow_webserver),
+            "INIT_AIRFLOW_STANDALONE": str(self.args.start_airflow_standalone),
             "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
             "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
             "AIRFLOW__CORE__EXECUTOR": str(self.args.airflow_executor),
         }
 
-        # Set the AIRFLOW__CORE__SQL_ALCHEMY_CONN
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__CORE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            airflow_env["AIRFLOW__CORE__SQL_ALCHEMY_CONN"] = db_connection_url
+            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            airflow_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
+            # TODO: use AIRFLOW__CORE__SQL_ALCHEMY_CONN for older versions
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
         if self.args.mount_workspace and self.args.use_products_as_airflow_dags:
@@ -909,6 +953,18 @@ class Databox(PhidataApp):
             if container.ports is None:
                 container.ports = []
             container.ports.append(ws_port)
+
+        # if start_airflow_standalone = True
+        # 1. Open the airflow standalone port
+        if self.args.start_airflow_standalone:
+            # Open the port
+            standalone_port = CreatePort(
+                name=self.args.airflow_standalone_port_name,
+                container_port=self.args.airflow_standalone_container_port,
+            )
+            if container.ports is None:
+                container.ports = []
+            container.ports.append(standalone_port)
 
         airflow_env_cm = CreateConfigMap(
             cm_name=get_default_configmap_name("databox-airflow"),

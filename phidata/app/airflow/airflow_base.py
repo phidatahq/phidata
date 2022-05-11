@@ -115,6 +115,8 @@ class AirflowBaseArgs(PhidataAppArgs):
     # If init_airflow_db = True, initialize the airflow_db
     init_airflow_db: bool = False
     wait_for_db: bool = False
+    # wait for db to be initialized, used by scheduler & workers when running for the first time
+    wait_for_db_init: bool = False
     # Connect to database using DbApp
     db_app: Optional[DbApp] = None
     # Connect to database manually
@@ -304,6 +306,8 @@ class AirflowBase(PhidataApp):
         # If init_airflow_db = True, initialize the airflow_db
         init_airflow_db: bool = False,
         wait_for_db: bool = False,
+        # wait for db to be initialized, used by scheduler & workers when running for the first time
+        wait_for_db_init: bool = False,
         # Connect to database using DbApp
         db_app: Optional[DbApp] = None,
         # Connect to database manually
@@ -452,6 +456,7 @@ class AirflowBase(PhidataApp):
                 executor=executor,
                 init_airflow_db=init_airflow_db,
                 wait_for_db=wait_for_db,
+                wait_for_db_init=wait_for_db_init,
                 db_app=db_app,
                 db_user=db_user,
                 db_password=db_password,
@@ -679,6 +684,7 @@ class AirflowBase(PhidataApp):
             "INIT_AIRFLOW": str(True),
             "AIRFLOW_ENV": self.args.airflow_env,
             "WAIT_FOR_DB": str(self.args.wait_for_db),
+            "WAIT_FOR_DB_INIT": str(self.args.wait_for_db_init),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "DB_USER": str(db_user),
             "DB_PASSWORD": str(db_password),
@@ -691,10 +697,10 @@ class AirflowBase(PhidataApp):
             "AIRFLOW__CORE__EXECUTOR": str(self.args.executor),
         }
 
-        # Set the AIRFLOW__CORE__SQL_ALCHEMY_CONN
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__CORE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            container_env["AIRFLOW__CORE__SQL_ALCHEMY_CONN"] = db_connection_url
+            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            container_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
         if self.args.mount_workspace and self.args.use_products_as_airflow_dags:
@@ -1013,6 +1019,7 @@ class AirflowBase(PhidataApp):
             "INIT_AIRFLOW": str(True),
             "AIRFLOW_ENV": self.args.airflow_env,
             "WAIT_FOR_DB": str(self.args.wait_for_db),
+            "WAIT_FOR_DB_INIT": str(self.args.wait_for_db_init),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "DB_USER": str(db_user),
             "DB_PASSWORD": str(db_password),
@@ -1025,10 +1032,10 @@ class AirflowBase(PhidataApp):
             "AIRFLOW__CORE__EXECUTOR": str(self.args.executor),
         }
 
-        # Set the AIRFLOW__CORE__SQL_ALCHEMY_CONN
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__CORE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            container_env["AIRFLOW__CORE__SQL_ALCHEMY_CONN"] = db_connection_url
+            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            container_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
         if self.args.mount_workspace and self.args.use_products_as_airflow_dags:

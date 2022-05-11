@@ -83,12 +83,14 @@ class DockerImage(DockerResource):
 
         print_info(f"Building image: {self.get_name_tag()}")
         nocache = not self.use_cache
+        pull = (not self.use_cache) or self.pull
         if self.path is not None:
             print_info(f"\t  path: {self.path}")
         if self.dockerfile is not None:
             print_info(f"    dockerfile: {self.dockerfile}")
         logger.debug(f"platform: {self.platform}")
         logger.debug(f"nocache: {nocache}")
+        logger.debug(f"pull: {pull}")
         try:
             build_stream = docker_client.api_client.api.build(
                 tag=self.get_name_tag(),
@@ -98,7 +100,7 @@ class DockerImage(DockerResource):
                 rm=self.rm,
                 forcerm=self.forcerm,
                 timeout=self.timeout,
-                pull=self.pull,
+                pull=pull,
                 buildargs=self.buildargs,
                 container_limits=self.container_limits,
                 shmsize=self.shmsize,

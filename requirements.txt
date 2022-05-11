@@ -5,8 +5,8 @@
 #    ./scripts/update_dependencies.sh
 #
 anyio==3.5.0
-boto3==1.22.8
-botocore==1.25.8
+boto3==1.22.12
+botocore==1.25.12
 cachetools==5.0.0
 certifi==2021.10.8
 charset-normalizer==2.0.12
@@ -21,19 +21,21 @@ httpcore==0.14.7
 httpx==0.22.0
 idna==3.3
 jmespath==1.0.0
-kubernetes==23.3.0
+kubernetes==23.6.0
 oauthlib==3.2.0
-phiterm==0.1.42
+packaging==21.3
+phiterm==0.1.43
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pydantic==1.9.0
 pygments==2.12.0
+pyparsing==3.0.9
 python-dateutil==2.8.2
 pyyaml==6.0
 requests==2.27.1
 requests-oauthlib==1.3.1
 rfc3986[idna2008]==1.5.0
-rich==12.3.0
+rich==12.4.1
 rsa==4.8
 s3transfer==0.5.2
 six==1.16.0

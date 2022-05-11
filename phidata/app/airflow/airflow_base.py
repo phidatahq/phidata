@@ -114,8 +114,10 @@ class AirflowBaseArgs(PhidataAppArgs):
     # Configure airflow db
     # If init_airflow_db = True, initialize the airflow_db
     init_airflow_db: bool = False
+    # Upgrade the airflow db
+    upgrade_airflow_db: bool = False
     wait_for_db: bool = False
-    # wait for db to be initialized, used by scheduler & workers when running for the first time
+    # delay start by 60 seconds for the db to be initialized
     wait_for_db_init: bool = False
     # Connect to database using DbApp
     db_app: Optional[DbApp] = None
@@ -152,6 +154,19 @@ class AirflowBaseArgs(PhidataAppArgs):
     python_path: Optional[str] = None
     # Add container labels
     container_labels: Optional[Dict[str, Any]] = None
+    # NOTE: Available only for Docker
+    # Add volumes to DockerContainer
+    # container_volumes is a dictionary which adds the volumes to mount
+    # inside the container. The key is either the host path or a volume name,
+    # and the value is a dictionary with 2 keys:
+    #   bind - The path to mount the volume inside the container
+    #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
+    # For example:
+    # {
+    #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
+    #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
+    # }
+    container_volumes: Optional[Dict[str, dict]] = None
 
     # Open a container port if open_container_port=True
     open_container_port: bool = False
@@ -305,8 +320,10 @@ class AirflowBase(PhidataApp):
         # Configure airflow db
         # If init_airflow_db = True, initialize the airflow_db
         init_airflow_db: bool = False,
+        # Upgrade the airflow db
+        upgrade_airflow_db: bool = False,
         wait_for_db: bool = False,
-        # wait for db to be initialized, used by scheduler & workers when running for the first time
+        # delay start by 60 seconds for the db to be initialized
         wait_for_db_init: bool = False,
         # Connect to database using DbApp
         db_app: Optional[DbApp] = None,
@@ -341,6 +358,18 @@ class AirflowBase(PhidataApp):
         python_path: Optional[str] = None,
         # Add container labels
         container_labels: Optional[Dict[str, Any]] = None,
+        # NOTE: Available only for Docker
+        # container_volumes is a dictionary which adds the volumes to mount
+        # inside the container. The key is either the host path or a volume name,
+        # and the value is a dictionary with 2 keys:
+        #   bind - The path to mount the volume inside the container
+        #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
+        # For example:
+        # {
+        #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
+        #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
+        # }
+        container_volumes: Optional[Dict[str, dict]] = None,
         # Open a container port if open_container_port=True
         open_container_port: bool = False,
         # Port number on the container
@@ -455,6 +484,7 @@ class AirflowBase(PhidataApp):
                 create_airflow_admin_user=create_airflow_admin_user,
                 executor=executor,
                 init_airflow_db=init_airflow_db,
+                upgrade_airflow_db=upgrade_airflow_db,
                 wait_for_db=wait_for_db,
                 wait_for_db_init=wait_for_db_init,
                 db_app=db_app,
@@ -480,6 +510,7 @@ class AirflowBase(PhidataApp):
                 container_remove=container_remove,
                 python_path=python_path,
                 container_labels=container_labels,
+                container_volumes=container_volumes,
                 open_container_port=open_container_port,
                 container_port=container_port,
                 container_port_name=container_port_name,
@@ -686,6 +717,7 @@ class AirflowBase(PhidataApp):
             "WAIT_FOR_DB": str(self.args.wait_for_db),
             "WAIT_FOR_DB_INIT": str(self.args.wait_for_db_init),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
+            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
             "DB_USER": str(db_user),
             "DB_PASSWORD": str(db_password),
             "DB_SCHEMA": str(db_schema),
@@ -793,7 +825,7 @@ class AirflowBase(PhidataApp):
         #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
         #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
         # }
-        container_volumes = {}
+        container_volumes = self.args.container_volumes or {}
         # Create a volume for the workspace dir
         if self.args.mount_workspace:
             workspace_root_path_str = str(self.workspace_root_path)
@@ -1021,6 +1053,7 @@ class AirflowBase(PhidataApp):
             "WAIT_FOR_DB": str(self.args.wait_for_db),
             "WAIT_FOR_DB_INIT": str(self.args.wait_for_db_init),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
+            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
             "DB_USER": str(db_user),
             "DB_PASSWORD": str(db_password),
             "DB_SCHEMA": str(db_schema),

@@ -72,7 +72,7 @@ class AirflowFlower(AirflowBase):
         # If init_airflow_db = True, initialize the airflow_db,
         init_airflow_db: bool = False,
         wait_for_db: bool = True,
-        # wait for db to be initialized, used by scheduler & workers when running for the first time
+        # delay start by 60 seconds for the db to be initialized
         wait_for_db_init: bool = False,
         # Connect to database using DbApp,
         db_app: Optional[DbApp] = None,
@@ -107,6 +107,18 @@ class AirflowFlower(AirflowBase):
         python_path: Optional[str] = None,
         # Add container labels
         container_labels: Optional[Dict[str, Any]] = None,
+        # NOTE: Available only for Docker
+        # container_volumes is a dictionary which adds the volumes to mount
+        # inside the container. The key is either the host path or a volume name,
+        # and the value is a dictionary with 2 keys:
+        #   bind - The path to mount the volume inside the container
+        #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
+        # For example:
+        # {
+        #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
+        #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
+        # }
+        container_volumes: Optional[Dict[str, dict]] = None,
         # Open the flower port if open_flower_port=True
         open_flower_port: bool = True,
         # Flower port number on the container
@@ -204,6 +216,7 @@ class AirflowFlower(AirflowBase):
             container_remove=container_remove,
             python_path=python_path,
             container_labels=container_labels,
+            container_volumes=container_volumes,
             open_flower_port=open_flower_port,
             flower_port=flower_port,
             flower_port_name=flower_port_name,

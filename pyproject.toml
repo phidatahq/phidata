@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "0.1.45"
+version = "0.1.47"
 description = "Build data products as code"
 requires-python = ">3.7"
 readme = "README.md"
@@ -13,6 +13,7 @@ dependencies = [
   "docker",
   "kubernetes",
   "phiterm>=0.1.42",
+  "packaging",
   "pydantic",
   "pyyaml",
   "rich",

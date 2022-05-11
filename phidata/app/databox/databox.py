@@ -131,6 +131,8 @@ class DataboxArgs(PhidataAppArgs):
     #   Locally, airflow_db uses sqllite
     # If using the databox with an external Airflow db, set init_airflow_db = False
     init_airflow_db: Optional[bool] = None
+    # Upgrade the airflow db
+    upgrade_airflow_db: bool = False
     wait_for_airflow_db: bool = False
     # Connect to database using DbApp
     airflow_db_app: Optional[DbApp] = None
@@ -185,18 +187,7 @@ class DataboxArgs(PhidataAppArgs):
     python_path: Optional[str] = None
     # Add container labels
     container_labels: Optional[Dict[str, Any]] = None
-
-    # Add env variables to container env
-    env: Optional[Dict[str, str]] = None
-    # Read env variables from a file in yaml format
-    env_file: Optional[Path] = None
-    # Configure the ConfigMap used for env variables that are not Secret
-    config_map_name: Optional[str] = None
-    # Configure the Secret used for env variables that are Secret
-    secret_name: Optional[str] = None
-    # Read secrets from a file in yaml format
-    secrets_file: Optional[Path] = None
-
+    # NOTE: Available only for Docker
     # Add volumes to DockerContainer
     # container_volumes is a dictionary which configures the volumes to mount
     # inside the container. The key is either the host path or a volume name,
@@ -209,6 +200,17 @@ class DataboxArgs(PhidataAppArgs):
     #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
     # }
     container_volumes: Optional[Dict[str, dict]] = None
+
+    # Add env variables to container env
+    env: Optional[Dict[str, str]] = None
+    # Read env variables from a file in yaml format
+    env_file: Optional[Path] = None
+    # Configure the ConfigMap used for env variables that are not Secret
+    config_map_name: Optional[str] = None
+    # Configure the Secret used for env variables that are Secret
+    secret_name: Optional[str] = None
+    # Read secrets from a file in yaml format
+    secrets_file: Optional[Path] = None
 
     # Configure the databox deploy
     deploy_name: Optional[str] = None
@@ -306,6 +308,8 @@ class Databox(PhidataApp):
         #   Locally, airflow_db uses sqllite,
         # If using the databox with an external Airflow db, set init_airflow_db = False,
         init_airflow_db: Optional[bool] = None,
+        # Upgrade the airflow db
+        upgrade_airflow_db: bool = False,
         wait_for_airflow_db: bool = False,
         # Connect to database using DbApp,
         airflow_db_app: Optional[DbApp] = None,
@@ -355,16 +359,7 @@ class Databox(PhidataApp):
         python_path: Optional[str] = None,
         # Add container labels
         container_labels: Optional[Dict[str, Any]] = None,
-        # Add env variables to container env,
-        env: Optional[Dict[str, str]] = None,
-        # Read env variables from a file in yaml format,
-        env_file: Optional[Path] = None,
-        # Configure the ConfigMap used for env variables that are not Secret,
-        config_map_name: Optional[str] = None,
-        # Configure the Secret used for env variables that are Secret,
-        secret_name: Optional[str] = None,
-        # Read secrets from a file in yaml format,
-        secrets_file: Optional[Path] = None,
+        # NOTE: Available only for Docker
         # Add volumes to DockerContainer
         # container_volumes is a dictionary which configures the volumes to mount
         # inside the container. The key is either the host path or a volume name,
@@ -377,6 +372,16 @@ class Databox(PhidataApp):
         #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
         # }
         container_volumes: Optional[Dict[str, dict]] = None,
+        # Add env variables to container env,
+        env: Optional[Dict[str, str]] = None,
+        # Read env variables from a file in yaml format,
+        env_file: Optional[Path] = None,
+        # Configure the ConfigMap used for env variables that are not Secret,
+        config_map_name: Optional[str] = None,
+        # Configure the Secret used for env variables that are Secret,
+        secret_name: Optional[str] = None,
+        # Read secrets from a file in yaml format,
+        secrets_file: Optional[Path] = None,
         # Configure the databox deploy,
         deploy_name: Optional[str] = None,
         pod_name: Optional[str] = None,
@@ -429,6 +434,7 @@ class Databox(PhidataApp):
                 create_airflow_admin_user=create_airflow_admin_user,
                 airflow_executor=airflow_executor,
                 init_airflow_db=init_airflow_db,
+                upgrade_airflow_db=upgrade_airflow_db,
                 wait_for_airflow_db=wait_for_airflow_db,
                 airflow_db_app=airflow_db_app,
                 airflow_db_user=airflow_db_user,
@@ -454,12 +460,12 @@ class Databox(PhidataApp):
                 container_remove=container_remove,
                 python_path=python_path,
                 container_labels=container_labels,
+                container_volumes=container_volumes,
                 env=env,
                 env_file=env_file,
                 config_map_name=config_map_name,
                 secret_name=secret_name,
                 secrets_file=secrets_file,
-                container_volumes=container_volumes,
                 deploy_name=deploy_name,
                 pod_name=pod_name,
                 replicas=replicas,
@@ -579,6 +585,7 @@ class Databox(PhidataApp):
             "INIT_AIRFLOW": str(self.args.init_airflow),
             "AIRFLOW_ENV": self.args.airflow_env,
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
+            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
             "WAIT_FOR_AIRFLOW_DB": str(self.args.wait_for_airflow_db),
             "AIRFLOW_DB_USER": str(airflow_db_user),
             "AIRFLOW_DB_PASSWORD": str(airflow_db_password),
@@ -901,6 +908,7 @@ class Databox(PhidataApp):
             "INIT_AIRFLOW": str(self.args.init_airflow),
             "AIRFLOW_ENV": self.args.airflow_env,
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
+            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
             "WAIT_FOR_AIRFLOW_DB": str(self.args.wait_for_airflow_db),
             "AIRFLOW_DB_USER": str(airflow_db_user),
             "AIRFLOW_DB_PASSWORD": str(airflow_db_password),

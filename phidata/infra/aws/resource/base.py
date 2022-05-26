@@ -104,7 +104,7 @@ class AwsResource(AwsObject):
         if self.use_cache and self.is_active(client):
             self.resource_available = True
             print_info(
-                f"{self.get_resource_type()}: {self.get_resource_name()} available"
+                f"{self.get_resource_type()}: {self.get_resource_name()} already active."
             )
         else:
             self.resource_available = self._create(client)
@@ -159,7 +159,7 @@ class AwsResource(AwsObject):
             self.resource_updated = self._update(client)
         else:
             print_info(
-                f"{self.get_resource_type()}: {self.get_resource_name()} not active."
+                f"{self.get_resource_type()}: {self.get_resource_name()} does not exist."
             )
             return True
         if self.resource_updated:
@@ -195,7 +195,7 @@ class AwsResource(AwsObject):
             self.resource_deleted = self._delete(client)
         else:
             print_info(
-                f"{self.get_resource_type()}: {self.get_resource_name()} not active."
+                f"{self.get_resource_type()}: {self.get_resource_name()} does not exist."
             )
             return True
         if self.resource_deleted:

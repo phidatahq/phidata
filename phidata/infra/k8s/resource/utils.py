@@ -51,7 +51,7 @@ def get_k8s_resources_from_group(
     type_filter: Optional[str] = None,
 ) -> Optional[List[K8sResource]]:
     """Parses the K8sResourceGroup and returns an array of K8sResources
-    after applying the the name & type filters. This function also flattens any
+    after applying the name & type filters. This function also flattens any
     List[K8sResource] attributes. Eg: it will flatten pvc, cm, secret and
     storage_class resources.
 
@@ -202,8 +202,6 @@ def filter_and_flatten_k8s_resource_groups(
         List[K8sResource]: List of filtered K8s Resources
     """
 
-    # The list of K8sResources that will be returned
-    filtered_k8s_resources: List[K8sResource] = []
     logger.debug("Flattening K8sResourceGroups")
 
     # Step 1: Create k8s_resource_list_with_weight
@@ -217,21 +215,16 @@ def filter_and_flatten_k8s_resource_groups(
             # logger.debug("k8s_rg_name: {}".format(k8s_rg_name))
             # logger.debug("k8s_rg: {}".format(k8s_rg))
 
-            # If name_filters are provided then filter out K8sResourceGroups
-            # that are not in the name_filters
-            if name_filter is not None:
-                if name_filter not in k8s_rg_name:
-                    logger.debug("Group {} filtered out".format(k8s_rg_name))
-                    continue
+            # skip disabled DockerResourceGroups
+            if not k8s_rg.enabled:
+                continue
 
-            # Only process enabled K8sResourceGroup
-            if k8s_rg.enabled:
-                # If type_filter are provided the only get resources matching type_filter
-                # logger.debug("App: {}".format(k8s_rg_name))
-                k8s_resources = get_k8s_resources_from_group(k8s_rg, type_filter)
-                if k8s_resources:
-                    for _k8s_rsrc in k8s_resources:
-                        k8s_resource_list_with_weight.append((_k8s_rsrc, k8s_rg.weight))
+            k8s_resources = get_k8s_resources_from_group(
+                k8s_rg, name_filter, type_filter
+            )
+            if k8s_resources:
+                for _k8s_rsrc in k8s_resources:
+                    k8s_resource_list_with_weight.append((_k8s_rsrc, k8s_rg.weight))
 
     # Sort the resources in install order
     if sort_order == "create":
@@ -260,6 +253,6 @@ def filter_and_flatten_k8s_resource_groups(
     # )
 
     # drop the weight from the deduped_k8s_resources tuple
-    filtered_k8s_resources = [x[0] for x in deduped_k8s_resources]
+    filtered_k8s_resources: List[K8sResource] = [x[0] for x in deduped_k8s_resources]
     # logger.debug("filtered_k8s_resources: {}".format(filtered_k8s_resources))
     return filtered_k8s_resources

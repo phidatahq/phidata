@@ -60,7 +60,7 @@ class RoleRef(K8sObject):
     resource_type: str = "RoleRef"
 
     # APIGroup is the group for the resource being referenced
-    api_group: ApiGroup = Field(..., alias="apiGroups")
+    api_group: ApiGroup = Field(..., alias="apiGroup")
     # Kind is the type of resource being referenced
     kind: Kind
     # Name is the name of resource being referenced

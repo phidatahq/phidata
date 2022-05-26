@@ -49,6 +49,15 @@ class K8sResource(K8sObject):
     # This should be defined by the Subclass
     fields_for_k8s_manifest: List[str] = []
 
+    # Used for running post-create, post-update and post-delete steps
+    resource_available: bool = False
+    resource_updated: bool = False
+    resource_deleted: bool = False
+
+    def is_valid(self) -> bool:
+        # SubResources can use this function to add validation checks
+        return True
+
     def get_namespace(self) -> str:
         if self.metadata and self.metadata.namespace:
             return self.metadata.namespace
@@ -72,7 +81,7 @@ class K8sResource(K8sObject):
     def get_resource_name(self) -> str:
         if self.name:
             return self.name
-        return self.metadata.name
+        return self.metadata.name or self.__class__.__name__
 
     @staticmethod
     def get_from_cluster(
@@ -97,12 +106,23 @@ class K8sResource(K8sObject):
         Args:
             k8s_client: The K8sApiClient for the current Cluster
         """
+        if not self.is_valid():
+            return False
         if self.use_cache and self.is_active_on_cluster(k8s_client):
+            self.resource_available = True
             print_info(
                 f"{self.get_resource_type()} {self.get_resource_name()} already active."
             )
             return True
-        return self._create(k8s_client)
+        else:
+            self.resource_available = self._create(k8s_client)
+        if self.resource_available:
+            return self.post_create(k8s_client)
+        return self.resource_available
+
+    def post_create(self, k8s_client: K8sApiClient) -> bool:
+        # return True because this function is not used for most resources
+        return True
 
     def _read(self, k8s_client: K8sApiClient) -> Any:
         logger.error(f"@_read method not defined for {self.__class__.__name__}")
@@ -117,6 +137,8 @@ class K8sResource(K8sObject):
         Args:
             k8s_client: The K8sApiClient for the current Cluster
         """
+        if not self.is_valid():
+            return None
         if self.use_cache and self.active_resource is not None:
             return self.active_resource
         return self._read(k8s_client)
@@ -131,13 +153,22 @@ class K8sResource(K8sObject):
         Args:
             k8s_client: The K8sApiClient for the current Cluster
         """
+        if not self.is_valid():
+            return False
         if self.is_active_on_cluster(k8s_client):
-            return self._update(k8s_client)
+            self.resource_updated = self._update(k8s_client)
         else:
             print_info(
-                f"{self.get_resource_type()} {self.get_resource_name()} not active."
+                f"{self.get_resource_type()} {self.get_resource_name()} does not exist."
             )
             return True
+        if self.resource_updated:
+            return self.post_update(k8s_client)
+        return self.resource_updated
+
+    def post_update(self, k8s_client: K8sApiClient) -> bool:
+        # return True because this function is not used for most resources
+        return True
 
     def _delete(self, k8s_client: K8sApiClient) -> Any:
         logger.error(f"@_delete method not defined for {self.__class__.__name__}")
@@ -149,13 +180,22 @@ class K8sResource(K8sObject):
         Args:
             k8s_client: The K8sApiClient for the current Cluster
         """
+        if not self.is_valid():
+            return False
         if self.is_active_on_cluster(k8s_client):
-            return self._delete(k8s_client)
+            self.resource_deleted = self._delete(k8s_client)
         else:
             print_info(
-                f"{self.get_resource_type()} {self.get_resource_name()} not active."
+                f"{self.get_resource_type()} {self.get_resource_name()} does not exist."
             )
             return True
+        if self.resource_deleted:
+            return self.post_delete(k8s_client)
+        return self.resource_deleted
+
+    def post_delete(self, k8s_client: K8sApiClient) -> bool:
+        # return True because this function is not used for most resources
+        return True
 
     def is_active_on_cluster(self, k8s_client: K8sApiClient) -> bool:
         """Returns True if the resource is running on the K8s Cluster"""

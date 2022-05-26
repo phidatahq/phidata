@@ -641,6 +641,11 @@ class PostgresDb(DbApp):
                 ):
                     ebs_volume_id = self.args.ebs_volume_id
                     if ebs_volume_id is None and self.args.ebs_volume is not None:
+                        ebs_volume_region = (
+                            self.args.ebs_volume_region
+                            or self.args.ebs_volume.get_aws_region()
+                        )
+                        logger.info(f"ebs_volume_region: {ebs_volume_region}")
                         ebs_volume_id = self.args.ebs_volume.get_volume_id(
                             aws_region=self.args.ebs_volume_region
                         )

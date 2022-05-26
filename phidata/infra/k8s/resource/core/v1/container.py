@@ -308,7 +308,7 @@ class ContainerPort(K8sObject):
     # If specified, this must be an IANA_SVC_NAME and unique within the pod.
     # Each named port in a pod must have a unique name.
     # Name for the port that can be referred to by services.
-    name: str
+    name: Optional[str] = None
     # Number of port to expose on the pod's IP address. This must be a valid port number, 0 < x < 65536.
     container_port: int = Field(..., alias="containerPort")
     host_ip: Optional[str] = Field(None, alias="hostIP")

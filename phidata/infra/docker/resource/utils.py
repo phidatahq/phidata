@@ -181,8 +181,6 @@ def filter_and_flatten_docker_resource_groups(
         List[DockerResource]: List of filtered DockerResources
     """
 
-    # The list of DockerResources that will be returned
-    filtered_docker_resources: List[DockerResource] = []
     logger.debug("Flattening DockerResourceGroups")
 
     # Step 1: Create docker_resource_list_with_weight
@@ -237,6 +235,8 @@ def filter_and_flatten_docker_resource_groups(
     # )
 
     # drop the weight from the deduped_docker_resources tuple
-    filtered_docker_resources = [x[0] for x in deduped_docker_resources]
+    filtered_docker_resources: List[DockerResource] = [
+        x[0] for x in deduped_docker_resources
+    ]
     # logger.debug("filtered_docker_resources: {}".format(filtered_docker_resources))
     return filtered_docker_resources

@@ -27,6 +27,7 @@ from phidata.infra.k8s.create.core.v1.container import CreateContainer
 from phidata.infra.k8s.create.core.v1.volume import (
     CreateVolume,
     VolumeType,
+    HostPathVolumeSource,
 )
 from phidata.infra.k8s.create.common.port import CreatePort
 from phidata.infra.k8s.create.group import CreateK8sResourceGroup
@@ -71,11 +72,14 @@ class DataboxArgs(PhidataAppArgs):
     workspace_parent_container_path: str = "/usr/local/workspaces"
     # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir
     # because we assume that DockerContainers are running locally on the user's machine
-    # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
+    # On K8sContainers, we usually load the workspace_dir from git using a git-sync sidecar container
     create_git_sync_sidecar: bool = True
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
+    # But when running k8s locally, we can mount the workspace using
+    # host path as well.
+    k8s_mount_local_workspace = False
 
     # Install python dependencies using a requirements.txt file
     install_requirements: bool = False
@@ -259,6 +263,9 @@ class Databox(PhidataApp):
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
         git_sync_wait: int = 1,
+        # But when running k8s locally, we can mount the workspace using
+        # host path as well.
+        k8s_mount_local_workspace=False,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root
@@ -419,6 +426,7 @@ class Databox(PhidataApp):
                 git_sync_repo=git_sync_repo,
                 git_sync_branch=git_sync_branch,
                 git_sync_wait=git_sync_wait,
+                k8s_mount_local_workspace=k8s_mount_local_workspace,
                 install_requirements=install_requirements,
                 requirements_file_path=requirements_file_path,
                 mount_aws_config=mount_aws_config,
@@ -1092,22 +1100,40 @@ class Databox(PhidataApp):
             )
             secrets.append(container_env_secret)
 
-        # If mount_workspace=True
+        # If mount_workspace=True first check if the workspace
+        # should be mounted locally, otherwise
         # Create a Sidecar git-sync container and volume
         if self.args.mount_workspace:
-            workspace_parent_container_path_str = str(
-                self.args.workspace_parent_container_path
-            )
-            logger.debug(f"Creating EmptyDir")
-            logger.debug(f"\tat: {workspace_parent_container_path_str}")
-            workspace_volume = CreateVolume(
-                volume_name=self.args.workspace_volume_name,
-                app_name=app_name,
-                mount_path=workspace_parent_container_path_str,
-                volume_type=VolumeType.EMPTY_DIR,
-            )
-            volumes.append(workspace_volume)
-            if self.args.create_git_sync_sidecar:
+            if self.args.k8s_mount_local_workspace:
+                workspace_root_path_str = str(self.workspace_root_path)
+                workspace_root_container_path_str = str(workspace_root_container_path)
+                logger.debug(f"Mounting: {workspace_root_path_str}")
+                logger.debug(f"\tto: {workspace_root_container_path_str}")
+                workspace_volume = CreateVolume(
+                    volume_name=self.args.workspace_volume_name,
+                    app_name=app_name,
+                    mount_path=workspace_root_container_path_str,
+                    volume_type=VolumeType.HOST_PATH,
+                    host_path=HostPathVolumeSource(
+                        path=workspace_root_path_str,
+                    ),
+                )
+                volumes.append(workspace_volume)
+
+            elif self.args.create_git_sync_sidecar:
+                workspace_parent_container_path_str = str(
+                    self.args.workspace_parent_container_path
+                )
+                logger.debug(f"Creating EmptyDir")
+                logger.debug(f"\tat: {workspace_parent_container_path_str}")
+                workspace_volume = CreateVolume(
+                    volume_name=self.args.workspace_volume_name,
+                    app_name=app_name,
+                    mount_path=workspace_parent_container_path_str,
+                    volume_type=VolumeType.EMPTY_DIR,
+                )
+                volumes.append(workspace_volume)
+
                 if self.args.git_sync_repo is None:
                     print_error("git_sync_repo invalid")
                 else:
@@ -1126,6 +1152,12 @@ class Databox(PhidataApp):
                         image_name="k8s.gcr.io/git-sync",
                         image_tag="v3.1.1",
                         env=git_sync_env,
+                        envs_from_configmap=[cm.cm_name for cm in config_maps]
+                        if len(config_maps) > 0
+                        else None,
+                        envs_from_secret=[secret.secret_name for secret in secrets]
+                        if len(secrets) > 0
+                        else None,
                         volumes=[workspace_volume],
                     )
                     containers.append(git_sync_sidecar)

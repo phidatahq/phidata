@@ -1,0 +1,2 @@
+class AppInvalidException(Exception):
+    pass

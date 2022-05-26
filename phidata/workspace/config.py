@@ -75,14 +75,14 @@ class WorkspaceConfig(InfraConfig):
         k8s_env: Optional[Dict[str, str]] = None,
     ):
         super().__init__()
-        scripts_dir_clean = scripts_dir if scripts_dir else f"scripts"
-        storage_dir_clean = storage_dir if storage_dir else f"storage"
-        meta_dir_clean = meta_dir if meta_dir else f"meta"
+        workspace_config_dir_clean = (
+            workspace_config_dir if workspace_config_dir else "workspace"
+        )
+        scripts_dir_clean = scripts_dir if scripts_dir else "scripts"
+        storage_dir_clean = storage_dir if storage_dir else "storage"
+        meta_dir_clean = meta_dir if meta_dir else "meta"
         products_dir_clean = products_dir if products_dir else f"{src_dir}/products"
         notebooks_dir_clean = notebooks_dir if notebooks_dir else f"{src_dir}/notebooks"
-        workspace_config_dir_clean = (
-            workspace_config_dir if workspace_config_dir else f"{src_dir}/workspace"
-        )
 
         try:
             self.args: WorkspaceConfigArgs = WorkspaceConfigArgs(

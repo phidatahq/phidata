@@ -702,7 +702,7 @@ class IngressRoute(PhidataApp):
                     secret_name="dashboard-auth-secret",
                     app_name=app_name,
                     namespace=k8s_build_context.namespace,
-                    data={"users": dashboard_auth_users},
+                    string_data={"users": dashboard_auth_users},
                 )
                 secrets.append(dashboard_auth_secret)
 
@@ -776,6 +776,7 @@ class IngressRoute(PhidataApp):
         )
 
         deployment = CreateDeployment(
+            replicas=self.args.replicas,
             deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
             pod_name=self.args.pod_name or get_default_pod_name(app_name),
             app_name=app_name,

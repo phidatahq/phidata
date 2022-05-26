@@ -96,8 +96,17 @@ class DockerConfig(InfraConfig):
                 raise TypeError("Invalid Resource: {}".format(_resource))
         return True
 
+    def default_resources_are_valid(self) -> bool:
+        if self.images is None and self.containers is None and self.volumes is None:
+            return False
+        return True
+
     def is_valid(self) -> bool:
-        return self.apps_are_valid() or self.resources_are_valid()
+        return (
+            self.apps_are_valid()
+            or self.resources_are_valid()
+            or self.default_resources_are_valid()
+        )
 
     def get_docker_manager(self) -> DockerManager:
         return DockerManager(docker_args=self.args)

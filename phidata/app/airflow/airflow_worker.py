@@ -38,6 +38,9 @@ class AirflowWorker(AirflowBase):
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
         git_sync_wait: int = 1,
+        # But when running k8s locally, we can mount the workspace using
+        # host path as well.
+        k8s_mount_local_workspace=False,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root
@@ -177,6 +180,7 @@ class AirflowWorker(AirflowBase):
             git_sync_repo=git_sync_repo,
             git_sync_branch=git_sync_branch,
             git_sync_wait=git_sync_wait,
+            k8s_mount_local_workspace=k8s_mount_local_workspace,
             install_requirements=install_requirements,
             requirements_file_path=requirements_file_path,
             mount_aws_config=mount_aws_config,

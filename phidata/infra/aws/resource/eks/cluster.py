@@ -102,17 +102,20 @@ class EksCluster(AwsResource):
                 )
                 return False
 
+            resources_vpc_config = self.resources_vpc_config
+            # If resources_vpc_config is None
             # Create the CloudFormationStack and resources_vpc_config
-            vpc_stack = self.get_eks_vpc_stack()
-            try:
-                vpc_stack.create(aws_client)
-                resources_vpc_config = self.get_eks_resources_vpc_config(
-                    aws_client, vpc_stack
-                )
-            except Exception as e:
-                print_error("Stack creation failed, please try again")
-                print_error(e)
-                return False
+            if resources_vpc_config is None:
+                vpc_stack = self.get_eks_vpc_stack()
+                try:
+                    vpc_stack.create(aws_client)
+                    resources_vpc_config = self.get_eks_resources_vpc_config(
+                        aws_client, vpc_stack
+                    )
+                except Exception as e:
+                    print_error("Stack creation failed, please try again")
+                    print_error(e)
+                    return False
 
             # create a dict of args which are not null, otherwise aws type validation fails
             not_null_args: Dict[str, Any] = {}
@@ -272,7 +275,7 @@ class EksCluster(AwsResource):
         # Wait for Cluster to be deleted
         if self.wait_for_deletion:
             try:
-                print_info(f"Waiting for {self.get_resource_type()} to be created.")
+                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
                 waiter = self.get_service_client(aws_client).get_waiter(
                     "cluster_deleted"
                 )
@@ -408,6 +411,8 @@ class EksCluster(AwsResource):
         )
 
         kubeconfig: Optional[Kubeconfig] = None
+
+        # Build cluster config
         new_cluster = KubeconfigCluster(
             name=self.get_kubeconfig_cluster_name(),
             cluster=KubeconfigClusterConfig(
@@ -415,21 +420,27 @@ class EksCluster(AwsResource):
                 certificate_authority_data=str(cluster_cert),
             ),
         )
+
+        # Build user config
+        new_user_exec_args = ["eks", "get-token", "--cluster-name", self.name]
+        if aws_client.aws_region is not None:
+            new_user_exec_args.extend(["--region", aws_client.aws_region])
+
+        new_user_exec: Dict[str, Any] = {
+            "apiVersion": ApiVersion.CLIENT_AUTHENTICATION_V1BETA1.value,
+            "command": "aws",
+            "args": new_user_exec_args,
+        }
+        if aws_client.aws_profile is not None:
+            new_user_exec["env"] = [
+                {"name": "AWS_PROFILE", "value": aws_client.aws_profile}
+            ]
+
         new_user = KubeconfigUser(
             name=self.get_kubeconfig_user_name(),
-            user={
-                "exec": {
-                    "apiVersion": ApiVersion.CLIENT_AUTHENTICATION_V1ALPHA1.value,
-                    "command": "aws",
-                    "args": [
-                        "eks",
-                        "get-token",
-                        "--cluster-name",
-                        self.name,
-                    ],
-                }
-            },
+            user={"exec": new_user_exec},
         )
+        # Build context config
         new_context = KubeconfigContext(
             name=self.get_kubeconfig_context_name(),
             context=KubeconfigContextSpec(

@@ -1,5 +1,5 @@
-from collections import defaultdict, OrderedDict
-from typing import Any, Dict, List, Optional, Type, Set, cast
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Type, Set, cast, Tuple
 
 from phidata.infra.aws.args import AwsArgs
 from phidata.infra.aws.api_client import AwsApiClient
@@ -11,7 +11,10 @@ from phidata.infra.aws.exceptions import (
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.group import AwsResourceGroup
 from phidata.infra.aws.resource.types import AwsResourceType
-from phidata.infra.aws.resource.utils import filter_and_flatten_aws_resource_group
+from phidata.infra.aws.resource.utils import (
+    get_aws_resources_from_group,
+    filter_and_flatten_aws_resource_groups,
+)
 from phidata.utils.cli_console import (
     print_info,
     print_info,
@@ -28,23 +31,25 @@ class AwsWorker:
     """This class interacts with the Aws API."""
 
     def __init__(self, aws_args: AwsArgs) -> None:
-        # logger.debug(f"Creating AwsWorker")
-        if aws_args is None or not isinstance(aws_args, AwsArgs):
-            raise AwsArgsException("AwsArgs invalid: {}".format(aws_args))
-
         self.aws_args: AwsArgs = aws_args
         self.aws_api_client: AwsApiClient = AwsApiClient(
             aws_region=self.aws_args.aws_region,
             aws_profile=self.aws_args.aws_profile,
         )
-        self.aws_resource_group: Optional[AwsResourceGroup] = None
+        self.aws_resources: Optional[Dict[str, AwsResourceGroup]] = None
         logger.debug(f"**-+-** AwsWorker created")
 
     def is_client_initialized(self) -> bool:
         return self.aws_api_client.is_initialized()
 
     def are_resources_initialized(self) -> bool:
-        return True if self.aws_resource_group is not None else False
+        if self.aws_resources is not None and len(self.aws_resources) > 0:
+            return True
+        return False
+
+    def are_resources_active(self) -> bool:
+        # TODO: fix this
+        return False
 
     ######################################################
     ## Init Resources
@@ -52,15 +57,17 @@ class AwsWorker:
 
     def init_resources(self) -> None:
         """
-        This function populates the self.aws_resource_group dictionary.
+        This function populates the self.aws_resources dictionary.
         """
-        logger.debug("-*- Initializing AwsResources")
+        logger.debug("-*- Initializing AwsResourceGroup")
 
-        if self.aws_args.resources is not None and isinstance(
-            self.aws_args.resources, AwsResourceGroup
-        ):
-            self.aws_resource_group = self.aws_args.resources
-        logger.debug(f"-*- AwsResources built")
+        if self.aws_resources is None:
+            self.aws_resources = OrderedDict()
+
+        for resource_group in self.aws_args.resources:
+            self.aws_resources[resource_group.name] = resource_group
+
+        logger.debug(f"# AwsResources built: {len(self.aws_resources)}")
 
     ######################################################
     ## Create Resources
@@ -70,57 +77,109 @@ class AwsWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
         logger.debug("-*- Creating AwsResources")
-        if self.aws_resource_group is None:
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
+            if self.aws_resources is None:
+                print_info("No resources available")
                 return False
 
-        aws_resources_to_create: Optional[
-            List[AwsResourceType]
-        ] = filter_and_flatten_aws_resource_group(
-            aws_resource_group=self.aws_resource_group,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if aws_resources_to_create is None or is_empty(aws_resources_to_create):
-            print_info("No AwsResources to create")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        aws_resources_to_create: List[Tuple[str, int, List[AwsResource]]] = []
+        for aws_rg_name, aws_rg in self.aws_resources.items():
+            logger.debug(f"Processing: {aws_rg_name}")
+
+            # skip disabled AwsResourceTypeGroups
+            if not aws_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in aws_rg_name.lower():
+                    logger.debug(f"Skipping {aws_rg_name}")
+                    continue
+
+            aws_resources_in_group = get_aws_resources_from_group(
+                aws_resource_group=aws_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(aws_resources_in_group) > 0:
+                aws_resources_to_create.append(
+                    (aws_rg_name, aws_rg.weight, aws_resources_in_group)
+                )
+
+        if len(aws_resources_to_create) == 0:
+            print_subheading("No AwsResource to create")
             return True
 
-        # track the total number of AwsResources to create for validation
-        num_resources_to_create: int = len(aws_resources_to_create)
+        aws_resources_to_create_sorted: List[
+            Tuple[str, int, List[AwsResource]]
+        ] = sorted(
+            aws_resources_to_create,
+            key=lambda x: x[1],
+        )
+
+        # Validate resources to be created
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in aws_resources_to_create_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            if self.aws_args.aws_region:
+                print_info(f"\nRegion: {self.aws_args.aws_region}")
+            if self.aws_args.aws_profile:
+                print_info(f"Profile: {self.aws_args.aws_profile}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm deploy")
+            if not confirm:
+                print_info("Skipping deploy")
+                return False
+
+        # track the total number of AwsResource to create for validation
+        num_resources_to_create: int = 0
         num_resources_created: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Creating {num_resources_to_create} AwsResources:")
-        for rsrc in aws_resources_to_create:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm deploy")
-        if not confirm:
-            print_info("Skipping deploy")
-            return False
-
-        for resource in aws_resources_to_create:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_created = resource.create(aws_client=self.aws_api_client)
-                    if _resource_created:
-                        num_resources_created += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+        for (group_name, group_weight, resource_list) in aws_resources_to_create_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_create += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    print_error("Error: {}".format(e))
-                    print_error(
-                        "Skipping resource creation, please fix and try again..."
-                    )
+                    # logger.debug(resource)
+                    try:
+                        _resource_created = resource.create(
+                            aws_client=self.aws_api_client
+                        )
+                        if _resource_created:
+                            num_resources_created += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources created: {num_resources_created}/{num_resources_to_create}"
@@ -128,7 +187,7 @@ class AwsWorker:
         if num_resources_to_create == num_resources_created:
             return True
 
-        print_error(
+        logger.error(
             f"Resources created: {num_resources_created} do not match Resources required: {num_resources_to_create}"
         )
         return False
@@ -137,55 +196,110 @@ class AwsWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.aws_args.env
-        print_subheading(
-            "AwsResources{}".format(f" for env: {env}" if env is not None else "")
-        )
-        if self.aws_resource_group is None:
+        logger.debug("-*- Creating AwsResources")
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
+            if self.aws_resources is None:
+                print_info("No resources available")
                 return
 
-        aws_resources_to_create: Optional[
-            List[AwsResourceType]
-        ] = filter_and_flatten_aws_resource_group(
-            aws_resource_group=self.aws_resource_group,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if aws_resources_to_create is None or is_empty(aws_resources_to_create):
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        aws_resources_to_create: List[Tuple[str, int, List[AwsResource]]] = []
+        for aws_rg_name, aws_rg in self.aws_resources.items():
+            logger.debug(f"Processing: {aws_rg_name}")
+
+            # skip disabled AwsResourceGroups
+            if not aws_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in aws_rg_name.lower():
+                    logger.debug(f"Skipping {aws_rg_name}")
+                    continue
+
+            aws_resources_in_group = get_aws_resources_from_group(
+                aws_resource_group=aws_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(aws_resources_in_group) > 0:
+                aws_resources_to_create.append(
+                    (aws_rg_name, aws_rg.weight, aws_resources_in_group)
+                )
+
+        if len(aws_resources_to_create) == 0:
             print_info("No AwsResources to create")
             return
 
-        num_resources_to_create: int = len(aws_resources_to_create)
-        print_info(
-            f"\n-*- Deploying this AwsConfig will create {num_resources_to_create} resources:"
+        aws_resources_to_create_sorted: List[
+            Tuple[str, int, List[AwsResource]]
+        ] = sorted(
+            aws_resources_to_create,
+            key=lambda x: x[1],
         )
-        for resource in aws_resources_to_create:
-            print_info(
-                f"-==+==- {resource.__class__.__name__}: {resource.get_resource_name()}"
-            )
+
+        group_number = 1
+        num_resources_to_create: int = 0
+        print_heading("--**-- Aws resources:")
+        for (group_name, group_weight, resource_list) in aws_resources_to_create_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_create += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        if self.aws_args.aws_region:
+            print_info(f"\nRegion: {self.aws_args.aws_region}")
+        if self.aws_args.aws_profile:
+            print_info(f"Profile: {self.aws_args.aws_profile}")
+        print_info(f"\nTotal {num_resources_to_create} resources")
 
     ######################################################
     ## Read Resources
     ######################################################
 
+    def get_resource_groups(self) -> Optional[Dict[str, AwsResourceGroup]]:
+
+        logger.debug("-*- Getting AwsResources")
+        if self.aws_resources is None:
+            self.init_resources()
+            if self.aws_resources is None:
+                print_info("No Resources available")
+                return {}
+
+        return self.aws_resources
+
     def read_resources(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
-    ) -> Dict[str, List[AwsResourceType]]:
+        app_filter: Optional[str] = None,
+    ) -> Optional[List[AwsResource]]:
 
         logger.debug("-*- Getting AwsResources")
-        if self.aws_resource_group is None:
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
-        return {}
+            if self.aws_resources is None:
+                print_info("No resources available")
+                return None
+
+        aws_resources: Optional[
+            List[AwsResource]
+        ] = filter_and_flatten_aws_resource_groups(
+            aws_resource_groups=self.aws_resources,
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+        )
+        return aws_resources
 
     ######################################################
     ## Delete Resources
@@ -195,56 +309,110 @@ class AwsWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         logger.debug("-*- Deleting AwsResources")
-        if self.aws_resource_group is None:
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
+            if self.aws_resources is None:
+                print_info("No resources available")
                 return False
 
-        aws_resources_to_delete: Optional[
-            List[AwsResourceType]
-        ] = filter_and_flatten_aws_resource_group(
-            aws_resource_group=self.aws_resource_group,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="delete",
-        )
-        if aws_resources_to_delete is None or is_empty(aws_resources_to_delete):
-            print_info("No AwsResources to delete")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        aws_resources_to_delete: List[Tuple[str, int, List[AwsResource]]] = []
+        for aws_rg_name, aws_rg in self.aws_resources.items():
+            logger.debug(f"Processing: {aws_rg_name}")
+
+            # skip disabled AwsResourceGroups
+            if not aws_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in aws_rg_name.lower():
+                    logger.debug(f"Skipping {aws_rg_name}")
+                    continue
+
+            aws_resources_in_group = get_aws_resources_from_group(
+                aws_resource_group=aws_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(aws_resources_in_group) > 0:
+                aws_resources_to_delete.append(
+                    (aws_rg_name, aws_rg.weight, aws_resources_in_group)
+                )
+
+        if len(aws_resources_to_delete) == 0:
+            print_subheading("No AwsResources to delete")
             return True
 
-        # track the total number of AwsResources to delete for validation
-        num_resources_to_delete: int = len(aws_resources_to_delete)
+        aws_resources_to_delete_sorted: List[
+            Tuple[str, int, List[AwsResource]]
+        ] = sorted(
+            aws_resources_to_delete,
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        # Validate resources to be created
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in aws_resources_to_delete_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            if self.aws_args.aws_region:
+                print_info(f"\nRegion: {self.aws_args.aws_region}")
+            if self.aws_args.aws_profile:
+                print_info(f"Profile: {self.aws_args.aws_profile}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm delete")
+            if not confirm:
+                print_info("Skipping delete")
+                return False
+
+        # track the total number of AwsResources to create for validation
+        num_resources_to_delete: int = 0
         num_resources_deleted: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Deleting {num_resources_to_delete} AwsResources:")
-        for rsrc in aws_resources_to_delete:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm delete")
-        if not confirm:
-            print_info("Skipping delete")
-            return False
-
-        for resource in aws_resources_to_delete:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_deleted = resource.delete(aws_client=self.aws_api_client)
-                    if _resource_deleted:
-                        num_resources_deleted += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."
+        for (group_name, group_weight, resource_list) in aws_resources_to_delete_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_delete += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    print_error(e)
-                    print_error("Skipping resource deletion, please delete manually...")
+                    # logger.debug(resource)
+                    try:
+                        _resource_created = resource.create(
+                            aws_client=self.aws_api_client
+                        )
+                        if _resource_created:
+                            num_resources_deleted += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources deleted: {num_resources_deleted}/{num_resources_to_delete}"
@@ -252,8 +420,8 @@ class AwsWorker:
         if num_resources_to_delete == num_resources_deleted:
             return True
 
-        print_error(
-            f"Resources deleted: {num_resources_deleted} do not match Resources required: {num_resources_to_delete}"
+        logger.error(
+            f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"
         )
         return False
 
@@ -261,38 +429,72 @@ class AwsWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.aws_args.env
-        print_subheading(
-            "AwsResources{}".format(f" for env: {env}" if env is not None else "")
-        )
-        if self.aws_resource_group is None:
+        logger.debug("-*- Deleting AwsResources")
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
+            if self.aws_resources is None:
+                print_info("No resources available")
                 return
 
-        aws_resources_to_delete: Optional[
-            List[AwsResourceType]
-        ] = filter_and_flatten_aws_resource_group(
-            aws_resource_group=self.aws_resource_group,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="delete",
-        )
-        if aws_resources_to_delete is None or is_empty(aws_resources_to_delete):
-            print_info("No AwsResources to delete")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        aws_resources_to_delete: List[Tuple[str, int, List[AwsResource]]] = []
+        for aws_rg_name, aws_rg in self.aws_resources.items():
+            logger.debug(f"Processing: {aws_rg_name}")
+
+            # skip disabled AwsResourceGroups
+            if not aws_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in aws_rg_name.lower():
+                    logger.debug(f"Skipping {aws_rg_name}")
+                    continue
+
+            aws_resources_in_group = get_aws_resources_from_group(
+                aws_resource_group=aws_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(aws_resources_in_group) > 0:
+                aws_resources_to_delete.append(
+                    (aws_rg_name, aws_rg.weight, aws_resources_in_group)
+                )
+
+        if len(aws_resources_to_delete) == 0:
+            print_info("No AwsResources to create")
             return
 
-        num_resources_to_delete: int = len(aws_resources_to_delete)
-        print_info(
-            f"\n-*- Shutting down this AwsConfig will delete {num_resources_to_delete} resources:"
+        aws_resources_to_delete_sorted: List[
+            Tuple[str, int, List[AwsResource]]
+        ] = sorted(
+            aws_resources_to_delete,
+            key=lambda x: x[1],
+            reverse=True,
         )
-        for resource in aws_resources_to_delete:
-            print_info(
-                f"-==+==- {resource.__class__.__name__}: {resource.get_resource_name()}"
-            )
+
+        group_number = 1
+        num_resources_to_delete: int = 0
+        print_heading("--**-- Aws resources:")
+        for (group_name, group_weight, resource_list) in aws_resources_to_delete_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_delete += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        if self.aws_args.aws_region:
+            print_info(f"\nRegion: {self.aws_args.aws_region}")
+        if self.aws_args.aws_profile:
+            print_info(f"Profile: {self.aws_args.aws_profile}")
+        print_info(f"\nTotal {num_resources_to_delete} resources")
 
     ######################################################
     ## Patch Resources
@@ -302,56 +504,109 @@ class AwsWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
-
-        logger.debug("-*- Deleting AwsResources")
-        if self.aws_resource_group is None:
+        logger.debug("-*- Patching AwsResources")
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
+            if self.aws_resources is None:
+                print_info("No resources available")
                 return False
 
-        aws_resources_to_patch: Optional[
-            List[AwsResourceType]
-        ] = filter_and_flatten_aws_resource_group(
-            aws_resource_group=self.aws_resource_group,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if aws_resources_to_patch is None or is_empty(aws_resources_to_patch):
-            print_info("No AwsResources to patch")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        aws_resources_to_patch: List[Tuple[str, int, List[AwsResource]]] = []
+        for aws_rg_name, aws_rg in self.aws_resources.items():
+            logger.debug(f"Processing: {aws_rg_name}")
+
+            # skip disabled AwsResourceGroups
+            if not aws_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in aws_rg_name.lower():
+                    logger.debug(f"Skipping {aws_rg_name}")
+                    continue
+
+            aws_resources_in_group = get_aws_resources_from_group(
+                aws_resource_group=aws_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(aws_resources_in_group) > 0:
+                aws_resources_to_patch.append(
+                    (aws_rg_name, aws_rg.weight, aws_resources_in_group)
+                )
+
+        if len(aws_resources_to_patch) == 0:
+            print_subheading("No AwsResources to patch")
             return True
 
+        aws_resources_to_patch_sorted: List[
+            Tuple[str, int, List[AwsResource]]
+        ] = sorted(
+            aws_resources_to_patch,
+            key=lambda x: x[1],
+        )
+
+        # Validate resources to be patched
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in aws_resources_to_patch_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            if self.aws_args.aws_region:
+                print_info(f"\nRegion: {self.aws_args.aws_region}")
+            if self.aws_args.aws_profile:
+                print_info(f"Profile: {self.aws_args.aws_profile}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm patch")
+            if not confirm:
+                print_info("Skipping patch")
+                return False
+
         # track the total number of AwsResources to patch for validation
-        num_resources_to_patch: int = len(aws_resources_to_patch)
+        num_resources_to_patch: int = 0
         num_resources_patched: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Patching {num_resources_to_patch} AwsResources:")
-        for rsrc in aws_resources_to_patch:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm patch")
-        if not confirm:
-            print_info("Skipping patch")
-            return False
-
-        for resource in aws_resources_to_patch:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_patched = resource.update(aws_client=self.aws_api_client)
-                    if _resource_patched:
-                        num_resources_patched += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."
+        for (group_name, group_weight, resource_list) in aws_resources_to_patch_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_patch += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    print_error(e)
-                    print_error("Skipping resource, please patch manually...")
+                    # logger.debug(resource)
+                    try:
+                        _resource_patched = resource.update(
+                            aws_client=self.aws_api_client
+                        )
+                        if _resource_patched:
+                            num_resources_patched += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources patched: {num_resources_patched}/{num_resources_to_patch}"
@@ -359,8 +614,8 @@ class AwsWorker:
         if num_resources_to_patch == num_resources_patched:
             return True
 
-        print_error(
-            f"Resources patched: {num_resources_patched} do not match Resources required: {num_resources_to_patch}"
+        logger.error(
+            f"Resources patched: {num_resources_patched} do not match resources required: {num_resources_to_patch}"
         )
         return False
 
@@ -368,38 +623,71 @@ class AwsWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.aws_args.env
-        print_subheading(
-            "AwsResources{}".format(f" for env: {env}" if env is not None else "")
-        )
-        if self.aws_resource_group is None:
+        logger.debug("-*- Patching AwsResources")
+        if self.aws_resources is None:
             self.init_resources()
-            if self.aws_resource_group is None:
-                print_info("No AwsResources available")
+            if self.aws_resources is None:
+                print_info("No resources available")
                 return
 
-        aws_resources_to_patch: Optional[
-            List[AwsResourceType]
-        ] = filter_and_flatten_aws_resource_group(
-            aws_resource_group=self.aws_resource_group,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if aws_resources_to_patch is None or is_empty(aws_resources_to_patch):
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        aws_resources_to_patch: List[Tuple[str, int, List[AwsResource]]] = []
+        for aws_rg_name, aws_rg in self.aws_resources.items():
+            logger.debug(f"Processing: {aws_rg_name}")
+
+            # skip disabled AwsResourceGroups
+            if not aws_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in aws_rg_name.lower():
+                    logger.debug(f"Skipping {aws_rg_name}")
+                    continue
+
+            aws_resources_in_group = get_aws_resources_from_group(
+                aws_resource_group=aws_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(aws_resources_in_group) > 0:
+                aws_resources_to_patch.append(
+                    (aws_rg_name, aws_rg.weight, aws_resources_in_group)
+                )
+
+        if len(aws_resources_to_patch) == 0:
             print_info("No AwsResources to patch")
             return
 
-        num_resources_to_patch: int = len(aws_resources_to_patch)
-        print_info(
-            f"\n-*- Updating this AwsConfig will patch {num_resources_to_patch} resources:"
+        aws_resources_to_patch_sorted: List[
+            Tuple[str, int, List[AwsResource]]
+        ] = sorted(
+            aws_resources_to_patch,
+            key=lambda x: x[1],
         )
-        for resource in aws_resources_to_patch:
-            print_info(
-                f"-==+==- {resource.__class__.__name__}: {resource.get_resource_name()}"
-            )
+
+        group_number = 1
+        num_resources_to_patch: int = 0
+        print_heading("--**-- Aws resources:")
+        for (group_name, group_weight, resource_list) in aws_resources_to_patch_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_patch += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        if self.aws_args.aws_region:
+            print_info(f"\nRegion: {self.aws_args.aws_region}")
+        if self.aws_args.aws_profile:
+            print_info(f"Profile: {self.aws_args.aws_profile}")
+        print_info(f"\nTotal {num_resources_to_patch} resources")
 
     ######################################################
     ## End

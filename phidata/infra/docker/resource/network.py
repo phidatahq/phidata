@@ -48,23 +48,23 @@ class DockerNetwork(DockerResource):
         try:
             network_object = docker_client.api_client.networks.create(network_name)
             if network_object is not None:
-                self.verbose_log("Network Created: {}".format(network_object.name))
+                logger.debug("Network Created: {}".format(network_object.name))
             else:
-                self.verbose_log("Network could not be created")
-            # self.verbose_log("Network {}".format(network_object.attrs))
+                logger.debug("Network could not be created")
+            # logger.debug("Network {}".format(network_object.attrs))
         except Exception as e:
             raise
 
         # By this step the network should be created
         # Validate that the network is created
-        self.verbose_log("Validating network is created")
+        logger.debug("Validating network is created")
         if network_object is not None:
             # TODO: validate that the network was actually created
             self.active_resource = network_object
             self.active_resource_class = Network
             return True
 
-        self.verbose_log("Network not found :(")
+        logger.debug("Network not found :(")
         return False
 
     def _read(self, docker_client: DockerApiClient) -> Any:
@@ -77,16 +77,16 @@ class DockerNetwork(DockerResource):
             network_list: Optional[
                 List[Network]
             ] = docker_client.api_client.networks.list()
-            # self.verbose_log("network_list: {}".format(network_list))
+            # logger.debug("network_list: {}".format(network_list))
             if network_list is not None:
                 for network in network_list:
                     if network.name == network_name:
-                        self.verbose_log(f"Network {network_name} exists")
+                        logger.debug(f"Network {network_name} exists")
                         self.active_resource = network
                         self.active_resource_class = Network
                         return network
         except Exception:
-            self.verbose_log(f"Network {network_name} not found")
+            logger.debug(f"Network {network_name} not found")
 
         return None
 
@@ -112,12 +112,12 @@ class DockerNetwork(DockerResource):
             logger.exception("Error while deleting network: {}".format(e))
 
         # Validate that the network is deleted
-        self.verbose_log("Validating network is deleted")
+        logger.debug("Validating network is deleted")
         try:
-            self.verbose_log("Reloading network_object: {}".format(network_object))
+            logger.debug("Reloading network_object: {}".format(network_object))
             network_object.reload()
         except NotFound as e:
-            self.verbose_log("Got NotFound Exception, Network is deleted")
+            logger.debug("Got NotFound Exception, Network is deleted")
             return True
 
         return False

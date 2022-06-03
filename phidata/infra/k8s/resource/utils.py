@@ -49,7 +49,7 @@ def get_k8s_resources_from_group(
     k8s_resource_group: K8sResourceGroup,
     name_filter: Optional[str] = None,
     type_filter: Optional[str] = None,
-) -> Optional[List[K8sResource]]:
+) -> List[K8sResource]:
     """Parses the K8sResourceGroup and returns an array of K8sResources
     after applying the name & type filters. This function also flattens any
     List[K8sResource] attributes. Eg: it will flatten pvc, cm, secret and
@@ -64,8 +64,7 @@ def get_k8s_resources_from_group(
         List[K8sResource]: List of filtered and flattened K8s Resources
     """
 
-    # List of resources to return, we use the Union type: K8sResource
-    # to hold all K8s Resources
+    # List of resources to return
     k8s_resources: List[K8sResource] = []
     # logger.debug(f"Flattening {k8s_resource_group.name}")
 
@@ -93,7 +92,7 @@ def get_k8s_resources_from_group(
                     if type_filter is not None and rt is not None:
                         # logger.debug(f"type_filter: {type_filter.lower()}")
                         # logger.debug(f"class: {rt.lower()}")
-                        if type_filter.lower() not in rt.lower():
+                        if type_filter.lower() != rt.lower():
                             # logger.debug(f"skipping {rt}:{rn}")
                             continue
                     k8s_resources.append(_r)  # type: ignore
@@ -113,7 +112,7 @@ def get_k8s_resources_from_group(
             if type_filter is not None and rt is not None:
                 # logger.debug(f"type_filter: {type_filter.lower()}")
                 # logger.debug(f"class: {rt.lower()}")
-                if type_filter.lower() not in rt.lower():
+                if type_filter.lower() != rt.lower():
                     # logger.debug(f"skipping {rt}:{rn}")
                     continue
             k8s_resources.append(resource_data)  # type: ignore
@@ -182,6 +181,7 @@ def filter_and_flatten_k8s_resource_groups(
     k8s_resource_groups: Dict[str, K8sResourceGroup],
     name_filter: Optional[str] = None,
     type_filter: Optional[str] = None,
+    app_filter: Optional[str] = None,
     sort_order: Literal["create", "delete"] = "create",
 ) -> Optional[List[K8sResource]]:
     """This function parses the k8s_resource_groups dict and returns a filtered array of
@@ -196,13 +196,14 @@ def filter_and_flatten_k8s_resource_groups(
             Dict of {resource_group_name : K8sResourceGroup}
         name_filter: Filter K8sResourceGroup by name
         type_filter: Filter K8sResourceGroup by type
+        app_filter: Filter K8sResourceGroup by app
         sort_order: create or delete
 
     Returns:
         List[K8sResource]: List of filtered K8s Resources
     """
 
-    logger.debug("Flattening K8sResourceGroups")
+    logger.debug("Filtering & Flattening K8sResourceGroups")
 
     # Step 1: Create k8s_resource_list_with_weight
     # A List of Tuples where each tuple is a (K8sResource, Resource Group Weight)
@@ -215,9 +216,17 @@ def filter_and_flatten_k8s_resource_groups(
             # logger.debug("k8s_rg_name: {}".format(k8s_rg_name))
             # logger.debug("k8s_rg: {}".format(k8s_rg))
 
-            # skip disabled DockerResourceGroups
+            # skip disabled K8sResourceGroups
             if not k8s_rg.enabled:
                 continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None and k8s_rg_name is not None:
+                # logger.debug(f"matching app_filter: {app_filter}")
+                # logger.debug(f"with k8s_rg_name: {k8s_rg_name}")
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
 
             k8s_resources = get_k8s_resources_from_group(
                 k8s_rg, name_filter, type_filter

@@ -231,6 +231,15 @@ class AirflowBaseArgs(PhidataAppArgs):
     termination_grace_period_seconds: Optional[int] = None
     # Add deployment labels
     deploy_labels: Optional[Dict[str, Any]] = None
+    # Determine how to spread the deployment across a topology
+    # Key to spread the pods across
+    topology_spread_key: Optional[str] = None
+    # The degree to which pods may be unevenly distributed
+    topology_spread_max_skew: Optional[int] = None
+    # How to deal with a pod if it doesn't satisfy the spread constraint.
+    topology_spread_when_unsatisfiable: Optional[
+        Literal["DoNotSchedule", "ScheduleAnyway"]
+    ] = None
 
     # Configure the webserver service
     create_webserver_service: bool = False
@@ -431,6 +440,15 @@ class AirflowBase(PhidataApp):
         termination_grace_period_seconds: Optional[int] = None,
         # Add deployment labels
         deploy_labels: Optional[Dict[str, Any]] = None,
+        # Determine how to spread the deployment across a topology
+        # Key to spread the pods across
+        topology_spread_key: Optional[str] = None,
+        # The degree to which pods may be unevenly distributed
+        topology_spread_max_skew: Optional[int] = None,
+        # How to deal with a pod if it doesn't satisfy the spread constraint.
+        topology_spread_when_unsatisfiable: Optional[
+            Literal["DoNotSchedule", "ScheduleAnyway"]
+        ] = None,
         # Configure the webserver service
         create_webserver_service: bool = False,
         ws_service_name: Optional[str] = None,
@@ -547,6 +565,9 @@ class AirflowBase(PhidataApp):
                 restart_policy=restart_policy,
                 termination_grace_period_seconds=termination_grace_period_seconds,
                 deploy_labels=deploy_labels,
+                topology_spread_key=topology_spread_key,
+                topology_spread_max_skew=topology_spread_max_skew,
+                topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
                 create_webserver_service=create_webserver_service,
                 ws_service_name=ws_service_name,
                 ws_service_type=ws_service_type,
@@ -1351,12 +1372,12 @@ class AirflowBase(PhidataApp):
                 deploy_labels = k8s_build_context.labels
         # Create the deployment
         k8s_deployment = CreateDeployment(
+            replicas=self.args.replicas,
             deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
             pod_name=self.args.pod_name or get_default_pod_name(app_name),
             app_name=app_name,
             namespace=k8s_build_context.namespace,
             service_account_name=k8s_build_context.service_account_name,
-            replicas=self.args.replicas,
             containers=containers if len(containers) > 0 else None,
             pod_node_selector=self.args.pod_node_selector,
             restart_policy=self.args.restart_policy,
@@ -1364,6 +1385,9 @@ class AirflowBase(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=deploy_labels,
             pod_annotations=pod_annotations,
+            topology_spread_key=self.args.topology_spread_key,
+            topology_spread_max_skew=self.args.topology_spread_max_skew,
+            topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
 
         # Create the services

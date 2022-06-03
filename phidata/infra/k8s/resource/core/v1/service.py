@@ -53,6 +53,21 @@ class ServicePort(K8sObject):
 
     def get_k8s_object(self) -> V1ServicePort:
 
+        # logger.info(f"Building {self.get_resource_type()} : {self.get_resource_name()}")
+
+        target_port_int: Optional[int] = None
+        if isinstance(self.target_port, int):
+            target_port_int = self.target_port
+        elif isinstance(self.target_port, str):
+            try:
+                target_port_int = int(self.target_port)
+            except ValueError:
+                pass
+
+        target_port = target_port_int or self.target_port
+        # logger.info(f"target_port         : {type(self.target_port)} | {self.target_port}")
+        # logger.info(f"target_port updated : {type(target_port)} | {target_port}")
+
         # Return a V1ServicePort object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service_port.py
         _v1_service_port = V1ServicePort(
@@ -60,7 +75,7 @@ class ServicePort(K8sObject):
             node_port=self.node_port,
             port=self.port,
             protocol=self.protocol,
-            target_port=self.target_port,
+            target_port=target_port,
             app_protocol=self.app_protocol,
         )
         return _v1_service_port

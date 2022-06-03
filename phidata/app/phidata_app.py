@@ -18,16 +18,14 @@ class PhidataAppArgs(PhidataBaseArgs):
 
     # If True, skip resource creation if active resources with the same name exist.
     use_cache: bool = True
-    # If True, log extra debug messages
-    use_verbose_logs: bool = False
 
-    # Populated during init_resources()
-    # These are passed down from the WorkspaceConfig and each PhidataApp has access to them
+    # Parameters populated during K8sWorker.init_resources()
+    # These are passed down from the WorkspaceConfig -> K8sConfig -> K8sArgs -> PhidataApp
+    # -*- Path parameters
     # Path to the workspace root directory
     workspace_root_path: Optional[Path] = None
     # Path to the workspace config file
     workspace_config_file_path: Optional[Path] = None
-
     # Path to important directories relative to the workspace_root
     # These directories are joined to the workspace_root dir
     #   to build paths depending on the environments (local, docker, k8s)
@@ -39,12 +37,30 @@ class PhidataAppArgs(PhidataBaseArgs):
     notebooks_dir: Optional[str] = None
     workspace_config_dir: Optional[str] = None
 
+    # -*- Environment parameters
     # Env vars added to docker env when building PhidataApps
     #   and running workflows
     docker_env: Optional[Dict[str, str]] = None
     # Env vars added to k8s env when building PhidataApps
     #   and running workflows
     k8s_env: Optional[Dict[str, str]] = None
+
+    # -*- AWS parameters
+    # Common aws params used by apps, resources and data assets
+    aws_region: Optional[str] = None
+    aws_profile: Optional[str] = None
+    aws_config_file: Optional[str] = None
+    aws_shared_credentials_file: Optional[str] = None
+
+    # These are passed down from the K8sConfig -> K8sArgs -> PhidataApp
+    # K8s namespace to use
+    namespace: str = "default"
+    # K8s context to use
+    context: Optional[str] = None
+    # K8s service account to use
+    service_account_name: Optional[str] = None
+    # Common K8s labels to add to all resources
+    common_labels: Optional[Dict[str, str]] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -148,6 +164,78 @@ class PhidataApp(PhidataBase):
     def k8s_env(self, k8s_env: Dict[str, str]) -> None:
         if self.args is not None and k8s_env is not None:
             self.args.k8s_env = k8s_env
+
+    @property
+    def aws_region(self) -> Optional[str]:
+        return self.args.aws_region if self.args else None
+
+    @aws_region.setter
+    def aws_region(self, aws_region: str) -> None:
+        if self.args is not None and aws_region is not None:
+            self.args.aws_region = aws_region
+
+    @property
+    def aws_profile(self) -> Optional[str]:
+        return self.args.aws_profile if self.args else None
+
+    @aws_profile.setter
+    def aws_profile(self, aws_profile: str) -> None:
+        if self.args is not None and aws_profile is not None:
+            self.args.aws_profile = aws_profile
+
+    @property
+    def aws_config_file(self) -> Optional[str]:
+        return self.args.aws_config_file if self.args else None
+
+    @aws_config_file.setter
+    def aws_config_file(self, aws_config_file: str) -> None:
+        if self.args is not None and aws_config_file is not None:
+            self.args.aws_config_file = aws_config_file
+
+    @property
+    def aws_shared_credentials_file(self) -> Optional[str]:
+        return self.args.aws_shared_credentials_file if self.args else None
+
+    @aws_shared_credentials_file.setter
+    def aws_shared_credentials_file(self, aws_shared_credentials_file: str) -> None:
+        if self.args is not None and aws_shared_credentials_file is not None:
+            self.args.aws_shared_credentials_file = aws_shared_credentials_file
+
+    @property
+    def namespace(self) -> Optional[str]:
+        return self.args.namespace if self.args else None
+
+    @namespace.setter
+    def namespace(self, namespace: str) -> None:
+        if self.args is not None and namespace is not None:
+            self.args.namespace = namespace
+
+    @property
+    def context(self) -> Optional[str]:
+        return self.args.context if self.args else None
+
+    @context.setter
+    def context(self, context: str) -> None:
+        if self.args is not None and context is not None:
+            self.args.context = context
+
+    @property
+    def service_account_name(self) -> Optional[str]:
+        return self.args.service_account_name if self.args else None
+
+    @service_account_name.setter
+    def service_account_name(self, service_account_name: str) -> None:
+        if self.args is not None and service_account_name is not None:
+            self.args.service_account_name = service_account_name
+
+    @property
+    def common_labels(self) -> Optional[Dict[str, str]]:
+        return self.args.common_labels if self.args else None
+
+    @common_labels.setter
+    def common_labels(self, common_labels: Dict[str, str]) -> None:
+        if self.args is not None and common_labels is not None:
+            self.args.common_labels = common_labels
 
     ######################################################
     ## DockerResourceGroup

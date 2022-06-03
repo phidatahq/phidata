@@ -63,8 +63,7 @@ def get_docker_resources_from_group(
         List[DockerResource]: List of filtered and flattened DockerResources
     """
 
-    # List of resources to return, we use the Union type: DockerResource
-    # to hold all DockerResources
+    # List of resources to return
     docker_resources: List[DockerResource] = []
     # logger.debug(f"Flattening {docker_resource_group.name}")
 

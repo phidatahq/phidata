@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
+from typing_extensions import Literal
 
 from phidata.app import PhidataApp
 from phidata.app.databox import default_databox_name
-from phidata.infra.aws.resource.eks.cluster import EksCluster
 from phidata.infra.base import InfraConfig
 from phidata.infra.k8s.args import K8sArgs
 from phidata.infra.k8s.manager import K8sManager
@@ -15,41 +15,58 @@ from phidata.utils.log import logger
 class K8sConfig(InfraConfig):
     def __init__(
         self,
-        name: Optional[str] = None,
-        env: Optional[str] = None,
+        env: Optional[Literal["dev", "stg", "prd"]] = "prd",
         version: Optional[str] = None,
         enabled: bool = True,
+        # K8s namespace to use
         namespace: str = "default",
+        # K8s context to use
         context: Optional[str] = None,
+        # K8s service account to use
         service_account_name: Optional[str] = None,
-        labels: Optional[Dict[str, str]] = None,
+        # Common K8s labels to add to all resources
+        common_labels: Optional[Dict[str, str]] = None,
+        # PhidataApp to deploy
         apps: Optional[List[PhidataApp]] = None,
+        # K8sResourceGroup to deploy
         resources: Optional[List[K8sResourceGroup]] = None,
+        # CreateK8sResourceGroup to deploy
         create_resources: Optional[List[CreateK8sResourceGroup]] = None,
+        # Resources dir where k8s manifests are stored
         resources_dir: str = "k8s",
+        # databox name for `phi dx ...` commands
         databox_name: str = default_databox_name,
         kubeconfig: Optional[str] = None,
-        # Get K8s context and kubeconfig from EksCluster
-        eks_cluster: Optional[EksCluster] = None,
+        # Get K8s context and kubeconfig from an EksCluster resource
+        eks_cluster: Optional[Any] = None,
+        # Aws params for this Config
+        # Override the aws params from WorkspaceConfig if provided
+        aws_region: Optional[str] = None,
+        aws_profile: Optional[str] = None,
+        aws_config_file: Optional[str] = None,
+        aws_shared_credentials_file: Optional[str] = None,
     ):
         super().__init__()
         try:
             k8s_context = context
             k8s_kubeconfig_path = Path(kubeconfig) if kubeconfig is not None else None
             if eks_cluster is not None:
-                # logger.debug("Using EksCluster for K8sConfig")
+                from phidata.infra.aws.resource.eks.cluster import EksCluster
+
+                if not isinstance(eks_cluster, EksCluster):
+                    raise TypeError("eks_cluster not of type EksCluster")
+
                 k8s_context = eks_cluster.get_kubeconfig_context_name()
                 k8s_kubeconfig_path = eks_cluster.kubeconfig_path
 
             self.args: K8sArgs = K8sArgs(
-                name=name,
                 env=env,
                 version=version,
                 enabled=enabled,
                 namespace=namespace,
                 context=k8s_context,
                 service_account_name=service_account_name,
-                labels=labels,
+                common_labels=common_labels,
                 apps=apps,
                 resources=resources,
                 create_resources=create_resources,
@@ -57,33 +74,50 @@ class K8sConfig(InfraConfig):
                 resources_dir=resources_dir,
                 kubeconfig_path=k8s_kubeconfig_path,
                 eks_cluster=eks_cluster,
+                aws_region=aws_region,
+                aws_profile=aws_profile,
+                aws_config_file=aws_config_file,
+                aws_shared_credentials_file=aws_shared_credentials_file,
             )
         except Exception as e:
+            logger.error(f"Args for {self.__class__.__name__} are not valid")
             raise
 
     @property
     def namespace(self) -> Optional[str]:
-        if self.args and self.args.namespace:
-            return self.args.namespace
-        return None
+        return self.args.namespace if self.args else None
+
+    @namespace.setter
+    def namespace(self, namespace: str) -> None:
+        if self.args is not None and namespace is not None:
+            self.args.namespace = namespace
 
     @property
     def context(self) -> Optional[str]:
-        if self.args and self.args.context:
-            return self.args.context
-        return None
+        return self.args.context if self.args else None
+
+    @context.setter
+    def context(self, context: str) -> None:
+        if self.args is not None and context is not None:
+            self.args.context = context
 
     @property
     def service_account_name(self) -> Optional[str]:
-        if self.args and self.args.service_account_name:
-            return self.args.service_account_name
-        return None
+        return self.args.service_account_name if self.args else None
+
+    @service_account_name.setter
+    def service_account_name(self, service_account_name: str) -> None:
+        if self.args is not None and service_account_name is not None:
+            self.args.service_account_name = service_account_name
 
     @property
-    def labels(self) -> Optional[Dict[str, str]]:
-        if self.args and self.args.labels:
-            return self.args.labels
-        return None
+    def common_labels(self) -> Optional[Dict[str, str]]:
+        return self.args.common_labels if self.args else None
+
+    @common_labels.setter
+    def common_labels(self, common_labels: Dict[str, str]) -> None:
+        if self.args is not None and common_labels is not None:
+            self.args.common_labels = common_labels
 
     @property
     def apps(self) -> Optional[List[PhidataApp]]:
@@ -122,7 +156,7 @@ class K8sConfig(InfraConfig):
         return None
 
     @property
-    def eks_cluster(self) -> Optional[EksCluster]:
+    def eks_cluster(self) -> Optional[Any]:
         if self.args and self.args.eks_cluster:
             return self.args.eks_cluster
         return None

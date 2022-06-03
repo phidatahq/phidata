@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 from typing_extensions import Literal
 
 from kubernetes.client.models.v1_deployment_strategy import V1DeploymentStrategy
@@ -17,8 +17,8 @@ class RollingUpdateDeployment(K8sObject):
 
     resource_type: str = "RollingUpdateDeployment"
 
-    max_surge: Union[int, str] = Field(..., alias="maxSurge")
-    max_unavailable: Union[int, str] = Field(..., alias="maxUnavailable")
+    max_surge: Optional[Union[int, str]] = Field(None, alias="maxSurge")
+    max_unavailable: Optional[Union[int, str]] = Field(None, alias="maxUnavailable")
 
     def get_k8s_object(self) -> V1RollingUpdateDeployment:
 
@@ -38,7 +38,7 @@ class DeploymentStrategy(K8sObject):
 
     resource_type: str = "DeploymentStrategy"
 
-    rolling_update: RollingUpdateDeployment = Field(..., alias="rollingUpdate")
+    rolling_update: RollingUpdateDeployment = Field(None, alias="rollingUpdate")
     type: Literal["Recreate", "RollingUpdate"] = "RollingUpdate"
 
     def get_k8s_object(self) -> V1DeploymentStrategy:

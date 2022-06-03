@@ -151,6 +151,15 @@ class AirflowScheduler(AirflowBase):
         termination_grace_period_seconds: Optional[int] = None,
         # Add deployment labels
         deploy_labels: Optional[Dict[str, Any]] = None,
+        # Determine how to spread the deployment across a topology
+        # Key to spread the pods across
+        topology_spread_key: Optional[str] = None,
+        # The degree to which pods may be unevenly distributed
+        topology_spread_max_skew: Optional[int] = None,
+        # How to deal with a pod if it doesn't satisfy the spread constraint.
+        topology_spread_when_unsatisfiable: Optional[
+            Literal["DoNotSchedule", "ScheduleAnyway"]
+        ] = None,
         # Other args,
         load_examples: bool = False,
         print_env_on_load: bool = True,
@@ -223,6 +232,9 @@ class AirflowScheduler(AirflowBase):
             secret_name=secret_name,
             secrets_file=secrets_file,
             deploy_name=deploy_name,
+            topology_spread_key=topology_spread_key,
+            topology_spread_max_skew=topology_spread_max_skew,
+            topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
             pod_name=pod_name,
             replicas=replicas,
             pod_node_selector=pod_node_selector,

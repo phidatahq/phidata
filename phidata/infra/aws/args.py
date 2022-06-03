@@ -1,17 +1,11 @@
-from typing import Optional
+from typing import Optional, List
 
-from phidata.infra.aws.resource.group import AwsResourceGroup
 from phidata.infra.base import InfraArgs
-from phidata.infra.k8s.args import K8sArgs
+from phidata.infra.aws.resource.group import AwsResourceGroup
 
 
 class AwsArgs(InfraArgs):
-    resources: Optional[AwsResourceGroup] = None
+    # AwsResourceGroups to deploy
+    resources: Optional[List[AwsResourceGroup]] = None
+    # Resources dir where aws manifests are stored
     resources_dir: str = "aws"
-
-    # AWS configuration for this env
-    # Use aws config from WorkspaceConfig if not provided
-    aws_region: Optional[str] = None
-    aws_profile: Optional[str] = None
-    aws_config_file: Optional[str] = None
-    aws_shared_credentials_file: Optional[str] = None

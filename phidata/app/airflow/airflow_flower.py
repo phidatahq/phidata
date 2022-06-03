@@ -149,6 +149,15 @@ class AirflowFlower(AirflowBase):
         termination_grace_period_seconds: Optional[int] = None,
         # Add deployment labels
         deploy_labels: Optional[Dict[str, Any]] = None,
+        # Determine how to spread the deployment across a topology
+        # Key to spread the pods across
+        topology_spread_key: Optional[str] = None,
+        # The degree to which pods may be unevenly distributed
+        topology_spread_max_skew: Optional[int] = None,
+        # How to deal with a pod if it doesn't satisfy the spread constraint.
+        topology_spread_when_unsatisfiable: Optional[
+            Literal["DoNotSchedule", "ScheduleAnyway"]
+        ] = None,
         # Configure the flower service
         create_flower_service: bool = True,
         flower_service_name: Optional[str] = None,
@@ -237,6 +246,9 @@ class AirflowFlower(AirflowBase):
             restart_policy=restart_policy,
             termination_grace_period_seconds=termination_grace_period_seconds,
             deploy_labels=deploy_labels,
+            topology_spread_key=topology_spread_key,
+            topology_spread_max_skew=topology_spread_max_skew,
+            topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
             create_flower_service=create_flower_service,
             flower_service_name=flower_service_name,
             flower_service_type=flower_service_type,

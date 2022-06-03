@@ -40,18 +40,88 @@ class DockerManager:
                 and self.docker_worker.is_client_initialized()
             ):
                 self.docker_status = DockerManagerStatus.WORKER_READY
-            else:
-                print_error("DockerWorker not ready")
 
-        if self.docker_status.can_create_resources():
+        if self.docker_status == DockerManagerStatus.WORKER_READY:
             if (
                 self.docker_worker is not None
                 and self.docker_worker.are_resources_initialized()
             ):
                 self.docker_status = DockerManagerStatus.RESOURCES_INIT
 
+        if self.docker_status == DockerManagerStatus.RESOURCES_INIT:
+            if (
+                self.docker_worker is not None
+                and self.docker_worker.are_resources_active()
+            ):
+                self.docker_status = DockerManagerStatus.RESOURCES_ACTIVE
+
         logger.debug(f"DockerManagerStatus: {self.docker_status.value}")
         return self.docker_status
+
+    ######################################################
+    ## Create Resources
+    ######################################################
+
+    def create_resources_dry_run(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
+    ) -> None:
+
+        status = self.get_status()
+        if not status.can_create_resources():
+            logger.debug("Cannot create resources")
+            return
+        if self.docker_worker is None:
+            logger.debug("No worker available")
+            return
+
+        # logger.debug("Creating resources dry run")
+        self.docker_worker.create_resources_dry_run(
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
+        )
+
+    def create_resources(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
+    ) -> bool:
+
+        status = self.get_status()
+        if not status.can_create_resources():
+            logger.debug("Cannot create resources")
+            return False
+        if self.docker_worker is None:
+            logger.debug("No worker available")
+            return False
+
+        return self.docker_worker.create_resources(
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
+        )
+
+    def validate_resources_are_created(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+    ) -> bool:
+
+        logger.debug("Validating resources are created...")
+        return True
+
+    ######################################################
+    ## Read Resources
+    ######################################################
 
     def get_resources(
         self,
@@ -69,48 +139,16 @@ class DockerManager:
 
         return self.docker_worker.get_resources(name_filter, type_filter)
 
-    def create_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
-    ) -> None:
-
-        status = self.get_status()
-        if not status.can_create_resources():
-            logger.debug("Cannot create resources")
-            return
-        if self.docker_worker is None:
-            logger.debug("No worker available")
-            return
-
-        # logger.debug("Creating resources dry run")
-        self.docker_worker.create_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
-        )
-
-    def create_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
-    ) -> bool:
-
-        status = self.get_status()
-        if not status.can_create_resources():
-            logger.debug("Cannot create resources")
-            return False
-        if self.docker_worker is None:
-            logger.debug("No worker available")
-            return False
-
-        return self.docker_worker.create_resources(
-            name_filter=name_filter, type_filter=type_filter
-        )
-
-    def validate_resources_are_created(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
-    ) -> bool:
-
-        logger.debug("Validating resources are created...")
-        return True
+    ######################################################
+    ## Delete Resources
+    ######################################################
 
     def delete_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
@@ -123,11 +161,18 @@ class DockerManager:
 
         # logger.debug("Deleting resources dry run")
         self.docker_worker.delete_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def delete_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
@@ -138,10 +183,18 @@ class DockerManager:
             logger.debug("No worker available")
             return False
 
-        return self.docker_worker.delete_resources(name_filter=name_filter)
+        return self.docker_worker.delete_resources(
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
+        )
 
     def validate_resources_are_deleted(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are deleted...")
@@ -152,7 +205,11 @@ class DockerManager:
     ######################################################
 
     def patch_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
@@ -165,11 +222,18 @@ class DockerManager:
 
         # logger.debug("Deleting resources dry run")
         self.docker_worker.patch_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def patch_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
@@ -180,10 +244,18 @@ class DockerManager:
             logger.debug("No worker available")
             return False
 
-        return self.docker_worker.patch_resources(name_filter=name_filter)
+        return self.docker_worker.patch_resources(
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
+        )
 
     def validate_resources_are_patched(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are patched...")

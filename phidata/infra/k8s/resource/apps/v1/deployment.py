@@ -37,7 +37,7 @@ class DeploymentSpec(K8sObject):
     progress_deadline_seconds: Optional[int] = Field(
         None, alias="progressDeadlineSeconds"
     )
-    replicas: int
+    replicas: Optional[int] = None
     # The number of old ReplicaSets to retain to allow rollback.
     # This is a pointer to distinguish between explicit zero and not specified.
     # Defaults to 10.

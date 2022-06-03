@@ -11,7 +11,7 @@ from phidata.infra.docker.resource.volume import DockerVolume
 class DockerResourceGroup(BaseModel):
     """The DockerResourceGroup class contains the instructions to manage docker resources"""
 
-    name: str
+    name: str = "docker"
     enabled: bool = True
 
     # The weight variable controls how this is resource group is deployed to a cluster
@@ -27,6 +27,7 @@ class DockerResourceGroup(BaseModel):
     # Choose weight 11-99 to deploy a resource group before all the default resources.
     # Choose weight 101+ to deploy a resource group after all the default resources
     weight: int = 100
+
     network: Optional[DockerNetwork] = None
     images: Optional[List[DockerImage]] = None
     containers: Optional[List[DockerContainer]] = None

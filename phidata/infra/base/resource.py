@@ -8,21 +8,20 @@ from phidata.utils.log import logger
 class InfraResource(BaseModel):
     """Base class for all Phidata infrastructure resources.
     All Models in the phidata.infra.*.resource modules are expected to be subclasses of this Model.
-    The rationale for using a pydantic model here is that the data which populates this
-    model comes from an external infrastructure api, which can return anything so we need to
-    validate the data were ingesting.
+
+    We use a pydantic model for resources because the data which creates the resource
+    comes from an external sources  like users or the api.
+    This data needs to be validated & type checked for which we use pydantic.
     """
 
-    # type of resource
-    resource_type: Optional[str] = None
     # name of resource
     name: Optional[str] = None
+    # type of resource
+    resource_type: Optional[str] = None
 
     # resource management
-    # If True, skip resource creation if active resources with the same name exist.
+    # If True, skip resource creation if an active resources with the same name exists.
     use_cache: bool = True
-    # If True, logs extra debug messages
-    use_verbose_logs: bool = False
 
     # If True, marks skip_create, skip_delete, skip_update to True
     external: bool = False
@@ -50,10 +49,6 @@ class InfraResource(BaseModel):
 
     def get_resource_type(self) -> Optional[str]:
         return self.resource_type
-
-    def verbose_log(self, msg: Any) -> None:
-        if self.use_verbose_logs:
-            logger.debug(msg)
 
     @validator("skip_create", pre=True, always=True)
     def set_skip_create(cls, skip_create, values):

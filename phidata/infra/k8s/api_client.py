@@ -69,7 +69,7 @@ class K8sApiClient(InfraApiClient):
         except Exception as e:
             print_error(e)
         if api_client is None:
-            raise K8sApiClientException("Could not create kubernetes.client.ApiClient")
+            raise K8sApiClientException("Failed creating Kubernetes ApiClient")
         return api_client
 
     ######################################################
@@ -78,7 +78,7 @@ class K8sApiClient(InfraApiClient):
     ######################################################
 
     @property
-    def api_client(self) -> kubernetes.client.AppsV1Api:
+    def api_client(self) -> kubernetes.client.ApiClient:
         if self._api_client is None:
             self._api_client = self.create_api_client()
         return self._api_client

@@ -144,6 +144,15 @@ class AirflowWorker(AirflowBase):
         secrets_file: Optional[Path] = None,
         # Configure the deployment,
         deploy_name: Optional[str] = None,
+        # Determine how to spread the deployment across a topology
+        # Key to spread the pods across
+        topology_spread_key: Optional[str] = None,
+        # The degree to which pods may be unevenly distributed
+        topology_spread_max_skew: Optional[int] = None,
+        # How to deal with a pod if it doesn't satisfy the spread constraint.
+        topology_spread_when_unsatisfiable: Optional[
+            Literal["DoNotSchedule", "ScheduleAnyway"]
+        ] = None,
         pod_name: Optional[str] = None,
         replicas: int = 1,
         pod_node_selector: Optional[Dict[str, str]] = None,
@@ -234,6 +243,9 @@ class AirflowWorker(AirflowBase):
             restart_policy=restart_policy,
             termination_grace_period_seconds=termination_grace_period_seconds,
             deploy_labels=deploy_labels,
+            topology_spread_key=topology_spread_key,
+            topology_spread_max_skew=topology_spread_max_skew,
+            topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
             load_examples=load_examples,
             print_env_on_load=print_env_on_load,
             use_cache=use_cache,

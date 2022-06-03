@@ -81,8 +81,8 @@ class Namespace(K8sResource):
         namespaces: Optional[List[V1Namespace]] = None
         if ns_list:
             namespaces = [ns for ns in ns_list.items if ns.status.phase == "Active"]
-        logger.debug(f"namespaces: {namespaces}")
-        logger.debug(f"namespaces type: {type(namespaces)}")
+        # logger.debug(f"namespaces: {namespaces}")
+        # logger.debug(f"namespaces type: {type(namespaces)}")
         return namespaces
 
     def _create(self, k8s_client: K8sApiClient) -> bool:

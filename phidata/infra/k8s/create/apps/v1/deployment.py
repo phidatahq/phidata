@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from typing_extensions import Literal
 
 from pydantic import BaseModel
 
@@ -16,6 +17,9 @@ from phidata.infra.k8s.resource.apps.v1.deployment import (
 from phidata.infra.k8s.resource.core.v1.container import Container
 from phidata.infra.k8s.resource.core.v1.pod_spec import PodSpec
 from phidata.infra.k8s.resource.core.v1.volume import Volume
+from phidata.infra.k8s.resource.core.v1.topology_spread_constraints import (
+    TopologySpreadConstraint,
+)
 from phidata.infra.k8s.create.common.labels import create_component_labels_dict
 from phidata.infra.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phidata.utils.log import logger
@@ -36,6 +40,11 @@ class CreateDeployment(BaseModel):
     volumes: Optional[List[CreateVolume]] = None
     labels: Optional[Dict[str, str]] = None
     pod_annotations: Optional[Dict[str, str]] = None
+    topology_spread_key: Optional[str] = None
+    topology_spread_max_skew: Optional[int] = None
+    topology_spread_when_unsatisfiable: Optional[
+        Literal["DoNotSchedule", "ScheduleAnyway"]
+    ] = None
 
     def create(self) -> Optional[Deployment]:
         """Creates the Deployment resource"""
@@ -62,6 +71,17 @@ class CreateDeployment(BaseModel):
             container = cc.create()
             if container is not None:
                 containers.append(container)
+
+        topology_spread_constraints: Optional[List[TopologySpreadConstraint]] = None
+        if self.topology_spread_key is not None:
+            topology_spread_constraints = [
+                TopologySpreadConstraint(
+                    topology_key=self.topology_spread_key,
+                    max_skew=self.topology_spread_max_skew,
+                    when_unsatisfiable=self.topology_spread_when_unsatisfiable,
+                    label_selector=LabelSelector(match_labels=pod_labels),
+                )
+            ]
 
         volumes: Optional[List[Volume]] = None
         if self.volumes:
@@ -98,6 +118,7 @@ class CreateDeployment(BaseModel):
                         restart_policy=self.restart_policy,
                         containers=containers,
                         termination_grace_period_seconds=self.termination_grace_period_seconds,
+                        topology_spread_constraints=topology_spread_constraints,
                         volumes=volumes,
                     ),
                 ),

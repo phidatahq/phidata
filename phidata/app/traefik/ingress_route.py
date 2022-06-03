@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from pathlib import Path
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Any
 from typing_extensions import Literal
 
 from phidata.app import PhidataApp, PhidataAppArgs
@@ -130,6 +130,17 @@ class IngressRouteArgs(PhidataAppArgs):
     pod_node_selector: Optional[Dict[str, str]] = None
     restart_policy: RestartPolicy = RestartPolicy.ALWAYS
     termination_grace_period_seconds: Optional[int] = None
+    # Add deployment labels
+    deploy_labels: Optional[Dict[str, Any]] = None
+    # Determine how to spread the deployment across a topology
+    # Key to spread the pods across
+    topology_spread_key: Optional[str] = None
+    # The degree to which pods may be unevenly distributed
+    topology_spread_max_skew: Optional[int] = None
+    # How to deal with a pod if it doesn't satisfy the spread constraint.
+    topology_spread_when_unsatisfiable: Optional[
+        Literal["DoNotSchedule", "ScheduleAnyway"]
+    ] = None
     # Configure the service
     service_name: Optional[str] = None
     service_type: ServiceType = ServiceType.LOAD_BALANCER
@@ -246,6 +257,17 @@ class IngressRoute(PhidataApp):
         pod_node_selector: Optional[Dict[str, str]] = None,
         restart_policy: RestartPolicy = RestartPolicy.ALWAYS,
         termination_grace_period_seconds: Optional[int] = None,
+        # Add deployment labels
+        deploy_labels: Optional[Dict[str, Any]] = None,
+        # Determine how to spread the deployment across a topology
+        # Key to spread the pods across
+        topology_spread_key: Optional[str] = None,
+        # The degree to which pods may be unevenly distributed
+        topology_spread_max_skew: Optional[int] = None,
+        # How to deal with a pod if it doesn't satisfy the spread constraint.
+        topology_spread_when_unsatisfiable: Optional[
+            Literal["DoNotSchedule", "ScheduleAnyway"]
+        ] = None,
         # Configure the service,
         service_name: Optional[str] = None,
         service_type: ServiceType = ServiceType.LOAD_BALANCER,
@@ -348,6 +370,10 @@ class IngressRoute(PhidataApp):
                 pod_node_selector=pod_node_selector,
                 restart_policy=restart_policy,
                 termination_grace_period_seconds=termination_grace_period_seconds,
+                deploy_labels=deploy_labels,
+                topology_spread_key=topology_spread_key,
+                topology_spread_max_skew=topology_spread_max_skew,
+                topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
                 service_name=service_name,
                 service_type=service_type,
                 service_annotations=service_annotations,
@@ -775,6 +801,13 @@ class IngressRoute(PhidataApp):
             ports=ports,
         )
 
+        deploy_labels: Optional[Dict[str, Any]] = self.args.deploy_labels
+        if k8s_build_context.labels is not None:
+            if deploy_labels:
+                deploy_labels.update(k8s_build_context.labels)
+            else:
+                deploy_labels = k8s_build_context.labels
+        # Create the deployment
         deployment = CreateDeployment(
             replicas=self.args.replicas,
             deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
@@ -783,7 +816,13 @@ class IngressRoute(PhidataApp):
             namespace=k8s_build_context.namespace,
             service_account_name=sa.sa_name,
             containers=[container],
-            labels=k8s_build_context.labels,
+            pod_node_selector=self.args.pod_node_selector,
+            restart_policy=self.args.restart_policy,
+            termination_grace_period_seconds=self.args.termination_grace_period_seconds,
+            labels=deploy_labels,
+            topology_spread_key=self.args.topology_spread_key,
+            topology_spread_max_skew=self.args.topology_spread_max_skew,
+            topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
 
         service_annotations = self.args.service_annotations

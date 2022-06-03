@@ -29,7 +29,7 @@ from phidata.infra.k8s.resource.group import (
 )
 from phidata.infra.k8s.enums.image_pull_policy import ImagePullPolicy
 from phidata.infra.k8s.enums.restart_policy import RestartPolicy
-from phidata.utils.cli_console import print_error, print_info, print_warning
+from phidata.utils.cli_console import print_info, print_warning
 from phidata.utils.common import (
     get_image_str,
     get_default_container_name,
@@ -320,7 +320,7 @@ class PostgresDb(DbApp):
             if env_data_from_file is not None and isinstance(env_data_from_file, dict):
                 return env_data_from_file
             else:
-                print_error(f"Invalid env_file: {env_file_path}")
+                logger.error(f"Invalid env_file: {env_file_path}")
         return None
 
     def get_secret_data_from_file(self) -> Optional[Dict[str, str]]:
@@ -339,7 +339,7 @@ class PostgresDb(DbApp):
             ):
                 return secret_data_from_file
             else:
-                print_error(f"Invalid secrets_file: {secrets_file_path}")
+                logger.error(f"Invalid secrets_file: {secrets_file_path}")
         return None
 
     def get_db_user(self) -> Optional[str]:
@@ -493,10 +493,10 @@ class PostgresDb(DbApp):
                         "mode": "rw",
                     }
                 else:
-                    print_error("PostgresDb: volume_host_path not provided")
+                    logger.error("PostgresDb: volume_host_path not provided")
                     return None
             else:
-                print_error(f"{self.args.volume_type.value} not supported")
+                logger.error(f"{self.args.volume_type.value} not supported")
                 return None
 
         # Container Ports
@@ -520,7 +520,6 @@ class PostgresDb(DbApp):
             ports=container_ports,
             volumes=container_volumes,
             use_cache=self.args.use_cache,
-            use_verbose_logs=self.args.use_verbose_logs,
         )
 
         docker_rg = DockerResourceGroup(
@@ -632,7 +631,7 @@ class PostgresDb(DbApp):
                     )
                     container_volumes.append(pg_volume)
                 else:
-                    print_error("PostgresDb: volume_host_path not provided")
+                    logger.error("PostgresDb: volume_host_path not provided")
                     return None
             elif self.args.volume_type == PostgresVolumeType.AWS_EBS:
                 if (
@@ -680,10 +679,10 @@ class PostgresDb(DbApp):
                         if ebs_az is not None:
                             pod_node_selector["topology.kubernetes.io/zone"] = ebs_az
                 else:
-                    print_error("PostgresDb: ebs_volume not provided")
+                    logger.error("PostgresDb: ebs_volume not provided")
                     return None
             else:
-                print_error(f"{self.args.volume_type.value} not supported")
+                logger.error(f"{self.args.volume_type.value} not supported")
                 return None
 
         # Create the ports to open
@@ -701,8 +700,8 @@ class PostgresDb(DbApp):
                 or self.args.node_port < 30000
                 or self.args.node_port > 32767
             ):
-                print_error(f"NodePort: {self.args.node_port} invalid")
-                print_error(f"Skipping this service")
+                logger.error(f"NodePort: {self.args.node_port} invalid")
+                logger.error(f"Skipping this service")
                 return None
             else:
                 container_port.node_port = self.args.node_port
@@ -710,8 +709,8 @@ class PostgresDb(DbApp):
         elif self.args.service_type == ServiceType.LOAD_BALANCER:
             if self.args.node_port is not None:
                 if self.args.node_port < 30000 or self.args.node_port > 32767:
-                    print_error(f"NodePort: {self.args.node_port} invalid")
-                    print_error(f"Skipping this service")
+                    logger.error(f"NodePort: {self.args.node_port} invalid")
+                    logger.error(f"Skipping this service")
                     return None
                 else:
                     container_port.node_port = self.args.node_port

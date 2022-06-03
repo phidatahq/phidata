@@ -2,33 +2,21 @@ from pathlib import Path
 from typing import Optional, Dict
 from typing_extensions import Literal
 
+from phidata.base import PhidataBase
 from phidata.infra.base.args import InfraArgs
 from phidata.utils.log import logger
 
 
-class InfraConfig:
+class InfraConfig(PhidataBase):
     """Base Class for all phidata infra configs"""
 
     def __init__(self) -> None:
+        super().__init__()
         self.args: Optional[InfraArgs] = None
-
-    @property
-    def name(self) -> str:
-        if self.args and self.args.name:
-            return self.args.name
-        return self.__class__.__name__.lower()
 
     @property
     def env(self) -> Optional[Literal["dev", "stg", "prd"]]:
         return self.args.env if self.args else None
-
-    @property
-    def version(self) -> Optional[str]:
-        return self.args.version if self.args else None
-
-    @property
-    def enabled(self) -> bool:
-        return self.args.enabled if self.args else False
 
     @property
     def workspace_root_path(self) -> Optional[Path]:
@@ -129,7 +117,46 @@ class InfraConfig:
         if self.args is not None and k8s_env is not None:
             self.args.k8s_env = k8s_env
 
+    @property
+    def aws_region(self) -> Optional[str]:
+        return self.args.aws_region if self.args else None
+
+    @aws_region.setter
+    def aws_region(self, aws_region: str) -> None:
+        if self.args is not None and aws_region is not None:
+            self.args.aws_region = aws_region
+
+    @property
+    def aws_profile(self) -> Optional[str]:
+        return self.args.aws_profile if self.args else None
+
+    @aws_profile.setter
+    def aws_profile(self, aws_profile: str) -> None:
+        if self.args is not None and aws_profile is not None:
+            self.args.aws_profile = aws_profile
+
+    @property
+    def aws_config_file(self) -> Optional[str]:
+        return self.args.aws_config_file if self.args else None
+
+    @aws_config_file.setter
+    def aws_config_file(self, aws_config_file: str) -> None:
+        if self.args is not None and aws_config_file is not None:
+            self.args.aws_config_file = aws_config_file
+
+    @property
+    def aws_shared_credentials_file(self) -> Optional[str]:
+        return self.args.aws_shared_credentials_file if self.args else None
+
+    @aws_shared_credentials_file.setter
+    def aws_shared_credentials_file(self, aws_shared_credentials_file: str) -> None:
+        if self.args is not None and aws_shared_credentials_file is not None:
+            self.args.aws_shared_credentials_file = aws_shared_credentials_file
+
     def is_valid(self) -> bool:
+        """
+        This function is implemented by each subclass
+        and called before the config is used
+        """
         logger.debug(f"@is_valid not defined for {self.__class__.__name__}")
-        # each subclass should implement this function
         return True

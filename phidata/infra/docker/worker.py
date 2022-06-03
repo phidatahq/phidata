@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 from phidata.infra.docker.args import DockerArgs
 from phidata.infra.docker.api_client import DockerApiClient
@@ -10,6 +10,7 @@ from phidata.infra.docker.resource.group import (
 )
 from phidata.infra.docker.resource.utils import (
     filter_and_flatten_docker_resource_groups,
+    get_docker_resources_from_group,
 )
 from phidata.infra.docker.exceptions import (
     DockerArgsException,
@@ -33,10 +34,6 @@ class DockerWorker:
     """This class interacts with the Docker API on behalf of phidata and DockerManager."""
 
     def __init__(self, docker_args: DockerArgs) -> None:
-        # logger.debug(f"Creating DockerWorker")
-        if docker_args is None or not isinstance(docker_args, DockerArgs):
-            raise DockerArgsException("DockerArgs invalid: {}".format(docker_args))
-
         self.docker_args: DockerArgs = docker_args
         self.docker_client: DockerApiClient = DockerApiClient(
             base_url=self.docker_args.base_url
@@ -50,6 +47,10 @@ class DockerWorker:
     def are_resources_initialized(self) -> bool:
         if self.docker_resources is not None and len(self.docker_resources) > 0:
             return True
+        return False
+
+    def are_resources_active(self) -> bool:
+        # TODO: fix this
         return False
 
     ######################################################
@@ -119,7 +120,6 @@ class DockerWorker:
             logger.debug("Adding default DockerResourceGroup")
             num_rgs_to_build += 1
             default_docker_rg = DockerResourceGroup(
-                name="default",
                 images=self.docker_args.images,
                 containers=self.docker_args.containers,
                 volumes=self.docker_args.volumes,
@@ -153,60 +153,113 @@ class DockerWorker:
     ######################################################
 
     def create_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
         logger.debug("-*- Creating DockerResources")
         if self.docker_resources is None:
             self.init_resources()
             if self.docker_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return False
 
-        docker_resources_to_create: Optional[
-            List[DockerResource]
-        ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if docker_resources_to_create is None or is_empty(docker_resources_to_create):
-            print_info("No DockerResources to create")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        docker_resources_to_create: List[Tuple[str, int, List[DockerResource]]] = []
+        for docker_rg_name, docker_rg in self.docker_resources.items():
+            logger.debug(f"Processing: {docker_rg_name}")
+
+            # skip disabled DockerResourceGroups
+            if not docker_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"Skipping {docker_rg_name}")
+                    continue
+
+            docker_resources_in_group = get_docker_resources_from_group(
+                docker_resource_group=docker_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(docker_resources_in_group) > 0:
+                docker_resources_to_create.append(
+                    (docker_rg_name, docker_rg.weight, docker_resources_in_group)
+                )
+
+        if len(docker_resources_to_create) == 0:
+            print_subheading("No DockerResources to create")
             return True
 
+        docker_resources_to_create_sorted: List[
+            Tuple[str, int, List[DockerResource]]
+        ] = sorted(
+            docker_resources_to_create,
+            key=lambda x: x[1],
+        )
+
+        # Validate resources to be created
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in docker_resources_to_create_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            print_info(f"\nNetwork: {self.docker_args.network}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm deploy")
+            if not confirm:
+                print_info("Skipping deploy")
+                return False
+
         # track the total number of DockerResources to create for validation
-        num_resources_to_create: int = len(docker_resources_to_create)
+        num_resources_to_create: int = 0
         num_resources_created: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Creating {num_resources_to_create} DockerResources:")
-        for rsrc in docker_resources_to_create:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm deploy")
-        if not confirm:
-            print_info("Skipping deploy")
-            return False
-
-        for resource in docker_resources_to_create:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_created = resource.create(
-                        docker_client=self.docker_client
+        for (
+            group_name,
+            group_weight,
+            resource_list,
+        ) in docker_resources_to_create_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_create += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    if _resource_created:
-                        num_resources_created += 1
-                except DockerResourceCreationFailedException as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.resource_type}: {resource.name} could not be created."
-                    )
-                    print_error("Error: {}".format(e))
-                    print_error(
-                        "Skipping resource creation, please fix and try again..."
-                    )
+                    # logger.debug(resource)
+                    try:
+                        _resource_created = resource.create(
+                            docker_client=self.docker_client
+                        )
+                        if _resource_created:
+                            num_resources_created += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources created: {num_resources_created}/{num_resources_to_create}"
@@ -214,43 +267,81 @@ class DockerWorker:
         if num_resources_to_create == num_resources_created:
             return True
 
-        print_error(
+        logger.error(
             f"Resources created: {num_resources_created} do not match Resources required: {num_resources_to_create}"
         )
         return False
 
     def create_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.docker_args.env
-        print_subheading(
-            "DockerResources{}".format(f" for env: {env}" if env is not None else "")
-        )
+        logger.debug("-*- Creating DockerResources")
         if self.docker_resources is None:
             self.init_resources()
             if self.docker_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return
 
-        docker_resources_to_create: Optional[
-            List[DockerResource]
-        ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if docker_resources_to_create is None or is_empty(docker_resources_to_create):
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        docker_resources_to_create: List[Tuple[str, int, List[DockerResource]]] = []
+        for docker_rg_name, docker_rg in self.docker_resources.items():
+            logger.debug(f"Processing: {docker_rg_name}")
+
+            # skip disabled DockerResourceGroups
+            if not docker_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"Skipping {docker_rg_name}")
+                    continue
+
+            docker_resources_in_group = get_docker_resources_from_group(
+                docker_resource_group=docker_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(docker_resources_in_group) > 0:
+                docker_resources_to_create.append(
+                    (docker_rg_name, docker_rg.weight, docker_resources_in_group)
+                )
+
+        if len(docker_resources_to_create) == 0:
             print_info("No DockerResources to create")
             return
 
-        num_resources_to_create: int = len(docker_resources_to_create)
-        print_info(
-            f"\n-*- Deploying this DockerConfig will create {num_resources_to_create} resources:"
+        docker_resources_to_create_sorted: List[
+            Tuple[str, int, List[DockerResource]]
+        ] = sorted(
+            docker_resources_to_create,
+            key=lambda x: x[1],
         )
-        for resource in docker_resources_to_create:
-            print_info(f"-==+==- {resource.resource_type}: {resource.name}")
+
+        group_number = 1
+        num_resources_to_create: int = 0
+        print_heading("--**-- Docker resources:")
+        for (
+            group_name,
+            group_weight,
+            resource_list,
+        ) in docker_resources_to_create_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_create += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        print_info(f"\nNetwork: {self.docker_args.network}")
+        print_info(f"\nTotal {num_resources_to_create} resources")
 
     ######################################################
     ## Get Resources
@@ -284,59 +375,114 @@ class DockerWorker:
     ######################################################
 
     def delete_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         logger.debug("-*- Deleting DockerResources")
         if self.docker_resources is None:
             self.init_resources()
             if self.docker_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return False
 
-        docker_resources_to_delete: Optional[
-            List[DockerResource]
-        ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="delete",
-        )
-        if docker_resources_to_delete is None or is_empty(docker_resources_to_delete):
-            logger.debug("No DockerResources to delete")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        docker_resources_to_delete: List[Tuple[str, int, List[DockerResource]]] = []
+        for docker_rg_name, docker_rg in self.docker_resources.items():
+            logger.debug(f"Processing: {docker_rg_name}")
+
+            # skip disabled DockerResourceGroups
+            if not docker_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"Skipping {docker_rg_name}")
+                    continue
+
+            docker_resources_in_group = get_docker_resources_from_group(
+                docker_resource_group=docker_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(docker_resources_in_group) > 0:
+                docker_resources_to_delete.append(
+                    (docker_rg_name, docker_rg.weight, docker_resources_in_group)
+                )
+
+        if len(docker_resources_to_delete) == 0:
+            print_subheading("No DockerResources to delete")
             return True
 
-        # track the total number of DockerResources to delete for validation
-        num_resources_to_delete: int = len(docker_resources_to_delete)
+        docker_resources_to_delete_sorted: List[
+            Tuple[str, int, List[DockerResource]]
+        ] = sorted(
+            docker_resources_to_delete,
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        # Validate resources to be created
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in docker_resources_to_delete_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            print_info(f"\nNetwork: {self.docker_args.network}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm delete")
+            if not confirm:
+                print_info("Skipping delete")
+                return False
+
+        # track the total number of DockerResources to create for validation
+        num_resources_to_delete: int = 0
         num_resources_deleted: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Deleting {num_resources_to_delete} DockerResources:")
-        for rsrc in docker_resources_to_delete:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm delete")
-        if not confirm:
-            print_info("Skipping delete")
-            return False
-
-        for resource in docker_resources_to_delete:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_deleted = resource.delete(
-                        docker_client=self.docker_client
+        for (
+            group_name,
+            group_weight,
+            resource_list,
+        ) in docker_resources_to_delete_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_delete += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    if _resource_deleted:
-                        num_resources_deleted += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.resource_type}: {resource.name} could not be deleted."
-                    )
-                    print_error(e)
-                    print_error("Skipping resource deletion, please delete manually...")
+                    # logger.debug(resource)
+                    try:
+                        _resource_created = resource.create(
+                            docker_client=self.docker_client
+                        )
+                        if _resource_created:
+                            num_resources_deleted += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources deleted: {num_resources_deleted}/{num_resources_to_delete}"
@@ -344,102 +490,195 @@ class DockerWorker:
         if num_resources_to_delete == num_resources_deleted:
             return True
 
-        print_error(
-            f"Resources deleted: {num_resources_deleted} do not match Resources required: {num_resources_to_delete}"
+        logger.error(
+            f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"
         )
         return False
 
     def delete_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.docker_args.env
-        print_subheading(
-            "DockerResources{}".format(f" for env: {env}" if env is not None else "")
-        )
+        logger.debug("-*- Deleting DockerResources")
         if self.docker_resources is None:
             self.init_resources()
             if self.docker_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return
 
-        docker_resources_to_delete: Optional[
-            List[DockerResource]
-        ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="delete",
-        )
-        if docker_resources_to_delete is None or is_empty(docker_resources_to_delete):
-            logger.debug("No DockerResources to delete")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        docker_resources_to_delete: List[Tuple[str, int, List[DockerResource]]] = []
+        for docker_rg_name, docker_rg in self.docker_resources.items():
+            logger.debug(f"Processing: {docker_rg_name}")
+
+            # skip disabled DockerResourceGroups
+            if not docker_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"Skipping {docker_rg_name}")
+                    continue
+
+            docker_resources_in_group = get_docker_resources_from_group(
+                docker_resource_group=docker_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(docker_resources_in_group) > 0:
+                docker_resources_to_delete.append(
+                    (docker_rg_name, docker_rg.weight, docker_resources_in_group)
+                )
+
+        if len(docker_resources_to_delete) == 0:
+            print_info("No DockerResources to create")
             return
 
-        num_resources_to_delete: int = len(docker_resources_to_delete)
-        print_info(
-            f"\n-*- Shutting down this DockerConfig will delete {num_resources_to_delete} resources:"
+        docker_resources_to_delete_sorted: List[
+            Tuple[str, int, List[DockerResource]]
+        ] = sorted(
+            docker_resources_to_delete,
+            key=lambda x: x[1],
+            reverse=True,
         )
-        for resource in docker_resources_to_delete:
-            print_info(f"-==+==- {resource.resource_type}: {resource.name}")
+
+        group_number = 1
+        num_resources_to_delete: int = 0
+        print_heading("--**-- Docker resources:")
+        for (
+            group_name,
+            group_weight,
+            resource_list,
+        ) in docker_resources_to_delete_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_delete += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        print_info(f"\nNetwork: {self.docker_args.network}")
+        print_info(f"\nTotal {num_resources_to_delete} resources")
 
     ######################################################
     ## Patch Resources
     ######################################################
 
     def patch_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         logger.debug("-*- Patching DockerResources")
         if self.docker_resources is None:
             self.init_resources()
             if self.docker_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return False
 
-        docker_resources_to_patch: Optional[
-            List[DockerResource]
-        ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if docker_resources_to_patch is None or is_empty(docker_resources_to_patch):
-            logger.debug("No DockerResources to patch")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        docker_resources_to_patch: List[Tuple[str, int, List[DockerResource]]] = []
+        for docker_rg_name, docker_rg in self.docker_resources.items():
+            logger.debug(f"Processing: {docker_rg_name}")
+
+            # skip disabled DockerResourceGroups
+            if not docker_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"Skipping {docker_rg_name}")
+                    continue
+
+            docker_resources_in_group = get_docker_resources_from_group(
+                docker_resource_group=docker_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(docker_resources_in_group) > 0:
+                docker_resources_to_patch.append(
+                    (docker_rg_name, docker_rg.weight, docker_resources_in_group)
+                )
+
+        if len(docker_resources_to_patch) == 0:
+            print_subheading("No DockerResources to patch")
             return True
 
+        docker_resources_to_patch_sorted: List[
+            Tuple[str, int, List[DockerResource]]
+        ] = sorted(
+            docker_resources_to_patch,
+            key=lambda x: x[1],
+        )
+
+        # Validate resources to be patched
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in docker_resources_to_patch_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            print_info(f"\nNetwork: {self.docker_args.network}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm patch")
+            if not confirm:
+                print_info("Skipping patch")
+                return False
+
         # track the total number of DockerResources to patch for validation
-        num_resources_to_patch: int = len(docker_resources_to_patch)
+        num_resources_to_patch: int = 0
         num_resources_patched: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Patching {num_resources_to_patch} DockerResources:")
-        for rsrc in docker_resources_to_patch:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm patch")
-        if not confirm:
-            print_info("Skipping patch")
-            return False
-
-        for resource in docker_resources_to_patch:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_patched = resource.update(
-                        docker_client=self.docker_client
+        for (
+            group_name,
+            group_weight,
+            resource_list,
+        ) in docker_resources_to_patch_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_patch += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    if _resource_patched:
-                        num_resources_patched += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.resource_type}: {resource.name} could not be patched."
-                    )
-                    print_error(e)
-                    print_error("Skipping resource, please patch manually...")
+                    # logger.debug(resource)
+                    try:
+                        _resource_patched = resource.update(
+                            docker_client=self.docker_client
+                        )
+                        if _resource_patched:
+                            num_resources_patched += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources patched: {num_resources_patched}/{num_resources_to_patch}"
@@ -447,43 +686,81 @@ class DockerWorker:
         if num_resources_to_patch == num_resources_patched:
             return True
 
-        print_error(
-            f"Resources patched: {num_resources_patched} do not match Resources required: {num_resources_to_patch}"
+        logger.error(
+            f"Resources patched: {num_resources_patched} do not match resources required: {num_resources_to_patch}"
         )
         return False
 
     def patch_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.docker_args.env
-        print_subheading(
-            "DockerResources{}".format(f" for env: {env}" if env is not None else "")
-        )
+        logger.debug("-*- Patching DockerResources")
         if self.docker_resources is None:
             self.init_resources()
             if self.docker_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return
 
-        docker_resources_to_patch: Optional[
-            List[DockerResource]
-        ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if docker_resources_to_patch is None or is_empty(docker_resources_to_patch):
-            logger.debug("No DockerResources to patch")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        docker_resources_to_patch: List[Tuple[str, int, List[DockerResource]]] = []
+        for docker_rg_name, docker_rg in self.docker_resources.items():
+            logger.debug(f"Processing: {docker_rg_name}")
+
+            # skip disabled DockerResourceGroups
+            if not docker_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"Skipping {docker_rg_name}")
+                    continue
+
+            docker_resources_in_group = get_docker_resources_from_group(
+                docker_resource_group=docker_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(docker_resources_in_group) > 0:
+                docker_resources_to_patch.append(
+                    (docker_rg_name, docker_rg.weight, docker_resources_in_group)
+                )
+
+        if len(docker_resources_to_patch) == 0:
+            print_info("No DockerResources to patch")
             return
 
-        num_resources_to_patch: int = len(docker_resources_to_patch)
-        print_info(
-            f"\n-*- Shutting down this DockerConfig will patch {num_resources_to_patch} resources:"
+        docker_resources_to_patch_sorted: List[
+            Tuple[str, int, List[DockerResource]]
+        ] = sorted(
+            docker_resources_to_patch,
+            key=lambda x: x[1],
         )
-        for resource in docker_resources_to_patch:
-            print_info(f"-==+==- {resource.resource_type}: {resource.name}")
+
+        group_number = 1
+        num_resources_to_patch: int = 0
+        print_heading("--**-- Docker resources:")
+        for (
+            group_name,
+            group_weight,
+            resource_list,
+        ) in docker_resources_to_patch_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_patch += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        print_info(f"\nNetwork: {self.docker_args.network}")
+        print_info(f"\nTotal {num_resources_to_patch} resources")
 
     ######################################################
     ## End

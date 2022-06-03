@@ -8,6 +8,10 @@ from pydantic import Field
 from phidata.infra.k8s.enums.restart_policy import RestartPolicy
 from phidata.infra.k8s.resource.base import K8sObject
 from phidata.infra.k8s.resource.core.v1.container import Container
+from phidata.infra.k8s.resource.core.v1.toleration import Toleration
+from phidata.infra.k8s.resource.core.v1.topology_spread_constraints import (
+    TopologySpreadConstraint,
+)
 from phidata.infra.k8s.resource.core.v1.local_object_reference import (
     LocalObjectReference,
 )
@@ -77,6 +81,14 @@ class PodSpec(K8sObject):
     service_account_name: Optional[str] = Field(None, alias="serviceAccountName")
     termination_grace_period_seconds: Optional[int] = Field(
         None, alias="terminationGracePeriodSeconds"
+    )
+    # If specified, the pod's tolerations.
+    tolerations: Optional[List[Toleration]] = None
+    # TopologySpreadConstraints describes how a group of pods ought to spread across topology domains.
+    # Scheduler will schedule pods in a way which abides by the constraints.
+    # All topologySpreadConstraints are ANDed.
+    topology_spread_constraints: Optional[List[TopologySpreadConstraint]] = Field(
+        None, alias="topologySpreadConstraints"
     )
     # List of volumes that can be mounted by containers belonging to the pod.
     # More info: https://kubernetes.io/docs/concepts/storage/volumes

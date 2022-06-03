@@ -1,13 +1,7 @@
-from collections import defaultdict, OrderedDict
-from typing import Any, Dict, List, Optional, Type, Set, cast
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Type, Set, cast, Tuple
 
 from phidata.infra.k8s.args import K8sArgs
-from phidata.infra.k8s.constants import (
-    DEFAULT_K8S_NAMESPACE,
-    DEFAULT_K8S_SERVICE_ACCOUNT,
-    NAMESPACE_RESOURCE_GROUP_KEY,
-    RBAC_RESOURCE_GROUP_KEY,
-)
 from phidata.infra.k8s.api_client import K8sApiClient
 from phidata.infra.k8s.exceptions import K8sArgsException
 from phidata.infra.k8s.resource.base import K8sResource
@@ -16,17 +10,15 @@ from phidata.infra.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
 )
-from phidata.infra.k8s.resource.kubeconfig import Kubeconfig
 from phidata.infra.k8s.resource.utils import (
+    get_k8s_resources_from_group,
     filter_and_flatten_k8s_resource_groups,
     dedup_resource_types,
 )
 from phidata.utils.cli_console import (
     print_info,
-    print_info,
     print_heading,
     print_subheading,
-    print_error,
     confirm_yes_no,
 )
 from phidata.utils.common import is_empty
@@ -37,10 +29,6 @@ class K8sWorker:
     """This class interacts with the Kubernetes API."""
 
     def __init__(self, k8s_args: K8sArgs) -> None:
-        # logger.debug(f"Creating K8sWorker")
-        if k8s_args is None or not isinstance(k8s_args, K8sArgs):
-            raise K8sArgsException("K8sArgs invalid: {}".format(k8s_args))
-
         self.k8s_args: K8sArgs = k8s_args
         self.k8s_api_client: K8sApiClient = K8sApiClient(
             context=self.k8s_args.context,
@@ -55,6 +43,10 @@ class K8sWorker:
     def are_resources_initialized(self) -> bool:
         if self.k8s_resources is not None and len(self.k8s_resources) > 0:
             return True
+        return False
+
+    def are_resources_active(self) -> bool:
+        # TODO: fix this
         return False
 
     ######################################################
@@ -90,16 +82,21 @@ class K8sWorker:
         if apps_to_build is not None and isinstance(apps_to_build, list):
             for app in apps_to_build:
                 if app.args is None:
-                    print_error("Args for App {} are None".format(app))
+                    logger.error("Args for App {} are None".format(app))
                     continue
                 logger.debug("-*- App: {}".format(app.name))
 
                 ######################################################################
                 # NOTE: VERY IMPORTANT TO GET RIGHT
-                # Pass down the paths and env
-                # from  WorkspaceConfig -> DockerConfig -> PhidataApp
+                # Pass down parameters from K8sArgs -> PhidataApp
+                # The K8sConfig inherits these params from the WorkspaceConfig
+                # 1. Pass down the paths from the WorkspaceConfig
+                # 2. Pass down k8s_env
+                # 3. Pass down common cloud configuration. eg: aws_region, aws_profile
                 ######################################################################
 
+                # -*- Path parameters
+                # The ws_root_path is the ROOT directory for the workspace
                 app.workspace_root_path = self.k8s_args.workspace_root_path
                 app.workspace_config_file_path = (
                     self.k8s_args.workspace_config_file_path
@@ -110,7 +107,51 @@ class K8sWorker:
                 app.products_dir = self.k8s_args.products_dir
                 app.notebooks_dir = self.k8s_args.notebooks_dir
                 app.workspace_config_dir = self.k8s_args.workspace_config_dir
-                app.k8s_env = self.k8s_args.k8s_env
+
+                # -*- Environment parameters
+                # only update the params if they are not available on the app.
+                # so we can prefer the app param if provided
+                if app.k8s_env is None and self.k8s_args.k8s_env is not None:
+                    app.k8s_env = self.k8s_args.k8s_env
+
+                # -*- AWS parameters
+                # only update the params if they are not available on the app.
+                # so we can prefer the app param if provided
+                if app.aws_region is None and self.k8s_args.aws_region is not None:
+                    app.aws_region = self.k8s_args.aws_region
+                if app.aws_profile is None and self.k8s_args.aws_profile is not None:
+                    app.aws_profile = self.k8s_args.aws_profile
+                if (
+                    app.aws_config_file is None
+                    and self.k8s_args.aws_config_file is not None
+                ):
+                    app.aws_config_file = self.k8s_args.aws_config_file
+                if (
+                    app.aws_shared_credentials_file is None
+                    and self.k8s_args.aws_shared_credentials_file is not None
+                ):
+                    app.aws_shared_credentials_file = (
+                        self.k8s_args.aws_shared_credentials_file
+                    )
+
+                # -*- K8s parameters
+                # These are passed down from the K8sConfig -> K8sArgs -> PhidataApp
+                # only update the params if they are not available on the app.
+                # so we can prefer the app param if provided
+                if app.namespace is None and self.k8s_args.namespace is not None:
+                    app.namespace = self.k8s_args.namespace
+                if app.context is None and self.k8s_args.context is not None:
+                    app.context = self.k8s_args.context
+                if (
+                    app.service_account_name is None
+                    and self.k8s_args.service_account_name is not None
+                ):
+                    app.service_account_name = self.k8s_args.service_account_name
+                if (
+                    app.common_labels is None
+                    and self.k8s_args.common_labels is not None
+                ):
+                    app.common_labels = self.k8s_args.common_labels
 
                 app_rgs: Optional[
                     Dict[str, K8sResourceGroup]
@@ -119,7 +160,7 @@ class K8sWorker:
                         namespace=self.k8s_args.namespace,
                         context=self.k8s_args.context,
                         service_account_name=self.k8s_args.service_account_name,
-                        labels=self.k8s_args.labels,
+                        labels=self.k8s_args.common_labels,
                     )
                 )
                 if app_rgs is not None:
@@ -173,59 +214,107 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
         logger.debug("-*- Creating K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return False
 
-        k8s_resources_to_create: Optional[
-            List[K8sResource]
-        ] = filter_and_flatten_k8s_resource_groups(
-            k8s_resource_groups=self.k8s_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if k8s_resources_to_create is None or is_empty(k8s_resources_to_create):
-            print_info("No K8sResources to create")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        k8s_resources_to_create: List[Tuple[str, int, List[K8sResource]]] = []
+        for k8s_rg_name, k8s_rg in self.k8s_resources.items():
+            logger.debug(f"Processing: {k8s_rg_name}")
+
+            # skip disabled K8sResourceGroups
+            if not k8s_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
+
+            k8s_resources_in_group = get_k8s_resources_from_group(
+                k8s_resource_group=k8s_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(k8s_resources_in_group) > 0:
+                k8s_resources_to_create.append(
+                    (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
+                )
+
+        if len(k8s_resources_to_create) == 0:
+            print_subheading("No K8sResources to create")
             return True
 
+        k8s_resources_to_create_sorted: List[
+            Tuple[str, int, List[K8sResource]]
+        ] = sorted(
+            k8s_resources_to_create,
+            key=lambda x: x[1],
+        )
+
+        # Validate resources to be created
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in k8s_resources_to_create_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            print_info(f"\nNamespace: {self.k8s_args.namespace}")
+            print_info(f"Context: {self.k8s_args.context}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm deploy")
+            if not confirm:
+                print_info("Skipping deploy")
+                return False
+
         # track the total number of K8sResources to create for validation
-        num_resources_to_create: int = len(k8s_resources_to_create)
+        num_resources_to_create: int = 0
         num_resources_created: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Creating {num_resources_to_create} K8sResources:")
-        for rsrc in k8s_resources_to_create:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        print_info(f"\n  namespace: {self.k8s_args.namespace}")
-        print_info(f"  context: {self.k8s_args.context}")
-        confirm = confirm_yes_no("\nConfirm deploy")
-        if not confirm:
-            print_info("Skipping deploy")
-            return False
-
-        for resource in k8s_resources_to_create:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_created = resource.create(k8s_client=self.k8s_api_client)
-                    if _resource_created:
-                        num_resources_created += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+        for (group_name, group_weight, resource_list) in k8s_resources_to_create_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_create += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    print_error("Error: {}".format(e))
-                    print_error(
-                        "Skipping resource creation, please fix and try again..."
-                    )
+                    # logger.debug(resource)
+                    try:
+                        _resource_created = resource.create(
+                            k8s_client=self.k8s_api_client
+                        )
+                        if _resource_created:
+                            num_resources_created += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources created: {num_resources_created}/{num_resources_to_create}"
@@ -233,8 +322,8 @@ class K8sWorker:
         if num_resources_to_create == num_resources_created:
             return True
 
-        print_error(
-            f"Resources created: {num_resources_created} do not match Resources required: {num_resources_to_create}"
+        logger.error(
+            f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}"
         )
         return False
 
@@ -242,46 +331,75 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.k8s_args.env
-        print_subheading(
-            "K8sResources{}".format(f" for env: {env}" if env is not None else "")
-        )
+        logger.debug("-*- Creating K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return
 
-        k8s_resources_to_create: Optional[
-            List[K8sResource]
-        ] = filter_and_flatten_k8s_resource_groups(
-            k8s_resource_groups=self.k8s_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if k8s_resources_to_create is None or is_empty(k8s_resources_to_create):
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        k8s_resources_to_create: List[Tuple[str, int, List[K8sResource]]] = []
+        for k8s_rg_name, k8s_rg in self.k8s_resources.items():
+            logger.debug(f"Processing: {k8s_rg_name}")
+
+            # skip disabled K8sResourceGroups
+            if not k8s_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
+
+            k8s_resources_in_group = get_k8s_resources_from_group(
+                k8s_resource_group=k8s_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(k8s_resources_in_group) > 0:
+                k8s_resources_to_create.append(
+                    (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
+                )
+
+        if len(k8s_resources_to_create) == 0:
             print_info("No K8sResources to create")
             return
 
-        num_resources_to_create: int = len(k8s_resources_to_create)
-        print_info(
-            f"\n-*- Deploying this K8sConfig will create {num_resources_to_create} resources:"
+        k8s_resources_to_create_sorted: List[
+            Tuple[str, int, List[K8sResource]]
+        ] = sorted(
+            k8s_resources_to_create,
+            key=lambda x: x[1],
         )
-        print_info(f"\tnamespace: {self.k8s_args.namespace}")
-        print_info(f"\tcontext: {self.k8s_args.context}")
-        for resource in k8s_resources_to_create:
-            print_info(
-                f"-==+==- {resource.__class__.__name__}: {resource.get_resource_name()}"
-            )
+
+        group_number = 1
+        num_resources_to_create: int = 0
+        print_heading("--**-- Kubernetes resources:")
+        for (group_name, group_weight, resource_list) in k8s_resources_to_create_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_create += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        print_info(f"\nNamespace: {self.k8s_args.namespace}")
+        print_info(f"Context: {self.k8s_args.context}")
+        print_info(f"\nTotal {num_resources_to_create} resources")
 
     ######################################################
     ## Read Resources
     ######################################################
 
-    def get_resources(self) -> Optional[Dict[str, K8sResourceGroup]]:
+    def get_resource_groups(self) -> Optional[Dict[str, K8sResourceGroup]]:
 
         logger.debug("-*- Getting K8sResources")
         if self.k8s_resources is None:
@@ -296,13 +414,14 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> Optional[List[K8sResource]]:
 
         logger.debug("-*- Getting K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return None
 
         k8s_resources: Optional[
@@ -311,6 +430,7 @@ class K8sWorker:
             k8s_resource_groups=self.k8s_resources,
             name_filter=name_filter,
             type_filter=type_filter,
+            app_filter=app_filter,
         )
         return k8s_resources
 
@@ -322,57 +442,108 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         logger.debug("-*- Deleting K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return False
 
-        k8s_resources_to_delete: Optional[
-            List[K8sResource]
-        ] = filter_and_flatten_k8s_resource_groups(
-            k8s_resource_groups=self.k8s_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="delete",
-        )
-        if k8s_resources_to_delete is None or is_empty(k8s_resources_to_delete):
-            print_info("No K8sResources to delete")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        k8s_resources_to_delete: List[Tuple[str, int, List[K8sResource]]] = []
+        for k8s_rg_name, k8s_rg in self.k8s_resources.items():
+            logger.debug(f"Processing: {k8s_rg_name}")
+
+            # skip disabled K8sResourceGroups
+            if not k8s_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
+
+            k8s_resources_in_group = get_k8s_resources_from_group(
+                k8s_resource_group=k8s_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(k8s_resources_in_group) > 0:
+                k8s_resources_to_delete.append(
+                    (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
+                )
+
+        if len(k8s_resources_to_delete) == 0:
+            print_subheading("No K8sResources to delete")
             return True
 
-        # track the total number of K8sResources to delete for validation
-        num_resources_to_delete: int = len(k8s_resources_to_delete)
+        k8s_resources_to_delete_sorted: List[
+            Tuple[str, int, List[K8sResource]]
+        ] = sorted(
+            k8s_resources_to_delete,
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        # Validate resources to be created
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in k8s_resources_to_delete_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            print_info(f"\nNamespace: {self.k8s_args.namespace}")
+            print_info(f"Context: {self.k8s_args.context}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm delete")
+            if not confirm:
+                print_info("Skipping delete")
+                return False
+
+        # track the total number of K8sResources to create for validation
+        num_resources_to_delete: int = 0
         num_resources_deleted: int = 0
 
-        # Print the resources for validation
-        # Print the resources for validation
-        print_subheading(f"Deleting {num_resources_to_delete} K8sResources:")
-        for rsrc in k8s_resources_to_delete:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm delete")
-        if not confirm:
-            print_info("Skipping delete")
-            return False
-
-        for resource in k8s_resources_to_delete:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_deleted = resource.delete(k8s_client=self.k8s_api_client)
-                    if _resource_deleted:
-                        num_resources_deleted += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."
+        for (group_name, group_weight, resource_list) in k8s_resources_to_delete_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_delete += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    print_error(e)
-                    print_error("Skipping resource deletion, please delete manually...")
+                    # logger.debug(resource)
+                    try:
+                        _resource_created = resource.create(
+                            k8s_client=self.k8s_api_client
+                        )
+                        if _resource_created:
+                            num_resources_deleted += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources deleted: {num_resources_deleted}/{num_resources_to_delete}"
@@ -380,8 +551,8 @@ class K8sWorker:
         if num_resources_to_delete == num_resources_deleted:
             return True
 
-        print_error(
-            f"Resources deleted: {num_resources_deleted} do not match Resources required: {num_resources_to_delete}"
+        logger.error(
+            f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"
         )
         return False
 
@@ -389,38 +560,70 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.k8s_args.env
-        print_subheading(
-            "K8sResources{}".format(f" for env: {env}" if env is not None else "")
-        )
+        logger.debug("-*- Deleting K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return
 
-        k8s_resources_to_delete: Optional[
-            List[K8sResource]
-        ] = filter_and_flatten_k8s_resource_groups(
-            k8s_resource_groups=self.k8s_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="delete",
-        )
-        if k8s_resources_to_delete is None or is_empty(k8s_resources_to_delete):
-            print_info("No K8sResources to delete")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        k8s_resources_to_delete: List[Tuple[str, int, List[K8sResource]]] = []
+        for k8s_rg_name, k8s_rg in self.k8s_resources.items():
+            logger.debug(f"Processing: {k8s_rg_name}")
+
+            # skip disabled K8sResourceGroups
+            if not k8s_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
+
+            k8s_resources_in_group = get_k8s_resources_from_group(
+                k8s_resource_group=k8s_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(k8s_resources_in_group) > 0:
+                k8s_resources_to_delete.append(
+                    (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
+                )
+
+        if len(k8s_resources_to_delete) == 0:
+            print_info("No K8sResources to create")
             return
 
-        num_resources_to_delete: int = len(k8s_resources_to_delete)
-        print_info(
-            f"\n-*- Shutting down this K8sConfig will delete {num_resources_to_delete} resources:"
+        k8s_resources_to_delete_sorted: List[
+            Tuple[str, int, List[K8sResource]]
+        ] = sorted(
+            k8s_resources_to_delete,
+            key=lambda x: x[1],
+            reverse=True,
         )
-        for resource in k8s_resources_to_delete:
-            print_info(
-                f"-==+==- {resource.__class__.__name__}: {resource.get_resource_name()}"
-            )
+
+        group_number = 1
+        num_resources_to_delete: int = 0
+        print_heading("--**-- Kubernetes resources:")
+        for (group_name, group_weight, resource_list) in k8s_resources_to_delete_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_delete += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        print_info(f"\nNamespace: {self.k8s_args.namespace}")
+        print_info(f"Context: {self.k8s_args.context}")
+        print_info(f"\nTotal {num_resources_to_delete} resources")
 
     ######################################################
     ## Patch Resources
@@ -430,56 +633,107 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         logger.debug("-*- Patching K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return False
 
-        k8s_resources_to_patch: Optional[
-            List[K8sResource]
-        ] = filter_and_flatten_k8s_resource_groups(
-            k8s_resource_groups=self.k8s_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if k8s_resources_to_patch is None or is_empty(k8s_resources_to_patch):
-            print_info("No K8sResources to patch")
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        k8s_resources_to_patch: List[Tuple[str, int, List[K8sResource]]] = []
+        for k8s_rg_name, k8s_rg in self.k8s_resources.items():
+            logger.debug(f"Processing: {k8s_rg_name}")
+
+            # skip disabled K8sResourceGroups
+            if not k8s_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
+
+            k8s_resources_in_group = get_k8s_resources_from_group(
+                k8s_resource_group=k8s_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(k8s_resources_in_group) > 0:
+                k8s_resources_to_patch.append(
+                    (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
+                )
+
+        if len(k8s_resources_to_patch) == 0:
+            print_subheading("No K8sResources to patch")
             return True
 
+        k8s_resources_to_patch_sorted: List[
+            Tuple[str, int, List[K8sResource]]
+        ] = sorted(
+            k8s_resources_to_patch,
+            key=lambda x: x[1],
+        )
+
+        # Validate resources to be patched
+        group_number = 1
+        resource_number = 0
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for (
+                group_name,
+                group_weight,
+                resource_list,
+            ) in k8s_resources_to_patch_sorted:
+                print_subheading(f"\n{group_number}. {group_name}")
+                resource_number += len(resource_list)
+                group_number += 1
+                for resource in resource_list:
+                    print_info(
+                        f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                    )
+            print_info(f"\nNamespace: {self.k8s_args.namespace}")
+            print_info(f"Context: {self.k8s_args.context}")
+            print_info(f"\nTotal {resource_number} resources")
+            confirm = confirm_yes_no("\nConfirm patch")
+            if not confirm:
+                print_info("Skipping patch")
+                return False
+
         # track the total number of K8sResources to patch for validation
-        num_resources_to_patch: int = len(k8s_resources_to_patch)
+        num_resources_to_patch: int = 0
         num_resources_patched: int = 0
 
-        # Print the resources for validation
-        print_subheading(f"Patching {num_resources_to_patch} K8sResources:")
-        for rsrc in k8s_resources_to_patch:
-            print_info(f"  -+-> {rsrc.get_resource_type()}: {rsrc.get_resource_name()}")
-        confirm = confirm_yes_no("\nConfirm patch")
-        if not confirm:
-            print_info("Skipping patch")
-            return False
-
-        for resource in k8s_resources_to_patch:
-            if resource:
-                print_info(
-                    f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
-                # logger.debug(resource)
-                try:
-                    _resource_patched = resource.update(k8s_client=self.k8s_api_client)
-                    if _resource_patched:
-                        num_resources_patched += 1
-                except Exception as e:
-                    print_error(
-                        f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."
+        for (group_name, group_weight, resource_list) in k8s_resources_to_patch_sorted:
+            print_subheading(f"\n-*- {group_name}")
+            num_resources_to_patch += len(resource_list)
+            for resource in resource_list:
+                if resource:
+                    print_info(
+                        f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    print_error(e)
-                    print_error("Skipping resource, please patch manually...")
+                    # logger.debug(resource)
+                    try:
+                        _resource_patched = resource.update(
+                            k8s_client=self.k8s_api_client
+                        )
+                        if _resource_patched:
+                            num_resources_patched += 1
+                    except Exception as e:
+                        logger.error(
+                            f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."
+                        )
+                        logger.error("Error: {}".format(e))
+                        logger.error(
+                            "Skipping resource creation, please fix and try again..."
+                        )
 
         print_info(
             f"\n# Resources patched: {num_resources_patched}/{num_resources_to_patch}"
@@ -487,8 +741,8 @@ class K8sWorker:
         if num_resources_to_patch == num_resources_patched:
             return True
 
-        print_error(
-            f"Resources patched: {num_resources_patched} do not match Resources required: {num_resources_to_patch}"
+        logger.error(
+            f"Resources patched: {num_resources_patched} do not match resources required: {num_resources_to_patch}"
         )
         return False
 
@@ -496,38 +750,69 @@ class K8sWorker:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
-
-        env = self.k8s_args.env
-        print_subheading(
-            "K8sResources{}".format(f" for env: {env}" if env is not None else "")
-        )
+        logger.debug("-*- Patching K8sResources")
         if self.k8s_resources is None:
             self.init_resources()
             if self.k8s_resources is None:
-                print_info("No Resources available")
+                print_info("No resources available")
                 return
 
-        k8s_resources_to_patch: Optional[
-            List[K8sResource]
-        ] = filter_and_flatten_k8s_resource_groups(
-            k8s_resource_groups=self.k8s_resources,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            sort_order="create",
-        )
-        if k8s_resources_to_patch is None or is_empty(k8s_resources_to_patch):
+        # A list of tuples with 3 parts
+        #   1. Resource group name
+        #   2. Resource group weight
+        #   3. List of Resources in group after filters
+        k8s_resources_to_patch: List[Tuple[str, int, List[K8sResource]]] = []
+        for k8s_rg_name, k8s_rg in self.k8s_resources.items():
+            logger.debug(f"Processing: {k8s_rg_name}")
+
+            # skip disabled K8sResourceGroups
+            if not k8s_rg.enabled:
+                continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None:
+                if app_filter.lower() not in k8s_rg_name.lower():
+                    logger.debug(f"Skipping {k8s_rg_name}")
+                    continue
+
+            k8s_resources_in_group = get_k8s_resources_from_group(
+                k8s_resource_group=k8s_rg,
+                name_filter=name_filter,
+                type_filter=type_filter,
+            )
+            if len(k8s_resources_in_group) > 0:
+                k8s_resources_to_patch.append(
+                    (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
+                )
+
+        if len(k8s_resources_to_patch) == 0:
             print_info("No K8sResources to patch")
             return
 
-        num_resources_to_patch: int = len(k8s_resources_to_patch)
-        print_info(
-            f"\n-*- Updating this K8sConfig will patch {num_resources_to_patch} resources:"
+        k8s_resources_to_patch_sorted: List[
+            Tuple[str, int, List[K8sResource]]
+        ] = sorted(
+            k8s_resources_to_patch,
+            key=lambda x: x[1],
         )
-        for resource in k8s_resources_to_patch:
-            print_info(
-                f"-==+==- {resource.__class__.__name__}: {resource.get_resource_name()}"
-            )
+
+        group_number = 1
+        num_resources_to_patch: int = 0
+        print_heading("--**-- Kubernetes resources:")
+        for (group_name, group_weight, resource_list) in k8s_resources_to_patch_sorted:
+            print_subheading(f"\n{group_number}. {group_name}")
+            num_resources_to_patch += len(resource_list)
+            group_number += 1
+            for resource in resource_list:
+                print_info(
+                    f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+                )
+        print_info(f"\nNamespace: {self.k8s_args.namespace}")
+        print_info(f"Context: {self.k8s_args.context}")
+        print_info(f"\nTotal {num_resources_to_patch} resources")
 
     ######################################################
     ## End

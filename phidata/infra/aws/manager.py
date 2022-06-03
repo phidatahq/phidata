@@ -6,10 +6,6 @@ from phidata.infra.aws.enums import AwsManagerStatus
 from phidata.infra.aws.exceptions import AwsArgsException
 from phidata.infra.aws.resource.types import AwsResourceType
 from phidata.infra.aws.worker import AwsWorker
-from phidata.infra.k8s.args import K8sArgs
-from phidata.infra.k8s.exceptions import K8sWorkerException
-from phidata.infra.k8s.worker import K8sWorker
-from phidata.utils.cli_console import print_error, print_info
 from phidata.utils.log import logger
 
 
@@ -27,7 +23,7 @@ class AwsManager:
             raise AwsArgsException("workspace_config_file_path invalid")
 
         self.aws_args: AwsArgs = aws_args
-        self.aws_worker: Optional[AwsWorker] = AwsWorker(self.aws_args)
+        self.aws_worker: AwsWorker = AwsWorker(self.aws_args)
         self.aws_status: AwsManagerStatus = AwsManagerStatus.PRE_INIT
         logger.debug("**-+-** AwsManager created")
 
@@ -48,6 +44,10 @@ class AwsManager:
             ):
                 self.aws_status = AwsManagerStatus.RESOURCES_INIT
 
+        if self.aws_status == AwsManagerStatus.RESOURCES_INIT:
+            if self.aws_worker is not None and self.aws_worker.are_resources_active():
+                self.aws_status = AwsManagerStatus.RESOURCES_ACTIVE
+
         logger.debug(f"AwsManagerStatus: {self.aws_status.value}")
         return self.aws_status
 
@@ -56,40 +56,57 @@ class AwsManager:
     ######################################################
 
     def create_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
         if not status.can_create_resources():
-            print_error("Cannot create AwsResources")
+            logger.debug("Cannot create resources")
             return
         if self.aws_worker is None:
-            print_error("AWSWorker not available")
+            logger.debug("No worker available")
             return
 
         # logger.debug("Creating resources dry run")
         self.aws_worker.create_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def create_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
         if not status.can_create_resources():
-            logger.debug("Cannot create AwsResources")
+            logger.debug("Cannot create resources")
             return False
         if self.aws_worker is None:
-            logger.debug("AWSWorker not available")
+            logger.debug("No worker available")
             return False
 
         return self.aws_worker.create_resources(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def validate_resources_are_created(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are created...")
@@ -120,40 +137,57 @@ class AwsManager:
     ######################################################
 
     def delete_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
         if not status.can_delete_resources():
-            logger.debug("Cannot delete AwsResources")
+            logger.debug("Cannot delete resources")
             return
         if self.aws_worker is None:
-            logger.debug("AWSWorker not available")
+            logger.debug("No worker available")
             return
 
         # logger.debug("Deleting resources dry run")
         self.aws_worker.delete_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def delete_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
         if not status.can_delete_resources():
-            logger.debug("Cannot delete AwsResources")
+            logger.debug("Cannot delete resources")
             return False
         if self.aws_worker is None:
-            logger.debug("AWSWorker not available")
+            logger.debug("No worker available")
             return False
 
         return self.aws_worker.delete_resources(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def validate_resources_are_deleted(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are deleted...")
@@ -164,40 +198,57 @@ class AwsManager:
     ######################################################
 
     def patch_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
         if not status.can_create_resources():
-            logger.debug("Cannot patch AwsResources")
+            logger.debug("Cannot patch resources")
             return
         if self.aws_worker is None:
-            logger.debug("AWSWorker not available")
+            logger.debug("No worker available")
             return
 
         # logger.debug("Deleting resources dry run")
         self.aws_worker.patch_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def patch_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
         if not status.can_create_resources():
-            logger.debug("Cannot patch AwsResources")
+            logger.debug("Cannot patch resources")
             return False
         if self.aws_worker is None:
-            logger.debug("AWSWorker not available")
+            logger.debug("No worker available")
             return False
 
         return self.aws_worker.patch_resources(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def validate_resources_are_patched(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are patched...")

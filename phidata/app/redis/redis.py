@@ -475,7 +475,6 @@ class Redis(DbApp):
             ports=container_ports,
             volumes=container_volumes,
             use_cache=self.args.use_cache,
-            use_verbose_logs=self.args.use_verbose_logs,
         )
 
         docker_rg = DockerResourceGroup(

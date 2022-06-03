@@ -75,7 +75,9 @@ class CreateK8sResourceGroup(BaseModel):
 
                 _ns_resource: Optional[Namespace] = value.create()
                 if _ns_resource is not None:
-                    k8s_resource_group.ns = _ns_resource
+                    if k8s_resource_group.ns is None:
+                        k8s_resource_group.ns = []
+                    k8s_resource_group.ns.append(_ns_resource)
 
             ######################################################
             ## Create ServiceAccount
@@ -93,7 +95,9 @@ class CreateK8sResourceGroup(BaseModel):
 
                 _sa_resource: Optional[ServiceAccount] = value.create()
                 if _sa_resource is not None:
-                    k8s_resource_group.sa = _sa_resource
+                    if k8s_resource_group.sa is None:
+                        k8s_resource_group.sa = []
+                    k8s_resource_group.sa.append(_sa_resource)
 
             ######################################################
             ## Create ClusterRole
@@ -111,7 +115,9 @@ class CreateK8sResourceGroup(BaseModel):
 
                 _cr_resource: Optional[ClusterRole] = value.create()
                 if _cr_resource is not None:
-                    k8s_resource_group.cr = _cr_resource
+                    if k8s_resource_group.cr is None:
+                        k8s_resource_group.cr = []
+                    k8s_resource_group.cr.append(_cr_resource)
 
             ######################################################
             ## Create ClusterRoleBinding
@@ -129,7 +135,9 @@ class CreateK8sResourceGroup(BaseModel):
 
                 _crb_resource: Optional[ClusterRoleBinding] = value.create()
                 if _crb_resource is not None:
-                    k8s_resource_group.crb = _crb_resource
+                    if k8s_resource_group.crb is None:
+                        k8s_resource_group.crb = []
+                    k8s_resource_group.crb.append(_crb_resource)
 
             ######################################################
             ## Create Secrets

@@ -24,7 +24,7 @@ class K8sManager:
             raise K8sArgsException("workspace_config_file_path invalid")
 
         self.k8s_args: K8sArgs = k8s_args
-        self.k8s_worker: Optional[K8sWorker] = K8sWorker(self.k8s_args)
+        self.k8s_worker: K8sWorker = K8sWorker(self.k8s_args)
         self.k8s_status: K8sManagerStatus = K8sManagerStatus.PRE_INIT
         logger.debug("**-+-** K8sManager created")
 
@@ -45,6 +45,10 @@ class K8sManager:
             ):
                 self.k8s_status = K8sManagerStatus.RESOURCES_INIT
 
+        if self.k8s_status == K8sManagerStatus.RESOURCES_INIT:
+            if self.k8s_worker is not None and self.k8s_worker.are_resources_active():
+                self.k8s_status = K8sManagerStatus.RESOURCES_ACTIVE
+
         logger.debug(f"K8sManagerStatus: {self.k8s_status.value}")
         return self.k8s_status
 
@@ -53,7 +57,11 @@ class K8sManager:
     ######################################################
 
     def create_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
@@ -66,11 +74,18 @@ class K8sManager:
 
         # logger.debug("Creating resources dry run")
         self.k8s_worker.create_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def create_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
@@ -82,11 +97,17 @@ class K8sManager:
             return False
 
         return self.k8s_worker.create_resources(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def validate_resources_are_created(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are created...")
@@ -106,7 +127,7 @@ class K8sManager:
             logger.debug("No worker available")
             return None
 
-        return self.k8s_worker.get_resources()
+        return self.k8s_worker.get_resource_groups()
 
     def read_resources(
         self,
@@ -129,7 +150,11 @@ class K8sManager:
     ######################################################
 
     def delete_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
@@ -142,11 +167,18 @@ class K8sManager:
 
         # logger.debug("Deleting resources dry run")
         self.k8s_worker.delete_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def delete_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
@@ -158,11 +190,17 @@ class K8sManager:
             return False
 
         return self.k8s_worker.delete_resources(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def validate_resources_are_deleted(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are deleted...")
@@ -173,7 +211,11 @@ class K8sManager:
     ######################################################
 
     def patch_resources_dry_run(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> None:
 
         status = self.get_status()
@@ -186,11 +228,18 @@ class K8sManager:
 
         # logger.debug("Deleting resources dry run")
         self.k8s_worker.patch_resources_dry_run(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def patch_resources(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
     ) -> bool:
 
         status = self.get_status()
@@ -202,11 +251,17 @@ class K8sManager:
             return False
 
         return self.k8s_worker.patch_resources(
-            name_filter=name_filter, type_filter=type_filter
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+            auto_confirm=auto_confirm,
         )
 
     def validate_resources_are_patched(
-        self, name_filter: Optional[str] = None, type_filter: Optional[str] = None
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> bool:
 
         logger.debug("Validating resources are patched...")

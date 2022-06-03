@@ -73,6 +73,9 @@ class DockerImage(DockerResource):
     skip_delete: bool = True
     image_build_id: Optional[str] = None
 
+    def get_resource_name(self) -> Optional[str]:
+        return self.get_name_tag()
+
     def get_name_tag(self) -> str:
         image_name_tag = self.name
         if self.tag:

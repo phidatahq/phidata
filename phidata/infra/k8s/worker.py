@@ -247,7 +247,9 @@ class K8sWorker:
                 name_filter=name_filter,
                 type_filter=type_filter,
             )
-            if len(k8s_resources_in_group) > 0:
+            num_resources_in_group = len(k8s_resources_in_group)
+            logger.debug(f"Matched {num_resources_in_group} resources")
+            if num_resources_in_group > 0:
                 k8s_resources_to_create.append(
                     (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
                 )
@@ -364,7 +366,9 @@ class K8sWorker:
                 name_filter=name_filter,
                 type_filter=type_filter,
             )
-            if len(k8s_resources_in_group) > 0:
+            num_resources_in_group = len(k8s_resources_in_group)
+            logger.debug(f"Matched {num_resources_in_group} resources")
+            if num_resources_in_group > 0:
                 k8s_resources_to_create.append(
                     (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
                 )
@@ -474,8 +478,11 @@ class K8sWorker:
                 k8s_resource_group=k8s_rg,
                 name_filter=name_filter,
                 type_filter=type_filter,
+                sort_order="delete",
             )
-            if len(k8s_resources_in_group) > 0:
+            num_resources_in_group = len(k8s_resources_in_group)
+            logger.debug(f"Matched {num_resources_in_group} resources")
+            if num_resources_in_group > 0:
                 k8s_resources_to_delete.append(
                     (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
                 )
@@ -531,7 +538,7 @@ class K8sWorker:
                     )
                     # logger.debug(resource)
                     try:
-                        _resource_created = resource.create(
+                        _resource_created = resource.delete(
                             k8s_client=self.k8s_api_client
                         )
                         if _resource_created:
@@ -592,8 +599,11 @@ class K8sWorker:
                 k8s_resource_group=k8s_rg,
                 name_filter=name_filter,
                 type_filter=type_filter,
+                sort_order="delete",
             )
-            if len(k8s_resources_in_group) > 0:
+            num_resources_in_group = len(k8s_resources_in_group)
+            logger.debug(f"Matched {num_resources_in_group} resources")
+            if num_resources_in_group > 0:
                 k8s_resources_to_delete.append(
                     (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
                 )
@@ -666,7 +676,9 @@ class K8sWorker:
                 name_filter=name_filter,
                 type_filter=type_filter,
             )
-            if len(k8s_resources_in_group) > 0:
+            num_resources_in_group = len(k8s_resources_in_group)
+            logger.debug(f"Matched {num_resources_in_group} resources")
+            if num_resources_in_group > 0:
                 k8s_resources_to_patch.append(
                     (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
                 )
@@ -783,7 +795,9 @@ class K8sWorker:
                 name_filter=name_filter,
                 type_filter=type_filter,
             )
-            if len(k8s_resources_in_group) > 0:
+            num_resources_in_group = len(k8s_resources_in_group)
+            logger.debug(f"Matched {num_resources_in_group} resources")
+            if num_resources_in_group > 0:
                 k8s_resources_to_patch.append(
                     (k8s_rg_name, k8s_rg.weight, k8s_resources_in_group)
                 )

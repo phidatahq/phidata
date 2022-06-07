@@ -49,7 +49,7 @@ def get_docker_resources_from_group(
     docker_resource_group: DockerResourceGroup,
     name_filter: Optional[str] = None,
     type_filter: Optional[str] = None,
-) -> Optional[List[DockerResource]]:
+) -> List[DockerResource]:
     """Parses the DockerResourceGroup and returns an array of DockerResources
     after applying the name & type filters. This function also flattens any
     List[DockerResource] attributes. Eg: it will flatten List[DockerContainer]
@@ -85,14 +85,14 @@ def get_docker_resources_from_group(
                         # logger.debug(f"name_filter: {name_filter.lower()}")
                         # logger.debug(f"resource name: {rn.lower()}")
                         if name_filter.lower() not in rn.lower():
-                            # logger.debug(f"skipping {rt}:{rn}")
+                            logger.debug(f"  -*- skipping {rt}:{rn}")
                             continue
 
                     if type_filter is not None and rt is not None:
                         # logger.debug(f"type_filter: {type_filter.lower()}")
                         # logger.debug(f"class: {rt.lower()}")
                         if type_filter.lower() not in rt.lower():
-                            # logger.debug(f"skipping {rt}:{rn}")
+                            logger.debug(f"  -*- skipping {rt}:{rn}")
                             continue
                     docker_resources.append(_r)  # type: ignore
 
@@ -160,13 +160,14 @@ def filter_and_flatten_docker_resource_groups(
     docker_resource_groups: Dict[str, DockerResourceGroup],
     name_filter: Optional[str] = None,
     type_filter: Optional[str] = None,
+    app_filter: Optional[str] = None,
     sort_order: Literal["create", "delete"] = "create",
-) -> Optional[List[DockerResource]]:
+) -> List[DockerResource]:
     """This function parses the docker_resource_groups dict and returns a filtered array of
     DockerResources sorted in the order requested. create == install order, delete == reverse
     Desc:
         1. Iterate through each DockerResourceGroup
-        2. If group is enabled, get the DockerResources from that group
+        2. If enabled, get the DockerResources from that group which match the filters
         3. Return a list of all DockerResources from 2.
 
     Args:
@@ -174,13 +175,14 @@ def filter_and_flatten_docker_resource_groups(
             Dict of {resource_group_name : DockerResourceGroup}
         name_filter: Filter DockerResourceGroup by name
         type_filter: Filter DockerResourceGroup by type
+        app_filter: Filter DockerResourceGroup by app
         sort_order: create or delete
 
     Returns:
         List[DockerResource]: List of filtered DockerResources
     """
 
-    logger.debug("Flattening DockerResourceGroups")
+    logger.debug("Flattening & Flattening DockerResourceGroups")
 
     # Step 1: Create docker_resource_list_with_weight
     # A List of Tuples where each tuple is a (DockerResource, Resource Group Weight)
@@ -196,6 +198,14 @@ def filter_and_flatten_docker_resource_groups(
             # skip disabled DockerResourceGroups
             if not docker_rg.enabled:
                 continue
+
+            # skip groups not matching app_filter if provided
+            if app_filter is not None and docker_rg_name is not None:
+                # logger.debug(f"matching app_filter: {app_filter}")
+                # logger.debug(f"with docker_rg_name: {docker_rg_name}")
+                if app_filter.lower() not in docker_rg_name.lower():
+                    logger.debug(f"  -*- skipping {docker_rg_name}")
+                    continue
 
             docker_resources = get_docker_resources_from_group(
                 docker_rg, name_filter, type_filter

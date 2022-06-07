@@ -567,12 +567,54 @@ class Redis(DbApp):
                     self.args.ebs_volume_id is not None
                     or self.args.ebs_volume is not None
                 ):
+                    # To use an EbsVolume as the volume_type we:
+                    # 1. Need the volume_id
+                    # 2. Need to make sure pods are scheduled in the
+                    #       same region/az as the volume
+
+                    # For the volume_id:
+                    # 1. Use self.args.ebs_volume_id
+                    # 2. Derive it from the self.args.ebs_volume
                     ebs_volume_id = self.args.ebs_volume_id
+
+                    # For the aws_region/az:
+                    # 1. Use self.args.ebs_volume_region
+                    # 2. Derive it from self.args.ebs_volume
+                    # 3. Derive it from the PhidataAppArgs
+                    ebs_volume_region = self.args.ebs_volume_region
+                    ebs_volume_az = self.args.ebs_volume_az
+
+                    # Derive the aws_region from self.args.ebs_volume if needed
+                    if ebs_volume_region is None and self.args.ebs_volume is not None:
+                        # Note: this will use the `$AWS_REGION` env var if set
+                        _aws_region_from_ebs_volume = (
+                            self.args.ebs_volume.get_aws_region()
+                        )
+                        if _aws_region_from_ebs_volume is not None:
+                            ebs_volume_region = _aws_region_from_ebs_volume
+
+                    # Derive the aws_region from the PhidataAppArgs if needed
+                    if ebs_volume_region is None:
+                        ebs_volume_region = self.aws_region
+
+                    # Derive the availability_zone from self.args.ebs_volume if needed
+                    if ebs_volume_az is None and self.args.ebs_volume is not None:
+                        ebs_volume_az = self.args.ebs_volume.availability_zone
+
+                    logger.debug(f"ebs_volume_region: {ebs_volume_region}")
+                    logger.debug(f"ebs_volume_az: {ebs_volume_az}")
+
+                    # Derive ebs_volume_id from self.args.ebs_volume if needed
                     if ebs_volume_id is None and self.args.ebs_volume is not None:
                         ebs_volume_id = self.args.ebs_volume.get_volume_id(
-                            aws_region=self.args.ebs_volume_region
+                            aws_region=ebs_volume_region,
+                            aws_profile=self.aws_profile,
                         )
+
                     logger.debug(f"ebs_volume_id: {ebs_volume_id}")
+                    if ebs_volume_id is None:
+                        logger.error("Could not find volume_id for EbsVolume")
+                        return None
 
                     redis_volume = CreateVolume(
                         volume_name=volume_name,
@@ -584,6 +626,9 @@ class Redis(DbApp):
                         ),
                     )
                     container_volumes.append(redis_volume)
+
+                    # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
+                    # To do this, we add NodeSelectors to Pods
                     if self.args.schedule_pods_in_ebs_topology:
                         if pod_node_selector is None:
                             pod_node_selector = {}
@@ -591,17 +636,15 @@ class Redis(DbApp):
                         # Add NodeSelectors to Pods, so they are scheduled in the same
                         # region and zone as the ebs_volume
                         # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
-                        ebs_region = self.args.ebs_volume_region
-                        if ebs_region is not None:
+                        if ebs_volume_region is not None:
                             pod_node_selector[
                                 "topology.kubernetes.io/region"
-                            ] = ebs_region
+                            ] = ebs_volume_region
 
-                        ebs_az = self.args.ebs_volume_az
-                        if ebs_az is None and self.args.ebs_volume is not None:
-                            ebs_az = self.args.ebs_volume.availability_zone
-                        if ebs_az is not None:
-                            pod_node_selector["topology.kubernetes.io/zone"] = ebs_az
+                        if ebs_volume_az is not None:
+                            pod_node_selector[
+                                "topology.kubernetes.io/zone"
+                            ] = ebs_volume_az
                 else:
                     print_error("Redis: ebs_volume not provided")
                     return None

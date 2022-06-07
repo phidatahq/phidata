@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from phidata.infra.aws.args import AwsArgs
 from phidata.infra.aws.enums import AwsManagerStatus
 from phidata.infra.aws.exceptions import AwsArgsException
-from phidata.infra.aws.resource.types import AwsResourceType
+from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.worker import AwsWorker
 from phidata.utils.log import logger
 
@@ -120,7 +120,8 @@ class AwsManager:
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
-    ) -> Optional[Dict[str, List[AwsResourceType]]]:
+        app_filter: Optional[str] = None,
+    ) -> Optional[List[AwsResource]]:
 
         status = self.get_status()
         if not status.can_get_resources():
@@ -130,7 +131,7 @@ class AwsManager:
             logger.debug("AWSWorker not available")
             return None
 
-        return self.aws_worker.read_resources(name_filter, type_filter)
+        return self.aws_worker.read_resources(name_filter, type_filter, app_filter)
 
     ######################################################
     ## Delete Resources

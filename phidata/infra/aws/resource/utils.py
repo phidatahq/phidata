@@ -12,7 +12,7 @@ from phidata.utils.log import logger
 
 
 def get_install_weight_for_aws_resource(
-    aws_resource_type: AwsResourceType, resource_group_weight: int = 100
+    aws_resource_type: AwsResource, resource_group_weight: int = 100
 ) -> int:
     """Function which returns the install weight for an AwsResource"""
 
@@ -71,14 +71,14 @@ def get_aws_resources_from_group(
                         # logger.debug(f"name_filter: {name_filter.lower()}")
                         # logger.debug(f"resource name: {rn.lower()}")
                         if name_filter.lower() not in rn.lower():
-                            # logger.debug(f"skipping {rt}:{rn}")
+                            logger.debug(f"  -*- skipping {rt}:{rn}")
                             continue
 
                     if type_filter is not None and rt is not None:
                         # logger.debug(f"type_filter: {type_filter.lower()}")
                         # logger.debug(f"class: {rt.lower()}")
                         if type_filter.lower() != rt.lower():
-                            # logger.debug(f"skipping {rt}:{rn}")
+                            logger.debug(f"  -*- skipping {rt}:{rn}")
                             continue
                     aws_resources.append(_r)  # type: ignore
 
@@ -106,7 +106,7 @@ def get_aws_resources_from_group(
 
 
 # def dedup_resource_types(
-#     aws_resources: Optional[List[AwsResourceType]] = None,
+#     aws_resources: Optional[List[AwsResource]] = None,
 # ) -> Optional[Set[Type[AwsResource]]]:
 #     """Takes a list of AwsResources and returns a Set of AwsResource classes.
 #     Each AwsResource classes is represented by the Type[resources.AwsResource] type.
@@ -168,7 +168,7 @@ def filter_and_flatten_aws_resource_groups(
     type_filter: Optional[str] = None,
     app_filter: Optional[str] = None,
     sort_order: Literal["create", "delete"] = "create",
-) -> Optional[List[AwsResource]]:
+) -> List[AwsResource]:
     """This function flattens the aws_resource_group and returns a filtered list of
     AwsResources sorted in the order requested. create == install order, delete == reverse
 
@@ -180,7 +180,7 @@ def filter_and_flatten_aws_resource_groups(
         sort_order: create or delete
 
     Returns:
-        List[AwsResourceType]: List of filtered Aws Resources
+        List[AwsResource]: List of filtered Aws Resources
     """
 
     logger.debug("Filtering & Flattening AwsResourceGroups")
@@ -205,7 +205,7 @@ def filter_and_flatten_aws_resource_groups(
                 # logger.debug(f"matching app_filter: {app_filter}")
                 # logger.debug(f"with aws_rg_name: {aws_rg_name}")
                 if app_filter.lower() not in aws_rg_name.lower():
-                    logger.debug(f"Skipping {aws_rg_name}")
+                    logger.debug(f"  -*- skipping {aws_rg_name}")
                     continue
 
             aws_resources = get_aws_resources_from_group(

@@ -117,6 +117,9 @@ class K8sResource(K8sObject):
         else:
             self.resource_available = self._create(k8s_client)
         if self.resource_available:
+            print_info(
+                f"{self.get_resource_type()} {self.get_resource_name()} created."
+            )
             return self.post_create(k8s_client)
         return self.resource_available
 

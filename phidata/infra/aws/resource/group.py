@@ -20,7 +20,7 @@ from phidata.infra.aws.resource.rds.db_subnet_group import DbSubnetGroup
 class AwsResourceGroup(BaseModel):
     """The AwsResourceGroup class contains the data for all AwsResources"""
 
-    name: str = "aws"
+    name: str = "default"
     enabled: bool = True
     weight: int = 100
 

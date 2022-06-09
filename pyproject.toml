@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "0.1.50"
+version = "0.1.53"
 description = "Build data products as code"
 requires-python = ">3.7"
 readme = "README.md"
@@ -13,9 +13,10 @@ dependencies = [
   "docker",
   "gitpython",
   "kubernetes",
-  "phiterm>=0.1.45",
+  "phiterm>=0.1.47",
   "packaging",
   "pydantic",
+  "python-dotenv",
   "pyyaml",
   "rich",
   "types-PyYAML",
@@ -45,6 +46,7 @@ exclude = [
   "phidata/workflow/dev", # exclude dev workflows from mypy
   "phidata/product/dev", # exclude dev products from mypy
   "phidata/task/dev", # exclude dev tasks from mypy
+  "phidata/app/superset",
 ]
 
 [[tool.mypy.overrides]]

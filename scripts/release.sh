@@ -21,8 +21,10 @@ main() {
   print_info "pwd: $(pwd)"
 
   print_info "Upgrading phiterm dependency"
-  CUSTOM_COMPILE_COMMAND="./scripts/update_dependencies.sh" \
-    pip-compile --upgrade-package phiterm --no-annotate --pip-args "--no-cache-dir"
+  CUSTOM_COMPILE_COMMAND="./scripts/upgrade.sh" \
+    pip-compile --upgrade-package phiterm --no-annotate --pip-args "--no-cache-dir" \
+      -o ${REPO_ROOT}/requirements.txt \
+      ${REPO_ROOT}/pyproject.toml
   print_info "Proceed?"
   space_to_continue
 

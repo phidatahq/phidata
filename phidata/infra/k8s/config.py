@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from typing_extensions import Literal
 
 from phidata.app import PhidataApp
 from phidata.app.databox import default_databox_name
@@ -15,7 +14,7 @@ from phidata.utils.log import logger
 class K8sConfig(InfraConfig):
     def __init__(
         self,
-        env: Optional[Literal["dev", "stg", "prd"]] = "prd",
+        env: Optional[str] = "prd",
         version: Optional[str] = None,
         enabled: bool = True,
         # K8s namespace to use

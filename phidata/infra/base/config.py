@@ -1,9 +1,10 @@
+from os import environ, getenv
 from pathlib import Path
-from typing import Optional, Dict
-from typing_extensions import Literal
+from typing import Optional, Dict, Union
 
 from phidata.base import PhidataBase
 from phidata.infra.base.args import InfraArgs
+from phidata.utils.env_file import read_env_from_file
 from phidata.utils.log import logger
 
 
@@ -15,7 +16,7 @@ class InfraConfig(PhidataBase):
         self.args: Optional[InfraArgs] = None
 
     @property
-    def env(self) -> Optional[Literal["dev", "stg", "prd"]]:
+    def env(self) -> Optional[str]:
         return self.args.env if self.args else None
 
     @property
@@ -92,12 +93,48 @@ class InfraConfig(PhidataBase):
 
     @property
     def local_env(self) -> Optional[Dict[str, str]]:
-        return self.args.local_env if self.args else None
+        if self.args is None:
+            return None
+
+        # If self.args.local_env is available return that
+        if self.args.local_env is not None:
+            return self.args.local_env
+
+        # Else, get env from local_env_file
+        if self.args.local_env_file is not None:
+            local_env_file = self.args.local_env_file
+            local_env_file_path: Optional[Path] = None
+            if isinstance(local_env_file, str):
+                if self.workspace_root_path is None:
+                    logger.error(f"workspace_root_path is None")
+                    return self.args.local_env
+                if self.workspace_config_dir is None:
+                    logger.error(f"workspace_config_dir is None")
+                    return self.args.local_env
+
+                local_env_file_path = self.workspace_root_path.joinpath(
+                    self.workspace_config_dir
+                ).joinpath(local_env_file)
+            elif isinstance(local_env_file, Path):
+                local_env_file_path = local_env_file
+
+            self.args.local_env = read_env_from_file(local_env_file_path)
+            logger.debug(f"local_env: {self.args.local_env}")
+        return self.args.local_env
 
     @local_env.setter
     def local_env(self, local_env: Dict[str, str]) -> None:
         if self.args is not None and local_env is not None:
             self.args.local_env = local_env
+
+    @property
+    def local_env_file(self) -> Optional[Union[str, Path]]:
+        return self.args.local_env_file if self.args else None
+
+    @local_env_file.setter
+    def local_env_file(self, local_env_file: Union[str, Path]) -> None:
+        if self.args is not None and local_env_file is not None:
+            self.args.local_env_file = local_env_file
 
     @property
     def docker_env(self) -> Optional[Dict[str, str]]:
@@ -109,6 +146,15 @@ class InfraConfig(PhidataBase):
             self.args.docker_env = docker_env
 
     @property
+    def docker_env_file(self) -> Optional[Union[str, Path]]:
+        return self.args.docker_env_file if self.args else None
+
+    @docker_env_file.setter
+    def docker_env_file(self, docker_env_file: Union[str, Path]) -> None:
+        if self.args is not None and docker_env_file is not None:
+            self.args.docker_env_file = docker_env_file
+
+    @property
     def k8s_env(self) -> Optional[Dict[str, str]]:
         return self.args.k8s_env if self.args else None
 
@@ -118,8 +164,38 @@ class InfraConfig(PhidataBase):
             self.args.k8s_env = k8s_env
 
     @property
+    def k8s_env_file(self) -> Optional[Union[str, Path]]:
+        return self.args.k8s_env_file if self.args else None
+
+    @k8s_env_file.setter
+    def k8s_env_file(self, k8s_env_file: Union[str, Path]) -> None:
+        if self.args is not None and k8s_env_file is not None:
+            self.args.k8s_env_file = k8s_env_file
+
+    @property
     def aws_region(self) -> Optional[str]:
-        return self.args.aws_region if self.args else None
+        if self.args is None:
+            return None
+
+        # If self.args.aws_region is available return that
+        if self.args.aws_region is not None:
+            return self.args.aws_region
+
+        # Get aws_region from env
+        aws_region = getenv("AWS_DEFAULT_REGION", None)
+        if aws_region is not None:
+            self.args.aws_region = aws_region
+            return self.args.aws_region
+
+        # Get aws_region from local_env
+        local_env: Optional[Dict[str, str]] = self.local_env
+        if local_env is not None:
+            aws_region = local_env.get("AWS_DEFAULT_REGION", None)
+            if aws_region is not None:
+                self.args.aws_region = aws_region
+                return self.args.aws_region
+
+        return None
 
     @aws_region.setter
     def aws_region(self, aws_region: str) -> None:
@@ -128,7 +204,28 @@ class InfraConfig(PhidataBase):
 
     @property
     def aws_profile(self) -> Optional[str]:
-        return self.args.aws_profile if self.args else None
+        if self.args is None:
+            return None
+
+        # If self.args.aws_profile is available return that
+        if self.args.aws_profile is not None:
+            return self.args.aws_profile
+
+        # Get aws_profile from env
+        aws_profile = getenv("AWS_PROFILE", None)
+        if aws_profile is not None:
+            self.args.aws_profile = aws_profile
+            return self.args.aws_profile
+
+        # Get aws_profile from local_env
+        local_env: Optional[Dict[str, str]] = self.local_env
+        if local_env is not None:
+            aws_profile = local_env.get("AWS_PROFILE", None)
+            if aws_profile is not None:
+                self.args.aws_profile = aws_profile
+                return self.args.aws_profile
+
+        return None
 
     @aws_profile.setter
     def aws_profile(self, aws_profile: str) -> None:
@@ -137,7 +234,28 @@ class InfraConfig(PhidataBase):
 
     @property
     def aws_config_file(self) -> Optional[str]:
-        return self.args.aws_config_file if self.args else None
+        if self.args is None:
+            return None
+
+        # If self.args.aws_config_file is available return that
+        if self.args.aws_config_file is not None:
+            return self.args.aws_config_file
+
+        # Get aws_config_file from env
+        aws_config_file = getenv("AWS_CONFIG_FILE", None)
+        if aws_config_file is not None:
+            self.args.aws_config_file = aws_config_file
+            return self.args.aws_config_file
+
+        # Get aws_config_file from local_env
+        local_env: Optional[Dict[str, str]] = self.local_env
+        if local_env is not None:
+            aws_config_file = local_env.get("AWS_CONFIG_FILE", None)
+            if aws_config_file is not None:
+                self.args.aws_config_file = aws_config_file
+                return self.args.aws_config_file
+
+        return None
 
     @aws_config_file.setter
     def aws_config_file(self, aws_config_file: str) -> None:
@@ -146,7 +264,30 @@ class InfraConfig(PhidataBase):
 
     @property
     def aws_shared_credentials_file(self) -> Optional[str]:
-        return self.args.aws_shared_credentials_file if self.args else None
+        if self.args is None:
+            return None
+
+        # If self.args.aws_shared_credentials_file is available return that
+        if self.args.aws_shared_credentials_file is not None:
+            return self.args.aws_shared_credentials_file
+
+        # Get aws_shared_credentials_file from env
+        aws_shared_credentials_file = getenv("AWS_SHARED_CREDENTIALS_FILE", None)
+        if aws_shared_credentials_file is not None:
+            self.args.aws_shared_credentials_file = aws_shared_credentials_file
+            return self.args.aws_shared_credentials_file
+
+        # Get aws_shared_credentials_file from local_env
+        local_env: Optional[Dict[str, str]] = self.local_env
+        if local_env is not None:
+            aws_shared_credentials_file = local_env.get(
+                "AWS_SHARED_CREDENTIALS_FILE", None
+            )
+            if aws_shared_credentials_file is not None:
+                self.args.aws_shared_credentials_file = aws_shared_credentials_file
+                return self.args.aws_shared_credentials_file
+
+        return None
 
     @aws_shared_credentials_file.setter
     def aws_shared_credentials_file(self, aws_shared_credentials_file: str) -> None:
@@ -160,3 +301,10 @@ class InfraConfig(PhidataBase):
         """
         logger.debug(f"@is_valid not defined for {self.__class__.__name__}")
         return True
+
+    def set_local_env(self) -> bool:
+        local_env: Optional[Dict[str, str]] = self.local_env
+        if local_env is not None:
+            environ.update(local_env)
+            return True
+        return False

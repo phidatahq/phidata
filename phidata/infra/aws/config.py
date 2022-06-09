@@ -1,5 +1,4 @@
 from typing import Optional, List, Union
-from typing_extensions import Literal
 
 from phidata.infra.base import InfraConfig
 from phidata.infra.aws.args import AwsArgs
@@ -11,7 +10,7 @@ from phidata.utils.log import logger
 class AwsConfig(InfraConfig):
     def __init__(
         self,
-        env: Optional[Literal["dev", "stg", "prd"]] = "prd",
+        env: Optional[str] = "prd",
         version: Optional[str] = None,
         enabled: bool = True,
         # AwsResourceGroups to deploy

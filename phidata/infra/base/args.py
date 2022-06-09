@@ -1,12 +1,11 @@
 from pathlib import Path
-from typing import Optional, Dict
-from typing_extensions import Literal
+from typing import Optional, Dict, Union
 
 from phidata.base import PhidataBaseArgs
 
 
 class InfraArgs(PhidataBaseArgs):
-    env: Optional[Literal["dev", "stg", "prd"]] = None
+    env: Optional[str] = None
 
     # -*- Path parameters
     # Path to the workspace root directory
@@ -25,14 +24,18 @@ class InfraArgs(PhidataBaseArgs):
     workspace_config_dir: Optional[str] = None
 
     # -*- Environment parameters
-    # Env vars added to local env when running workflows
+    # Env vars added to local env
     local_env: Optional[Dict[str, str]] = None
-    # Env vars added to docker env when building PhidataApps
-    #   and running workflows
+    # Load local env using env file
+    local_env_file: Optional[Union[str, Path]] = None
+    # Env vars added to docker env
     docker_env: Optional[Dict[str, str]] = None
-    # Env vars added to k8s env when building PhidataApps
-    #   and running workflows
+    # Load docker env using env file
+    docker_env_file: Optional[Union[str, Path]] = None
+    # Env vars added to k8s env
     k8s_env: Optional[Dict[str, str]] = None
+    # Load k8s env using env file
+    k8s_env_file: Optional[Union[str, Path]] = None
 
     # -*- AWS parameters
     # Common aws params used by apps, resources and data assets

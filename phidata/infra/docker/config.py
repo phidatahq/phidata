@@ -1,5 +1,4 @@
 from typing import List, Optional
-from typing_extensions import Literal
 
 from phidata.app import PhidataApp
 from phidata.app.databox import default_databox_name
@@ -17,7 +16,7 @@ class DockerConfig(InfraConfig):
     def __init__(
         self,
         name: Optional[str] = None,
-        env: Optional[Literal["dev", "stg", "prd"]] = "dev",
+        env: Optional[str] = "dev",
         version: Optional[str] = None,
         enabled: bool = True,
         network: str = "phi",

@@ -1,5 +1,5 @@
-from typing import Optional, List, Dict
-from typing_extensions import Literal
+from pathlib import Path
+from typing import Optional, List, Dict, Union
 
 from phidata.infra.base import InfraConfig, InfraArgs
 from phidata.infra.docker.config import DockerConfig
@@ -10,7 +10,7 @@ from phidata.utils.log import logger
 
 class WorkspaceConfigArgs(InfraArgs):
     # default env for phi ws ... commands
-    default_env: Optional[Literal["dev", "stg", "prd"]] = None
+    default_env: Optional[str] = None
     # default config for phi ws ... commands
     default_config: Optional[str] = None
 
@@ -38,10 +38,10 @@ class WorkspaceConfig(InfraConfig):
         version: Optional[str] = None,
         enabled: bool = True,
         # default env for phi ws ... commands
-        default_env: Optional[Literal["dev", "stg", "prd"]] = None,
+        default_env: Optional[str] = None,
         # default config for phi ws ... commands
         default_config: Optional[str] = None,
-        # List of Docker configurations
+        # List of Docker configurationsdo
         docker: Optional[List[DockerConfig]] = None,
         # List of K8s configurations
         k8s: Optional[List[K8sConfig]] = None,
@@ -58,12 +58,18 @@ class WorkspaceConfig(InfraConfig):
         products_dir: Optional[str] = None,
         notebooks_dir: Optional[str] = None,
         workspace_config_dir: Optional[str] = None,
-        # Env vars added to local env when running workflows
+        # Env vars added to local env
         local_env: Optional[Dict[str, str]] = None,
-        # Env vars added to docker env when running workflows
+        # Load local env using env file
+        local_env_file: Optional[Union[str, Path]] = None,
+        # Env vars added to docker env
         docker_env: Optional[Dict[str, str]] = None,
-        # Env vars added to k8s env when running workflows
+        # Load docker env using env file
+        docker_env_file: Optional[Union[str, Path]] = None,
+        # Env vars added to k8s env
         k8s_env: Optional[Dict[str, str]] = None,
+        # Load k8s env using env file
+        k8s_env_file: Optional[Union[str, Path]] = None,
         # Common aws params used by apps, resources and data assets
         aws_region: Optional[str] = None,
         aws_profile: Optional[str] = None,
@@ -71,14 +77,12 @@ class WorkspaceConfig(InfraConfig):
         aws_shared_credentials_file: Optional[str] = None,
     ):
         super().__init__()
-        workspace_config_dir_clean = (
-            workspace_config_dir if workspace_config_dir else "workspace"
-        )
-        scripts_dir_clean = scripts_dir if scripts_dir else "scripts"
-        storage_dir_clean = storage_dir if storage_dir else "storage"
-        meta_dir_clean = meta_dir if meta_dir else "meta"
-        products_dir_clean = products_dir if products_dir else f"{src_dir}/products"
-        notebooks_dir_clean = notebooks_dir if notebooks_dir else f"{src_dir}/notebooks"
+        scripts_dir_clean = scripts_dir or "scripts"
+        storage_dir_clean = storage_dir or "storage"
+        meta_dir_clean = meta_dir or "meta"
+        products_dir_clean = products_dir or f"{src_dir}/products"
+        notebooks_dir_clean = notebooks_dir or f"{src_dir}/notebooks"
+        workspace_config_dir_clean = workspace_config_dir or "workspace"
 
         try:
             self.args: WorkspaceConfigArgs = WorkspaceConfigArgs(
@@ -96,8 +100,11 @@ class WorkspaceConfig(InfraConfig):
                 notebooks_dir=notebooks_dir_clean,
                 workspace_config_dir=workspace_config_dir_clean,
                 local_env=local_env,
+                local_env_file=local_env_file,
                 docker_env=docker_env,
+                docker_env_file=docker_env_file,
                 k8s_env=k8s_env,
+                k8s_env_file=k8s_env_file,
                 aws_region=aws_region,
                 aws_profile=aws_profile,
                 aws_config_file=aws_config_file,
@@ -108,7 +115,7 @@ class WorkspaceConfig(InfraConfig):
             raise
 
     @property
-    def default_env(self) -> Optional[Literal["dev", "stg", "prd"]]:
+    def default_env(self) -> Optional[str]:
         return self.args.default_env if self.args else None
 
     @property

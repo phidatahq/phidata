@@ -64,7 +64,7 @@ class LoadBalancerProvider(ExtendedEnum):
 
 
 class IngressRouteArgs(PhidataAppArgs):
-    name: str = "ingressroute"
+    name: str = "traefik"
     version: str = "1"
     enabled: bool = True
 
@@ -198,7 +198,7 @@ class IngressRouteArgs(PhidataAppArgs):
 class IngressRoute(PhidataApp):
     def __init__(
         self,
-        name: str = "ingressroute",
+        name: str = "traefik",
         version: str = "1",
         enabled: bool = True,
         # Image Args,

@@ -43,3 +43,15 @@ class InfraArgs(PhidataBaseArgs):
     aws_profile: Optional[str] = None
     aws_config_file: Optional[str] = None
     aws_shared_credentials_file: Optional[str] = None
+
+    # -*- `phi` cli parameters
+    # Set to True if `phi` should continue creating
+    # resources after a resource creation has failed
+    continue_on_create_failure: bool = False
+    # Set to True if `phi` should continue deleting
+    # resources after a resource deleting has failed
+    # Defaults to True because we normally want to continue deleting
+    continue_on_delete_failure: bool = True
+    # Set to True if `phi` should continue patching
+    # resources after a resource patch has failed
+    continue_on_patch_failure: bool = False

@@ -8,6 +8,7 @@ from phidata.infra.aws.resource.ec2.volume import EbsVolume
 from phidata.infra.aws.resource.eks.cluster import EksCluster
 from phidata.infra.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.infra.aws.resource.eks.node_group import EksNodeGroup
+from phidata.infra.aws.resource.eks.kubeconfig import EksKubeconfig
 from phidata.infra.aws.resource.iam.role import IamRole
 from phidata.infra.aws.resource.iam.policy import IamPolicy
 from phidata.infra.aws.resource.glue.crawler import GlueCrawler
@@ -33,6 +34,7 @@ class AwsResourceGroup(BaseModel):
     volumes: Optional[List[EbsVolume]] = None
     cloudformation_stacks: Optional[List[CloudFormationStack]] = None
     eks_cluster: Optional[EksCluster] = None
+    eks_kubeconfig: Optional[EksKubeconfig] = None
     eks_fargate_profiles: Optional[List[EksFargateProfile]] = None
     eks_nodegroups: Optional[List[EksNodeGroup]] = None
     crawlers: Optional[List[GlueCrawler]] = None

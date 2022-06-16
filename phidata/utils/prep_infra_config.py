@@ -49,7 +49,7 @@ def prep_infra_config(
 
     # -*- AWS parameters
     # only update the param if they are available.
-    # prefer the configs param if provided
+    # i.e. prefer the configs param if provided
     if infra_config.aws_region is None and ws_config.aws_region is not None:
         infra_config.aws_region = ws_config.aws_region
     if infra_config.aws_profile is None and ws_config.aws_profile is not None:
@@ -61,5 +61,24 @@ def prep_infra_config(
         and ws_config.aws_shared_credentials_file is not None
     ):
         infra_config.aws_shared_credentials_file = ws_config.aws_shared_credentials_file
+
+    # -*- `phi` cli parameters
+    # only update the param if they are available.
+    # i.e. prefer the configs param if provided
+    if (
+        infra_config.continue_on_create_failure is None
+        and ws_config.continue_on_create_failure is not None
+    ):
+        infra_config.continue_on_create_failure = ws_config.continue_on_create_failure
+    if (
+        infra_config.continue_on_delete_failure is None
+        and ws_config.continue_on_delete_failure is not None
+    ):
+        infra_config.continue_on_delete_failure = ws_config.continue_on_delete_failure
+    if (
+        infra_config.continue_on_patch_failure is None
+        and ws_config.continue_on_patch_failure is not None
+    ):
+        infra_config.continue_on_patch_failure = ws_config.continue_on_patch_failure
 
     return infra_config

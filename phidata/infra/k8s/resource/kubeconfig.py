@@ -1,12 +1,13 @@
-import datetime
+from pathlib import Path
 from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel, Field
 
-import phidata.infra.k8s.enums as k8s_enums
+from phidata.infra.k8s.enums.api_version import ApiVersion
+from phidata.infra.k8s.enums.kind import Kind
+from phidata.utils.log import logger
 
 
-# Kubeconfig Cluster
 class KubeconfigClusterConfig(BaseModel):
     server: str
     certificate_authority_data: str = Field(..., alias="certificate-authority-data")
@@ -17,17 +18,18 @@ class KubeconfigClusterConfig(BaseModel):
         use_enum_values = True
 
 
+# Kubeconfig Cluster
 class KubeconfigCluster(BaseModel):
     name: str
     cluster: KubeconfigClusterConfig
 
 
+# Kubeconfig User
 class KubeconfigUser(BaseModel):
     name: str
     user: Dict[str, Any]
 
 
-# Kubeconfig Context
 class KubeconfigContextSpec(BaseModel):
     """Each Kubeconfig context is a triple (cluster, user, namespace). It should be read as:
     Use the credentials of the "user" to access the "namespace" of the "cluster”
@@ -38,6 +40,7 @@ class KubeconfigContextSpec(BaseModel):
     namespace: Optional[str]
 
 
+# Kubeconfig Context
 class KubeconfigContext(BaseModel):
     """A context element in a kubeconfig file is used to group access parameters under a
     convenient name. Each context has three parameters: cluster, namespace, and user.
@@ -51,13 +54,12 @@ class KubeconfigContext(BaseModel):
 
 # Kubeconfig
 class Kubeconfig(BaseModel):
-    """This is one of the most important models, and the one we know the least about :(
-
-    We configure access to K8s clusters using a Kubeconfig. This configuration can be stored in a file or an object.
+    """
+    We configure access to K8s clusters using a Kubeconfig.
+    This configuration can be stored in a file or an object.
     A Kubeconfig stores information about clusters, users, namespaces, and authentication mechanisms,
 
-    When we use K8s locally on our machine, our kubeconfig file is usually stored at ~/.kube/config
-    A file that is used to configure access to a cluster is called a kubeconfig file. This is a generic way of referring to configuration files. It does not mean that there is a file named kubeconfig.
+    Locally the kubeconfig file is usually stored at ~/.kube/config
     View your local kubeconfig using `kubectl config view`
 
     References:
@@ -66,8 +68,8 @@ class Kubeconfig(BaseModel):
         * Go Doc: https://godoc.org/k8s.io/client-go/tools/clientcmd/api#Config
     """
 
-    api_version: k8s_enums.ApiVersion = Field(..., alias="apiVersion")
-    kind: k8s_enums.Kind
+    api_version: ApiVersion = Field(ApiVersion.CORE_V1, alias="apiVersion")
+    kind: Optional[Kind] = Kind.CONFIG
     clusters: List[KubeconfigCluster] = []
     users: List[KubeconfigUser] = []
     contexts: List[KubeconfigContext] = []
@@ -77,3 +79,40 @@ class Kubeconfig(BaseModel):
     class Config:
         allow_population_by_field_name = True
         use_enum_values = True
+
+    @classmethod
+    def read_from_file(cls: Any, file_path: Path) -> Optional[Any]:
+        if file_path is not None and file_path.exists() and file_path.is_file():
+            try:
+                import yaml
+
+                logger.info(f"Reading {file_path}")
+                kubeconfig_dict = yaml.safe_load(file_path.read_text())
+                if kubeconfig_dict is not None and isinstance(kubeconfig_dict, dict):
+                    kubeconfig = cls(**kubeconfig_dict)
+                    return kubeconfig
+            except Exception as e:
+                logger.error(f"Error reading {file_path}")
+                logger.error(e)
+        else:
+            logger.warning(f"Kubeconfig invalid: {file_path}")
+        return None
+
+    def write_to_file(self, file_path: Path) -> bool:
+        """
+        Writes the kubeconfig to file_path
+        """
+        if file_path is not None:
+            try:
+                import yaml
+
+                kubeconfig_dict = self.dict(exclude_none=True, by_alias=True)
+                file_path.write_text(yaml.safe_dump(kubeconfig_dict))
+                logger.info(f"Updated: {file_path}")
+                return True
+            except Exception as e:
+                logger.error(f"Error writing {file_path}")
+                logger.error(e)
+        else:
+            logger.error(f"Kubeconfig invalid: {file_path}")
+        return False

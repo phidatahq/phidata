@@ -21,3 +21,5 @@ class Kind(ExtendedEnum):
     INGRESSROUTETCP = "IngressRouteTCP"
     MIDDLEWARE = "Middleware"
     TLSOPTION = "TLSOption"
+    USER = "User"
+    GROUP = "Group"

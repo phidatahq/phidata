@@ -58,6 +58,7 @@ class WorkspaceConfig(InfraConfig):
         products_dir: Optional[str] = None,
         notebooks_dir: Optional[str] = None,
         workspace_config_dir: Optional[str] = None,
+        # -*- Environment parameters
         # Env vars added to local env
         local_env: Optional[Dict[str, str]] = None,
         # Load local env using env file
@@ -70,11 +71,23 @@ class WorkspaceConfig(InfraConfig):
         k8s_env: Optional[Dict[str, str]] = None,
         # Load k8s env using env file
         k8s_env_file: Optional[Union[str, Path]] = None,
+        # -*- AWS parameters
         # Common aws params used by apps, resources and data assets
         aws_region: Optional[str] = None,
         aws_profile: Optional[str] = None,
         aws_config_file: Optional[str] = None,
         aws_shared_credentials_file: Optional[str] = None,
+        # -*- `phi` cli parameters
+        # Set to True if `phi` should continue creating
+        # resources after a resource creation has failed
+        continue_on_create_failure: bool = False,
+        # Set to True if `phi` should continue deleting
+        # resources after a resource deleting has failed
+        # Defaults to True because we normally want to continue deleting
+        continue_on_delete_failure: bool = True,
+        # Set to True if `phi` should continue patching
+        # resources after a resource patch has failed
+        continue_on_patch_failure: bool = False,
     ):
         super().__init__()
         scripts_dir_clean = scripts_dir or "scripts"
@@ -109,6 +122,9 @@ class WorkspaceConfig(InfraConfig):
                 aws_profile=aws_profile,
                 aws_config_file=aws_config_file,
                 aws_shared_credentials_file=aws_shared_credentials_file,
+                continue_on_create_failure=continue_on_create_failure,
+                continue_on_delete_failure=continue_on_delete_failure,
+                continue_on_patch_failure=continue_on_patch_failure,
             )
         except Exception as e:
             logger.error(f"Args for {self.__class__.__name__} are not valid")

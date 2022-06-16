@@ -308,3 +308,30 @@ class InfraConfig(PhidataBase):
             environ.update(local_env)
             return True
         return False
+
+    @property
+    def continue_on_create_failure(self) -> bool:
+        return self.args.continue_on_create_failure if self.args else False
+
+    @continue_on_create_failure.setter
+    def continue_on_create_failure(self, continue_on_create_failure: bool) -> None:
+        if self.args is not None and continue_on_create_failure is not None:
+            self.args.continue_on_create_failure = continue_on_create_failure
+
+    @property
+    def continue_on_delete_failure(self) -> bool:
+        return self.args.continue_on_delete_failure if self.args else False
+
+    @continue_on_delete_failure.setter
+    def continue_on_delete_failure(self, continue_on_delete_failure: bool) -> None:
+        if self.args is not None and continue_on_delete_failure is not None:
+            self.args.continue_on_delete_failure = continue_on_delete_failure
+
+    @property
+    def continue_on_patch_failure(self) -> bool:
+        return self.args.continue_on_patch_failure if self.args else False
+
+    @continue_on_patch_failure.setter
+    def continue_on_patch_failure(self, continue_on_patch_failure: bool) -> None:
+        if self.args is not None and continue_on_patch_failure is not None:
+            self.args.continue_on_patch_failure = continue_on_patch_failure

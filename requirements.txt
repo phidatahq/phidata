@@ -24,7 +24,7 @@ jmespath==1.0.0
 kubernetes==23.6.0
 oauthlib==3.2.0
 packaging==21.3
-phiterm==0.1.47
+phiterm==0.1.48
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pydantic==1.9.0

@@ -108,12 +108,18 @@ class IamRole(AwsResource):
                 print_error("Waiter failed.")
                 print_error(e)
         # Attach policy arns to role
+        attach_policy_success = True
         if self.active_resource is not None and self.policy_arns is not None:
-            self.attach_policy_arns(aws_client)
+            _success = self.attach_policy_arns(aws_client)
+            if not _success:
+                attach_policy_success = False
         # Attach policies to role
         if self.active_resource is not None and self.policies is not None:
-            self.attach_policies(aws_client)
-        return True
+            _success = self.attach_policies(aws_client)
+            if not _success:
+                attach_policy_success = False
+        # logger.info(f"attach_policy_success: {attach_policy_success}")
+        return attach_policy_success
 
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
         """Returns the IamRole
@@ -226,7 +232,9 @@ class IamRole(AwsResource):
             logger.debug("Attaching managed policies to role")
             for policy in self.policies:
                 if policy.arn is None:
-                    policy.create(aws_client)
+                    create_success = policy.create(aws_client)
+                    if not create_success:
+                        return False
                 if policy.arn is not None:
                     role.attach_policy(PolicyArn=policy.arn)
                     print_info(f"Attaching policy to {role.role_name}: {policy.arn}")

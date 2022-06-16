@@ -369,7 +369,7 @@ class EksNodeGroup(AwsResource):
         # Wait for EksNodeGroup to be deleted
         if self.wait_for_creation:
             try:
-                print_info(f"Waiting for {self.get_resource_type()} to be created.")
+                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
                 waiter = self.get_service_client(aws_client).get_waiter(
                     "nodegroup_deleted"
                 )

@@ -61,20 +61,29 @@ class EksCluster(AwsResource):
         List[Dict[str, Union[List[str], Dict[str, str]]]]
     ] = None
 
-    skip_delete = False
-    # bump the wait time for Eks to 30 seconds
-    waiter_delay = 30
-    # If True, updates the kubeconfig
+    ## Kubeconfig
+    # If True, updates the kubeconfig on create/delete
+    # Use = update_kubeconfig when using a separate EksKubeconfig resource
     update_kubeconfig: bool = True
     # The kubeconfig_path to update
     kubeconfig_path: Path = Path.home().joinpath(".kube").joinpath("config").resolve()
+    # Optional: cluster_name to use in kubeconfig, defaults to self.name
     kubeconfig_cluster_name: Optional[str] = None
+    # Optional: cluster_user to use in kubeconfig, defaults to self.name
     kubeconfig_cluster_user: Optional[str] = None
+    # Optional: cluster_context to use in kubeconfig, defaults to self.name
     kubeconfig_cluster_context: Optional[str] = None
+    # Optional: role to assume when signing the token
+    kubeconfig_role: Optional[IamRole] = None
+    # Optional: role arn to assume when signing the token
+    kubeconfig_role_arn: Optional[str] = None
 
     # provided by api on create
     created_at: Optional[str] = None
     cluster_status: Optional[str] = None
+
+    # bump the wait time for Eks to 30 seconds
+    waiter_delay = 30
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the EksCluster
@@ -180,7 +189,7 @@ class EksCluster(AwsResource):
                 print_error(e)
         # Update kubeconfig if needed
         if self.update_kubeconfig:
-            self.load_kubeconfig(aws_client)
+            self.write_kubeconfig(aws_client=aws_client)
         return True
 
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
@@ -291,7 +300,7 @@ class EksCluster(AwsResource):
                 print_error(e)
         # Update kubeconfig if needed
         if self.update_kubeconfig:
-            return self.clean_kubeconfig(aws_client)
+            return self.clean_kubeconfig(aws_client=aws_client)
         return True
 
     def get_eks_iam_role(self) -> IamRole:
@@ -368,39 +377,42 @@ class EksCluster(AwsResource):
         return resources_vpc_config
 
     def get_kubeconfig_cluster_name(self) -> str:
-        return self.kubeconfig_cluster_name or f"{self.name}-eks"
+        return self.kubeconfig_cluster_name or self.name
 
     def get_kubeconfig_user_name(self) -> str:
-        return self.kubeconfig_cluster_user or f"{self.name}-eks"
+        return self.kubeconfig_cluster_user or self.name
 
     def get_kubeconfig_context_name(self) -> str:
-        return self.kubeconfig_cluster_context or f"{self.name}-eks"
+        return self.kubeconfig_cluster_context or self.name
 
-    def load_kubeconfig(self, aws_client: AwsApiClient) -> None:
+    def write_kubeconfig(self, aws_client: AwsApiClient) -> bool:
 
+        # Step 1: Get the EksCluster to generate the kubeconfig for
         eks_cluster = self._read(aws_client)
         if eks_cluster is None:
-            logger.warning("No EKSCluster available for kubeconfig update")
-            return
+            logger.warning(f"EKSCluster not available: {self.name}")
+            return False
+
+        # Step 2: Get EksCluster cert, endpoint & arn
         try:
             cluster_cert = (
                 eks_cluster.get("cluster", {})
                 .get("certificateAuthority", {})
                 .get("data", None)
             )
-            # logger.debug(f"cluster_cert: {cluster_cert}")
+            logger.debug(f"cluster_cert: {cluster_cert}")
+
             cluster_endpoint = eks_cluster.get("cluster", {}).get("endpoint", None)
-            # logger.debug(f"cluster_endpoint: {cluster_endpoint}")
+            logger.debug(f"cluster_endpoint: {cluster_endpoint}")
+
             cluster_arn = eks_cluster.get("cluster", {}).get("arn", None)
-            # logger.debug(f"cluster_arn: {cluster_arn}")
+            logger.debug(f"cluster_arn: {cluster_arn}")
         except Exception as e:
             print_error(f"Cannot read EKSCluster")
             print_error(e)
-            return
+            return False
 
-        import yaml
         from phidata.infra.k8s.enums.api_version import ApiVersion
-        from phidata.infra.k8s.enums.kind import Kind
         from phidata.infra.k8s.resource.kubeconfig import (
             Kubeconfig,
             KubeconfigCluster,
@@ -410,9 +422,8 @@ class EksCluster(AwsResource):
             KubeconfigUser,
         )
 
-        kubeconfig: Optional[Kubeconfig] = None
-
-        # Build cluster config
+        # Step 3: Build Kubeconfig components
+        # 3.1 Build KubeconfigCluster config
         new_cluster = KubeconfigCluster(
             name=self.get_kubeconfig_cluster_name(),
             cluster=KubeconfigClusterConfig(
@@ -421,10 +432,18 @@ class EksCluster(AwsResource):
             ),
         )
 
-        # Build user config
+        # 3.2 Build KubeconfigUser config
         new_user_exec_args = ["eks", "get-token", "--cluster-name", self.name]
         if aws_client.aws_region is not None:
             new_user_exec_args.extend(["--region", aws_client.aws_region])
+        # Assume the role if the role_arn is provided
+        if self.kubeconfig_role_arn is not None:
+            new_user_exec_args.extend(["--role-arn", self.kubeconfig_role_arn])
+        # Otherwise if role is provided, use that to get the role arn
+        elif self.kubeconfig_role is not None:
+            _arn = self.kubeconfig_role.get_arn(aws_client=aws_client)
+            if _arn is not None:
+                new_user_exec_args.extend(["--role-arn", _arn])
 
         new_user_exec: Dict[str, Any] = {
             "apiVersion": ApiVersion.CLIENT_AUTHENTICATION_V1BETA1.value,
@@ -440,7 +459,8 @@ class EksCluster(AwsResource):
             name=self.get_kubeconfig_user_name(),
             user={"exec": new_user_exec},
         )
-        # Build context config
+
+        # 3.3 Build KubeconfigContext config
         new_context = KubeconfigContext(
             name=self.get_kubeconfig_context_name(),
             context=KubeconfigContextSpec(
@@ -451,114 +471,109 @@ class EksCluster(AwsResource):
         current_context = new_context.name
         cluster_config: KubeconfigCluster
 
-        # If write_kubeconfig = False, then no changes to kubeconfig needed
+        # Step 4: Get existing Kubeconfig
+        kubeconfig_path = self.kubeconfig_path
+        if kubeconfig_path is None:
+            logger.error(f"kubeconfig_path is None")
+            return False
+
+        kubeconfig: Optional[Any] = Kubeconfig.read_from_file(kubeconfig_path)
+
+        # Step 5: Parse through the existing config to determine if
+        # an update is required. By the end of this logic
+        # if write_kubeconfig = False then no changes to kubeconfig are needed
+        # if write_kubeconfig = True then we should write the kubeconfig file
         write_kubeconfig = False
-        if (
-            self.kubeconfig_path is not None
-            and self.kubeconfig_path.exists()
-            and self.kubeconfig_path.is_file()
-        ):
-            try:
-                print_info(f"Reading kubeconfig at {self.kubeconfig_path}")
-                kubeconfig_dict = yaml.safe_load(self.kubeconfig_path.read_text())
 
-                kubeconfig = Kubeconfig(**kubeconfig_dict)
+        # Kubeconfig exists and is valid
+        if kubeconfig is not None and isinstance(kubeconfig, Kubeconfig):
+            # Update Kubeconfig.clusters:
+            # If a cluster with the same name exists in Kubeconfig.clusters
+            #   - check if server and cert values match, if not, remove the existing cluster
+            #   and add the new cluster config. Mark cluster_config_exists = True
+            # If a cluster with the same name does not exist in Kubeconfig.clusters
+            #   - add the new cluster config
+            cluster_config_exists = False
+            for idx, _cluster in enumerate(kubeconfig.clusters, start=0):
+                if _cluster.name == new_cluster.name:
+                    cluster_config_exists = True
+                    if (
+                        _cluster.cluster.server != new_cluster.cluster.server
+                        or _cluster.cluster.certificate_authority_data
+                        != new_cluster.cluster.certificate_authority_data
+                    ):
+                        logger.debug(
+                            "Kubeconfig.cluster mismatch, updating cluster config"
+                        )
+                        removed_cluster_config = kubeconfig.clusters.pop(idx)
+                        # logger.debug(
+                        #     f"removed_cluster_config: {removed_cluster_config}"
+                        # )
+                        kubeconfig.clusters.append(new_cluster)
+                        write_kubeconfig = True
+            if not cluster_config_exists:
+                logger.debug("Adding Kubeconfig.cluster")
+                kubeconfig.clusters.append(new_cluster)
+                write_kubeconfig = True
 
-                # Update Kubeconfig.clusters:
-                # If a cluster with the same name exists in Kubeconfig.clusters -
-                #   check if server and cert values match, if not, remove the existing cluster
-                #   and add the new cluster config. Mark cluster_config_exists = True
-                # If a cluster with the same name does not exist in Kubeconfig.clusters -
-                #   add the new cluster config
-                cluster_config_exists = False
-                for idx, _cluster in enumerate(kubeconfig.clusters, start=0):
-                    if _cluster.name == new_cluster.name:
-                        cluster_config_exists = True
-                        if (
-                            _cluster.cluster.server != new_cluster.cluster.server
-                            or _cluster.cluster.certificate_authority_data
-                            != new_cluster.cluster.certificate_authority_data
-                        ):
-                            logger.debug(
-                                "Kubeconfig.cluster mismatch, updating cluster config"
-                            )
-                            removed_cluster_config = kubeconfig.clusters.pop(idx)
-                            # logger.debug(
-                            #     f"removed_cluster_config: {removed_cluster_config}"
-                            # )
-                            kubeconfig.clusters.append(new_cluster)
-                            write_kubeconfig = True
-                if not cluster_config_exists:
-                    logger.debug("Adding Kubeconfig.cluster")
-                    kubeconfig.clusters.append(new_cluster)
-                    write_kubeconfig = True
+            # Update Kubeconfig.users:
+            # If a user with the same name exists in Kubeconfig.users -
+            #   check if user spec matches, if not, remove the existing user
+            #   and add the new user config. Mark user_config_exists = True
+            # If a user with the same name does not exist in Kubeconfig.users -
+            #   add the new user config
+            user_config_exists = False
+            for idx, _user in enumerate(kubeconfig.users, start=0):
+                if _user.name == new_user.name:
+                    user_config_exists = True
+                    if _user.user != new_user.user:
+                        logger.debug("Kubeconfig.user mismatch, updating user config")
+                        removed_user_config = kubeconfig.users.pop(idx)
+                        # logger.debug(f"removed_user_config: {removed_user_config}")
+                        kubeconfig.users.append(new_user)
+                        write_kubeconfig = True
+            if not user_config_exists:
+                logger.debug("Adding Kubeconfig.user")
+                kubeconfig.users.append(new_user)
+                write_kubeconfig = True
 
-                # Update Kubeconfig.users:
-                # If a user with the same name exists in Kubeconfig.users -
-                #   check if user spec matches, if not, remove the existing user
-                #   and add the new user config. Mark user_config_exists = True
-                # If a user with the same name does not exist in Kubeconfig.users -
-                #   add the new user config
-                user_config_exists = False
-                for idx, _user in enumerate(kubeconfig.users, start=0):
-                    if _user.name == new_user.name:
-                        user_config_exists = True
-                        if _user.user != new_user.user:
-                            logger.debug(
-                                "Kubeconfig.user mismatch, updating user config"
-                            )
-                            removed_user_config = kubeconfig.users.pop(idx)
-                            # logger.debug(f"removed_user_config: {removed_user_config}")
-                            kubeconfig.users.append(new_user)
-                            write_kubeconfig = True
-                if not user_config_exists:
-                    logger.debug("Adding Kubeconfig.user")
-                    kubeconfig.users.append(new_user)
-                    write_kubeconfig = True
+            # Update Kubeconfig.contexts:
+            # If a context with the same name exists in Kubeconfig.contexts -
+            #   check if context spec matches, if not, remove the existing context
+            #   and add the new context. Mark context_config_exists = True
+            # If a context with the same name does not exist in Kubeconfig.contexts -
+            #   add the new context config
+            context_config_exists = False
+            for idx, _context in enumerate(kubeconfig.contexts, start=0):
+                if _context.name == new_context.name:
+                    context_config_exists = True
+                    if _context.context != new_context.context:
+                        logger.debug(
+                            "Kubeconfig.context mismatch, updating context config"
+                        )
+                        removed_context_config = kubeconfig.contexts.pop(idx)
+                        # logger.debug(
+                        #     f"removed_context_config: {removed_context_config}"
+                        # )
+                        kubeconfig.contexts.append(new_context)
+                        write_kubeconfig = True
+            if not context_config_exists:
+                logger.debug("Adding Kubeconfig.context")
+                kubeconfig.contexts.append(new_context)
+                write_kubeconfig = True
 
-                # Update Kubeconfig.contexts:
-                # If a context with the same name exists in Kubeconfig.contexts -
-                #   check if context spec matches, if not, remove the existing context
-                #   and add the new context. Mark context_config_exists = True
-                # If a context with the same name does not exist in Kubeconfig.contexts -
-                #   add the new context config
-                context_config_exists = False
-                for idx, _context in enumerate(kubeconfig.contexts, start=0):
-                    if _context.name == new_context.name:
-                        context_config_exists = True
-                        if _context.context != new_context.context:
-                            logger.debug(
-                                "Kubeconfig.context mismatch, updating context config"
-                            )
-                            removed_context_config = kubeconfig.contexts.pop(idx)
-                            # logger.debug(
-                            #     f"removed_context_config: {removed_context_config}"
-                            # )
-                            kubeconfig.contexts.append(new_context)
-                            write_kubeconfig = True
-                if not context_config_exists:
-                    logger.debug("Adding Kubeconfig.context")
-                    kubeconfig.contexts.append(new_context)
-                    write_kubeconfig = True
-
-                if (
-                    kubeconfig.current_context is None
-                    or kubeconfig.current_context != current_context
-                ):
-                    logger.debug("Updating Kubeconfig.current_context")
-                    kubeconfig.current_context = current_context
-                    write_kubeconfig = True
-            except Exception as e:
-                print_error(f"Cannot update kubeconfig at {self.kubeconfig_path}")
-                print_error(e)
-                kubeconfig = None
-
-        # Create new kubeconfig
-        if kubeconfig is None:
-            print_info(f"Creating new kubeconfig")
+            if (
+                kubeconfig.current_context is None
+                or kubeconfig.current_context != current_context
+            ):
+                logger.debug("Updating Kubeconfig.current_context")
+                kubeconfig.current_context = current_context
+                write_kubeconfig = True
+        else:
+            # Kubeconfig does not exist or is not valid
+            # Create a new Kubeconfig
+            logger.info(f"Creating new Kubeconfig")
             kubeconfig = Kubeconfig(
-                api_version=ApiVersion.CORE_V1,
-                kind=Kind.CONFIG,
                 clusters=[new_cluster],
                 users=[new_user],
                 contexts=[new_context],
@@ -568,17 +583,13 @@ class EksCluster(AwsResource):
 
         # if kubeconfig:
         #     logger.debug("Kubeconfig:\n{}".format(kubeconfig.json(exclude_none=True, by_alias=True, indent=4)))
+
+        # Step 5: Write Kubeconfig if an update is made
         if write_kubeconfig:
-            try:
-                print_info("Writing kubeconfig")
-                kubeconfig_dict = kubeconfig.dict(exclude_none=True, by_alias=True)
-                self.kubeconfig_path.write_text(yaml.safe_dump(kubeconfig_dict))
-                print_info("Kubeconfig updated")
-            except Exception as e:
-                print_error(f"Cannot write to {self.kubeconfig_path}")
-                print_error(e)
+            return kubeconfig.write_to_file(kubeconfig_path)
         else:
-            print_info("Kubeconfig up-to-date")
+            logger.info("Kubeconfig up-to-date")
+        return True
 
     def clean_kubeconfig(self, aws_client: AwsApiClient) -> bool:
         logger.debug(f"TO_DO: Cleaning kubeconfig at {str(self.kubeconfig_path)}")

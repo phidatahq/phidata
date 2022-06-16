@@ -8,6 +8,7 @@ from phidata.infra.aws.resource.ec2.volume import EbsVolume
 from phidata.infra.aws.resource.eks.cluster import EksCluster
 from phidata.infra.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.infra.aws.resource.eks.node_group import EksNodeGroup
+from phidata.infra.aws.resource.eks.kubeconfig import EksKubeconfig
 from phidata.infra.aws.resource.iam.role import IamRole
 from phidata.infra.aws.resource.iam.policy import IamPolicy
 from phidata.infra.aws.resource.glue.crawler import GlueCrawler
@@ -24,6 +25,7 @@ AwsResourceType = Union[
     EksCluster,
     EksFargateProfile,
     EksNodeGroup,
+    EksKubeconfig,
     IamRole,
     IamPolicy,
     GlueCrawler,
@@ -46,6 +48,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     DbCluster,
     GlueCrawler,
     EksCluster,
+    EksKubeconfig,
     EksFargateProfile,
     EksNodeGroup,
     EmrCluster,

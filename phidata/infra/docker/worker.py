@@ -203,6 +203,13 @@ class DockerWorker:
                 _resource_created = resource.create(docker_client=self.docker_client)
                 if _resource_created:
                     num_resources_created += 1
+                    print_info("Resource created")
+                else:
+                    logger.error(
+                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
+                    )
+                    if not self.docker_args.continue_on_create_failure:
+                        return False
             except Exception as e:
                 logger.error(
                     f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
@@ -337,6 +344,13 @@ class DockerWorker:
                 _resource_deleted = resource.delete(docker_client=self.docker_client)
                 if _resource_deleted:
                     num_resources_deleted += 1
+                    print_info("Resource deleted")
+                else:
+                    logger.error(
+                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."
+                    )
+                    if not self.docker_args.continue_on_delete_failure:
+                        return False
             except Exception as e:
                 logger.error(
                     f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."
@@ -442,6 +456,13 @@ class DockerWorker:
                 _resource_patched = resource.update(docker_client=self.docker_client)
                 if _resource_patched:
                     num_resources_patched += 1
+                    print_info("Resource patched")
+                else:
+                    logger.error(
+                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."
+                    )
+                    if not self.docker_args.continue_on_patch_failure:
+                        return False
             except Exception as e:
                 logger.error(
                     f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be patched."

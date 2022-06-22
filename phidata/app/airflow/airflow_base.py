@@ -1248,7 +1248,7 @@ class AirflowBase(PhidataApp):
                     if self.args.git_sync_wait is not None:
                         git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
                     git_sync_sidecar = CreateContainer(
-                        container_name="git-sync-workspaces",
+                        container_name="git-sync",
                         app_name=app_name,
                         image_name="k8s.gcr.io/git-sync",
                         image_tag="v3.1.1",

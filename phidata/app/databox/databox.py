@@ -44,6 +44,7 @@ from phidata.utils.common import (
     get_default_secret_name,
     get_default_deploy_name,
     get_default_pod_name,
+    get_default_volume_name,
 )
 from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
@@ -1104,13 +1105,17 @@ class Databox(PhidataApp):
         # should be mounted locally, otherwise
         # Create a Sidecar git-sync container and volume
         if self.args.mount_workspace:
+            workspace_volume_name = (
+                self.args.workspace_volume_name or get_default_volume_name(app_name)
+            )
+
             if self.args.k8s_mount_local_workspace:
                 workspace_root_path_str = str(self.workspace_root_path)
                 workspace_root_container_path_str = str(workspace_root_container_path)
                 logger.debug(f"Mounting: {workspace_root_path_str}")
                 logger.debug(f"\tto: {workspace_root_container_path_str}")
                 workspace_volume = CreateVolume(
-                    volume_name=self.args.workspace_volume_name,
+                    volume_name=workspace_volume_name,
                     app_name=app_name,
                     mount_path=workspace_root_container_path_str,
                     volume_type=VolumeType.HOST_PATH,
@@ -1127,7 +1132,7 @@ class Databox(PhidataApp):
                 logger.debug(f"Creating EmptyDir")
                 logger.debug(f"\tat: {workspace_parent_container_path_str}")
                 workspace_volume = CreateVolume(
-                    volume_name=self.args.workspace_volume_name,
+                    volume_name=workspace_volume_name,
                     app_name=app_name,
                     mount_path=workspace_parent_container_path_str,
                     volume_type=VolumeType.EMPTY_DIR,
@@ -1147,7 +1152,7 @@ class Databox(PhidataApp):
                     if self.args.git_sync_wait is not None:
                         git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
                     git_sync_sidecar = CreateContainer(
-                        container_name="git-sync-workspaces",
+                        container_name="git-sync",
                         app_name=app_name,
                         image_name="k8s.gcr.io/git-sync",
                         image_tag="v3.1.1",

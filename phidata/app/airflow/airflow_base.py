@@ -57,7 +57,7 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # Image args
     image_name: str = "phidata/airflow"
-    image_tag: str = "2.3.0"
+    image_tag: str = "2.3.2"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -154,6 +154,7 @@ class AirflowBaseArgs(PhidataAppArgs):
     container_detach: bool = True
     container_auto_remove: bool = True
     container_remove: bool = True
+    container_user: str = "root"
     # Overwrite the PYTHONPATH env var, which is usually set to the workspace_root_container_path
     python_path: Optional[str] = None
     # Add container labels
@@ -270,6 +271,7 @@ class AirflowBaseArgs(PhidataAppArgs):
     # Other args
     load_examples: bool = False
     print_env_on_load: bool = True
+    extra_kwargs: Optional[Dict[str, Any]] = None
 
 
 class AirflowBase(PhidataApp):
@@ -280,7 +282,7 @@ class AirflowBase(PhidataApp):
         enabled: bool = True,
         # Image args
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.3.0",
+        image_tag: str = "2.3.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Mount the workspace directory on the container
@@ -370,6 +372,7 @@ class AirflowBase(PhidataApp):
         container_detach: bool = True,
         container_auto_remove: bool = True,
         container_remove: bool = True,
+        container_user: str = "root",
         # Overwrite the PYTHONPATH env var, which is usually set to the workspace_root_container_path
         python_path: Optional[str] = None,
         # Add container labels
@@ -476,10 +479,10 @@ class AirflowBase(PhidataApp):
         # Other args
         load_examples: bool = False,
         print_env_on_load: bool = True,
-        # Additional args
         # If True, use cached resources
         # i.e. skip resource creation/deletion if active resources with the same name exist.
         use_cache: bool = True,
+        **extra_kwargs,
     ):
         super().__init__()
         try:
@@ -534,6 +537,7 @@ class AirflowBase(PhidataApp):
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
                 container_remove=container_remove,
+                container_user=container_user,
                 python_path=python_path,
                 container_labels=container_labels,
                 container_volumes=container_volumes,
@@ -584,6 +588,7 @@ class AirflowBase(PhidataApp):
                 load_examples=load_examples,
                 print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
+                extra_kwargs=extra_kwargs,
             )
         except Exception as e:
             logger.error(f"Args for {self.__class__.__name__} are not valid")
@@ -605,40 +610,10 @@ class AirflowBase(PhidataApp):
         return self.args.flower_service_port
 
     def get_env_data_from_file(self) -> Optional[Dict[str, str]]:
-        env_file_path = self.args.env_file
-        if (
-            env_file_path is not None
-            and env_file_path.exists()
-            and env_file_path.is_file()
-        ):
-            import yaml
-
-            # logger.debug(f"Reading {env_file_path}")
-            env_data_from_file = yaml.safe_load(env_file_path.read_text())
-            if env_data_from_file is not None and isinstance(env_data_from_file, dict):
-                return env_data_from_file
-            else:
-                print_error(f"Invalid env_file: {env_file_path}")
-        return None
+        return self.read_yaml_file(file_path=self.args.env_file)
 
     def get_secret_data_from_file(self) -> Optional[Dict[str, str]]:
-        secrets_file_path = self.args.secrets_file
-        if (
-            secrets_file_path is not None
-            and secrets_file_path.exists()
-            and secrets_file_path.is_file()
-        ):
-            import yaml
-
-            # logger.debug(f"Reading {secrets_file_path}")
-            secret_data_from_file = yaml.safe_load(secrets_file_path.read_text())
-            if secret_data_from_file is not None and isinstance(
-                secret_data_from_file, dict
-            ):
-                return secret_data_from_file
-            else:
-                print_error(f"Invalid secrets_file: {secrets_file_path}")
-        return None
+        return self.read_yaml_file(file_path=self.args.secrets_file)
 
     ######################################################
     ## Docker Resources
@@ -693,6 +668,9 @@ class AirflowBase(PhidataApp):
             else None
         )
 
+        # Container pythonpath
+        python_path = self.args.python_path or str(workspace_root_container_path)
+
         # Airflow db connection
         db_user = self.args.db_user
         db_password = self.args.db_password
@@ -717,9 +695,6 @@ class AirflowBase(PhidataApp):
         db_connection_url = (
             f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
         )
-
-        # Container pythonpath
-        python_path = self.args.python_path or str(workspace_root_container_path)
 
         # Container Environment
         container_env: Dict[str, str] = {
@@ -940,6 +915,7 @@ class AirflowBase(PhidataApp):
             detach=self.args.container_detach,
             auto_remove=self.args.container_auto_remove,
             remove=self.args.container_remove,
+            user=self.args.container_user,
             stdin_open=True,
             tty=True,
             labels=self.args.container_labels,

@@ -194,6 +194,10 @@ class IngressRouteArgs(PhidataAppArgs):
     load_balancer_source_ranges: Optional[List[str]] = None
     allocate_load_balancer_node_ports: Optional[bool] = None
 
+    # Set to False when multiple IngressRoutes are installed
+    # in the same cluster.
+    install_crds: bool = True
+
 
 class IngressRoute(PhidataApp):
     def __init__(
@@ -316,6 +320,9 @@ class IngressRoute(PhidataApp):
         # Using the secrets_file is recommended
         load_balancer_source_ranges: Optional[List[str]] = None,
         allocate_load_balancer_node_ports: Optional[bool] = None,
+        # Set to False when multiple IngressRoutes are installed
+        # in the same cluster.
+        install_crds: bool = True,
         # Additional args
         # If True, skip resource creation if active resources with the same name exist.
         use_cache: bool = True,
@@ -394,8 +401,8 @@ class IngressRoute(PhidataApp):
                 load_balancer_scheme=load_balancer_scheme,
                 load_balancer_source_ranges=load_balancer_source_ranges,
                 allocate_load_balancer_node_ports=allocate_load_balancer_node_ports,
+                install_crds=install_crds,
                 use_cache=use_cache,
-                use_verbose_logs=use_verbose_logs,
             )
         except Exception:
             logger.error(f"Args for {self.__class__.__name__} are not valid")
@@ -894,7 +901,7 @@ class IngressRoute(PhidataApp):
 
             if self.args.load_balancer_scheme is not None:
                 service_annotations[
-                    "sservice.beta.kubernetes.io/aws-load-balancer-scheme"
+                    "service.beta.kubernetes.io/aws-load-balancer-scheme"
                 ] = self.args.load_balancer_scheme
 
         service = CreateService(
@@ -912,13 +919,8 @@ class IngressRoute(PhidataApp):
             allocate_load_balancer_node_ports=self.args.allocate_load_balancer_node_ports,
         )
 
-        resource_group = CreateK8sResourceGroup(
-            name=app_name,
-            enabled=self.args.enabled,
-            sa=sa,
-            cr=cr,
-            crb=crb,
-            crds=[
+        traefik_crds = (
+            [
                 ingressroute_crd,
                 ingressroutetcp_crd,
                 ingressrouteudp_crd,
@@ -928,7 +930,18 @@ class IngressRoute(PhidataApp):
                 tlsoption_crd,
                 tlsstore_crd,
                 traefikservice_crd,
-            ],
+            ]
+            if self.args.install_crds
+            else []
+        )
+
+        resource_group = CreateK8sResourceGroup(
+            name=app_name,
+            enabled=self.args.enabled,
+            sa=sa,
+            cr=cr,
+            crb=crb,
+            crds=traefik_crds,
             config_maps=config_maps,
             secrets=secrets,
             services=[service],

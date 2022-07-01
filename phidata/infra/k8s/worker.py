@@ -175,7 +175,7 @@ class K8sWorker:
         ):
             for create_resource in create_resources_to_build:
                 if not create_resource.enabled:
-                    print_info(f"{create_resource.name} disabled")
+                    logger.debug(f"{create_resource.name} disabled")
                     continue
                 logger.debug("-*- Resource: {}".format(create_resource.name))
 
@@ -194,7 +194,7 @@ class K8sWorker:
         if resources_to_build is not None and isinstance(resources_to_build, list):
             for resource in resources_to_build:
                 if not resource.enabled:
-                    print_info(f"{resource.name} disabled")
+                    logger.debug(f"{resource.name} disabled")
                     continue
                 logger.debug("-*- Resource: {}".format(resource.name))
 

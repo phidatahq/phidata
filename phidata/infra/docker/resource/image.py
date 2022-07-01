@@ -38,6 +38,9 @@ class DockerImage(DockerResource):
     timeout: Optional[int] = None
     # Downloads any updates to the FROM image in Dockerfiles
     pull: Optional[bool] = None
+    # Skips docker cache when set to True
+    # i.e. rebuilds all layes of the image
+    skip_docker_cache: Optional[bool] = None
     # A dictionary of build arguments
     buildargs: Optional[Dict[str, Any]] = None
     # A dictionary of limits applied to each container created by the build process. Valid keys:
@@ -85,8 +88,8 @@ class DockerImage(DockerResource):
     def build_image(self, docker_client: DockerApiClient) -> Optional[Image]:
 
         print_info(f"Building image: {self.get_name_tag()}")
-        nocache = not self.use_cache
-        pull = (not self.use_cache) or self.pull
+        nocache = self.skip_docker_cache
+        pull = self.pull
         if self.path is not None:
             print_info(f"\t  path: {self.path}")
         if self.dockerfile is not None:
@@ -171,7 +174,6 @@ class DockerImage(DockerResource):
         """
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
-        image_object: Optional[Image] = None
 
         try:
             image_object = self.build_image(docker_client)

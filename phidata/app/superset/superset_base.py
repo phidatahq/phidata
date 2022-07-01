@@ -56,8 +56,8 @@ class SupersetBaseArgs(PhidataAppArgs):
     enabled: bool = True
 
     # Image args
-    image_name: str = "apache/superset"
-    image_tag: str = "latest"
+    image_name: str = "phidata/superset"
+    image_tag: str = "1.5.1"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -67,8 +67,8 @@ class SupersetBaseArgs(PhidataAppArgs):
     # Path to mount the workspace volume under
     # This is the parent directory for the workspace on the container
     # i.e. the ws is mounted as a subdir in this dir
-    # eg: if ws name is: idata, workspace_dir would be: /usr/local/idata
-    workspace_parent_container_path: str = "/usr/local"
+    # eg: if ws name is: idata, workspace_dir would be: /workspaces/idata
+    workspace_parent_container_path: str = "/workspaces"
     # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir
     # because we assume that DockerContainers are running locally on the user's machine
     # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
@@ -84,58 +84,58 @@ class SupersetBaseArgs(PhidataAppArgs):
     # This directory contains all the files required by superset.
     # eg: docker-bootstrap.sh
     # This dir is mounted to the `/app/docker` directory on the container
-    resources_dir: str = "superset"
+    mount_resources: bool = False
+    resources_dir: str = "workspace/superset"
     resources_dir_container_path: str = "/app/docker"
-    mount_resources: bool = True
     resources_volume_name: Optional[str] = None
-    # skips downloading resources if the resources_dir exists
-    cache_resources: bool = True
 
     # Set the SUPERSET_CONFIG_PATH env var
     superset_config_path: Optional[str] = None
 
-    # Set the REQUIREMENTS_LOCAL env var
-    # defaults to "/app/docker/requirements-local.txt"
-    requirements_local: Optional[str] = None
+    # Install python dependencies using a requirements.txt file
+    # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path
+    install_requirements: bool = False
+    # Path to the requirements.txt file relative to the workspace_root
+    requirements_file_path: str = "workspace/superset/requirements.txt"
 
     # Set the PYTHONPATH env var
-    # defaults to "/app/pythonpath"
+    # defaults to "/app/pythonpath:/app/docker/pythonpath_dev"
     python_path: Optional[str] = None
 
     # Configure Superset database
+    wait_for_db: bool = False
     # Get database details using DbApp
     db_app: Optional[DbApp] = None
     # Provide database details
     # Set the DATABASE_USER env var
-    db_user: str = "superset"
-    # Set the DATABASE_PASSWORD env var
-    db_password: str = "superset"
-    # Set the DATABASE_DB env var
-    db_schema: str = "superset"
-    # Set the DATABASE_HOST env var
-    db_host: str = "db"
-    # Set the DATABASE_PORT env var
-    db_port: int = 5432
-    # Set the DATABASE_DIALECT env var
-    db_dialect: str = "postgresql+psycopg2"
+    db_user: Optional[str] = None
+    # Set the DATABASE_PASSWORD env var,
+    db_password: Optional[str] = None
+    # Set the DATABASE_DB env var,
+    db_schema: Optional[str] = None
+    # Set the DATABASE_HOST env var,
+    db_host: Optional[str] = None
+    # Set the DATABASE_PORT env var,
+    db_port: Optional[int] = None
+    # Set the DATABASE_DIALECT env var,
+    db_dialect: Optional[str] = None
     # Superset db connections in the format { conn_id: conn_url }
     db_connections: Optional[Dict] = None
 
     # Configure superset redis
+    wait_for_redis: bool = False
     # Get redis details using PhidataApp
     redis_app: Optional[Any] = None
     # Provide redis details
     # Set the REDIS_HOST env var
-    redis_host: str = "redis"
+    redis_host: Optional[str] = None
     # Set the REDIS_PORT env var
-    redis_port: int = 6379
+    redis_port: Optional[int] = None
 
     # Set the FLASK_ENV env var
     flask_env: str = "production"
     # Set the SUPERSET_ENV env var
     superset_env: str = "production"
-    # Set the SUPERSET_LOAD_EXAMPLES env var
-    superset_load_examples: str = "yes"
 
     # Configure the container
     container_name: Optional[str] = None
@@ -143,6 +143,7 @@ class SupersetBaseArgs(PhidataAppArgs):
     container_detach: bool = True
     container_auto_remove: bool = True
     container_remove: bool = True
+    container_user: str = "root"
 
     # Add container labels
     container_labels: Optional[Dict[str, Any]] = None
@@ -223,6 +224,11 @@ class SupersetBaseArgs(PhidataAppArgs):
     # Add labels to app service
     app_service_labels: Optional[Dict[str, Any]] = None
 
+    # Set SUPERSET_LOAD_EXAMPLES = "yes"
+    load_examples: bool = True
+    print_env_on_load: bool = True
+    extra_kwargs: Optional[Dict[str, Any]] = None
+
 
 class SupersetBase(PhidataApp):
     def __init__(
@@ -231,8 +237,8 @@ class SupersetBase(PhidataApp):
         version: str = "1",
         enabled: bool = True,
         # Image args,
-        image_name: str = "apache/superset",
-        image_tag: str = "latest",
+        image_name: str = "phidata/superset",
+        image_tag: str = "1.5.1",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Mount the workspace directory on the container,
@@ -241,8 +247,8 @@ class SupersetBase(PhidataApp):
         # Path to mount the workspace volume under,
         # This is the parent directory for the workspace on the container,
         # i.e. the ws is mounted as a subdir in this dir,
-        # eg: if ws name is: idata, workspace_dir would be: /usr/local/idata,
-        workspace_parent_container_path: str = "/usr/local",
+        # eg: if ws name is: idata, workspace_dir would be: /workspaces/idata,
+        workspace_parent_container_path: str = "/workspaces",
         # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir,
         # because we assume that DockerContainers are running locally on the user's machine,
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
@@ -257,58 +263,59 @@ class SupersetBase(PhidataApp):
         # This directory contains all the files required by superset.,
         # eg: docker-bootstrap.sh,
         # This dir is mounted to the `/app/docker` directory on the container,
-        resources_dir: str = "superset",
+        mount_resources: bool = False,
+        resources_dir: str = "workspace/superset",
         resources_dir_container_path: str = "/app/docker",
-        mount_resources: bool = True,
         resources_volume_name: Optional[str] = None,
-        # skips downloading resources if the resources_dir exists,
-        cache_resources: bool = True,
-        # Set the SUPERSET_CONFIG_PATH env var,,
+        # Set the SUPERSET_CONFIG_PATH env var,
         superset_config_path: Optional[str] = None,
-        # Set the REQUIREMENTS_LOCAL env var,
-        # defaults to "/app/docker/requirements-local.txt",
-        requirements_local: Optional[str] = None,
+        # Install python dependencies using a requirements.txt file,
+        # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path,
+        install_requirements: bool = False,
+        # Path to the requirements.txt file relative to the workspace_root,
+        requirements_file_path: str = "workspace/superset/requirements.txt",
         # Set the PYTHONPATH env var,
-        # defaults to "/app/pythonpath",
+        # defaults to "/app/pythonpath:/app/docker/pythonpath_dev",
         python_path: Optional[str] = None,
         # Configure Superset database,
+        wait_for_db: bool = False,
         # Get database details using DbApp,
         db_app: Optional[DbApp] = None,
         # Provide database details,
         # Set the DATABASE_USER env var,
         db_user: Optional[str] = None,
-        # Set the DATABASE_PASSWORD env var,
+        # Set the DATABASE_PASSWORD env var,,
         db_password: Optional[str] = None,
-        # Set the DATABASE_DB env var,
+        # Set the DATABASE_DB env var,,
         db_schema: Optional[str] = None,
-        # Set the DATABASE_HOST env var,
+        # Set the DATABASE_HOST env var,,
         db_host: Optional[str] = None,
-        # Set the DATABASE_PORT env var,
+        # Set the DATABASE_PORT env var,,
         db_port: Optional[int] = None,
-        # Set the DATABASE_DIALECT env var,
-        db_dialect: str = "postgresql+psycopg2",
+        # Set the DATABASE_DIALECT env var,,
+        db_dialect: Optional[str] = None,
         # Superset db connections in the format { conn_id: conn_url },
         db_connections: Optional[Dict] = None,
         # Configure superset redis,
+        wait_for_redis: bool = False,
         # Get redis details using PhidataApp,
         redis_app: Optional[Any] = None,
         # Provide redis details,
         # Set the REDIS_HOST env var,
-        redis_host: str = "redis",
+        redis_host: Optional[str] = None,
         # Set the REDIS_PORT env var,
-        redis_port: int = 6379,
+        redis_port: Optional[int] = None,
         # Set the FLASK_ENV env var,
         flask_env: str = "production",
         # Set the SUPERSET_ENV env var,
         superset_env: str = "production",
-        # Set the SUPERSET_LOAD_EXAMPLES env var,
-        superset_load_examples: str = "yes",
         # Configure the container,
         container_name: Optional[str] = None,
         image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,
         container_detach: bool = True,
         container_auto_remove: bool = True,
         container_remove: bool = True,
+        container_user: str = "root",
         # Add container labels,
         container_labels: Optional[Dict[str, Any]] = None,
         # NOTE: Available only for Docker,
@@ -333,8 +340,9 @@ class SupersetBase(PhidataApp):
         # Host port: Only used by the DockerContainer,
         container_host_port: int = 8000,
         # Open the app port if open_app_port=True,
-        open_app_port: bool = False,
+        open_app_port: bool = True,
         # App port number on the container,
+        # Set the SUPERSET_PORT env var,
         app_port: int = 8088,
         # Only used by the K8sContainer,
         app_port_name: str = "app",
@@ -366,7 +374,7 @@ class SupersetBase(PhidataApp):
         topology_spread_max_skew: Optional[int] = None,
         # How to deal with a pod if it doesn't satisfy the spread constraint.,
         topology_spread_when_unsatisfiable: Optional[
-            Literal["DoNotSchedule", "ScheduleAnyway"],
+            Literal["DoNotSchedule", "ScheduleAnyway"]
         ] = None,
         # Configure the app service,
         create_app_service: bool = False,
@@ -381,10 +389,13 @@ class SupersetBase(PhidataApp):
         app_target_port: Optional[Union[str, int]] = None,
         # Add labels to app service,
         app_service_labels: Optional[Dict[str, Any]] = None,
-        # Additional args
+        # Set SUPERSET_LOAD_EXAMPLES = "yes"
+        load_examples: bool = False,
+        print_env_on_load: bool = True,
         # If True, use cached resources
         # i.e. skip resource creation/deletion if active resources with the same name exist.
         use_cache: bool = True,
+        **extra_kwargs,
     ):
         super().__init__()
         try:
@@ -404,14 +415,15 @@ class SupersetBase(PhidataApp):
                 git_sync_branch=git_sync_branch,
                 git_sync_wait=git_sync_wait,
                 k8s_mount_local_workspace=k8s_mount_local_workspace,
+                mount_resources=mount_resources,
                 resources_dir=resources_dir,
                 resources_dir_container_path=resources_dir_container_path,
-                mount_resources=mount_resources,
                 resources_volume_name=resources_volume_name,
-                cache_resources=cache_resources,
                 superset_config_path=superset_config_path,
-                requirements_local=requirements_local,
+                install_requirements=install_requirements,
+                requirements_file_path=requirements_file_path,
                 python_path=python_path,
+                wait_for_db=wait_for_db,
                 db_app=db_app,
                 db_user=db_user,
                 db_password=db_password,
@@ -420,17 +432,18 @@ class SupersetBase(PhidataApp):
                 db_port=db_port,
                 db_dialect=db_dialect,
                 db_connections=db_connections,
+                wait_for_redis=wait_for_redis,
                 redis_app=redis_app,
                 redis_host=redis_host,
                 redis_port=redis_port,
                 flask_env=flask_env,
                 superset_env=superset_env,
-                superset_load_examples=superset_load_examples,
                 container_name=container_name,
                 image_pull_policy=image_pull_policy,
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
                 container_remove=container_remove,
+                container_user=container_user,
                 container_labels=container_labels,
                 container_volumes=container_volumes,
                 open_container_port=open_container_port,
@@ -463,7 +476,10 @@ class SupersetBase(PhidataApp):
                 app_node_port=app_node_port,
                 app_target_port=app_target_port,
                 app_service_labels=app_service_labels,
+                load_examples=load_examples,
+                print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
+                extra_kwargs=extra_kwargs,
             )
         except Exception as e:
             logger.error(f"Args for {self.__class__.__name__} are not valid")
@@ -479,48 +495,10 @@ class SupersetBase(PhidataApp):
         return self.args.app_service_port
 
     def get_env_data_from_file(self) -> Optional[Dict[str, str]]:
-        env_file_path = self.args.env_file
-        if (
-            env_file_path is not None
-            and env_file_path.exists()
-            and env_file_path.is_file()
-        ):
-            if env_file_path.suffix == ".yaml":
-                import yaml
-
-                # logger.debug(f"Reading {env_file_path}")
-                env_data_from_file = yaml.safe_load(env_file_path.read_text())
-                if env_data_from_file is not None and isinstance(
-                    env_data_from_file, dict
-                ):
-                    return env_data_from_file
-                else:
-                    print_error(f"Invalid env_file: {env_file_path}")
-            else:
-                print_warning(f"Skipping: {env_file_path}")
-        return None
+        return self.read_yaml_file(file_path=self.args.env_file)
 
     def get_secret_data_from_file(self) -> Optional[Dict[str, str]]:
-        secrets_file_path = self.args.secrets_file
-        if (
-            secrets_file_path is not None
-            and secrets_file_path.exists()
-            and secrets_file_path.is_file()
-        ):
-            if secrets_file_path.suffix == ".yaml":
-                import yaml
-
-                # logger.debug(f"Reading {secrets_file_path}")
-                secret_data_from_file = yaml.safe_load(secrets_file_path.read_text())
-                if secret_data_from_file is not None and isinstance(
-                    secret_data_from_file, dict
-                ):
-                    return secret_data_from_file
-                else:
-                    print_error(f"Invalid secrets_file: {secrets_file_path}")
-            else:
-                print_warning(f"Skipping: {secrets_file_path}")
-        return None
+        return self.read_yaml_file(file_path=self.args.secrets_file)
 
     ######################################################
     ## Docker Resources
@@ -541,23 +519,71 @@ class SupersetBase(PhidataApp):
         workspace_root_container_path = Path(
             self.args.workspace_parent_container_path
         ).joinpath(workspace_name)
+        requirements_file_container_path = workspace_root_container_path.joinpath(
+            self.args.requirements_file_path
+        )
+        scripts_dir_container_path = (
+            workspace_root_container_path.joinpath(self.scripts_dir)
+            if self.scripts_dir
+            else None
+        )
+        storage_dir_container_path = (
+            workspace_root_container_path.joinpath(self.storage_dir)
+            if self.storage_dir
+            else None
+        )
+        meta_dir_container_path = (
+            workspace_root_container_path.joinpath(self.meta_dir)
+            if self.meta_dir
+            else None
+        )
+        products_dir_container_path = (
+            workspace_root_container_path.joinpath(self.products_dir)
+            if self.products_dir
+            else None
+        )
+        notebooks_dir_container_path = (
+            workspace_root_container_path.joinpath(self.notebooks_dir)
+            if self.notebooks_dir
+            else None
+        )
+        workspace_config_dir_container_path = (
+            workspace_root_container_path.joinpath(self.workspace_config_dir)
+            if self.workspace_config_dir
+            else None
+        )
+
+        # Container pythonpath
+        python_path = (
+            self.args.python_path
+            or f"/app/pythonpath:{self.args.resources_dir_container_path}/pythonpath_dev"
+        )
 
         # Container Environment
         container_env: Dict[str, str] = {
-            # Env variables used by data workfloapp and data assets
+            # Env variables used by data workflows and data assets
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
+            "PYTHONPATH": python_path,
             PHIDATA_RUNTIME_ENV_VAR: "superset",
+            SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
+            STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
+            META_DIR_ENV_VAR: str(meta_dir_container_path),
+            PRODUCTS_DIR_ENV_VAR: str(products_dir_container_path),
+            NOTEBOOKS_DIR_ENV_VAR: str(notebooks_dir_container_path),
+            WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
+            "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
+            "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
+            "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
+            # Print env when the container starts
+            "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+            "WAIT_FOR_DB": str(self.args.wait_for_db),
+            "WAIT_FOR_REDIS": str(self.args.wait_for_redis),
+            "SUPERSET_LOAD_EXAMPLES": "yes" if self.args.load_examples else "no",
         }
 
         if self.args.superset_config_path is not None:
             container_env["SUPERSET_CONFIG_PATH"] = self.args.superset_config_path
-
-        if self.args.requirements_local is not None:
-            container_env["REQUIREMENTS_LOCAL"] = self.args.requirements_local
-
-        if self.args.python_path is not None:
-            container_env["PYTHONPATH"] = self.args.python_path
 
         # Superset db connection
         db_user = self.args.db_user
@@ -580,9 +606,6 @@ class SupersetBase(PhidataApp):
                 db_port = self.args.db_app.get_db_port_docker()
             if db_dialect is None:
                 db_dialect = self.args.db_app.get_db_driver()
-        db_connection_url = (
-            f"{db_dialect}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
-        )
 
         if db_user is not None:
             container_env["DATABASE_USER"] = db_user
@@ -602,15 +625,6 @@ class SupersetBase(PhidataApp):
         if db_dialect is not None:
             container_env["DATABASE_DIALECT"] = db_dialect
 
-        if self.args.flask_env is not None:
-            container_env["FLASK_ENV"] = self.args.flask_env
-
-        if self.args.superset_env is not None:
-            container_env["SUPERSET_ENV"] = self.args.superset_env
-
-        if self.args.superset_load_examples is not None:
-            container_env["SUPERSET_LOAD_EXAMPLES"] = self.args.superset_load_examples
-
         # Superset redis connection
         redis_host = self.args.redis_host
         redis_port = self.args.redis_port
@@ -628,6 +642,13 @@ class SupersetBase(PhidataApp):
 
         if redis_port is not None:
             container_env["REDIS_PORT"] = str(redis_port)
+
+        # Other superset args
+        if self.args.flask_env is not None:
+            container_env["FLASK_ENV"] = self.args.flask_env
+
+        if self.args.superset_env is not None:
+            container_env["SUPERSET_ENV"] = self.args.superset_env
 
         # Update the container env using env_file
         env_data_from_file = self.get_env_data_from_file()
@@ -665,7 +686,7 @@ class SupersetBase(PhidataApp):
                 "bind": workspace_root_container_path_str,
                 "mode": "rw",
             }
-        # Create a volume for aapp config
+        # Create a volume for app config
         if self.args.mount_resources:
             resources_dir_path = str(
                 self.workspace_root_path.joinpath(self.args.resources_dir)
@@ -710,6 +731,7 @@ class SupersetBase(PhidataApp):
             detach=self.args.container_detach,
             auto_remove=self.args.container_auto_remove,
             remove=self.args.container_remove,
+            user=self.args.container_user,
             stdin_open=True,
             tty=True,
             labels=self.args.container_labels,
@@ -719,7 +741,7 @@ class SupersetBase(PhidataApp):
             volumes=container_volumes,
             use_cache=self.args.use_cache,
         )
-        logger.debug(f"Container Env: {docker_container.environment}")
+        # logger.debug(f"Container Env: {docker_container.environment}")
 
         docker_rg = DockerResourceGroup(
             name=app_name,
@@ -799,37 +821,15 @@ class SupersetBase(PhidataApp):
             else None
         )
 
-        # Superset db connection
-        db_user = self.args.db_user
-        db_password = self.args.db_password
-        db_schema = self.args.db_schema
-        db_host = self.args.db_host
-        db_port = self.args.db_port
-        db_driver = self.args.db_driver
-        if self.args.db_app is not None and isinstance(self.args.db_app, DbApp):
-            logger.debug(f"Reading db connection details from: {self.args.db_app.name}")
-            if db_user is None:
-                db_user = self.args.db_app.get_db_user()
-            if db_password is None:
-                db_password = self.args.db_app.get_db_password()
-            if db_schema is None:
-                db_schema = self.args.db_app.get_db_schema()
-            if db_host is None:
-                db_host = self.args.db_app.get_db_host_k8s()
-            if db_port is None:
-                db_port = self.args.db_app.get_db_port_k8s()
-            if db_driver is None:
-                db_driver = self.args.db_app.get_db_driver()
-        db_connection_url = (
-            f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
-        )
-
         # Container pythonpath
-        python_path = self.args.python_path or str(workspace_root_container_path)
+        python_path = (
+            self.args.python_path
+            or f"/app/pythonpath:{self.args.resources_dir_container_path}/pythonpath_dev"
+        )
 
         # Container Environment
         container_env: Dict[str, str] = {
-            # Env variables used by data workfloapp and data assets
+            # Env variables used by data workflows and data assets
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
             "PYTHONPATH": python_path,
@@ -842,102 +842,81 @@ class SupersetBase(PhidataApp):
             WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
             "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
             "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
-            "MOUNT_WORKSPACE": str(self.args.mount_workspace),
+            "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
-            # Env variables used by Superset
-            # INIT_AIRFLOW env var is required for phidata to create DAGs
-            "INIT_AIRFLOW": str(True),
-            "AIRFLOW_ENV": self.args.superset_env,
             "WAIT_FOR_DB": str(self.args.wait_for_db),
-            "WAIT_FOR_DB_INIT": str(self.args.wait_for_db_init),
-            "INIT_AIRFLOW_DB": str(self.args.init_superset_db),
-            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_superset_db),
-            "DB_USER": str(db_user),
-            "DB_PASSWORD": str(db_password),
-            "DB_SCHEMA": str(db_schema),
-            "DB_HOST": str(db_host),
-            "DB_PORT": str(db_port),
             "WAIT_FOR_REDIS": str(self.args.wait_for_redis),
-            "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.args.load_examples),
-            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_superset_admin_user),
-            "AIRFLOW__CORE__EXECUTOR": str(self.args.executor),
+            "SUPERSET_LOAD_EXAMPLES": "yes" if self.args.load_examples else "no",
         }
 
-        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-        if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            container_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
+        if self.args.superset_config_path is not None:
+            container_env["SUPERSET_CONFIG_PATH"] = self.args.superset_config_path
 
-        # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if self.args.mount_workspace and self.args.use_products_as_superset_dags:
-            container_env["AIRFLOW__CORE__DAGS_FOLDER"] = str(
-                products_dir_container_path
+        # Superset db connection
+        db_user = self.args.db_user
+        db_password = self.args.db_password
+        db_schema = self.args.db_schema
+        db_host = self.args.db_host
+        db_port = self.args.db_port
+        db_dialect = self.args.db_dialect
+        if self.args.db_app is not None and isinstance(self.args.db_app, DbApp):
+            logger.debug(f"Reading db connection details from: {self.args.db_app.name}")
+            if db_user is None:
+                db_user = self.args.db_app.get_db_user()
+            if db_password is None:
+                db_password = self.args.db_app.get_db_password()
+            if db_schema is None:
+                db_schema = self.args.db_app.get_db_schema()
+            if db_host is None:
+                db_host = self.args.db_app.get_db_host_k8s()
+            if db_port is None:
+                db_port = self.args.db_app.get_db_port_k8s()
+            if db_dialect is None:
+                db_dialect = self.args.db_app.get_db_driver()
+
+        if db_user is not None:
+            container_env["DATABASE_USER"] = db_user
+
+        if db_password is not None:
+            container_env["DATABASE_PASSWORD"] = db_password
+
+        if db_schema is not None:
+            container_env["DATABASE_DB"] = db_schema
+
+        if db_host is not None:
+            container_env["DATABASE_HOST"] = db_host
+
+        if db_port is not None:
+            container_env["DATABASE_PORT"] = str(db_port)
+
+        if db_dialect is not None:
+            container_env["DATABASE_DIALECT"] = db_dialect
+
+        # Superset redis connection
+        redis_host = self.args.redis_host
+        redis_port = self.args.redis_port
+        if self.args.redis_app is not None and isinstance(self.args.redis_app, DbApp):
+            logger.debug(
+                f"Reading redis connection details from: {self.args.redis_app.name}"
             )
-        elif self.args.superset_dags_path is not None:
-            container_env["AIRFLOW__CORE__DAGS_FOLDER"] = self.args.superset_dags_path
+            if redis_host is None:
+                redis_host = self.args.redis_app.get_db_host_k8s()
+            if redis_port is None:
+                redis_port = self.args.redis_app.get_db_port_k8s()
 
-        # Set the AIRFLOW__CONN_ variables
-        if self.args.db_connections is not None:
-            for conn_id, conn_url in self.args.db_connections.items():
-                try:
-                    af_conn_id = str("AIRFLOW_CONN_{}".format(conn_id)).upper()
-                    container_env[af_conn_id] = conn_url
-                except Exception as e:
-                    logger.exception(e)
-                    continue
+        if redis_host is not None:
+            container_env["REDIS_HOST"] = redis_host
 
-        if self.args.executor == "CeleryExecutor":
-            # Superset celery result backend
-            celery_result_backend_driver = (
-                self.args.db_result_backend_driver or db_driver
-            )
-            celery_result_backend_url = f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            if "None" not in celery_result_backend_url:
-                container_env[
-                    "AIRFLOW__CELERY__RESULT_BACKEND"
-                ] = celery_result_backend_url
+        if redis_port is not None:
+            container_env["REDIS_PORT"] = str(redis_port)
 
-            # Superset celery broker url
-            redis_password = (
-                f"{self.args.redis_password}@" if self.args.redis_password else ""
-            )
-            redis_schema = self.args.redis_schema
-            redis_host = self.args.redis_host
-            redis_port = self.args.redis_port
-            redis_driver = self.args.redis_driver
-            if self.args.redis_app is not None and isinstance(
-                self.args.redis_app, DbApp
-            ):
-                logger.debug(
-                    f"Reading redis connection details from: {self.args.redis_app.name}"
-                )
-                if redis_password is None:
-                    redis_password = self.args.redis_app.get_db_password()
-                if redis_schema is None:
-                    redis_schema = self.args.redis_app.get_db_schema() or "0"
-                if redis_host is None:
-                    redis_host = self.args.redis_app.get_db_host_k8s()
-                if redis_port is None:
-                    redis_port = self.args.redis_app.get_db_port_k8s()
-                if redis_driver is None:
-                    redis_driver = self.args.redis_app.get_db_driver()
+        # Other superset args
+        if self.args.flask_env is not None:
+            container_env["FLASK_ENV"] = self.args.flask_env
 
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            celery_broker_url = f"{redis_driver}://{redis_password}{redis_host}:{redis_port}/{redis_schema}"
-            if "None" not in celery_broker_url:
-                container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
-
-            # Set the redis connection details
-            if redis_password is not None:
-                container_env["REDIS_PASSWORD"] = redis_password
-            if redis_schema is not None:
-                container_env["REDIS_SCHEMA"] = redis_schema
-            if redis_host is not None:
-                container_env["REDIS_HOST"] = redis_host
-            if redis_port is not None:
-                container_env["REDIS_PORT"] = str(redis_port)
+        if self.args.superset_env is not None:
+            container_env["SUPERSET_ENV"] = self.args.superset_env
 
         # Update the container env using env_file
         env_data_from_file = self.get_env_data_from_file()
@@ -1049,9 +1028,7 @@ class SupersetBase(PhidataApp):
         if self.args.open_app_port:
             # Set the app port in the container env
             if container_env_cm.data is not None:
-                container_env_cm.data["AIRFLOW__WEBSERVER__WEB_SERVER_PORT"] = str(
-                    self.args.app_port
-                )
+                container_env_cm.data["SUPERSET_PORT"] = str(self.args.app_port)
             # Open the port
             app_port = CreatePort(
                 name=self.args.app_port_name,
@@ -1061,41 +1038,6 @@ class SupersetBase(PhidataApp):
                 target_port=self.args.app_target_port or self.args.app_port_name,
             )
             ports.append(app_port)
-
-        # if open_worker_log_port = True
-        # 1. Set the worker_log_port in the container env
-        # 2. Open the worker_log_port
-        if self.args.open_worker_log_port:
-            # Set the worker_log_port in the container_env
-            if container_env_cm.data is not None:
-                container_env_cm.data["AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT"] = str(
-                    self.args.worker_log_port
-                )
-            # Open the port
-            worker_log_port = CreatePort(
-                name=self.args.worker_log_port_name,
-                container_port=self.args.worker_log_port,
-            )
-            ports.append(worker_log_port)
-
-        # if open_flower_port = True
-        # 1. Set the flower_port in the container env
-        # 2. Open the flower_port
-        flower_port: Optional[CreatePort] = None
-        if self.args.open_flower_port:
-            # Set the flower_port in the container_env
-            if container_env_cm.data is not None:
-                container_env_cm.data["AIRFLOW__CELERY__FLOWER_PORT"] = str(
-                    self.args.flower_port
-                )
-            # Open the port
-            flower_port = CreatePort(
-                name=self.args.flower_port_name,
-                container_port=self.args.flower_port,
-                service_port=self.get_flower_service_port(),
-                target_port=self.args.flower_target_port or self.args.flower_port_name,
-            )
-            ports.append(flower_port)
 
         container_labels: Optional[Dict[str, Any]] = self.args.container_labels
         if k8s_build_context.labels is not None:
@@ -1114,7 +1056,9 @@ class SupersetBase(PhidataApp):
             if isinstance(self.args.command, str)
             else self.args.command,
             # Equivalent to docker images ENTRYPOINT
-            command=self.args.entrypoint,
+            command=[self.args.entrypoint]
+            if isinstance(self.args.entrypoint, str)
+            else self.args.entrypoint,
             image_pull_policy=self.args.image_pull_policy,
             envs_from_configmap=[cm.cm_name for cm in config_maps]
             if len(config_maps) > 0
@@ -1179,27 +1123,6 @@ class SupersetBase(PhidataApp):
                 labels=app_service_labels,
             )
             services.append(app_service)
-
-        if self.args.create_flower_service:
-            flower_service_labels: Optional[
-                Dict[str, Any]
-            ] = self.args.flower_service_labels
-            if k8s_build_context.labels is not None:
-                if flower_service_labels:
-                    flower_service_labels.update(k8s_build_context.labels)
-                else:
-                    flower_service_labels = k8s_build_context.labels
-            flower_service = CreateService(
-                service_name=self.get_flower_service_name(),
-                app_name=app_name,
-                namespace=k8s_build_context.namespace,
-                service_account_name=k8s_build_context.service_account_name,
-                service_type=self.args.flower_service_type,
-                deployment=k8s_deployment,
-                ports=[flower_port] if flower_port else None,
-                labels=flower_service_labels,
-            )
-            services.append(flower_service)
 
         # Create the K8sResourceGroup
         k8s_resource_group = CreateK8sResourceGroup(

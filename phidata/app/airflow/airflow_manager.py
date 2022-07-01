@@ -15,7 +15,7 @@ class AirflowManager(AirflowBase):
         enabled: bool = True,
         # Image args,
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.3.0",
+        image_tag: str = "2.3.2",
         entrypoint: str = "/manager.sh",
         command: Optional[str] = None,
         # Creates an airflow admin with username: admin, pass: admin

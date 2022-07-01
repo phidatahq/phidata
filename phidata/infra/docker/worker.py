@@ -135,7 +135,7 @@ class DockerWorker:
         ):
             for resource in self.docker_args.resources:
                 if not resource.enabled:
-                    print_info(f"{resource.name} disabled")
+                    logger.debug(f"{resource.name} disabled")
                     continue
                 logger.debug("-*- Resource: {}".format(resource.name))
 

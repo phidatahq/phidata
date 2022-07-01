@@ -18,7 +18,7 @@ class AirflowWorker(AirflowBase):
         enabled: bool = True,
         # Image args,
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.3.0",
+        image_tag: str = "2.3.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[str] = "worker",
         # Queue name for this worker

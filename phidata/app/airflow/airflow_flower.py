@@ -77,14 +77,26 @@ class AirflowFlower(AirflowBase):
         wait_for_db: bool = True,
         # delay start by 60 seconds for the db to be initialized
         wait_for_db_init: bool = False,
-        # Connect to database using DbApp,
+        # Connect to database using a DbApp
         db_app: Optional[DbApp] = None,
-        # Connect to database manually,
+        # Connect to database manually
+        # db_user can be provided here or as the
+        # DATABASE_USER env var in the secrets_file
         db_user: Optional[str] = None,
+        # db_password can be provided here or as the
+        # DATABASE_USER env var in the secrets_file
         db_password: Optional[str] = None,
+        # db_schema can be provided here or as the
+        # DATABASE_DB env var in the secrets_file
         db_schema: Optional[str] = None,
+        # db_host can be provided here or as the
+        # DATABASE_HOST env var in the secrets_file
         db_host: Optional[str] = None,
+        # db_port can be provided here or as the
+        # DATABASE_PORT env var in the secrets_file
         db_port: Optional[int] = None,
+        # db_driver can be provided here or as the
+        # DATABASE_DRIVER env var in the secrets_file
         db_driver: str = "postgresql+psycopg2",
         db_result_backend_driver: str = "db+postgresql",
         # Airflow db connections in the format { conn_id: conn_url },
@@ -92,13 +104,23 @@ class AirflowFlower(AirflowBase):
         db_connections: Optional[Dict] = None,
         # Configure airflow redis,
         wait_for_redis: bool = False,
-        # Connect to redis using PhidataApp,
+        # Connect to redis using a PhidataApp
         redis_app: Optional[Any] = None,
-        # Connect to redis manually,
+        # Connect to redis manually
+        # redis_password can be provided here or as the
+        # REDIS_PASSWORD env var in the secrets_file
         redis_password: Optional[str] = None,
+        # redis_schema can be provided here or as the
+        # REDIS_SCHEMA env var in the secrets_file
         redis_schema: Optional[str] = None,
+        # redis_host can be provided here or as the
+        # REDIS_HOST env var in the secrets_file
         redis_host: Optional[str] = None,
+        # redis_port can be provided here, or as the
+        # REDIS_PORT env var in the secrets_file
         redis_port: Optional[int] = None,
+        # redis_driver can be provided here or as the
+        # REDIS_DRIVER env var in the secrets_file
         redis_driver: str = "redis",
         # Configure the container,
         container_name: Optional[str] = None,
@@ -169,6 +191,10 @@ class AirflowFlower(AirflowBase):
         flower_target_port: Optional[Union[str, int]] = None,
         # Add labels to flower service
         flower_service_labels: Optional[Dict[str, Any]] = None,
+        # Configure rbac
+        sa_name: Optional[str] = None,
+        cr_name: Optional[str] = None,
+        crb_name: Optional[str] = None,
         # Other args
         load_examples: bool = False,
         print_env_on_load: bool = True,
@@ -255,6 +281,9 @@ class AirflowFlower(AirflowBase):
             flower_service_port=flower_service_port,
             flower_target_port=flower_target_port,
             flower_service_labels=flower_service_labels,
+            sa_name=sa_name,
+            cr_name=cr_name,
+            crb_name=crb_name,
             load_examples=load_examples,
             print_env_on_load=print_env_on_load,
             use_cache=use_cache,

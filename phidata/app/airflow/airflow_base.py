@@ -25,6 +25,14 @@ from phidata.infra.k8s.create.core.v1.secret import CreateSecret
 from phidata.infra.k8s.create.core.v1.service import CreateService, ServiceType
 from phidata.infra.k8s.create.core.v1.config_map import CreateConfigMap
 from phidata.infra.k8s.create.core.v1.container import CreateContainer, ImagePullPolicy
+from phidata.infra.k8s.create.core.v1.service_account import CreateServiceAccount
+from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+    CreateClusterRole,
+    PolicyRule,
+)
+from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import (
+    CreateClusterRoleBinding,
+)
 from phidata.infra.k8s.create.core.v1.volume import (
     CreateVolume,
     HostPathVolumeSource,
@@ -45,6 +53,9 @@ from phidata.utils.common import (
     get_default_deploy_name,
     get_default_pod_name,
     get_default_volume_name,
+    get_default_cr_name,
+    get_default_crb_name,
+    get_default_sa_name,
 )
 from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
@@ -123,14 +134,26 @@ class AirflowBaseArgs(PhidataAppArgs):
     wait_for_db: bool = False
     # delay start by 60 seconds for the db to be initialized
     wait_for_db_init: bool = False
-    # Connect to database using DbApp
+    # Connect to database using a DbApp
     db_app: Optional[DbApp] = None
     # Connect to database manually
+    # db_user can be provided here or as the
+    # DATABASE_USER env var in the secrets_file
     db_user: Optional[str] = None
+    # db_password can be provided here or as the
+    # DATABASE_PASSWORD env var in the secrets_file
     db_password: Optional[str] = None
+    # db_schema can be provided here or as the
+    # DATABASE_DB env var in the secrets_file
     db_schema: Optional[str] = None
+    # db_host can be provided here or as the
+    # DATABASE_HOST env var in the secrets_file
     db_host: Optional[str] = None
+    # db_port can be provided here or as the
+    # DATABASE_PORT env var in the secrets_file
     db_port: Optional[int] = None
+    # db_driver can be provided here or as the
+    # DATABASE_DRIVER env var in the secrets_file
     db_driver: str = "postgresql+psycopg2"
     db_result_backend_driver: str = "db+postgresql"
     # Airflow db connections in the format { conn_id: conn_url }
@@ -139,13 +162,23 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # Configure airflow redis
     wait_for_redis: bool = False
-    # Connect to redis using PhidataApp
+    # Connect to redis using a PhidataApp
     redis_app: Optional[Any] = None
     # Connect to redis manually
+    # redis_password can be provided here or as the
+    # REDIS_PASSWORD env var in the secrets_file
     redis_password: Optional[str] = None
+    # redis_schema can be provided here or as the
+    # REDIS_SCHEMA env var in the secrets_file
     redis_schema: Optional[str] = None
+    # redis_host can be provided here or as the
+    # REDIS_HOST env var in the secrets_file
     redis_host: Optional[str] = None
+    # redis_port can be provided here or as the
+    # REDIS_PORT env var in the secrets_file
     redis_port: Optional[int] = None
+    # redis_driver can be provided here or as the
+    # REDIS_DRIVER env var in the secrets_file
     redis_driver: str = "redis"
 
     # Configure the container
@@ -268,6 +301,11 @@ class AirflowBaseArgs(PhidataAppArgs):
     # Add labels to flower service
     flower_service_labels: Optional[Dict[str, Any]] = None
 
+    # Configure rbac
+    sa_name: Optional[str] = None
+    cr_name: Optional[str] = None
+    crb_name: Optional[str] = None
+
     # Other args
     load_examples: bool = False
     print_env_on_load: bool = True
@@ -343,14 +381,26 @@ class AirflowBase(PhidataApp):
         wait_for_db: bool = False,
         # delay start by 60 seconds for the db to be initialized
         wait_for_db_init: bool = False,
-        # Connect to database using DbApp
+        # Connect to database using a DbApp
         db_app: Optional[DbApp] = None,
         # Connect to database manually
+        # db_user can be provided here or as the
+        # DATABASE_USER env var in the secrets_file
         db_user: Optional[str] = None,
+        # db_password can be provided here or as the
+        # DATABASE_USER env var in the secrets_file
         db_password: Optional[str] = None,
+        # db_schema can be provided here or as the
+        # DATABASE_DB env var in the secrets_file
         db_schema: Optional[str] = None,
+        # db_host can be provided here or as the
+        # DATABASE_HOST env var in the secrets_file
         db_host: Optional[str] = None,
+        # db_port can be provided here or as the
+        # DATABASE_PORT env var in the secrets_file
         db_port: Optional[int] = None,
+        # db_driver can be provided here or as the
+        # DATABASE_DRIVER env var in the secrets_file
         db_driver: str = "postgresql+psycopg2",
         db_result_backend_driver: str = "db+postgresql",
         # Airflow db connections in the format { conn_id: conn_url }
@@ -358,13 +408,23 @@ class AirflowBase(PhidataApp):
         db_connections: Optional[Dict] = None,
         # Configure airflow redis
         wait_for_redis: bool = False,
-        # Connect to redis using PhidataApp
+        # Connect to redis using a PhidataApp
         redis_app: Optional[Any] = None,
         # Connect to redis manually
+        # redis_password can be provided here or as the
+        # REDIS_PASSWORD env var in the secrets_file
         redis_password: Optional[str] = None,
+        # redis_schema can be provided here or as the
+        # REDIS_SCHEMA env var in the secrets_file
         redis_schema: Optional[str] = None,
+        # redis_host can be provided here or as the
+        # REDIS_HOST env var in the secrets_file
         redis_host: Optional[str] = None,
+        # redis_port can be provided here, or as the
+        # REDIS_PORT env var in the secrets_file
         redis_port: Optional[int] = None,
+        # redis_driver can be provided here or as the
+        # REDIS_DRIVER env var in the secrets_file
         redis_driver: str = "redis",
         # Configure the container
         container_name: Optional[str] = None,
@@ -476,6 +536,10 @@ class AirflowBase(PhidataApp):
         flower_target_port: Optional[Union[str, int]] = None,
         # Add labels to flower service
         flower_service_labels: Optional[Dict[str, Any]] = None,
+        # Configure rbac
+        sa_name: Optional[str] = None,
+        cr_name: Optional[str] = None,
+        crb_name: Optional[str] = None,
         # Other args
         load_examples: bool = False,
         print_env_on_load: bool = True,
@@ -485,6 +549,11 @@ class AirflowBase(PhidataApp):
         **extra_kwargs,
     ):
         super().__init__()
+
+        # Cache env_data & secret_data
+        self.env_data: Optional[Dict[str, Any]] = None
+        self.secret_data: Optional[Dict[str, Any]] = None
+
         try:
             self.args: AirflowBaseArgs = AirflowBaseArgs(
                 name=name,
@@ -585,6 +654,9 @@ class AirflowBase(PhidataApp):
                 flower_service_port=flower_service_port,
                 flower_target_port=flower_target_port,
                 flower_service_labels=flower_service_labels,
+                sa_name=sa_name,
+                cr_name=cr_name,
+                crb_name=crb_name,
                 load_examples=load_examples,
                 print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
@@ -609,11 +681,133 @@ class AirflowBase(PhidataApp):
     def get_flower_service_port(self) -> int:
         return self.args.flower_service_port
 
-    def get_env_data_from_file(self) -> Optional[Dict[str, str]]:
-        return self.read_yaml_file(file_path=self.args.env_file)
+    def get_env_data(self) -> Optional[Dict[str, str]]:
+        if self.env_data is None:
+            self.env_data = self.read_yaml_file(file_path=self.args.env_file)
+        return self.env_data
 
-    def get_secret_data_from_file(self) -> Optional[Dict[str, str]]:
-        return self.read_yaml_file(file_path=self.args.secrets_file)
+    def get_secret_data(self) -> Optional[Dict[str, str]]:
+        if self.secret_data is None:
+            self.secret_data = self.read_yaml_file(file_path=self.args.secrets_file)
+        return self.secret_data
+
+    def get_db_user(self) -> Optional[str]:
+        db_user_var: Optional[str] = self.args.db_user if self.args else None
+        if db_user_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading DATABASE_USER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_user_var = secret_data.get("DATABASE_USER", db_user_var)
+        return db_user_var
+
+    def get_db_password(self) -> Optional[str]:
+        db_password_var: Optional[str] = self.args.db_password if self.args else None
+        if db_password_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading DATABASE_PASSWORD from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_password_var = secret_data.get("DATABASE_PASSWORD", db_password_var)
+        return db_password_var
+
+    def get_db_schema(self) -> Optional[str]:
+        db_schema_var: Optional[str] = self.args.db_schema if self.args else None
+        if db_schema_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading DATABASE_DB from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_schema_var = secret_data.get("DATABASE_DB", db_schema_var)
+        return db_schema_var
+
+    def get_db_host(self) -> Optional[str]:
+        db_host_var: Optional[str] = self.args.db_host if self.args else None
+        if db_host_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading DATABASE_HOST from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_host_var = secret_data.get("DATABASE_HOST", db_host_var)
+        return db_host_var
+
+    def get_db_port(self) -> Optional[str]:
+        db_port_var: Optional[Union[int, str]] = (
+            self.args.db_port if self.args else None
+        )
+        if db_port_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading DATABASE_PORT from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_port_var = secret_data.get("DATABASE_PORT", db_port_var)
+        return str(db_port_var) if db_port_var is not None else db_port_var
+
+    def get_db_driver(self) -> Optional[str]:
+        db_driver_var: Optional[str] = self.args.db_driver if self.args else None
+        if db_driver_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading DATABASE_DRIVER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_driver_var = secret_data.get("DATABASE_DRIVER", db_driver_var)
+        return db_driver_var
+
+    def get_redis_password(self) -> Optional[str]:
+        redis_password_var: Optional[str] = (
+            self.args.redis_password if self.args else None
+        )
+        if redis_password_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading REDIS_PASSWORD from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_password_var = secret_data.get(
+                    "REDIS_PASSWORD", redis_password_var
+                )
+        return redis_password_var
+
+    def get_redis_schema(self) -> Optional[str]:
+        redis_schema_var: Optional[str] = self.args.redis_schema if self.args else None
+        if redis_schema_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading REDIS_SCHEMA from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_schema_var = secret_data.get("REDIS_SCHEMA", redis_schema_var)
+        return redis_schema_var
+
+    def get_redis_host(self) -> Optional[str]:
+        redis_host_var: Optional[str] = self.args.redis_host if self.args else None
+        if redis_host_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading REDIS_HOST from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_host_var = secret_data.get("REDIS_HOST", redis_host_var)
+        return redis_host_var
+
+    def get_redis_port(self) -> Optional[str]:
+        redis_port_var: Optional[Union[int, str]] = (
+            self.args.redis_port if self.args else None
+        )
+        if redis_port_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading REDIS_PORT from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_port_var = secret_data.get("REDIS_PORT", redis_port_var)
+        return str(redis_port_var) if redis_port_var is not None else redis_port_var
+
+    def get_redis_driver(self) -> Optional[str]:
+        redis_driver_var: Optional[str] = self.args.redis_driver if self.args else None
+        if redis_driver_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading REDIS_DRIVER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_driver_var = secret_data.get("REDIS_DRIVER", redis_driver_var)
+        return redis_driver_var
 
     ######################################################
     ## Docker Resources
@@ -672,12 +866,12 @@ class AirflowBase(PhidataApp):
         python_path = self.args.python_path or str(workspace_root_container_path)
 
         # Airflow db connection
-        db_user = self.args.db_user
-        db_password = self.args.db_password
-        db_schema = self.args.db_schema
-        db_host = self.args.db_host
-        db_port = self.args.db_port
-        db_driver = self.args.db_driver
+        db_user = self.get_db_user()
+        db_password = self.get_db_password()
+        db_schema = self.get_db_schema()
+        db_host = self.get_db_host()
+        db_port = self.get_db_port()
+        db_driver = self.get_db_driver()
         if self.args.db_app is not None and isinstance(self.args.db_app, DbApp):
             logger.debug(f"Reading db connection details from: {self.args.db_app.name}")
             if db_user is None:
@@ -689,7 +883,7 @@ class AirflowBase(PhidataApp):
             if db_host is None:
                 db_host = self.args.db_app.get_db_host_docker()
             if db_port is None:
-                db_port = self.args.db_app.get_db_port_docker()
+                db_port = str(self.args.db_app.get_db_port_docker())
             if db_driver is None:
                 db_driver = self.args.db_app.get_db_driver()
         db_connection_url = (
@@ -722,6 +916,7 @@ class AirflowBase(PhidataApp):
             "WAIT_FOR_DB_INIT": str(self.args.wait_for_db_init),
             "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
             "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
+            # TODO: remove this when images are updated
             "DB_USER": str(db_user),
             "DB_PASSWORD": str(db_password),
             "DB_SCHEMA": str(db_schema),
@@ -769,13 +964,12 @@ class AirflowBase(PhidataApp):
                 ] = celery_result_backend_url
 
             # Airflow celery broker url
-            redis_password = (
-                f"{self.args.redis_password}@" if self.args.redis_password else ""
-            )
-            redis_schema = self.args.redis_schema
-            redis_host = self.args.redis_host
-            redis_port = self.args.redis_port
-            redis_driver = self.args.redis_driver
+            _redis_pass = self.get_redis_password()
+            redis_password = f"{_redis_pass}@" if _redis_pass else ""
+            redis_schema = self.get_redis_schema()
+            redis_host = self.get_redis_host()
+            redis_port = self.get_redis_port()
+            redis_driver = self.get_redis_driver()
             if self.args.redis_app is not None and isinstance(
                 self.args.redis_app, DbApp
             ):
@@ -789,7 +983,7 @@ class AirflowBase(PhidataApp):
                 if redis_host is None:
                     redis_host = self.args.redis_app.get_db_host_docker()
                 if redis_port is None:
-                    redis_port = self.args.redis_app.get_db_port_docker()
+                    redis_port = str(self.args.redis_app.get_db_port_docker())
                 if redis_driver is None:
                     redis_driver = self.args.redis_app.get_db_driver()
 
@@ -805,12 +999,12 @@ class AirflowBase(PhidataApp):
             container_env["REDIS_PORT"] = str(redis_port) if redis_port else ""
 
         # Update the container env using env_file
-        env_data_from_file = self.get_env_data_from_file()
+        env_data_from_file = self.get_env_data()
         if env_data_from_file is not None:
             container_env.update(env_data_from_file)
 
         # Update the container env using secrets_file
-        secret_data_from_file = self.get_secret_data_from_file()
+        secret_data_from_file = self.get_secret_data()
         if secret_data_from_file is not None:
             container_env.update(secret_data_from_file)
 
@@ -955,6 +1149,68 @@ class AirflowBase(PhidataApp):
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 
+        # Define RBAC resources first
+        # WebUI/Scheduler pods should run with serviceAccount which have RBAC
+        # permissions on k8s cluster to get logs
+        # https://github.com/apache/airflow/issues/11696#issuecomment-715886117
+        sa = CreateServiceAccount(
+            sa_name=self.args.sa_name or get_default_sa_name(app_name),
+            app_name=app_name,
+            namespace=k8s_build_context.namespace,
+        )
+
+        cr = CreateClusterRole(
+            cr_name=self.args.cr_name or get_default_cr_name(app_name),
+            rules=[
+                PolicyRule(
+                    api_groups=[""],
+                    resources=[
+                        "pods",
+                        "secrets",
+                        "configmaps",
+                    ],
+                    verbs=[
+                        "get",
+                        "list",
+                        "watch",
+                        "create",
+                        "update",
+                        "patch",
+                        "delete",
+                    ],
+                ),
+                PolicyRule(
+                    api_groups=[""],
+                    resources=[
+                        "pods/logs",
+                    ],
+                    verbs=[
+                        "get",
+                        "list",
+                    ],
+                ),
+                PolicyRule(
+                    api_groups=[""],
+                    resources=[
+                        "pods/exec",
+                    ],
+                    verbs=[
+                        "get",
+                        "create",
+                    ],
+                ),
+            ],
+            app_name=app_name,
+        )
+
+        crb = CreateClusterRoleBinding(
+            crb_name=get_default_crb_name(app_name),
+            cr_name=cr.cr_name,
+            service_account_name=sa.sa_name,
+            app_name=app_name,
+            namespace=k8s_build_context.namespace,
+        )
+
         # Define K8s resources
         config_maps: List[CreateConfigMap] = []
         secrets: List[CreateSecret] = []
@@ -1006,12 +1262,12 @@ class AirflowBase(PhidataApp):
         )
 
         # Airflow db connection
-        db_user = self.args.db_user
-        db_password = self.args.db_password
-        db_schema = self.args.db_schema
-        db_host = self.args.db_host
-        db_port = self.args.db_port
-        db_driver = self.args.db_driver
+        db_user = self.get_db_user()
+        db_password = self.get_db_password()
+        db_schema = self.get_db_schema()
+        db_host = self.get_db_host()
+        db_port = self.get_db_port()
+        db_driver = self.get_db_driver()
         if self.args.db_app is not None and isinstance(self.args.db_app, DbApp):
             logger.debug(f"Reading db connection details from: {self.args.db_app.name}")
             if db_user is None:
@@ -1023,7 +1279,7 @@ class AirflowBase(PhidataApp):
             if db_host is None:
                 db_host = self.args.db_app.get_db_host_k8s()
             if db_port is None:
-                db_port = self.args.db_app.get_db_port_k8s()
+                db_port = str(self.args.db_app.get_db_port_k8s())
             if db_driver is None:
                 db_driver = self.args.db_app.get_db_driver()
         db_connection_url = (
@@ -1146,7 +1402,7 @@ class AirflowBase(PhidataApp):
                 container_env["REDIS_PORT"] = str(redis_port)
 
         # Update the container env using env_file
-        env_data_from_file = self.get_env_data_from_file()
+        env_data_from_file = self.get_env_data()
         if env_data_from_file is not None:
             container_env.update(env_data_from_file)
 
@@ -1164,7 +1420,7 @@ class AirflowBase(PhidataApp):
         config_maps.append(container_env_cm)
 
         # Create a Secret to set the container env variables which are Secret
-        secret_data_from_file = self.get_secret_data_from_file()
+        secret_data_from_file = self.get_secret_data()
         if secret_data_from_file is not None:
             container_env_secret = CreateSecret(
                 secret_name=self.args.secret_name or get_default_secret_name(app_name),
@@ -1354,6 +1610,9 @@ class AirflowBase(PhidataApp):
             app_name=app_name,
             namespace=k8s_build_context.namespace,
             service_account_name=k8s_build_context.service_account_name,
+            # WebUI/Scheduler pods should run with serviceAccount which have RBAC
+            # permissions on k8s cluster to get logs
+            # service_account_name=sa.sa_name,
             containers=containers if len(containers) > 0 else None,
             pod_node_selector=self.args.pod_node_selector,
             restart_policy=self.args.restart_policy,
@@ -1411,6 +1670,9 @@ class AirflowBase(PhidataApp):
         k8s_resource_group = CreateK8sResourceGroup(
             name=app_name,
             enabled=self.args.enabled,
+            # sa=sa,
+            # cr=cr,
+            # crb=crb,
             config_maps=config_maps if len(config_maps) > 0 else None,
             secrets=secrets if len(secrets) > 0 else None,
             services=services if len(services) > 0 else None,

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.infra.docker.resource.group import (
@@ -289,7 +289,7 @@ class PhidataApp(PhidataBase):
     ## Helpers
     ######################################################
 
-    def read_yaml_file(self, file_path: Optional[Path]) -> Optional[Dict[str, str]]:
+    def read_yaml_file(self, file_path: Optional[Path]) -> Optional[Dict[str, Any]]:
         if file_path is not None and file_path.exists() and file_path.is_file():
             import yaml
 

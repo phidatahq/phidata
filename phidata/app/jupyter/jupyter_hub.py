@@ -25,6 +25,15 @@ from phidata.infra.k8s.create.core.v1.secret import CreateSecret
 from phidata.infra.k8s.create.core.v1.service import CreateService, ServiceType
 from phidata.infra.k8s.create.core.v1.config_map import CreateConfigMap
 from phidata.infra.k8s.create.core.v1.container import CreateContainer, ImagePullPolicy
+from phidata.infra.k8s.create.core.v1.service_account import CreateServiceAccount
+from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+    CreateClusterRole,
+    PolicyRule,
+)
+from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import (
+    CreateClusterRoleBinding,
+)
+
 from phidata.infra.k8s.create.core.v1.volume import (
     CreateVolume,
     HostPathVolumeSource,
@@ -45,21 +54,24 @@ from phidata.utils.common import (
     get_default_deploy_name,
     get_default_pod_name,
     get_default_volume_name,
+    get_default_cr_name,
+    get_default_crb_name,
+    get_default_sa_name,
 )
 from phidata.utils.cli_console import print_error, print_warning
 from phidata.utils.log import logger
 
 
-class SupersetBaseArgs(PhidataAppArgs):
-    name: str = "superset"
+class JupyterHubArgs(PhidataAppArgs):
+    name: str = "jupyterhub"
     version: str = "1"
     enabled: bool = True
 
     # Image args
-    image_name: str = "phidata/superset"
-    image_tag: str = "1.5.1"
+    image_name: str = "phidata/jupyterhub"
+    image_tag: str = "2.3.1"
     entrypoint: Optional[Union[str, List]] = None
-    command: Optional[Union[str, List]] = None
+    command: Union[str, List] = "jupyterhub"
 
     # Mount the workspace directory on the container
     mount_workspace: bool = False
@@ -67,8 +79,8 @@ class SupersetBaseArgs(PhidataAppArgs):
     # Path to mount the workspace volume under
     # This is the parent directory for the workspace on the container
     # i.e. the ws is mounted as a subdir in this dir
-    # eg: if ws name is: idata, workspace_dir would be: /workspaces/idata
-    workspace_parent_container_path: str = "/workspaces"
+    # eg: if ws name is: idata, workspace_dir would be: /mount/idata
+    workspace_parent_container_path: str = "/mount"
     # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir
     # because we assume that DockerContainers are running locally on the user's machine
     # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
@@ -80,69 +92,45 @@ class SupersetBaseArgs(PhidataAppArgs):
     # host path as well.
     k8s_mount_local_workspace: bool = False
 
-    # Superset resources directory relative to the workspace_root
-    # This directory contains all the files required by superset.
-    # eg: docker-bootstrap.sh
-    # This dir is mounted to the `/app/docker` directory on the container
+    # Jupyter resources directory relative to the workspace_root
+    # This dir is mounted to the `/usr/local/jupyter` directory on the container
     mount_resources: bool = False
-    resources_dir: str = "workspace/superset"
-    resources_dir_container_path: str = "/app/docker"
+    resources_dir: str = "workspace/jupyter"
+    resources_dir_container_path: str = "/usr/local/jupyter"
     resources_volume_name: Optional[str] = None
 
-    # Set the SUPERSET_CONFIG_PATH env var
-    superset_config_path: Optional[str] = None
+    # Path to JUPYTER_CONFIG_FILE relative to the workspace_root
+    # Used to set the JUPYTER_CONFIG_FILE env var
+    # This value is also appended to the command using `-f`
+    jupyter_config_file: Optional[str] = None
 
     # Install python dependencies using a requirements.txt file
     # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path
     install_requirements: bool = False
     # Path to the requirements.txt file relative to the workspace_root
-    requirements_file_path: str = "workspace/superset/requirements.txt"
+    requirements_file_path: str = "workspace/jupyter/requirements.txt"
 
-    # Set the PYTHONPATH env var
-    # defaults to "/app/pythonpath:/app/docker/pythonpath_dev"
+    # Overwrite the PYTHONPATH env var, which is usually set
+    # to workspace_root_contaier_path:resources_dir_container_path
     python_path: Optional[str] = None
 
-    # Configure Superset database
+    # Configure Jupyter database
     wait_for_db: bool = False
-    # Connect to database using a DbApp
+    # Get database details using DbApp
     db_app: Optional[DbApp] = None
-    # Connect to database manually
-    # db_user can be provided here or as the
-    # DATABASE_USER env var in the secrets_file
+    # Provide database details
+    # Set the DATABASE_USER env var
     db_user: Optional[str] = None
-    # db_password can be provided here or as the
-    # DATABASE_PASSWORD env var in the secrets_file
+    # Set the DATABASE_PASSWORD env var,
     db_password: Optional[str] = None
-    # db_schema can be provided here or as the
-    # DATABASE_DB env var in the secrets_file
+    # Set the DATABASE_DB env var,
     db_schema: Optional[str] = None
-    # db_host can be provided here or as the
-    # DATABASE_HOST env var in the secrets_file
+    # Set the DATABASE_HOST env var,
     db_host: Optional[str] = None
-    # db_port can be provided here or as the
-    # DATABASE_PORT env var in the secrets_file
+    # Set the DATABASE_PORT env var,
     db_port: Optional[int] = None
-    # db_driver can be provided here or as the
-    # DATABASE_DIALECT env var in the secrets_file
+    # Set the DATABASE_DIALECT env var,
     db_dialect: Optional[str] = None
-    # Superset db connections in the format { conn_id: conn_url }
-    db_connections: Optional[Dict] = None
-
-    # Configure superset redis
-    wait_for_redis: bool = False
-    # Connect to redis using a PhidataApp
-    redis_app: Optional[Any] = None
-    # redis_host can be provided here or as the
-    # REDIS_HOST env var in the secrets_file
-    redis_host: Optional[str] = None
-    # redis_port can be provided here or as the
-    # REDIS_PORT env var in the secrets_file
-    redis_port: Optional[int] = None
-
-    # Set the FLASK_ENV env var
-    flask_env: str = "production"
-    # Set the SUPERSET_ENV env var
-    superset_env: str = "production"
 
     # Configure the container
     container_name: Optional[str] = None
@@ -168,24 +156,24 @@ class SupersetBaseArgs(PhidataAppArgs):
     # }
     container_volumes: Optional[Dict[str, dict]] = None
 
-    # Open a container port if open_container_port=True
-    open_container_port: bool = False
+    # Opens the hub port
+    open_hub_port: bool = True
     # Port number on the container
-    container_port: int = 8000
+    hub_port: int = 8081
     # Port name: Only used by the K8sContainer
-    container_port_name: str = "http"
+    hub_port_name: str = "hub"
     # Host port: Only used by the DockerContainer
-    container_host_port: int = 8000
+    hub_host_port: int = 8081
 
     # Open the app port if open_app_port=True
     open_app_port: bool = True
     # App port number on the container
     # Set the SUPERSET_PORT env var
-    app_port: int = 8088
+    app_port: int = 8000
     # Only used by the K8sContainer
     app_port_name: str = "app"
     # Only used by the DockerContainer
-    app_host_port: int = 8088
+    app_host_port: int = 8000
 
     # Add env variables to container env
     env: Optional[Dict[str, str]] = None
@@ -218,11 +206,11 @@ class SupersetBaseArgs(PhidataAppArgs):
     ] = None
 
     # Configure the app service
-    create_app_service: bool = False
+    create_app_service: bool = True
     app_service_name: Optional[str] = None
     app_service_type: Optional[ServiceType] = None
     # The port that will be exposed by the service.
-    app_service_port: int = 8088
+    app_service_port: int = 8000
     # The node_port that will be exposed by the service if app_service_type = ServiceType.NODE_PORT
     app_node_port: Optional[int] = None
     # The app_target_port is the port to access on the pods targeted by the service.
@@ -231,23 +219,26 @@ class SupersetBaseArgs(PhidataAppArgs):
     # Add labels to app service
     app_service_labels: Optional[Dict[str, Any]] = None
 
-    # Set SUPERSET_LOAD_EXAMPLES = "yes"
-    load_examples: bool = True
+    # Configure rbac
+    sa_name: Optional[str] = None
+    cr_name: Optional[str] = None
+    crb_name: Optional[str] = None
+
     print_env_on_load: bool = True
     extra_kwargs: Optional[Dict[str, Any]] = None
 
 
-class SupersetBase(PhidataApp):
+class JupyterHub(PhidataApp):
     def __init__(
         self,
-        name: str = "superset",
+        name: str = "jupyterhub",
         version: str = "1",
         enabled: bool = True,
         # Image args,
-        image_name: str = "phidata/superset",
-        image_tag: str = "1.5.1",
+        image_name: str = "phidata/jupyterhub",
+        image_tag: str = "2.3.1",
         entrypoint: Optional[Union[str, List]] = None,
-        command: Optional[Union[str, List]] = None,
+        command: Union[str, List] = "jupyterhub",
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
         workspace_volume_name: Optional[str] = None,
@@ -255,7 +246,7 @@ class SupersetBase(PhidataApp):
         # This is the parent directory for the workspace on the container,
         # i.e. the ws is mounted as a subdir in this dir,
         # eg: if ws name is: idata, workspace_dir would be: /workspaces/idata,
-        workspace_parent_container_path: str = "/workspaces",
+        workspace_parent_container_path: str = "/mount",
         # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir,
         # because we assume that DockerContainers are running locally on the user's machine,
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
@@ -266,63 +257,41 @@ class SupersetBase(PhidataApp):
         # But when running k8s locally, we can mount the workspace using,
         # host path as well.,
         k8s_mount_local_workspace: bool = False,
-        # Superset resources directory relative to the workspace_root,
-        # This directory contains all the files required by superset.,
-        # eg: docker-bootstrap.sh,
-        # This dir is mounted to the `/app/docker` directory on the container,
+        # Jupyter resources directory relative to the workspace_root,
+        # This dir is mounted to the `/usr/local/jupyter` directory on the container,
         mount_resources: bool = False,
-        resources_dir: str = "workspace/superset",
-        resources_dir_container_path: str = "/app/docker",
+        resources_dir: str = "workspace/jupyter",
+        resources_dir_container_path: str = "/usr/local/jupyter",
         resources_volume_name: Optional[str] = None,
-        # Set the SUPERSET_CONFIG_PATH env var,
-        superset_config_path: Optional[str] = None,
+        # Path to JUPYTER_CONFIG_FILE relative to the workspace_root
+        # Used to set the JUPYTER_CONFIG_FILE env var
+        # This value is also appended to the command using `-f`
+        jupyter_config_file: Optional[str] = None,
         # Install python dependencies using a requirements.txt file,
         # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
-        requirements_file_path: str = "workspace/superset/requirements.txt",
-        # Set the PYTHONPATH env var,
-        # defaults to "/app/pythonpath:/app/docker/pythonpath_dev",
+        requirements_file_path: str = "workspace/jupyter/requirements.txt",
+        # Overwrite the PYTHONPATH env var, which is usually set,
+        # to workspace_root_contaier_path:resources_dir_container_path,
         python_path: Optional[str] = None,
         # Configure Superset database,
         wait_for_db: bool = False,
-        # Connect to database using a DbApp
+        # Get database details using DbApp,
         db_app: Optional[DbApp] = None,
-        # Connect to database manually
-        # db_user can be provided here or as the
-        # DATABASE_USER env var in the secrets_file
+        # Provide database details,
+        # Set the DATABASE_USER env var,
         db_user: Optional[str] = None,
-        # db_password can be provided here or as the
-        # DATABASE_PASSWORD env var in the secrets_file
+        # Set the DATABASE_PASSWORD env var,
         db_password: Optional[str] = None,
-        # db_schema can be provided here or as the
-        # DATABASE_DB env var in the secrets_file
+        # Set the DATABASE_DB env var,
         db_schema: Optional[str] = None,
-        # db_host can be provided here or as the
-        # DATABASE_HOST env var in the secrets_file
+        # Set the DATABASE_HOST env var,
         db_host: Optional[str] = None,
-        # db_port can be provided here or as the
-        # DATABASE_PORT env var in the secrets_file
+        # Set the DATABASE_PORT env var,
         db_port: Optional[int] = None,
-        # db_driver can be provided here or as the
-        # DATABASE_DIALECT env var in the secrets_file
+        # Set the DATABASE_DIALECT env var,
         db_dialect: Optional[str] = None,
-        # Superset db connections in the format { conn_id: conn_url },
-        db_connections: Optional[Dict] = None,
-        # Configure superset redis,
-        wait_for_redis: bool = False,
-        # Connect to redis using a PhidataApp
-        redis_app: Optional[Any] = None,
-        # redis_host can be provided here or as the
-        # REDIS_HOST env var in the secrets_file
-        redis_host: Optional[str] = None,
-        # redis_port can be provided here or as the
-        # REDIS_PORT env var in the secrets_file
-        redis_port: Optional[int] = None,
-        # Set the FLASK_ENV env var,
-        flask_env: str = "production",
-        # Set the SUPERSET_ENV env var,
-        superset_env: str = "production",
         # Configure the container,
         container_name: Optional[str] = None,
         image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,
@@ -345,23 +314,22 @@ class SupersetBase(PhidataApp):
         #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'},
         # },
         container_volumes: Optional[Dict[str, dict]] = None,
-        # Open a container port if open_container_port=True,
-        open_container_port: bool = False,
+        # Open a container port if open_hub_port=True,
+        open_hub_port: bool = True,
         # Port number on the container,
-        container_port: int = 8000,
+        hub_port: int = 8081,
         # Port name: Only used by the K8sContainer,
-        container_port_name: str = "http",
+        hub_port_name: str = "hub",
         # Host port: Only used by the DockerContainer,
-        container_host_port: int = 8000,
+        hub_host_port: int = 8081,
         # Open the app port if open_app_port=True,
         open_app_port: bool = True,
         # App port number on the container,
-        # Set the SUPERSET_PORT env var,
-        app_port: int = 8088,
+        app_port: int = 8000,
         # Only used by the K8sContainer,
         app_port_name: str = "app",
         # Only used by the DockerContainer,
-        app_host_port: int = 8088,
+        app_host_port: int = 8000,
         # Add env variables to container env,
         env: Optional[Dict[str, str]] = None,
         # Read env variables from a file in yaml format,
@@ -391,11 +359,11 @@ class SupersetBase(PhidataApp):
             Literal["DoNotSchedule", "ScheduleAnyway"]
         ] = None,
         # Configure the app service,
-        create_app_service: bool = False,
+        create_app_service: bool = True,
         app_service_name: Optional[str] = None,
         app_service_type: Optional[ServiceType] = None,
         # The port that will be exposed by the service.,
-        app_service_port: int = 8088,
+        app_service_port: int = 8000,
         # The node_port that will be exposed by the service if app_service_type = ServiceType.NODE_PORT,
         app_node_port: Optional[int] = None,
         # The app_target_port is the port to access on the pods targeted by the service.,
@@ -403,8 +371,10 @@ class SupersetBase(PhidataApp):
         app_target_port: Optional[Union[str, int]] = None,
         # Add labels to app service,
         app_service_labels: Optional[Dict[str, Any]] = None,
-        # Set SUPERSET_LOAD_EXAMPLES = "yes"
-        load_examples: bool = False,
+        # Configure rbac
+        sa_name: Optional[str] = None,
+        cr_name: Optional[str] = None,
+        crb_name: Optional[str] = None,
         print_env_on_load: bool = True,
         # If True, use cached resources
         # i.e. skip resource creation/deletion if active resources with the same name exist.
@@ -412,13 +382,8 @@ class SupersetBase(PhidataApp):
         **extra_kwargs,
     ):
         super().__init__()
-
-        # Cache env_data & secret_data
-        self.env_data: Optional[Dict[str, Any]] = None
-        self.secret_data: Optional[Dict[str, Any]] = None
-
         try:
-            self.args: SupersetBaseArgs = SupersetBaseArgs(
+            self.args: JupyterHubArgs = JupyterHubArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -438,7 +403,7 @@ class SupersetBase(PhidataApp):
                 resources_dir=resources_dir,
                 resources_dir_container_path=resources_dir_container_path,
                 resources_volume_name=resources_volume_name,
-                superset_config_path=superset_config_path,
+                jupyter_config_file=jupyter_config_file,
                 install_requirements=install_requirements,
                 requirements_file_path=requirements_file_path,
                 python_path=python_path,
@@ -450,13 +415,6 @@ class SupersetBase(PhidataApp):
                 db_host=db_host,
                 db_port=db_port,
                 db_dialect=db_dialect,
-                db_connections=db_connections,
-                wait_for_redis=wait_for_redis,
-                redis_app=redis_app,
-                redis_host=redis_host,
-                redis_port=redis_port,
-                flask_env=flask_env,
-                superset_env=superset_env,
                 container_name=container_name,
                 image_pull_policy=image_pull_policy,
                 container_detach=container_detach,
@@ -465,10 +423,10 @@ class SupersetBase(PhidataApp):
                 container_user=container_user,
                 container_labels=container_labels,
                 container_volumes=container_volumes,
-                open_container_port=open_container_port,
-                container_port=container_port,
-                container_port_name=container_port_name,
-                container_host_port=container_host_port,
+                open_hub_port=open_hub_port,
+                hub_port=hub_port,
+                hub_port_name=hub_port_name,
+                hub_host_port=hub_host_port,
                 open_app_port=open_app_port,
                 app_port=app_port,
                 app_port_name=app_port_name,
@@ -495,7 +453,9 @@ class SupersetBase(PhidataApp):
                 app_node_port=app_node_port,
                 app_target_port=app_target_port,
                 app_service_labels=app_service_labels,
-                load_examples=load_examples,
+                sa_name=sa_name,
+                cr_name=cr_name,
+                crb_name=crb_name,
                 print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
                 extra_kwargs=extra_kwargs,
@@ -513,95 +473,11 @@ class SupersetBase(PhidataApp):
     def get_app_service_port(self) -> int:
         return self.args.app_service_port
 
-    def get_env_data(self) -> Optional[Dict[str, str]]:
+    def get_env_data_from_file(self) -> Optional[Dict[str, str]]:
         return self.read_yaml_file(file_path=self.args.env_file)
 
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
+    def get_secret_data_from_file(self) -> Optional[Dict[str, str]]:
         return self.read_yaml_file(file_path=self.args.secrets_file)
-
-    def get_db_user(self) -> Optional[str]:
-        db_user_var: Optional[str] = self.args.db_user if self.args else None
-        if db_user_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading DATABASE_USER from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                db_user_var = secret_data.get("DATABASE_USER", db_user_var)
-        return db_user_var
-
-    def get_db_password(self) -> Optional[str]:
-        db_password_var: Optional[str] = self.args.db_password if self.args else None
-        if db_password_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading DATABASE_PASSWORD from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                db_password_var = secret_data.get("DATABASE_PASSWORD", db_password_var)
-        return db_password_var
-
-    def get_db_schema(self) -> Optional[str]:
-        db_schema_var: Optional[str] = self.args.db_schema if self.args else None
-        if db_schema_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading DATABASE_DB from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                db_schema_var = secret_data.get("DATABASE_DB", db_schema_var)
-        return db_schema_var
-
-    def get_db_host(self) -> Optional[str]:
-        db_host_var: Optional[str] = self.args.db_host if self.args else None
-        if db_host_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading DATABASE_HOST from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                db_host_var = secret_data.get("DATABASE_HOST", db_host_var)
-        return db_host_var
-
-    def get_db_port(self) -> Optional[str]:
-        db_port_var: Optional[Union[int, str]] = (
-            self.args.db_port if self.args else None
-        )
-        if db_port_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading DATABASE_PORT from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                db_port_var = secret_data.get("DATABASE_PORT", db_port_var)
-        return str(db_port_var) if db_port_var is not None else db_port_var
-
-    def get_db_dialect(self) -> Optional[str]:
-        db_dialect_var: Optional[str] = self.args.db_dialect if self.args else None
-        if db_dialect_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading DATABASE_DIALECT from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                db_dialect_var = secret_data.get("DATABASE_DIALECT", db_dialect_var)
-        return db_dialect_var
-
-    def get_redis_host(self) -> Optional[str]:
-        redis_host_var: Optional[str] = self.args.redis_host if self.args else None
-        if redis_host_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading REDIS_HOST from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                redis_host_var = secret_data.get("REDIS_HOST", redis_host_var)
-        return redis_host_var
-
-    def get_redis_port(self) -> Optional[str]:
-        redis_port_var: Optional[Union[int, str]] = (
-            self.args.redis_port if self.args else None
-        )
-        if redis_port_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading REDIS_PORT from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                redis_port_var = secret_data.get("REDIS_PORT", redis_port_var)
-        return str(redis_port_var) if redis_port_var is not None else redis_port_var
 
     ######################################################
     ## Docker Resources
@@ -659,7 +535,7 @@ class SupersetBase(PhidataApp):
         # Container pythonpath
         python_path = (
             self.args.python_path
-            or f"/app/pythonpath:{self.args.resources_dir_container_path}/pythonpath_dev"
+            or f"{str(workspace_root_container_path)}:{self.args.resources_dir_container_path}"
         )
 
         # Container Environment
@@ -668,7 +544,7 @@ class SupersetBase(PhidataApp):
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
             "PYTHONPATH": python_path,
-            PHIDATA_RUNTIME_ENV_VAR: "superset",
+            PHIDATA_RUNTIME_ENV_VAR: "jupyter",
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
             META_DIR_ENV_VAR: str(meta_dir_container_path),
@@ -677,89 +553,17 @@ class SupersetBase(PhidataApp):
             WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
             "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
             "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
-            "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
-            "WAIT_FOR_DB": str(self.args.wait_for_db),
-            "WAIT_FOR_REDIS": str(self.args.wait_for_redis),
-            "SUPERSET_LOAD_EXAMPLES": "yes" if self.args.load_examples else "no",
         }
 
-        if self.args.superset_config_path is not None:
-            container_env["SUPERSET_CONFIG_PATH"] = self.args.superset_config_path
-
-        # Superset db connection
-        db_user = self.get_db_user()
-        db_password = self.get_db_password()
-        db_schema = self.get_db_schema()
-        db_host = self.get_db_host()
-        db_port = self.get_db_port()
-        db_dialect = self.get_db_dialect()
-        if self.args.db_app is not None and isinstance(self.args.db_app, DbApp):
-            logger.debug(f"Reading db connection details from: {self.args.db_app.name}")
-            if db_user is None:
-                db_user = self.args.db_app.get_db_user()
-            if db_password is None:
-                db_password = self.args.db_app.get_db_password()
-            if db_schema is None:
-                db_schema = self.args.db_app.get_db_schema()
-            if db_host is None:
-                db_host = self.args.db_app.get_db_host_docker()
-            if db_port is None:
-                db_port = self.args.db_app.get_db_port_docker()
-            if db_dialect is None:
-                db_dialect = self.args.db_app.get_db_driver()
-
-        if db_user is not None:
-            container_env["DATABASE_USER"] = db_user
-
-        if db_password is not None:
-            container_env["DATABASE_PASSWORD"] = db_password
-
-        if db_schema is not None:
-            container_env["DATABASE_DB"] = db_schema
-
-        if db_host is not None:
-            container_env["DATABASE_HOST"] = db_host
-
-        if db_port is not None:
-            container_env["DATABASE_PORT"] = str(db_port)
-
-        if db_dialect is not None:
-            container_env["DATABASE_DIALECT"] = db_dialect
-
-        # Superset redis connection
-        redis_host = self.get_redis_host()
-        redis_port = self.get_redis_port()
-        if self.args.redis_app is not None and isinstance(self.args.redis_app, DbApp):
-            logger.debug(
-                f"Reading redis connection details from: {self.args.redis_app.name}"
-            )
-            if redis_host is None:
-                redis_host = self.args.redis_app.get_db_host_docker()
-            if redis_port is None:
-                redis_port = self.args.redis_app.get_db_port_docker()
-
-        if redis_host is not None:
-            container_env["REDIS_HOST"] = redis_host
-
-        if redis_port is not None:
-            container_env["REDIS_PORT"] = str(redis_port)
-
-        # Other superset args
-        if self.args.flask_env is not None:
-            container_env["FLASK_ENV"] = self.args.flask_env
-
-        if self.args.superset_env is not None:
-            container_env["SUPERSET_ENV"] = self.args.superset_env
-
         # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
+        env_data_from_file = self.get_env_data_from_file()
         if env_data_from_file is not None:
             container_env.update(env_data_from_file)
 
         # Update the container env using secrets_file
-        secret_data_from_file = self.get_secret_data()
+        secret_data_from_file = self.get_secret_data_from_file()
         if secret_data_from_file is not None:
             container_env.update(secret_data_from_file)
 
@@ -810,27 +614,36 @@ class SupersetBase(PhidataApp):
         #   {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
         container_ports: Dict[str, int] = {}
 
-        # if open_container_port = True
-        if self.args.open_container_port:
-            container_ports[
-                str(self.args.container_port)
-            ] = self.args.container_host_port
+        # if open_hub_port = True
+        if self.args.open_hub_port:
+            container_ports[str(self.args.hub_port)] = self.args.hub_host_port
 
         # if open_app_port = True
         # 1. Set the app_port in the container env
         # 2. Open the app_port
         if self.args.open_app_port:
-            # Set the app port in the container_env
-            container_env["SUPERSET_PORT"] = str(self.args.app_port)
             # Open the port
             container_ports[str(self.args.app_port)] = self.args.app_host_port
+
+        container_cmd: List[str] = []
+        if isinstance(self.args.command, str):
+            container_cmd = [self.args.command]
+        else:
+            container_cmd = self.args.command
+        if self.args.jupyter_config_file is not None:
+            config_file_container_path_str = str(
+                workspace_root_container_path.joinpath(self.args.jupyter_config_file)
+            )
+            if config_file_container_path_str is not None:
+                container_env["JUPYTER_CONFIG_FILE"] = config_file_container_path_str
+                container_cmd.extend(["-f", config_file_container_path_str])
 
         # Create the container
         docker_container = DockerContainer(
             name=self.get_container_name(),
             image=get_image_str(self.args.image_name, self.args.image_tag),
             entrypoint=self.args.entrypoint,
-            command=self.args.command,
+            command=" ".join(container_cmd),
             detach=self.args.container_detach,
             auto_remove=self.args.container_auto_remove,
             remove=self.args.container_remove,
@@ -873,6 +686,44 @@ class SupersetBase(PhidataApp):
 
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
+
+        # Define RBAC resources first
+        sa = CreateServiceAccount(
+            sa_name=self.args.sa_name or get_default_sa_name(app_name),
+            app_name=app_name,
+            namespace=k8s_build_context.namespace,
+        )
+
+        cr = CreateClusterRole(
+            cr_name=self.args.cr_name or get_default_cr_name(app_name),
+            rules=[
+                PolicyRule(
+                    api_groups=[""],
+                    resources=[
+                        "pods",
+                        "secrets",
+                    ],
+                    verbs=[
+                        "get",
+                        "list",
+                        "watch",
+                        "create",
+                        "update",
+                        "patch",
+                        "delete",
+                    ],
+                ),
+            ],
+            app_name=app_name,
+        )
+
+        crb = CreateClusterRoleBinding(
+            crb_name=get_default_crb_name(app_name),
+            cr_name=cr.cr_name,
+            service_account_name=sa.sa_name,
+            app_name=app_name,
+            namespace=k8s_build_context.namespace,
+        )
 
         # Define K8s resources
         config_maps: List[CreateConfigMap] = []
@@ -927,7 +778,7 @@ class SupersetBase(PhidataApp):
         # Container pythonpath
         python_path = (
             self.args.python_path
-            or f"/app/pythonpath:{self.args.resources_dir_container_path}/pythonpath_dev"
+            or f"{str(workspace_root_container_path)}:{self.args.resources_dir_container_path}"
         )
 
         # Container Environment
@@ -936,7 +787,7 @@ class SupersetBase(PhidataApp):
             "PHI_WORKSPACE_PARENT": str(self.args.workspace_parent_container_path),
             "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
             "PYTHONPATH": python_path,
-            PHIDATA_RUNTIME_ENV_VAR: "superset",
+            PHIDATA_RUNTIME_ENV_VAR: "jupyter",
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
             META_DIR_ENV_VAR: str(meta_dir_container_path),
@@ -945,24 +796,19 @@ class SupersetBase(PhidataApp):
             WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
             "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
             "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
-            "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
             "WAIT_FOR_DB": str(self.args.wait_for_db),
-            "WAIT_FOR_REDIS": str(self.args.wait_for_redis),
-            "SUPERSET_LOAD_EXAMPLES": "yes" if self.args.load_examples else "no",
+            "JH_SVC_NAME": self.get_app_service_name(),
         }
 
-        if self.args.superset_config_path is not None:
-            container_env["SUPERSET_CONFIG_PATH"] = self.args.superset_config_path
-
         # Superset db connection
-        db_user = self.get_db_user()
-        db_password = self.get_db_password()
-        db_schema = self.get_db_schema()
-        db_host = self.get_db_host()
-        db_port = self.get_db_port()
-        db_dialect = self.get_db_dialect()
+        db_user = self.args.db_user
+        db_password = self.args.db_password
+        db_schema = self.args.db_schema
+        db_host = self.args.db_host
+        db_port = self.args.db_port
+        db_dialect = self.args.db_dialect
         if self.args.db_app is not None and isinstance(self.args.db_app, DbApp):
             logger.debug(f"Reading db connection details from: {self.args.db_app.name}")
             if db_user is None:
@@ -977,52 +823,27 @@ class SupersetBase(PhidataApp):
                 db_port = self.args.db_app.get_db_port_k8s()
             if db_dialect is None:
                 db_dialect = self.args.db_app.get_db_driver()
+        db_connection_url = (
+            f"{db_dialect}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
+        )
 
         if db_user is not None:
             container_env["DATABASE_USER"] = db_user
-
         if db_password is not None:
             container_env["DATABASE_PASSWORD"] = db_password
-
         if db_schema is not None:
             container_env["DATABASE_DB"] = db_schema
-
         if db_host is not None:
             container_env["DATABASE_HOST"] = db_host
-
         if db_port is not None:
             container_env["DATABASE_PORT"] = str(db_port)
-
         if db_dialect is not None:
             container_env["DATABASE_DIALECT"] = db_dialect
-
-        # Superset redis connection
-        redis_host = self.get_redis_host()
-        redis_port = self.get_redis_port()
-        if self.args.redis_app is not None and isinstance(self.args.redis_app, DbApp):
-            logger.debug(
-                f"Reading redis connection details from: {self.args.redis_app.name}"
-            )
-            if redis_host is None:
-                redis_host = self.args.redis_app.get_db_host_k8s()
-            if redis_port is None:
-                redis_port = self.args.redis_app.get_db_port_k8s()
-
-        if redis_host is not None:
-            container_env["REDIS_HOST"] = redis_host
-
-        if redis_port is not None:
-            container_env["REDIS_PORT"] = str(redis_port)
-
-        # Other superset args
-        if self.args.flask_env is not None:
-            container_env["FLASK_ENV"] = self.args.flask_env
-
-        if self.args.superset_env is not None:
-            container_env["SUPERSET_ENV"] = self.args.superset_env
+        if "None" not in db_connection_url:
+            container_env["JH_DATABASE_URL"] = db_connection_url
 
         # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
+        env_data_from_file = self.get_env_data_from_file()
         if env_data_from_file is not None:
             container_env.update(env_data_from_file)
 
@@ -1040,7 +861,7 @@ class SupersetBase(PhidataApp):
         config_maps.append(container_env_cm)
 
         # Create a Secret to set the container env variables which are Secret
-        secret_data_from_file = self.get_secret_data()
+        secret_data_from_file = self.get_secret_data_from_file()
         if secret_data_from_file is not None:
             container_env_secret = CreateSecret(
                 secret_name=self.args.secret_name or get_default_secret_name(app_name),
@@ -1116,22 +937,20 @@ class SupersetBase(PhidataApp):
                     containers.append(git_sync_sidecar)
 
         # Create the ports to open
-        # if open_container_port = True
-        if self.args.open_container_port:
-            container_port = CreatePort(
-                name=self.args.container_port_name,
-                container_port=self.args.container_port,
+        # if open_hub_port = True
+        if self.args.open_hub_port:
+            hub_port = CreatePort(
+                name=self.args.hub_port_name,
+                container_port=self.args.hub_port,
+                service_port=self.args.hub_port,
             )
-            ports.append(container_port)
+            ports.append(hub_port)
 
         # if open_app_port = True
         # 1. Set the app_port in the container env
-        # 2. Open the superset app port
+        # 2. Open the jupyter app port
         app_port: Optional[CreatePort] = None
         if self.args.open_app_port:
-            # Set the app port in the container env
-            if container_env_cm.data is not None:
-                container_env_cm.data["SUPERSET_PORT"] = str(self.args.app_port)
             # Open the port
             app_port = CreatePort(
                 name=self.args.app_port_name,
@@ -1148,16 +967,31 @@ class SupersetBase(PhidataApp):
                 container_labels.update(k8s_build_context.labels)
             else:
                 container_labels = k8s_build_context.labels
+
+        # Equivalent to docker images CMD
+        container_args: List[str] = []
+        if isinstance(self.args.command, str):
+            container_args = [self.args.command]
+        else:
+            container_args = self.args.command
+        if self.args.jupyter_config_file is not None:
+            config_file_container_path_str = str(
+                workspace_root_container_path.joinpath(self.args.jupyter_config_file)
+            )
+            if config_file_container_path_str is not None:
+                if container_env_cm.data is not None:
+                    container_env_cm.data[
+                        "JUPYTER_CONFIG_FILE"
+                    ] = config_file_container_path_str
+                container_args.extend(["-f", config_file_container_path_str])
+
         # Create the container
         k8s_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
             image_tag=self.args.image_tag,
-            # Equivalent to docker images CMD
-            args=[self.args.command]
-            if isinstance(self.args.command, str)
-            else self.args.command,
+            args=container_args,
             # Equivalent to docker images ENTRYPOINT
             command=[self.args.entrypoint]
             if isinstance(self.args.entrypoint, str)
@@ -1194,7 +1028,7 @@ class SupersetBase(PhidataApp):
             pod_name=self.args.pod_name or get_default_pod_name(app_name),
             app_name=app_name,
             namespace=k8s_build_context.namespace,
-            service_account_name=k8s_build_context.service_account_name,
+            service_account_name=sa.sa_name,
             containers=containers if len(containers) > 0 else None,
             pod_node_selector=self.args.pod_node_selector,
             restart_policy=self.args.restart_policy,
@@ -1219,10 +1053,10 @@ class SupersetBase(PhidataApp):
                 service_name=self.get_app_service_name(),
                 app_name=app_name,
                 namespace=k8s_build_context.namespace,
-                service_account_name=k8s_build_context.service_account_name,
+                service_account_name=sa.sa_name,
                 service_type=self.args.app_service_type,
                 deployment=k8s_deployment,
-                ports=[app_port] if app_port else None,
+                ports=ports if len(ports) > 0 else None,
                 labels=app_service_labels,
             )
             services.append(app_service)
@@ -1231,6 +1065,9 @@ class SupersetBase(PhidataApp):
         k8s_resource_group = CreateK8sResourceGroup(
             name=app_name,
             enabled=self.args.enabled,
+            sa=sa,
+            cr=cr,
+            crb=crb,
             config_maps=config_maps if len(config_maps) > 0 else None,
             secrets=secrets if len(secrets) > 0 else None,
             services=services if len(services) > 0 else None,

@@ -506,12 +506,13 @@ class K8sWorker:
                         )
                         if _resource_created:
                             num_resources_created += 1
-                            print_info("Resource created")
+                            logger.info("Resource created")
+                            # logger.info(f"continue_on_create_failure: {self.k8s_args.continue_on_create_failure}")
                         else:
                             logger.error(
                                 f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."
                             )
-                            if not self.k8s_args.continue_on_create_failure:
+                            if self.k8s_args.continue_on_create_failure is False:
                                 return False
                     except Exception as e:
                         logger.error(

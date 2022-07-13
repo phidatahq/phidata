@@ -27,38 +27,36 @@ class CreatePVC(BaseModel):
     access_modes: List[PVAccessMode] = [PVAccessMode.READ_WRITE_ONCE]
     labels: Optional[Dict[str, str]] = None
 
+    def create(self) -> Optional[PersistentVolumeClaim]:
+        """Creates a PersistentVolumeClaim resource."""
 
-def create_pvc_resource(data: CreatePVC) -> Optional[PersistentVolumeClaim]:
-    """Creates a PersistentVolumeClaim resource."""
+        pvc_name = self.pvc_name
+        logger.debug(f"Init PersistentVolumeClaim resource: {pvc_name}")
 
-    if data is None:
-        return None
+        pvc_labels = create_component_labels_dict(
+            component_name=pvc_name,
+            app_name=self.app_name,
+            labels=self.labels,
+        )
 
-    pvc_name = data.pvc_name
-    logger.debug(f"Init PersistentVolumeClaim resource: {pvc_name}")
+        pvc = PersistentVolumeClaim(
+            api_version=ApiVersion.CORE_V1,
+            kind=Kind.PERSISTENTVOLUMECLAIM,
+            metadata=ObjectMeta(
+                name=pvc_name,
+                namespace=self.namespace,
+                labels=pvc_labels,
+            ),
+            spec=PersistentVolumeClaimSpec(
+                access_modes=self.access_modes,
+                resources=ResourceRequirements(
+                    requests={"storage": self.request_storage}
+                ),
+                storage_class_name=self.storage_class_name,
+            ),
+        )
 
-    pvc_labels = create_component_labels_dict(
-        component_name=pvc_name,
-        app_name=data.app_name,
-        labels=data.labels,
-    )
-
-    pvc = PersistentVolumeClaim(
-        api_version=ApiVersion.CORE_V1,
-        kind=Kind.PERSISTENTVOLUMECLAIM,
-        metadata=ObjectMeta(
-            name=pvc_name,
-            namespace=data.namespace,
-            labels=pvc_labels,
-        ),
-        spec=PersistentVolumeClaimSpec(
-            access_modes=data.access_modes,
-            resources=ResourceRequirements(requests={"storage": data.request_storage}),
-            storage_class_name=data.storage_class_name,
-        ),
-    )
-
-    logger.info(
-        f"PersistentVolumeClaim {pvc_name}:\n{pvc.json(exclude_defaults=True, indent=2)}"
-    )
-    return pvc
+        # logger.info(
+        #     f"PersistentVolumeClaim {pvc_name}:\n{pvc.json(exclude_defaults=True, indent=2)}"
+        # )
+        return pvc

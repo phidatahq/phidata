@@ -33,7 +33,7 @@ class CreateDeployment(BaseModel):
     service_account_name: Optional[str] = None
     replicas: Optional[int] = 1
     containers: List[CreateContainer]
-    init_containers: Optional[List[Container]] = None
+    init_containers: Optional[List[CreateContainer]] = None
     pod_node_selector: Optional[Dict[str, str]] = None
     restart_policy: RestartPolicy = RestartPolicy.ALWAYS
     termination_grace_period_seconds: Optional[int] = None
@@ -71,6 +71,13 @@ class CreateDeployment(BaseModel):
             container = cc.create()
             if container is not None:
                 containers.append(container)
+
+        create_init_containers = self.init_containers
+        init_containers: List[Container] = []
+        for ic in create_init_containers:
+            _init_container = ic.create()
+            if _init_container is not None:
+                init_containers.append(_init_container)
 
         topology_spread_constraints: Optional[List[TopologySpreadConstraint]] = None
         if self.topology_spread_key is not None:
@@ -112,7 +119,7 @@ class CreateDeployment(BaseModel):
                         annotations=self.pod_annotations,
                     ),
                     spec=PodSpec(
-                        init_containers=self.init_containers,
+                        init_containers=init_containers,
                         node_selector=self.pod_node_selector,
                         service_account_name=self.service_account_name,
                         restart_policy=self.restart_policy,

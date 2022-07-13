@@ -26,6 +26,12 @@ from phidata.infra.k8s.create.core.v1.service import CreateService, ServiceType
 from phidata.infra.k8s.create.core.v1.config_map import CreateConfigMap
 from phidata.infra.k8s.create.core.v1.container import CreateContainer, ImagePullPolicy
 from phidata.infra.k8s.create.core.v1.service_account import CreateServiceAccount
+from phidata.infra.k8s.create.core.v1.persistent_volume import (
+    CreatePersistentVolume,
+    ClaimRef,
+    NFSVolumeSource,
+)
+from phidata.infra.k8s.create.core.v1.persistent_volume_claim import CreatePVC
 from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
     CreateClusterRole,
     PolicyRule,
@@ -37,9 +43,11 @@ from phidata.infra.k8s.create.core.v1.volume import (
     CreateVolume,
     HostPathVolumeSource,
     VolumeType,
+    PersistentVolumeClaimVolumeSource,
 )
 from phidata.infra.k8s.create.common.port import CreatePort
 from phidata.infra.k8s.create.group import CreateK8sResourceGroup
+from phidata.infra.k8s.enums.pv import PVAccessMode
 from phidata.infra.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
@@ -57,8 +65,14 @@ from phidata.utils.common import (
     get_default_crb_name,
     get_default_sa_name,
 )
+from phidata.utils.enums import ExtendedEnum
 from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
+
+
+class AirflowLogsVolumeType(ExtendedEnum):
+    PERSISTENT_VOLUME = "PERSISTENT_VOLUME"
+    AWS_EFS = "AWS_EFS"
 
 
 class AirflowBaseArgs(PhidataAppArgs):
@@ -179,7 +193,7 @@ class AirflowBaseArgs(PhidataAppArgs):
     redis_port: Optional[int] = None
     # redis_driver can be provided here or as the
     # REDIS_DRIVER env var in the secrets_file
-    redis_driver: str = "redis"
+    redis_driver: str = "rediss"
 
     # Configure the container
     container_name: Optional[str] = None
@@ -306,6 +320,30 @@ class AirflowBaseArgs(PhidataAppArgs):
     cr_name: Optional[str] = None
     crb_name: Optional[str] = None
 
+    # Configure logs volume
+    mount_logs: bool = False
+    logs_volume_type: AirflowLogsVolumeType = AirflowLogsVolumeType.PERSISTENT_VOLUME
+    logs_volume_name: Optional[str] = None
+    # Container path to mount the volume
+    logs_volume_container_path: str = "/usr/local/airflow/logs"
+    # PersistentVolume configuration
+    logs_volume_labels: Optional[Dict[str, str]] = None
+    # AccessModes contains all ways the volume can be mounted.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
+    logs_volume_access_modes: Optional[List[PVAccessMode]] = None
+    logs_volume_requests_storage: Optional[str] = None
+    # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options
+    logs_volume_mount_options: Optional[List[str]] = None
+    # What happens to a persistent volume when released from its claim.
+    #   The default policy is Retain.
+    logs_volume_pv_reclaim_policy: Optional[
+        Literal["Delete", "Recycle", "Retain"]
+    ] = None
+    # EFS configuration
+    # EFS volume_id
+    logs_efs_volume_id: Optional[str] = None
+
     # Other args
     load_examples: bool = False
     print_env_on_load: bool = True
@@ -425,7 +463,7 @@ class AirflowBase(PhidataApp):
         redis_port: Optional[int] = None,
         # redis_driver can be provided here or as the
         # REDIS_DRIVER env var in the secrets_file
-        redis_driver: str = "redis",
+        redis_driver: str = "rediss",
         # Configure the container
         container_name: Optional[str] = None,
         image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,
@@ -540,6 +578,30 @@ class AirflowBase(PhidataApp):
         sa_name: Optional[str] = None,
         cr_name: Optional[str] = None,
         crb_name: Optional[str] = None,
+        # Configure logs volume
+        mount_logs: bool = False,
+        logs_volume_type: AirflowLogsVolumeType = AirflowLogsVolumeType.PERSISTENT_VOLUME,
+        logs_volume_name: Optional[str] = None,
+        # Container path to mount the volume
+        # defaults to /usr/local/airflow/logs
+        logs_volume_container_path: str = "/usr/local/airflow/logs",
+        # PersistentVolume configuration
+        logs_volume_labels: Optional[Dict[str, str]] = None,
+        # AccessModes contains all ways the volume can be mounted.
+        # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
+        logs_volume_access_modes: Optional[List[PVAccessMode]] = None,
+        logs_volume_requests_storage: Optional[str] = None,
+        # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.
+        # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options
+        logs_volume_mount_options: Optional[List[str]] = None,
+        # What happens to a persistent volume when released from its claim.
+        #   The default policy is Retain.
+        logs_volume_pv_reclaim_policy: Optional[
+            Literal["Delete", "Recycle", "Retain"]
+        ] = None,
+        # EFS configuration
+        # EFS volume_id
+        logs_efs_volume_id: Optional[str] = None,
         # Other args
         load_examples: bool = False,
         print_env_on_load: bool = True,
@@ -657,6 +719,16 @@ class AirflowBase(PhidataApp):
                 sa_name=sa_name,
                 cr_name=cr_name,
                 crb_name=crb_name,
+                mount_logs=mount_logs,
+                logs_volume_type=logs_volume_type,
+                logs_volume_name=logs_volume_name,
+                logs_volume_container_path=logs_volume_container_path,
+                logs_volume_labels=logs_volume_labels,
+                logs_volume_access_modes=logs_volume_access_modes,
+                logs_volume_requests_storage=logs_volume_requests_storage,
+                logs_volume_mount_options=logs_volume_mount_options,
+                logs_volume_pv_reclaim_policy=logs_volume_pv_reclaim_policy,
+                logs_efs_volume_id=logs_efs_volume_id,
                 load_examples=load_examples,
                 print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
@@ -862,9 +934,6 @@ class AirflowBase(PhidataApp):
             else None
         )
 
-        # Container pythonpath
-        python_path = self.args.python_path or str(workspace_root_container_path)
-
         # Airflow db connection
         db_user = self.get_db_user()
         db_password = self.get_db_password()
@@ -889,6 +958,9 @@ class AirflowBase(PhidataApp):
         db_connection_url = (
             f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
         )
+
+        # Container pythonpath
+        python_path = self.args.python_path or str(workspace_root_container_path)
 
         # Container Environment
         container_env: Dict[str, str] = {
@@ -930,7 +1002,7 @@ class AirflowBase(PhidataApp):
 
         # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
             container_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
@@ -969,7 +1041,9 @@ class AirflowBase(PhidataApp):
             redis_schema = self.get_redis_schema()
             redis_host = self.get_redis_host()
             redis_port = self.get_redis_port()
-            redis_driver = self.get_redis_driver()
+            # NOTE: hardcoding "redis" as the redis_driver to use with docker
+            # because "rediss" does not work
+            redis_driver = "redis"  # self.get_redis_driver()
             if self.args.redis_app is not None and isinstance(
                 self.args.redis_app, DbApp
             ):
@@ -990,13 +1064,18 @@ class AirflowBase(PhidataApp):
             # Set the AIRFLOW__CELERY__RESULT_BACKEND
             celery_broker_url = f"{redis_driver}://{redis_password}{redis_host}:{redis_port}/{redis_schema}"
             if "None" not in celery_broker_url:
+                # logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
                 container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
 
             # Set the redis connection details
-            container_env["REDIS_PASSWORD"] = redis_password
-            container_env["REDIS_SCHEMA"] = redis_schema if redis_schema else ""
-            container_env["REDIS_HOST"] = redis_host if redis_host else ""
-            container_env["REDIS_PORT"] = str(redis_port) if redis_port else ""
+            if redis_password is not None:
+                container_env["REDIS_PASSWORD"] = redis_password
+            if redis_schema is not None:
+                container_env["REDIS_SCHEMA"] = redis_schema
+            if redis_host is not None:
+                container_env["REDIS_HOST"] = redis_host
+            if redis_port is not None:
+                container_env["REDIS_PORT"] = str(redis_port)
 
         # Update the container env using env_file
         env_data_from_file = self.get_env_data()
@@ -1218,6 +1297,10 @@ class AirflowBase(PhidataApp):
         containers: List[CreateContainer] = []
         services: List[CreateService] = []
         ports: List[CreatePort] = []
+        pvs: List[CreatePersistentVolume] = []
+        pvcs: List[CreatePVC] = []
+        git_sync_container: Optional[CreateContainer] = None
+        git_sync_init_container: Optional[CreateContainer] = None
 
         # Workspace paths
         if self.workspace_root_path is None:
@@ -1328,7 +1411,7 @@ class AirflowBase(PhidataApp):
 
         # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
-            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
             container_env["AIRFLOW__DATABASE__SQL_ALCHEMY_CONN"] = db_connection_url
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
@@ -1362,13 +1445,12 @@ class AirflowBase(PhidataApp):
                 ] = celery_result_backend_url
 
             # Airflow celery broker url
-            redis_password = (
-                f"{self.args.redis_password}@" if self.args.redis_password else ""
-            )
-            redis_schema = self.args.redis_schema
-            redis_host = self.args.redis_host
-            redis_port = self.args.redis_port
-            redis_driver = self.args.redis_driver
+            _redis_pass = self.get_redis_password()
+            redis_password = f"{_redis_pass}@" if _redis_pass else ""
+            redis_schema = self.get_redis_schema()
+            redis_host = self.get_redis_host()
+            redis_port = self.get_redis_port()
+            redis_driver = self.get_redis_driver()
             if self.args.redis_app is not None and isinstance(
                 self.args.redis_app, DbApp
             ):
@@ -1389,6 +1471,7 @@ class AirflowBase(PhidataApp):
             # Set the AIRFLOW__CELERY__RESULT_BACKEND
             celery_broker_url = f"{redis_driver}://{redis_password}{redis_host}:{redis_port}/{redis_schema}"
             if "None" not in celery_broker_url:
+                # logger.info(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
                 container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
 
             # Set the redis connection details
@@ -1479,7 +1562,7 @@ class AirflowBase(PhidataApp):
                         git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
                     if self.args.git_sync_wait is not None:
                         git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
-                    git_sync_sidecar = CreateContainer(
+                    git_sync_container = CreateContainer(
                         container_name="git-sync",
                         app_name=app_name,
                         image_name="k8s.gcr.io/git-sync",
@@ -1493,7 +1576,90 @@ class AirflowBase(PhidataApp):
                         else None,
                         volumes=[workspace_volume],
                     )
-                    containers.append(git_sync_sidecar)
+
+                    git_sync_init_env = {"GIT_SYNC_ONE_TIME": True}
+                    git_sync_init_env.update(git_sync_container.env)
+                    git_sync_init_container = CreateContainer(
+                        container_name="git-sync-init",
+                        app_name=git_sync_container.app_name,
+                        image_name=git_sync_container.image_name,
+                        image_tag=git_sync_container.image_tag,
+                        env=git_sync_init_env,
+                        envs_from_configmap=git_sync_container.envs_from_configmap,
+                        envs_from_secret=git_sync_container.envs_from_secret,
+                        volumes=git_sync_container.volumes,
+                    )
+
+        if self.args.mount_logs:
+            logs_volume_name = self.args.logs_volume_name or get_default_volume_name(
+                "airflow-logs"
+            )
+            if self.args.logs_volume_type == AirflowLogsVolumeType.PERSISTENT_VOLUME:
+                default_mount_options = [
+                    "rsize=1048576",
+                    "wsize=1048576",
+                    "hard",
+                    "timeo=600",
+                    "retrans=2",
+                    "noresvport",
+                ]
+
+                logs_pvc = CreatePVC(
+                    pvc_name=f"{logs_volume_name}-pvc",
+                    app_name=app_name,
+                    namespace=k8s_build_context.namespace,
+                    request_storage=(self.args.logs_volume_requests_storage or "1Mi"),
+                    storage_class_name="",
+                    access_modes=(
+                        self.args.logs_volume_access_modes
+                        or [PVAccessMode.READ_WRITE_MANY]
+                    ),
+                    labels=self.args.logs_volume_labels,
+                )
+                pvcs.append(logs_pvc)
+
+                logs_pv = CreatePersistentVolume(
+                    pv_name=f"{logs_volume_name}-pv",
+                    app_name=app_name,
+                    labels=self.args.logs_volume_labels,
+                    access_modes=(
+                        self.args.logs_volume_access_modes
+                        or [PVAccessMode.READ_WRITE_MANY]
+                    ),
+                    capacity={
+                        "storage": (self.args.logs_volume_requests_storage or "1Mi")
+                    },
+                    mount_options=(
+                        self.args.logs_volume_mount_options or default_mount_options
+                    ),
+                    persistent_volume_reclaim_policy=(
+                        self.args.logs_volume_pv_reclaim_policy or "Retain"
+                    ),
+                    storage_class_name="",
+                    volume_type=VolumeType.NFS,
+                    nfs=NFSVolumeSource(
+                        path=self.args.logs_volume_container_path,
+                    ),
+                    claim_ref=ClaimRef(
+                        name=logs_pvc.pvc_name,
+                        namespace=logs_pvc.namespace,
+                    ),
+                )
+                pvs.append(logs_pv)
+
+                logs_volume = CreateVolume(
+                    volume_name=logs_volume_name,
+                    app_name=app_name,
+                    mount_path=self.args.logs_volume_container_path,
+                    volume_type=VolumeType.PERSISTENT_VOLUME_CLAIM,
+                    pvc=PersistentVolumeClaimVolumeSource(
+                        claim_name=logs_volume_name,
+                    ),
+                )
+                volumes.append(logs_volume)
+            else:
+                logger.error(f"{self.args.logs_volume_type.value} not supported")
+                return None
 
         # Create the ports to open
         # if open_container_port = True
@@ -1565,8 +1731,9 @@ class AirflowBase(PhidataApp):
                 container_labels.update(k8s_build_context.labels)
             else:
                 container_labels = k8s_build_context.labels
-        # Create the container
-        k8s_container = CreateContainer(
+
+        # Create the Airflow container
+        airflow_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
@@ -1588,12 +1755,14 @@ class AirflowBase(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.append(k8s_container)
+        containers.append(airflow_container)
+        if git_sync_container is not None:
+            containers.append(git_sync_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": k8s_container.container_name
+            "kubectl.kubernetes.io/default-container": airflow_container.container_name
         }
 
         deploy_labels: Optional[Dict[str, Any]] = self.args.deploy_labels
@@ -1613,6 +1782,9 @@ class AirflowBase(PhidataApp):
             # WebUI/Scheduler pods should run with serviceAccount which have RBAC
             # permissions on k8s cluster to get logs
             # service_account_name=sa.sa_name,
+            init_containers=[git_sync_init_container]
+            if git_sync_init_container is not None
+            else None,
             containers=containers if len(containers) > 0 else None,
             pod_node_selector=self.args.pod_node_selector,
             restart_policy=self.args.restart_policy,
@@ -1677,6 +1849,8 @@ class AirflowBase(PhidataApp):
             secrets=secrets if len(secrets) > 0 else None,
             services=services if len(services) > 0 else None,
             deployments=[k8s_deployment],
+            pvs=pvs if len(pvs) > 0 else None,
+            pvcs=pvcs if len(pvcs) > 0 else None,
         )
 
         return k8s_resource_group.create()

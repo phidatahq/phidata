@@ -14,6 +14,10 @@ from phidata.infra.k8s.resource.core.v1.namespace import Namespace
 from phidata.infra.k8s.resource.core.v1.secret import Secret
 from phidata.infra.k8s.resource.core.v1.service import Service
 from phidata.infra.k8s.resource.core.v1.service_account import ServiceAccount
+from phidata.infra.k8s.resource.core.v1.persistent_volume import PersistentVolume
+from phidata.infra.k8s.resource.core.v1.persistent_volume_claim import (
+    PersistentVolumeClaim,
+)
 from phidata.infra.k8s.resource.rbac_authorization_k8s_io.v1.cluste_role_binding import (
     ClusterRoleBinding,
 )
@@ -62,6 +66,8 @@ class K8sResourceGroup(BaseModel):
     deployments: Optional[List[Deployment]] = None
     custom_objects: Optional[List[CustomObject]] = None
     crds: Optional[List[CustomResourceDefinition]] = None
+    pvs: Optional[List[PersistentVolume]] = None
+    pvcs: Optional[List[PersistentVolumeClaim]] = None
 
     def add_manifest_to_group(self, manifest: Dict[str, Any]) -> bool:
         """
@@ -224,6 +230,38 @@ class K8sResourceGroup(BaseModel):
                     self.crds.append(_crd_resource)
                 logger.debug(
                     f"Parsed: {_crd_resource.get_resource_type()}: {_crd_resource.get_resource_name()}"
+                )
+            ######################################################
+            ## Parse PersistentVolumes
+            ######################################################
+            elif kind == "PersistentVolume":
+                from phidata.infra.k8s.resource.core.v1.persistent_volume import (
+                    PersistentVolume,
+                )
+
+                _pv_resource = PersistentVolume(**manifest)
+                if _pv_resource is not None:
+                    if self.pvs is None:
+                        self.pvs = []
+                    self.pvs.append(_pv_resource)
+                logger.debug(
+                    f"Parsed: {_pv_resource.get_resource_type()}: {_pv_resource.get_resource_name()}"
+                )
+            ######################################################
+            ## Parse PersistentVolumeClaim
+            ######################################################
+            elif kind == "PersistentVolumeClaim":
+                from phidata.infra.k8s.resource.core.v1.persistent_volume_claim import (
+                    PersistentVolumeClaim,
+                )
+
+                _pvcs_resource = PersistentVolumeClaim(**manifest)
+                if _pvcs_resource is not None:
+                    if self.pvcs is None:
+                        self.pvcs = []
+                    self.pvcs.append(_pvcs_resource)
+                logger.debug(
+                    f"Parsed: {_pvcs_resource.get_resource_type()}: {_pvcs_resource.get_resource_name()}"
                 )
             ######################################################
             ## TODO: Parse CustomObjects

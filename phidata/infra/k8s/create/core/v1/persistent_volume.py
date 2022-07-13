@@ -14,6 +14,8 @@ from phidata.infra.k8s.resource.core.v1.persistent_volume import (
     GcePersistentDiskVolumeSource,
     LocalVolumeSource,
     HostPathVolumeSource,
+    NFSVolumeSource,
+    ClaimRef,
 )
 from phidata.infra.k8s.create.common.labels import create_component_labels_dict
 from phidata.infra.k8s.resource.meta.v1.object_meta import ObjectMeta
@@ -24,7 +26,6 @@ from phidata.utils.log import logger
 class CreatePersistentVolume(BaseModel):
     pv_name: str
     app_name: str
-    namespace: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
     # AccessModes contains all ways the volume can be mounted.
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
@@ -47,7 +48,7 @@ class CreatePersistentVolume(BaseModel):
     volume_mode: Optional[str] = None
 
     ## Volume Type
-    volume_type: VolumeType
+    volume_type: Optional[VolumeType] = None
     # Local represents directly-attached storage with node affinity
     local: Optional[LocalVolumeSource] = None
     # HostPath represents a directory on the host. Provisioned by a developer or tester.
@@ -59,6 +60,13 @@ class CreatePersistentVolume(BaseModel):
     # kubelet's host machine and then exposed to the pod. Provisioned by an admin.
     # More info: https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk
     gce_persistent_disk: Optional[GcePersistentDiskVolumeSource] = None
+    # NFS represents an NFS mount on the host. Provisioned by an admin.
+    # More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs
+    nfs: Optional[NFSVolumeSource] = None
+    # ClaimRef is part of a bi-directional binding between PersistentVolume and PersistentVolumeClaim.
+    # Expected to be non-nil when bound. claim.VolumeName is the authoritative bind between PV and PVC.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#binding
+    claim_ref: Optional[ClaimRef] = None
 
     def create(self) -> Optional[PersistentVolume]:
         """Creates the PersistentVolume resource"""
@@ -77,7 +85,6 @@ class CreatePersistentVolume(BaseModel):
             kind=Kind.PERSISTENTVOLUME,
             metadata=ObjectMeta(
                 name=pv_name,
-                namespace=self.namespace,
                 labels=pv_labels,
             ),
             spec=PersistentVolumeSpec(
@@ -88,6 +95,7 @@ class CreatePersistentVolume(BaseModel):
                 persistent_volume_reclaim_policy=self.persistent_volume_reclaim_policy,
                 storage_class_name=self.storage_class_name,
                 volume_mode=self.volume_mode,
+                claim_ref=self.claim_ref,
             ),
         )
 
@@ -115,6 +123,20 @@ class CreatePersistentVolume(BaseModel):
             else:
                 print_error(
                     f"PersistentVolume {self.volume_type.value} selected but GcePersistentDiskVolumeSource not provided."
+                )
+        elif self.volume_type == VolumeType.NFS:
+            if self.nfs is not None and isinstance(self.nfs, NFSVolumeSource):
+                persistent_volume.spec.nfs = self.nfs
+            else:
+                print_error(
+                    f"PersistentVolume {self.volume_type.value} selected but NFSVolumeSource not provided."
+                )
+        elif self.volume_type == VolumeType.PERSISTENT_VOLUME_CLAIM:
+            if self.claim_ref is not None and isinstance(self.claim_ref, ClaimRef):
+                persistent_volume.spec.claim_ref = self.claim_ref
+            else:
+                print_error(
+                    f"PersistentVolume {self.volume_type.value} selected but ClaimRef not provided."
                 )
 
         return persistent_volume

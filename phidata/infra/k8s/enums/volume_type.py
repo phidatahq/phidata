@@ -11,3 +11,4 @@ class VolumeType(ExtendedEnum):
     GIT_REPO = "GIT_REPO"
     HOST_PATH = "HOST_PATH"
     LOCAL = "LOCAL"
+    NFS = "NFS"

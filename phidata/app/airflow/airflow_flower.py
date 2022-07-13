@@ -121,7 +121,7 @@ class AirflowFlower(AirflowBase):
         redis_port: Optional[int] = None,
         # redis_driver can be provided here or as the
         # REDIS_DRIVER env var in the secrets_file
-        redis_driver: str = "redis",
+        redis_driver: str = "rediss",
         # Configure the container,
         container_name: Optional[str] = None,
         image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,

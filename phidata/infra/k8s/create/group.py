@@ -8,6 +8,8 @@ from phidata.infra.k8s.create.core.v1.namespace import CreateNamespace
 from phidata.infra.k8s.create.core.v1.secret import CreateSecret
 from phidata.infra.k8s.create.core.v1.service import CreateService
 from phidata.infra.k8s.create.core.v1.service_account import CreateServiceAccount
+from phidata.infra.k8s.create.core.v1.persistent_volume import CreatePersistentVolume
+from phidata.infra.k8s.create.core.v1.persistent_volume_claim import CreatePVC
 from phidata.infra.k8s.create.apiextensions_k8s_io.v1.custom_resource_definition import (
     CreateCustomResourceDefinition,
 )
@@ -44,6 +46,8 @@ class CreateK8sResourceGroup(BaseModel):
     deployments: Optional[List[CreateDeployment]] = None
     custom_objects: Optional[List[CreateCustomObject]] = None
     crds: Optional[List[CreateCustomResourceDefinition]] = None
+    pvs: Optional[List[CreatePersistentVolume]] = None
+    pvcs: Optional[List[CreatePVC]] = None
 
     def create(self) -> Optional[K8sResourceGroup]:
         """Creates the K8sResourceGroup"""
@@ -326,6 +330,64 @@ class CreateK8sResourceGroup(BaseModel):
                         crd_resources.append(_crd_resource)
                 if len(crd_resources) >= 0:
                     k8s_resource_group.crds = crd_resources
+
+            ######################################################
+            ## Create PersistentVolume
+            ######################################################
+            if key == "pvs":
+                if not isinstance(value, List):
+                    logger.error(
+                        f"Expected: List[CreatePersistentVolume]. Received: {type(value)}. Skipping."
+                    )
+                    continue
+
+                # Add necessary imports here to speed up file load time
+                from phidata.infra.k8s.resource.core.v1.persistent_volume import (
+                    PersistentVolume,
+                )
+
+                pv_resources: List[PersistentVolume] = []
+                for _pv in value:
+                    if not isinstance(_pv, CreatePersistentVolume):
+                        logger.error(
+                            f"Expected: CreatePersistentVolume. Received: {type(_pv)}. Skipping."
+                        )
+                        continue
+                    _pv_resource: Optional[PersistentVolume] = _pv.create()
+                    if _pv_resource is not None:
+                        pv_resources.append(_pv_resource)
+                # logger.debug(pv_resources)
+                if len(pv_resources) >= 0:
+                    k8s_resource_group.pvs = pv_resources
+
+            ######################################################
+            ## Create PersistentVolumeClaim
+            ######################################################
+            if key == "pvcs":
+                if not isinstance(value, List):
+                    logger.error(
+                        f"Expected: List[CreatePVC]. Received: {type(value)}. Skipping."
+                    )
+                    continue
+
+                # Add necessary imports here to speed up file load time
+                from phidata.infra.k8s.resource.core.v1.persistent_volume_claim import (
+                    PersistentVolumeClaim,
+                )
+
+                pvc_resources: List[PersistentVolumeClaim] = []
+                for _pvc in value:
+                    if not isinstance(_pvc, CreatePVC):
+                        logger.error(
+                            f"Expected: CreatePVC. Received: {type(_pvc)}. Skipping."
+                        )
+                        continue
+                    _pvc_resource: Optional[PersistentVolumeClaim] = _pvc.create()
+                    if _pvc_resource is not None:
+                        pvc_resources.append(_pvc_resource)
+                # logger.debug(pvc_resources)
+                if len(pvc_resources) >= 0:
+                    k8s_resource_group.pvcs = pvc_resources
 
         logger.debug(f"-*- Initialized K8sResourceGroup for: {self.name}")
         return k8s_resource_group

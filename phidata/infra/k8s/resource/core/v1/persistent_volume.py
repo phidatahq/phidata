@@ -15,6 +15,8 @@ from phidata.infra.k8s.resource.core.v1.volume_source import (
     GcePersistentDiskVolumeSource,
     LocalVolumeSource,
     HostPathVolumeSource,
+    NFSVolumeSource,
+    ClaimRef,
 )
 from phidata.infra.k8s.resource.core.v1.volume_node_affinity import VolumeNodeAffinity
 from phidata.utils.log import logger
@@ -75,6 +77,14 @@ class PersistentVolumeSpec(K8sObject):
     gce_persistent_disk: Optional[GcePersistentDiskVolumeSource] = Field(
         None, alias="gcePersistentDisk"
     )
+    # NFS represents an NFS mount on the host. Provisioned by an admin.
+    # More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs
+    nfs: Optional[NFSVolumeSource] = None
+
+    # ClaimRef is part of a bi-directional binding between PersistentVolume and PersistentVolumeClaim.
+    # Expected to be non-nil when bound. claim.VolumeName is the authoritative bind between PV and PVC.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#binding
+    claim_ref: Optional[ClaimRef] = Field(None, alias="claimRef")
 
     def get_k8s_object(
         self,
@@ -91,6 +101,8 @@ class PersistentVolumeSpec(K8sObject):
             volume_mode=self.volume_mode,
             local=self.local.get_k8s_object() if self.local else None,
             host_path=self.host_path.get_k8s_object() if self.host_path else None,
+            nfs=self.nfs.get_k8s_object() if self.nfs else None,
+            claim_ref=self.claim_ref.get_k8s_object() if self.claim_ref else None,
             gce_persistent_disk=self.gce_persistent_disk.get_k8s_object()
             if self.gce_persistent_disk
             else None,

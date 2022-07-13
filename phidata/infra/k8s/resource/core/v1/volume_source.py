@@ -4,6 +4,8 @@ from kubernetes.client.models.v1_aws_elastic_block_store_volume_source import (
     V1AWSElasticBlockStoreVolumeSource,
 )
 from kubernetes.client.models.v1_local_volume_source import V1LocalVolumeSource
+from kubernetes.client.models.v1_nfs_volume_source import V1NFSVolumeSource
+from kubernetes.client.models.v1_object_reference import V1ObjectReference
 from kubernetes.client.models.v1_host_path_volume_source import V1HostPathVolumeSource
 from kubernetes.client.models.v1_config_map_volume_source import V1ConfigMapVolumeSource
 from kubernetes.client.models.v1_empty_dir_volume_source import V1EmptyDirVolumeSource
@@ -281,6 +283,60 @@ class PersistentVolumeClaimVolumeSource(K8sObject):
         return _v1_persistent_volume_claim_volume_source
 
 
+class NFSVolumeSource(K8sObject):
+    """
+    # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#nfsvolumesource-v1-core
+    """
+
+    resource_type: str = "NFSVolumeSource"
+
+    # Path that is exported by the NFS server.
+    # More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs
+    path: str
+    # ReadOnly here will force the NFS export to be mounted with read-only permissions.
+    # Defaults to false. More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs
+    read_only: Optional[bool] = Field(None, alias="readOnly")
+    # Server is the hostname or IP address of the NFS server.
+    # More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs
+    server: Optional[str] = None
+
+    def get_k8s_object(
+        self,
+    ) -> V1NFSVolumeSource:
+        # Return a V1NFSVolumeSource object
+        # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_nfs_volume_source.py
+        _v1_nfs_volume_source = V1NFSVolumeSource(
+            path=self.path, read_only=self.read_only, server=self.server
+        )
+        return _v1_nfs_volume_source
+
+
+class ClaimRef(K8sObject):
+    """
+    # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#persistentvolumespec-v1-core
+    """
+
+    resource_type: str = "ClaimRef"
+
+    # Name of the referent.
+    # More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+    name: Optional[str] = None
+    # Namespace of the referent.
+    # More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+    namespace: Optional[str] = None
+
+    def get_k8s_object(
+        self,
+    ) -> V1ObjectReference:
+        # Return a V1ObjectReference object
+        # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_object_reference.py
+        _v1_object_reference = V1ObjectReference(
+            name=self.name,
+            namespace=self.namespace,
+        )
+        return _v1_object_reference
+
+
 VolumeSourceType = Union[
     AwsElasticBlockStoreVolumeSource,
     ConfigMapVolumeSource,
@@ -289,4 +345,5 @@ VolumeSourceType = Union[
     GitRepoVolumeSource,
     PersistentVolumeClaimVolumeSource,
     SecretVolumeSource,
+    NFSVolumeSource,
 ]

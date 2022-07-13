@@ -10,10 +10,7 @@ class K8sManagerStatus(ExtendedEnum):
     # Level 1: Ready to deploy resources
     WORKER_READY = "WORKER_READY"
 
-    # Level 2: Resources initialized
-    RESOURCES_INIT = "RESOURCES_INIT"
-
-    # Level 3: Resources active
+    # Level 2: Resources active
     RESOURCES_ACTIVE = "RESOURCES_ACTIVE"
 
     # Errors
@@ -22,7 +19,6 @@ class K8sManagerStatus(ExtendedEnum):
     def can_create_resources(self) -> bool:
         return self in (
             K8sManagerStatus.WORKER_READY,
-            K8sManagerStatus.RESOURCES_INIT,
             K8sManagerStatus.RESOURCES_ACTIVE,
         )
 
@@ -35,12 +31,11 @@ class K8sManagerStatus(ExtendedEnum):
     def can_get_resources(self) -> bool:
         return self in (
             K8sManagerStatus.WORKER_READY,
-            K8sManagerStatus.RESOURCES_INIT,
+            K8sManagerStatus.RESOURCES_ACTIVE,
         )
 
     def can_read_resources(self) -> bool:
         return self in (
             K8sManagerStatus.WORKER_READY,
-            K8sManagerStatus.RESOURCES_INIT,
             K8sManagerStatus.RESOURCES_ACTIVE,
         )

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -6,7 +7,7 @@ from pydantic import BaseModel
 
 class RunContext(BaseModel):
     # Run specific variables
-    run_date: str
+    run_date: datetime
     dry_run: bool = False
     detach: bool = False
     run_status: bool = False

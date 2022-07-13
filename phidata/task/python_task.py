@@ -88,7 +88,7 @@ class PythonTask(Task):
 
         dry_run: bool = self.run_context.dry_run if self.run_context else False
         if dry_run:
-            logger.info("Dry run, returning True")
+            logger.info("Dry run")
             return True
 
         run_status: bool = False
@@ -148,7 +148,7 @@ class PythonTask(Task):
             logger.error("dag_id unavailable")
             return False
 
-        run_date: str = self.args.run_date
+        run_date: str = self.args.run_date.strftime("%Y-%m-%d")
         dry_run: bool = self.run_context.dry_run if self.run_context else False
         if dry_run:
             logger.debug("Dry run")
@@ -243,7 +243,7 @@ class PythonTask(Task):
             logger.error("dag_id unavailable")
             return False
 
-        run_date: str = self.args.run_date
+        run_date: str = self.args.run_date.strftime("%Y-%m-%d")
         dry_run: Optional[bool] = self.run_context.dry_run if self.run_context else None
         airflow_cmd_dry_run_str: str = " -n" if dry_run else ""
 
@@ -299,7 +299,7 @@ class PythonTask(Task):
         # logger.info(f"args: {self.args}")
         # logger.info(f"dag: {dag}")
         if self.args is None:
-            return False
+            return None
 
         # Important: Validate that PathContext is available
         # logger.info(f"path_context: {self.path_context}")
@@ -307,6 +307,7 @@ class PythonTask(Task):
             return False
 
         from airflow.models.dag import DAG
+        from airflow.operators.empty import EmptyOperator
         from airflow.operators.python import PythonOperator
 
         if dag is None or not isinstance(dag, DAG):
@@ -323,6 +324,9 @@ class PythonTask(Task):
         task_id = self.task_id
         # logger.info(f"Creating airflow task: {task_id}")
 
+        if not self.args.enabled:
+            return EmptyOperator(task_id=task_id, dag=dag)
+
         # Function to run
         entrypoint = (
             self.args.entrypoint
@@ -338,6 +342,7 @@ class PythonTask(Task):
             op_kwargs=self.args.dict(),
         )
         logger.info(f"Airflow task: {task_id} created")
+
         return airflow_task
 
 

@@ -59,7 +59,7 @@ class K8sApiClient(InfraApiClient):
                     client_configuration=self.configuration, context=self.context
                 )
             except kubernetes.config.ConfigException as config_exc:
-                # Usually because the context is not in the kubeocnfig
+                # Usually because the context is not in the kubeconfig
                 kubernetes.config.load_kube_config(
                     client_configuration=self.configuration
                 )

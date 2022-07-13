@@ -52,15 +52,9 @@ class PhidataAppArgs(PhidataBaseArgs):
     aws_config_file: Optional[str] = None
     aws_shared_credentials_file: Optional[str] = None
 
-    # These are passed down from the K8sConfig -> K8sArgs -> PhidataApp
-    # K8s namespace to use
-    namespace: str = "default"
-    # K8s context to use
-    context: Optional[str] = None
-    # K8s service account to use
-    service_account_name: Optional[str] = None
-    # Common K8s labels to add to all resources
-    common_labels: Optional[Dict[str, str]] = None
+    # Extra kwargs used to ensure older versions of `phidata` don't
+    # throw syntax errors
+    extra_kwargs: Optional[Dict[str, Any]] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -200,42 +194,6 @@ class PhidataApp(PhidataBase):
     def aws_shared_credentials_file(self, aws_shared_credentials_file: str) -> None:
         if self.args is not None and aws_shared_credentials_file is not None:
             self.args.aws_shared_credentials_file = aws_shared_credentials_file
-
-    @property
-    def namespace(self) -> Optional[str]:
-        return self.args.namespace if self.args else None
-
-    @namespace.setter
-    def namespace(self, namespace: str) -> None:
-        if self.args is not None and namespace is not None:
-            self.args.namespace = namespace
-
-    @property
-    def context(self) -> Optional[str]:
-        return self.args.context if self.args else None
-
-    @context.setter
-    def context(self, context: str) -> None:
-        if self.args is not None and context is not None:
-            self.args.context = context
-
-    @property
-    def service_account_name(self) -> Optional[str]:
-        return self.args.service_account_name if self.args else None
-
-    @service_account_name.setter
-    def service_account_name(self, service_account_name: str) -> None:
-        if self.args is not None and service_account_name is not None:
-            self.args.service_account_name = service_account_name
-
-    @property
-    def common_labels(self) -> Optional[Dict[str, str]]:
-        return self.args.common_labels if self.args else None
-
-    @common_labels.setter
-    def common_labels(self, common_labels: Dict[str, str]) -> None:
-        if self.args is not None and common_labels is not None:
-            self.args.common_labels = common_labels
 
     ######################################################
     ## DockerResourceGroup

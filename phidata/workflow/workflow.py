@@ -80,7 +80,7 @@ class WorkflowArgs(PhidataBaseArgs):
         return validate_env_vars(self.validate_airflow_env)
 
     @property
-    def run_date(self) -> str:
+    def run_date(self) -> datetime:
         return get_run_date(self.run_context, self.airflow_context)
 
     @classmethod
@@ -488,7 +488,11 @@ class Workflow(PhidataBase):
     ######################################################
 
     def run_task_in_local_env(self, task: Task) -> RunStatus:
+
         _task_id = task.task_id
+        if not task.enabled:
+            return RunStatus(name=_task_id, success=True)
+
         print_info(f"\nRunning task: {_task_id}")
         # Pass down context
         task.run_context = self.run_context
@@ -552,7 +556,11 @@ class Workflow(PhidataBase):
         active_container: Any,
         docker_env: Optional[Dict[str, str]] = None,
     ) -> RunStatus:
+
         _task_id = task.task_id
+        if not task.enabled:
+            return RunStatus(name=_task_id, success=True)
+
         print_info(f"\nRunning task: {_task_id}")
         # Pass down context
         task.run_context = self.run_context

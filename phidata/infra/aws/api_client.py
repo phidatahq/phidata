@@ -45,7 +45,8 @@ class AwsApiClient(InfraApiClient):
             logger.debug(f"\taws_region: {session.region_name}")
             logger.debug(f"\taws_profile: {session.profile_name}")
         except Exception as e:
-            logger.exception(e)
+            raise
+
         if session is None:
             raise AwsApiClientException("Could not create boto3.Session")
         return session

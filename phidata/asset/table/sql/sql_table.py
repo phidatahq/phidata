@@ -400,8 +400,8 @@ class SqlTable(DataAsset):
             logger.info(
                 f"The result object was closed automatically, returning no rows."
             )
-        except Exception as e:
-            logger.error(f"Sql query failed: {e}")
+        # except Exception as e:
+        #     logger.error(f"Sql query failed: {e}")
         return None
 
     ######################################################

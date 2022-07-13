@@ -68,7 +68,7 @@ class DataProductArgs(PhidataBaseArgs):
         return validate_env_vars(self.validate_airflow_env)
 
     @property
-    def run_date(self) -> str:
+    def run_date(self) -> datetime:
         return get_run_date(self.run_context, self.airflow_context)
 
     @classmethod

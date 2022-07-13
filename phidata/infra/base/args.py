@@ -47,11 +47,11 @@ class InfraArgs(PhidataBaseArgs):
     # -*- `phi` cli parameters
     # Set to True if `phi` should continue creating
     # resources after a resource creation has failed
-    continue_on_create_failure: bool = False
+    continue_on_create_failure: Optional[bool] = None
     # Set to True if `phi` should continue deleting
     # resources after a resource deleting has failed
     # Defaults to True because we normally want to continue deleting
-    continue_on_delete_failure: bool = True
+    continue_on_delete_failure: Optional[bool] = None
     # Set to True if `phi` should continue patching
     # resources after a resource patch has failed
-    continue_on_patch_failure: bool = False
+    continue_on_patch_failure: Optional[bool] = None

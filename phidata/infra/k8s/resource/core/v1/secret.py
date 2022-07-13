@@ -22,8 +22,8 @@ class Secret(K8sResource):
     resource_type: str = "Secret"
 
     type: str
-    data: Optional[Dict[str, Any]] = None
-    string_data: Optional[Dict[str, Any]] = Field(None, alias="stringData")
+    data: Optional[Dict[str, str]] = None
+    string_data: Optional[Dict[str, str]] = Field(None, alias="stringData")
 
     # List of attributes to include in the K8s manifest
     fields_for_k8s_manifest: List[str] = ["type", "data", "string_data"]

@@ -31,41 +31,39 @@ from phidata.utils.log import logger
 
 
 class DockerWorker:
-    """This class interacts with the Docker API on behalf of phidata and DockerManager."""
+    """This class interacts with the Docker API."""
 
     def __init__(self, docker_args: DockerArgs) -> None:
         self.docker_args: DockerArgs = docker_args
         self.docker_client: DockerApiClient = DockerApiClient(
             base_url=self.docker_args.base_url
         )
-        self.docker_resources: Optional[Dict[str, DockerResourceGroup]] = None
         logger.debug(f"**-+-** DockerWorker created")
 
     def is_client_initialized(self) -> bool:
         return self.docker_client.is_initialized()
-
-    def are_resources_initialized(self) -> bool:
-        if self.docker_resources is not None and len(self.docker_resources) > 0:
-            return True
-        return False
 
     def are_resources_active(self) -> bool:
         # TODO: fix this
         return False
 
     ######################################################
-    ## Init Resources
+    ## Build Resources
     ######################################################
 
-    def init_resources(self) -> None:
+    def build_docker_resource_groups(
+        self, app_filter: Optional[str] = None
+    ) -> Optional[Dict[str, DockerResourceGroup]]:
         """
-        This function populates the self.docker_resources dictionary.
+        Build the DockerResourceGroups for the requested apps
 
         Step 1: Convert each PhidataApp to DockerResourceGroups.
         Step 2: Convert any default resources from DockerConfig to a DockerResourceGroup
         Step 3: Add all DockerResourceGroups to the self.docker_resources dict
         """
         logger.debug("-*- Initializing DockerResourceGroups")
+
+        docker_resource_groups: Optional[Dict[str, DockerResourceGroup]] = None
 
         # track the total number of DockerResourceGroups to build for validation
         apps_to_build = self.docker_args.apps
@@ -82,25 +80,69 @@ class DockerWorker:
                 if app.args is None:
                     print_error("Args for App {} are None".format(app))
                     continue
+
+                if not app.enabled:
+                    logger.debug(f"{app.name} disabled")
+                    num_rgs_built += 1
+                    continue
+
+                # skip groups not matching app_filter if provided
+                if app_filter is not None:
+                    if app_filter.lower() not in app.name:
+                        logger.debug(f"Skipping {app.name}")
+                        num_rgs_built += 1
+                        continue
+
                 logger.debug("-*- App: {}".format(app.name))
 
                 ######################################################################
                 # NOTE: VERY IMPORTANT TO GET RIGHT
-                # Pass down the paths and env
-                # from  WorkspaceConfig -> DockerConfig -> PhidataApp
+                # Pass down parameters from DockerArgs -> PhidataApp
+                # The DockerConfig inherits these params from the WorkspaceConfig
+                # 1. Pass down the paths from the WorkspaceConfig
+                # 2. Pass down docker_env
+                # 3. Pass down common cloud configuration. eg: aws_region, aws_profile
+                # This should match phidata.infra.prep_infra_config.prep_infra_config()
                 ######################################################################
 
-                app.workspace_root_path = self.docker_args.workspace_root_path
-                app.workspace_config_file_path = (
-                    self.docker_args.workspace_config_file_path
-                )
+                # -*- Path parameters
                 app.scripts_dir = self.docker_args.scripts_dir
                 app.storage_dir = self.docker_args.storage_dir
                 app.meta_dir = self.docker_args.meta_dir
                 app.products_dir = self.docker_args.products_dir
                 app.notebooks_dir = self.docker_args.notebooks_dir
+                # The ws_root_path is the ROOT directory for the workspace
+                app.workspace_root_path = self.docker_args.workspace_root_path
                 app.workspace_config_dir = self.docker_args.workspace_config_dir
-                app.docker_env = self.docker_args.docker_env
+                app.workspace_config_file_path = (
+                    self.docker_args.workspace_config_file_path
+                )
+
+                # -*- Environment parameters
+                # only update the params if they are not available on the app.
+                # so we can prefer the app param if provided
+                if app.docker_env is None and self.docker_args.docker_env is not None:
+                    app.docker_env = self.docker_args.docker_env
+
+                # -*- AWS parameters
+                # only update the params if they are not available on the app.
+                # so we can prefer the app param if provided
+                if app.aws_region is None and self.docker_args.aws_region is not None:
+                    app.aws_region = self.docker_args.aws_region
+                if app.aws_profile is None and self.docker_args.aws_profile is not None:
+                    app.aws_profile = self.docker_args.aws_profile
+                if (
+                    app.aws_config_file is None
+                    and self.docker_args.aws_config_file is not None
+                ):
+                    app.aws_config_file = self.docker_args.aws_config_file
+                if (
+                    app.aws_shared_credentials_file is None
+                    and self.docker_args.aws_shared_credentials_file is not None
+                ):
+                    app.aws_shared_credentials_file = (
+                        self.docker_args.aws_shared_credentials_file
+                    )
 
                 app_rgs: Optional[
                     Dict[str, DockerResourceGroup]
@@ -110,9 +152,9 @@ class DockerWorker:
                     )
                 )
                 if app_rgs is not None:
-                    if self.docker_resources is None:
-                        self.docker_resources = OrderedDict()
-                    self.docker_resources.update(app_rgs)
+                    if docker_resource_groups is None:
+                        docker_resource_groups = OrderedDict()
+                    docker_resource_groups.update(app_rgs)
                     num_rgs_built += 1
 
         # Step 2: Convert any default resources from DockerConfig to a DockerResourceGroup
@@ -120,7 +162,7 @@ class DockerWorker:
             logger.debug("Adding default DockerResourceGroup")
             num_rgs_to_build += 1
             default_docker_rg = DockerResourceGroup(
-                weight=10,
+                # weight=10,
                 images=self.docker_args.images,
                 containers=self.docker_args.containers,
                 volumes=self.docker_args.volumes,
@@ -129,25 +171,35 @@ class DockerWorker:
                 self.docker_args.resources = []
             self.docker_args.resources.append(default_docker_rg)
 
-        # Step 3: Add all DockerResourceGroups to the self.docker_resources dict
+        # Step 3: Add all DockerResourceGroups to the docker_resource_groups dict
         if self.docker_args.resources is not None and isinstance(
             self.docker_args.resources, list
         ):
             for resource in self.docker_args.resources:
                 if not resource.enabled:
                     logger.debug(f"{resource.name} disabled")
+                    num_rgs_built += 1
                     continue
+
+                # skip groups not matching app_filter if provided
+                if app_filter is not None:
+                    if app_filter.lower() not in resource.name:
+                        logger.debug(f"Skipping {resource.name}")
+                        num_rgs_built += 1
+                        continue
+
                 logger.debug("-*- Resource: {}".format(resource.name))
 
                 if isinstance(resource, DockerResourceGroup):
-                    if self.docker_resources is None:
-                        self.docker_resources = OrderedDict()
-                    self.docker_resources[resource.name] = resource
+                    if docker_resource_groups is None:
+                        docker_resource_groups = OrderedDict()
+                    docker_resource_groups[resource.name] = resource
                     num_rgs_built += 1
 
         logger.debug(
             f"# DockerResourceGroups built: {num_rgs_built}/{num_rgs_to_build}"
         )
+        return docker_resource_groups
 
     ######################################################
     ## Create Resources
@@ -161,16 +213,19 @@ class DockerWorker:
         auto_confirm: Optional[bool] = False,
     ) -> bool:
         logger.debug("-*- Creating DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No resources available")
-                return False
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return True
 
         docker_resources_to_create: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
@@ -187,7 +242,9 @@ class DockerWorker:
             print_info(f"\nTotal {len(docker_resources_to_create)} resources")
             confirm = confirm_yes_no("\nConfirm deploy")
             if not confirm:
-                print_info("Skipping deploy")
+                print_info("-*-")
+                print_info("-*- Skipping deploy")
+                print_info("-*-")
                 return False
 
         # track the total number of DockerResources to create for validation
@@ -236,16 +293,19 @@ class DockerWorker:
         auto_confirm: Optional[bool] = False,
     ) -> None:
         logger.debug("-*- Creating DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No resources available")
-                return
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return
 
         docker_resources_to_create: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
@@ -272,16 +332,19 @@ class DockerWorker:
     ) -> Optional[List[DockerResource]]:
 
         logger.debug("-*- Getting DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No DockerResources available")
-                return None
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return None
 
         docker_resources: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
@@ -301,16 +364,19 @@ class DockerWorker:
         auto_confirm: Optional[bool] = False,
     ) -> bool:
         logger.debug("-*- Deleting DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No resources available")
-                return False
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return True
 
         docker_resources_to_delete: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
@@ -377,16 +443,19 @@ class DockerWorker:
         auto_confirm: Optional[bool] = False,
     ) -> None:
         logger.debug("-*- Deleting DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No resources available")
-                return
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return
 
         docker_resources_to_delete: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
@@ -414,16 +483,19 @@ class DockerWorker:
         auto_confirm: Optional[bool] = False,
     ) -> bool:
         logger.debug("-*- Patching DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No resources available")
-                return False
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return True
 
         docker_resources_to_patch: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
@@ -489,16 +561,19 @@ class DockerWorker:
         auto_confirm: Optional[bool] = False,
     ) -> None:
         logger.debug("-*- Patching DockerResources")
-        if self.docker_resources is None:
-            self.init_resources()
-            if self.docker_resources is None:
-                print_info("No resources available")
-                return
+
+        docker_resource_groups: Optional[
+            Dict[str, DockerResourceGroup]
+        ] = self.build_docker_resource_groups(app_filter=app_filter)
+
+        if docker_resource_groups is None:
+            print_info("No resources available")
+            return
 
         docker_resources_to_patch: List[
             DockerResource
         ] = filter_and_flatten_docker_resource_groups(
-            docker_resource_groups=self.docker_resources,
+            docker_resource_groups=docker_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,

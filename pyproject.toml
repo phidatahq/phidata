@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "0.1.59"
-description = "Build data products as code"
+version = "0.2.0.dev3"
+description = "DIY data platform as code"
 requires-python = ">3.7"
 readme = "README.md"
 authors = [
@@ -9,14 +9,10 @@ authors = [
 ]
 
 dependencies = [
+  "awswrangler",
   "boto3",
-  "docker",
-  "gitpython",
-  "kubernetes",
-  "phiterm>=0.1.49",
-  "packaging",
+  "phiterm>=0.2.0.dev3",
   "pydantic",
-  "python-dotenv",
   "pyyaml",
   "rich",
   "types-PyYAML",
@@ -31,7 +27,7 @@ dev = [
 
 [project.urls]
 homepage = "https://www.phidata.com"
-documentation = "https://www.phidata.com/docs"
+documentation = "https://www.docs.phidata.com"
 
 [build-system]
 requires = ["setuptools"]
@@ -46,7 +42,6 @@ exclude = [
   "phidata/workflow/dev", # exclude dev workflows from mypy
   "phidata/product/dev", # exclude dev products from mypy
   "phidata/task/dev", # exclude dev tasks from mypy
-  "phidata/app/superset",
 ]
 
 [[tool.mypy.overrides]]

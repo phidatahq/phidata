@@ -5,7 +5,7 @@ import sys
 def get_simple_logger(logger_name: str) -> logging.Logger:
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
+    # handler.setLevel(logging.INFO)
     simple_formatter = logging.Formatter(
         "%(lineno)d - %(filename)s - %(levelname)s - %(message)s"
     )
@@ -17,8 +17,8 @@ def get_simple_logger(logger_name: str) -> logging.Logger:
 
     _logger = logging.getLogger(logger_name)
     _logger.addHandler(handler)
-    _logger.setLevel(logging.DEBUG)
-    _logger.propagate = False
+    _logger.setLevel(logging.INFO)
+    _logger.propagate = True
     return _logger
 
 
@@ -29,7 +29,10 @@ def get_rich_logger(logger_name: str, show_path: bool = False) -> logging.Logger
     # https://rich.readthedocs.io/en/latest/reference/logging.html#rich.logging.RichHandler
     # https://rich.readthedocs.io/en/latest/logging.html#handle-exceptions
     rich_handler = RichHandler(
-        rich_tracebacks=False, show_time=False, show_path=show_path
+        show_time=False,
+        rich_tracebacks=False,
+        show_path=show_path,
+        tracebacks_show_locals=False,
     )
     rich_handler.setFormatter(
         logging.Formatter(

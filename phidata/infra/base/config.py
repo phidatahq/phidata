@@ -310,7 +310,7 @@ class InfraConfig(PhidataBase):
         return False
 
     @property
-    def continue_on_create_failure(self) -> bool:
+    def continue_on_create_failure(self) -> Optional[bool]:
         return self.args.continue_on_create_failure if self.args else False
 
     @continue_on_create_failure.setter
@@ -319,7 +319,7 @@ class InfraConfig(PhidataBase):
             self.args.continue_on_create_failure = continue_on_create_failure
 
     @property
-    def continue_on_delete_failure(self) -> bool:
+    def continue_on_delete_failure(self) -> Optional[bool]:
         return self.args.continue_on_delete_failure if self.args else False
 
     @continue_on_delete_failure.setter
@@ -328,7 +328,7 @@ class InfraConfig(PhidataBase):
             self.args.continue_on_delete_failure = continue_on_delete_failure
 
     @property
-    def continue_on_patch_failure(self) -> bool:
+    def continue_on_patch_failure(self) -> Optional[bool]:
         return self.args.continue_on_patch_failure if self.args else False
 
     @continue_on_patch_failure.setter

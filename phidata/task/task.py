@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, Any, Dict
 
 from phidata.base import PhidataBase, PhidataBaseArgs
@@ -21,7 +22,7 @@ class TaskArgs(PhidataBaseArgs):
     airflow_context: Optional[AirflowContext] = None
 
     @property
-    def run_date(self) -> str:
+    def run_date(self) -> datetime:
         return get_run_date(self.run_context, self.airflow_context)
 
     @classmethod

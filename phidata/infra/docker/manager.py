@@ -1,12 +1,12 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from phidata.infra.docker.args import DockerArgs
 from phidata.infra.docker.enums import DockerManagerStatus
 from phidata.infra.docker.exceptions import DockerArgsException
 from phidata.infra.docker.resource.base import DockerResource
+from phidata.infra.docker.resource.group import DockerResourceGroup
 from phidata.infra.docker.worker import DockerWorker
-from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
 
 
@@ -44,13 +44,6 @@ class DockerManager:
         if self.docker_status == DockerManagerStatus.WORKER_READY:
             if (
                 self.docker_worker is not None
-                and self.docker_worker.are_resources_initialized()
-            ):
-                self.docker_status = DockerManagerStatus.RESOURCES_INIT
-
-        if self.docker_status == DockerManagerStatus.RESOURCES_INIT:
-            if (
-                self.docker_worker is not None
                 and self.docker_worker.are_resources_active()
             ):
                 self.docker_status = DockerManagerStatus.RESOURCES_ACTIVE
@@ -78,7 +71,6 @@ class DockerManager:
             logger.debug("No worker available")
             return
 
-        # logger.debug("Creating resources dry run")
         self.docker_worker.create_resources_dry_run(
             name_filter=name_filter,
             type_filter=type_filter,
@@ -120,13 +112,29 @@ class DockerManager:
         return True
 
     ######################################################
-    ## Read Resources
+    ## Get Resources
     ######################################################
+
+    def get_resource_groups(
+        self,
+        app_filter: Optional[str] = None,
+    ) -> Optional[Dict[str, DockerResourceGroup]]:
+
+        status = self.get_status()
+        if not status.can_get_resources():
+            logger.debug("Cannot get resources")
+            return None
+        if self.docker_worker is None:
+            logger.debug("No worker available")
+            return None
+
+        return self.docker_worker.build_docker_resource_groups(app_filter=app_filter)
 
     def get_resources(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> Optional[List[DockerResource]]:
 
         status = self.get_status()
@@ -137,7 +145,9 @@ class DockerManager:
             logger.debug("No worker available")
             return None
 
-        return self.docker_worker.get_resources(name_filter, type_filter)
+        return self.docker_worker.get_resources(
+            name_filter=name_filter, type_filter=type_filter, app_filter=app_filter
+        )
 
     ######################################################
     ## Delete Resources

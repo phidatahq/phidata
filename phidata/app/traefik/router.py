@@ -63,18 +63,22 @@ class LoadBalancerProvider(ExtendedEnum):
     AWS = "AWS"
 
 
-class IngressRouteArgs(PhidataAppArgs):
+class TraefikRouterArgs(PhidataAppArgs):
     name: str = "traefik"
     version: str = "1"
     enabled: bool = True
 
     # Image Args
     image_name: str = "traefik"
-    image_tag: str = "v2.6"
+    image_tag: str = "v2.8"
+    # Args for the container
+    container_args: Optional[List[str]] = None
 
-    domain_name: Optional[str] = None
+    # Install K8s CRDs
+    # Set to False when multiple TraefikRouters are installed
+    # in the same cluster.
+    install_crds: bool = True
 
-    # Configure traefik
     web_enabled: bool = False
     web_routes: Optional[List[dict]] = None
     web_container_port: int = 80
@@ -92,6 +96,8 @@ class IngressRouteArgs(PhidataAppArgs):
     websecure_key: str = "websecure"
     websecure_ingress_name: str = "websecure-ingress"
 
+    # domain name for the dashboard
+    domain_name: Optional[str] = None
     dashboard_enabled: bool = False
     dashboard_routes: Optional[List[dict]] = None
     dashboard_container_port: int = 8080
@@ -107,7 +113,6 @@ class IngressRouteArgs(PhidataAppArgs):
     dashboard_auth_users: Optional[str] = None
     insecure_api_access: bool = False
 
-    # Traefik config
     # Enable Access Logs
     access_logs: bool = True
     # Traefik config file on the host
@@ -115,20 +120,91 @@ class IngressRouteArgs(PhidataAppArgs):
     # Traefik config file on the container
     traefik_config_file_container_path: Path = Path("/etc/traefik/traefik.yaml")
 
-    # Configure rbac
-    sa_name: Optional[str] = None
-    cr_name: Optional[str] = None
-    crb_name: Optional[str] = None
     # Configure the container
     container_name: Optional[str] = None
-    container_args: Optional[List[str]] = None
+    # Add labels to the container
+    container_labels: Optional[Dict[str, Any]] = None
+
+    # Docker configuration
+    # NOTE: Only available for Docker
+    # Run container in the background and return a Container object.
+    container_detach: bool = True
+    # Enable auto-removal of the container on daemon side when the container’s process exits.
+    container_auto_remove: bool = True
+    # Remove the container when it has finished running. Default: False.
+    container_remove: bool = True
+    # Username or UID to run commands as inside the container.
+    container_user: Optional[Union[str, int]] = None
+    # Keep STDIN open even if not attached.
+    container_stdin_open: bool = True
+    container_tty: bool = True
+    # Specify a test to perform to check that the container is healthy.
+    container_healthcheck: Optional[Dict[str, Any]] = None
+    # Optional hostname for the container.
+    container_hostname: Optional[str] = None
+    # Platform in the format os[/arch[/variant]].
+    container_platform: str = "linux/amd64"
+    # Path to the working directory.
+    container_working_dir: Optional[str] = None
+    # Restart the container when it exits. Configured as a dictionary with keys:
+    # Name: One of on-failure, or always.
+    # MaximumRetryCount: Number of times to restart the container on failure.
+    # For example: {"Name": "on-failure", "MaximumRetryCount": 5}
+    container_restart_policy_docker: Optional[Dict[str, Any]] = None
+    # Add volumes to DockerContainer
+    # container_volumes is a dictionary which adds the volumes to mount
+    # inside the container. The key is either the host path or a volume name,
+    # and the value is a dictionary with 2 keys:
+    #   bind - The path to mount the volume inside the container
+    #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
+    # For example:
+    # {
+    #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
+    #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
+    # }
+    container_volumes_docker: Optional[Dict[str, dict]] = None
+    # Add ports to DockerContainer
+    # The keys of the dictionary are the ports to bind inside the container,
+    # either as an integer or a string in the form port/protocol, where the protocol is either tcp, udp.
+    # The values of the dictionary are the corresponding ports to open on the host, which can be either:
+    #   - The port number, as an integer.
+    #       For example, {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
+    #   - None, to assign a random host port. For example, {'2222/tcp': None}.
+    #   - A tuple of (address, port) if you want to specify the host interface.
+    #       For example, {'1111/tcp': ('127.0.0.1', 1111)}.
+    #   - A list of integers, if you want to bind multiple host ports to a single container port.
+    #       For example, {'1111/tcp': [1234, 4567]}.
+    container_ports_docker: Optional[Dict[str, Any]] = None
+
+    # K8s configuration
+    # NOTE: Only available for Kubernetes
     image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT
+
+    # Container env
+    # Add env variables to container env
+    env: Optional[Dict[str, str]] = None
+    # Read env variables from a file in yaml format
+    env_file: Optional[Path] = None
+    # Configure the ConfigMap name used for env variables that are not Secret
+    config_map_name: Optional[str] = None
+
+    # Container secrets
+    # Add secret variables to container env
+    secrets: Optional[Dict[str, str]] = None
+    # Read secret variables from a file in yaml format
+    secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secrets Manager
+    aws_secret: Optional[Any] = None
+    # Configure the Secret name used for env variables that are Secret
+    secret_name: Optional[str] = None
+
     # Configure the deployment
     deploy_name: Optional[str] = None
     pod_name: Optional[str] = None
     replicas: int = 1
+    pod_annotations: Optional[Dict[str, str]] = None
     pod_node_selector: Optional[Dict[str, str]] = None
-    restart_policy: RestartPolicy = RestartPolicy.ALWAYS
+    deploy_restart_policy: RestartPolicy = RestartPolicy.ALWAYS
     termination_grace_period_seconds: Optional[int] = None
     # Add deployment labels
     deploy_labels: Optional[Dict[str, Any]] = None
@@ -141,21 +217,25 @@ class IngressRouteArgs(PhidataAppArgs):
     topology_spread_when_unsatisfiable: Optional[
         Literal["DoNotSchedule", "ScheduleAnyway"]
     ] = None
-    # Configure the service
-    service_name: Optional[str] = None
-    service_type: ServiceType = ServiceType.LOAD_BALANCER
-    service_annotations: Optional[Dict[str, Optional[str]]] = None
 
-    # Add env variables to container env
-    env: Optional[Dict[str, str]] = None
-    # Read env variables from a file in yaml format
-    env_file: Optional[Path] = None
-    # Configure the ConfigMap used for env variables that are not Secret
-    config_map_name: Optional[str] = None
-    # Configure the Secret used for env variables that are Secret
-    secret_name: Optional[str] = None
-    # Read secrets from a file in yaml format
-    secrets_file: Optional[Path] = None
+    # Configure the traefik service
+    create_traefik_service: bool = True
+    traefik_svc_name: Optional[str] = None
+    traefik_svc_type: ServiceType = ServiceType.LOAD_BALANCER
+    # Extra ports exposed by the traefik service
+    traefik_svc_ports: Optional[List[CreatePort]] = None
+    # Add labels to traefik service
+    traefik_svc_labels: Optional[Dict[str, Any]] = None
+    # Add annotations to traefik service
+    traefik_svc_annotations: Optional[Dict[str, str]] = None
+
+    # If ServiceType == LoadBalancer
+    traefik_svc_health_check_node_port: Optional[int] = None
+    traefik_svc_internal_taffic_policy: Optional[str] = None
+    traefik_svc_load_balancer_class: Optional[str] = None
+    traefik_svc_load_balancer_ip: Optional[str] = None
+    traefik_svc_load_balancer_source_ranges: Optional[List[str]] = None
+    traefik_svc_allocate_load_balancer_node_ports: Optional[bool] = None
 
     # On cloud providers which support external load balancers,
     # setting the service_type field to LoadBalancer provisions a load balancer.
@@ -165,6 +245,7 @@ class IngressRouteArgs(PhidataAppArgs):
     load_balancer_provider: Optional[LoadBalancerProvider] = None
 
     # AWS LoadBalancer configuration
+    # Enabled when load_balancer_provider = AWS
     use_nlb: bool = False
     # Specifies the target type to configure for NLB. You can choose between instance and ip.
     # `instance` mode will route traffic to all EC2 instances within cluster on the NodePort opened for your service.
@@ -181,7 +262,8 @@ class IngressRouteArgs(PhidataAppArgs):
     access_logs_s3_bucket: Optional[str] = None
     # The logical hierarchy you created for your aws S3 bucket, for example `my-bucket-prefix/prod`
     access_logs_s3_bucket_prefix: Optional[str] = None
-    # If provided, TLS termination is added to the LB
+    # If acm_certificate_arn is provided
+    # TLS termination is added to the LoadBalancer
     acm_certificate_arn: Optional[str] = None
     acm_certificate_summary_file: Optional[Path] = None
     load_balancer_ip: Optional[str] = None
@@ -194,12 +276,8 @@ class IngressRouteArgs(PhidataAppArgs):
     load_balancer_source_ranges: Optional[List[str]] = None
     allocate_load_balancer_node_ports: Optional[bool] = None
 
-    # Set to False when multiple IngressRoutes are installed
-    # in the same cluster.
-    install_crds: bool = True
 
-
-class IngressRoute(PhidataApp):
+class TraefikRouter(PhidataApp):
     def __init__(
         self,
         name: str = "traefik",
@@ -207,7 +285,7 @@ class IngressRoute(PhidataApp):
         enabled: bool = True,
         # Image Args,
         image_name: str = "traefik",
-        image_tag: str = "v2.8",
+        image_tag: str = "v2.6",
         domain_name: Optional[str] = None,
         # Configure traefik,
         web_enabled: bool = False,
@@ -241,7 +319,7 @@ class IngressRoute(PhidataApp):
         insecure_api_access: bool = False,
         # Traefik config,
         # Enable Access Logs,
-        access_logs: bool = False,
+        access_logs: bool = True,
         # Traefik config file on the host,
         traefik_config_file: Optional[str] = None,
         # Traefik config file on the container,
@@ -320,7 +398,7 @@ class IngressRoute(PhidataApp):
         # Using the secrets_file is recommended
         load_balancer_source_ranges: Optional[List[str]] = None,
         allocate_load_balancer_node_ports: Optional[bool] = None,
-        # Set to False when multiple IngressRoutes are installed
+        # Set to False when multiple TraefikRouters are installed
         # in the same cluster.
         install_crds: bool = True,
         # Additional args
@@ -336,7 +414,7 @@ class IngressRoute(PhidataApp):
         self.secret_data: Optional[Dict[str, Any]] = None
 
         try:
-            self.args: IngressRouteArgs = IngressRouteArgs(
+            self.args: TraefikRouterArgs = TraefikRouterArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -469,7 +547,7 @@ class IngressRoute(PhidataApp):
     def get_ingress_route_docker_rg(
         self, docker_build_context: DockerBuildContext
     ) -> Optional[DockerResourceGroup]:
-        print_error(f"IngressRoute not available on Docker")
+        print_error(f"TraefikRouter not available on Docker")
         return None
 
     def init_docker_resource_groups(
@@ -845,47 +923,46 @@ class IngressRoute(PhidataApp):
                     "service.beta.kubernetes.io/aws-load-balancer-attributes"
                 ] = lb_attributes
 
+            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
+            if self.args.acm_certificate_arn is not None:
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
+                ] = self.args.acm_certificate_arn
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
+                ] = str(self.args.websecure_service_port)
+            # if acm_certificate_summary_file is provided, use that
+            if self.args.acm_certificate_summary_file is not None and isinstance(
+                self.args.acm_certificate_summary_file, Path
+            ):
+                if (
+                    self.args.acm_certificate_summary_file.exists()
+                    and self.args.acm_certificate_summary_file.is_file()
+                ):
+                    from phidata.infra.aws.resource.acm.certificate import (
+                        CertificateSummary,
+                    )
+
+                    cert_summary = CertificateSummary.parse_file(
+                        self.args.acm_certificate_summary_file
+                    )
+                    certificate_arn = cert_summary.CertificateArn
+                    logger.debug(f"CertificateArn: {certificate_arn}")
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
+                    ] = certificate_arn
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
+                    ] = str(self.args.websecure_service_port)
+                else:
+                    print_warning(
+                        f"Does not exist: {self.args.acm_certificate_summary_file}"
+                    )
+
             if self.args.load_balancer_scheme is not None:
                 service_annotations[
                     "service.beta.kubernetes.io/aws-load-balancer-scheme"
                 ] = self.args.load_balancer_scheme
-
-        # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
-        # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
-        if self.args.acm_certificate_arn is not None:
-            service_annotations[
-                "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
-            ] = self.args.acm_certificate_arn
-            service_annotations[
-                "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
-            ] = str(self.args.websecure_service_port)
-        # if acm_certificate_summary_file is provided, use that
-        if self.args.acm_certificate_summary_file is not None and isinstance(
-            self.args.acm_certificate_summary_file, Path
-        ):
-            if (
-                self.args.acm_certificate_summary_file.exists()
-                and self.args.acm_certificate_summary_file.is_file()
-            ):
-                from phidata.infra.aws.resource.acm.certificate import (
-                    CertificateSummary,
-                )
-
-                cert_summary = CertificateSummary.parse_file(
-                    self.args.acm_certificate_summary_file
-                )
-                certificate_arn = cert_summary.CertificateArn
-                logger.debug(f"CertificateArn: {certificate_arn}")
-                service_annotations[
-                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
-                ] = certificate_arn
-                service_annotations[
-                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
-                ] = str(self.args.websecure_service_port)
-            else:
-                print_warning(
-                    f"Does not exist: {self.args.acm_certificate_summary_file}"
-                )
 
         service = CreateService(
             service_name=self.get_service_name(),

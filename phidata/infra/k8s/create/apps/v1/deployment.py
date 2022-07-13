@@ -65,19 +65,19 @@ class CreateDeployment(BaseModel):
             labels=self.labels,
         )
 
-        create_containers = self.containers
         containers: List[Container] = []
-        for cc in create_containers:
+        for cc in self.containers:
             container = cc.create()
             if container is not None:
                 containers.append(container)
 
-        create_init_containers = self.init_containers
-        init_containers: List[Container] = []
-        for ic in create_init_containers:
-            _init_container = ic.create()
-            if _init_container is not None:
-                init_containers.append(_init_container)
+        init_containers: Optional[List[Container]] = None
+        if self.init_containers is not None:
+            init_containers = []
+            for ic in self.init_containers:
+                _init_container = ic.create()
+                if _init_container is not None:
+                    init_containers.append(_init_container)
 
         topology_spread_constraints: Optional[List[TopologySpreadConstraint]] = None
         if self.topology_spread_key is not None:

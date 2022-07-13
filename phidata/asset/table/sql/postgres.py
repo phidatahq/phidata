@@ -29,10 +29,10 @@ class PostgresTable(SqlTable):
         try:
             self.args: PostgresTableArgs = PostgresTableArgs(
                 name=name,
+                db_schema=db_schema,
                 db_conn_id=db_conn_id,
                 db_conn_url=db_conn_url,
                 db_engine=db_engine,
-                db_schema=db_schema,
                 version=version,
                 enabled=enabled,
             )

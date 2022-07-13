@@ -1,7 +1,26 @@
-import os
+from os import getenv
 from typing import Dict, Any, Optional
 
 from phidata.utils.log import logger
+
+
+def env_var_is_true(name: str, default: bool = False) -> bool:
+    """
+    Return True if the env var "name" is set to True.
+    Returns the default value if env var is not set.
+
+    Args:
+        name: Name of env var to check
+        default: Default value to return when env var is not set
+
+    Returns:
+        bool
+    """
+    var_name = name
+    var_value: Optional[str] = getenv(var_name)
+    if var_value is None:
+        return default
+    return var_value.lower().startswith("true")
 
 
 def validate_env_vars(env_var_dict: Optional[Dict[str, Any]]) -> bool:
@@ -23,7 +42,7 @@ def validate_env_vars(env_var_dict: Optional[Dict[str, Any]]) -> bool:
     if isinstance(env_var_dict, dict):
         # return True if each env_var matches
         for env_var_key, env_var_value in env_var_dict.items():
-            _env_value = os.getenv(env_var_key)
+            _env_value = getenv(env_var_key)
             if str(env_var_value) != str(_env_value):
                 # logger.debug(f"EnvVar {env_var_key} invalid. Value {_env_value}")
                 return False

@@ -39,13 +39,6 @@ class K8sManager:
                 self.k8s_status = K8sManagerStatus.WORKER_READY
 
         if self.k8s_status == K8sManagerStatus.WORKER_READY:
-            if (
-                self.k8s_worker is not None
-                and self.k8s_worker.are_resources_initialized()
-            ):
-                self.k8s_status = K8sManagerStatus.RESOURCES_INIT
-
-        if self.k8s_status == K8sManagerStatus.RESOURCES_INIT:
             if self.k8s_worker is not None and self.k8s_worker.are_resources_active():
                 self.k8s_status = K8sManagerStatus.RESOURCES_ACTIVE
 
@@ -72,7 +65,6 @@ class K8sManager:
             logger.debug("No worker available")
             return
 
-        # logger.debug("Creating resources dry run")
         self.k8s_worker.create_resources_dry_run(
             name_filter=name_filter,
             type_filter=type_filter,
@@ -114,10 +106,13 @@ class K8sManager:
         return True
 
     ######################################################
-    ## Read Resources
+    ## Get Resources
     ######################################################
 
-    def get_resources(self) -> Optional[Dict[str, K8sResourceGroup]]:
+    def get_resource_groups(
+        self,
+        app_filter: Optional[str] = None,
+    ) -> Optional[Dict[str, K8sResourceGroup]]:
 
         status = self.get_status()
         if not status.can_get_resources():
@@ -127,23 +122,26 @@ class K8sManager:
             logger.debug("No worker available")
             return None
 
-        return self.k8s_worker.get_resource_groups()
+        return self.k8s_worker.build_k8s_resource_groups(app_filter=app_filter)
 
-    def read_resources(
+    def get_resources(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
     ) -> Optional[List[K8sResource]]:
 
         status = self.get_status()
-        if not status.can_read_resources():
+        if not status.can_get_resources():
             logger.debug("Cannot get resources")
             return None
         if self.k8s_worker is None:
             logger.debug("No worker available")
             return None
 
-        return self.k8s_worker.read_resources(name_filter, type_filter)
+        return self.k8s_worker.get_resources(
+            name_filter=name_filter, type_filter=type_filter, app_filter=app_filter
+        )
 
     ######################################################
     ## Delete Resources

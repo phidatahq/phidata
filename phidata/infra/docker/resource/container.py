@@ -61,7 +61,7 @@ class DockerContainer(DockerResource):
     # host - Use the host network stack. This mode is incompatible with ports.
     # network_mode is incompatible with network.
     network_mode: Optional[str] = None
-    #  Platform in the format os[/arch[/variant]].
+    # Platform in the format os[/arch[/variant]].
     platform: str = "linux/amd64"
     # ports (dict) – Ports to bind inside the container.
     # The keys of the dictionary are the ports to bind inside the container,

@@ -5,6 +5,7 @@ from phidata.infra.aws.args import AwsArgs
 from phidata.infra.aws.enums import AwsManagerStatus
 from phidata.infra.aws.exceptions import AwsArgsException
 from phidata.infra.aws.resource.base import AwsResource
+from phidata.infra.aws.resource.group import AwsResourceGroup
 from phidata.infra.aws.worker import AwsWorker
 from phidata.utils.log import logger
 
@@ -38,13 +39,6 @@ class AwsManager:
                 self.aws_status = AwsManagerStatus.WORKER_READY
 
         if self.aws_status == AwsManagerStatus.WORKER_READY:
-            if (
-                self.aws_worker is not None
-                and self.aws_worker.are_resources_initialized()
-            ):
-                self.aws_status = AwsManagerStatus.RESOURCES_INIT
-
-        if self.aws_status == AwsManagerStatus.RESOURCES_INIT:
             if self.aws_worker is not None and self.aws_worker.are_resources_active():
                 self.aws_status = AwsManagerStatus.RESOURCES_ACTIVE
 
@@ -71,7 +65,6 @@ class AwsManager:
             logger.debug("No worker available")
             return
 
-        # logger.debug("Creating resources dry run")
         self.aws_worker.create_resources_dry_run(
             name_filter=name_filter,
             type_filter=type_filter,
@@ -113,10 +106,25 @@ class AwsManager:
         return True
 
     ######################################################
-    ## Read Resources
+    ## Get Resources
     ######################################################
 
-    def read_resources(
+    def get_resource_groups(
+        self,
+        app_filter: Optional[str] = None,
+    ) -> Optional[Dict[str, AwsResourceGroup]]:
+
+        status = self.get_status()
+        if not status.can_get_resources():
+            logger.debug("Cannot get resources")
+            return None
+        if self.aws_worker is None:
+            logger.debug("No worker available")
+            return None
+
+        return self.aws_worker.build_aws_resource_groups(app_filter=app_filter)
+
+    def get_resources(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
@@ -131,7 +139,9 @@ class AwsManager:
             logger.debug("AWSWorker not available")
             return None
 
-        return self.aws_worker.read_resources(name_filter, type_filter, app_filter)
+        return self.aws_worker.get_resources(
+            name_filter=name_filter, type_filter=type_filter, app_filter=app_filter
+        )
 
     ######################################################
     ## Delete Resources

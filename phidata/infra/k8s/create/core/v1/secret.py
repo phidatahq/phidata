@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel
 
@@ -17,8 +17,8 @@ class CreateSecret(BaseModel):
     app_name: str
     secret_type: Optional[str] = "Opaque"
     namespace: Optional[str] = None
-    data: Optional[Dict[str, Any]] = None
-    string_data: Optional[Dict[str, Any]] = None
+    data: Optional[Dict[str, str]] = None
+    string_data: Optional[Dict[str, str]] = None
     labels: Optional[Dict[str, str]] = None
 
     def create(self) -> Optional[Secret]:

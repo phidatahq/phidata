@@ -1,6 +1,17 @@
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Optional, Any, Dict, List, Callable, Tuple, Literal, cast
+from typing import (
+    Optional,
+    Any,
+    Dict,
+    List,
+    Callable,
+    Tuple,
+    Literal,
+    cast,
+    Union,
+    Iterable,
+)
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.asset import DataAsset
@@ -31,6 +42,7 @@ class WorkflowArgs(PhidataBaseArgs):
     #     ...
     #   }
     graph: Optional[Dict[Task, List[Task]]] = None
+    # NOTE: Only for local execution
     # What to do when a task fails while running the workflow locally.
     # Continue to next task or stop?
     on_failure: Literal["stop", "continue"] = "stop"
@@ -40,7 +52,7 @@ class WorkflowArgs(PhidataBaseArgs):
     # Add an EmptyOperator at the end of the workflow
     add_end_task: bool = False
 
-    # TO_BE_IMPLEMENTED: use airflow task_groups
+    # use airflow task_groups
     use_task_groups: bool = False
     # airflow task group_id for this workflow, use name if not provided
     group_id: Optional[str] = None
@@ -117,6 +129,7 @@ class Workflow(PhidataBase):
         #     ...
         #   }
         graph: Optional[Dict[Task, List[Task]]] = None,
+        # NOTE: Only for local execution
         # What to do when a task fails while running the workflow locally.
         # Continue to next task or stop?
         on_failure: Literal["stop", "continue"] = "stop",
@@ -124,10 +137,10 @@ class Workflow(PhidataBase):
         add_start_task: bool = False,
         # Add an EmptyOperator at the end of the workflow
         add_end_task: bool = False,
-        # TODO: implement use airflow task_groups
-        # use_task_groups: bool = False,
-        # # airflow task group_id for this workflow, use name if not provided
-        # group_id: Optional[str] = None,
+        # use airflow task_groups
+        use_task_groups: bool = False,
+        # airflow task group_id for this workflow, use name if not provided
+        group_id: Optional[str] = None,
         # airflow dag_id for this workflow, use name if not provided
         dag_id: Optional[str] = None,
         # run_context provided by wf_operator
@@ -154,6 +167,7 @@ class Workflow(PhidataBase):
         enabled: bool = True,
     ):
         super().__init__()
+        # Cache family tree
         self._family_tree: Optional[Dict[Task, TaskRelatives]] = None
         try:
             self.args: WorkflowArgs = WorkflowArgs(
@@ -163,8 +177,8 @@ class Workflow(PhidataBase):
                 on_failure=on_failure,
                 add_start_task=add_start_task,
                 add_end_task=add_end_task,
-                # use_task_groups=use_task_groups,
-                # group_id=group_id,
+                use_task_groups=use_task_groups,
+                group_id=group_id,
                 dag_id=dag_id,
                 run_context=run_context,
                 path_context=path_context,
@@ -228,23 +242,23 @@ class Workflow(PhidataBase):
         if self.args is not None and add_end_task is not None:
             self.args.add_end_task = add_end_task
 
-    # @property
-    # def use_task_groups(self) -> bool:
-    #     return self.args.use_task_groups if self.args else False
-    #
-    # @use_task_groups.setter
-    # def use_task_groups(self, use_task_groups: bool) -> None:
-    #     if self.args is not None and use_task_groups is not None:
-    #         self.args.use_task_groups = use_task_groups
-    #
-    # @property
-    # def group_id(self) -> str:
-    #     return self.args.group_id if (self.args and self.args.group_id) else self.name
-    #
-    # @group_id.setter
-    # def group_id(self, group_id: str) -> None:
-    #     if self.args is not None and group_id is not None:
-    #         self.args.group_id = group_id
+    @property
+    def use_task_groups(self) -> bool:
+        return self.args.use_task_groups if self.args else False
+
+    @use_task_groups.setter
+    def use_task_groups(self, use_task_groups: bool) -> None:
+        if self.args is not None and use_task_groups is not None:
+            self.args.use_task_groups = use_task_groups
+
+    @property
+    def group_id(self) -> str:
+        return self.args.group_id if (self.args and self.args.group_id) else self.name
+
+    @group_id.setter
+    def group_id(self, group_id: str) -> None:
+        if self.args is not None and group_id is not None:
+            self.args.group_id = group_id
 
     @property
     def dag_id(self) -> str:
@@ -827,6 +841,9 @@ class Workflow(PhidataBase):
 
     def create_airflow_dag(
         self,
+        # The id of the DAG; must consist exclusively of
+        # alphanumeric characters, dashes, dots and underscores (all ASCII)
+        dag_id: Optional[str] = None,
         owner: Optional[str] = "airflow",
         depends_on_past: Optional[bool] = False,
         # The description for the DAG to e.g. be shown on the webserver
@@ -835,7 +852,7 @@ class Workflow(PhidataBase):
         #  timedelta object gets added to your latest task instance's
         #  execution_date to figure out the next schedule
         # Default: daily
-        schedule_interval: timedelta = timedelta(days=1),
+        schedule_interval: Optional[Union[str, timedelta]] = "@daily",
         # The timestamp from which the scheduler will
         #  attempt to backfill
         start_date: Optional[datetime] = None,
@@ -844,6 +861,10 @@ class Workflow(PhidataBase):
         # A date beyond which your DAG won't run, leave to None
         #  for open ended scheduling
         end_date: Optional[datetime] = None,
+        # This list of folders (non relative)
+        #   defines where jinja will look for your templates. Order matters.
+        #   Note that jinja/airflow includes the path of your DAG file by default
+        template_searchpath: Optional[Union[str, Iterable[str]]] = None,
         # a dictionary of macros that will be exposed
         #  in your jinja templates. For example, passing ``dict(foo='bar')``
         #  to this argument allows you to ``{{ foo }}`` in all jinja
@@ -864,22 +885,56 @@ class Workflow(PhidataBase):
         #  `default_args`, the actual value will be `False`.
         default_args: Optional[Dict] = None,
         # the number of task instances allowed to run concurrently
-        concurrency: Optional[int] = None,
+        max_active_tasks: int = 32,
         # maximum number of active DAG runs, beyond this
         #  number of DAG runs in a running state, the scheduler won't create
         #  new active DAG runs
         max_active_runs: int = 8,
+        # specify how long a DagRun should be up before
+        # timing out / failing, so that new DagRuns can be created. The timeout
+        # is only enforced for scheduled DagRuns.
+        dagrun_timeout: Optional[timedelta] = None,
+        # Specify DAG default view (grid, graph, duration,
+        # gantt, landing_times), default grid
+        # default_view: Optional[str] = None,
+        # Specify DAG orientation in graph view (LR, TB, RL, BT), default LR
+        # orientation: Optional[str] = None,
+        # Perform scheduler catchup (or only run latest)? Defaults to True
+        catchup: bool = True,
         doc_md: Optional[str] = None,
         # a dictionary of DAG level parameters that are made
         # accessible in templates, namespaced under `params`. These
         # params can be overridden at the task level.
         params: Optional[Dict] = None,
+        # Specify optional DAG-level actions, e.g.,
+        # "{'role1': {'can_read'}, 'role2': {'can_read', 'can_edit', 'can_delete'}}"
+        access_control: Optional[Dict] = None,
+        # Specifies if the dag is paused when created for the first time.
+        # If the dag exists already, this flag will be ignored. If this optional parameter
+        # is not specified, the global config setting will be used.
         is_paused_upon_creation: Optional[bool] = None,
+        # additional configuration options to be passed to Jinja
+        # ``Environment`` for template rendering
+        # **Example**: to avoid Jinja from removing a trailing newline from template strings ::
+        #
+        #     DAG(dag_id='my-dag',
+        #         jinja_environment_kwargs={
+        #             'keep_trailing_newline': True,
+        #             # some other jinja2 Environment options here
+        #         }
+        #     )
+        #
+        # **See**: `Jinja Environment documentation
+        # <https://jinja.palletsprojects.com/en/2.11.x/api/#jinja2.Environment>`_
         jinja_environment_kwargs: Optional[Dict] = None,
+        # If True, uses a Jinja ``NativeEnvironment``
+        # to render templates as native Python types. If False, a Jinja
+        # ``Environment`` is used to render templates as string values.
+        render_template_as_native_obj: bool = False,
         tags: Optional[List[str]] = None,
     ) -> Any:
         """
-        Used to create an Airflow DAG for the Workflow.
+        Create Airflow DAG for Workflow.
         """
 
         # Skips DAG creation on local machines
@@ -887,7 +942,6 @@ class Workflow(PhidataBase):
             return None
 
         from airflow import DAG
-        from airflow.utils.dates import days_ago
 
         operator_default_args = default_args
         if operator_default_args is None:
@@ -899,27 +953,39 @@ class Workflow(PhidataBase):
             }
         )
         if start_date is None:
+            from airflow.utils.dates import days_ago
+
             start_date = days_ago(start_days_ago)
 
-        dag_id = self.dag_id
+        # dag_id order of preference:
+        #   - use dag_id provided to this function
+        #   - use the dag_id param of the workflow
+        #   - use the name param of the workflow
+        dag_id = dag_id or self.dag_id
         if dag_id is None:
             logger.error("Workflow dag_id unavailable")
             return None
+
         dag = DAG(
             dag_id=dag_id,
             description=description,
             schedule_interval=schedule_interval,
             start_date=start_date,
             end_date=end_date,
+            template_searchpath=template_searchpath,
             user_defined_macros=user_defined_macros,
             user_defined_filters=user_defined_filters,
             default_args=operator_default_args,
-            concurrency=concurrency,
+            max_active_tasks=max_active_tasks,
             max_active_runs=max_active_runs,
+            dagrun_timeout=dagrun_timeout,
+            catchup=catchup,
             doc_md=doc_md,
             params=params,
+            access_control=access_control,
             is_paused_upon_creation=is_paused_upon_creation,
             jinja_environment_kwargs=jinja_environment_kwargs,
+            render_template_as_native_obj=render_template_as_native_obj,
             tags=tags,
         )
         add_task_success = self.add_airflow_tasks_to_dag(dag=dag)

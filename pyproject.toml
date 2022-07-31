@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "0.2.0.dev3"
+version = "0.2.0"
 description = "DIY data platform as code"
 requires-python = ">3.7"
 readme = "README.md"
@@ -11,7 +11,7 @@ authors = [
 dependencies = [
   "awswrangler",
   "boto3",
-  "phiterm>=0.2.0.dev3",
+  "phiterm>=0.2.0",
   "pydantic",
   "pyyaml",
   "rich",
@@ -42,6 +42,7 @@ exclude = [
   "phidata/workflow/dev", # exclude dev workflows from mypy
   "phidata/product/dev", # exclude dev products from mypy
   "phidata/task/dev", # exclude dev tasks from mypy
+  "phidata/app/traefik/router", # exclude traefik router
 ]
 
 [[tool.mypy.overrides]]

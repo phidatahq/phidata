@@ -10,12 +10,12 @@ aiosignal==1.2.0
 anyio==3.6.1
 asn1crypto==1.5.1
 async-timeout==4.0.2
-attrs==21.4.0
+attrs==22.1.0
 awswrangler==2.16.1
 backoff==2.1.2
 beautifulsoup4==4.11.1
-boto3==1.24.38
-botocore==1.27.38
+boto3==1.24.42
+botocore==1.27.42
 cachetools==5.2.0
 certifi==2022.6.15
 charset-normalizer==2.0.12
@@ -47,7 +47,7 @@ opensearch-py==1.1.0
 packaging==21.3
 pandas==1.4.3
 pg8000==1.29.1
-phiterm==0.2.0.dev3
+phiterm==0.2.0
 ply==3.11
 progressbar2==4.0.0
 pyarrow==7.0.0

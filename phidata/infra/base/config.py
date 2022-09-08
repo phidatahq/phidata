@@ -38,6 +38,33 @@ class InfraConfig(PhidataBase):
             self.args.workspace_config_file_path = workspace_config_file_path
 
     @property
+    def meta_dir(self) -> Optional[str]:
+        return self.args.meta_dir if self.args else None
+
+    @meta_dir.setter
+    def meta_dir(self, meta_dir: str) -> None:
+        if self.args is not None and meta_dir is not None:
+            self.args.meta_dir = meta_dir
+
+    @property
+    def notebooks_dir(self) -> Optional[str]:
+        return self.args.notebooks_dir if self.args else None
+
+    @notebooks_dir.setter
+    def notebooks_dir(self, notebooks_dir: str) -> None:
+        if self.args is not None and notebooks_dir is not None:
+            self.args.notebooks_dir = notebooks_dir
+
+    @property
+    def products_dir(self) -> Optional[str]:
+        return self.args.products_dir if self.args else None
+
+    @products_dir.setter
+    def products_dir(self, products_dir: str) -> None:
+        if self.args is not None and products_dir is not None:
+            self.args.products_dir = products_dir
+
+    @property
     def scripts_dir(self) -> Optional[str]:
         return self.args.scripts_dir if self.args else None
 
@@ -56,31 +83,13 @@ class InfraConfig(PhidataBase):
             self.args.storage_dir = storage_dir
 
     @property
-    def meta_dir(self) -> Optional[str]:
-        return self.args.meta_dir if self.args else None
+    def workflow_dir(self) -> Optional[str]:
+        return self.args.workflow_dir if self.args else None
 
-    @meta_dir.setter
-    def meta_dir(self, meta_dir: str) -> None:
-        if self.args is not None and meta_dir is not None:
-            self.args.meta_dir = meta_dir
-
-    @property
-    def products_dir(self) -> Optional[str]:
-        return self.args.products_dir if self.args else None
-
-    @products_dir.setter
-    def products_dir(self, products_dir: str) -> None:
-        if self.args is not None and products_dir is not None:
-            self.args.products_dir = products_dir
-
-    @property
-    def notebooks_dir(self) -> Optional[str]:
-        return self.args.notebooks_dir if self.args else None
-
-    @notebooks_dir.setter
-    def notebooks_dir(self, notebooks_dir: str) -> None:
-        if self.args is not None and notebooks_dir is not None:
-            self.args.notebooks_dir = notebooks_dir
+    @workflow_dir.setter
+    def workflow_dir(self, workflow_dir: str) -> None:
+        if self.args is not None and workflow_dir is not None:
+            self.args.workflow_dir = workflow_dir
 
     @property
     def workspace_config_dir(self) -> Optional[str]:

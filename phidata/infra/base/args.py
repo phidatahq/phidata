@@ -13,14 +13,15 @@ class InfraArgs(PhidataBaseArgs):
     # Path to the workspace config file
     workspace_config_file_path: Optional[Path] = None
     # Path to important directories relative to the workspace_root
-    # These directories are joined to the workspace_root dir
+    # These directories are joined to the workspace_root_path
     #   to build paths depending on the environments (local, docker, k8s)
     # defaults are set by WorkspaceConfig.__init__()
+    meta_dir: Optional[str] = None
+    notebooks_dir: Optional[str] = None
+    products_dir: Optional[str] = None
     scripts_dir: Optional[str] = None
     storage_dir: Optional[str] = None
-    meta_dir: Optional[str] = None
-    products_dir: Optional[str] = None
-    notebooks_dir: Optional[str] = None
+    workflow_dir: Optional[str] = None
     workspace_config_dir: Optional[str] = None
 
     # -*- Environment parameters

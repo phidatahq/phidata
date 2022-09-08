@@ -22,13 +22,12 @@ class WorkspaceConfigArgs(InfraArgs):
     aws: Optional[List[AwsConfig]] = None
 
     # Path to important directories relative to the workspace_root
-    # These are inherited from InfraArgs but are marked as `str`
-    # in WorkspaceConfigArgs
+    meta_dir: str
+    notebooks_dir: str
+    products_dir: str
     scripts_dir: str
     storage_dir: str
-    meta_dir: str
-    products_dir: str
-    notebooks_dir: str
+    workflow_dir: str
     workspace_config_dir: str
 
 
@@ -41,23 +40,20 @@ class WorkspaceConfig(InfraConfig):
         default_env: Optional[str] = None,
         # default config for phi ws ... commands
         default_config: Optional[str] = None,
-        # List of Docker configurationsdo
+        # List of Docker configurations
         docker: Optional[List[DockerConfig]] = None,
         # List of K8s configurations
         k8s: Optional[List[K8sConfig]] = None,
         # List of AWS configurations
         aws: Optional[List[AwsConfig]] = None,
         # Path to important directories relative to the workspace_root
-        scripts_dir: Optional[str] = None,
-        storage_dir: Optional[str] = None,
-        meta_dir: Optional[str] = None,
-        # src_dir is the top-level python package directory
-        # it contains the products & notebooks directories
-        # if products_dir == None, the default used is "{src_dir}/products"
-        src_dir: str = "data",
-        products_dir: Optional[str] = None,
-        notebooks_dir: Optional[str] = None,
-        workspace_config_dir: Optional[str] = None,
+        meta_dir: str = "meta",
+        notebooks_dir: str = "notebooks",
+        products_dir: str = "workflow",
+        scripts_dir: str = "scripts",
+        storage_dir: str = "storage",
+        workflow_dir: str = "workflow",
+        workspace_config_dir: str = "workspace",
         # -*- Environment parameters
         # Env vars added to local env
         local_env: Optional[Dict[str, str]] = None,
@@ -90,12 +86,6 @@ class WorkspaceConfig(InfraConfig):
         continue_on_patch_failure: bool = False,
     ):
         super().__init__()
-        scripts_dir_clean = scripts_dir or "scripts"
-        storage_dir_clean = storage_dir or "storage"
-        meta_dir_clean = meta_dir or "meta"
-        products_dir_clean = products_dir or f"{src_dir}/products"
-        notebooks_dir_clean = notebooks_dir or f"{src_dir}/notebooks"
-        workspace_config_dir_clean = workspace_config_dir or "workspace"
 
         try:
             self.args: WorkspaceConfigArgs = WorkspaceConfigArgs(
@@ -106,12 +96,13 @@ class WorkspaceConfig(InfraConfig):
                 docker=docker,
                 k8s=k8s,
                 aws=aws,
-                scripts_dir=scripts_dir_clean,
-                storage_dir=storage_dir_clean,
-                meta_dir=meta_dir_clean,
-                products_dir=products_dir_clean,
-                notebooks_dir=notebooks_dir_clean,
-                workspace_config_dir=workspace_config_dir_clean,
+                meta_dir=meta_dir,
+                notebooks_dir=notebooks_dir,
+                products_dir=products_dir,
+                scripts_dir=scripts_dir,
+                storage_dir=storage_dir,
+                workflow_dir=workflow_dir,
+                workspace_config_dir=workspace_config_dir,
                 local_env=local_env,
                 local_env_file=local_env_file,
                 docker_env=docker_env,

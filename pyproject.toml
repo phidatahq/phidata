@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "0.2.0"
-description = "DIY data platform as code"
+version = "0.2.1"
+description = "A tool for building data products"
 requires-python = ">3.7"
 readme = "README.md"
 authors = [
@@ -11,7 +11,7 @@ authors = [
 dependencies = [
   "awswrangler",
   "boto3",
-  "phiterm>=0.2.0",
+  "phiterm>=0.2.1",
   "pydantic",
   "pyyaml",
   "rich",

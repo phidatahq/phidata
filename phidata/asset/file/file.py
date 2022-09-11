@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Optional, Union, Any
+from typing_extensions import Literal
 
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.utils.enums import ExtendedEnum
@@ -117,7 +118,19 @@ class File(DataAsset):
     ## Write to file
     ######################################################
 
-    def write_pandas_df(self, df: Any = None) -> bool:
+    def write_pandas_df(
+        self,
+        df: Any = None,
+        # How to behave if the file already exists.
+        # fail: Raise a ValueError.
+        # replace: Drop the file before inserting new values.
+        # append: Insert new values to the existing table.
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+    ) -> bool:
+        """
+        Write DataFrame to file.
+        """
+
         # File not yet initialized
         if self.args is None:
             return False
@@ -135,30 +148,34 @@ class File(DataAsset):
             return False
 
         file_path: Path = self.file_path
-        logger.debug("Writing DF to file: {}".format(file_path))
+        logger.info("Writing to file: {}".format(file_path))
+        mode: str = "w"
         if file_path.exists():
-            logger.debug("Deleting: {}".format(file_path))
-            delete_from_fs(file_path)
+            if if_exists == "fail":
+                raise ValueError("File already exists: {}".format(file_path))
+            elif if_exists == "replace":
+                logger.debug("Deleting: {}".format(file_path))
+                delete_from_fs(file_path)
+            elif if_exists == "append":
+                mode = "a"
 
-        if not file_path.exists():
-            logger.debug("Creating: {}".format(file_path))
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.touch(exist_ok=True)
-
+        # Create parent directories if they don't exist
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            with file_path.open("w") as open_file:
+            file_path.touch(exist_ok=True)
+            with file_path.open(mode) as open_file:
                 logger.debug("file_type: {}".format(self.file_type))
                 if self.file_type == FileType.JSON:
                     df.to_json(open_file, orient="index", indent=4)
-                elif self.file_type == FileType.JSON:
+                elif self.file_type == FileType.CSV:
                     df.to_csv(open_file)
                 else:
                     logger.error(f"FileType: {self.file_type} not yet supported")
                     return False
+            return True
         except Exception as e:
+            logger.error("Could not write to: {}".format(file_path))
             raise
-
-        return True
 
     def download_url(self, url: str) -> bool:
         # File not yet initialized

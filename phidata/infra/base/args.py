@@ -21,7 +21,7 @@ class InfraArgs(PhidataBaseArgs):
     products_dir: Optional[str] = None
     scripts_dir: Optional[str] = None
     storage_dir: Optional[str] = None
-    workflow_dir: Optional[str] = None
+    workflows_dir: Optional[str] = None
     workspace_config_dir: Optional[str] = None
 
     # -*- Environment parameters

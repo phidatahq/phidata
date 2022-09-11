@@ -27,7 +27,7 @@ class WorkspaceConfigArgs(InfraArgs):
     products_dir: str
     scripts_dir: str
     storage_dir: str
-    workflow_dir: str
+    workflows_dir: str
     workspace_config_dir: str
 
 
@@ -49,10 +49,10 @@ class WorkspaceConfig(InfraConfig):
         # Path to important directories relative to the workspace_root
         meta_dir: str = "meta",
         notebooks_dir: str = "notebooks",
-        products_dir: str = "workflow",
+        products_dir: str = "products",
         scripts_dir: str = "scripts",
         storage_dir: str = "storage",
-        workflow_dir: str = "workflow",
+        workflows_dir: str = "workflows",
         workspace_config_dir: str = "workspace",
         # -*- Environment parameters
         # Env vars added to local env
@@ -101,7 +101,7 @@ class WorkspaceConfig(InfraConfig):
                 products_dir=products_dir,
                 scripts_dir=scripts_dir,
                 storage_dir=storage_dir,
-                workflow_dir=workflow_dir,
+                workflows_dir=workflows_dir,
                 workspace_config_dir=workspace_config_dir,
                 local_env=local_env,
                 local_env_file=local_env_file,

@@ -83,13 +83,13 @@ class InfraConfig(PhidataBase):
             self.args.storage_dir = storage_dir
 
     @property
-    def workflow_dir(self) -> Optional[str]:
-        return self.args.workflow_dir if self.args else None
+    def workflows_dir(self) -> Optional[str]:
+        return self.args.workflows_dir if self.args else None
 
-    @workflow_dir.setter
-    def workflow_dir(self, workflow_dir: str) -> None:
-        if self.args is not None and workflow_dir is not None:
-            self.args.workflow_dir = workflow_dir
+    @workflows_dir.setter
+    def workflows_dir(self, workflows_dir: str) -> None:
+        if self.args is not None and workflows_dir is not None:
+            self.args.workflows_dir = workflows_dir
 
     @property
     def workspace_config_dir(self) -> Optional[str]:

@@ -47,7 +47,7 @@ opensearch-py==1.1.0
 packaging==21.3
 pandas==1.4.4
 pg8000==1.29.1
-phiterm==0.2.1
+phiterm==0.2.3
 ply==3.11
 progressbar2==4.0.0
 pyarrow==7.0.0

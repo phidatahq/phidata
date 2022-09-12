@@ -49,7 +49,7 @@ class WorkspaceConfig(InfraConfig):
         # Path to important directories relative to the workspace_root
         meta_dir: str = "meta",
         notebooks_dir: str = "notebooks",
-        products_dir: str = "products",
+        products_dir: str = "workflows",
         scripts_dir: str = "scripts",
         storage_dir: str = "storage",
         workflows_dir: str = "workflows",

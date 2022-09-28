@@ -133,7 +133,6 @@ class AthenaQuery(AwsAsset):
                 work_group=self.args.work_group,
                 query_execution_id=self.args.query_execution_id,
                 use_cache=self.args.use_cache,
-                use_verbose_logs=self.args.use_verbose_logs,
             )
             return self._athena_query_execution
         except Exception as e:

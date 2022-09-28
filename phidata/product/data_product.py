@@ -629,7 +629,7 @@ class DataProduct(PhidataBase):
         #  attempt to backfill
         start_date: Optional[datetime] = None,
         # if start_date is not provided, use start_days_ago
-        start_days_ago: int = 2,
+        start_days_ago: int = 1,
         # A date beyond which your DAG won't run, leave to None
         #  for open ended scheduling
         end_date: Optional[datetime] = None,

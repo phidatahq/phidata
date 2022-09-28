@@ -144,16 +144,22 @@ class DockerImage(DockerResource):
                     stream=True,
                     decode=True,
                 ):
-                    if (
-                        self.print_push_output
-                        and push_output.get("status", None) == "Pushing"
+                    if push_output.get("error", None) is not None:
+                        print_error(push_output["error"])
+                        print_error(f"Push failed for {self.get_name_tag()}")
+                        print_error(
+                            "If you are using a private registry, make sure you are logged in"
+                        )
+                    if self.print_push_output and push_output.get("status", None) in (
+                        "Pushing",
+                        "Pushed",
                     ):
                         push_progress = push_output.get("progress", None)
                         if push_progress != prev_push_progress:
                             print_info(push_progress)
                             prev_push_progress = push_progress
                     if push_output.get("aux", {}).get("Size", 0) > 0:
-                        print_info("Push complete")
+                        print_info(f"Push complete: {push_output.get('aux', {})}")
             return self._read(docker_client)
         except TypeError as type_error:
             print_error(type_error)

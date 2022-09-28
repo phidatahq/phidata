@@ -105,11 +105,11 @@ class SqlTable(DataAsset):
         if self.args and db_engine:
             self.args.db_engine = db_engine
 
-    def create_db_engine_using_conn_url(self) -> None:
+    def create_db_engine_using_conn_url(self) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using db_conn_url
 
         if self.db_conn_url is None:
-            return
+            return None
 
         try:
             from sqlalchemy import create_engine
@@ -121,16 +121,17 @@ class SqlTable(DataAsset):
                 self.db_engine = db_engine[0]
             else:
                 self.db_engine = db_engine
+            return self.db_engine
         except Exception as e:
             logger.error(f"Error creating db_engine using {self.db_conn_url}")
             logger.error(e)
-            return
+            return None
 
-    def create_db_engine_using_conn_id(self) -> None:
+    def create_db_engine_using_conn_id(self) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using db_conn_id
 
         if self.db_conn_id is None:
-            return
+            return None
 
         try:
             from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -139,20 +140,21 @@ class SqlTable(DataAsset):
             if self.sql_type == SqlType.POSTGRES:
                 pg_hook = PostgresHook(postgres_conn_id=self.db_conn_id)
                 self.db_engine = pg_hook.get_sqlalchemy_engine()
+            return self.db_engine
         except Exception as e:
             logger.error(f"Error creating db_engine using {self.db_conn_id}")
             logger.error(e)
-            return
+            return None
 
-    def create_db_engine(self) -> None:
+    def get_db_engine(self) -> Optional[Union[Engine, Connection]]:
         if self.db_engine is not None:
-            return
+            return self.db_engine
 
         phidata_runtime: Literal["local", "airflow"] = self.phidata_runtime
         if phidata_runtime == "local":
-            self.create_db_engine_using_conn_url()
+            return self.create_db_engine_using_conn_url()
         elif phidata_runtime == "airflow":
-            self.create_db_engine_using_conn_id()
+            return self.create_db_engine_using_conn_id()
 
     ######################################################
     ## Write table
@@ -191,11 +193,10 @@ class SqlTable(DataAsset):
             return False
 
         # Check engine is available
-        if self.db_engine is None:
-            self.create_db_engine()
-            if self.db_engine is None:
-                logger.error("DbEngine not available")
-                return False
+        db_engine = self.get_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
+            return False
 
         # write to table
         import pandas as pd
@@ -221,7 +222,7 @@ class SqlTable(DataAsset):
             not_null_args["chunksize"] = chunksize
 
         try:
-            with self.db_engine.connect() as connection:
+            with db_engine.connect() as connection:
                 df.to_sql(
                     name=self.name,
                     con=connection,
@@ -279,12 +280,11 @@ class SqlTable(DataAsset):
         if self.args is None:
             return False
 
-        # Check db_engine is available
-        if self.db_engine is None:
-            self.create_db_engine()
-            if self.db_engine is None:
-                logger.error("DbEngine not available")
-                return False
+        # Check engine is available
+        db_engine = self.get_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
+            return False
 
         # read sql table
         import pandas as pd
@@ -307,7 +307,7 @@ class SqlTable(DataAsset):
             not_null_args["chunksize"] = chunksize
 
         try:
-            with self.db_engine.connect() as connection:
+            with db_engine.connect() as connection:
                 result_df = pd.read_sql_table(
                     table_name=self.name,
                     con=connection,
@@ -361,12 +361,11 @@ class SqlTable(DataAsset):
         if self.args is None:
             return None
 
-        # Check db_engine is available
-        if self.db_engine is None:
-            self.create_db_engine()
-            if self.db_engine is None:
-                logger.error("DbEngine not available")
-                return None
+        # Check engine is available
+        db_engine = self.get_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
+            return False
 
         # run sql query
         import pandas as pd
@@ -389,7 +388,7 @@ class SqlTable(DataAsset):
             not_null_args["chunksize"] = chunksize
 
         try:
-            with self.db_engine.connect() as connection:
+            with db_engine.connect() as connection:
                 result_df = pd.read_sql(
                     sql=sql_query,
                     con=connection,

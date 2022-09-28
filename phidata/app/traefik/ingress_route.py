@@ -70,7 +70,7 @@ class IngressRouteArgs(PhidataAppArgs):
 
     # Image Args
     image_name: str = "traefik"
-    image_tag: str = "v2.6"
+    image_tag: str = "v2.9"
 
     domain_name: Optional[str] = None
 
@@ -207,7 +207,7 @@ class IngressRoute(PhidataApp):
         enabled: bool = True,
         # Image Args,
         image_name: str = "traefik",
-        image_tag: str = "v2.8",
+        image_tag: str = "v2.9",
         domain_name: Optional[str] = None,
         # Configure traefik,
         web_enabled: bool = False,

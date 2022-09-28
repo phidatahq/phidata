@@ -1,7 +1,7 @@
 from typing import Optional, Literal
 
 from phidata.asset.file import File
-from phidata.asset.aws.s3 import S3Object
+from phidata.asset.aws.s3.object import S3Object
 from phidata.utils.log import logger
 from phidata.task import PythonTask, PythonTaskArgs
 

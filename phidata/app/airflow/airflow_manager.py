@@ -32,7 +32,7 @@ class AirflowManager(AirflowBase):
         enabled: bool = True,
         # Image args
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.3.3",
+        image_tag: str = "2.4.0",
         entrypoint: Optional[Union[str, List]] = "/scripts/manager",
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file

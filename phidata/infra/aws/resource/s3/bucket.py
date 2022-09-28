@@ -164,3 +164,11 @@ class S3Bucket(AwsResource):
         except Exception as e:
             logger.exception(e)
         return False
+
+    def get_uri(self) -> str:
+        """Returns the URI of the s3.Bucket
+
+        Returns:
+            str: The URI of the s3.Bucket
+        """
+        return f"s3://{self.name}"

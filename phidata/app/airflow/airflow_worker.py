@@ -32,7 +32,7 @@ class AirflowWorker(AirflowBase):
         enabled: bool = True,
         # Image args
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.3.3",
+        image_tag: str = "2.4.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "worker",
         # Queue name for this worker

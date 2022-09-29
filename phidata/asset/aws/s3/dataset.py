@@ -12,15 +12,13 @@ class S3DatasetType(ExtendedEnum):
     PARQUET = "PARQUET"
 
 
-class S3DatasetArgs(AwsAssetArgs):
-    # Dataset name, used as the table name
-    name: str
-    # Type of dataset: CSV, JSON, PARQUET
-    dataset_type: S3DatasetType
+class S3DatasetBaseArgs(AwsAssetArgs):
     # Glue/Athena catalog: Table name.
     table: Optional[str] = None
     # Glue/Athena catalog: Database name.
     database: Optional[str] = None
+    # Type of dataset: CSV, JSON, PARQUET
+    dataset_type: Optional[S3DatasetType] = None
     # The type of the Glue Table. Set to EXTERNAL_TABLE if None.
     table_type: Optional[str] = None
     # Glue/Athena catalog: Table description
@@ -120,99 +118,10 @@ class S3DatasetArgs(AwsAssetArgs):
     projection_storage_location_template: Optional[str] = None
 
 
-class S3Dataset(AwsAsset):
-    def __init__(
-        self,
-        name: Optional[str] = None,
-        dataset_type: Optional[S3DatasetType] = None,
-        table: Optional[str] = None,
-        database: Optional[str] = None,
-        table_type: Optional[str] = None,
-        table_description: Optional[str] = None,
-        write_mode: Optional[
-            Literal["append", "overwrite", "overwrite_partitions"]
-        ] = None,
-        path: Optional[str] = None,
-        top_level_dir: Optional[str] = "datasets",
-        path_prefix: Optional[str] = None,
-        bucket: Optional[S3Bucket] = None,
-        filename_prefix: Optional[str] = None,
-        dtype: Optional[Dict[str, str]] = None,
-        parameters: Optional[Dict[str, str]] = None,
-        columns_comments: Optional[Dict[str, str]] = None,
-        partition_cols: Optional[List[str]] = None,
-        bucketing_info: Optional[Tuple[List[str], int]] = None,
-        concurrent_partitioning: Optional[bool] = None,
-        catalog_versioning: Optional[bool] = None,
-        schema_evolution: Optional[bool] = None,
-        catalog_id: Optional[str] = None,
-        use_threads: Optional[Union[bool, int]] = None,
-        boto3_session: Optional[Any] = None,
-        s3_additional_kwargs: Optional[Dict[str, Any]] = None,
-        regular_partitions: Optional[bool] = None,
-        projection_enabled: Optional[bool] = None,
-        projection_types: Optional[Dict[str, str]] = None,
-        projection_ranges: Optional[Dict[str, str]] = None,
-        projection_values: Optional[Dict[str, str]] = None,
-        projection_intervals: Optional[Dict[str, str]] = None,
-        projection_digits: Optional[Dict[str, str]] = None,
-        projection_formats: Optional[Dict[str, str]] = None,
-        projection_storage_location_template: Optional[str] = None,
-        version: Optional[str] = None,
-        enabled: bool = True,
-    ) -> None:
-
+class S3DatasetBase(AwsAsset):
+    def __init__(self) -> None:
         super().__init__()
-        try:
-            self.args: S3DatasetArgs = S3DatasetArgs(
-                name=name,
-                dataset_type=dataset_type,
-                table=table,
-                database=database,
-                table_type=table_type,
-                table_description=table_description,
-                write_mode=write_mode,
-                path=path,
-                top_level_dir=top_level_dir,
-                path_prefix=path_prefix,
-                bucket=bucket,
-                filename_prefix=filename_prefix,
-                dtype=dtype,
-                parameters=parameters,
-                columns_comments=columns_comments,
-                partition_cols=partition_cols,
-                bucketing_info=bucketing_info,
-                concurrent_partitioning=concurrent_partitioning,
-                catalog_versioning=catalog_versioning,
-                schema_evolution=schema_evolution,
-                catalog_id=catalog_id,
-                use_threads=use_threads,
-                boto3_session=boto3_session,
-                s3_additional_kwargs=s3_additional_kwargs,
-                regular_partitions=regular_partitions,
-                projection_enabled=projection_enabled,
-                projection_types=projection_types,
-                projection_ranges=projection_ranges,
-                projection_values=projection_values,
-                projection_intervals=projection_intervals,
-                projection_digits=projection_digits,
-                projection_formats=projection_formats,
-                projection_storage_location_template=projection_storage_location_template,
-                version=version,
-                enabled=enabled,
-            )
-        except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
-            raise
-
-    @property
-    def dataset_type(self) -> Optional[S3DatasetType]:
-        return self.args.dataset_type
-
-    @dataset_type.setter
-    def dataset_type(self, dataset_type: S3DatasetType) -> None:
-        if dataset_type is not None:
-            self.args.dataset_type = dataset_type
+        self.args: S3DatasetBaseArgs = S3DatasetBaseArgs()
 
     @property
     def table(self) -> Optional[str]:
@@ -231,6 +140,15 @@ class S3Dataset(AwsAsset):
     def database(self, database: str) -> None:
         if database is not None:
             self.args.database = database
+
+    @property
+    def dataset_type(self) -> Optional[S3DatasetType]:
+        return self.args.dataset_type
+
+    @dataset_type.setter
+    def dataset_type(self, dataset_type: S3DatasetType) -> None:
+        if dataset_type is not None:
+            self.args.dataset_type = dataset_type
 
     @property
     def table_type(self) -> Optional[str]:
@@ -307,6 +225,114 @@ class S3Dataset(AwsAsset):
     def filename_prefix(self, filename_prefix: str) -> None:
         if filename_prefix is not None:
             self.args.filename_prefix = filename_prefix
+
+    @property
+    def dtype(self) -> Optional[Dict[str, str]]:
+        return self.args.dtype
+
+    @dtype.setter
+    def dtype(self, dtype: Dict[str, str]) -> None:
+        if dtype is not None:
+            self.args.dtype = dtype
+
+    @property
+    def parameters(self) -> Optional[Dict[str, str]]:
+        return self.args.parameters
+
+    @parameters.setter
+    def parameters(self, parameters: Dict[str, str]) -> None:
+        if parameters is not None:
+            self.args.parameters = parameters
+
+    @property
+    def columns_comments(self) -> Optional[Dict[str, str]]:
+        return self.args.columns_comments
+
+    @columns_comments.setter
+    def columns_comments(self, columns_comments: Dict[str, str]) -> None:
+        if columns_comments is not None:
+            self.args.columns_comments = columns_comments
+
+    @property
+    def partition_cols(self) -> Optional[List[str]]:
+        return self.args.partition_cols
+
+    @partition_cols.setter
+    def partition_cols(self, partition_cols: List[str]) -> None:
+        if partition_cols is not None:
+            self.args.partition_cols = partition_cols
+
+    @property
+    def bucketing_info(self) -> Optional[Tuple[List[str], int]]:
+        return self.args.bucketing_info
+
+    @bucketing_info.setter
+    def bucketing_info(self, bucketing_info: Tuple[List[str], int]) -> None:
+        if bucketing_info is not None:
+            self.args.bucketing_info = bucketing_info
+
+    @property
+    def concurrent_partitioning(self) -> Optional[bool]:
+        return self.args.concurrent_partitioning
+
+    @concurrent_partitioning.setter
+    def concurrent_partitioning(self, concurrent_partitioning: bool) -> None:
+        if concurrent_partitioning is not None:
+            self.args.concurrent_partitioning = concurrent_partitioning
+
+    @property
+    def catalog_versioning(self) -> Optional[bool]:
+        return self.args.catalog_versioning
+
+    @catalog_versioning.setter
+    def catalog_versioning(self, catalog_versioning: bool) -> None:
+        if catalog_versioning is not None:
+            self.args.catalog_versioning = catalog_versioning
+
+    @property
+    def schema_evolution(self) -> Optional[bool]:
+        return self.args.schema_evolution
+
+    @schema_evolution.setter
+    def schema_evolution(self, schema_evolution: bool) -> None:
+        if schema_evolution is not None:
+            self.args.schema_evolution = schema_evolution
+
+    @property
+    def catalog_id(self) -> Optional[str]:
+        return self.args.catalog_id
+
+    @catalog_id.setter
+    def catalog_id(self, catalog_id: str) -> None:
+        if catalog_id is not None:
+            self.args.catalog_id = catalog_id
+
+    @property
+    def use_threads(self) -> Optional[Union[bool, int]]:
+        return self.args.use_threads
+
+    @use_threads.setter
+    def use_threads(self, use_threads: Union[bool, int]) -> None:
+        if use_threads is not None:
+            self.args.use_threads = use_threads
+
+    @property
+    def boto3_session(self) -> Optional[Any]:
+        return self.args.boto3_session
+
+    @boto3_session.setter
+    def boto3_session(self, boto3_session: Any) -> None:
+        if boto3_session is not None:
+            self.args.boto3_session = boto3_session
+
+    @property
+    def s3_additional_kwargs(self) -> Optional[Dict[str, Any]]:
+        return self.args.s3_additional_kwargs
+
+    @s3_additional_kwargs.setter
+    def s3_additional_kwargs(self, s3_additional_kwargs: Dict[str, Any]) -> None:
+        if s3_additional_kwargs is not None:
+            self.args.s3_additional_kwargs = s3_additional_kwargs
 
     @property
     def uri(self) -> str:

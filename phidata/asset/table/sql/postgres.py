@@ -3,25 +3,24 @@ from typing_extensions import Literal
 
 from sqlalchemy.engine import Engine, Connection
 
+from phidata.app.db import DbApp
 from phidata.asset.table.sql import SqlTable, SqlTableArgs, SqlType
 from phidata.utils.cli_console import print_info, print_error
 
 
 class PostgresTableArgs(SqlTableArgs):
-    # Table Name
-    name: str
     sql_type: SqlType = SqlType.POSTGRES
 
 
 class PostgresTable(SqlTable):
     def __init__(
         self,
-        # Table Name
         name: str,
-        db_schema: Optional[str] = None,
-        db_conn_id: Optional[str] = None,
-        db_conn_url: Optional[str] = None,
+        schema: Optional[str] = None,
         db_engine: Optional[Union[Engine, Connection]] = None,
+        db_conn_url: Optional[str] = None,
+        airflow_conn_id: Optional[str] = None,
+        db_app: Optional[DbApp] = None,
         version: Optional[str] = None,
         enabled: bool = True,
     ) -> None:
@@ -29,10 +28,12 @@ class PostgresTable(SqlTable):
         try:
             self.args: PostgresTableArgs = PostgresTableArgs(
                 name=name,
-                db_schema=db_schema,
-                db_conn_id=db_conn_id,
-                db_conn_url=db_conn_url,
+                sql_type=SqlType.POSTGRES,
+                schema=schema,
                 db_engine=db_engine,
+                db_conn_url=db_conn_url,
+                airflow_conn_id=airflow_conn_id,
+                db_app=db_app,
                 version=version,
                 enabled=enabled,
             )

@@ -89,13 +89,13 @@ class File(DataAsset):
             return self.args.file_path
 
         # logger.debug("-*--*- Building file_path")
-        # Start with the base_dir_path
-        # base_dir_path is loaded from the current environment variable
-        _file_path: Optional[Path] = self.base_dir_path
+        # Start with the storage_dir_path
+        # storage_dir_path is loaded from the current environment variable
+        _file_path: Optional[Path] = self.storage_dir_path
         # Add the file_dir if available
         if self.file_dir is not None:
             if _file_path is None:
-                # _file_path is None meaning no base_dir_path
+                # _file_path is None meaning no storage_dir_path
                 _file_path = Path(".").resolve().joinpath(self.file_dir)
             else:
                 _file_path = _file_path.joinpath(self.file_dir)

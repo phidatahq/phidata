@@ -5,6 +5,7 @@ from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.exc import ResourceClosedError
 
 from phidata.asset import DataAsset, DataAssetArgs
+from phidata.app.db import DbApp
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
@@ -21,16 +22,18 @@ class SqlTableArgs(DataAssetArgs):
     sql_type: SqlType
     # Table schema
     db_schema: Optional[str] = None
-    # airflow connection_id can be used for running workflows remotely
-    db_conn_id: Optional[str] = None
-    # a db_conn_url can be used to create the sqlalchemy.engine.Engine object
-    db_conn_url: Optional[str] = None
     # sqlalchemy.engine.(Engine or Connection)
     # Using SQLAlchemy makes it possible to use any DB supported by that library.
     # NOTE: db_engine is required but can be derived using
     # db_conn_url when running locally and
     # db_conn_id when running remotely
     db_engine: Optional[Union[Engine, Connection]] = None
+    # a db_conn_url can be used to create the sqlalchemy.engine.Engine object
+    db_conn_url: Optional[str] = None
+    # airflow connection_id used for running workflows on airflow
+    airflow_conn_id: Optional[str] = None
+    # Phidata DbApp to connect to the database
+    db_app: Optional[DbApp] = None
 
 
 class SqlTable(DataAsset):
@@ -41,9 +44,12 @@ class SqlTable(DataAsset):
         name: Optional[str] = None,
         sql_type: Optional[SqlType] = None,
         db_schema: Optional[str] = None,
-        db_conn_id: Optional[str] = None,
-        db_conn_url: Optional[str] = None,
         db_engine: Optional[Union[Engine, Connection]] = None,
+        db_conn_url: Optional[str] = None,
+        airflow_conn_id: Optional[str] = None,
+        db_app: Optional[DbApp] = None,
+        version: Optional[str] = None,
+        enabled: bool = True,
     ) -> None:
         super().__init__()
         self.args: Optional[SqlTableArgs] = None
@@ -53,9 +59,12 @@ class SqlTable(DataAsset):
                     name=name,
                     sql_type=sql_type,
                     db_schema=db_schema,
-                    db_conn_id=db_conn_id,
-                    db_conn_url=db_conn_url,
                     db_engine=db_engine,
+                    db_conn_url=db_conn_url,
+                    airflow_conn_id=airflow_conn_id,
+                    db_app=db_app,
+                    version=version,
+                    enabled=enabled,
                 )
             except Exception as e:
                 logger.error(f"Args for {self.__class__.__name__} are not valid")
@@ -71,15 +80,6 @@ class SqlTable(DataAsset):
             self.args.sql_type = sql_type
 
     @property
-    def db_conn_id(self) -> Optional[str]:
-        return self.args.db_conn_id if self.args else None
-
-    @db_conn_id.setter
-    def db_conn_id(self, db_conn_id: str) -> None:
-        if self.args and db_conn_id:
-            self.args.db_conn_id = db_conn_id
-
-    @property
     def db_schema(self) -> Optional[str]:
         return self.args.db_schema if self.args else None
 
@@ -87,6 +87,15 @@ class SqlTable(DataAsset):
     def db_schema(self, db_schema: str) -> None:
         if self.args and db_schema:
             self.args.db_schema = db_schema
+
+    @property
+    def db_engine(self) -> Optional[Union[Engine, Connection]]:
+        return self.args.db_engine if self.args else None
+
+    @db_engine.setter
+    def db_engine(self, db_engine: Union[Engine, Connection]) -> None:
+        if self.args and db_engine:
+            self.args.db_engine = db_engine
 
     @property
     def db_conn_url(self) -> Optional[str]:
@@ -98,13 +107,22 @@ class SqlTable(DataAsset):
             self.args.db_conn_url = db_conn_url
 
     @property
-    def db_engine(self) -> Optional[Union[Engine, Connection]]:
-        return self.args.db_engine if self.args else None
+    def airflow_conn_id(self) -> Optional[str]:
+        return self.args.airflow_conn_id if self.args else None
 
-    @db_engine.setter
-    def db_engine(self, db_engine: Union[Engine, Connection]) -> None:
-        if self.args and db_engine:
-            self.args.db_engine = db_engine
+    @airflow_conn_id.setter
+    def airflow_conn_id(self, airflow_conn_id: str) -> None:
+        if self.args and airflow_conn_id:
+            self.args.airflow_conn_id = airflow_conn_id
+
+    @property
+    def db_app(self) -> Optional[DbApp]:
+        return self.args.db_app if self.args else None
+
+    @db_app.setter
+    def db_app(self, db_app: DbApp) -> None:
+        if self.args and db_app:
+            self.args.db_app = db_app
 
     def create_db_engine_using_conn_url(self) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using db_conn_url
@@ -128,22 +146,64 @@ class SqlTable(DataAsset):
             logger.error(e)
             return None
 
-    def create_db_engine_using_conn_id(self) -> Optional[Union[Engine, Connection]]:
-        # Create the SQLAlchemy engine using db_conn_id
+    def create_db_engine_using_airflow_conn_id(
+        self,
+    ) -> Optional[Union[Engine, Connection]]:
+        # Create the SQLAlchemy engine using airflow_conn_id
 
-        if self.db_conn_id is None:
+        if self.airflow_conn_id is None:
             return None
 
         try:
             from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-            logger.info(f"Creating db_engine using db_conn_id: {self.db_conn_id}")
+            logger.info(
+                f"Creating db_engine using airflow_conn_id: {self.airflow_conn_id}"
+            )
             if self.sql_type == SqlType.POSTGRES:
-                pg_hook = PostgresHook(postgres_conn_id=self.db_conn_id)
+                pg_hook = PostgresHook(postgres_conn_id=self.airflow_conn_id)
                 self.db_engine = pg_hook.get_sqlalchemy_engine()
             return self.db_engine
         except Exception as e:
-            logger.error(f"Error creating db_engine using {self.db_conn_id}")
+            logger.error(f"Error creating db_engine using {self.airflow_conn_id}")
+            logger.error(e)
+            return None
+
+    def create_db_engine_using_db_app(self) -> Optional[Union[Engine, Connection]]:
+        # Create the SQLAlchemy engine using db_app
+
+        if self.db_app is None:
+            return None
+
+        try:
+            conn_url: Optional[str] = None
+
+            phidata_runtime: Optional[PhidataRuntimeType] = self.phidata_runtime
+            if phidata_runtime is None:
+                conn_url = self.db_app.get_db_connection_url_local()
+            if phidata_runtime == PhidataRuntimeType.local:
+                conn_url = self.db_app.get_db_connection_url_local()
+            if phidata_runtime == PhidataRuntimeType.docker:
+                conn_url = self.db_app.get_db_connection_url_docker()
+            if phidata_runtime == PhidataRuntimeType.kubernetes:
+                conn_url = self.db_app.get_db_connection_url_k8s()
+
+            if conn_url is None:
+                return None
+
+            # Create the SQLAlchemy engine using conn_url
+            from sqlalchemy import create_engine
+
+            logger.info(f"Creating db_engine using conn_url: {conn_url}")
+            db_engine = create_engine(conn_url)
+            logger.debug(f"db_engine: {db_engine}")
+            if isinstance(db_engine, tuple) and len(db_engine) > 0:
+                self.db_engine = db_engine[0]
+            else:
+                self.db_engine = db_engine
+            return self.db_engine
+        except Exception as e:
+            logger.error(f"Error creating db_engine using {self.db_app}")
             logger.error(e)
             return None
 
@@ -151,10 +211,16 @@ class SqlTable(DataAsset):
         if self.db_engine is not None:
             return self.db_engine
 
-        phidata_runtime: Optional[PhidataRuntimeType] = self.phidata_runtime
-        if phidata_runtime is not None and phidata_runtime.is_remote_runtime():
-            return self.create_db_engine_using_conn_id()
-        return self.create_db_engine_using_conn_url()
+        if self.db_conn_url is not None:
+            return self.create_db_engine_using_conn_url()
+
+        if self.db_app is not None:
+            return self.create_db_engine_using_db_app()
+
+        if self.airflow_conn_id is not None:
+            return self.create_db_engine_using_airflow_conn_id()
+
+        return None
 
     ######################################################
     ## Write table

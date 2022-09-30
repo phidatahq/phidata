@@ -1,19 +1,23 @@
 from typing import Optional, Literal, List, Tuple, Dict, Any, Union
 
-from phidata.asset.aws.s3.dataset import S3DatasetBase, S3DatasetBaseArgs, S3DatasetType
+from phidata.asset.aws.s3.dataset_base import (
+    S3DatasetBase,
+    S3DatasetBaseArgs,
+    S3DatasetType,
+)
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.log import logger
 
 
 class S3DatasetCsvArgs(S3DatasetBaseArgs):
-    sep: Optional[str] = None
+    sep: str = ","
 
 
 class S3DatasetCsv(S3DatasetBase):
     def __init__(
         self,
         table: str,
-        sep: Optional[str] = None,
+        sep: str = ",",
         database: Optional[str] = None,
         table_type: Optional[str] = None,
         table_description: Optional[str] = None,
@@ -110,7 +114,7 @@ class S3DatasetCsv(S3DatasetBase):
     def write_pandas_df(
         self,
         df: Optional[Any] = None,
-        # S3 path for the dataset
+        # S3 path for the dataset or use the path defined in the dataset
         path: Optional[str] = None,
         # String of length 1. Field delimiter for the output file.
         sep: Optional[str] = None,
@@ -219,21 +223,15 @@ class S3DatasetCsv(S3DatasetBase):
         # create a dict of args which are not null
         not_null_args: Dict[str, Any] = {}
 
+        if index is not None:
+            not_null_args["index"] = index
+
+        if columns is not None:
+            not_null_args["columns"] = columns
+
         _sep = sep or self.sep
         if _sep is not None:
             not_null_args["sep"] = _sep
-
-        _filename_prefix = filename_prefix or self.filename_prefix
-        if _filename_prefix is not None:
-            not_null_args["filename_prefix"] = _filename_prefix
-
-        _index = index  # or self.index
-        if _index is not None:
-            not_null_args["index"] = _index
-
-        _columns = columns  # or self.columns
-        if _columns is not None:
-            not_null_args["columns"] = _columns
 
         _table = table or self.table
         if _table is not None:
@@ -266,6 +264,10 @@ class S3DatasetCsv(S3DatasetBase):
         _columns_comments = columns_comments or self.columns_comments
         if _columns_comments is not None:
             not_null_args["columns_comments"] = _columns_comments
+
+        _filename_prefix = filename_prefix or self.filename_prefix
+        if _filename_prefix is not None:
+            not_null_args["filename_prefix"] = _filename_prefix
 
         _partition_cols = partition_cols or self.partition_cols
         if _partition_cols is not None:
@@ -352,13 +354,14 @@ class S3DatasetCsv(S3DatasetBase):
                 df=df,
                 path=dataset_path,
                 dataset=True,
+                sanitize_columns=True,
                 **not_null_args,
             )
             logger.info(f"Dataset {self.name} written to {dataset_path}")
             logger.debug(f"Response: {response}")
             logger.info("--**-- Done")
             return True
-        except Exception:
+        except Exception as e:
             logger.error("Could not write to dataset: {}".format(self.name))
             raise
 
@@ -368,7 +371,7 @@ class S3DatasetCsv(S3DatasetBase):
         # If creating from a table stored in a different database
         # origin_database is the database where the original table is stored.
         origin_database: Optional[str] = None,
-        # S3 path for the dataset
+        # S3 path for the dataset or use the path defined in the dataset
         path: Optional[str] = None,
         # A list of columns by which the CTAS table will be partitioned.
         partitioning_info: Optional[List[str]] = None,
@@ -449,6 +452,7 @@ class S3DatasetCsv(S3DatasetBase):
                 ctas_table=self.table,
                 ctas_database=self.database,
                 s3_output=dataset_path,
+                storage_format="TEXTFILE",
                 wait=wait,
                 **not_null_args,
             )
@@ -456,7 +460,7 @@ class S3DatasetCsv(S3DatasetBase):
             logger.debug(f"Response: {response}")
             logger.info("--**-- Done")
             return True
-        except Exception:
+        except Exception as e:
             logger.error("Could not write to dataset: {}".format(self.name))
             raise
 

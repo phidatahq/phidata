@@ -151,10 +151,10 @@ class SqlTable(DataAsset):
             return self.db_engine
 
         phidata_runtime: Literal["local", "airflow"] = self.phidata_runtime
-        if phidata_runtime == "local":
-            return self.create_db_engine_using_conn_url()
-        elif phidata_runtime == "airflow":
+
+        if phidata_runtime in ("airflow", "jupyter", "superset", "databox"):
             return self.create_db_engine_using_conn_id()
+        return self.create_db_engine_using_conn_url()
 
     ######################################################
     ## Write table

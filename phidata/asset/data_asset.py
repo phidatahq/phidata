@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Optional, Any, Literal, cast
 
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.constants import STORAGE_DIR_ENV_VAR, PHIDATA_RUNTIME_ENV_VAR
+from phidata.constants import STORAGE_DIR_ENV_VAR
+from phidata.types.phidata_runtime import PhidataRuntimeType, get_phidata_runtime
 from phidata.utils.log import logger
 
 
@@ -12,7 +13,7 @@ class DataAssetArgs(PhidataBaseArgs):
     # This path depends on the environment (local vs container) and is
     # used by the data_asset to build the absolute path in different environments
     base_dir_path: Optional[Path] = None
-    phidata_runtime: Optional[Literal["local", "airflow"]] = None
+    phidata_runtime: Optional[PhidataRuntimeType] = None
 
 
 class DataAsset(PhidataBase):
@@ -51,36 +52,20 @@ class DataAsset(PhidataBase):
             self.args.base_dir_path = base_dir_path
 
     @property
-    def phidata_runtime(self) -> Literal["local", "airflow"]:
+    def phidata_runtime(self) -> Optional[PhidataRuntimeType]:
         # data_asset not yet initialized
         if self.args is None:
-            return "local"
+            return PhidataRuntimeType.local
 
         if self.args.phidata_runtime:
             # use cached value if available
             return self.args.phidata_runtime
 
-        import os
-
-        phidata_runtime_env = os.getenv(PHIDATA_RUNTIME_ENV_VAR)
-        # logger.debug(f"{PHIDATA_RUNTIME_ENV_VAR}: {phidata_runtime_env}")
-        if phidata_runtime_env is not None and phidata_runtime_env in (
-            "local",
-            "airflow",
-        ):
-            phidata_runtime_env = cast(Literal["local", "airflow"], phidata_runtime_env)
-            self.args.phidata_runtime = phidata_runtime_env
-        else:
-            self.args.phidata_runtime = "local"
-        return self.args.phidata_runtime
+        return get_phidata_runtime()
 
     @phidata_runtime.setter
-    def phidata_runtime(self, phidata_runtime: Literal["local", "airflow"]) -> None:
-        if (
-            self.args is not None
-            and phidata_runtime is not None
-            and phidata_runtime in ("local", "airflow")
-        ):
+    def phidata_runtime(self, phidata_runtime: PhidataRuntimeType) -> None:
+        if self.args is not None and phidata_runtime is not None:
             self.args.phidata_runtime = phidata_runtime
 
     ######################################################

@@ -7,6 +7,7 @@ from sqlalchemy.exc import ResourceClosedError
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
+from phidata.types.phidata_runtime import PhidataRuntimeType
 
 
 class SqlType(ExtendedEnum):
@@ -150,9 +151,8 @@ class SqlTable(DataAsset):
         if self.db_engine is not None:
             return self.db_engine
 
-        phidata_runtime: Literal["local", "airflow"] = self.phidata_runtime
-
-        if phidata_runtime in ("airflow", "jupyter", "superset", "databox"):
+        phidata_runtime: Optional[PhidataRuntimeType] = self.phidata_runtime
+        if phidata_runtime is not None and phidata_runtime.is_remote_runtime():
             return self.create_db_engine_using_conn_id()
         return self.create_db_engine_using_conn_url()
 

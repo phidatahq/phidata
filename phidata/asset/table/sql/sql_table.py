@@ -35,6 +35,8 @@ class SqlTableArgs(DataAssetArgs):
     # Phidata DbApp to connect to the database
     db_app: Optional[DbApp] = None
 
+    cached_db_engine: Optional[Union[Engine, Connection]] = None
+
 
 class SqlTable(DataAsset):
     """Base Class for Sql tables"""
@@ -124,6 +126,15 @@ class SqlTable(DataAsset):
         if self.args and db_app:
             self.args.db_app = db_app
 
+    @property
+    def cached_db_engine(self) -> Optional[Union[Engine, Connection]]:
+        return self.args.cached_db_engine if self.args else None
+
+    @cached_db_engine.setter
+    def cached_db_engine(self, cached_db_engine: Union[Engine, Connection]) -> None:
+        if self.args and cached_db_engine:
+            self.args.cached_db_engine = cached_db_engine
+
     def create_db_engine_using_conn_url(self) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using db_conn_url
 
@@ -152,6 +163,12 @@ class SqlTable(DataAsset):
         # Create the SQLAlchemy engine using airflow_conn_id
 
         if self.airflow_conn_id is None:
+            return None
+
+        from phidata.airflow.airflow_installed import airflow_installed
+
+        # Validate that airflow is installed on the machine
+        if not airflow_installed():
             return None
 
         try:
@@ -207,18 +224,30 @@ class SqlTable(DataAsset):
             logger.error(e)
             return None
 
-    def get_db_engine(self) -> Optional[Union[Engine, Connection]]:
+    def create_db_engine(self) -> Optional[Union[Engine, Connection]]:
         if self.db_engine is not None:
             return self.db_engine
 
+        if self.cached_db_engine is not None:
+            return self.cached_db_engine
+
         if self.db_conn_url is not None:
-            return self.create_db_engine_using_conn_url()
+            conn_url_db_engine = self.create_db_engine_using_conn_url()
+            if conn_url_db_engine is not None:
+                self.cached_db_engine = conn_url_db_engine
+                return conn_url_db_engine
 
         if self.db_app is not None:
-            return self.create_db_engine_using_db_app()
+            db_app_db_engine = self.create_db_engine_using_db_app()
+            if db_app_db_engine is not None:
+                self.cached_db_engine = db_app_db_engine
+                return db_app_db_engine
 
         if self.airflow_conn_id is not None:
-            return self.create_db_engine_using_airflow_conn_id()
+            airflow_conn_id_db_engine = self.create_db_engine_using_airflow_conn_id()
+            if airflow_conn_id_db_engine is not None:
+                self.cached_db_engine = airflow_conn_id_db_engine
+                return airflow_conn_id_db_engine
 
         return None
 
@@ -259,7 +288,7 @@ class SqlTable(DataAsset):
             return False
 
         # Check engine is available
-        db_engine = self.get_db_engine()
+        db_engine = self.create_db_engine()
         if db_engine is None:
             logger.error("DbEngine not available")
             return False
@@ -347,7 +376,7 @@ class SqlTable(DataAsset):
             return False
 
         # Check engine is available
-        db_engine = self.get_db_engine()
+        db_engine = self.create_db_engine()
         if db_engine is None:
             logger.error("DbEngine not available")
             return False
@@ -428,7 +457,7 @@ class SqlTable(DataAsset):
             return None
 
         # Check engine is available
-        db_engine = self.get_db_engine()
+        db_engine = self.create_db_engine()
         if db_engine is None:
             logger.error("DbEngine not available")
             return False

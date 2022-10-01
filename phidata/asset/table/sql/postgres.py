@@ -16,7 +16,7 @@ class PostgresTable(SqlTable):
     def __init__(
         self,
         name: str,
-        schema: Optional[str] = None,
+        db_schema: Optional[str] = None,
         db_engine: Optional[Union[Engine, Connection]] = None,
         db_conn_url: Optional[str] = None,
         airflow_conn_id: Optional[str] = None,
@@ -29,7 +29,7 @@ class PostgresTable(SqlTable):
             self.args: PostgresTableArgs = PostgresTableArgs(
                 name=name,
                 sql_type=SqlType.POSTGRES,
-                schema=schema,
+                db_schema=db_schema,
                 db_engine=db_engine,
                 db_conn_url=db_conn_url,
                 airflow_conn_id=airflow_conn_id,

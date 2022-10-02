@@ -258,3 +258,25 @@ class PhidataApp(PhidataBase):
             else:
                 logger.error(f"Invalid file: {file_path}")
         return None
+
+    def set_aws_env_vars(self, env_dict: Dict[str, str]) -> None:
+        """Set AWS environment variables."""
+        from phidata.constants import (
+            AWS_REGION_ENV_VAR,
+            AWS_DEFAULT_REGION_ENV_VAR,
+            AWS_PROFILE_ENV_VAR,
+            AWS_CONFIG_FILE_ENV_VAR,
+            AWS_SHARED_CREDENTIALS_FILE_ENV_VAR,
+        )
+
+        if self.aws_region is not None:
+            env_dict[AWS_REGION_ENV_VAR] = self.aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.aws_region
+        if self.aws_profile is not None:
+            env_dict[AWS_PROFILE_ENV_VAR] = self.aws_profile
+        if self.aws_config_file is not None:
+            env_dict[AWS_CONFIG_FILE_ENV_VAR] = self.aws_config_file
+        if self.aws_shared_credentials_file is not None:
+            env_dict[
+                AWS_SHARED_CREDENTIALS_FILE_ENV_VAR
+            ] = self.aws_shared_credentials_file

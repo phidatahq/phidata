@@ -291,7 +291,6 @@ class PostgresDb(DbApp):
                 node_port=node_port,
                 target_port=target_port,
                 use_cache=use_cache,
-                use_verbose_logs=use_verbose_logs,
             )
         except Exception:
             logger.error(f"Args for {self.__class__.__name__} are not valid")

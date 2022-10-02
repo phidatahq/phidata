@@ -335,10 +335,6 @@ class S3Dataset(S3DatasetBase):
         if _use_threads is not None:
             not_null_args["use_threads"] = _use_threads
 
-        _boto3_session = boto3_session or self.boto3_session
-        if _boto3_session is not None:
-            not_null_args["boto3_session"] = _boto3_session
-
         _s3_additional_kwargs = s3_additional_kwargs or self.s3_additional_kwargs
         if _s3_additional_kwargs is not None:
             not_null_args["s3_additional_kwargs"] = _s3_additional_kwargs
@@ -374,6 +370,14 @@ class S3Dataset(S3DatasetBase):
         try:
             import awswrangler as wr
 
+            # Create boto3 session
+            _boto3_session = boto3_session or self.boto3_session
+            if _boto3_session is None:
+                logger.info("Creating boto3 session using aws_api_client")
+                aws_api_client = self.aws_api_client
+                if aws_api_client is not None:
+                    _boto3_session = aws_api_client.boto3_session
+
             # Create database if needed
             if _database is not None and create_database:
                 logger.info(f"Creating database: '{_database}'")
@@ -391,6 +395,7 @@ class S3Dataset(S3DatasetBase):
                 path=dataset_path,
                 dataset=True,
                 sanitize_columns=True,
+                boto3_session=_boto3_session,
                 **not_null_args,
             )
             logger.info(f"Dataset {self.name} written to {dataset_path}")

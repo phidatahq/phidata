@@ -1,6 +1,7 @@
 from typing import Optional
 
 from phidata.asset import DataAsset, DataAssetArgs
+from phidata.infra.aws.api_client import AwsApiClient
 from phidata.constants import AWS_REGION_ENV_VAR, AWS_PROFILE_ENV_VAR
 from phidata.utils.log import logger
 
@@ -9,6 +10,8 @@ class AwsAssetArgs(DataAssetArgs):
     # Aws variables added by WorkspaceConfig().__init__()
     aws_region: Optional[str] = None
     aws_profile: Optional[str] = None
+
+    aws_api_client: Optional[AwsApiClient] = None
 
 
 class AwsAsset(DataAsset):
@@ -63,3 +66,29 @@ class AwsAsset(DataAsset):
     def aws_profile(self, aws_profile: str) -> None:
         if self.args is not None and aws_profile is not None:
             self.args.aws_profile = aws_profile
+
+    @property
+    def aws_api_client(self) -> Optional[AwsApiClient]:
+        # aws_asset not yet initialized
+        if self.args is None:
+            return None
+
+        # use cached value if available
+        if self.args.aws_api_client:
+            return self.args.aws_api_client
+
+        # logger.info(f"Loading {AWS_PROFILE_ENV_VAR} from env")
+        import os
+
+        aws_api_client = AwsApiClient(
+            aws_region=self.aws_region,
+            aws_profile=self.aws_profile,
+        )
+        if aws_api_client is not None:
+            self.args.aws_api_client = aws_api_client
+        return self.args.aws_api_client
+
+    @aws_api_client.setter
+    def aws_api_client(self, aws_api_client: AwsApiClient) -> None:
+        if self.args is not None and aws_api_client is not None:
+            self.args.aws_api_client = aws_api_client

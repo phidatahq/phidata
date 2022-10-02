@@ -761,6 +761,9 @@ class JupyterLab(PhidataApp):
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
         if self.args.jupyter_config_file is not None:
             container_env["JUPYTER_CONFIG_FILE"] = self.args.jupyter_config_file
 

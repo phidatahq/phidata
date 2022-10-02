@@ -557,6 +557,9 @@ class JupyterHub(PhidataApp):
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
         # Update the container env using env_file
         env_data_from_file = self.get_env_data_from_file()
         if env_data_from_file is not None:
@@ -801,6 +804,9 @@ class JupyterHub(PhidataApp):
             "WAIT_FOR_DB": str(self.args.wait_for_db),
             "JH_SVC_NAME": self.get_app_service_name(),
         }
+
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
 
         # Superset db connection
         db_user = self.args.db_user

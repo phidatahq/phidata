@@ -138,13 +138,10 @@ class SqlTable(DataAsset):
     def create_db_engine_using_conn_url(self) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using db_conn_url
 
-        if self.db_conn_url is None:
-            return None
-
         try:
             from sqlalchemy import create_engine
 
-            logger.info(f"Creating db_engine using db_conn_url: {self.db_conn_url}")
+            # logger.info(f"Creating db_engine using db_conn_url: {self.db_conn_url}")
             db_engine = create_engine(self.db_conn_url)
             logger.debug(f"db_engine: {db_engine}")
             if isinstance(db_engine, tuple) and len(db_engine) > 0:
@@ -161,15 +158,6 @@ class SqlTable(DataAsset):
         self,
     ) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using airflow_conn_id
-
-        if self.airflow_conn_id is None:
-            return None
-
-        from phidata.airflow.airflow_installed import airflow_installed
-
-        # Validate that airflow is installed on the machine
-        if not airflow_installed():
-            return None
 
         try:
             from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -205,13 +193,13 @@ class SqlTable(DataAsset):
             if phidata_runtime == PhidataRuntimeType.kubernetes:
                 conn_url = self.db_app.get_db_connection_url_k8s()
 
-            if conn_url is None:
+            if conn_url is None or "None" in conn_url:
                 return None
 
             # Create the SQLAlchemy engine using conn_url
             from sqlalchemy import create_engine
 
-            logger.info(f"Creating db_engine using conn_url: {conn_url}")
+            # logger.info(f"Creating db_engine using conn_url: {conn_url}")
             db_engine = create_engine(conn_url)
             logger.debug(f"db_engine: {db_engine}")
             if isinstance(db_engine, tuple) and len(db_engine) > 0:
@@ -237,17 +225,23 @@ class SqlTable(DataAsset):
                 self.cached_db_engine = conn_url_db_engine
                 return conn_url_db_engine
 
+        if self.airflow_conn_id is not None:
+            from phidata.airflow.airflow_installed import airflow_installed
+
+            # Validate that airflow is installed on the machine
+            if airflow_installed():
+                airflow_conn_id_db_engine = (
+                    self.create_db_engine_using_airflow_conn_id()
+                )
+                if airflow_conn_id_db_engine is not None:
+                    self.cached_db_engine = airflow_conn_id_db_engine
+                    return airflow_conn_id_db_engine
+
         if self.db_app is not None:
             db_app_db_engine = self.create_db_engine_using_db_app()
             if db_app_db_engine is not None:
                 self.cached_db_engine = db_app_db_engine
                 return db_app_db_engine
-
-        if self.airflow_conn_id is not None:
-            airflow_conn_id_db_engine = self.create_db_engine_using_airflow_conn_id()
-            if airflow_conn_id_db_engine is not None:
-                self.cached_db_engine = airflow_conn_id_db_engine
-                return airflow_conn_id_db_engine
 
         return None
 

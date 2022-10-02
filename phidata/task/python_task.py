@@ -341,7 +341,7 @@ class PythonTask(Task):
             python_callable=entrypoint,
             op_kwargs=self.args.dict(),
         )
-        logger.info(f"Airflow task: {task_id} created")
+        # logger.debug(f"Airflow task: {task_id} created")
 
         return airflow_task
 

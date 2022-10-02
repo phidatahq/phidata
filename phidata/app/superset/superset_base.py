@@ -954,6 +954,9 @@ class SupersetBase(PhidataApp):
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
         if self.args.superset_config_path is not None:
             container_env["SUPERSET_CONFIG_PATH"] = self.args.superset_config_path
 
@@ -1322,6 +1325,9 @@ class SupersetBase(PhidataApp):
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
+
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
 
         if self.args.superset_config_path is not None:
             container_env["SUPERSET_CONFIG_PATH"] = self.args.superset_config_path

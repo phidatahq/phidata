@@ -1224,6 +1224,9 @@ class AirflowBase(PhidataApp):
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
         # Set the AIRFLOW__CORE__DAGS_FOLDER
         if self.args.mount_workspace and self.args.use_products_as_airflow_dags:
             container_env["AIRFLOW__CORE__DAGS_FOLDER"] = str(
@@ -1647,6 +1650,9 @@ class AirflowBase(PhidataApp):
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
+
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
         if self.args.mount_workspace and self.args.use_products_as_airflow_dags:

@@ -78,7 +78,7 @@ class DataboxArgs(PhidataAppArgs):
 
     # Image args
     image_name: str = "phidata/databox"
-    image_tag: str = "2.3.3"
+    image_tag: str = "2.4.0"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -353,7 +353,7 @@ class Databox(PhidataApp):
         enabled: bool = True,
         # Image args,
         image_name: str = "phidata/databox",
-        image_tag: str = "2.3.3",
+        image_tag: str = "2.4.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
@@ -1022,6 +1022,9 @@ class Databox(PhidataApp):
             "PHIDATA_DIR_PATH": self.args.phidata_dir_container_path,
         }
 
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
         # Update the container env using env_file
         env_data_from_user = self.get_env_data()
         if env_data_from_user is not None:
@@ -1439,6 +1442,9 @@ class Databox(PhidataApp):
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
+
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
 
         # Update the container env using env_file
         env_data_from_user = self.get_env_data()

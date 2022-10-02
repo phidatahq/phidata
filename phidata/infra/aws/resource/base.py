@@ -133,6 +133,10 @@ class AwsResource(AwsObject):
             return None
         if self.use_cache and self.active_resource is not None:
             return self.active_resource
+        # Skip resource creation if skip_read = True
+        if self.skip_read:
+            print_info(f"Skipping read: {self.get_resource_name()}")
+            return True
 
         client: AwsApiClient = aws_client or self.get_aws_client()
         return self._read(client)
@@ -149,7 +153,7 @@ class AwsResource(AwsObject):
         """
         if not self.is_valid():
             return False
-        # Skip resource creation if update = True
+        # Skip resource update if skip_update = True
         if self.skip_update:
             print_info(f"Skipping update: {self.get_resource_name()}")
             return True

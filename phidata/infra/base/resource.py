@@ -2,15 +2,13 @@ from typing import Any, Optional, Type
 
 from pydantic import BaseModel, validator
 
-from phidata.utils.log import logger
-
 
 class InfraResource(BaseModel):
     """Base class for all Phidata infrastructure resources.
     All Models in the phidata.infra.*.resource modules are expected to be subclasses of this Model.
 
     We use a pydantic model for resources because the data which creates the resource
-    comes from an external sources  like users or the api.
+    may come from an external sources like users or an api.
     This data needs to be validated & type checked for which we use pydantic.
     """
 
@@ -23,17 +21,21 @@ class InfraResource(BaseModel):
     # If True, skip resource creation if an active resources with the same name exists.
     use_cache: bool = True
 
-    # If True, marks skip_create, skip_delete, skip_update to True
-    external: bool = False
-    # If True, does not create the resource when `phi ws up` command is run
+    # If enabled=False: mark skip_create, skip_delete, skip_update as True
+    enabled: bool = True
+    # If True, phi does not create the resource
     skip_create: bool = False
-    # If True, does not delete the resource when `phi ws down` command is run
-    skip_delete: bool = False
-    # If True, does not update the resource when `phi ws patch` command is run
+    # If True, phi does not read the resource
+    skip_read: bool = False
+    # If True, phi does not update the resource
     skip_update: bool = False
+    # If True, phi does not delete the resource
+    skip_delete: bool = False
 
     # If True, waits for the resource to be created
     wait_for_creation: bool = True
+    # If True, waits for the resource to be updated
+    wait_for_update: bool = True
     # If True, waits for the resource to be deleted
     wait_for_deletion: bool = True
     # The amount of time in seconds to wait between attempts.
@@ -52,18 +54,18 @@ class InfraResource(BaseModel):
 
     @validator("skip_create", pre=True, always=True)
     def set_skip_create(cls, skip_create, values):
-        external = values.get("external", False)
-        return True if external else skip_create
-
-    @validator("skip_delete", pre=True, always=True)
-    def set_skip_delete(cls, skip_delete, values):
-        external = values.get("external", False)
-        return True if external else skip_delete
+        skip_resource = not values.get("enabled", True)
+        return True if skip_resource else skip_create
 
     @validator("skip_update", pre=True, always=True)
     def set_skip_update(cls, skip_update, values):
-        external = values.get("external", False)
-        return True if external else skip_update
+        skip_resource = not values.get("enabled", True)
+        return True if skip_resource else skip_update
+
+    @validator("skip_delete", pre=True, always=True)
+    def set_skip_delete(cls, skip_delete, values):
+        skip_resource = not values.get("enabled", True)
+        return True if skip_resource else skip_delete
 
     """
     ## Functions to be implemented by subclasses

@@ -256,7 +256,7 @@ class DataboxArgs(PhidataAppArgs):
     # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path
     # because we assume that DockerContainers are running locally on the user's machine
     # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
-    create_git_sync_sidecar: bool = True
+    create_git_sync_sidecar: bool = False
     create_git_sync_init_container: bool = False
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
@@ -521,7 +521,7 @@ class Databox(PhidataApp):
         # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path,
         # because we assume that DockerContainers are running locally on the user's machine,
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
-        create_git_sync_sidecar: bool = True,
+        create_git_sync_sidecar: bool = False,
         create_git_sync_init_container: bool = False,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,

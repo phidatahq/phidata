@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Optional
 
 from phidata.constants import PHIDATA_RUNTIME_ENV_VAR
 from phidata.utils.enums import ExtendedEnum

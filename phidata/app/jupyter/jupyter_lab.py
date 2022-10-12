@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 from typing_extensions import Literal
 
+from phidata.app.db import DbApp
 from phidata.app import PhidataApp, PhidataAppArgs
 from phidata.constants import (
     SCRIPTS_DIR_ENV_VAR,
@@ -12,7 +13,16 @@ from phidata.constants import (
     NOTEBOOKS_DIR_ENV_VAR,
     WORKSPACE_CONFIG_DIR_ENV_VAR,
     PHIDATA_RUNTIME_ENV_VAR,
+    PHI_WORKSPACE_MOUNT_ENV_VAR,
+    PHI_WORKSPACE_ROOT_ENV_VAR,
+    PYTHONPATH_ENV_VAR,
+    INIT_AIRFLOW_ENV_VAR,
+    AIRFLOW_ENV_ENV_VAR,
+    AIRFLOW_EXECUTOR_ENV_VAR,
+    AIRFLOW_DAGS_FOLDER_ENV_VAR,
+    AIRFLOW_DB_CONN_URL_ENV_VAR,
 )
+from phidata.infra.aws.resource.ec2.volume import EbsVolume
 from phidata.infra.docker.resource.group import (
     DockerResourceGroup,
     DockerBuildContext,
@@ -33,7 +43,7 @@ from phidata.infra.k8s.create.core.v1.volume import (
     CreateVolume,
     HostPathVolumeSource,
     VolumeType,
-    PersistentVolumeClaimVolumeSource,
+    AwsElasticBlockStoreVolumeSource,
 )
 from phidata.infra.k8s.create.common.port import CreatePort
 from phidata.infra.k8s.create.group import (
@@ -57,6 +67,7 @@ from phidata.infra.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
 )
+from phidata.types.airflow import AirflowExecutorType, AirflowExecutor
 from phidata.utils.common import (
     get_image_str,
     get_default_ns_name,
@@ -75,14 +86,19 @@ from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
+class JupyterLabVolumeType(ExtendedEnum):
+    EMPTY_DIR = "EMPTY_DIR"
+    AWS_EBS = "AWS_EBS"
+
+
 class JupyterLabArgs(PhidataAppArgs):
-    name: str = "jupyterlab"
+    name: str = "jupyter"
     version: str = "1"
     enabled: bool = True
 
     # Image args
     image_name: str = "phidata/jupyterlab"
-    image_tag: str = "3.4.3"
+    image_tag: str = "3.4.8"
     entrypoint: Optional[Union[str, List]] = None
     command: Union[str, List] = "jupyter lab"
 
@@ -90,16 +106,17 @@ class JupyterLabArgs(PhidataAppArgs):
     # Sets the REQUIREMENTS_FILE_PATH env var to requirements_file_path
     install_requirements: bool = False
     # Path to the requirements.txt file relative to the workspace_root
-    requirements_file_path: str = "workspace/jupyter/requirements.txt"
+    requirements_file_path: str = "requirements.txt"
 
     # Configure the jupyter container
     container_name: Optional[str] = None
-    # Path to JUPYTER_CONFIG_FILE relative to the workspace_root
-    # Used to set the JUPYTER_CONFIG_FILE env var
-    # This value is also appended to the command using `--config`
+    # Absolute path to JUPYTER_CONFIG_FILE
+    # Also used to set the JUPYTER_CONFIG_FILE env var
+    # This value if provided is appended to the command using `--config`
     jupyter_config_file: Optional[str] = None
-    # Set the workspace_root_container_path as `--notebook-dir`
-    use_workspace_as_notebook_dir: Optional[bool] = False
+    # Absolute path to the notebooks directory
+    # Sets the `--notebook-dir` parameter if provided
+    notebook_dir: Optional[str] = None
     # Overwrite the PYTHONPATH env var, which is usually set
     # to workspace_root_contaier_path
     python_path: Optional[str] = None
@@ -124,7 +141,7 @@ class JupyterLabArgs(PhidataAppArgs):
     # Optional hostname for the container.
     container_hostname: Optional[str] = None
     # Platform in the format os[/arch[/variant]].
-    container_platform: str = "linux/amd64"
+    container_platform: Optional[str] = None
     # Path to the working directory.
     container_working_dir: Optional[str] = None
     # Restart the container when it exits. Configured as a dictionary with keys:
@@ -212,7 +229,7 @@ class JupyterLabArgs(PhidataAppArgs):
     # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path
     # because we assume that DockerContainers are running locally on the user's machine
     # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
-    create_git_sync_sidecar: bool = True
+    create_git_sync_sidecar: bool = False
     create_git_sync_init_container: bool = True
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
@@ -227,6 +244,26 @@ class JupyterLabArgs(PhidataAppArgs):
     resources_dir: str = "workspace/jupyter"
     resources_dir_container_path: str = "/usr/local/jupyter"
     resources_volume_name: Optional[str] = None
+
+    # Configure notebooks volume
+    # NOTE: Only available for Kubernetes
+    mount_notebooks: bool = False
+    notebooks_volume_name: Optional[str] = None
+    notebooks_volume_type: JupyterLabVolumeType = JupyterLabVolumeType.EMPTY_DIR
+    # Container path to mount the notebooks volume
+    notebooks_volume_container_path: str = "/mnt/notebooks"
+    # EbsVolume if volume_type = JupyterLabVolumeType.AWS_EBS
+    ebs_volume: Optional[EbsVolume] = None
+    # EbsVolume region is used to determine the ebs_volume_id
+    # and add topology region selectors
+    ebs_volume_region: Optional[str] = None
+    # Provide Ebs Volume-id manually
+    ebs_volume_id: Optional[str] = None
+    # Add topology az selectors
+    ebs_volume_az: Optional[str] = None
+    # Add NodeSelectors to Pods, so they are scheduled in the same
+    # region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
 
     # Configure the deployment
     deploy_name: Optional[str] = None
@@ -249,7 +286,7 @@ class JupyterLabArgs(PhidataAppArgs):
     ] = None
 
     # Configure the app service
-    create_app_svc: bool = False
+    create_app_service: bool = True
     app_svc_name: Optional[str] = None
     app_svc_type: Optional[ServiceType] = None
     # The port that will be exposed by the service.
@@ -293,8 +330,64 @@ class JupyterLabArgs(PhidataAppArgs):
     # Provide the full ClusterRoleBinding definition
     cluster_role_binding: Optional[CreateClusterRoleBinding] = None
 
+    # Configure airflow
+    # sets the env var INIT_AIRFLOW = True
+    # INIT_AIRFLOW = True is required by phidata to build dags
+    init_airflow: bool = True
+    # The AIRFLOW_ENV defines the current airflow runtime and can be used by
+    # DAGs to separate dev vs prd code
+    airflow_env: Optional[str] = None
+    # If use_workspace_for_airflow_dags = True
+    # set the AIRFLOW__CORE__DAGS_FOLDER to the workspace_root_container_path
+    use_workspace_for_airflow_dags: bool = True
+    # Airflow Executor
+    airflow_executor: AirflowExecutorType = AirflowExecutor.SequentialExecutor
+
+    # Configure airflow db
+    # Connect to database using DbApp
+    airflow_db_app: Optional[DbApp] = None
+    # Provide database connection details manually
+    # db_user can be provided here or as the
+    # AIRFLOW_DATABASE_USER env var in the secrets_file
+    airflow_db_user: Optional[str] = None
+    # db_password can be provided here or as the
+    # AIRFLOW_DATABASE_PASSWORD env var in the secrets_file
+    airflow_db_password: Optional[str] = None
+    # db_schema can be provided here or as the
+    # AIRFLOW_DATABASE_DB env var in the secrets_file
+    airflow_db_schema: Optional[str] = None
+    # db_host can be provided here or as the
+    # AIRFLOW_DATABASE_HOST env var in the secrets_file
+    airflow_db_host: Optional[str] = None
+    # db_port can be provided here or as the
+    # AIRFLOW_DATABASE_PORT env var in the secrets_file
+    airflow_db_port: Optional[int] = None
+    # db_driver can be provided here or as the
+    # AIRFLOW_DATABASE_DRIVER env var in the secrets_file
+    airflow_db_driver: str = "postgresql+psycopg2"
+    airflow_db_result_backend_driver: str = "db+postgresql"
+
+    # Configure airflow redis
+    # Connect to redis using a PhidataApp
+    airflow_redis_app: Optional[DbApp] = None
+    # Provide redis connection details manually
+    # redis_password can be provided here or as the
+    # AIRFLOW_REDIS_PASSWORD env var in the secrets_file
+    airflow_redis_password: Optional[str] = None
+    # redis_schema can be provided here or as the
+    # AIRFLOW_REDIS_SCHEMA env var in the secrets_file
+    airflow_redis_schema: Optional[str] = None
+    # redis_host can be provided here or as the
+    # AIRFLOW_REDIS_HOST env var in the secrets_file
+    airflow_redis_host: Optional[str] = None
+    # redis_port can be provided here or as the
+    # AIRFLOW_REDIS_PORT env var in the secrets_file
+    airflow_redis_port: Optional[int] = None
+    # redis_driver can be provided here or as the
+    # AIRFLOW_REDIS_DRIVER env var in the secrets_file
+    airflow_redis_driver: Optional[str] = None
+
     # Other args
-    load_examples: bool = False
     print_env_on_load: bool = True
 
     # Add extra Kubernetes resources
@@ -316,27 +409,28 @@ class JupyterLabArgs(PhidataAppArgs):
 class JupyterLab(PhidataApp):
     def __init__(
         self,
-        name: str = "jupyterlab",
+        name: str = "jupyter",
         version: str = "1",
         enabled: bool = True,
         # Image args,
         image_name: str = "phidata/jupyterlab",
-        image_tag: str = "3.4.3",
+        image_tag: str = "3.4.8",
         entrypoint: Optional[Union[str, List]] = None,
         command: Union[str, List] = "jupyter lab",
         # Install python dependencies using a requirements.txt file,
         # Sets the REQUIREMENTS_FILE_PATH env var to requirements_file_path,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
-        requirements_file_path: str = "workspace/jupyter/requirements.txt",
+        requirements_file_path: str = "requirements.txt",
         # Configure the jupyter container,
         container_name: Optional[str] = None,
-        # Path to JUPYTER_CONFIG_FILE relative to the workspace_root,
-        # Used to set the JUPYTER_CONFIG_FILE env var,
-        # This value is also appended to the command using `--config`,
+        # Absolute path to JUPYTER_CONFIG_FILE,
+        # Also used to set the JUPYTER_CONFIG_FILE env var,
+        # This value if provided is appended to the command using `--config`,
         jupyter_config_file: Optional[str] = None,
-        # Set the workspace_root_container_path as `--notebook-dir`,
-        use_workspace_as_notebook_dir: Optional[bool] = False,
+        # Absolute path to the notebooks directory,
+        # Sets the `--notebook-dir` parameter if provided,
+        notebook_dir: Optional[str] = None,
         # Overwrite the PYTHONPATH env var, which is usually set,
         # to workspace_root_contaier_path,
         python_path: Optional[str] = None,
@@ -360,7 +454,7 @@ class JupyterLab(PhidataApp):
         # Optional hostname for the container.,
         container_hostname: Optional[str] = None,
         # Platform in the format os[/arch[/variant]].,
-        container_platform: str = "linux/amd64",
+        container_platform: Optional[str] = None,
         # Path to the working directory.,
         container_working_dir: Optional[str] = None,
         # Restart the container when it exits. Configured as a dictionary with keys:,
@@ -442,7 +536,7 @@ class JupyterLab(PhidataApp):
         # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path,
         # because we assume that DockerContainers are running locally on the user's machine,
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
-        create_git_sync_sidecar: bool = True,
+        create_git_sync_sidecar: bool = False,
         create_git_sync_init_container: bool = True,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
@@ -456,6 +550,25 @@ class JupyterLab(PhidataApp):
         resources_dir: str = "workspace/jupyter",
         resources_dir_container_path: str = "/usr/local/jupyter",
         resources_volume_name: Optional[str] = None,
+        # Configure notebooks volume,
+        # NOTE: Only available for Kubernetes,
+        mount_notebooks: bool = False,
+        notebooks_volume_name: Optional[str] = None,
+        notebooks_volume_type: JupyterLabVolumeType = JupyterLabVolumeType.EMPTY_DIR,
+        # Container path to mount the notebooks volume,
+        notebooks_volume_container_path: str = "/mnt/notebooks",
+        # EbsVolume if volume_type = JupyterLabVolumeType.AWS_EBS,
+        ebs_volume: Optional[EbsVolume] = None,
+        # EbsVolume region is used to determine the ebs_volume_id,
+        # and add topology region selectors,
+        ebs_volume_region: Optional[str] = None,
+        # Provide Ebs Volume-id manually,
+        ebs_volume_id: Optional[str] = None,
+        # Add topology az selectors,
+        ebs_volume_az: Optional[str] = None,
+        # Add NodeSelectors to Pods, so they are scheduled in the same,
+        # region and zone as the ebs_volume,
+        schedule_pods_in_ebs_topology: bool = True,
         # Configure the deployment,
         deploy_name: Optional[str] = None,
         pod_name: Optional[str] = None,
@@ -476,7 +589,7 @@ class JupyterLab(PhidataApp):
             Literal["DoNotSchedule", "ScheduleAnyway"]
         ] = None,
         # Configure the app service,
-        create_app_svc: bool = False,
+        create_app_service: bool = True,
         app_svc_name: Optional[str] = None,
         app_svc_type: Optional[ServiceType] = None,
         # The port that will be exposed by the service.,
@@ -518,8 +631,61 @@ class JupyterLab(PhidataApp):
         crb_name: Optional[str] = None,
         # Provide the full ClusterRoleBinding definition,
         cluster_role_binding: Optional[CreateClusterRoleBinding] = None,
+        # Configure airflow,
+        # sets the env var INIT_AIRFLOW = True,
+        # INIT_AIRFLOW = True is required by phidata to build dags,
+        init_airflow: bool = True,
+        # The AIRFLOW_ENV defines the current airflow runtime and can be used by,
+        # DAGs to separate dev vs prd code,
+        airflow_env: Optional[str] = None,
+        # If use_workspace_for_airflow_dags = True,
+        # set the AIRFLOW__CORE__DAGS_FOLDER to the workspace_root_dir,
+        use_workspace_for_airflow_dags: bool = True,
+        # Airflow Executor,
+        airflow_executor: AirflowExecutorType = AirflowExecutor.SequentialExecutor,
+        # Configure airflow db,
+        # Connect to database using DbApp,
+        airflow_db_app: Optional[DbApp] = None,
+        # Provide database connection details manually,
+        # db_user can be provided here or as the
+        # AIRFLOW_DATABASE_USER env var in the secrets_file,
+        airflow_db_user: Optional[str] = None,
+        # db_password can be provided here or as the
+        # AIRFLOW_DATABASE_PASSWORD env var in the secrets_file,
+        airflow_db_password: Optional[str] = None,
+        # db_schema can be provided here or as the
+        # AIRFLOW_DATABASE_DB env var in the secrets_file,
+        airflow_db_schema: Optional[str] = None,
+        # db_host can be provided here or as the
+        # AIRFLOW_DATABASE_HOST env var in the secrets_file,
+        airflow_db_host: Optional[str] = None,
+        # db_port can be provided here or as the
+        # AIRFLOW_DATABASE_PORT env var in the secrets_file,
+        airflow_db_port: Optional[int] = None,
+        # db_driver can be provided here or as the
+        # AIRFLOW_DATABASE_DRIVER env var in the secrets_file,
+        airflow_db_driver: str = "postgresql+psycopg2",
+        airflow_db_result_backend_driver: str = "db+postgresql",
+        # Configure airflow redis,
+        # Connect to redis using a PhidataApp,
+        airflow_redis_app: Optional[DbApp] = None,
+        # Provide redis connection details manually,
+        # redis_password can be provided here or as the
+        # AIRFLOW_REDIS_PASSWORD env var in the secrets_file,
+        airflow_redis_password: Optional[str] = None,
+        # redis_schema can be provided here or as the
+        # AIRFLOW_REDIS_SCHEMA env var in the secrets_file,
+        airflow_redis_schema: Optional[str] = None,
+        # redis_host can be provided here or as the
+        # AIRFLOW_REDIS_HOST env var in the secrets_file,
+        airflow_redis_host: Optional[str] = None,
+        # redis_port can be provided here or as the
+        # AIRFLOW_REDIS_PORT env var in the secrets_file,
+        airflow_redis_port: Optional[int] = None,
+        # redis_driver can be provided here or as the
+        # AIRFLOW_REDIS_DRIVER env var in the secrets_file,
+        airflow_redis_driver: Optional[str] = None,
         # Other args,
-        load_examples: bool = False,
         print_env_on_load: bool = True,
         # Add extra Kubernetes resources,
         extra_secrets: Optional[List[CreateSecret]] = None,
@@ -559,7 +725,7 @@ class JupyterLab(PhidataApp):
                 requirements_file_path=requirements_file_path,
                 container_name=container_name,
                 jupyter_config_file=jupyter_config_file,
-                use_workspace_as_notebook_dir=use_workspace_as_notebook_dir,
+                notebook_dir=notebook_dir,
                 python_path=python_path,
                 container_labels=container_labels,
                 container_detach=container_detach,
@@ -604,6 +770,15 @@ class JupyterLab(PhidataApp):
                 resources_dir=resources_dir,
                 resources_dir_container_path=resources_dir_container_path,
                 resources_volume_name=resources_volume_name,
+                mount_notebooks=mount_notebooks,
+                notebooks_volume_name=notebooks_volume_name,
+                notebooks_volume_type=notebooks_volume_type,
+                notebooks_volume_container_path=notebooks_volume_container_path,
+                ebs_volume=ebs_volume,
+                ebs_volume_region=ebs_volume_region,
+                ebs_volume_id=ebs_volume_id,
+                ebs_volume_az=ebs_volume_az,
+                schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
                 deploy_name=deploy_name,
                 pod_name=pod_name,
                 replicas=replicas,
@@ -615,7 +790,7 @@ class JupyterLab(PhidataApp):
                 topology_spread_key=topology_spread_key,
                 topology_spread_max_skew=topology_spread_max_skew,
                 topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
-                create_app_svc=create_app_svc,
+                create_app_service=create_app_service,
                 app_svc_name=app_svc_name,
                 app_svc_type=app_svc_type,
                 app_svc_port=app_svc_port,
@@ -639,7 +814,24 @@ class JupyterLab(PhidataApp):
                 cluster_role=cluster_role,
                 crb_name=crb_name,
                 cluster_role_binding=cluster_role_binding,
-                load_examples=load_examples,
+                init_airflow=init_airflow,
+                airflow_env=airflow_env,
+                use_workspace_for_airflow_dags=use_workspace_for_airflow_dags,
+                airflow_executor=airflow_executor,
+                airflow_db_app=airflow_db_app,
+                airflow_db_user=airflow_db_user,
+                airflow_db_password=airflow_db_password,
+                airflow_db_schema=airflow_db_schema,
+                airflow_db_host=airflow_db_host,
+                airflow_db_port=airflow_db_port,
+                airflow_db_driver=airflow_db_driver,
+                airflow_db_result_backend_driver=airflow_db_result_backend_driver,
+                airflow_redis_app=airflow_redis_app,
+                airflow_redis_password=airflow_redis_password,
+                airflow_redis_schema=airflow_redis_schema,
+                airflow_redis_host=airflow_redis_host,
+                airflow_redis_port=airflow_redis_port,
+                airflow_redis_driver=airflow_redis_driver,
                 print_env_on_load=print_env_on_load,
                 extra_secrets=extra_secrets,
                 extra_config_maps=extra_config_maps,
@@ -679,6 +871,144 @@ class JupyterLab(PhidataApp):
         if self.secret_data is None:
             self.secret_data = self.read_yaml_file(file_path=self.args.secrets_file)
         return self.secret_data
+
+    def get_airflow_db_user(self) -> Optional[str]:
+        db_user_var: Optional[str] = self.args.airflow_db_user if self.args else None
+        if db_user_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_USER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_user_var = secret_data.get("AIRFLOW_DATABASE_USER", db_user_var)
+        return db_user_var
+
+    def get_airflow_db_password(self) -> Optional[str]:
+        db_password_var: Optional[str] = (
+            self.args.airflow_db_password if self.args else None
+        )
+        if db_password_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_PASSWORD from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_password_var = secret_data.get(
+                    "AIRFLOW_DATABASE_PASSWORD", db_password_var
+                )
+        return db_password_var
+
+    def get_airflow_db_schema(self) -> Optional[str]:
+        db_schema_var: Optional[str] = (
+            self.args.airflow_db_schema if self.args else None
+        )
+        if db_schema_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_DB from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_schema_var = secret_data.get("AIRFLOW_DATABASE_DB", db_schema_var)
+        return db_schema_var
+
+    def get_airflow_db_host(self) -> Optional[str]:
+        db_host_var: Optional[str] = self.args.airflow_db_host if self.args else None
+        if db_host_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_HOST from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_host_var = secret_data.get("AIRFLOW_DATABASE_HOST", db_host_var)
+        return db_host_var
+
+    def get_airflow_db_port(self) -> Optional[str]:
+        db_port_var: Optional[Union[int, str]] = (
+            self.args.airflow_db_port if self.args else None
+        )
+        if db_port_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_PORT from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_port_var = secret_data.get("AIRFLOW_DATABASE_PORT", db_port_var)
+        return str(db_port_var) if db_port_var is not None else db_port_var
+
+    def get_airflow_db_driver(self) -> Optional[str]:
+        db_driver_var: Optional[str] = (
+            self.args.airflow_db_driver if self.args else None
+        )
+        if db_driver_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_DRIVER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_driver_var = secret_data.get(
+                    "AIRFLOW_DATABASE_DRIVER", db_driver_var
+                )
+        return db_driver_var
+
+    def get_airflow_redis_password(self) -> Optional[str]:
+        redis_password_var: Optional[str] = (
+            self.args.airflow_redis_password if self.args else None
+        )
+        if redis_password_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_PASSWORD from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_password_var = secret_data.get(
+                    "AIRFLOW_REDIS_PASSWORD", redis_password_var
+                )
+        return redis_password_var
+
+    def get_airflow_redis_schema(self) -> Optional[str]:
+        redis_schema_var: Optional[str] = (
+            self.args.airflow_redis_schema if self.args else None
+        )
+        if redis_schema_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_SCHEMA from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_schema_var = secret_data.get(
+                    "AIRFLOW_REDIS_SCHEMA", redis_schema_var
+                )
+        return redis_schema_var
+
+    def get_airflow_redis_host(self) -> Optional[str]:
+        redis_host_var: Optional[str] = (
+            self.args.airflow_redis_host if self.args else None
+        )
+        if redis_host_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_HOST from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_host_var = secret_data.get("AIRFLOW_REDIS_HOST", redis_host_var)
+        return redis_host_var
+
+    def get_airflow_redis_port(self) -> Optional[str]:
+        redis_port_var: Optional[Union[int, str]] = (
+            self.args.airflow_redis_port if self.args else None
+        )
+        if redis_port_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_PORT from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_port_var = secret_data.get("AIRFLOW_REDIS_PORT", redis_port_var)
+        return str(redis_port_var) if redis_port_var is not None else redis_port_var
+
+    def get_airflow_redis_driver(self) -> Optional[str]:
+        redis_driver_var: Optional[str] = (
+            self.args.airflow_redis_driver if self.args else None
+        )
+        if redis_driver_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_DRIVER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_driver_var = secret_data.get(
+                    "AIRFLOW_REDIS_DRIVER", redis_driver_var
+                )
+        return redis_driver_var
 
     ######################################################
     ## Docker Resources
@@ -742,10 +1072,10 @@ class JupyterLab(PhidataApp):
         # Container Environment
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
-            "PHI_WORKSPACE_MOUNT": str(self.args.workspace_mount_container_path),
-            "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": python_path,
             PHIDATA_RUNTIME_ENV_VAR: "docker",
+            PHI_WORKSPACE_MOUNT_ENV_VAR: str(self.args.workspace_mount_container_path),
+            PHI_WORKSPACE_ROOT_ENV_VAR: str(workspace_root_container_path),
+            PYTHONPATH_ENV_VAR: python_path,
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
             META_DIR_ENV_VAR: str(meta_dir_container_path),
@@ -756,8 +1086,8 @@ class JupyterLab(PhidataApp):
             "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
             "MOUNT_WORKSPACE": str(self.args.mount_workspace),
             "MOUNT_RESOURCES": str(self.args.mount_resources),
+            "MOUNT_NOTEBOOKS": str(self.args.mount_notebooks),
             # Print env when the container starts
-            "LOAD_EXAMPLES": str(self.args.load_examples),
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
@@ -766,6 +1096,118 @@ class JupyterLab(PhidataApp):
 
         if self.args.jupyter_config_file is not None:
             container_env["JUPYTER_CONFIG_FILE"] = self.args.jupyter_config_file
+
+        if self.args.init_airflow:
+            container_env[INIT_AIRFLOW_ENV_VAR] = str(self.args.init_airflow)
+
+        if self.args.airflow_env is not None:
+            container_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
+
+        # Set the AIRFLOW__CORE__DAGS_FOLDER
+        if self.args.mount_workspace and self.args.use_workspace_for_airflow_dags:
+            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = str(
+                workspace_root_container_path
+            )
+
+        # Airflow db connection
+        airflow_db_user = self.get_airflow_db_user()
+        airflow_db_password = self.get_airflow_db_password()
+        airflow_db_schema = self.get_airflow_db_schema()
+        airflow_db_host = self.get_airflow_db_host()
+        airflow_db_port = self.get_airflow_db_port()
+        airflow_db_driver = self.get_airflow_db_driver()
+        if self.args.airflow_db_app is not None and isinstance(
+            self.args.airflow_db_app, DbApp
+        ):
+            logger.debug(
+                f"Reading db connection details from: {self.args.airflow_db_app.name}"
+            )
+            if airflow_db_user is None:
+                airflow_db_user = self.args.airflow_db_app.get_db_user()
+            if airflow_db_password is None:
+                airflow_db_password = self.args.airflow_db_app.get_db_password()
+            if airflow_db_schema is None:
+                airflow_db_schema = self.args.airflow_db_app.get_db_schema()
+            if airflow_db_host is None:
+                airflow_db_host = self.args.airflow_db_app.get_db_host_docker()
+            if airflow_db_port is None:
+                airflow_db_port = str(self.args.airflow_db_app.get_db_port_docker())
+            if airflow_db_driver is None:
+                airflow_db_driver = self.args.airflow_db_app.get_db_driver()
+        airflow_db_connection_url = f"{airflow_db_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
+
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+        if "None" not in airflow_db_connection_url:
+            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            container_env[AIRFLOW_DB_CONN_URL_ENV_VAR] = airflow_db_connection_url
+
+        # Set the Airflow Executor
+        airflow_executor: Optional[AirflowExecutor] = None
+        if self.args.airflow_executor is not None:
+
+            if isinstance(self.args.airflow_executor, str):
+                airflow_executor = AirflowExecutor.from_str(self.args.airflow_executor)
+            elif isinstance(self.args.airflow_executor, AirflowExecutor):
+                airflow_executor = self.args.airflow_executor
+
+            if airflow_executor is not None:
+                container_env[AIRFLOW_EXECUTOR_ENV_VAR] = str(airflow_executor.value)
+
+        # Airflow redis connection
+        if (
+            airflow_executor is not None
+            and airflow_executor == AirflowExecutor.CeleryExecutor
+        ):
+            # Airflow celery result backend
+            celery_result_backend_driver = (
+                self.args.airflow_db_result_backend_driver or airflow_db_driver
+            )
+            celery_result_backend_url = f"{celery_result_backend_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
+            # Set the AIRFLOW__CELERY__RESULT_BACKEND
+            if "None" not in celery_result_backend_url:
+                container_env[
+                    "AIRFLOW__CELERY__RESULT_BACKEND"
+                ] = celery_result_backend_url
+
+            # Airflow celery broker url
+            _airflow_redis_pass = self.get_airflow_redis_password()
+            airflow_redis_password = (
+                f"{_airflow_redis_pass}@" if _airflow_redis_pass else ""
+            )
+            airflow_redis_schema = self.get_airflow_redis_schema()
+            airflow_redis_host = self.get_airflow_redis_host()
+            airflow_redis_port = self.get_airflow_redis_port()
+            airflow_redis_driver = self.get_airflow_redis_driver()
+            if self.args.airflow_redis_app is not None and isinstance(
+                self.args.airflow_redis_app, DbApp
+            ):
+                logger.debug(
+                    f"Reading redis connection details from: {self.args.airflow_redis_app.name}"
+                )
+                if airflow_redis_password is None:
+                    airflow_redis_password = (
+                        self.args.airflow_redis_app.get_db_password()
+                    )
+                if airflow_redis_schema is None:
+                    airflow_redis_schema = (
+                        self.args.airflow_redis_app.get_db_schema() or "0"
+                    )
+                if airflow_redis_host is None:
+                    airflow_redis_host = (
+                        self.args.airflow_redis_app.get_db_host_docker()
+                    )
+                if airflow_redis_port is None:
+                    airflow_redis_port = str(
+                        self.args.airflow_redis_app.get_db_port_docker()
+                    )
+                if airflow_redis_driver is None:
+                    airflow_redis_driver = self.args.airflow_redis_app.get_db_driver()
+
+            # Set the AIRFLOW__CELERY__RESULT_BACKEND
+            celery_broker_url = f"{airflow_redis_driver}://{airflow_redis_password}{airflow_redis_host}:{airflow_redis_port}/{airflow_redis_schema}"
+            if "None" not in celery_broker_url:
+                # logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
+                container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
 
         # Update the container env using env_file
         env_data_from_file = self.get_env_data()
@@ -837,24 +1279,17 @@ class JupyterLab(PhidataApp):
             # Open the port
             container_ports[str(self.args.app_port)] = self.args.app_host_port
 
-        container_cmd: List[str] = []
+        container_cmd: List[str]
         if isinstance(self.args.command, str):
-            container_cmd = [self.args.command]
+            container_cmd = self.args.command.split(" ")
         else:
             container_cmd = self.args.command
+
         if self.args.jupyter_config_file is not None:
-            config_file_container_path = workspace_root_container_path.joinpath(
-                self.args.jupyter_config_file
-            )
-            if config_file_container_path is not None:
-                container_cmd.append(f" --config={str(config_file_container_path)}")
-        if (
-            self.args.use_workspace_as_notebook_dir
-            and self.args.workspace_mount_container_path is not None
-        ):
-            container_cmd.append(
-                f" --notebook-dir={str(self.args.workspace_mount_container_path)}"
-            )
+            container_cmd.append(f"--config={str(self.args.jupyter_config_file)}")
+
+        if self.args.notebook_dir is not None:
+            container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
 
         # Create the container
         docker_container = DockerContainer(
@@ -907,324 +1342,667 @@ class JupyterLab(PhidataApp):
         self, k8s_build_context: K8sBuildContext
     ) -> Optional[K8sResourceGroup]:
 
-        return None
+        app_name = self.args.name
+        logger.debug(f"Building {app_name} K8sResourceGroup")
 
-        # app_name = self.args.name
-        # logger.debug(f"Building {app_name} K8sResourceGroup")
-        #
-        # # Define K8s resources
-        # config_maps: List[CreateConfigMap] = []
-        # secrets: List[CreateSecret] = []
-        # volumes: List[CreateVolume] = []
-        # containers: List[CreateContainer] = []
-        # services: List[CreateService] = []
-        # ports: List[CreatePort] = []
-        #
-        # # Workspace paths
-        # if self.workspace_root_path is None:
-        #     logger.error("Invalid workspace_root_path")
-        #     return None
-        # workspace_name = self.workspace_root_path.stem
-        # workspace_root_container_path = Path(
-        #     self.args.workspace_mount_container_path
-        # ).joinpath(workspace_name)
-        # requirements_file_container_path = workspace_root_container_path.joinpath(
-        #     self.args.requirements_file_path
-        # )
-        # scripts_dir_container_path = (
-        #     workspace_root_container_path.joinpath(self.scripts_dir)
-        #     if self.scripts_dir
-        #     else None
-        # )
-        # storage_dir_container_path = (
-        #     workspace_root_container_path.joinpath(self.storage_dir)
-        #     if self.storage_dir
-        #     else None
-        # )
-        # meta_dir_container_path = (
-        #     workspace_root_container_path.joinpath(self.meta_dir)
-        #     if self.meta_dir
-        #     else None
-        # )
-        # products_dir_container_path = (
-        #     workspace_root_container_path.joinpath(self.products_dir)
-        #     if self.products_dir
-        #     else None
-        # )
-        # notebooks_dir_container_path = (
-        #     workspace_root_container_path.joinpath(self.notebooks_dir)
-        #     if self.notebooks_dir
-        #     else None
-        # )
-        # workspace_config_dir_container_path = (
-        #     workspace_root_container_path.joinpath(self.workspace_config_dir)
-        #     if self.workspace_config_dir
-        #     else None
-        # )
-        #
-        # # Container pythonpath
-        # python_path = (
-        #     self.args.python_path
-        #     or f"{str(workspace_root_container_path)}:{self.args.resources_dir_container_path}"
-        # )
-        #
-        # # Container Environment
-        # container_env: Dict[str, str] = {
-        #     # Env variables used by data workflows and data assets
-        #     "PHI_WORKSPACE_MOUNT": str(self.args.workspace_mount_container_path),
-        #     "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-        #     "PYTHONPATH": python_path,
-        #     PHIDATA_RUNTIME_ENV_VAR: "kubernetes",
-        #     SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
-        #     STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
-        #     META_DIR_ENV_VAR: str(meta_dir_container_path),
-        #     PRODUCTS_DIR_ENV_VAR: str(products_dir_container_path),
-        #     NOTEBOOKS_DIR_ENV_VAR: str(notebooks_dir_container_path),
-        #     WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
-        #     "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
-        #     "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
-        #     "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
-        #     # Print env when the container starts
-        #     "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
-        # }
-        #
-        # # Update the container env using env_file
-        # env_data_from_file = self.get_env_data_from_file()
-        # if env_data_from_file is not None:
-        #     container_env.update(env_data_from_file)
-        #
-        # # Update the container env with user provided env
-        # if self.args.env is not None and isinstance(self.args.env, dict):
-        #     container_env.update(self.args.env)
-        #
-        # # Create a ConfigMap to set the container env variables which are not Secret
-        # container_env_cm = CreateConfigMap(
-        #     cm_name=self.args.config_map_name or get_default_configmap_name(app_name),
-        #     app_name=app_name,
-        #     data=container_env,
-        # )
-        # # logger.debug(f"ConfigMap {container_env_cm.cm_name}: {container_env_cm.json(indent=2)}")
-        # config_maps.append(container_env_cm)
-        #
-        # # Create a Secret to set the container env variables which are Secret
-        # secret_data_from_file = self.get_secret_data_from_file()
-        # if secret_data_from_file is not None:
-        #     container_env_secret = CreateSecret(
-        #         secret_name=self.args.secret_name or get_default_secret_name(app_name),
-        #         app_name=app_name,
-        #         string_data=secret_data_from_file,
-        #     )
-        #     secrets.append(container_env_secret)
-        #
-        # # If mount_workspace=True first check if the workspace
-        # # should be mounted locally, otherwise
-        # # Create a Sidecar git-sync container and volume
-        # if self.args.mount_workspace:
-        #     workspace_volume_name = (
-        #         self.args.workspace_volume_name or get_default_volume_name(app_name)
-        #     )
-        #
-        #     if self.args.k8s_mount_local_workspace:
-        #         workspace_root_path_str = str(self.workspace_root_path)
-        #         workspace_root_container_path_str = str(workspace_root_container_path)
-        #         logger.debug(f"Mounting: {workspace_root_path_str}")
-        #         logger.debug(f"\tto: {workspace_root_container_path_str}")
-        #         workspace_volume = CreateVolume(
-        #             volume_name=workspace_volume_name,
-        #             app_name=app_name,
-        #             mount_path=workspace_root_container_path_str,
-        #             volume_type=VolumeType.HOST_PATH,
-        #             host_path=HostPathVolumeSource(
-        #                 path=workspace_root_path_str,
-        #             ),
-        #         )
-        #         volumes.append(workspace_volume)
-        #
-        #     elif self.args.create_git_sync_sidecar:
-        #         workspace_mount_container_path_str = str(
-        #             self.args.workspace_mount_container_path
-        #         )
-        #         logger.debug(f"Creating EmptyDir")
-        #         logger.debug(f"\tat: {workspace_mount_container_path_str}")
-        #         workspace_volume = CreateVolume(
-        #             volume_name=workspace_volume_name,
-        #             app_name=app_name,
-        #             mount_path=workspace_mount_container_path_str,
-        #             volume_type=VolumeType.EMPTY_DIR,
-        #         )
-        #         volumes.append(workspace_volume)
-        #
-        #         if self.args.git_sync_repo is None:
-        #             print_error("git_sync_repo invalid")
-        #         else:
-        #             git_sync_env = {
-        #                 "GIT_SYNC_REPO": self.args.git_sync_repo,
-        #                 "GIT_SYNC_ROOT": str(self.args.workspace_mount_container_path),
-        #                 "GIT_SYNC_DEST": workspace_name,
-        #             }
-        #             if self.args.git_sync_branch is not None:
-        #                 git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
-        #             if self.args.git_sync_wait is not None:
-        #                 git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
-        #             git_sync_sidecar = CreateContainer(
-        #                 container_name="git-sync-workspaces",
-        #                 app_name=app_name,
-        #                 image_name="k8s.gcr.io/git-sync",
-        #                 image_tag="v3.1.1",
-        #                 env=git_sync_env,
-        #                 envs_from_configmap=[cm.cm_name for cm in config_maps]
-        #                 if len(config_maps) > 0
-        #                 else None,
-        #                 envs_from_secret=[secret.secret_name for secret in secrets]
-        #                 if len(secrets) > 0
-        #                 else None,
-        #                 volumes=[workspace_volume],
-        #             )
-        #             containers.append(git_sync_sidecar)
-        #
-        # # Create the ports to open
-        # # if open_container_port = True
-        # if self.args.open_container_port:
-        #     container_port = CreatePort(
-        #         name=self.args.container_port_name,
-        #         container_port=self.args.container_port,
-        #     )
-        #     ports.append(container_port)
-        #
-        # # if open_app_port = True
-        # # 1. Set the app_port in the container env
-        # # 2. Open the jupyter app port
-        # app_port: Optional[CreatePort] = None
-        # if self.args.open_app_port:
-        #     # Open the port
-        #     app_port = CreatePort(
-        #         name=self.args.app_port_name,
-        #         container_port=self.args.app_port,
-        #         service_port=self.get_app_service_port(),
-        #         node_port=self.args.app_node_port,
-        #         target_port=self.args.app_target_port or self.args.app_port_name,
-        #     )
-        #     ports.append(app_port)
-        #
-        # container_labels: Optional[Dict[str, Any]] = self.args.container_labels
-        # if k8s_build_context.labels is not None:
-        #     if container_labels:
-        #         container_labels.update(k8s_build_context.labels)
-        #     else:
-        #         container_labels = k8s_build_context.labels
-        #
-        # # Equivalent to docker images CMD
-        # container_args: List[str] = []
-        # if isinstance(self.args.command, str):
-        #     container_args = [self.args.command]
-        # else:
-        #     container_args = self.args.command
-        # if self.args.jupyter_config_file is not None:
-        #     config_file_container_path = workspace_root_container_path.joinpath(
-        #         self.args.jupyter_config_file
-        #     )
-        #     if config_file_container_path is not None:
-        #         container_args.append(f" --config={str(config_file_container_path)}")
-        # if (
-        #     self.args.use_workspace_as_notebook_dir is not None
-        #     and workspace_root_container_path is not None
-        # ):
-        #     container_args.append(
-        #         f" --notebook-dir={str(workspace_root_container_path)}"
-        #     )
-        #
-        # # Create the container
-        # k8s_container = CreateContainer(
-        #     container_name=self.get_container_name(),
-        #     app_name=app_name,
-        #     image_name=self.args.image_name,
-        #     image_tag=self.args.image_tag,
-        #     args=container_args,
-        #     # Equivalent to docker images ENTRYPOINT
-        #     command=[self.args.entrypoint]
-        #     if isinstance(self.args.entrypoint, str)
-        #     else self.args.entrypoint,
-        #     image_pull_policy=self.args.image_pull_policy,
-        #     envs_from_configmap=[cm.cm_name for cm in config_maps]
-        #     if len(config_maps) > 0
-        #     else None,
-        #     envs_from_secret=[secret.secret_name for secret in secrets]
-        #     if len(secrets) > 0
-        #     else None,
-        #     ports=ports if len(ports) > 0 else None,
-        #     volumes=volumes if len(volumes) > 0 else None,
-        #     labels=container_labels,
-        # )
-        # containers.append(k8s_container)
-        #
-        # # Set default container for kubectl commands
-        # # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
-        # pod_annotations = {
-        #     "kubectl.kubernetes.io/default-container": k8s_container.container_name
-        # }
-        #
-        # deploy_labels: Optional[Dict[str, Any]] = self.args.deploy_labels
-        # if k8s_build_context.labels is not None:
-        #     if deploy_labels:
-        #         deploy_labels.update(k8s_build_context.labels)
-        #     else:
-        #         deploy_labels = k8s_build_context.labels
-        # # Create the deployment
-        # k8s_deployment = CreateDeployment(
-        #     replicas=self.args.replicas,
-        #     deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
-        #     pod_name=self.args.pod_name or get_default_pod_name(app_name),
-        #     app_name=app_name,
-        #     namespace=k8s_build_context.namespace,
-        #     service_account_name=k8s_build_context.service_account_name,
-        #     containers=containers if len(containers) > 0 else None,
-        #     pod_node_selector=self.args.pod_node_selector,
-        #     restart_policy=self.args.restart_policy,
-        #     termination_grace_period_seconds=self.args.termination_grace_period_seconds,
-        #     volumes=volumes if len(volumes) > 0 else None,
-        #     labels=deploy_labels,
-        #     pod_annotations=pod_annotations,
-        #     topology_spread_key=self.args.topology_spread_key,
-        #     topology_spread_max_skew=self.args.topology_spread_max_skew,
-        #     topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
-        # )
-        #
-        # # Create the services
-        # if self.args.create_app_service:
-        #     app_service_labels: Optional[Dict[str, Any]] = self.args.app_service_labels
-        #     if k8s_build_context.labels is not None:
-        #         if app_service_labels:
-        #             app_service_labels.update(k8s_build_context.labels)
-        #         else:
-        #             app_service_labels = k8s_build_context.labels
-        #     app_service = CreateService(
-        #         service_name=self.get_app_service_name(),
-        #         app_name=app_name,
-        #         namespace=k8s_build_context.namespace,
-        #         service_account_name=k8s_build_context.service_account_name,
-        #         service_type=self.args.app_service_type,
-        #         deployment=k8s_deployment,
-        #         ports=[app_port] if app_port else None,
-        #         labels=app_service_labels,
-        #     )
-        #     services.append(app_service)
-        #
-        # # Create the K8sResourceGroup
-        # k8s_resource_group = CreateK8sResourceGroup(
-        #     name=app_name,
-        #     enabled=self.args.enabled,
-        #     config_maps=config_maps if len(config_maps) > 0 else None,
-        #     secrets=secrets if len(secrets) > 0 else None,
-        #     services=services if len(services) > 0 else None,
-        #     deployments=[k8s_deployment],
-        # )
-        #
-        # return k8s_resource_group.create()
+        # Workspace paths
+        if self.workspace_root_path is None:
+            logger.error("Invalid workspace_root_path")
+            return None
+        workspace_name = self.workspace_root_path.stem
+        workspace_root_container_path = Path(
+            self.args.workspace_mount_container_path
+        ).joinpath(workspace_name)
+        requirements_file_container_path = workspace_root_container_path.joinpath(
+            self.args.requirements_file_path
+        )
+        scripts_dir_container_path = (
+            workspace_root_container_path.joinpath(self.scripts_dir)
+            if self.scripts_dir
+            else None
+        )
+        storage_dir_container_path = (
+            workspace_root_container_path.joinpath(self.storage_dir)
+            if self.storage_dir
+            else None
+        )
+        meta_dir_container_path = (
+            workspace_root_container_path.joinpath(self.meta_dir)
+            if self.meta_dir
+            else None
+        )
+        products_dir_container_path = (
+            workspace_root_container_path.joinpath(self.products_dir)
+            if self.products_dir
+            else None
+        )
+        notebooks_dir_container_path = (
+            workspace_root_container_path.joinpath(self.notebooks_dir)
+            if self.notebooks_dir
+            else None
+        )
+        workspace_config_dir_container_path = (
+            workspace_root_container_path.joinpath(self.workspace_config_dir)
+            if self.workspace_config_dir
+            else None
+        )
+
+        # Init K8s resources for the CreateK8sResourceGroup
+        ns: Optional[CreateNamespace] = self.args.namespace
+        sa: Optional[CreateServiceAccount] = self.args.service_account
+        cr: Optional[CreateClusterRole] = self.args.cluster_role
+        crb: Optional[CreateClusterRoleBinding] = self.args.cluster_role_binding
+        secrets: List[CreateSecret] = self.args.extra_secrets or []
+        config_maps: List[CreateConfigMap] = self.args.extra_config_maps or []
+        storage_classes: List[CreateStorageClass] = (
+            self.args.extra_storage_classes or []
+        )
+        services: List[CreateService] = self.args.extra_services or []
+        deployments: List[CreateDeployment] = self.args.extra_deployments or []
+        custom_objects: List[CreateCustomObject] = self.args.extra_custom_objects or []
+        crds: List[CreateCustomResourceDefinition] = self.args.extra_crds or []
+        pvs: List[CreatePersistentVolume] = self.args.extra_pvs or []
+        pvcs: List[CreatePVC] = self.args.extra_pvcs or []
+        containers: List[CreateContainer] = self.args.extra_containers or []
+        init_containers: List[CreateContainer] = self.args.extra_init_containers or []
+        ports: List[CreatePort] = self.args.extra_ports or []
+        volumes: List[CreateVolume] = self.args.extra_volumes or []
+
+        # Common variables used by all resources
+        ns_name: str = self.args.ns_name or k8s_build_context.namespace
+        sa_name: Optional[str] = (
+            self.args.sa_name or k8s_build_context.service_account_name
+        )
+        common_labels: Optional[Dict[str, str]] = k8s_build_context.labels
+
+        # Add NodeSelectors to Pods in case we create az sensitive volumes
+        pod_node_selector: Optional[Dict[str, str]] = self.args.pod_node_selector
+
+        # -*- Define RBAC resources
+        # WebUI/Scheduler pods should run with serviceAccount which have RBAC
+        # permissions on the k8s cluster to get logs
+        # https://github.com/apache/airflow/issues/11696#issuecomment-715886117
+        if self.args.use_rbac:
+            if ns is None:
+                ns = CreateNamespace(
+                    ns=ns_name,
+                    app_name=app_name,
+                    labels=common_labels,
+                )
+            ns_name = ns.ns
+            if sa is None:
+                sa = CreateServiceAccount(
+                    sa_name=sa_name or get_default_sa_name(app_name),
+                    app_name=app_name,
+                    namespace=ns_name,
+                )
+            sa_name = sa.sa_name
+            if cr is None:
+                cr = CreateClusterRole(
+                    cr_name=self.args.cr_name or get_default_cr_name(app_name),
+                    rules=[
+                        PolicyRule(
+                            api_groups=[""],
+                            resources=[
+                                "pods",
+                                "secrets",
+                                "configmaps",
+                            ],
+                            verbs=[
+                                "get",
+                                "list",
+                                "watch",
+                                "create",
+                                "update",
+                                "patch",
+                                "delete",
+                            ],
+                        ),
+                        PolicyRule(
+                            api_groups=[""],
+                            resources=[
+                                "pods/logs",
+                            ],
+                            verbs=[
+                                "get",
+                                "list",
+                            ],
+                        ),
+                        # PolicyRule(
+                        #     api_groups=[""],
+                        #     resources=[
+                        #         "pods/exec",
+                        #     ],
+                        #     verbs=[
+                        #         "get",
+                        #         "create",
+                        #     ],
+                        # ),
+                    ],
+                    app_name=app_name,
+                    labels=common_labels,
+                )
+            if crb is None:
+                crb = CreateClusterRoleBinding(
+                    crb_name=self.args.crb_name or get_default_crb_name(app_name),
+                    cr_name=cr.cr_name,
+                    service_account_name=sa.sa_name,
+                    app_name=app_name,
+                    namespace=ns_name,
+                    labels=common_labels,
+                )
+
+        # Container pythonpath
+        python_path = (
+            self.args.python_path
+            or f"{str(workspace_root_container_path)}:{self.args.resources_dir_container_path}:{self.args.notebooks_volume_container_path}"
+        )
+
+        # Container Environment
+        container_env: Dict[str, str] = {
+            # Env variables used by data workflows and data assets
+            PHIDATA_RUNTIME_ENV_VAR: "kubernetes",
+            PHI_WORKSPACE_MOUNT_ENV_VAR: str(self.args.workspace_mount_container_path),
+            PHI_WORKSPACE_ROOT_ENV_VAR: str(workspace_root_container_path),
+            PYTHONPATH_ENV_VAR: python_path,
+            SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
+            STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
+            META_DIR_ENV_VAR: str(meta_dir_container_path),
+            PRODUCTS_DIR_ENV_VAR: str(products_dir_container_path),
+            NOTEBOOKS_DIR_ENV_VAR: str(notebooks_dir_container_path),
+            WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
+            "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
+            "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
+            "MOUNT_WORKSPACE": str(self.args.mount_workspace),
+            "MOUNT_RESOURCES": str(self.args.mount_resources),
+            "MOUNT_NOTEBOOKS": str(self.args.mount_notebooks),
+            # Print env when the container starts
+            "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+        }
+
+        # Set airflow env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
+        if self.args.jupyter_config_file is not None:
+            container_env["JUPYTER_CONFIG_FILE"] = self.args.jupyter_config_file
+
+        if self.args.init_airflow:
+            container_env[INIT_AIRFLOW_ENV_VAR] = str(self.args.init_airflow)
+
+        if self.args.airflow_env is not None:
+            container_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
+
+        # Set the AIRFLOW__CORE__DAGS_FOLDER
+        if self.args.mount_workspace and self.args.use_workspace_for_airflow_dags:
+            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = str(
+                workspace_root_container_path
+            )
+
+        # Airflow db connection
+        airflow_db_user = self.get_airflow_db_user()
+        airflow_db_password = self.get_airflow_db_password()
+        airflow_db_schema = self.get_airflow_db_schema()
+        airflow_db_host = self.get_airflow_db_host()
+        airflow_db_port = self.get_airflow_db_port()
+        airflow_db_driver = self.get_airflow_db_driver()
+        if self.args.airflow_db_app is not None and isinstance(
+            self.args.airflow_db_app, DbApp
+        ):
+            logger.debug(
+                f"Reading db connection details from: {self.args.airflow_db_app.name}"
+            )
+            if airflow_db_user is None:
+                airflow_db_user = self.args.airflow_db_app.get_db_user()
+            if airflow_db_password is None:
+                airflow_db_password = self.args.airflow_db_app.get_db_password()
+            if airflow_db_schema is None:
+                airflow_db_schema = self.args.airflow_db_app.get_db_schema()
+            if airflow_db_host is None:
+                airflow_db_host = self.args.airflow_db_app.get_db_host_docker()
+            if airflow_db_port is None:
+                airflow_db_port = str(self.args.airflow_db_app.get_db_port_docker())
+            if airflow_db_driver is None:
+                airflow_db_driver = self.args.airflow_db_app.get_db_driver()
+        airflow_db_connection_url = f"{airflow_db_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
+
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+        if "None" not in airflow_db_connection_url:
+            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            container_env[AIRFLOW_DB_CONN_URL_ENV_VAR] = airflow_db_connection_url
+
+        # Set the Airflow Executor
+        airflow_executor: Optional[AirflowExecutor] = None
+        if self.args.airflow_executor is not None:
+
+            if isinstance(self.args.airflow_executor, str):
+                airflow_executor = AirflowExecutor.from_str(self.args.airflow_executor)
+            elif isinstance(self.args.airflow_executor, AirflowExecutor):
+                airflow_executor = self.args.airflow_executor
+
+            if airflow_executor is not None:
+                container_env[AIRFLOW_EXECUTOR_ENV_VAR] = str(airflow_executor.value)
+
+        # Airflow redis connection
+        if (
+            airflow_executor is not None
+            and airflow_executor == AirflowExecutor.CeleryExecutor
+        ):
+            # Airflow celery result backend
+            celery_result_backend_driver = (
+                self.args.airflow_db_result_backend_driver or airflow_db_driver
+            )
+            celery_result_backend_url = f"{celery_result_backend_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
+            # Set the AIRFLOW__CELERY__RESULT_BACKEND
+            if "None" not in celery_result_backend_url:
+                container_env[
+                    "AIRFLOW__CELERY__RESULT_BACKEND"
+                ] = celery_result_backend_url
+
+            # Airflow celery broker url
+            _airflow_redis_pass = self.get_airflow_redis_password()
+            airflow_redis_password = (
+                f"{_airflow_redis_pass}@" if _airflow_redis_pass else ""
+            )
+            airflow_redis_schema = self.get_airflow_redis_schema()
+            airflow_redis_host = self.get_airflow_redis_host()
+            airflow_redis_port = self.get_airflow_redis_port()
+            airflow_redis_driver = self.get_airflow_redis_driver()
+            if self.args.airflow_redis_app is not None and isinstance(
+                self.args.airflow_redis_app, DbApp
+            ):
+                logger.debug(
+                    f"Reading redis connection details from: {self.args.airflow_redis_app.name}"
+                )
+                if airflow_redis_password is None:
+                    airflow_redis_password = (
+                        self.args.airflow_redis_app.get_db_password()
+                    )
+                if airflow_redis_schema is None:
+                    airflow_redis_schema = (
+                        self.args.airflow_redis_app.get_db_schema() or "0"
+                    )
+                if airflow_redis_host is None:
+                    airflow_redis_host = (
+                        self.args.airflow_redis_app.get_db_host_docker()
+                    )
+                if airflow_redis_port is None:
+                    airflow_redis_port = str(
+                        self.args.airflow_redis_app.get_db_port_docker()
+                    )
+                if airflow_redis_driver is None:
+                    airflow_redis_driver = self.args.airflow_redis_app.get_db_driver()
+
+            # Set the AIRFLOW__CELERY__RESULT_BACKEND
+            celery_broker_url = f"{airflow_redis_driver}://{airflow_redis_password}{airflow_redis_host}:{airflow_redis_port}/{airflow_redis_schema}"
+            if "None" not in celery_broker_url:
+                # logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
+                container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
+
+        # Update the container env using env_file
+        env_data_from_file = self.get_env_data()
+        if env_data_from_file is not None:
+            container_env.update(env_data_from_file)
+
+        # Update the container env with user provided env, this overwrites any existing variables
+        if self.args.env is not None and isinstance(self.args.env, dict):
+            container_env.update(self.args.env)
+
+        # Create a ConfigMap to set the container env variables which are not Secret
+        container_env_cm = CreateConfigMap(
+            cm_name=self.args.config_map_name or get_default_configmap_name(app_name),
+            app_name=app_name,
+            namespace=ns_name,
+            data=container_env,
+            labels=common_labels,
+        )
+        # logger.debug(f"ConfigMap {container_env_cm.cm_name}: {container_env_cm.json(indent=2)}")
+        config_maps.append(container_env_cm)
+
+        # Create a Secret to set the container env variables which are Secret
+        _secret_data = self.get_secret_data()
+        if _secret_data is not None:
+            container_env_secret = CreateSecret(
+                secret_name=self.args.secret_name or get_default_secret_name(app_name),
+                app_name=app_name,
+                string_data=_secret_data,
+                namespace=ns_name,
+                labels=common_labels,
+            )
+            secrets.append(container_env_secret)
+
+        # Container Volumes
+        # If mount_workspace=True first check if the workspace
+        # should be mounted locally, otherwise
+        # Create a Sidecar git-sync container and volume
+        if self.args.mount_workspace:
+            workspace_volume_name = (
+                self.args.workspace_volume_name or get_default_volume_name(app_name)
+            )
+
+            if self.args.k8s_mount_local_workspace:
+                workspace_root_path_str = str(self.workspace_root_path)
+                workspace_root_container_path_str = str(workspace_root_container_path)
+                logger.debug(f"Mounting: {workspace_root_path_str}")
+                logger.debug(f"\tto: {workspace_root_container_path_str}")
+                workspace_volume = CreateVolume(
+                    volume_name=workspace_volume_name,
+                    app_name=app_name,
+                    mount_path=workspace_root_container_path_str,
+                    volume_type=VolumeType.HOST_PATH,
+                    host_path=HostPathVolumeSource(
+                        path=workspace_root_path_str,
+                    ),
+                )
+                volumes.append(workspace_volume)
+
+            elif self.args.create_git_sync_sidecar:
+                workspace_mount_container_path_str = str(
+                    self.args.workspace_mount_container_path
+                )
+                logger.debug(f"Creating EmptyDir")
+                logger.debug(f"\tat: {workspace_mount_container_path_str}")
+                workspace_volume = CreateVolume(
+                    volume_name=workspace_volume_name,
+                    app_name=app_name,
+                    mount_path=workspace_mount_container_path_str,
+                    volume_type=VolumeType.EMPTY_DIR,
+                )
+                volumes.append(workspace_volume)
+
+                if self.args.git_sync_repo is not None:
+                    git_sync_env = {
+                        "GIT_SYNC_REPO": self.args.git_sync_repo,
+                        "GIT_SYNC_ROOT": str(self.args.workspace_mount_container_path),
+                        "GIT_SYNC_DEST": workspace_name,
+                    }
+                    if self.args.git_sync_branch is not None:
+                        git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
+                    if self.args.git_sync_wait is not None:
+                        git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
+                    git_sync_container = CreateContainer(
+                        container_name="git-sync",
+                        app_name=app_name,
+                        image_name="k8s.gcr.io/git-sync",
+                        image_tag="v3.1.1",
+                        env=git_sync_env,
+                        envs_from_configmap=[cm.cm_name for cm in config_maps]
+                        if len(config_maps) > 0
+                        else None,
+                        envs_from_secret=[secret.secret_name for secret in secrets]
+                        if len(secrets) > 0
+                        else None,
+                        volumes=[workspace_volume],
+                    )
+                    containers.append(git_sync_container)
+
+                    if self.args.create_git_sync_init_container:
+                        git_sync_init_env: Dict[str, Any] = {"GIT_SYNC_ONE_TIME": True}
+                        git_sync_init_env.update(git_sync_env)
+                        _git_sync_init_container = CreateContainer(
+                            container_name="git-sync-init",
+                            app_name=git_sync_container.app_name,
+                            image_name=git_sync_container.image_name,
+                            image_tag=git_sync_container.image_tag,
+                            env=git_sync_init_env,
+                            envs_from_configmap=git_sync_container.envs_from_configmap,
+                            envs_from_secret=git_sync_container.envs_from_secret,
+                            volumes=git_sync_container.volumes,
+                        )
+                        init_containers.append(_git_sync_init_container)
+                else:
+                    logger.error("GIT_SYNC_REPO invalid")
+
+        if self.args.mount_notebooks:
+            notebooks_volume_name = (
+                self.args.notebooks_volume_name
+                or get_default_volume_name(f"{app_name}-notebooks")
+            )
+            if self.args.notebooks_volume_type == JupyterLabVolumeType.EMPTY_DIR:
+                notebooks_volume = CreateVolume(
+                    volume_name=notebooks_volume_name,
+                    app_name=app_name,
+                    mount_path=self.args.notebooks_volume_container_path,
+                    volume_type=VolumeType.EMPTY_DIR,
+                )
+                volumes.append(notebooks_volume)
+            elif self.args.notebooks_volume_type == JupyterLabVolumeType.AWS_EBS:
+                if (
+                    self.args.ebs_volume_id is not None
+                    or self.args.ebs_volume is not None
+                ):
+                    # To use an EbsVolume as the volume_type we:
+                    # 1. Need the volume_id
+                    # 2. Need to make sure pods are scheduled in the
+                    #       same region/az as the volume
+
+                    # For the volume_id we can either:
+                    # 1. Use self.args.ebs_volume_id
+                    # 2. Derive it from the self.args.ebs_volume
+                    ebs_volume_id = self.args.ebs_volume_id
+
+                    # For the aws_region/az:
+                    # 1. Use self.args.ebs_volume_region
+                    # 2. Derive it from self.args.ebs_volume
+                    # 3. Derive it from the PhidataAppArgs
+                    ebs_volume_region = self.args.ebs_volume_region
+                    ebs_volume_az = self.args.ebs_volume_az
+
+                    # Derive the aws_region from self.args.ebs_volume if needed
+                    if ebs_volume_region is None and self.args.ebs_volume is not None:
+                        # Note: this will use the `$AWS_REGION` env var if set
+                        _aws_region_from_ebs_volume = (
+                            self.args.ebs_volume.get_aws_region()
+                        )
+                        if _aws_region_from_ebs_volume is not None:
+                            ebs_volume_region = _aws_region_from_ebs_volume
+
+                    # Derive the aws_region from the PhidataAppArgs if needed
+                    if ebs_volume_region is None:
+                        ebs_volume_region = self.aws_region
+
+                    # Derive the availability_zone from self.args.ebs_volume if needed
+                    if ebs_volume_az is None and self.args.ebs_volume is not None:
+                        ebs_volume_az = self.args.ebs_volume.availability_zone
+
+                    logger.debug(f"ebs_volume_region: {ebs_volume_region}")
+                    logger.debug(f"ebs_volume_az: {ebs_volume_az}")
+
+                    # Derive ebs_volume_id from self.args.ebs_volume if needed
+                    if ebs_volume_id is None and self.args.ebs_volume is not None:
+                        ebs_volume_id = self.args.ebs_volume.get_volume_id(
+                            aws_region=ebs_volume_region,
+                            aws_profile=self.aws_profile,
+                        )
+
+                    logger.debug(f"ebs_volume_id: {ebs_volume_id}")
+                    if ebs_volume_id is None:
+                        logger.error("Could not find volume_id for EbsVolume")
+                        return None
+
+                    notebooks_volume = CreateVolume(
+                        volume_name=notebooks_volume_name,
+                        app_name=app_name,
+                        mount_path=self.args.notebooks_volume_container_path,
+                        volume_type=VolumeType.AWS_EBS,
+                        aws_ebs=AwsElasticBlockStoreVolumeSource(
+                            volume_id=ebs_volume_id,
+                        ),
+                    )
+                    volumes.append(notebooks_volume)
+
+                    # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
+                    # To do this, we add NodeSelectors to Pods
+                    if self.args.schedule_pods_in_ebs_topology:
+                        if pod_node_selector is None:
+                            pod_node_selector = {}
+
+                        # Add NodeSelectors to Pods, so they are scheduled in the same
+                        # region and zone as the ebs_volume
+                        # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
+                        if ebs_volume_region is not None:
+                            pod_node_selector[
+                                "topology.kubernetes.io/region"
+                            ] = ebs_volume_region
+
+                        if ebs_volume_az is not None:
+                            pod_node_selector[
+                                "topology.kubernetes.io/zone"
+                            ] = ebs_volume_az
+                else:
+                    logger.error("JupyterLab: ebs_volume not provided")
+                    return None
+            else:
+                logger.error(f"{self.args.notebooks_volume_type.value} not supported")
+                return None
+
+        # Create the ports to open
+        # if open_container_port = True
+        if self.args.open_container_port:
+            container_port = CreatePort(
+                name=self.args.container_port_name,
+                container_port=self.args.container_port,
+            )
+            ports.append(container_port)
+
+        # if open_app_port = True
+        # 1. Set the app_port in the container env
+        # 2. Open the jupyter app port
+        app_port: Optional[CreatePort] = None
+        if self.args.open_app_port:
+            # Open the port
+            app_port = CreatePort(
+                name=self.args.app_port_name,
+                container_port=self.args.app_port,
+                service_port=self.get_app_service_port(),
+                node_port=self.args.app_node_port,
+                target_port=self.args.app_target_port or self.args.app_port_name,
+            )
+            ports.append(app_port)
+
+        container_labels: Dict[str, Any] = common_labels or {}
+        if self.args.container_labels is not None and isinstance(
+            self.args.container_labels, dict
+        ):
+            container_labels.update(self.args.container_labels)
+
+        # Equivalent to docker images CMD
+        container_args: List[str]
+        if isinstance(self.args.command, str):
+            container_args = self.args.command.split(" ")
+        else:
+            container_args = self.args.command
+
+        if self.args.jupyter_config_file is not None:
+            container_args.append(f"--config={str(self.args.jupyter_config_file)}")
+
+        if self.args.notebook_dir is not None:
+            container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
+
+        # Create the JupyterLab container
+        jupyterlab_container = CreateContainer(
+            container_name=self.get_container_name(),
+            app_name=app_name,
+            image_name=self.args.image_name,
+            image_tag=self.args.image_tag,
+            # Equivalent to docker images CMD
+            args=container_args,
+            # Equivalent to docker images ENTRYPOINT
+            command=[self.args.entrypoint]
+            if isinstance(self.args.entrypoint, str)
+            else self.args.entrypoint,
+            image_pull_policy=self.args.image_pull_policy,
+            envs_from_configmap=[cm.cm_name for cm in config_maps]
+            if len(config_maps) > 0
+            else None,
+            envs_from_secret=[secret.secret_name for secret in secrets]
+            if len(secrets) > 0
+            else None,
+            ports=ports if len(ports) > 0 else None,
+            volumes=volumes if len(volumes) > 0 else None,
+            labels=container_labels,
+        )
+        containers.append(jupyterlab_container)
+
+        # Set default container for kubectl commands
+        # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
+        pod_annotations = {
+            "kubectl.kubernetes.io/default-container": jupyterlab_container.container_name
+        }
+        if self.args.pod_annotations is not None and isinstance(
+            self.args.pod_annotations, dict
+        ):
+            pod_annotations.update(self.args.pod_annotations)
+
+        deploy_labels: Dict[str, Any] = common_labels or {}
+        if self.args.deploy_labels is not None and isinstance(
+            self.args.deploy_labels, dict
+        ):
+            deploy_labels.update(self.args.deploy_labels)
+
+        # Create the deployment
+        jupyterlab_deployment = CreateDeployment(
+            deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
+            pod_name=self.args.pod_name or get_default_pod_name(app_name),
+            app_name=app_name,
+            namespace=ns_name,
+            service_account_name=sa_name,
+            replicas=self.args.replicas,
+            containers=containers,
+            init_containers=init_containers if len(init_containers) > 0 else None,
+            pod_node_selector=pod_node_selector,
+            restart_policy=self.args.deploy_restart_policy,
+            termination_grace_period_seconds=self.args.termination_grace_period_seconds,
+            volumes=volumes if len(volumes) > 0 else None,
+            labels=deploy_labels,
+            pod_annotations=pod_annotations,
+            topology_spread_key=self.args.topology_spread_key,
+            topology_spread_max_skew=self.args.topology_spread_max_skew,
+            topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
+        )
+        deployments.append(jupyterlab_deployment)
+
+        # Create the services
+        if self.args.create_app_service:
+            app_svc_labels: Dict[str, Any] = common_labels or {}
+            if self.args.app_svc_labels is not None and isinstance(
+                self.args.app_svc_labels, dict
+            ):
+                app_svc_labels.update(self.args.app_svc_labels)
+
+            app_service = CreateService(
+                service_name=self.get_app_service_name(),
+                app_name=app_name,
+                namespace=ns_name,
+                service_account_name=sa_name,
+                service_type=self.args.app_svc_type,
+                deployment=jupyterlab_deployment,
+                ports=[app_port] if app_port else None,
+                labels=app_svc_labels,
+            )
+            services.append(app_service)
+
+        # Create the K8sResourceGroup
+        k8s_resource_group = CreateK8sResourceGroup(
+            name=app_name,
+            enabled=self.args.enabled,
+            ns=ns,
+            sa=sa,
+            cr=cr,
+            crb=crb,
+            secrets=secrets if len(secrets) > 0 else None,
+            config_maps=config_maps if len(config_maps) > 0 else None,
+            storage_classes=storage_classes if len(storage_classes) > 0 else None,
+            services=services if len(services) > 0 else None,
+            deployments=deployments if len(deployments) > 0 else None,
+            custom_objects=custom_objects if len(custom_objects) > 0 else None,
+            crds=crds if len(crds) > 0 else None,
+            pvs=pvs if len(pvs) > 0 else None,
+            pvcs=pvcs if len(pvcs) > 0 else None,
+        )
+
+        return k8s_resource_group.create()
 
     def init_k8s_resource_groups(self, k8s_build_context: K8sBuildContext) -> None:
-
-        logger.warning("JupyterLab is not yet available on kubernetes")
-
         k8s_rg = self.get_k8s_rg(k8s_build_context)
         if k8s_rg is not None:
             if self.k8s_resource_groups is None:

@@ -642,7 +642,7 @@ class PostgresDb(DbApp):
                     # 2. Need to make sure pods are scheduled in the
                     #       same region/az as the volume
 
-                    # For the volume_id:
+                    # For the volume_id we can either:
                     # 1. Use self.args.ebs_volume_id
                     # 2. Derive it from the self.args.ebs_volume
                     ebs_volume_id = self.args.ebs_volume_id

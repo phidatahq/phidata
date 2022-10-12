@@ -131,6 +131,10 @@ class DockerImage(DockerResource):
                     print_info(line)
                 else:
                     logger.debug(line)
+                if "ERROR" in line or "error" in line:
+                    print_error(f"Image build failed: {self.get_name_tag()}")
+                    print_error(line)
+                    return None
                 if build_log.get("aux", None) is not None:
                     logger.debug("build_log['aux'] :{}".format(build_log["aux"]))
                     self.image_build_id = build_log.get("aux", {}).get("ID")

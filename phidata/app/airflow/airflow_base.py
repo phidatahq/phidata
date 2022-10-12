@@ -161,7 +161,7 @@ class AirflowBaseArgs(PhidataAppArgs):
     # Configure airflow redis
     wait_for_redis: bool = False
     # Connect to redis using a PhidataApp
-    redis_app: Optional[Any] = None
+    redis_app: Optional[DbApp] = None
     # Provide redis connection details manually
     # redis_password can be provided here or as the
     # REDIS_PASSWORD env var in the secrets_file
@@ -313,7 +313,7 @@ class AirflowBaseArgs(PhidataAppArgs):
     # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path
     # because we assume that DockerContainers are running locally on the user's machine
     # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
-    create_git_sync_sidecar: bool = True
+    create_git_sync_sidecar: bool = False
     create_git_sync_init_container: bool = True
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
@@ -539,7 +539,7 @@ class AirflowBase(PhidataApp):
         # Configure airflow redis,
         wait_for_redis: bool = False,
         # Connect to redis using a PhidataApp,
-        redis_app: Optional[Any] = None,
+        redis_app: Optional[DbApp] = None,
         # Provide redis connection details manually,
         # redis_password can be provided here or as the,
         # REDIS_PASSWORD env var in the secrets_file,
@@ -681,7 +681,7 @@ class AirflowBase(PhidataApp):
         # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path,
         # because we assume that DockerContainers are running locally on the user's machine,
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
-        create_git_sync_sidecar: bool = True,
+        create_git_sync_sidecar: bool = False,
         create_git_sync_init_container: bool = True,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
@@ -2035,7 +2035,9 @@ class AirflowBase(PhidataApp):
             if isinstance(self.args.command, str)
             else self.args.command,
             # Equivalent to docker images ENTRYPOINT
-            command=self.args.entrypoint,
+            command=[self.args.entrypoint]
+            if isinstance(self.args.entrypoint, str)
+            else self.args.entrypoint,
             image_pull_policy=self.args.image_pull_policy,
             envs_from_configmap=[cm.cm_name for cm in config_maps]
             if len(config_maps) > 0

@@ -84,7 +84,7 @@ class JupyterHubArgs(PhidataAppArgs):
     # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir
     # because we assume that DockerContainers are running locally on the user's machine
     # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
-    create_git_sync_sidecar: bool = True
+    create_git_sync_sidecar: bool = False
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
@@ -250,7 +250,7 @@ class JupyterHub(PhidataApp):
         # NOTE: On DockerContainers the workspace_root_path is mounted to workspace_dir,
         # because we assume that DockerContainers are running locally on the user's machine,
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
-        create_git_sync_sidecar: bool = True,
+        create_git_sync_sidecar: bool = False,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
         git_sync_wait: int = 1,

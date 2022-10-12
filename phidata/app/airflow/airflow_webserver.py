@@ -101,7 +101,7 @@ class AirflowWebserver(AirflowBase):
         # Configure airflow redis
         wait_for_redis: bool = False,
         # Connect to redis using a PhidataApp
-        redis_app: Optional[Any] = None,
+        redis_app: Optional[DbApp] = None,
         # Provide redis connection details manually
         # redis_password can be provided here or as the
         # REDIS_PASSWORD env var in the secrets_file
@@ -243,7 +243,7 @@ class AirflowWebserver(AirflowBase):
         # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path
         # because we assume that DockerContainers are running locally on the user's machine
         # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
-        create_git_sync_sidecar: bool = True,
+        create_git_sync_sidecar: bool = False,
         create_git_sync_init_container: bool = True,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,

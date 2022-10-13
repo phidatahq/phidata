@@ -64,7 +64,7 @@ class DockerImage(DockerResource):
     # Extra hosts to add to /etc/hosts in building containers, as a mapping of hostname to IP address.
     extra_hosts: Optional[Dict[str, Any]] = None
     # Platform in the format os[/arch[/variant]].
-    platform: str = "linux/amd64"
+    platform: Optional[str] = None
     # Isolation technology used during build. Default: None.
     isolation: Optional[str] = None
     # If True, and if the docker client configuration file (~/.docker/config.json by default)

@@ -145,7 +145,7 @@ class AirflowWorker(AirflowBase):
         # Optional hostname for the container.
         container_hostname: Optional[str] = None,
         # Platform in the format os[/arch[/variant]].
-        container_platform: str = "linux/amd64",
+        container_platform: Optional[str] = None,
         # Path to the working directory.
         container_working_dir: Optional[str] = None,
         # Restart the container when it exits. Configured as a dictionary with keys:

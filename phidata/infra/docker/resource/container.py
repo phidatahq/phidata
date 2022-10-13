@@ -62,7 +62,7 @@ class DockerContainer(DockerResource):
     # network_mode is incompatible with network.
     network_mode: Optional[str] = None
     # Platform in the format os[/arch[/variant]].
-    platform: str = "linux/amd64"
+    platform: Optional[str] = None
     # ports (dict) – Ports to bind inside the container.
     # The keys of the dictionary are the ports to bind inside the container,
     # either as an integer or a string in the form port/protocol, where the protocol is either tcp, udp.

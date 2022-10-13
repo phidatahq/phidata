@@ -86,11 +86,6 @@ from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
-class JupyterLabVolumeType(ExtendedEnum):
-    EMPTY_DIR = "EMPTY_DIR"
-    AWS_EBS = "AWS_EBS"
-
-
 class JupyterLabArgs(PhidataAppArgs):
     name: str = "jupyter"
     version: str = "1"
@@ -114,9 +109,9 @@ class JupyterLabArgs(PhidataAppArgs):
     # Also used to set the JUPYTER_CONFIG_FILE env var
     # This value if provided is appended to the command using `--config`
     jupyter_config_file: Optional[str] = None
-    # Absolute path to the notebooks directory
-    # Sets the `--notebook-dir` parameter if provided
-    notebook_dir: Optional[str] = None
+    # Absolute path to the notebook directory
+    # Sets the `--notebook-dir` parameter
+    notebook_dir: Optional[str] = "/mnt"
     # Overwrite the PYTHONPATH env var, which is usually set
     # to workspace_root_contaier_path
     python_path: Optional[str] = None
@@ -217,20 +212,34 @@ class JupyterLabArgs(PhidataAppArgs):
     secret_name: Optional[str] = None
 
     # Container volumes
+    mount_ebs_volume: bool = False
+    ebs_volume: Optional[EbsVolume] = None
+    # Provide Ebs Volume-id manually
+    ebs_volume_id: Optional[str] = None
+    ebs_volume_name: Optional[str] = None
+    # Path to mount the ebs volume
+    ebs_volume_container_path: str = "/mnt"
+    # EbsVolume region is used to determine the ebs_volume_id
+    # and add topology region selectors
+    ebs_volume_region: Optional[str] = None
+    # Add topology az selectors
+    ebs_volume_az: Optional[str] = None
+    # Add NodeSelectors to Pods, so they are scheduled in the same
+    # region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
+
     # Configure workspace volume
     # Mount the workspace directory on the container
     mount_workspace: bool = False
-    workspace_volume_name: Optional[str] = None
-    # Path to mount the workspace volume under
+    # Path to mount the workspace under
     # This is the parent directory for the workspace on the container
     # i.e. the ws is mounted as a subdir in this dir
     # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata
     workspace_mount_container_path: str = "/mnt/workspaces"
-    # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path
-    # because we assume that DockerContainers are running locally on the user's machine
-    # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
+    # Load the workspace_dir from git using a git-sync sidecar container
     create_git_sync_sidecar: bool = False
-    create_git_sync_init_container: bool = True
+    # Load the workspace_dir from git using a git-sync init container
+    create_git_sync_init_container: bool = False
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
@@ -244,26 +253,6 @@ class JupyterLabArgs(PhidataAppArgs):
     resources_dir: str = "workspace/jupyter"
     resources_dir_container_path: str = "/usr/local/jupyter"
     resources_volume_name: Optional[str] = None
-
-    # Configure notebooks volume
-    # NOTE: Only available for Kubernetes
-    mount_notebooks: bool = False
-    notebooks_volume_name: Optional[str] = None
-    notebooks_volume_type: JupyterLabVolumeType = JupyterLabVolumeType.EMPTY_DIR
-    # Container path to mount the notebooks volume
-    notebooks_volume_container_path: str = "/mnt/notebooks"
-    # EbsVolume if volume_type = JupyterLabVolumeType.AWS_EBS
-    ebs_volume: Optional[EbsVolume] = None
-    # EbsVolume region is used to determine the ebs_volume_id
-    # and add topology region selectors
-    ebs_volume_region: Optional[str] = None
-    # Provide Ebs Volume-id manually
-    ebs_volume_id: Optional[str] = None
-    # Add topology az selectors
-    ebs_volume_az: Optional[str] = None
-    # Add NodeSelectors to Pods, so they are scheduled in the same
-    # region and zone as the ebs_volume
-    schedule_pods_in_ebs_topology: bool = True
 
     # Configure the deployment
     deploy_name: Optional[str] = None
@@ -428,9 +417,9 @@ class JupyterLab(PhidataApp):
         # Also used to set the JUPYTER_CONFIG_FILE env var,
         # This value if provided is appended to the command using `--config`,
         jupyter_config_file: Optional[str] = None,
-        # Absolute path to the notebooks directory,
+        # Absolute path to the notebook directory,
         # Sets the `--notebook-dir` parameter if provided,
-        notebook_dir: Optional[str] = None,
+        notebook_dir: Optional[str] = "/mnt",
         # Overwrite the PYTHONPATH env var, which is usually set,
         # to workspace_root_contaier_path,
         python_path: Optional[str] = None,
@@ -524,20 +513,33 @@ class JupyterLab(PhidataApp):
         # Configure the Secret name used for env variables that are Secret,
         secret_name: Optional[str] = None,
         # Container volumes,
+        mount_ebs_volume: bool = False,
+        ebs_volume: Optional[EbsVolume] = None,
+        # Provide Ebs Volume-id manually,
+        ebs_volume_id: Optional[str] = None,
+        ebs_volume_name: Optional[str] = None,
+        # Path to mount the ebs volume,
+        ebs_volume_container_path: str = "/mnt",
+        # EbsVolume region is used to determine the ebs_volume_id,
+        # and add topology region selectors,
+        ebs_volume_region: Optional[str] = None,
+        # Add topology az selectors,
+        ebs_volume_az: Optional[str] = None,
+        # Add NodeSelectors to Pods, so they are scheduled in the same,
+        # region and zone as the ebs_volume,
+        schedule_pods_in_ebs_topology: bool = True,
         # Configure workspace volume,
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
-        workspace_volume_name: Optional[str] = None,
-        # Path to mount the workspace volume under,
+        # Path to mount the workspace under,
         # This is the parent directory for the workspace on the container,
         # i.e. the ws is mounted as a subdir in this dir,
         # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata,
         workspace_mount_container_path: str = "/mnt/workspaces",
-        # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path,
-        # because we assume that DockerContainers are running locally on the user's machine,
-        # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
+        # Load the workspace_dir from git using a git-sync sidecar container,
         create_git_sync_sidecar: bool = False,
-        create_git_sync_init_container: bool = True,
+        # Load the workspace_dir from git using a git-sync init container,
+        create_git_sync_init_container: bool = False,
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
         git_sync_wait: int = 1,
@@ -550,25 +552,6 @@ class JupyterLab(PhidataApp):
         resources_dir: str = "workspace/jupyter",
         resources_dir_container_path: str = "/usr/local/jupyter",
         resources_volume_name: Optional[str] = None,
-        # Configure notebooks volume,
-        # NOTE: Only available for Kubernetes,
-        mount_notebooks: bool = False,
-        notebooks_volume_name: Optional[str] = None,
-        notebooks_volume_type: JupyterLabVolumeType = JupyterLabVolumeType.EMPTY_DIR,
-        # Container path to mount the notebooks volume,
-        notebooks_volume_container_path: str = "/mnt/notebooks",
-        # EbsVolume if volume_type = JupyterLabVolumeType.AWS_EBS,
-        ebs_volume: Optional[EbsVolume] = None,
-        # EbsVolume region is used to determine the ebs_volume_id,
-        # and add topology region selectors,
-        ebs_volume_region: Optional[str] = None,
-        # Provide Ebs Volume-id manually,
-        ebs_volume_id: Optional[str] = None,
-        # Add topology az selectors,
-        ebs_volume_az: Optional[str] = None,
-        # Add NodeSelectors to Pods, so they are scheduled in the same,
-        # region and zone as the ebs_volume,
-        schedule_pods_in_ebs_topology: bool = True,
         # Configure the deployment,
         deploy_name: Optional[str] = None,
         pod_name: Optional[str] = None,
@@ -757,8 +740,15 @@ class JupyterLab(PhidataApp):
                 secrets_file=secrets_file,
                 aws_secret=aws_secret,
                 secret_name=secret_name,
+                mount_ebs_volume=mount_ebs_volume,
+                ebs_volume=ebs_volume,
+                ebs_volume_id=ebs_volume_id,
+                ebs_volume_name=ebs_volume_name,
+                ebs_volume_container_path=ebs_volume_container_path,
+                ebs_volume_region=ebs_volume_region,
+                ebs_volume_az=ebs_volume_az,
+                schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
                 mount_workspace=mount_workspace,
-                workspace_volume_name=workspace_volume_name,
                 workspace_mount_container_path=workspace_mount_container_path,
                 create_git_sync_sidecar=create_git_sync_sidecar,
                 create_git_sync_init_container=create_git_sync_init_container,
@@ -770,15 +760,6 @@ class JupyterLab(PhidataApp):
                 resources_dir=resources_dir,
                 resources_dir_container_path=resources_dir_container_path,
                 resources_volume_name=resources_volume_name,
-                mount_notebooks=mount_notebooks,
-                notebooks_volume_name=notebooks_volume_name,
-                notebooks_volume_type=notebooks_volume_type,
-                notebooks_volume_container_path=notebooks_volume_container_path,
-                ebs_volume=ebs_volume,
-                ebs_volume_region=ebs_volume_region,
-                ebs_volume_id=ebs_volume_id,
-                ebs_volume_az=ebs_volume_az,
-                schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
                 deploy_name=deploy_name,
                 pod_name=pod_name,
                 replicas=replicas,
@@ -1086,7 +1067,6 @@ class JupyterLab(PhidataApp):
             "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
             "MOUNT_WORKSPACE": str(self.args.mount_workspace),
             "MOUNT_RESOURCES": str(self.args.mount_resources),
-            "MOUNT_NOTEBOOKS": str(self.args.mount_notebooks),
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
@@ -1495,7 +1475,7 @@ class JupyterLab(PhidataApp):
         # Container pythonpath
         python_path = (
             self.args.python_path
-            or f"{str(workspace_root_container_path)}:{self.args.resources_dir_container_path}:{self.args.notebooks_volume_container_path}"
+            or f"{str(workspace_root_container_path)}:{self.args.resources_dir_container_path}"
         )
 
         # Container Environment
@@ -1513,9 +1493,9 @@ class JupyterLab(PhidataApp):
             WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
             "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
             "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
+            "MOUNT_EBS_VOLUME": str(self.args.mount_ebs_volume),
             "MOUNT_WORKSPACE": str(self.args.mount_workspace),
             "MOUNT_RESOURCES": str(self.args.mount_resources),
-            "MOUNT_NOTEBOOKS": str(self.args.mount_notebooks),
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
@@ -1671,21 +1651,102 @@ class JupyterLab(PhidataApp):
             secrets.append(container_env_secret)
 
         # Container Volumes
+
+        if self.args.mount_ebs_volume:
+            ebs_volume_name = self.args.ebs_volume_name or get_default_volume_name(
+                app_name
+            )
+
+            if self.args.ebs_volume_id is not None or self.args.ebs_volume is not None:
+                # To use an EbsVolume as the volume_type we:
+                # 1. Need the volume_id
+                # 2. Need to make sure pods are scheduled in the
+                #       same region/az as the volume
+
+                # For the volume_id we can either:
+                # 1. Use self.args.ebs_volume_id
+                # 2. Derive it from the self.args.ebs_volume
+                ebs_volume_id = self.args.ebs_volume_id
+
+                # For the aws_region/az:
+                # 1. Use self.args.ebs_volume_region
+                # 2. Derive it from self.args.ebs_volume
+                # 3. Derive it from the PhidataAppArgs
+                ebs_volume_region = self.args.ebs_volume_region
+                ebs_volume_az = self.args.ebs_volume_az
+
+                # Derive the aws_region from self.args.ebs_volume if needed
+                if ebs_volume_region is None and self.args.ebs_volume is not None:
+                    # Note: this will use the `$AWS_REGION` env var if set
+                    _aws_region_from_ebs_volume = self.args.ebs_volume.get_aws_region()
+                    if _aws_region_from_ebs_volume is not None:
+                        ebs_volume_region = _aws_region_from_ebs_volume
+
+                # Derive the aws_region from the PhidataAppArgs if needed
+                if ebs_volume_region is None:
+                    ebs_volume_region = self.aws_region
+
+                # Derive the availability_zone from self.args.ebs_volume if needed
+                if ebs_volume_az is None and self.args.ebs_volume is not None:
+                    ebs_volume_az = self.args.ebs_volume.availability_zone
+
+                logger.debug(f"ebs_volume_region: {ebs_volume_region}")
+                logger.debug(f"ebs_volume_az: {ebs_volume_az}")
+
+                # Derive ebs_volume_id from self.args.ebs_volume if needed
+                if ebs_volume_id is None and self.args.ebs_volume is not None:
+                    ebs_volume_id = self.args.ebs_volume.get_volume_id(
+                        aws_region=ebs_volume_region,
+                        aws_profile=self.aws_profile,
+                    )
+
+                logger.debug(f"ebs_volume_id: {ebs_volume_id}")
+                if ebs_volume_id is None:
+                    logger.error("Could not find volume_id for EbsVolume")
+                    return None
+
+                ebs_volume = CreateVolume(
+                    volume_name=ebs_volume_name,
+                    app_name=app_name,
+                    mount_path=self.args.ebs_volume_container_path,
+                    volume_type=VolumeType.AWS_EBS,
+                    aws_ebs=AwsElasticBlockStoreVolumeSource(
+                        volume_id=ebs_volume_id,
+                    ),
+                )
+                volumes.append(ebs_volume)
+
+                # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
+                # To do this, we add NodeSelectors to Pods
+                if self.args.schedule_pods_in_ebs_topology:
+                    if pod_node_selector is None:
+                        pod_node_selector = {}
+
+                    # Add NodeSelectors to Pods, so they are scheduled in the same
+                    # region and zone as the ebs_volume
+                    # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
+                    if ebs_volume_region is not None:
+                        pod_node_selector[
+                            "topology.kubernetes.io/region"
+                        ] = ebs_volume_region
+
+                    if ebs_volume_az is not None:
+                        pod_node_selector["topology.kubernetes.io/zone"] = ebs_volume_az
+            else:
+                logger.error("JupyterLab: ebs_volume not provided")
+                return None
+
         # If mount_workspace=True first check if the workspace
         # should be mounted locally, otherwise
         # Create a Sidecar git-sync container and volume
         if self.args.mount_workspace:
-            workspace_volume_name = (
-                self.args.workspace_volume_name or get_default_volume_name(app_name)
-            )
-
             if self.args.k8s_mount_local_workspace:
                 workspace_root_path_str = str(self.workspace_root_path)
                 workspace_root_container_path_str = str(workspace_root_container_path)
                 logger.debug(f"Mounting: {workspace_root_path_str}")
                 logger.debug(f"\tto: {workspace_root_container_path_str}")
                 workspace_volume = CreateVolume(
-                    volume_name=workspace_volume_name,
+                    volume_name=get_default_volume_name(f"{app_name}-workspace"),
                     app_name=app_name,
                     mount_path=workspace_root_container_path_str,
                     volume_type=VolumeType.HOST_PATH,
@@ -1695,20 +1756,10 @@ class JupyterLab(PhidataApp):
                 )
                 volumes.append(workspace_volume)
 
-            elif self.args.create_git_sync_sidecar:
-                workspace_mount_container_path_str = str(
-                    self.args.workspace_mount_container_path
-                )
-                logger.debug(f"Creating EmptyDir")
-                logger.debug(f"\tat: {workspace_mount_container_path_str}")
-                workspace_volume = CreateVolume(
-                    volume_name=workspace_volume_name,
-                    app_name=app_name,
-                    mount_path=workspace_mount_container_path_str,
-                    volume_type=VolumeType.EMPTY_DIR,
-                )
-                volumes.append(workspace_volume)
-
+            elif (
+                self.args.create_git_sync_init_container
+                or self.args.create_git_sync_sidecar
+            ):
                 if self.args.git_sync_repo is not None:
                     git_sync_env = {
                         "GIT_SYNC_REPO": self.args.git_sync_repo,
@@ -1719,141 +1770,44 @@ class JupyterLab(PhidataApp):
                         git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
                     if self.args.git_sync_wait is not None:
                         git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
-                    git_sync_container = CreateContainer(
-                        container_name="git-sync",
-                        app_name=app_name,
-                        image_name="k8s.gcr.io/git-sync",
-                        image_tag="v3.1.1",
-                        env=git_sync_env,
-                        envs_from_configmap=[cm.cm_name for cm in config_maps]
-                        if len(config_maps) > 0
-                        else None,
-                        envs_from_secret=[secret.secret_name for secret in secrets]
-                        if len(secrets) > 0
-                        else None,
-                        volumes=[workspace_volume],
-                    )
-                    containers.append(git_sync_container)
 
                     if self.args.create_git_sync_init_container:
                         git_sync_init_env: Dict[str, Any] = {"GIT_SYNC_ONE_TIME": True}
                         git_sync_init_env.update(git_sync_env)
                         _git_sync_init_container = CreateContainer(
                             container_name="git-sync-init",
-                            app_name=git_sync_container.app_name,
-                            image_name=git_sync_container.image_name,
-                            image_tag=git_sync_container.image_tag,
+                            app_name=app_name,
+                            image_name="k8s.gcr.io/git-sync",
+                            image_tag="v3.1.1",
                             env=git_sync_init_env,
-                            envs_from_configmap=git_sync_container.envs_from_configmap,
-                            envs_from_secret=git_sync_container.envs_from_secret,
-                            volumes=git_sync_container.volumes,
+                            envs_from_configmap=[cm.cm_name for cm in config_maps]
+                            if len(config_maps) > 0
+                            else None,
+                            envs_from_secret=[secret.secret_name for secret in secrets]
+                            if len(secrets) > 0
+                            else None,
+                            volumes=volumes,
                         )
                         init_containers.append(_git_sync_init_container)
+
+                    if self.args.create_git_sync_sidecar:
+                        git_sync_container = CreateContainer(
+                            container_name="git-sync",
+                            app_name=app_name,
+                            image_name="k8s.gcr.io/git-sync",
+                            image_tag="v3.1.1",
+                            env=git_sync_env,
+                            envs_from_configmap=[cm.cm_name for cm in config_maps]
+                            if len(config_maps) > 0
+                            else None,
+                            envs_from_secret=[secret.secret_name for secret in secrets]
+                            if len(secrets) > 0
+                            else None,
+                            volumes=volumes,
+                        )
+                        containers.append(git_sync_container)
                 else:
                     logger.error("GIT_SYNC_REPO invalid")
-
-        if self.args.mount_notebooks:
-            notebooks_volume_name = (
-                self.args.notebooks_volume_name
-                or get_default_volume_name(f"{app_name}-notebooks")
-            )
-            if self.args.notebooks_volume_type == JupyterLabVolumeType.EMPTY_DIR:
-                notebooks_volume = CreateVolume(
-                    volume_name=notebooks_volume_name,
-                    app_name=app_name,
-                    mount_path=self.args.notebooks_volume_container_path,
-                    volume_type=VolumeType.EMPTY_DIR,
-                )
-                volumes.append(notebooks_volume)
-            elif self.args.notebooks_volume_type == JupyterLabVolumeType.AWS_EBS:
-                if (
-                    self.args.ebs_volume_id is not None
-                    or self.args.ebs_volume is not None
-                ):
-                    # To use an EbsVolume as the volume_type we:
-                    # 1. Need the volume_id
-                    # 2. Need to make sure pods are scheduled in the
-                    #       same region/az as the volume
-
-                    # For the volume_id we can either:
-                    # 1. Use self.args.ebs_volume_id
-                    # 2. Derive it from the self.args.ebs_volume
-                    ebs_volume_id = self.args.ebs_volume_id
-
-                    # For the aws_region/az:
-                    # 1. Use self.args.ebs_volume_region
-                    # 2. Derive it from self.args.ebs_volume
-                    # 3. Derive it from the PhidataAppArgs
-                    ebs_volume_region = self.args.ebs_volume_region
-                    ebs_volume_az = self.args.ebs_volume_az
-
-                    # Derive the aws_region from self.args.ebs_volume if needed
-                    if ebs_volume_region is None and self.args.ebs_volume is not None:
-                        # Note: this will use the `$AWS_REGION` env var if set
-                        _aws_region_from_ebs_volume = (
-                            self.args.ebs_volume.get_aws_region()
-                        )
-                        if _aws_region_from_ebs_volume is not None:
-                            ebs_volume_region = _aws_region_from_ebs_volume
-
-                    # Derive the aws_region from the PhidataAppArgs if needed
-                    if ebs_volume_region is None:
-                        ebs_volume_region = self.aws_region
-
-                    # Derive the availability_zone from self.args.ebs_volume if needed
-                    if ebs_volume_az is None and self.args.ebs_volume is not None:
-                        ebs_volume_az = self.args.ebs_volume.availability_zone
-
-                    logger.debug(f"ebs_volume_region: {ebs_volume_region}")
-                    logger.debug(f"ebs_volume_az: {ebs_volume_az}")
-
-                    # Derive ebs_volume_id from self.args.ebs_volume if needed
-                    if ebs_volume_id is None and self.args.ebs_volume is not None:
-                        ebs_volume_id = self.args.ebs_volume.get_volume_id(
-                            aws_region=ebs_volume_region,
-                            aws_profile=self.aws_profile,
-                        )
-
-                    logger.debug(f"ebs_volume_id: {ebs_volume_id}")
-                    if ebs_volume_id is None:
-                        logger.error("Could not find volume_id for EbsVolume")
-                        return None
-
-                    notebooks_volume = CreateVolume(
-                        volume_name=notebooks_volume_name,
-                        app_name=app_name,
-                        mount_path=self.args.notebooks_volume_container_path,
-                        volume_type=VolumeType.AWS_EBS,
-                        aws_ebs=AwsElasticBlockStoreVolumeSource(
-                            volume_id=ebs_volume_id,
-                        ),
-                    )
-                    volumes.append(notebooks_volume)
-
-                    # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
-                    # To do this, we add NodeSelectors to Pods
-                    if self.args.schedule_pods_in_ebs_topology:
-                        if pod_node_selector is None:
-                            pod_node_selector = {}
-
-                        # Add NodeSelectors to Pods, so they are scheduled in the same
-                        # region and zone as the ebs_volume
-                        # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
-                        if ebs_volume_region is not None:
-                            pod_node_selector[
-                                "topology.kubernetes.io/region"
-                            ] = ebs_volume_region
-
-                        if ebs_volume_az is not None:
-                            pod_node_selector[
-                                "topology.kubernetes.io/zone"
-                            ] = ebs_volume_az
-                else:
-                    logger.error("JupyterLab: ebs_volume not provided")
-                    return None
-            else:
-                logger.error(f"{self.args.notebooks_volume_type.value} not supported")
-                return None
 
         # Create the ports to open
         # if open_container_port = True
@@ -1897,6 +1851,8 @@ class JupyterLab(PhidataApp):
 
         if self.args.notebook_dir is not None:
             container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
+
+        # container_args.append("--ip=0.0.0.0")
 
         # Create the JupyterLab container
         jupyterlab_container = CreateContainer(

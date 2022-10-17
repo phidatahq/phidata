@@ -321,21 +321,35 @@ class InfraConfig(PhidataBase):
             environ.update(local_env)
 
         from phidata.constants import (
-            WORKSPACE_CONFIG_DIR_ENV_VAR,
             NOTEBOOKS_DIR_ENV_VAR,
             PRODUCTS_DIR_ENV_VAR,
             META_DIR_ENV_VAR,
             STORAGE_DIR_ENV_VAR,
             SCRIPTS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+            WORKSPACE_CONFIG_FILE_ENV_VAR,
         )
+
+        if self.workspace_config_file_path is not None:
+            environ[WORKSPACE_CONFIG_FILE_ENV_VAR] = str(
+                self.workspace_config_file_path
+            )
 
         workspace_root_path = self.workspace_root_path
         if workspace_root_path is not None:
+            environ[WORKSPACE_ROOT_ENV_VAR] = str(workspace_root_path)
+
             if self.workspace_config_dir is not None:
                 workspace_config_dir = workspace_root_path.joinpath(
                     self.workspace_config_dir
                 )
                 environ[WORKSPACE_CONFIG_DIR_ENV_VAR] = str(workspace_config_dir)
+
+            if self.workflows_dir is not None:
+                workflows_dir = workspace_root_path.joinpath(self.workflows_dir)
+                environ[WORKFLOWS_DIR_ENV_VAR] = str(workflows_dir)
 
             if self.meta_dir is not None:
                 meta_dir = workspace_root_path.joinpath(self.meta_dir)

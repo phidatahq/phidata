@@ -13,8 +13,8 @@ from phidata.constants import (
     NOTEBOOKS_DIR_ENV_VAR,
     WORKSPACE_CONFIG_DIR_ENV_VAR,
     PHIDATA_RUNTIME_ENV_VAR,
-    PHI_WORKSPACE_MOUNT_ENV_VAR,
-    PHI_WORKSPACE_ROOT_ENV_VAR,
+    WORKSPACE_MOUNT_ENV_VAR,
+    WORKSPACE_ROOT_ENV_VAR,
     PYTHONPATH_ENV_VAR,
     INIT_AIRFLOW_ENV_VAR,
     AIRFLOW_ENV_ENV_VAR,
@@ -1054,8 +1054,8 @@ class JupyterLab(PhidataApp):
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
             PHIDATA_RUNTIME_ENV_VAR: "docker",
-            PHI_WORKSPACE_MOUNT_ENV_VAR: str(self.args.workspace_mount_container_path),
-            PHI_WORKSPACE_ROOT_ENV_VAR: str(workspace_root_container_path),
+            WORKSPACE_MOUNT_ENV_VAR: str(self.args.workspace_mount_container_path),
+            WORKSPACE_ROOT_ENV_VAR: str(workspace_root_container_path),
             PYTHONPATH_ENV_VAR: python_path,
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
@@ -1482,8 +1482,8 @@ class JupyterLab(PhidataApp):
         container_env: Dict[str, str] = {
             # Env variables used by data workflows and data assets
             PHIDATA_RUNTIME_ENV_VAR: "kubernetes",
-            PHI_WORKSPACE_MOUNT_ENV_VAR: str(self.args.workspace_mount_container_path),
-            PHI_WORKSPACE_ROOT_ENV_VAR: str(workspace_root_container_path),
+            WORKSPACE_MOUNT_ENV_VAR: str(self.args.workspace_mount_container_path),
+            WORKSPACE_ROOT_ENV_VAR: str(workspace_root_container_path),
             PYTHONPATH_ENV_VAR: python_path,
             SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
             STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),

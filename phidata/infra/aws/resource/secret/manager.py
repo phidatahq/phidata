@@ -1,18 +1,10 @@
 from pathlib import Path
 from typing import Optional, Any, Dict, List
-from typing_extensions import Literal
-
-from pydantic import BaseModel
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
-from phidata.utils.cli_console import print_info, print_error, print_warning
+from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
-
-
-class SecretSummary(BaseModel):
-    SecretArn: Optional[str] = None
-    Name: Optional[str] = None
 
 
 class Secret(AwsResource):
@@ -43,16 +35,13 @@ class Secret(AwsResource):
     # Specifies whether to overwrite a secret with the same name in the destination Region.
     force_overwrite_replica_secret: Optional[str] = None
 
-    secret_arn: Optional[str] = None
-    secret_resource_name: Optional[str] = None
-
-    # If True, stores the secret summary in the file `secret_cache_file`
-    cache_secret: bool = False
-    # Path for the secret_cache_file
-    secret_cache_file: Optional[Path] = None
-
     # Read secret key/value pairs from yaml file
     read_from_yaml: Optional[Path] = None
+
+    # provided by api on create
+    secret_arn: Optional[str] = None
+    secret_resource_name: Optional[str] = None
+    secret_value: Optional[dict] = None
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the Secret
@@ -101,7 +90,7 @@ class Secret(AwsResource):
             if self.secret_arn is not None:
                 print_info(f"Secret created: {self.name}")
                 self.active_resource = created_resource
-                # self.update_secret_cache(created_resource)
+                self.save_resource_file()
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -130,7 +119,7 @@ class Secret(AwsResource):
             if self.secret_arn is not None:
                 print_info(f"Secret created: {self.name}")
                 self.active_resource = describe_response
-                # self.update_secret_cache(describe_response)
+                self.save_resource_file()
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -148,12 +137,14 @@ class Secret(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         self.active_resource = None
+        self.secret_value = None
         try:
             delete_response = service_client.delete_secret(SecretId=self.name)
             logger.debug(f"Secret: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
             )
+            self.save_resource_file()
             return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be deleted.")
@@ -176,12 +167,14 @@ class Secret(AwsResource):
             secret_value = service_client.get_secret_value(SecretId=self.name)
             logger.debug(f"Secret: {secret_value}")
 
+            if secret_value is None:
+                logger.warning(f"Secret is None: {self.name}")
+                return None
+
+            self.secret_value = secret_value
             self.secret_arn = secret_value.get("ARN", None)
             self.secret_resource_name = secret_value.get("Name", None)
-            logger.debug(f"secret_arn: {self.secret_arn}")
-            logger.debug(f"secret_resource_name: {self.secret_resource_name}")
-            self.active_resource = secret_value
-            # self.update_secret_cache(secret_value)
+            self.save_resource_file()
 
             secret_string = secret_value.get("SecretString", None)
             if secret_string is not None:
@@ -190,10 +183,9 @@ class Secret(AwsResource):
             secret_binary = secret_value.get("SecretBinary", None)
             if secret_binary is not None:
                 return secret_binary
-
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
-        return self.active_resource
+        return None

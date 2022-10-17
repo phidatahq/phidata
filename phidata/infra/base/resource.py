@@ -1,6 +1,9 @@
-from typing import Any, Optional, Type
+from pathlib import Path
+from typing import Any, Optional, Type, Union
 
 from pydantic import BaseModel, validator
+
+from phidata.utils.log import logger
 
 
 class InfraResource(BaseModel):
@@ -46,6 +49,8 @@ class InfraResource(BaseModel):
     active_resource: Optional[Any] = None
     active_resource_class: Optional[Type] = None
 
+    resource_file: Optional[Union[str, Path]] = None
+
     def get_resource_name(self) -> Optional[str]:
         return self.name
 
@@ -82,3 +87,117 @@ class InfraResource(BaseModel):
         allow_population_by_field_name = True
         arbitrary_types_allowed = True
         use_enum_values = True
+
+    @staticmethod
+    def get_workspace_config_file_path() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import WORKSPACE_CONFIG_FILE_ENV_VAR
+
+        workspace_config_file_path = getenv(WORKSPACE_CONFIG_FILE_ENV_VAR, None)
+        if workspace_config_file_path is not None:
+            return Path(workspace_config_file_path)
+        return None
+
+    @staticmethod
+    def get_workspace_root_path() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import WORKSPACE_ROOT_ENV_VAR
+
+        workspace_root_path = getenv(WORKSPACE_ROOT_ENV_VAR, None)
+        if workspace_root_path is not None:
+            return Path(workspace_root_path)
+        return None
+
+    @staticmethod
+    def get_workspace_config_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import WORKSPACE_CONFIG_DIR_ENV_VAR
+
+        workspace_config_dir = getenv(WORKSPACE_CONFIG_DIR_ENV_VAR, None)
+        if workspace_config_dir is not None:
+            return Path(workspace_config_dir)
+        return None
+
+    @staticmethod
+    def get_workflows_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import WORKFLOWS_DIR_ENV_VAR
+
+        workflows_dir = getenv(WORKFLOWS_DIR_ENV_VAR, None)
+        if workflows_dir is not None:
+            return Path(workflows_dir)
+        return None
+
+    @staticmethod
+    def get_meta_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import META_DIR_ENV_VAR
+
+        meta_dir = getenv(META_DIR_ENV_VAR, None)
+        if meta_dir is not None:
+            return Path(meta_dir)
+        return None
+
+    @staticmethod
+    def get_notebooks_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import NOTEBOOKS_DIR_ENV_VAR
+
+        notebooks_dir = getenv(NOTEBOOKS_DIR_ENV_VAR, None)
+        if notebooks_dir is not None:
+            return Path(notebooks_dir)
+        return None
+
+    @staticmethod
+    def get_products_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import PRODUCTS_DIR_ENV_VAR
+
+        products_dir = getenv(PRODUCTS_DIR_ENV_VAR, None)
+        if products_dir is not None:
+            return Path(products_dir)
+        return None
+
+    @staticmethod
+    def get_scripts_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import SCRIPTS_DIR_ENV_VAR
+
+        scripts_dir = getenv(SCRIPTS_DIR_ENV_VAR, None)
+        if scripts_dir is not None:
+            return Path(scripts_dir)
+        return None
+
+    @staticmethod
+    def get_storage_dir() -> Optional[Path]:
+        from os import getenv
+        from phidata.constants import STORAGE_DIR_ENV_VAR
+
+        storage_dir = getenv(STORAGE_DIR_ENV_VAR, None)
+        if storage_dir is not None:
+            return Path(storage_dir)
+        return None
+
+    def save_resource_file(self) -> bool:
+
+        if self.resource_file is not None:
+            resource_file_path: Optional[Path] = None
+            if isinstance(self.resource_file, str):
+                resource_file_path = Path(self.resource_file)
+            elif isinstance(self.resource_file, Path):
+                resource_file_path = self.resource_file
+
+            if resource_file_path is None or not isinstance(resource_file_path, Path):
+                logger.error(f"Invalid resource_file: {resource_file_path}")
+
+            try:
+                if not resource_file_path.exists():
+                    resource_file_path.parent.mkdir(parents=True, exist_ok=True)
+                    resource_file_path.touch(exist_ok=True)
+                resource_file_path.write_text(self.json(indent=2))
+                logger.debug(f"Resource stored at: {str(resource_file_path)}")
+                return True
+            except Exception as e:
+                logger.error("Could not write resource to file")
+                logger.error(e)
+        return False

@@ -81,19 +81,31 @@ class Kubeconfig(BaseModel):
         use_enum_values = True
 
     @classmethod
-    def read_from_file(cls: Any, file_path: Path) -> Optional[Any]:
-        if file_path is not None and file_path.exists() and file_path.is_file():
-            try:
-                import yaml
+    def read_from_file(
+        cls: Any, file_path: Path, create_if_not_exists: bool = True
+    ) -> Optional[Any]:
+        if file_path is not None:
+            if not file_path.exists():
+                if create_if_not_exists:
+                    logger.info(f"Creating: {file_path}")
+                    file_path.touch()
+                else:
+                    logger.error(f"File does not exist: {file_path}")
+                    return None
+            if file_path.exists() and file_path.is_file():
+                try:
+                    import yaml
 
-                logger.info(f"Reading {file_path}")
-                kubeconfig_dict = yaml.safe_load(file_path.read_text())
-                if kubeconfig_dict is not None and isinstance(kubeconfig_dict, dict):
-                    kubeconfig = cls(**kubeconfig_dict)
-                    return kubeconfig
-            except Exception as e:
-                logger.error(f"Error reading {file_path}")
-                logger.error(e)
+                    logger.info(f"Reading {file_path}")
+                    kubeconfig_dict = yaml.safe_load(file_path.read_text())
+                    if kubeconfig_dict is not None and isinstance(
+                        kubeconfig_dict, dict
+                    ):
+                        kubeconfig = cls(**kubeconfig_dict)
+                        return kubeconfig
+                except Exception as e:
+                    logger.error(f"Error reading {file_path}")
+                    logger.error(e)
         else:
             logger.warning(f"Kubeconfig invalid: {file_path}")
         return None

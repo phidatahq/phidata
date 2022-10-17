@@ -188,7 +188,6 @@ class GlueCrawler(AwsResource):
                 return True
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
             print_error(e)
@@ -220,7 +219,6 @@ class GlueCrawler(AwsResource):
                 self.active_resource = get_crawler_response
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)

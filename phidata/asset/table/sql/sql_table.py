@@ -6,6 +6,7 @@ from sqlalchemy.exc import ResourceClosedError
 
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.app.db import DbApp
+from phidata.dq.dq_check import DQCheck
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
@@ -34,6 +35,17 @@ class SqlTableArgs(DataAssetArgs):
     airflow_conn_id: Optional[str] = None
     # Phidata DbApp to connect to the database
     db_app: Optional[DbApp] = None
+
+    # Checks to run before loading the table
+    pre_checks: Optional[List[DQCheck]] = None
+    # Checks to run after loading the table
+    post_checks: Optional[List[DQCheck]] = None
+
+    # Staging Table Name
+    stg_table_name: Optional[str] = None
+    stg_checks: Optional[List[DQCheck]] = None
+    # Production Table Name
+    prd_table_name: Optional[str] = None
 
     cached_db_engine: Optional[Union[Engine, Connection]] = None
 

@@ -74,6 +74,8 @@ class EbsVolume(AwsResource):
     dry_run: Optional[bool] = None
     # The tags to apply to the volume during creation.
     tags: Optional[Dict[str, str]] = None
+    # The tag to use for volume name
+    name_tag: str = "Name"
     # Indicates whether to enable Amazon EBS Multi-Attach. If you enable Multi-Attach, you can attach the volume to
     # up to 16 Instances built on the Nitro System in the same Availability Zone. This parameter is supported with
     # io1 and io2 volumes only.
@@ -96,54 +98,53 @@ class EbsVolume(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current volume
         """
-
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # Step 1: Build Volume configuration
+        # Add name as a tag because volumes do not have names
+        tags = {self.name_tag: self.name}
+        if self.tags is not None and isinstance(self.tags, dict):
+            tags.update(self.tags)
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if self.encrypted:
+            not_null_args["Encrypted"] = self.encrypted
+        if self.iops:
+            not_null_args["Iops"] = self.iops
+        if self.kms_key_id:
+            not_null_args["KmsKeyId"] = self.kms_key_id
+        if self.outpost_arn:
+            not_null_args["OutpostArn"] = self.outpost_arn
+        if self.snapshot_id:
+            not_null_args["SnapshotId"] = self.snapshot_id
+        if self.volume_type:
+            not_null_args["VolumeType"] = self.volume_type
+        if self.dry_run:
+            not_null_args["DryRun"] = self.dry_run
+        if tags:
+            not_null_args["TagSpecifications"] = [
+                {
+                    "ResourceType": "volume",
+                    "Tags": [{"Key": k, "Value": v} for k, v in tags.items()],
+                },
+            ]
+        if self.multi_attach_enabled:
+            not_null_args["MultiAttachEnabled"] = self.multi_attach_enabled
+        if self.throughput:
+            not_null_args["Throughput"] = self.throughput
+        if self.client_token:
+            not_null_args["ClientToken"] = self.client_token
+
+        # Step 2: Create Volume
+        service_resource = self.get_service_resource(aws_client)
         try:
-            # Add name as a tag because volumes do not have names
-            tags = {"name": self.name}
-            if self.tags is not None and isinstance(self.tags, dict):
-                tags.update(self.tags)
-
-            # create a dict of args which are not null, otherwise aws type validation fails
-            not_null_args: Dict[str, Any] = {}
-
-            if self.encrypted:
-                not_null_args["Encrypted"] = self.encrypted
-            if self.iops:
-                not_null_args["Iops"] = self.iops
-            if self.kms_key_id:
-                not_null_args["KmsKeyId"] = self.kms_key_id
-            if self.outpost_arn:
-                not_null_args["OutpostArn"] = self.outpost_arn
-            if self.snapshot_id:
-                not_null_args["SnapshotId"] = self.snapshot_id
-            if self.volume_type:
-                not_null_args["VolumeType"] = self.volume_type
-            if self.dry_run:
-                not_null_args["DryRun"] = self.dry_run
-            if tags:
-                not_null_args["TagSpecifications"] = [
-                    {
-                        "ResourceType": "volume",
-                        "Tags": [{"Key": k, "Value": v} for k, v in tags.items()],
-                    },
-                ]
-            if self.multi_attach_enabled:
-                not_null_args["MultiAttachEnabled"] = self.multi_attach_enabled
-            if self.throughput:
-                not_null_args["Throughput"] = self.throughput
-            if self.client_token:
-                not_null_args["ClientToken"] = self.client_token
-
-            # Create Volume
-            service_resource = self.get_service_resource(aws_client)
             created_resource = service_resource.create_volume(
                 AvailabilityZone=self.availability_zone,
                 Size=self.size,
                 **not_null_args,
             )
-            # logger.debug(f"EbsVolume type: {type(created_resource)}")
-            # logger.debug(f"EbsVolume: {created_resource}")
+            logger.debug(f"EbsVolume: {created_resource}")
 
             # Validate Volume creation
             create_time = created_resource.create_time
@@ -160,6 +161,7 @@ class EbsVolume(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for Volume to be created
         if self.wait_for_creation:
             try:
@@ -188,11 +190,12 @@ class EbsVolume(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current volume
         """
+        logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
         from botocore.exceptions import ClientError
 
-        logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+        service_resource = self.get_service_resource(aws_client)
         try:
-            service_resource = self.get_service_resource(aws_client)
             volume = None
             for _volume in service_resource.volumes.all():
                 _volume_tags = _volume.tags
@@ -200,7 +203,7 @@ class EbsVolume(AwsResource):
                 # logger.debug(f"Tags: {_volume_tags}")
                 if _volume_tags is not None and isinstance(_volume_tags, list):
                     for _tag in _volume_tags:
-                        if _tag["Key"] == "name" and _tag["Value"] == self.name:
+                        if _tag["Key"] == self.name_tag and _tag["Value"] == self.name:
                             volume = _volume
                             break
                 # found volume, break loop
@@ -221,7 +224,6 @@ class EbsVolume(AwsResource):
                 self.active_resource = volume
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
@@ -233,14 +235,12 @@ class EbsVolume(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current volume
         """
-
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
+
+        self.active_resource = None
         try:
             volume = self._read(aws_client)
-            # logger.debug(f"EbsVolume: {volume}")
-            # logger.debug(f"EbsVolume type: {type(volume)}")
-            self.active_resource = None
-
+            logger.debug(f"EbsVolume: {volume}")
             if volume is None:
                 logger.warning(f"No {self.get_resource_type()} to delete")
                 return True
@@ -262,9 +262,7 @@ class EbsVolume(AwsResource):
             print_info(f"EbsVolume deleted: {self.name}")
             return True
         except Exception as e:
-            print_error(
-                "EbsVolume could not be deleted, this operation is known to be buggy."
-            )
+            print_error(f"{self.get_resource_type()} could not be deleted.")
             print_error("Please try again or delete resources manually.")
             print_error(e)
         return False

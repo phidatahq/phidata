@@ -1,7 +1,5 @@
 from typing import Optional, Any, List
 
-from botocore.exceptions import ClientError
-
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.utils.cli_console import print_info, print_error
@@ -25,34 +23,29 @@ class CloudFormationStack(AwsResource):
     # parameters: Optional[List[Dict[str, Union[str, bool]]]] = None
     # disable_rollback: Optional[bool] = None
 
-    skip_delete = False
-
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the CloudFormationStack
 
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # Step 1: Create CloudFormationStack
+        service_resource = self.get_service_resource(aws_client)
         try:
-            # Create CloudFormationStack
-            service_resource = self.get_service_resource(aws_client)
             stack = service_resource.create_stack(
                 StackName=self.name,
                 TemplateURL=self.template_url,
             )
-            # logger.debug(f"Stack: {stack}")
-            # logger.debug(f"Stack type: {type(stack)}")
+            logger.debug(f"Stack: {stack}")
 
             # Validate Stack creation
             stack.load()
             creation_time = stack.creation_time
             logger.debug(f"creation_time: {creation_time}")
             if creation_time is not None:
-                print_info(
-                    f"{self.get_resource_type()}: {self.get_resource_name()} created"
-                )
+                print_info(f"Stack created")
                 self.active_resource = stack
                 return True
         except Exception as e:
@@ -61,6 +54,7 @@ class CloudFormationStack(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for Stack to be created
         if self.wait_for_creation:
             try:
@@ -88,8 +82,11 @@ class CloudFormationStack(AwsResource):
             aws_client: The AwsApiClient for the current cluster
         """
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
+        from botocore.exceptions import ClientError
+
+        service_resource = self.get_service_resource(aws_client)
         try:
-            service_resource = self.get_service_resource(aws_client)
             stack = service_resource.Stack(name=self.name)
 
             stack.load()
@@ -98,10 +95,8 @@ class CloudFormationStack(AwsResource):
             if creation_time is not None:
                 logger.debug(f"Stack found: {stack.stack_name}")
                 self.active_resource = stack
-                self.active_resource_class = stack.__class__
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
@@ -113,27 +108,31 @@ class CloudFormationStack(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
+
+        self.active_resource = None
         try:
-            stack = self.read(aws_client)
-            # logger.debug(f"Stack: {stack}")
-            # logger.debug(f"Stack type: {type(stack)}")
-            self.active_resource = None
+            stack = self._read(aws_client)
+            logger.debug(f"Stack: {stack}")
+            if stack is None:
+                logger.warning(f"No {self.get_resource_type()} to delete")
+                return True
+
             stack.delete()
-            print_info(
-                f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
-            )
+            print_info(f"Stack deleted")
             return True
         except Exception as e:
-            logger.error(e)
+            print_error(f"{self.get_resource_type()} could not be deleted.")
+            print_error("Please try again or delete resources manually.")
+            print_error(e)
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for Stack to be deleted
         if self.wait_for_deletion:
             try:
-                print_info(f"Waiting for {self.get_resource_type()} to be created.")
+                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
                 waiter = self.get_service_client(aws_client).get_waiter(
                     "stack_delete_complete"
                 )
@@ -163,6 +162,19 @@ class CloudFormationStack(AwsResource):
             logger.error(e)
         return None
 
+    def get_stack_resource_physical_id(self, stack_resource: Any) -> Optional[str]:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudformation.html#CloudFormation.StackResource
+        try:
+            physical_resource_id = (
+                stack_resource.physical_resource_id
+                if stack_resource is not None
+                else None
+            )
+            logger.debug(f"{stack_resource.logical_id}: {physical_resource_id}")
+            return physical_resource_id
+        except Exception:
+            return None
+
     def get_private_subnets(
         self, aws_client: Optional[AwsApiClient] = None
     ) -> Optional[List[str]]:
@@ -175,30 +187,34 @@ class CloudFormationStack(AwsResource):
                 )
             )
 
+            private_subnets = []
+
             private_subnet_1_stack_resource = self.get_stack_resource(
                 client, "PrivateSubnet01"
             )
-            private_subnet_1_physical_resource_id = (
-                private_subnet_1_stack_resource.physical_resource_id
-                if private_subnet_1_stack_resource is not None
-                else None
+            private_subnet_1_physical_resource_id = self.get_stack_resource_physical_id(
+                private_subnet_1_stack_resource
             )
-            # logger.debug(f"private_subnet_1: {private_subnet_1_physical_resource_id}")
+            if private_subnet_1_physical_resource_id is not None:
+                private_subnets.append(private_subnet_1_physical_resource_id)
+
             private_subnet_2_stack_resource = self.get_stack_resource(
                 client, "PrivateSubnet02"
             )
-            private_subnet_2_physical_resource_id = (
-                private_subnet_2_stack_resource.physical_resource_id
-                if private_subnet_2_stack_resource is not None
-                else None
+            private_subnet_2_physical_resource_id = self.get_stack_resource_physical_id(
+                private_subnet_2_stack_resource
             )
-            # logger.debug(f"private_subnet_2: {private_subnet_2_physical_resource_id}")
-
-            private_subnets = []
-            if private_subnet_1_physical_resource_id is not None:
-                private_subnets.append(private_subnet_1_physical_resource_id)
             if private_subnet_2_physical_resource_id is not None:
                 private_subnets.append(private_subnet_2_physical_resource_id)
+
+            private_subnet_3_stack_resource = self.get_stack_resource(
+                client, "PrivateSubnet03"
+            )
+            private_subnet_3_physical_resource_id = self.get_stack_resource_physical_id(
+                private_subnet_3_stack_resource
+            )
+            if private_subnet_3_physical_resource_id is not None:
+                private_subnets.append(private_subnet_3_physical_resource_id)
 
             return private_subnets if (len(private_subnets) > 0) else None
         except Exception as e:
@@ -217,28 +233,23 @@ class CloudFormationStack(AwsResource):
                 )
             )
 
+            public_subnets = []
+
             public_subnet_1_stack_resource = self.get_stack_resource(
                 client, "PublicSubnet01"
             )
-            public_subnet_1_physical_resource_id = (
-                public_subnet_1_stack_resource.physical_resource_id
-                if public_subnet_1_stack_resource is not None
-                else None
+            public_subnet_1_physical_resource_id = self.get_stack_resource_physical_id(
+                public_subnet_1_stack_resource
             )
-            # logger.debug(f"public_subnet_1: {public_subnet_1_physical_resource_id}")
+            if public_subnet_1_physical_resource_id is not None:
+                public_subnets.append(public_subnet_1_physical_resource_id)
+
             public_subnet_2_stack_resource = self.get_stack_resource(
                 client, "PublicSubnet02"
             )
-            public_subnet_2_physical_resource_id = (
-                public_subnet_2_stack_resource.physical_resource_id
-                if public_subnet_2_stack_resource is not None
-                else None
+            public_subnet_2_physical_resource_id = self.get_stack_resource_physical_id(
+                public_subnet_2_stack_resource
             )
-            # logger.debug(f"public_subnet_2: {public_subnet_2_physical_resource_id}")
-
-            public_subnets = []
-            if public_subnet_1_physical_resource_id is not None:
-                public_subnets.append(public_subnet_1_physical_resource_id)
             if public_subnet_2_physical_resource_id is not None:
                 public_subnets.append(public_subnet_2_physical_resource_id)
 

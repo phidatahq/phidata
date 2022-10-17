@@ -128,7 +128,6 @@ class AthenaQueryExecution(AwsResource):
                 self.active_resource = query_execution_response
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)

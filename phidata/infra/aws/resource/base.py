@@ -21,11 +21,11 @@ class AwsObject(InfraResource):
             return self.aws_region
 
         # get from env if not provided
-        # logger.info(f"Loading {AWS_REGION_ENV_VAR} from env")
-        import os
+        # logger.debug(f"Loading {AWS_REGION_ENV_VAR} from env")
+        from os import getenv
 
-        aws_region_env = os.getenv(AWS_REGION_ENV_VAR)
-        # logger.info(f"{AWS_REGION_ENV_VAR}: {aws_region_env}")
+        aws_region_env = getenv(AWS_REGION_ENV_VAR)
+        # logger.debug(f"{AWS_REGION_ENV_VAR}: {aws_region_env}")
         if aws_region_env is not None:
             self.aws_region = aws_region_env
         return self.aws_region
@@ -36,11 +36,11 @@ class AwsObject(InfraResource):
             return self.aws_profile
 
         # get from env if not provided
-        # logger.info(f"Loading {AWS_PROFILE_ENV_VAR} from env")
-        import os
+        # logger.debug(f"Loading {AWS_PROFILE_ENV_VAR} from env")
+        from os import getenv
 
-        aws_profile_env = os.getenv(AWS_PROFILE_ENV_VAR)
-        # logger.info(f"{AWS_PROFILE_ENV_VAR}: {aws_profile_env}")
+        aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)
+        # logger.debug(f"{AWS_PROFILE_ENV_VAR}: {aws_profile_env}")
         if aws_profile_env is not None:
             self.aws_profile = aws_profile_env
         return self.aws_profile
@@ -93,25 +93,31 @@ class AwsResource(AwsObject):
         Args:
             aws_client: The AwsApiClient for the current Cluster
         """
+        # Step 1: Check if resource is valid
         if not self.is_valid():
             return False
-        # Skip resource creation if skip_create = True
+
+        # Step 2: Skip resource creation if skip_create = True
         if self.skip_create:
             print_info(f"Skipping create: {self.get_resource_name()}")
             return True
 
+        # Step 3: Check if resource is active and use_cache = True
         client: AwsApiClient = aws_client or self.get_aws_client()
         if self.use_cache and self.is_active(client):
             self.resource_available = True
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} already active."
             )
+        # Step 4: Create the resource
         else:
             self.resource_available = self._create(client)
+
+        # Step 5: Run post create steps
         if self.resource_available:
-            # print_info(
-            #     f"Running post-create steps for {self.get_resource_type()}: {self.get_resource_name()}."
-            # )
+            logger.debug(
+                f"Running post-create steps for {self.get_resource_type()}: {self.get_resource_name()}."
+            )
             return self.post_create(client)
         return self.resource_available
 
@@ -129,15 +135,20 @@ class AwsResource(AwsObject):
         Args:
             aws_client: The AwsApiClient for the current Cluster
         """
+        # Step 1: Check if resource is valid
         if not self.is_valid():
             return None
+
+        # Step 2: Use cached value is availabe
         if self.use_cache and self.active_resource is not None:
             return self.active_resource
-        # Skip resource creation if skip_read = True
+
+        # Step 3: Skip resource creation if skip_read = True
         if self.skip_read:
             print_info(f"Skipping read: {self.get_resource_name()}")
             return True
 
+        # Step 4: Read resource
         client: AwsApiClient = aws_client or self.get_aws_client()
         return self._read(client)
 
@@ -151,13 +162,16 @@ class AwsResource(AwsObject):
         Args:
             aws_client: The AwsApiClient for the current Cluster
         """
+        # Step 1: Check if resource is valid
         if not self.is_valid():
             return False
-        # Skip resource update if skip_update = True
+
+        # Step 2: Skip resource update if skip_update = True
         if self.skip_update:
             print_info(f"Skipping update: {self.get_resource_name()}")
             return True
 
+        # Step 3: Update the resource
         client: AwsApiClient = aws_client or self.get_aws_client()
         if self.is_active(client):
             self.resource_updated = self._update(client)
@@ -166,10 +180,12 @@ class AwsResource(AwsObject):
                 f"{self.get_resource_type()}: {self.get_resource_name()} does not exist."
             )
             return True
+
+        # Step 4: Run post update steps
         if self.resource_updated:
-            # print_info(
-            #     f"Running post-update steps for {self.get_resource_type()}: {self.get_resource_name()}."
-            # )
+            logger.debug(
+                f"Running post-update steps for {self.get_resource_type()}: {self.get_resource_name()}."
+            )
             return self.post_update(client)
         return self.resource_updated
 
@@ -187,13 +203,16 @@ class AwsResource(AwsObject):
         Args:
             aws_client: The AwsApiClient for the current Cluster
         """
+        # Step 1: Check if resource is valid
         if not self.is_valid():
             return False
-        # Skip resource deletion if skip_delete = True
+
+        # Step 2: Skip resource deletion if skip_delete = True
         if self.skip_delete:
             print_info(f"Skipping delete: {self.get_resource_name()}")
             return True
 
+        # Step 3: Delete the resource
         client: AwsApiClient = aws_client or self.get_aws_client()
         if self.is_active(client):
             self.resource_deleted = self._delete(client)
@@ -202,10 +221,12 @@ class AwsResource(AwsObject):
                 f"{self.get_resource_type()}: {self.get_resource_name()} does not exist."
             )
             return True
+
+        # Step 4: Run post delete steps
         if self.resource_deleted:
-            # print_info(
-            #     f"Running post-delete steps for {self.get_resource_type()}: {self.get_resource_name()}."
-            # )
+            logger.debug(
+                f"Running post-delete steps for {self.get_resource_type()}: {self.get_resource_name()}."
+            )
             return self.post_delete(client)
         return self.resource_deleted
 

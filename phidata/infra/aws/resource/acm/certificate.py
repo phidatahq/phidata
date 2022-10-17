@@ -3,7 +3,6 @@ from typing import Optional, Any, List, Dict
 from typing_extensions import Literal
 
 from pydantic import BaseModel
-from botocore.exceptions import ClientError
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
@@ -27,7 +26,7 @@ class AcmCertificate(AwsResource):
     resource_type = "AcmCertificate"
     service_name = "acm"
 
-    # webside base domain name, such as example.com
+    # website base domain name, such as example.com
     name: str
     # Fully qualified domain name (FQDN), such as www.example.com,
     # that you want to secure with an ACM certificate.
@@ -67,69 +66,57 @@ class AcmCertificate(AwsResource):
     # Path for the certificate_summary_file
     certificate_summary_file: Optional[Path] = None
 
-    skip_delete = True
     wait_for_creation = False
 
     def _create(self, aws_client: AwsApiClient) -> bool:
-        """Requests an ACM certificate for use with other Amazon Web Services services.
+        """Requests an ACM certificate for use with other Amazon Web Services.
 
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # Step 1: Build ACM configuration
+        domain_name = self.domain_name
+        if domain_name is None:
+            domain_name = self.name
+        print_info(f"Requesting AcmCertificate for: {domain_name}")
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if self.subject_alternative_names is not None:
+            not_null_args["SubjectAlternativeNames"] = self.subject_alternative_names
+            print_info("SANs:")
+            for san in self.subject_alternative_names:
+                print_info(f"    - {san}")
+        if self.idempotency_token is not None:
+            not_null_args["IdempotencyToken"] = self.idempotency_token
+        if self.domain_validation_options is not None:
+            not_null_args["DomainValidationOptions"] = self.domain_validation_options
+        if self.options is not None:
+            not_null_args["Options"] = self.options
+        if self.certificate_authority_arn is not None:
+            not_null_args["CertificateAuthorityArn"] = self.certificate_authority_arn
+        if self.tags is not None:
+            not_null_args["Tags"] = self.tags
+
+        # Step 2: Request AcmCertificate
+        service_client = self.get_service_client(aws_client)
         try:
-            domain_name = self.domain_name
-            if domain_name is None:
-                domain_name = self.name
-
-            print_info(f"Requesting AcmCertificate for: {domain_name}")
-
-            # create a dict of args which are not null,
-            # otherwise aws type validation fails
-            not_null_args: Dict[str, Any] = {}
-            if self.subject_alternative_names is not None:
-                not_null_args[
-                    "SubjectAlternativeNames"
-                ] = self.subject_alternative_names
-                print_info("SANs:")
-                for san in self.subject_alternative_names:
-                    print_info(f"    - {san}")
-            if self.idempotency_token is not None:
-                not_null_args["IdempotencyToken"] = self.idempotency_token
-            if self.domain_validation_options is not None:
-                not_null_args[
-                    "DomainValidationOptions"
-                ] = self.domain_validation_options
-            if self.options is not None:
-                not_null_args["Options"] = self.options
-            if self.certificate_authority_arn is not None:
-                not_null_args[
-                    "CertificateAuthorityArn"
-                ] = self.certificate_authority_arn
-            if self.tags is not None:
-                not_null_args["Tags"] = self.tags
-
-            # Request an AcmCertificate
-            service_client = self.get_service_client(aws_client)
             request_cert_response = service_client.request_certificate(
                 DomainName=self.name,
                 ValidationMethod=self.validation_method,
                 **not_null_args,
             )
-            # logger.debug(f"request_cert_response: {request_cert_response}")
-            # logger.debug(
-            #     f"request_cert_response type: {type(request_cert_response)}"
-            # )
+            logger.debug(f"AcmCertificate: {request_cert_response}")
 
-            ## Validate AcmCertificate creation
+            # Validate AcmCertificate creation
             certificate_arn = request_cert_response.get("CertificateArn", None)
             if certificate_arn is not None:
                 print_subheading(f"---- Please Note: Certificate ARN ----")
                 print_info(f"{certificate_arn}")
                 print_subheading(f"--------\n")
                 self.active_resource = request_cert_response
-                self.active_resource_class = request_cert_response.__class__
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -137,6 +124,7 @@ class AcmCertificate(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for AcmCertificate to be validated
         if self.wait_for_creation:
             try:
@@ -191,13 +179,13 @@ class AcmCertificate(AwsResource):
             aws_client: The AwsApiClient for the current cluster
         """
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
+        from botocore.exceptions import ClientError
+
+        service_client = self.get_service_client(aws_client)
         try:
-            service_client = self.get_service_client(aws_client)
             list_certificate_response = service_client.list_certificates()
-            # logger.debug(f"list_certificate_response: {list_certificate_response}")
-            # logger.debug(
-            #     f"list_certificate_response type: {type(list_certificate_response)}"
-            # )
+            # logger.debug(f"AcmCertificate: {list_certificate_response}")
 
             current_cert = None
             certificate_summary_list = list_certificate_response.get(
@@ -213,11 +201,10 @@ class AcmCertificate(AwsResource):
             if current_cert is not None:
                 logger.debug(f"AcmCertificate found: {self.name}")
                 self.active_resource = current_cert
-                self.active_resource_class = current_cert.__class__
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
+            print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
         return self.active_resource
 
@@ -227,20 +214,17 @@ class AcmCertificate(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
+
+        service_client = self.get_service_client(aws_client)
+        self.active_resource = None
         try:
-            # Delete the AcmCertificate
-            service_client = self.get_service_client(aws_client)
-            self.active_resource = None
-            self.active_resource_class = None
             certificate_arn = self.get_certificate_arn(aws_client)
             if certificate_arn is not None:
                 delete_cert_response = service_client.delete_certificate(
                     CertificateArn=certificate_arn,
                 )
                 logger.debug(f"delete_cert_response: {delete_cert_response}")
-                logger.debug(f"delete_cert_response type: {type(delete_cert_response)}")
                 print_info(f"AcmCertificate deleted: {self.name}")
             else:
                 print_info("AcmCertificate not found")
@@ -248,10 +232,6 @@ class AcmCertificate(AwsResource):
         except Exception as e:
             print_error(e)
         return False
-
-    def post_delete(self, aws_client: AwsApiClient) -> bool:
-        # Nothing to do
-        return True
 
     def get_certificate_arn(self, aws_client: AwsApiClient) -> Optional[str]:
         cert_summary = self._read(aws_client)

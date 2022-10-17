@@ -2,12 +2,12 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Optional, Any, Dict, List, Union
 
-from botocore.exceptions import ClientError
-
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.iam.role import IamRole
 from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
+from phidata.infra.aws.resource.ec2.subnet import Subnet
+from phidata.infra.aws.resource.eks.addon import EksAddon
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
@@ -28,23 +28,39 @@ class EksCluster(AwsResource):
 
     # role: The IAM role that provides permissions for the Kubernetes control plane to make calls
     # to Amazon Web Services API operations on your behalf.
-    # If role is None, a default role is created using role_name
+    # ARN for the EKS IAM role to use
+    role_arn: Optional[str] = None
+    # If role_arn is None, a default role is created if create_role is True
+    create_role: bool = True
+    # Provide IamRole to create or use default of role is None
     role: Optional[IamRole] = None
     # Name for the default role when role is None, use "name-role" if not provided
     role_name: Optional[str] = None
+    # Provide a list of policy ARNs to attach to the role
+    add_policy_arns: Optional[List[str]] = None
 
+    # EKS VPC Configuration
     # resources_vpc_config: The VPC configuration that's used by the cluster control plane.
     # Amazon EKS VPC resources have specific requirements to work properly with Kubernetes.
     # You must specify at least two subnets. You can specify up to five security groups.
-    # If resources_vpc_config is None, a default CloudFormationStack is created and
-    # the vpc_config from that stack is used.
-    resources_vpc_config: Optional[Dict[str, List[Any]]] = None
+    resources_vpc_config: Optional[Dict[str, Any]] = None
+    # If resources_vpc_config is None, a default CloudFormationStack is created if create_vpc_stack is True
+    create_vpc_stack: bool = True
     # The CloudFormationStack to build resources_vpc_config if provided
     vpc_stack: Optional[CloudFormationStack] = None
     # If resources_vpc_config and vpc_stack are None
     # create a default CloudFormationStack using vpc_stack_name, use "name-vpc-stack" if vpc_stack_name is None
     vpc_stack_name: Optional[str] = None
-    vpc_stack_template_url: str = "https://amazon-eks.s3.us-west-2.amazonaws.com/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml"
+    # Default VPC Stack Template URL
+    vpc_stack_template_url: str = "https://s3.us-west-2.amazonaws.com/amazon-eks/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml"
+    use_public_subnets: bool = True
+    use_private_subnets: bool = True
+    subnet_az: Optional[Union[str, List[str]]] = None
+    add_subnets: Optional[List[str]] = None
+    add_security_groups: Optional[List[str]] = None
+    endpoint_public_access: Optional[bool] = None
+    endpoint_private_access: Optional[bool] = None
+    public_access_cidrs: Optional[List[str]] = None
 
     # The Kubernetes network configuration for the cluster.
     kubernetes_network_config: Optional[Dict[str, str]] = None
@@ -61,10 +77,13 @@ class EksCluster(AwsResource):
         List[Dict[str, Union[List[str], Dict[str, str]]]]
     ] = None
 
-    ## Kubeconfig
+    # EKS Addons
+    addons: List[Union[str, EksAddon]] = ["aws-ebs-csi-driver"]
+
+    # Kubeconfig
     # If True, updates the kubeconfig on create/delete
-    # Use = update_kubeconfig when using a separate EksKubeconfig resource
-    update_kubeconfig: bool = True
+    # Use manage_kubeconfig = False when using a separate EksKubeconfig resource
+    manage_kubeconfig: bool = True
     # The kubeconfig_path to update
     kubeconfig_path: Path = Path.home().joinpath(".kube").joinpath("config").resolve()
     # Optional: cluster_name to use in kubeconfig, defaults to self.name
@@ -91,73 +110,73 @@ class EksCluster(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
-        try:
-            # Create the IamRole
+
+        # Step 1: Get IamRoleArn
+        eks_iam_role_arn = self.role_arn
+        if eks_iam_role_arn is None and self.create_role:
+            # Create the IamRole and get eks_iam_role_arn
             eks_iam_role = self.get_eks_iam_role()
-            eks_iam_role_arn: Optional[str] = None
             try:
                 eks_iam_role.create(aws_client)
                 eks_iam_role_arn = eks_iam_role.read(aws_client).arn
                 print_info(f"ARN for {eks_iam_role.name}: {eks_iam_role_arn}")
             except Exception as e:
-                print_error("IamRole creation failed, please try again")
+                print_error("IamRole creation failed, please fix and try again")
                 print_error(e)
                 return False
-            if eks_iam_role_arn is None:
-                print_error(
-                    f"ARN for IamRole {eks_iam_role.name} is not available, please try again"
+        if eks_iam_role_arn is None:
+            print_error("IamRole ARN not available, please fix and try again")
+            return False
+
+        # Step 2: Get the VPC config
+        resources_vpc_config = self.resources_vpc_config
+        if resources_vpc_config is None and self.create_vpc_stack:
+            # Create the CloudFormationStack and get resources_vpc_config
+            vpc_stack = self.get_eks_vpc_stack()
+            try:
+                vpc_stack.create(aws_client)
+                resources_vpc_config = self.get_eks_resources_vpc_config(
+                    aws_client, vpc_stack
                 )
+            except Exception as e:
+                print_error("Stack creation failed, please fix and try again")
+                print_error(e)
                 return False
+        if resources_vpc_config is None:
+            print_error("VPC configuration not available, please fix and try again")
+            return False
 
-            resources_vpc_config = self.resources_vpc_config
-            # If resources_vpc_config is None
-            # Create the CloudFormationStack and resources_vpc_config
-            if resources_vpc_config is None:
-                vpc_stack = self.get_eks_vpc_stack()
-                try:
-                    vpc_stack.create(aws_client)
-                    resources_vpc_config = self.get_eks_resources_vpc_config(
-                        aws_client, vpc_stack
-                    )
-                except Exception as e:
-                    print_error("Stack creation failed, please try again")
-                    print_error(e)
-                    return False
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if self.version:
+            not_null_args["version"] = self.version
+        if self.kubernetes_network_config:
+            not_null_args["kubernetesNetworkConfig"] = self.kubernetes_network_config
+        if self.logging:
+            not_null_args["logging"] = self.logging
+        if self.client_request_token:
+            not_null_args["clientRequestToken"] = self.client_request_token
+        if self.tags:
+            not_null_args["tags"] = self.tags
+        if self.encryption_config:
+            not_null_args["encryptionConfig"] = self.encryption_config
 
-            # create a dict of args which are not null, otherwise aws type validation fails
-            not_null_args: Dict[str, Any] = {}
-
-            if self.version:
-                not_null_args["version"] = self.version
-            if self.kubernetes_network_config:
-                not_null_args[
-                    "kubernetesNetworkConfig"
-                ] = self.kubernetes_network_config
-            if self.logging:
-                not_null_args["logging"] = self.logging
-            if self.client_request_token:
-                not_null_args["clientRequestToken"] = self.client_request_token
-            if self.tags:
-                not_null_args["tags"] = self.tags
-            if self.encryption_config:
-                not_null_args["encryptionConfig"] = self.encryption_config
-
-            # Create EksCluster
-            service_client = self.get_service_client(aws_client)
+        # Step 3: Create EksCluster
+        service_client = self.get_service_client(aws_client)
+        try:
             create_response = service_client.create_cluster(
                 name=self.name,
                 roleArn=eks_iam_role_arn,
                 resourcesVpcConfig=resources_vpc_config,
                 **not_null_args,
             )
-            # logger.debug(f"EksCluster: {create_response}")
-            # logger.debug(f"EksCluster type: {type(create_response)}")
+            logger.debug(f"EksCluster: {create_response}")
+            cluster_dict = create_response.get("cluster", {})
 
             # Validate Cluster creation
-            self.created_at = create_response.get("cluster", {}).get("createdAt", None)
-            self.cluster_status = create_response.get("cluster", {}).get("status", None)
+            self.created_at = cluster_dict.get("createdAt", None)
+            self.cluster_status = cluster_dict.get("status", None)
             logger.debug(f"created_at: {self.created_at}")
             logger.debug(f"cluster_status: {self.cluster_status}")
             if self.created_at is not None:
@@ -170,10 +189,11 @@ class EksCluster(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for Cluster to be created
         if self.wait_for_creation:
             try:
-                print_info(f"Waiting for {self.get_resource_type()} to be created.")
+                print_info(f"Waiting for {self.get_resource_type()} to be active.")
                 waiter = self.get_service_client(aws_client).get_waiter(
                     "cluster_active"
                 )
@@ -187,8 +207,29 @@ class EksCluster(AwsResource):
             except Exception as e:
                 print_error("Waiter failed.")
                 print_error(e)
+
+        # Add addons
+        if self.addons is not None:
+            addons_created: List[EksAddon] = []
+            for _addon in self.addons:
+                addon_to_create: Optional[EksAddon] = None
+                if isinstance(_addon, EksAddon):
+                    addon_to_create = _addon
+                elif isinstance(_addon, str):
+                    addon_to_create = EksAddon(name=_addon, cluster_name=self.name)
+
+                if addon_to_create is not None:
+                    addon_success = addon_to_create._create(aws_client)  # type: ignore
+                    if addon_success:
+                        addons_created.append(addon_to_create)
+
+            # Wait for Addons to be created
+            if self.wait_for_creation:
+                for addon in addons_created:
+                    addon.post_create(aws_client)
+
         # Update kubeconfig if needed
-        if self.update_kubeconfig:
+        if self.manage_kubeconfig:
             self.write_kubeconfig(aws_client=aws_client)
         return True
 
@@ -199,18 +240,17 @@ class EksCluster(AwsResource):
             aws_client: The AwsApiClient for the current cluster
         """
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
+        from botocore.exceptions import ClientError
+
+        service_client = self.get_service_client(aws_client)
         try:
-            service_client = self.get_service_client(aws_client)
             describe_response = service_client.describe_cluster(name=self.name)
             # logger.debug(f"EksCluster: {describe_response}")
-            # logger.debug(f"EksCluster type: {type(describe_response)}")
+            cluster_dict = describe_response.get("cluster", {})
 
-            self.created_at = describe_response.get("cluster", {}).get(
-                "createdAt", None
-            )
-            self.cluster_status = describe_response.get("cluster", {}).get(
-                "status", None
-            )
+            self.created_at = cluster_dict.get("createdAt", None)
+            self.cluster_status = cluster_dict.get("status", None)
             logger.debug(f"EksCluster created_at: {self.created_at}")
             logger.debug(f"EksCluster status: {self.cluster_status}")
             if self.created_at is not None:
@@ -218,7 +258,6 @@ class EksCluster(AwsResource):
                 self.active_resource = describe_response
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
@@ -235,13 +274,12 @@ class EksCluster(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
-        try:
-            # Delete the IamRole
+
+        # Step 1: Delete the IamRole
+        if self.role_arn is None and self.create_role:
             eks_iam_role = self.get_eks_iam_role()
             try:
-                print_info(f"Deleting IamRole: {eks_iam_role.name}")
                 eks_iam_role.delete(aws_client)
             except Exception as e:
                 print_error(
@@ -249,27 +287,23 @@ class EksCluster(AwsResource):
                 )
                 print_error(e)
 
-            # Delete the CloudFormationStack if needed
-            resources_vpc_config = self.resources_vpc_config
-            if resources_vpc_config is None:
-                # indicated vpc stack is created by this cluster
-                vpc_stack = self.get_eks_vpc_stack()
-                try:
-                    print_info(f"Deleting Stack: {vpc_stack.name}")
-                    vpc_stack.delete(aws_client)
-                except Exception as e:
-                    print_error(
-                        "Stack deletion failed, please try again or delete manually"
-                    )
-                    print_error(e)
+        # Step 2: Delete the CloudFormationStack if needed
+        if self.resources_vpc_config is None and self.create_vpc_stack:
+            vpc_stack = self.get_eks_vpc_stack()
+            try:
+                vpc_stack.delete(aws_client)
+            except Exception as e:
+                print_error(
+                    "Stack deletion failed, please try again or delete manually"
+                )
+                print_error(e)
 
-            # Delete the EksCluster
-            service_client = self.get_service_client(aws_client)
-            self.active_resource = None
-
+        # Step 3: Delete the EksCluster
+        service_client = self.get_service_client(aws_client)
+        self.active_resource = None
+        try:
             delete_response = service_client.delete_cluster(name=self.name)
-            # logger.debug(f"EksCluster: {delete_cluster_response}")
-            # logger.debug(f"EksCluster type: {type(delete_cluster_response)}")
+            logger.debug(f"EksCluster: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
             )
@@ -281,6 +315,7 @@ class EksCluster(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for Cluster to be deleted
         if self.wait_for_deletion:
             try:
@@ -298,14 +333,20 @@ class EksCluster(AwsResource):
             except Exception as e:
                 print_error("Waiter failed.")
                 print_error(e)
+
         # Update kubeconfig if needed
-        if self.update_kubeconfig:
+        if self.manage_kubeconfig:
             return self.clean_kubeconfig(aws_client=aws_client)
         return True
 
     def get_eks_iam_role(self) -> IamRole:
         if self.role is not None:
             return self.role
+
+        policy_arns = ["arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"]
+        if self.add_policy_arns is not None and isinstance(self.add_policy_arns, list):
+            policy_arns.extend(self.add_policy_arns)
+
         return IamRole(
             name=self.role_name or f"{self.name}-role",
             assume_role_policy_document=dedent(
@@ -324,7 +365,7 @@ class EksCluster(AwsResource):
             }
             """
             ),
-            policy_arns=["arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"],
+            policy_arns=policy_arns,
         )
 
     def get_eks_vpc_stack(self) -> CloudFormationStack:
@@ -334,6 +375,57 @@ class EksCluster(AwsResource):
             name=self.vpc_stack_name or f"{self.name}-vpc-stack",
             template_url=self.vpc_stack_template_url,
         )
+
+    def get_subnets(
+        self, aws_client: AwsApiClient, vpc_stack: Optional[CloudFormationStack] = None
+    ) -> List[str]:
+
+        subnet_ids: List[str] = []
+
+        # Option 1: Get subnets from the resources_vpc_config provided by the user
+        if (
+            self.resources_vpc_config is not None
+            and "subnetIds" in self.resources_vpc_config
+        ):
+            subnet_ids = self.resources_vpc_config["subnetIds"]
+            if not isinstance(subnet_ids, list):
+                raise TypeError(
+                    f"resources_vpc_config.subnetIds must be a list of strings, not {type(subnet_ids)}"
+                )
+            return subnet_ids
+
+        # Option 2: Get subnets from the cloudformation VPC stack
+        if vpc_stack is None:
+            vpc_stack = self.get_eks_vpc_stack()
+
+        if self.use_public_subnets:
+            public_subnets: Optional[List[str]] = vpc_stack.get_public_subnets(
+                aws_client
+            )
+            if public_subnets is not None:
+                subnet_ids.extend(public_subnets)
+
+        if self.use_private_subnets:
+            private_subnets: Optional[List[str]] = vpc_stack.get_private_subnets(
+                aws_client
+            )
+            if private_subnets is not None:
+                subnet_ids.extend(private_subnets)
+
+        if self.subnet_az is not None:
+            azs_filter = []
+            if isinstance(self.subnet_az, str):
+                azs_filter.append(self.subnet_az)
+            elif isinstance(self.subnet_az, list):
+                azs_filter.extend(self.subnet_az)
+
+            subnet_ids = [
+                subnet_id
+                for subnet_id in subnet_ids
+                if Subnet(id=subnet_id).get_availability_zone(aws_client=aws_client)
+                in azs_filter
+            ]
+        return subnet_ids
 
     def get_eks_resources_vpc_config(
         self, aws_client: AwsApiClient, vpc_stack: CloudFormationStack
@@ -360,20 +452,32 @@ class EksCluster(AwsResource):
             if sg_stack_resource is not None
             else None
         )
-        # logger.debug(f"sg_physical_resource_id: {sg_physical_resource_id}")
+        security_group_ids = (
+            [sg_physical_resource_id] if sg_physical_resource_id is not None else []
+        )
+        if self.add_security_groups is not None and isinstance(
+            self.add_security_groups, list
+        ):
+            security_group_ids.extend(self.add_security_groups)
+        logger.debug(f"security_group_ids: {security_group_ids}")
 
-        private_subnets: Optional[List[str]] = vpc_stack.get_private_subnets(aws_client)
-        public_subnets: Optional[List[str]] = vpc_stack.get_public_subnets(aws_client)
-        subnet_ids: List[str] = []
-        if private_subnets is not None:
-            subnet_ids.extend(private_subnets)
-        if public_subnets is not None:
-            subnet_ids.extend(public_subnets)
+        subnet_ids: List[str] = self.get_subnets(aws_client, vpc_stack)
+        if self.add_subnets is not None and isinstance(self.add_subnets, list):
+            subnet_ids.extend(self.add_subnets)
+        logger.debug(f"subnet_ids: {subnet_ids}")
 
-        resources_vpc_config: Dict[str, List[Any]] = {
+        resources_vpc_config: Dict[str, Any] = {
             "subnetIds": subnet_ids,
-            "securityGroupIds": [sg_physical_resource_id],
+            "securityGroupIds": security_group_ids,
         }
+
+        if self.endpoint_public_access is not None:
+            resources_vpc_config["endpointPublicAccess"] = self.endpoint_public_access
+        if self.endpoint_private_access is not None:
+            resources_vpc_config["endpointPrivateAccess"] = self.endpoint_private_access
+        if self.public_access_cidrs is not None:
+            resources_vpc_config["publicAccessCidrs"] = self.public_access_cidrs
+
         return resources_vpc_config
 
     def get_kubeconfig_cluster_name(self) -> str:

@@ -139,7 +139,7 @@ class EksKubeconfig(AwsResource):
     def write_kubeconfig(self, aws_client: AwsApiClient) -> bool:
 
         # Step 1: Get the EksCluster to generate the kubeconfig for
-        eks_cluster = self.eks_cluster._read(aws_client=aws_client)
+        eks_cluster = self.eks_cluster._read(aws_client=aws_client)  # type: ignore
         if eks_cluster is None:
             logger.warning(f"EKSCluster not available: {self.eks_cluster.name}")
             return False

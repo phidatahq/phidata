@@ -204,7 +204,6 @@ class EksFargateProfile(AwsResource):
                 self.active_resource_class = describe_profile_response.__class__
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             logger.error(e)
         return self.active_resource
@@ -250,7 +249,7 @@ class EksFargateProfile(AwsResource):
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
         ## Wait for EksFargateProfile to be deleted
-        if self.wait_for_creation:
+        if self.wait_for_deletion:
             try:
                 print_info(
                     "Waiting for EksFargateProfile to be deleted, this can take upto 5 minutes"

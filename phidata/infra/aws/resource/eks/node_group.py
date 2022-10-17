@@ -2,11 +2,9 @@ from typing import Optional, Any, Dict, List, Union, cast
 from typing_extensions import Literal
 from textwrap import dedent
 
-from botocore.exceptions import ClientError
-
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
-from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
+from phidata.infra.aws.resource.ec2.subnet import Subnet
 from phidata.infra.aws.resource.eks.cluster import EksCluster
 from phidata.infra.aws.resource.iam.role import IamRole
 from phidata.utils.cli_console import print_info, print_error
@@ -41,10 +39,17 @@ class EksNodeGroup(AwsResource):
     # Nodes receive permissions for these API calls through an IAM instance profile and associated policies.
     # Before you can launch nodes and register them into a cluster,
     # you must create an IAM role for those nodes to use when they are launched.
+
+    # ARN for the node group IAM role to use
+    node_role_arn: Optional[str] = None
+    # If node_role_arn is None, a default role is created if create_role is True
+    create_role: bool = True
     # If node_role is None, a default node_role is created using node_role_name
     node_role: Optional[IamRole] = None
     # Name for the default node_role when role is None, use "name-iam-role" if not provided
     node_role_name: Optional[str] = None
+    # Provide a list of policy ARNs to attach to the node group role
+    add_policy_arns: Optional[List[str]] = None
 
     # The scaling configuration details for the Auto Scaling group
     # Users can provide a dict for scaling config or use min/max/desired values below
@@ -70,6 +75,8 @@ class EksNodeGroup(AwsResource):
     # For more information about using launch templates with Amazon EKS,
     # see Launch template support in the Amazon EKS User Guide.
     subnets: Optional[List[str]] = None
+    # Filter subnets using availability zones
+    subnet_az: Optional[Union[str, List[str]]] = None
     # Specify the instance types for a node group.
     # If you specify a GPU instance type, be sure to specify AL2_x86_64_GPU with the amiType parameter.
     # If you specify launchTemplate , then you can specify zero or one instance type in your launch template
@@ -135,7 +142,10 @@ class EksNodeGroup(AwsResource):
     # By default, the latest available AMI version for the node group's current Kubernetes version is used.
     release_version: Optional[str] = None
 
-    skip_delete = False
+    # provided by api on create
+    created_at: Optional[str] = None
+    nodegroup_status: Optional[str] = None
+
     # bump the wait time for Eks to 30 seconds
     waiter_delay = 30
 
@@ -145,104 +155,106 @@ class EksNodeGroup(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
-        try:
-            # Create the NodeGroup IamRole if needed
+
+        # Step 1: Get NodeGroup IamRole
+        nodegroup_iam_role_arn = self.node_role_arn
+        if nodegroup_iam_role_arn is None and self.create_role:
+            # Create NodeGroup IamRole and get nodegroup_iam_role_arn
             nodegroup_iam_role = self.get_nodegroup_iam_role()
-            nodegroup_iam_role_arn: Optional[str] = None
             try:
                 nodegroup_iam_role.create(aws_client)
-                nodegroup_iam_role_resource = nodegroup_iam_role.read(aws_client)
-                nodegroup_iam_role_arn = nodegroup_iam_role_resource.arn
+                nodegroup_iam_role_arn = nodegroup_iam_role.read(aws_client).arn
                 print_info(
                     f"ARN for {nodegroup_iam_role.name}: {nodegroup_iam_role_arn}"
                 )
             except Exception as e:
-                print_error("NodeGroup IamRole creation failed, please try again")
+                print_error(
+                    "NodeGroup IamRole creation failed, please fix and try again"
+                )
                 print_error(e)
                 return False
-            if nodegroup_iam_role_arn is None:
-                print_error(
-                    f"ARN for IamRole {nodegroup_iam_role.name} is not available, please try again"
-                )
-                return False
+        if nodegroup_iam_role_arn is None:
+            print_error(f"IamRole ARN not available, please fix and try again")
+            return False
 
-            # Use user subnets if provided
-            subnets: Optional[List[str]] = self.subnets
+        # Step 2: Get the subnets
+        subnets: Optional[List[str]] = self.subnets
+        if subnets is None:
             # Use subnets from EKSCluster if subnets not provided
-            if subnets is None:
-                subnets = []
-                eks_vpc_stack: CloudFormationStack = (
-                    self.eks_cluster.get_eks_vpc_stack()
-                )
-                public_subnets: Optional[List[str]] = eks_vpc_stack.get_public_subnets(
-                    aws_client
-                )
-                private_subnets: Optional[
-                    List[str]
-                ] = eks_vpc_stack.get_private_subnets(aws_client)
-                if private_subnets is not None:
-                    subnets.extend(private_subnets)
-                if public_subnets is not None:
-                    subnets.extend(public_subnets)
-            # cast for type checker
-            subnets = cast(List[str], subnets)
+            subnets = self.eks_cluster.get_subnets(aws_client=aws_client)
+            # Filter subnets using availability zones
+            if self.subnet_az is not None:
+                azs_filter = []
+                if isinstance(self.subnet_az, str):
+                    azs_filter.append(self.subnet_az)
+                elif isinstance(self.subnet_az, list):
+                    azs_filter.extend(self.subnet_az)
 
-            # Get the scaling_config
-            scaling_config: Optional[Dict[str, Union[str, int]]] = self.scaling_config
-            if scaling_config is None:
-                # Build the scaling_config if needed
-                if self.min_size is not None:
-                    if scaling_config is None:
-                        scaling_config = {}
-                    scaling_config["minSize"] = self.min_size
-                    # use min_size as the default for maxSize/desiredSize incase maxSize/desiredSize is not provided
-                    scaling_config["maxSize"] = self.min_size
-                    scaling_config["desiredSize"] = self.min_size
-                if self.max_size is not None:
-                    if scaling_config is None:
-                        scaling_config = {}
-                    scaling_config["maxSize"] = self.max_size
-                if self.desired_size is not None:
-                    if scaling_config is None:
-                        scaling_config = {}
-                    scaling_config["desiredSize"] = self.desired_size
+                subnets = [
+                    subnet_id
+                    for subnet_id in subnets
+                    if Subnet(id=subnet_id).get_availability_zone(aws_client=aws_client)
+                    in azs_filter
+                ]
+            logger.debug(f"Using subnets from EKSCluster: {subnets}")
+        # cast for type checker
+        subnets = cast(List[str], subnets)
 
-            # create a dict of args which are not null, otherwise aws type validation fails
-            not_null_args: Dict[str, Any] = {}
+        # Step 3: Get the scaling_config
+        scaling_config: Optional[Dict[str, Union[str, int]]] = self.scaling_config
+        if scaling_config is None:
+            # Build the scaling_config
+            if self.min_size is not None:
+                if scaling_config is None:
+                    scaling_config = {}
+                scaling_config["minSize"] = self.min_size
+                # use min_size as the default for maxSize/desiredSize incase maxSize/desiredSize is not provided
+                scaling_config["maxSize"] = self.min_size
+                scaling_config["desiredSize"] = self.min_size
+            if self.max_size is not None:
+                if scaling_config is None:
+                    scaling_config = {}
+                scaling_config["maxSize"] = self.max_size
+            if self.desired_size is not None:
+                if scaling_config is None:
+                    scaling_config = {}
+                scaling_config["desiredSize"] = self.desired_size
 
-            if scaling_config is not None:
-                not_null_args["scalingConfig"] = scaling_config
-            if self.disk_size is not None:
-                not_null_args["diskSize"] = self.disk_size
-            if self.instance_types is not None:
-                not_null_args["instanceTypes"] = self.instance_types
-            if self.ami_type is not None:
-                not_null_args["amiType"] = self.ami_type
-            if self.remote_access is not None:
-                not_null_args["remoteAccess"] = self.remote_access
-            if self.labels is not None:
-                not_null_args["labels"] = self.labels
-            if self.taints is not None:
-                not_null_args["taints"] = self.taints
-            if self.tags is not None:
-                not_null_args["tags"] = self.tags
-            if self.client_request_token is not None:
-                not_null_args["clientRequestToken"] = self.client_request_token
-            if self.launch_template is not None:
-                not_null_args["launchTemplate"] = self.launch_template
-            if self.update_config is not None:
-                not_null_args["updateConfig"] = self.update_config
-            if self.capacity_type is not None:
-                not_null_args["capacityType"] = self.capacity_type
-            if self.version is not None:
-                not_null_args["version"] = self.version
-            if self.release_version is not None:
-                not_null_args["release_version"] = self.release_version
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if scaling_config is not None:
+            not_null_args["scalingConfig"] = scaling_config
+        if self.disk_size is not None:
+            not_null_args["diskSize"] = self.disk_size
+        if self.instance_types is not None:
+            not_null_args["instanceTypes"] = self.instance_types
+        if self.ami_type is not None:
+            not_null_args["amiType"] = self.ami_type
+        if self.remote_access is not None:
+            not_null_args["remoteAccess"] = self.remote_access
+        if self.labels is not None:
+            not_null_args["labels"] = self.labels
+        if self.taints is not None:
+            not_null_args["taints"] = self.taints
+        if self.tags is not None:
+            not_null_args["tags"] = self.tags
+        if self.client_request_token is not None:
+            not_null_args["clientRequestToken"] = self.client_request_token
+        if self.launch_template is not None:
+            not_null_args["launchTemplate"] = self.launch_template
+        if self.update_config is not None:
+            not_null_args["updateConfig"] = self.update_config
+        if self.capacity_type is not None:
+            not_null_args["capacityType"] = self.capacity_type
+        if self.version is not None:
+            not_null_args["version"] = self.version
+        if self.release_version is not None:
+            not_null_args["release_version"] = self.release_version
 
-            # Create a NodeGroup
-            service_client = self.get_service_client(aws_client)
+        # Step 4: Create EksNodeGroup
+        service_client = self.get_service_client(aws_client)
+        try:
             create_response = service_client.create_nodegroup(
                 clusterName=self.eks_cluster.name,
                 nodegroupName=self.name,
@@ -250,26 +262,28 @@ class EksNodeGroup(AwsResource):
                 nodeRole=nodegroup_iam_role_arn,
                 **not_null_args,
             )
-            # logger.debug(f"create_response: {create_response}")
-            # logger.debug(f"create_response type: {type(create_response)}")
+            logger.debug(f"EksNodeGroup: {create_response}")
+            nodegroup_dict = create_response.get("nodegroup", {})
 
             # Validate EksNodeGroup creation
-            nodegroup_creation_time = create_response.get("nodegroup", {}).get(
-                "createdAt", None
-            )
-            nodegroup_status = create_response.get("nodegroup", {}).get("status", None)
-            logger.debug(f"NodeGroup creation_time: {nodegroup_creation_time}")
-            logger.debug(f"NodeGroup status: {nodegroup_status}")
-            if nodegroup_creation_time is not None:
+            self.created_at = nodegroup_dict.get("createdAt", None)
+            self.nodegroup_status = nodegroup_dict.get("status", None)
+            logger.debug(f"created_at: {self.created_at}")
+            logger.debug(f"nodegroup_status: {self.nodegroup_status}")
+            if self.created_at is not None:
                 print_info(f"EksNodeGroup created: {self.name}")
                 self.active_resource = create_response
                 return True
+        except service_client.exceptions.ResourceInUseException:
+            print_info(f"EksNodeGroup already exists: {self.name}")
+            return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
             print_error(e)
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for EksNodeGroup to be created
         if self.wait_for_creation:
             try:
@@ -297,30 +311,29 @@ class EksNodeGroup(AwsResource):
             aws_client: The AwsApiClient for the current cluster
         """
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
+        from botocore.exceptions import ClientError
+
+        service_client = self.get_service_client(aws_client)
         try:
-            service_client = self.get_service_client(aws_client)
             describe_response = service_client.describe_nodegroup(
                 clusterName=self.eks_cluster.name,
                 nodegroupName=self.name,
             )
             # logger.debug(f"describe_response: {describe_response}")
-            # logger.debug(f"describe_response type: {type(describe_response)}")
+            nodegroup_dict = describe_response.get("nodegroup", {})
 
-            nodegroup_creation_time = describe_response.get("nodegroup", {}).get(
-                "createdAt", None
-            )
-            nodegroup_status = describe_response.get("nodegroup", {}).get(
-                "status", None
-            )
-            logger.debug(f"NodeGroup creation_time: {nodegroup_creation_time}")
-            logger.debug(f"NodeGroup status: {nodegroup_status}")
-            if nodegroup_creation_time is not None:
+            self.created_at = nodegroup_dict.get("createdAt", None)
+            self.nodegroup_status = nodegroup_dict.get("status", None)
+            logger.debug(f"NodeGroup created_at: {self.created_at}")
+            logger.debug(f"NodeGroup status: {self.nodegroup_status}")
+            if self.created_at is not None:
                 logger.debug(f"EksNodeGroup found: {self.name}")
                 self.active_resource = describe_response
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
+            print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
         return self.active_resource
 
@@ -330,31 +343,28 @@ class EksNodeGroup(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
-        try:
-            # Create the NodeGroup IamRole
+
+        # Step 1: Delete the IamRole
+        if self.node_role_arn is None and self.create_role:
             nodegroup_iam_role = self.get_nodegroup_iam_role()
             try:
-                print_info(f"Deleting IamRole: {nodegroup_iam_role.name}")
                 nodegroup_iam_role.delete(aws_client)
             except Exception as e:
                 print_error(
-                    "NodeGroup IamRole deletion failed, please try again or delete manually"
+                    "IamRole deletion failed, please try again or delete manually"
                 )
                 print_error(e)
 
-            # Delete the NodeGroup
-            service_client = self.get_service_client(aws_client)
-            self.active_resource = None
+        # Step 2: Delete the NodeGroup
+        service_client = self.get_service_client(aws_client)
+        self.active_resource = None
+        try:
             delete_response = service_client.delete_nodegroup(
                 clusterName=self.eks_cluster.name,
                 nodegroupName=self.name,
             )
-            # logger.debug(f"delete_response: {delete_response}")
-            # logger.debug(
-            #     f"delete_response type: {type(delete_response)}"
-            # )
+            logger.debug(f"EksNodeGroup: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
             )
@@ -366,8 +376,9 @@ class EksNodeGroup(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
+
         # Wait for EksNodeGroup to be deleted
-        if self.wait_for_creation:
+        if self.wait_for_deletion:
             try:
                 print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
                 waiter = self.get_service_client(aws_client).get_waiter(
@@ -393,6 +404,17 @@ class EksNodeGroup(AwsResource):
         """
         if self.node_role is not None:
             return self.node_role
+
+        policy_arns = [
+            "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+            "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+            "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+            "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+            "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
+        ]
+        if self.add_policy_arns is not None and isinstance(self.add_policy_arns, list):
+            policy_arns.extend(self.add_policy_arns)
+
         return IamRole(
             name=self.node_role_name or f"{self.name}-iam-role",
             assume_role_policy_document=dedent(
@@ -411,10 +433,5 @@ class EksNodeGroup(AwsResource):
             }
             """
             ),
-            policy_arns=[
-                "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-                "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-                "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-                "arn:aws:iam::aws:policy/AmazonS3FullAccess",
-            ],
+            policy_arns=policy_arns,
         )

@@ -229,7 +229,6 @@ class EmrCluster(AwsResource):
             self.cluster_arn = self.active_resource.get("ClusterArn", None)
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
-            pass
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)

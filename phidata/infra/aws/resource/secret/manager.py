@@ -46,16 +46,19 @@ class Secret(AwsResource):
     secret_arn: Optional[str] = None
     secret_resource_name: Optional[str] = None
 
-    # If True, stores the secret arn in the file `secret_summary_file`
-    store_secret_summary: bool = False
-    # Path for the secret_summary_file
-    secret_summary_file: Optional[Path] = None
+    # If True, stores the secret summary in the file `secret_cache_file`
+    cache_secret: bool = False
+    # Path for the secret_cache_file
+    secret_cache_file: Optional[Path] = None
+
+    # Read secret key/value pairs from yaml file
+    read_from_yaml: Optional[Path] = None
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the Secret
 
         Args:
-            aws_client: The AwsApiClient for the current volume
+            aws_client: The AwsApiClient for the current secret
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
@@ -98,43 +101,18 @@ class Secret(AwsResource):
             if self.secret_arn is not None:
                 print_info(f"Secret created: {self.name}")
                 self.active_resource = created_resource
+                # self.update_secret_cache(created_resource)
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
             print_error(e)
         return False
 
-    def post_create(self, aws_client: AwsApiClient) -> bool:
-
-        # Store secret summary if needed
-        if self.store_secret_summary:
-            if self.secret_summary_file is None:
-                print_error("secret_summary_file not provided")
-                return False
-
-            try:
-                secret_arn = self.secret_arn
-                secret_resource_name = self.secret_resource_name
-
-                secret_summary = SecretSummary(
-                    SecretArn=secret_arn, Name=secret_resource_name
-                )
-                if not self.secret_summary_file.exists():
-                    self.secret_summary_file.parent.mkdir(parents=True, exist_ok=True)
-                    self.secret_summary_file.touch(exist_ok=True)
-                self.secret_summary_file.write_text(secret_summary.json(indent=2))
-                print_info(f"SecretSummary stored at: {str(self.secret_summary_file)}")
-            except Exception as e:
-                print_error("Could not writing SecretSummary to file")
-                print_error(e)
-
-        return True
-
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
         """Returns the Secret
 
         Args:
-            aws_client: The AwsApiClient for the current volume
+            aws_client: The AwsApiClient for the current secret
         """
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
 
@@ -142,32 +120,17 @@ class Secret(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            volume = None
-            for _volume in service_client.volumes.all():
-                _volume_tags = _volume.tags
-                # logger.debug(f"Found volume: {_volume}")
-                # logger.debug(f"Tags: {_volume_tags}")
-                if _volume_tags is not None and isinstance(_volume_tags, list):
-                    for _tag in _volume_tags:
-                        if _tag["Key"] == self.name_tag and _tag["Value"] == self.name:
-                            volume = _volume
-                            break
-                # found volume, break loop
-                if volume is not None:
-                    break
+            describe_response = service_client.describe_secret(SecretId=self.name)
+            logger.debug(f"Secret: {describe_response}")
 
-            if volume is None:
-                logger.debug("No Secret found")
-                return None
-
-            volume.load()
-            create_time = volume.create_time
-            self.volume_id = volume.volume_id
-            logger.debug(f"create_time: {create_time}")
-            logger.debug(f"volume_id: {self.volume_id}")
-            if create_time is not None:
-                logger.debug(f"Secret found: {self.name}")
-                self.active_resource = volume
+            self.secret_arn = describe_response.get("ARN", None)
+            self.secret_resource_name = describe_response.get("Name", None)
+            logger.debug(f"secret_arn: {self.secret_arn}")
+            logger.debug(f"secret_resource_name: {self.secret_resource_name}")
+            if self.secret_arn is not None:
+                print_info(f"Secret created: {self.name}")
+                self.active_resource = describe_response
+                # self.update_secret_cache(describe_response)
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -179,33 +142,18 @@ class Secret(AwsResource):
         """Deletes the Secret
 
         Args:
-            aws_client: The AwsApiClient for the current volume
+            aws_client: The AwsApiClient for the current secret
         """
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
+        service_client = self.get_service_client(aws_client)
         self.active_resource = None
         try:
-            volume = self._read(aws_client)
-            logger.debug(f"Secret: {volume}")
-            if volume is None:
-                logger.warning(f"No {self.get_resource_type()} to delete")
-                return True
-
-            # detach the volume from all instances
-            for attachment in volume.attachments:
-                device = attachment.get("Device", None)
-                instance_id = attachment.get("InstanceId", None)
-                print_info(
-                    f"Detaching volume from device: {device}, instance_id: {instance_id}"
-                )
-                volume.detach_from_instance(
-                    Device=device,
-                    InstanceId=instance_id,
-                )
-
-            # delete volume
-            volume.delete()
-            print_info(f"Secret deleted: {self.name}")
+            delete_response = service_client.delete_secret(SecretId=self.name)
+            logger.debug(f"Secret: {delete_response}")
+            print_info(
+                f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
+            )
             return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be deleted.")
@@ -213,15 +161,39 @@ class Secret(AwsResource):
             print_error(e)
         return False
 
-    def get_volume_id(
-        self,
-        aws_client: Optional[AwsApiClient] = None,
-        aws_region: Optional[str] = None,
-        aws_profile: Optional[str] = None,
-    ) -> Optional[str]:
-        aws_api_client = aws_client or AwsApiClient(
-            aws_region=aws_region, aws_profile=aws_profile
-        )
-        if aws_api_client is not None:
-            self._read(aws_api_client)
-        return self.volume_id
+    def get_secret_value(self, aws_client: AwsApiClient) -> Any:
+        """Get secret value
+
+        Args:
+            aws_client: The AwsApiClient for the current secret
+        """
+        logger.debug(f"Getting {self.get_resource_type()}: {self.get_resource_name()}")
+
+        from botocore.exceptions import ClientError
+
+        service_client = self.get_service_client(aws_client)
+        try:
+            secret_value = service_client.get_secret_value(SecretId=self.name)
+            logger.debug(f"Secret: {secret_value}")
+
+            self.secret_arn = secret_value.get("ARN", None)
+            self.secret_resource_name = secret_value.get("Name", None)
+            logger.debug(f"secret_arn: {self.secret_arn}")
+            logger.debug(f"secret_resource_name: {self.secret_resource_name}")
+            self.active_resource = secret_value
+            # self.update_secret_cache(secret_value)
+
+            secret_string = secret_value.get("SecretString", None)
+            if secret_string is not None:
+                return secret_string
+
+            secret_binary = secret_value.get("SecretBinary", None)
+            if secret_binary is not None:
+                return secret_binary
+
+        except ClientError as ce:
+            logger.debug(f"ClientError: {ce}")
+        except Exception as e:
+            print_error(f"Error reading {self.get_resource_type()}.")
+            print_error(e)
+        return self.active_resource

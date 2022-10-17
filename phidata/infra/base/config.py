@@ -105,21 +105,23 @@ class InfraConfig(PhidataBase):
         if self.args is None:
             return None
 
-        # If self.args.local_env is available return that
-        if self.args.local_env is not None:
-            return self.args.local_env
+        local_env: Dict[str, str] = {}
 
-        # Else, get env from local_env_file
+        # If self.args.local_env is available add that local_env
+        if self.args.local_env is not None:
+            local_env.update(self.args.local_env)
+
+        # Then, read env from local_env_file
         if self.args.local_env_file is not None:
             local_env_file = self.args.local_env_file
             local_env_file_path: Optional[Path] = None
             if isinstance(local_env_file, str):
                 if self.workspace_root_path is None:
                     logger.error(f"workspace_root_path is None")
-                    return self.args.local_env
+                    return local_env
                 if self.workspace_config_dir is None:
                     logger.error(f"workspace_config_dir is None")
-                    return self.args.local_env
+                    return local_env
 
                 local_env_file_path = self.workspace_root_path.joinpath(
                     self.workspace_config_dir
@@ -127,9 +129,11 @@ class InfraConfig(PhidataBase):
             elif isinstance(local_env_file, Path):
                 local_env_file_path = local_env_file
 
-            self.args.local_env = read_env_from_file(local_env_file_path)
-            logger.debug(f"local_env: {self.args.local_env}")
-        return self.args.local_env
+            local_env_from_file = read_env_from_file(local_env_file_path)
+            if local_env_from_file:
+                local_env.update(local_env_from_file)
+
+        return local_env
 
     @local_env.setter
     def local_env(self, local_env: Dict[str, str]) -> None:
@@ -315,7 +319,46 @@ class InfraConfig(PhidataBase):
         local_env: Optional[Dict[str, str]] = self.local_env
         if local_env is not None:
             environ.update(local_env)
+
+        from phidata.constants import (
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+        )
+
+        workspace_root_path = self.workspace_root_path
+        if workspace_root_path is not None:
+            if self.workspace_config_dir is not None:
+                workspace_config_dir = workspace_root_path.joinpath(
+                    self.workspace_config_dir
+                )
+                environ[WORKSPACE_CONFIG_DIR_ENV_VAR] = str(workspace_config_dir)
+
+            if self.meta_dir is not None:
+                meta_dir = workspace_root_path.joinpath(self.meta_dir)
+                environ[META_DIR_ENV_VAR] = str(meta_dir)
+
+            if self.notebooks_dir is not None:
+                notebooks_dir = workspace_root_path.joinpath(self.notebooks_dir)
+                environ[NOTEBOOKS_DIR_ENV_VAR] = str(notebooks_dir)
+
+            if self.products_dir is not None:
+                products_dir = workspace_root_path.joinpath(self.products_dir)
+                environ[PRODUCTS_DIR_ENV_VAR] = str(products_dir)
+
+            if self.scripts_dir is not None:
+                scripts_dir = workspace_root_path.joinpath(self.scripts_dir)
+                environ[SCRIPTS_DIR_ENV_VAR] = str(scripts_dir)
+
+            if self.storage_dir is not None:
+                storage_dir = workspace_root_path.joinpath(self.storage_dir)
+                environ[STORAGE_DIR_ENV_VAR] = str(storage_dir)
+
             return True
+
         return False
 
     @property

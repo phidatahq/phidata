@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "0.2.21"
+version = "0.2.23"
 description = "A tool for building data products"
 requires-python = ">3.7"
 readme = "README.md"
@@ -9,14 +9,8 @@ authors = [
 ]
 
 dependencies = [
-  "awswrangler",
   "boto3",
-  "phiterm>=0.2.19",
-  "pydantic",
-  "pyyaml",
-  "rich",
-  "types-PyYAML",
-  "typing-extensions",
+  "phiterm>=0.2.23",
 ]
 
 [project.optional-dependencies]

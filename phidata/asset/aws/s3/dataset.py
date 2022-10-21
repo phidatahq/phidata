@@ -5,6 +5,8 @@ from phidata.asset.aws.s3.dataset_base import (
     S3DatasetBaseArgs,
     S3DatasetType,
 )
+from phidata.task import Task
+from phidata.check import Check
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.log import logger
 
@@ -13,7 +15,8 @@ class S3DatasetArgs(S3DatasetBaseArgs):
     # Compression style (None, snappy, gzip, zstd).
     compression: Optional[str] = None
     # Max number of rows in each file.
-    # Default is None i.e. dont split the files. (e.g. 33554432, 268435456)
+    # Default is None i.e. do not split the files.
+    # (e.g. 33554432, 268435456)
     max_rows_by_file: Optional[int] = None
     # Additional parameters forwarded to pyarrow.
     # e.g. pyarrow_additional_kwargs={‘coerce_timestamps’: ‘ns’, ‘allow_truncated_timestamps’=False}
@@ -35,6 +38,30 @@ class S3Dataset(S3DatasetBase):
         path_prefix: Optional[str] = None,
         bucket: Optional[S3Bucket] = None,
         filename_prefix: Optional[str] = None,
+        # Checks to run before loading the table,
+        pre_checks: Optional[List[Check]] = None,
+        # List of tasks to create the table
+        create_tasks: Optional[List[Task]] = None,
+        # Checks to run after loading the table,
+        post_checks: Optional[List[Check]] = None,
+        # List of tasks to update the table,
+        update_tasks: Optional[List[Task]] = None,
+        # List of tasks to delete the table,
+        delete_tasks: Optional[List[Task]] = None,
+        env: Optional[str] = None,
+        # Dev Args,
+        dev_name: Optional[str] = None,
+        dev_env: Optional[Dict[str, Any]] = None,
+        seed_dev_tasks: Optional[List[Task]] = None,
+        dev_stg_swap_tasks: Optional[List[Task]] = None,
+        # Staging Args,
+        stg_name: Optional[str] = None,
+        stg_env: Optional[Dict[str, Any]] = None,
+        seed_stg_tasks: Optional[List[Task]] = None,
+        stg_prd_swap_tasks: Optional[List[Task]] = None,
+        # Production Args,
+        prd_name: Optional[str] = None,
+        prd_env: Optional[Dict[str, Any]] = None,
         dtype: Optional[Dict[str, str]] = None,
         parameters: Optional[Dict[str, str]] = None,
         columns_comments: Optional[Dict[str, str]] = None,
@@ -61,6 +88,7 @@ class S3Dataset(S3DatasetBase):
         projection_storage_location_template: Optional[str] = None,
         version: Optional[str] = None,
         enabled: bool = True,
+        **kwargs,
     ) -> None:
 
         super().__init__()
@@ -78,6 +106,22 @@ class S3Dataset(S3DatasetBase):
                 path_prefix=path_prefix,
                 bucket=bucket,
                 filename_prefix=filename_prefix,
+                pre_checks=pre_checks,
+                create_tasks=create_tasks,
+                post_checks=post_checks,
+                update_tasks=update_tasks,
+                delete_tasks=delete_tasks,
+                env=env,
+                dev_name=dev_name,
+                dev_env=dev_env,
+                seed_dev_tasks=seed_dev_tasks,
+                dev_stg_swap_tasks=dev_stg_swap_tasks,
+                stg_name=stg_name,
+                stg_env=stg_env,
+                seed_stg_tasks=seed_stg_tasks,
+                stg_prd_swap_tasks=stg_prd_swap_tasks,
+                prd_name=prd_name,
+                prd_env=prd_env,
                 dtype=dtype,
                 parameters=parameters,
                 columns_comments=columns_comments,
@@ -104,6 +148,7 @@ class S3Dataset(S3DatasetBase):
                 projection_storage_location_template=projection_storage_location_template,
                 version=version,
                 enabled=enabled,
+                **kwargs,
             )
         except Exception as e:
             logger.error(f"Args for {self.__class__.__name__} are not valid")
@@ -237,10 +282,10 @@ class S3Dataset(S3DatasetBase):
         catalog_id: Optional[str] = None,
     ) -> bool:
         """
-        Write DataFrame to S3CsvDataset.
+        Write DataFrame to S3Dataset.
         """
 
-        # S3CsvDataset not yet initialized
+        # S3Dataset not yet initialized
         if self.args is None:
             return False
 
@@ -437,7 +482,7 @@ class S3Dataset(S3DatasetBase):
         Create dataset from query
         """
 
-        # S3CsvDataset not yet initialized
+        # S3Dataset not yet initialized
         if self.args is None:
             return False
 
@@ -485,7 +530,7 @@ class S3Dataset(S3DatasetBase):
             import awswrangler as wr
 
             if drop_before_create:
-                self.delete(path=dataset_path, boto3_session=_boto3_session)
+                self._delete(path=dataset_path, boto3_session=_boto3_session)
 
             response: Dict[str, Union[str, Any]] = wr.athena.create_ctas_table(
                 sql=sql,
@@ -510,7 +555,7 @@ class S3Dataset(S3DatasetBase):
     ## Delete DataAsset
     ######################################################
 
-    def delete(
+    def _delete(
         self,
         # S3 path for the dataset
         path: Optional[str] = None,

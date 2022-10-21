@@ -1,7 +1,10 @@
 from typing import Optional, Literal, List, Tuple, Dict, Any, Union
 
 from phidata.asset.aws import AwsAsset, AwsAssetArgs
+from phidata.task import Task
+from phidata.check import Check
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
+
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
@@ -13,6 +16,9 @@ class S3DatasetType(ExtendedEnum):
 
 
 class S3DatasetBaseArgs(AwsAssetArgs):
+    # Dataset Name. Can be provided instead of "table" argument
+    name: Optional[str] = None
+
     # Glue/Athena catalog: Table name.
     table: Optional[str] = None
     # Glue/Athena catalog: Database name.
@@ -57,12 +63,12 @@ class S3DatasetBaseArgs(AwsAssetArgs):
     # bucketing as the first element and the number of buckets as the second element.
     # Only str, int and bool are supported as column data types for bucketing.
     bucketing_info: Optional[Tuple[List[str], int]] = None
-    # If True will increase the parallelism level during the partitions writing.
+    # If True increases parallelism level during the partitions writing.
     # It will decrease the writing time and increase the memory usage.
     # https://aws-sdk-pandas.readthedocs.io/en/2.17.0/tutorials/022%20-%20Writing%20Partitions%20Concurrently.html
     concurrent_partitioning: Optional[bool] = None
 
-    # If True and mode=”overwrite”, creates an archived version of the table catalog before updating it.
+    # If True and mode="overwrite", creates an archived version of the table catalog before updating it.
     catalog_versioning: Optional[bool] = None
     # If True allows schema evolution (new or missing columns), otherwise a exception will be raised.
     # True by default. (Only considered if mode in (“append”, “overwrite_partitions”))
@@ -81,6 +87,8 @@ class S3DatasetBaseArgs(AwsAssetArgs):
     # e.g. s3_additional_kwargs={‘ServerSideEncryption’: ‘aws:kms’, ‘SSEKMSKeyId’: ‘YOUR_KMS_KEY_ARN’}
     s3_additional_kwargs: Optional[Dict[str, Any]] = None
 
+    # Note: These arguments are not exposed using properties.
+    # But they are included in args incase we want to pass down these values to aws wrangler.
     # regular_partitions (bool) – Create regular partitions (Non projected partitions) on Glue Catalog.
     # Disable when you will work only with Partition Projection.
     regular_partitions: Optional[bool] = None

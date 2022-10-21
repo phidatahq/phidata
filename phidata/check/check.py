@@ -2,11 +2,11 @@ from phidata.task import Task, TaskArgs
 from phidata.utils.log import logger
 
 
-class DQCheckArgs(TaskArgs):
+class CheckArgs(TaskArgs):
     pass
 
 
-class DQCheck(Task):
+class Check(Task):
     """Base Class for all DQChecks"""
 
     def __init__(self):

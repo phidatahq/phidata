@@ -5,7 +5,6 @@ from typing_extensions import Literal
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
-from phidata.utils.filesystem import delete_from_fs
 
 
 class FileType(ExtendedEnum):
@@ -16,22 +15,35 @@ class FileType(ExtendedEnum):
 
 
 class FileArgs(DataAssetArgs):
-    name: Optional[str]
-    # parent directory of the file relative to the base_dir
-    file_dir: Optional[Union[str, Path]]
-    file_type: Optional[FileType]
-    # absolute path for the file
-    file_path: Optional[Path]
+    name: Optional[str] = None
+    file_type: Optional[FileType] = None
+
+    # If the file is located in the current dir.
+    # Default: True
+    # Used to build the file_path
+    current_dir: bool = True
+
+    # Parent directory of the file relative to the storage_dir
+    # Used to build the file_path
+    file_dir: Optional[Union[str, Path]] = None
+
+    # Absolute path for the file
+    file_path: Optional[Path] = None
 
 
 class File(DataAsset):
     def __init__(
         self,
         name: Optional[str] = None,
-        # parent directory of the file relative to the base_dir
-        file_dir: Optional[Union[str, Path]] = None,
         file_type: Optional[FileType] = None,
-        # absolute path for the file
+        # If the file is located in the current dir.
+        # Default: True
+        # Used to build the file_path
+        current_dir: bool = True,
+        # Parent directory of the file relative to the storage_dir
+        # Used to build the file_path
+        file_dir: Optional[Union[str, Path]] = None,
+        # Absolute path for the file
         file_path: Optional[Path] = None,
         version: Optional[str] = None,
         enabled: bool = True,
@@ -41,8 +53,9 @@ class File(DataAsset):
         try:
             self.args: FileArgs = FileArgs(
                 name=name,
-                file_dir=file_dir,
                 file_type=file_type,
+                current_dir=current_dir,
+                file_dir=file_dir,
                 file_path=file_path,
                 version=version,
                 enabled=enabled,
@@ -50,15 +63,6 @@ class File(DataAsset):
         except Exception as e:
             logger.error(f"Args for {self.__class__.__name__} are not valid")
             raise
-
-    @property
-    def file_dir(self) -> Optional[Union[str, Path]]:
-        return self.args.file_dir
-
-    @file_dir.setter
-    def file_dir(self, file_dir: Union[str, Path]) -> None:
-        if file_dir is not None:
-            self.args.file_dir = file_dir
 
     @property
     def file_type(self) -> Optional[FileType]:
@@ -84,14 +88,40 @@ class File(DataAsset):
             self.args.file_type = file_type
 
     @property
+    def current_dir(self) -> bool:
+        return self.args.current_dir if self.args else True
+
+    @current_dir.setter
+    def current_dir(self, current_dir: bool) -> None:
+        if current_dir is not None:
+            self.args.current_dir = current_dir
+
+    @property
+    def file_dir(self) -> Optional[Union[str, Path]]:
+        return self.args.file_dir if self.args else None
+
+    @file_dir.setter
+    def file_dir(self, file_dir: Union[str, Path]) -> None:
+        if file_dir is not None:
+            self.args.file_dir = file_dir
+
+    @property
     def file_path(self) -> Optional[Path]:
         if self.args.file_path is not None:
             return self.args.file_path
 
         # logger.debug("-*--*- Building file_path")
-        # Start with the storage_dir_path
-        # storage_dir_path is loaded from the current environment variable
-        _file_path: Optional[Path] = self.storage_dir_path
+        _file_path: Optional[Path] = None
+
+        # Use current_dir as base path if set
+        if self.current_dir:
+            _file_path = Path(__file__).resolve()
+
+        # Or use storage_dir_path as the base path
+        if _file_path is None:
+            # storage_dir_path is loaded from the current environment variable
+            _file_path = self.storage_dir_path
+
         # Add the file_dir if available
         if self.file_dir is not None:
             if _file_path is None:
@@ -154,6 +184,8 @@ class File(DataAsset):
             if if_exists == "fail":
                 raise ValueError("File already exists: {}".format(file_path))
             elif if_exists == "replace":
+                from phidata.utils.filesystem import delete_from_fs
+
                 logger.debug("Deleting: {}".format(file_path))
                 delete_from_fs(file_path)
             elif if_exists == "append":

@@ -15,7 +15,7 @@ from typing import (
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.asset import DataAsset
-from phidata.dq import DQCheck
+from phidata.check import Check
 from phidata.exceptions.task import TaskFailure
 from phidata.task import Task, PythonTask, PythonTaskType
 from phidata.task.task_relatives import TaskRelatives
@@ -76,9 +76,9 @@ class WorkflowArgs(PhidataBaseArgs):
     outputs: Optional[List[DataAsset]] = None
 
     # Checks to run before the workflow
-    pre_checks: Optional[List[DQCheck]] = None
+    pre_checks: Optional[List[Check]] = None
     # Checks to run after the workflow
-    post_checks: Optional[List[DQCheck]] = None
+    post_checks: Optional[List[Check]] = None
 
     # The tooltip of the TaskGroup node when displayed in the UI
     description: Optional[str] = None
@@ -154,9 +154,9 @@ class Workflow(PhidataBase):
         # DataAssets produced by this workflow, used for building the lineage graph
         outputs: Optional[List[DataAsset]] = None,
         # Checks to run before the workflow
-        pre_checks: Optional[List[DQCheck]] = None,
+        pre_checks: Optional[List[Check]] = None,
         # Checks to run after the workflow
-        post_checks: Optional[List[DQCheck]] = None,
+        post_checks: Optional[List[Check]] = None,
         # # The tooltip of the TaskGroup node when displayed in the UI
         # description: Optional[str] = None,
         # # The fill color of the TaskGroup node when displayed in the UI
@@ -324,20 +324,20 @@ class Workflow(PhidataBase):
             self.args.outputs = outputs
 
     @property
-    def pre_checks(self) -> Optional[List[DQCheck]]:
+    def pre_checks(self) -> Optional[List[Check]]:
         return self.args.pre_checks if self.args else None
 
     @pre_checks.setter
-    def pre_checks(self, pre_checks: List[DQCheck]) -> None:
+    def pre_checks(self, pre_checks: List[Check]) -> None:
         if self.args is not None and pre_checks is not None:
             self.args.pre_checks = pre_checks
 
     @property
-    def post_checks(self) -> Optional[List[DQCheck]]:
+    def post_checks(self) -> Optional[List[Check]]:
         return self.args.post_checks if self.args else None
 
     @post_checks.setter
-    def post_checks(self, post_checks: List[DQCheck]) -> None:
+    def post_checks(self, post_checks: List[Check]) -> None:
         if self.args is not None and post_checks is not None:
             self.args.post_checks = post_checks
 
@@ -487,12 +487,12 @@ class Workflow(PhidataBase):
     ## Checks
     ######################################################
 
-    def add_pre_check(self, check: DQCheck):
+    def add_pre_check(self, check: Check):
         if self.args.pre_checks is None:
             self.args.pre_checks = []
         self.args.pre_checks.append(check)
 
-    def add_post_check(self, check: DQCheck):
+    def add_post_check(self, check: Check):
         if self.args.post_checks is None:
             self.args.post_checks = []
         self.args.post_checks.append(check)

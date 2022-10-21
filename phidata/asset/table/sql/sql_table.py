@@ -1,4 +1,4 @@
-from typing import Optional, Any, Union, List, Dict, Tuple
+from typing import Optional, Any, Union, List, Dict
 from typing_extensions import Literal
 
 from sqlalchemy.engine import Engine, Connection
@@ -6,7 +6,9 @@ from sqlalchemy.exc import ResourceClosedError
 
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.app.db import DbApp
-from phidata.dq.dq_check import DQCheck
+from phidata.task import Task
+from phidata.check import Check
+
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
@@ -25,9 +27,7 @@ class SqlTableArgs(DataAssetArgs):
     db_schema: Optional[str] = None
     # sqlalchemy.engine.(Engine or Connection)
     # Using SQLAlchemy makes it possible to use any DB supported by that library.
-    # NOTE: db_engine is required but can be derived using
-    # db_conn_url when running locally and
-    # db_conn_id when running remotely
+    # NOTE: db_engine is required but can be derived using other args.
     db_engine: Optional[Union[Engine, Connection]] = None
     # a db_conn_url can be used to create the sqlalchemy.engine.Engine object
     db_conn_url: Optional[str] = None
@@ -35,17 +35,6 @@ class SqlTableArgs(DataAssetArgs):
     airflow_conn_id: Optional[str] = None
     # Phidata DbApp to connect to the database
     db_app: Optional[DbApp] = None
-
-    # Checks to run before loading the table
-    pre_checks: Optional[List[DQCheck]] = None
-    # Checks to run after loading the table
-    post_checks: Optional[List[DQCheck]] = None
-
-    # Staging Table Name
-    stg_table_name: Optional[str] = None
-    stg_checks: Optional[List[DQCheck]] = None
-    # Production Table Name
-    prd_table_name: Optional[str] = None
 
     cached_db_engine: Optional[Union[Engine, Connection]] = None
 
@@ -55,13 +44,47 @@ class SqlTable(DataAsset):
 
     def __init__(
         self,
+        # Table Name,
         name: Optional[str] = None,
+        # Type of SQL table,
         sql_type: Optional[SqlType] = None,
+        # Table schema,
         db_schema: Optional[str] = None,
+        # sqlalchemy.engine.(Engine or Connection),
+        # Using SQLAlchemy makes it possible to use any DB supported by that library.,
+        # NOTE: db_engine is required but can be derived using other args.,
         db_engine: Optional[Union[Engine, Connection]] = None,
+        # a db_conn_url can be used to create the sqlalchemy.engine.Engine object,
         db_conn_url: Optional[str] = None,
+        # airflow connection_id used for running workflows on airflow,
         airflow_conn_id: Optional[str] = None,
+        # Phidata DbApp to connect to the database,
         db_app: Optional[DbApp] = None,
+        # Checks to run before loading the table,
+        pre_checks: Optional[List[Check]] = None,
+        # List of tasks to create the table
+        create_tasks: Optional[List[Task]] = None,
+        # Checks to run after loading the table,
+        post_checks: Optional[List[Check]] = None,
+        # List of tasks to update the table,
+        update_tasks: Optional[List[Task]] = None,
+        # List of tasks to delete the table,
+        delete_tasks: Optional[List[Task]] = None,
+        env: Optional[str] = None,
+        # Dev Args,
+        dev_name: Optional[str] = None,
+        dev_env: Optional[Dict[str, Any]] = None,
+        seed_dev_tasks: Optional[List[Task]] = None,
+        dev_stg_swap_tasks: Optional[List[Task]] = None,
+        # Staging Args,
+        stg_name: Optional[str] = None,
+        stg_env: Optional[Dict[str, Any]] = None,
+        seed_stg_tasks: Optional[List[Task]] = None,
+        stg_prd_swap_tasks: Optional[List[Task]] = None,
+        # Production Args,
+        prd_name: Optional[str] = None,
+        prd_env: Optional[Dict[str, Any]] = None,
+        cached_db_engine: Optional[Union[Engine, Connection]] = None,
         version: Optional[str] = None,
         enabled: bool = True,
     ) -> None:
@@ -77,6 +100,23 @@ class SqlTable(DataAsset):
                     db_conn_url=db_conn_url,
                     airflow_conn_id=airflow_conn_id,
                     db_app=db_app,
+                    pre_checks=pre_checks,
+                    create_tasks=create_tasks,
+                    post_checks=post_checks,
+                    update_tasks=update_tasks,
+                    delete_tasks=delete_tasks,
+                    env=env,
+                    dev_name=dev_name,
+                    dev_env=dev_env,
+                    seed_dev_tasks=seed_dev_tasks,
+                    dev_stg_swap_tasks=dev_stg_swap_tasks,
+                    stg_name=stg_name,
+                    stg_env=stg_env,
+                    seed_stg_tasks=seed_stg_tasks,
+                    stg_prd_swap_tasks=stg_prd_swap_tasks,
+                    prd_name=prd_name,
+                    prd_env=prd_env,
+                    cached_db_engine=cached_db_engine,
                     version=version,
                     enabled=enabled,
                 )
@@ -508,7 +548,7 @@ class SqlTable(DataAsset):
     ## Drop table
     ######################################################
 
-    def delete(self) -> bool:
+    def _delete(self) -> bool:
         try:
             result = self.run_sql_query(f"DROP TABLE {self.name};")
         except Exception as e:

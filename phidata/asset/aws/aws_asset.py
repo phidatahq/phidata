@@ -2,7 +2,7 @@ from typing import Optional
 
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.infra.aws.api_client import AwsApiClient
-from phidata.constants import AWS_REGION_ENV_VAR, AWS_PROFILE_ENV_VAR
+
 from phidata.utils.log import logger
 
 
@@ -31,9 +31,9 @@ class AwsAsset(DataAsset):
 
         # logger.info(f"Loading {AWS_REGION_ENV_VAR} from env")
         import os
+        from phidata.constants import AWS_REGION_ENV_VAR
 
         aws_region_env = os.getenv(AWS_REGION_ENV_VAR)
-        # logger.info(f"{AWS_REGION_ENV_VAR}: {aws_region_env}")
         if aws_region_env is not None:
             self.args.aws_region = aws_region_env
         return self.args.aws_region
@@ -53,11 +53,10 @@ class AwsAsset(DataAsset):
         if self.args.aws_profile:
             return self.args.aws_profile
 
-        # logger.info(f"Loading {AWS_PROFILE_ENV_VAR} from env")
         import os
+        from phidata.constants import AWS_PROFILE_ENV_VAR
 
         aws_profile_env = os.getenv(AWS_PROFILE_ENV_VAR)
-        # logger.info(f"{AWS_PROFILE_ENV_VAR}: {aws_profile_env}")
         if aws_profile_env is not None:
             self.args.aws_profile = aws_profile_env
         return self.args.aws_profile
@@ -76,9 +75,6 @@ class AwsAsset(DataAsset):
         # use cached value if available
         if self.args.aws_api_client:
             return self.args.aws_api_client
-
-        # logger.info(f"Loading {AWS_PROFILE_ENV_VAR} from env")
-        import os
 
         aws_api_client = AwsApiClient(
             aws_region=self.aws_region,

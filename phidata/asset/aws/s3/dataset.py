@@ -151,7 +151,7 @@ class S3Dataset(S3DatasetBase):
                 **kwargs,
             )
         except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
+            logger.error(f"Args for {self.name} are not valid")
             raise
 
     @property
@@ -411,7 +411,7 @@ class S3Dataset(S3DatasetBase):
         _projection_digits = projection_digits  # or self.projection_digits
         if _projection_digits is not None:
             not_null_args["projection_digits"] = _projection_digits
-
+ 
         try:
             import awswrangler as wr
 

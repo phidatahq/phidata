@@ -5,7 +5,13 @@ from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.utils.context import get_run_date
 from phidata.utils.env_var import validate_env_vars
 from phidata.utils.log import logger
-from phidata.types.context import PathContext, RunContext, AirflowContext
+from phidata.types.context import (
+    PathContext,
+    RunContext,
+    AirflowContext,
+    DockerContext,
+    K8sContext,
+)
 
 
 class TaskArgs(PhidataBaseArgs):
@@ -167,6 +173,62 @@ class Task(PhidataBase):
         k8s_env: Optional[Dict[str, str]] = None,
     ) -> bool:
         logger.debug(f"@run_in_k8s_container not defined for {self.__class__.__name__}")
+        return False
+
+    ######################################################
+    ## Workflow functions
+    ######################################################
+
+    def run_local(
+        self,
+        env: Optional[Dict[str, str]] = None,
+    ) -> bool:
+        """
+        Runs a task in the local environment.
+
+        Args:
+            env:
+
+        Returns:
+            run_status (bool): True if the run was successful
+        """
+        logger.debug(f"@run_local not defined for {self.name}")
+        return False
+
+    def run_docker(
+        self,
+        env: Optional[Dict[str, str]] = None,
+        context: Optional[DockerContext] = None,
+    ) -> bool:
+        """
+        Runs a task in a docker container.
+
+        Args:
+            env:
+            context:
+
+        Returns:
+            run_status (bool): True if the run was successful
+        """
+        logger.debug(f"@run_docker not defined for {self.name}")
+        return False
+
+    def run_k8s(
+        self,
+        env: Optional[Dict[str, str]] = None,
+        context: Optional[K8sContext] = None,
+    ) -> bool:
+        """
+        Runs a task in a k8s pod.
+
+        Args:
+            env:
+            context:
+
+        Returns:
+            run_status (bool): True if the run was successful
+        """
+        logger.debug(f"@run_k8s not defined for {self.name}")
         return False
 
     ######################################################

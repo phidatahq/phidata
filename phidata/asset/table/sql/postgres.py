@@ -1,4 +1,4 @@
-from typing import Optional, Any, Union, List
+from typing import Optional, Any, Union, List, Dict
 
 from sqlalchemy.engine import Engine, Connection
 
@@ -28,22 +28,32 @@ class PostgresTable(SqlTable):
         db_app: Optional[DbApp] = None,
         # Checks to run before loading the table,
         pre_checks: Optional[List[Check]] = None,
+        # List of tasks to create the table
+        create_tasks: Optional[List[Task]] = None,
         # Checks to run after loading the table,
         post_checks: Optional[List[Check]] = None,
-        # Dev Table Name,
-        dev_table_name: Optional[str] = None,
-        dev_checks: Optional[List[Check]] = None,
+        # List of tasks to update the table,
+        update_tasks: Optional[List[Task]] = None,
+        # List of tasks to delete the table,
+        delete_tasks: Optional[List[Task]] = None,
+        env: Optional[str] = None,
+        # Dev Args,
+        dev_name: Optional[str] = None,
+        dev_env: Optional[Dict[str, Any]] = None,
+        seed_dev_tasks: Optional[List[Task]] = None,
         dev_stg_swap_tasks: Optional[List[Task]] = None,
-        # Staging Table Name,
-        stg_table_name: Optional[str] = None,
-        stg_checks: Optional[List[Check]] = None,
+        # Staging Args,
+        stg_name: Optional[str] = None,
+        stg_env: Optional[Dict[str, Any]] = None,
+        seed_stg_tasks: Optional[List[Task]] = None,
         stg_prd_swap_tasks: Optional[List[Task]] = None,
-        # Production Table Name,
-        prd_table_name: Optional[str] = None,
-        prd_checks: Optional[List[Check]] = None,
+        # Production Args,
+        prd_name: Optional[str] = None,
+        prd_env: Optional[Dict[str, Any]] = None,
         cached_db_engine: Optional[Union[Engine, Connection]] = None,
         version: Optional[str] = None,
         enabled: bool = True,
+        **kwargs,
     ) -> None:
         super().__init__()
         try:
@@ -56,19 +66,26 @@ class PostgresTable(SqlTable):
                 airflow_conn_id=airflow_conn_id,
                 db_app=db_app,
                 pre_checks=pre_checks,
+                create_tasks=create_tasks,
                 post_checks=post_checks,
-                dev_table_name=dev_table_name,
-                dev_checks=dev_checks,
+                update_tasks=update_tasks,
+                delete_tasks=delete_tasks,
+                env=env,
+                dev_name=dev_name,
+                dev_env=dev_env,
+                seed_dev_tasks=seed_dev_tasks,
                 dev_stg_swap_tasks=dev_stg_swap_tasks,
-                stg_table_name=stg_table_name,
-                stg_checks=stg_checks,
+                stg_name=stg_name,
+                stg_env=stg_env,
+                seed_stg_tasks=seed_stg_tasks,
                 stg_prd_swap_tasks=stg_prd_swap_tasks,
-                prd_table_name=prd_table_name,
-                prd_checks=prd_checks,
+                prd_name=prd_name,
+                prd_env=prd_env,
                 cached_db_engine=cached_db_engine,
                 version=version,
                 enabled=enabled,
+                **kwargs,
             )
         except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
+            logger.error(f"Args for {self.name} are not valid")
             raise

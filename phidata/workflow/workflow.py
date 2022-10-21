@@ -67,7 +67,7 @@ class WorkflowArgs(PhidataBaseArgs):
     airflow_context: Optional[AirflowContext] = None
     # Env vars that validate Airflow is active on the containers
     # This is used to gate code blocks which should only run on
-    # remote containers like creating DAGs and tasks
+    # airflow containers like creating DAGs and tasks
     validate_airflow_env: Dict[str, Any] = {"INIT_AIRFLOW": True}
 
     # Input DataAssets used to build sensors before kicking off the workflow

@@ -49,3 +49,11 @@ class AirflowContext(BaseModel):
     dag_run: Optional[Any] = None
     task: Optional[Any] = None
     task_instance: Optional[Any] = None
+
+
+class DockerContext(BaseModel):
+    pass
+
+
+class K8sContext(BaseModel):
+    pass

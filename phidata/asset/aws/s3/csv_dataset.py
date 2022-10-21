@@ -78,6 +78,7 @@ class S3DatasetCsv(S3DatasetBase):
         projection_storage_location_template: Optional[str] = None,
         version: Optional[str] = None,
         enabled: bool = True,
+        **kwargs,
     ) -> None:
 
         super().__init__()
@@ -135,9 +136,10 @@ class S3DatasetCsv(S3DatasetBase):
                 projection_storage_location_template=projection_storage_location_template,
                 version=version,
                 enabled=enabled,
+                **kwargs,
             )
         except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
+            logger.error(f"Args for {self.name} are not valid")
             raise
 
     @property

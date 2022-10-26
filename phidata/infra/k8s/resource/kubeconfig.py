@@ -119,6 +119,8 @@ class Kubeconfig(BaseModel):
                 import yaml
 
                 kubeconfig_dict = self.dict(exclude_none=True, by_alias=True)
+                if not file_path.parent.exists():
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_text(yaml.safe_dump(kubeconfig_dict))
                 logger.info(f"Updated: {file_path}")
                 return True

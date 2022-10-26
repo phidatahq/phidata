@@ -411,7 +411,7 @@ class S3Dataset(S3DatasetBase):
         _projection_digits = projection_digits  # or self.projection_digits
         if _projection_digits is not None:
             not_null_args["projection_digits"] = _projection_digits
- 
+
         try:
             import awswrangler as wr
 

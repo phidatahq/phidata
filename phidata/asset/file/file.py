@@ -21,7 +21,7 @@ class FileArgs(DataAssetArgs):
     # If the file is located in the current dir.
     # Default: True
     # Used to build the file_path
-    current_dir: bool = True
+    current_dir: bool = False
 
     # Parent directory of the file relative to the storage_dir
     # Used to build the file_path
@@ -37,9 +37,9 @@ class File(DataAsset):
         name: Optional[str] = None,
         file_type: Optional[FileType] = None,
         # If the file is located in the current dir.
-        # Default: True
+        # Default: False
         # Used to build the file_path
-        current_dir: bool = True,
+        current_dir: bool = False,
         # Parent directory of the file relative to the storage_dir
         # Used to build the file_path
         file_dir: Optional[Union[str, Path]] = None,
@@ -110,11 +110,12 @@ class File(DataAsset):
         if self.args.file_path is not None:
             return self.args.file_path
 
-        # logger.debug("-*--*- Building file_path")
+        logger.debug("-*--*- Building file_path")
         _file_path: Optional[Path] = None
 
         # Use current_dir as base path if set
         if self.current_dir:
+            logger.debug("use current_dir: {}".format(self.current_dir))
             _file_path = Path(__file__).resolve()
 
         # Or use storage_dir_path as the base path

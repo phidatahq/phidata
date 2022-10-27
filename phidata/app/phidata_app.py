@@ -2,14 +2,6 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.infra.docker.resource.group import (
-    DockerResourceGroup,
-    DockerBuildContext,
-)
-from phidata.infra.k8s.resource.group import (
-    K8sResourceGroup,
-    K8sBuildContext,
-)
 from phidata.utils.log import logger
 
 
@@ -66,8 +58,10 @@ class PhidataApp(PhidataBase):
     def __init__(self) -> None:
         super().__init__()
         self.args: Optional[PhidataAppArgs] = None
-        self.docker_resource_groups: Optional[Dict[str, DockerResourceGroup]] = None
-        self.k8s_resource_groups: Optional[Dict[str, K8sResourceGroup]] = None
+        # self.docker_resource_groups: Optional[Dict[str, DockerResourceGroup]] = None
+        self.docker_resource_groups: Optional[Dict[str, Any]] = None
+        # self.k8s_resource_groups: Optional[Dict[str, K8sResourceGroup]] = None
+        self.k8s_resource_groups: Optional[Dict[str, Any]] = None
 
     @property
     def workspace_root_path(self) -> Optional[Path]:
@@ -199,16 +193,14 @@ class PhidataApp(PhidataBase):
     ## DockerResourceGroup
     ######################################################
 
-    def init_docker_resource_groups(
-        self, docker_build_context: DockerBuildContext
-    ) -> None:
+    def init_docker_resource_groups(self, docker_build_context: Any) -> None:
         logger.debug(
             f"@init_docker_resource_groups not defined for {self.__class__.__name__}"
         )
 
     def get_docker_resource_groups(
-        self, docker_build_context: DockerBuildContext
-    ) -> Optional[Dict[str, DockerResourceGroup]]:
+        self, docker_build_context: Any
+    ) -> Optional[Dict[str, Any]]:
         if self.docker_resource_groups is None:
             self.init_docker_resource_groups(docker_build_context)
         # # Comment out in prod
@@ -224,14 +216,14 @@ class PhidataApp(PhidataBase):
     ## K8sResourceGroup
     ######################################################
 
-    def init_k8s_resource_groups(self, k8s_build_context: K8sBuildContext) -> None:
+    def init_k8s_resource_groups(self, k8s_build_context: Any) -> None:
         logger.debug(
             f"@init_docker_resource_groups not defined for {self.__class__.__name__}"
         )
 
     def get_k8s_resource_groups(
-        self, k8s_build_context: K8sBuildContext
-    ) -> Optional[Dict[str, K8sResourceGroup]]:
+        self, k8s_build_context: Any
+    ) -> Optional[Dict[str, Any]]:
         if self.k8s_resource_groups is None:
             self.init_k8s_resource_groups(k8s_build_context)
         # # Comment out in prod

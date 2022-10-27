@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Union, Any
 from typing_extensions import Literal
 
 from phidata.app.db import DbApp
-from phidata.app import PhidataApp, PhidataAppArgs
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
 from phidata.constants import (
     SCRIPTS_DIR_ENV_VAR,
     STORAGE_DIR_ENV_VAR,

@@ -36,6 +36,7 @@ class PostgresTable(SqlTable):
         update_tasks: Optional[List[Task]] = None,
         # List of tasks to delete the table,
         delete_tasks: Optional[List[Task]] = None,
+        # Control which environment the table is created in
         env: Optional[str] = None,
         # Dev Args,
         dev_name: Optional[str] = None,

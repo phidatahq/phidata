@@ -8,7 +8,13 @@ from phidata.types.phidata_runtime import (
     PhidataRuntimeType,
     get_phidata_runtime,
 )
+from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
+
+
+class DataLoader(ExtendedEnum):
+    pandas = "pandas"
+    pyarrow = "pyarrow"
 
 
 class DataAssetArgs(PhidataBaseArgs):
@@ -28,6 +34,7 @@ class DataAssetArgs(PhidataBaseArgs):
     # List of tasks to delete the table
     delete_tasks: Optional[List[Task]] = None
 
+    # Control which environment the table is created in
     env: Optional[str] = None
 
     # Dev Args

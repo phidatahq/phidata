@@ -70,6 +70,7 @@ class SqlTable(DataAsset):
         update_tasks: Optional[List[Task]] = None,
         # List of tasks to delete the table,
         delete_tasks: Optional[List[Task]] = None,
+        # Control which environment the table is created in
         env: Optional[str] = None,
         # Dev Args,
         dev_name: Optional[str] = None,
@@ -321,6 +322,8 @@ class SqlTable(DataAsset):
         # Specify the number of rows in each batch to be written at a time.
         # By default, all rows will be written at once.
         chunksize: Optional[int] = None,
+        # Create database if it does not exist.
+        create_database: bool = False,
     ) -> bool:
         """
         Write DataFrame to table.
@@ -366,6 +369,11 @@ class SqlTable(DataAsset):
 
         try:
             with db_engine.connect() as connection:
+                if self.db_schema is not None and create_database:
+                    logger.info(f"Creating database: {self.db_schema}")
+                    # Create database if it does not exist
+                    connection.execute(f"CREATE SCHEMA IF NOT EXISTS {self.db_schema}")
+
                 df.to_sql(
                     name=self.name,
                     con=connection,

@@ -127,6 +127,7 @@ class DockerImage(DockerResource):
                     continue
                 if len(line) < 5:
                     continue
+                line = line.strip()
                 if "Step" in line and self.print_build_log:
                     print_info(line)
                 else:

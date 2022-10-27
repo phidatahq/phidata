@@ -32,7 +32,7 @@ class AirflowScheduler(AirflowBase):
         enabled: bool = True,
         # Image args
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.4.0",
+        image_tag: str = "2.4.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "scheduler",
         # Install python dependencies using a requirements.txt file
@@ -252,7 +252,7 @@ class AirflowScheduler(AirflowBase):
         k8s_mount_local_workspace=False,
         # Configure logs volume
         # NOTE: Only available for Kubernetes
-        mount_logs: bool = False,
+        mount_logs: bool = True,
         logs_volume_name: Optional[str] = None,
         logs_volume_type: AirflowLogsVolumeType = AirflowLogsVolumeType.PERSISTENT_VOLUME,
         # Container path to mount the volume

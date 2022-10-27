@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from typing import Optional, List
 
-from phidata.app import PhidataApp, PhidataAppArgs
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
 from phidata.infra.docker.resource.group import (
     DockerResourceGroup,
     DockerBuildContext,

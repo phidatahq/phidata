@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phidata.app import PhidataApp, PhidataAppArgs
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
 from phidata.utils.log import logger
 
 

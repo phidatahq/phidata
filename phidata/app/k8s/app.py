@@ -3,7 +3,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
-from phidata.app import PhidataApp, PhidataAppArgs
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
 from phidata.infra.docker.resource.group import DockerBuildContext
 from phidata.infra.k8s.resource.group import (
     K8sResourceGroup,

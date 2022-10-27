@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from phidata.app import PhidataApp
+from phidata.app.phidata_app import PhidataApp
 from phidata.app.databox import default_databox_name
 from phidata.infra.base import InfraConfig
 from phidata.infra.k8s.args import K8sArgs

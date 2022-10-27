@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from phidata.app import PhidataApp
+from phidata.app.phidata_app import PhidataApp
 from phidata.app.databox import default_databox_name
 from phidata.infra.base import InfraConfig
 from phidata.infra.docker.args import DockerArgs

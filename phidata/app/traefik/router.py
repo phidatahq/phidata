@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Union, Any
 from typing_extensions import Literal
 
-from phidata.app import PhidataApp, PhidataAppArgs
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
 from phidata.app.traefik.crds import (
     ingressroute_crd,
     ingressroutetcp_crd,

@@ -5,7 +5,6 @@ from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.exc import ResourceClosedError
 
 from phidata.asset import DataAsset, DataAssetArgs
-from phidata.app.db import DbApp
 from phidata.task import Task
 from phidata.check import Check
 
@@ -34,7 +33,7 @@ class SqlTableArgs(DataAssetArgs):
     # airflow connection_id used for running workflows on airflow
     airflow_conn_id: Optional[str] = None
     # Phidata DbApp to connect to the database
-    db_app: Optional[DbApp] = None
+    db_app: Optional[Any] = None
 
     cached_db_engine: Optional[Union[Engine, Connection]] = None
 
@@ -59,7 +58,7 @@ class SqlTable(DataAsset):
         # airflow connection_id used for running workflows on airflow,
         airflow_conn_id: Optional[str] = None,
         # Phidata DbApp to connect to the database,
-        db_app: Optional[DbApp] = None,
+        db_app: Optional[Any] = None,
         # Checks to run before loading the table,
         pre_checks: Optional[List[Check]] = None,
         # List of tasks to create the table
@@ -173,11 +172,11 @@ class SqlTable(DataAsset):
             self.args.airflow_conn_id = airflow_conn_id
 
     @property
-    def db_app(self) -> Optional[DbApp]:
+    def db_app(self) -> Optional[Any]:
         return self.args.db_app if self.args else None
 
     @db_app.setter
-    def db_app(self, db_app: DbApp) -> None:
+    def db_app(self, db_app: Any) -> None:
         if self.args and db_app:
             self.args.db_app = db_app
 

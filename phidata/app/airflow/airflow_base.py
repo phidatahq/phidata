@@ -88,7 +88,7 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # Image args
     image_name: str = "phidata/airflow"
-    image_tag: str = "2.4.0"
+    image_tag: str = "2.4.2"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -323,7 +323,7 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # Configure logs volume
     # NOTE: Only available for Kubernetes
-    mount_logs: bool = False
+    mount_logs: bool = True
     logs_volume_name: Optional[str] = None
     logs_volume_type: AirflowLogsVolumeType = AirflowLogsVolumeType.PERSISTENT_VOLUME
     # Container path to mount the volume
@@ -470,7 +470,7 @@ class AirflowBase(PhidataApp):
         enabled: bool = True,
         # Image args,
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.4.0",
+        image_tag: str = "2.4.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
@@ -690,7 +690,7 @@ class AirflowBase(PhidataApp):
         k8s_mount_local_workspace=False,
         # Configure logs volume,
         # NOTE: Only available for Kubernetes,
-        mount_logs: bool = False,
+        mount_logs: bool = True,
         logs_volume_name: Optional[str] = None,
         logs_volume_type: AirflowLogsVolumeType = AirflowLogsVolumeType.PERSISTENT_VOLUME,
         # Container path to mount the volume,
@@ -1364,6 +1364,28 @@ class AirflowBase(PhidataApp):
             logger.debug(f"\tto: {workspace_root_container_path_str}")
             container_volumes[workspace_root_path_str] = {
                 "bind": workspace_root_container_path_str,
+                "mode": "rw",
+            }
+        # Create a volume for logs
+        if self.args.mount_logs:
+            logs_volume_name = self.args.logs_volume_name
+            if logs_volume_name is None:
+                if workspace_name is not None:
+                    logs_volume_name = get_default_volume_name(
+                        f"airflow-{workspace_name}-logs"
+                    )
+                else:
+                    logs_volume_name = get_default_volume_name("airflow-logs")
+            logs_volume_container_path_str = self.args.logs_volume_container_path
+            if logs_volume_container_path_str is None:
+                if self.args.airflow_home is not None:
+                    logs_volume_container_path_str = f"{self.args.airflow_home}/logs"
+                else:
+                    logs_volume_container_path_str = "/usr/local/airflow/logs"
+            logger.debug(f"Mounting: {logs_volume_name}")
+            logger.debug(f"\tto: {logs_volume_container_path_str}")
+            container_volumes[logs_volume_name] = {
+                "bind": logs_volume_container_path_str,
                 "mode": "rw",
             }
 

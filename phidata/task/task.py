@@ -176,7 +176,7 @@ class Task(PhidataBase):
         return False
 
     ######################################################
-    ## Workflow functions
+    ## New Run functions
     ######################################################
 
     def run_local(

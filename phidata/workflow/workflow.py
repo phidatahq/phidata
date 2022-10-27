@@ -24,12 +24,19 @@ from phidata.utils.cli_console import print_subheading, print_info
 from phidata.utils.env_var import validate_env_vars
 from phidata.utils.log import logger
 from phidata.types.run_status import RunStatus
-from phidata.types.context import PathContext, RunContext, AirflowContext
+from phidata.types.context import (
+    PathContext,
+    RunContext,
+    AirflowContext,
+    DockerContext,
+    K8sContext,
+)
 
 
 class WorkflowArgs(PhidataBaseArgs):
-    # List of tasks in this Workflow
-    tasks: Optional[List[Task]] = None
+    # Tasks in this Workflow
+    # Accepts a list of tasks or a list of lists of tasks
+    tasks: Optional[List[Union[Task, List[Task]]]] = None
     # A dependency graph of the tasks in the format:
     # { downstream: [upstream_list] }
     # The downstream task will execute after all tasks in the
@@ -47,18 +54,7 @@ class WorkflowArgs(PhidataBaseArgs):
     # Continue to next task or stop?
     on_failure: Literal["stop", "continue"] = "stop"
 
-    # Add an EmptyOperator at the start of the workflow
-    add_start_task: bool = False
-    # Add an EmptyOperator at the end of the workflow
-    add_end_task: bool = False
-
-    # use airflow task_groups
-    use_task_groups: bool = False
-    # airflow task group_id for this workflow, use name if not provided
-    group_id: Optional[str] = None
-
-    # airflow dag_id for this workflow, use name if not provided
-    dag_id: Optional[str] = None
+    # Context
     # run_context provided by wf_operator
     run_context: Optional[RunContext] = None
     # path_context provided by env variables
@@ -80,6 +76,18 @@ class WorkflowArgs(PhidataBaseArgs):
     # Checks to run after the workflow
     post_checks: Optional[List[Check]] = None
 
+    # Add an EmptyOperator at the start of the workflow
+    add_start_task: bool = False
+    # Add an EmptyOperator at the end of the workflow
+    add_end_task: bool = False
+
+    # Airflow args
+    # use airflow task_groups
+    use_task_groups: bool = False
+    # airflow task group_id for this workflow, use name if not provided
+    group_id: Optional[str] = None
+    # airflow dag_id for this workflow, use name if not provided
+    dag_id: Optional[str] = None
     # The tooltip of the TaskGroup node when displayed in the UI
     description: Optional[str] = None
     # The fill color of the TaskGroup node when displayed in the UI
@@ -116,7 +124,9 @@ class Workflow(PhidataBase):
         self,
         name: Optional[str] = None,
         # List of tasks in this Workflow
-        tasks: Optional[List[Task]] = None,
+        # Tasks in this Workflow
+        # Accepts a list of tasks or a list of lists of tasks
+        tasks: Optional[List[Union[Task, List[Task]]]] = None,
         # A dependency graph of the tasks in the format:
         # { downstream: [upstream_list] }
         # The downstream task will execute only after all tasks in the
@@ -133,16 +143,7 @@ class Workflow(PhidataBase):
         # What to do when a task fails while running the workflow locally.
         # Continue to next task or stop?
         on_failure: Literal["stop", "continue"] = "stop",
-        # Add an EmptyOperator at the start of the workflow
-        add_start_task: bool = False,
-        # Add an EmptyOperator at the end of the workflow
-        add_end_task: bool = False,
-        # use airflow task_groups
-        use_task_groups: bool = False,
-        # airflow task group_id for this workflow, use name if not provided
-        group_id: Optional[str] = None,
-        # airflow dag_id for this workflow, use name if not provided
-        dag_id: Optional[str] = None,
+        # Context
         # run_context provided by wf_operator
         run_context: Optional[RunContext] = None,
         # path_context provided by env variables
@@ -157,6 +158,17 @@ class Workflow(PhidataBase):
         pre_checks: Optional[List[Check]] = None,
         # Checks to run after the workflow
         post_checks: Optional[List[Check]] = None,
+        # Add an EmptyOperator at the start of the workflow
+        add_start_task: bool = False,
+        # Add an EmptyOperator at the end of the workflow
+        add_end_task: bool = False,
+        # use airflow task_groups
+        use_task_groups: bool = False,
+        # Airflow args
+        # airflow task group_id for this workflow, use name if not provided
+        group_id: Optional[str] = None,
+        # airflow dag_id for this workflow, use name if not provided
+        dag_id: Optional[str] = None,
         # # The tooltip of the TaskGroup node when displayed in the UI
         # description: Optional[str] = None,
         # # The fill color of the TaskGroup node when displayed in the UI
@@ -165,6 +177,7 @@ class Workflow(PhidataBase):
         # ui_fgcolor: Optional[str] = None,
         version: Optional[str] = None,
         enabled: bool = True,
+        **kwargs,
     ):
         super().__init__()
         # Cache family tree
@@ -175,11 +188,6 @@ class Workflow(PhidataBase):
                 tasks=tasks,
                 graph=graph,
                 on_failure=on_failure,
-                add_start_task=add_start_task,
-                add_end_task=add_end_task,
-                use_task_groups=use_task_groups,
-                group_id=group_id,
-                dag_id=dag_id,
                 run_context=run_context,
                 path_context=path_context,
                 airflow_context=airflow_context,
@@ -187,22 +195,35 @@ class Workflow(PhidataBase):
                 outputs=outputs,
                 pre_checks=pre_checks,
                 post_checks=post_checks,
-                # description=description,
-                # ui_color=ui_color,
-                # ui_fgcolor=ui_fgcolor,
+                add_start_task=add_start_task,
+                add_end_task=add_end_task,
+                use_task_groups=use_task_groups,
+                group_id=group_id,
+                dag_id=dag_id,
                 version=version,
                 enabled=enabled,
+                **kwargs,
             )
         except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
+            logger.error(f"Args for {self.name} are not valid")
             raise
 
     @property
-    def tasks(self) -> Optional[List[Task]]:
-        return self.args.tasks if self.args else None
+    def tasks(self) -> List[Task]:
+        task_list: List[Task] = []
+        if self.args and self.args.tasks:
+            if isinstance(self.args.tasks, list):
+                for task in self.args.tasks:
+                    if isinstance(task, list):
+                        task_list.extend(task)
+                    else:
+                        task_list.append(task)
+            else:
+                logger.warning("Tasks must be a list")
+        return task_list
 
     @tasks.setter
-    def tasks(self, tasks: List[Task]) -> None:
+    def tasks(self, tasks: List[Union[Task, List[Task]]]) -> None:
         if self.args is not None and tasks is not None:
             self.args.tasks = tasks
 
@@ -223,51 +244,6 @@ class Workflow(PhidataBase):
     def on_failure(self, on_failure: Literal["stop", "continue"]) -> None:
         if self.args is not None and on_failure is not None:
             self.args.on_failure = on_failure
-
-    @property
-    def add_start_task(self) -> bool:
-        return self.args.add_start_task if self.args else False
-
-    @add_start_task.setter
-    def add_start_task(self, add_start_task: bool) -> None:
-        if self.args is not None and add_start_task is not None:
-            self.args.add_start_task = add_start_task
-
-    @property
-    def add_end_task(self) -> bool:
-        return self.args.add_end_task if self.args else False
-
-    @add_end_task.setter
-    def add_end_task(self, add_end_task: bool) -> None:
-        if self.args is not None and add_end_task is not None:
-            self.args.add_end_task = add_end_task
-
-    @property
-    def use_task_groups(self) -> bool:
-        return self.args.use_task_groups if self.args else False
-
-    @use_task_groups.setter
-    def use_task_groups(self, use_task_groups: bool) -> None:
-        if self.args is not None and use_task_groups is not None:
-            self.args.use_task_groups = use_task_groups
-
-    @property
-    def group_id(self) -> str:
-        return self.args.group_id if (self.args and self.args.group_id) else self.name
-
-    @group_id.setter
-    def group_id(self, group_id: str) -> None:
-        if self.args is not None and group_id is not None:
-            self.args.group_id = group_id
-
-    @property
-    def dag_id(self) -> str:
-        return self.args.dag_id if (self.args and self.args.dag_id) else self.name
-
-    @dag_id.setter
-    def dag_id(self, dag_id: str) -> None:
-        if self.args is not None and dag_id is not None:
-            self.args.dag_id = dag_id
 
     @property
     def run_context(self) -> Optional[RunContext]:
@@ -341,32 +317,77 @@ class Workflow(PhidataBase):
         if self.args is not None and post_checks is not None:
             self.args.post_checks = post_checks
 
-    # @property
-    # def description(self) -> Optional[str]:
-    #     return self.args.description if self.args else None
-    #
-    # @description.setter
-    # def description(self, description: str) -> None:
-    #     if self.args is not None and description is not None:
-    #         self.args.description = description
-    #
-    # @property
-    # def ui_color(self) -> Optional[str]:
-    #     return self.args.ui_color if self.args else None
-    #
-    # @ui_color.setter
-    # def ui_color(self, ui_color: str) -> None:
-    #     if self.args is not None and ui_color is not None:
-    #         self.args.ui_color = ui_color
-    #
-    # @property
-    # def ui_fgcolor(self) -> Optional[str]:
-    #     return self.args.ui_fgcolor if self.args else None
-    #
-    # @ui_fgcolor.setter
-    # def ui_fgcolor(self, ui_fgcolor: str) -> None:
-    #     if self.args is not None and ui_fgcolor is not None:
-    #         self.args.ui_fgcolor = ui_fgcolor
+    @property
+    def add_start_task(self) -> bool:
+        return self.args.add_start_task if self.args else False
+
+    @add_start_task.setter
+    def add_start_task(self, add_start_task: bool) -> None:
+        if self.args is not None and add_start_task is not None:
+            self.args.add_start_task = add_start_task
+
+    @property
+    def add_end_task(self) -> bool:
+        return self.args.add_end_task if self.args else False
+
+    @add_end_task.setter
+    def add_end_task(self, add_end_task: bool) -> None:
+        if self.args is not None and add_end_task is not None:
+            self.args.add_end_task = add_end_task
+
+    @property
+    def use_task_groups(self) -> bool:
+        return self.args.use_task_groups if self.args else False
+
+    @use_task_groups.setter
+    def use_task_groups(self, use_task_groups: bool) -> None:
+        if self.args is not None and use_task_groups is not None:
+            self.args.use_task_groups = use_task_groups
+
+    @property
+    def group_id(self) -> str:
+        return self.args.group_id if (self.args and self.args.group_id) else self.name
+
+    @group_id.setter
+    def group_id(self, group_id: str) -> None:
+        if self.args is not None and group_id is not None:
+            self.args.group_id = group_id
+
+    @property
+    def dag_id(self) -> str:
+        return self.args.dag_id if (self.args and self.args.dag_id) else self.name
+
+    @dag_id.setter
+    def dag_id(self, dag_id: str) -> None:
+        if self.args is not None and dag_id is not None:
+            self.args.dag_id = dag_id
+
+    @property
+    def description(self) -> Optional[str]:
+        return self.args.description if self.args else None
+
+    @description.setter
+    def description(self, description: str) -> None:
+        if self.args is not None and description is not None:
+            self.args.description = description
+
+    @property
+    def ui_color(self) -> Optional[str]:
+        return self.args.ui_color if self.args else None
+
+    @ui_color.setter
+    def ui_color(self, ui_color: str) -> None:
+        if self.args is not None and ui_color is not None:
+            self.args.ui_color = ui_color
+
+    @property
+    def ui_fgcolor(self) -> Optional[str]:
+        return self.args.ui_fgcolor if self.args else None
+
+    @ui_fgcolor.setter
+    def ui_fgcolor(self, ui_fgcolor: str) -> None:
+        if self.args is not None and ui_fgcolor is not None:
+            self.args.ui_fgcolor = ui_fgcolor
 
     ######################################################
     ## Workflow Properties
@@ -697,6 +718,62 @@ class Workflow(PhidataBase):
         return True
 
     ######################################################
+    ## New Run functions
+    ######################################################
+
+    def run_local(
+        self,
+        env: Optional[Dict[str, str]] = None,
+    ) -> bool:
+        """
+        Runs the workflow in the local environment.
+
+        Args:
+            env:
+
+        Returns:
+            run_status (bool): True if the run was successful
+        """
+        logger.debug(f"@run_local not defined for {self.name}")
+        return False
+
+    def run_docker(
+        self,
+        env: Optional[Dict[str, str]] = None,
+        context: Optional[DockerContext] = None,
+    ) -> bool:
+        """
+        Runs the workflow in a docker container.
+
+        Args:
+            env:
+            context:
+
+        Returns:
+            run_status (bool): True if the run was successful
+        """
+        logger.debug(f"@run_docker not defined for {self.name}")
+        return False
+
+    def run_k8s(
+        self,
+        env: Optional[Dict[str, str]] = None,
+        context: Optional[K8sContext] = None,
+    ) -> bool:
+        """
+        Runs the workflow in a k8s pod.
+
+        Args:
+            env:
+            context:
+
+        Returns:
+            run_status (bool): True if the run was successful
+        """
+        logger.debug(f"@run_k8s not defined for {self.name}")
+        return False
+
+    ######################################################
     ## Airflow functions
     ######################################################
 
@@ -859,9 +936,9 @@ class Workflow(PhidataBase):
         # if start_date is not provided, use start_days_ago
         start_days_ago: int = 1,
         # A date beyond which your DAG won't run, leave to None
-        #  for open ended scheduling
+        # for open-ended scheduling
         end_date: Optional[datetime] = None,
-        # This list of folders (non relative)
+        # This list of folders (non-relative)
         #   defines where jinja will look for your templates. Order matters.
         #   Note that jinja/airflow includes the path of your DAG file by default
         template_searchpath: Optional[Union[str, Iterable[str]]] = None,

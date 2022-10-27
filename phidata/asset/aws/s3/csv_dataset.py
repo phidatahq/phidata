@@ -20,7 +20,7 @@ class S3DatasetCsv(S3DatasetBase):
         self,
         table: str,
         sep: str = ",",
-        database: Optional[str] = None,
+        database: str = "default",
         table_type: Optional[str] = None,
         table_description: Optional[str] = None,
         write_mode: Optional[

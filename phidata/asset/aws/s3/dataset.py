@@ -27,7 +27,7 @@ class S3Dataset(S3DatasetBase):
     def __init__(
         self,
         table: str,
-        database: Optional[str] = None,
+        database: str = "default",
         table_type: Optional[str] = None,
         table_description: Optional[str] = None,
         write_mode: Optional[

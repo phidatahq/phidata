@@ -1903,78 +1903,78 @@ class AirflowBase(PhidataApp):
                 else:
                     logger.error("GIT_SYNC_REPO invalid")
 
-        if self.args.mount_logs:
-            logs_volume_name = self.args.logs_volume_name or get_default_volume_name(
-                f"{app_name}-logs"
-            )
-            if self.args.logs_volume_type == AirflowLogsVolumeType.PERSISTENT_VOLUME:
-                default_mount_options = [
-                    "rsize=1048576",
-                    "wsize=1048576",
-                    "hard",
-                    "timeo=600",
-                    "retrans=2",
-                    "noresvport",
-                ]
-
-                logs_pv_labels: Dict[str, Any] = common_labels or {}
-                if self.args.logs_pv_labels is not None and isinstance(
-                    self.args.logs_pv_labels, dict
-                ):
-                    logs_pv_labels.update(self.args.logs_pv_labels)
-
-                logs_pvc = CreatePVC(
-                    pvc_name=f"{logs_volume_name}-pvc",
-                    app_name=app_name,
-                    namespace=ns_name,
-                    request_storage=(self.args.logs_pv_requests_storage or "1Mi"),
-                    storage_class_name="",
-                    access_modes=(
-                        self.args.logs_pv_access_modes or [PVAccessMode.READ_WRITE_MANY]
-                    ),
-                    labels=logs_pv_labels,
-                )
-                pvcs.append(logs_pvc)
-
-                logs_pv = CreatePersistentVolume(
-                    pv_name=f"{logs_volume_name}-pv",
-                    app_name=app_name,
-                    labels=logs_pv_labels,
-                    access_modes=(
-                        self.args.logs_pv_access_modes or [PVAccessMode.READ_WRITE_MANY]
-                    ),
-                    capacity={"storage": (self.args.logs_pv_requests_storage or "1Mi")},
-                    mount_options=(
-                        self.args.logs_pv_mount_options or default_mount_options
-                    ),
-                    persistent_volume_reclaim_policy=(
-                        self.args.logs_pv_reclaim_policy or "Retain"
-                    ),
-                    storage_class_name=self.args.logs_pv_storage_class,
-                    volume_type=VolumeType.NFS,
-                    # nfs=NFSVolumeSource(
-                    #     path=self.args.logs_volume_container_path,
-                    # ),
-                    # claim_ref=ClaimRef(
-                    #     name=logs_pvc.pvc_name,
-                    #     namespace=logs_pvc.namespace,
-                    # ),
-                )
-                pvs.append(logs_pv)
-
-                logs_volume = CreateVolume(
-                    volume_name=logs_volume_name,
-                    app_name=app_name,
-                    mount_path=self.args.logs_volume_container_path,
-                    volume_type=VolumeType.PERSISTENT_VOLUME_CLAIM,
-                    pvc=PersistentVolumeClaimVolumeSource(
-                        claim_name=logs_volume_name,
-                    ),
-                )
-                volumes.append(logs_volume)
-            else:
-                logger.error(f"{self.args.logs_volume_type.value} not supported")
-                return None
+        # if self.args.mount_logs:
+        #     logs_volume_name = self.args.logs_volume_name or get_default_volume_name(
+        #         f"{app_name}-logs"
+        #     )
+        #     if self.args.logs_volume_type == AirflowLogsVolumeType.PERSISTENT_VOLUME:
+        #         default_mount_options = [
+        #             "rsize=1048576",
+        #             "wsize=1048576",
+        #             "hard",
+        #             "timeo=600",
+        #             "retrans=2",
+        #             "noresvport",
+        #         ]
+        #
+        #         logs_pv_labels: Dict[str, Any] = common_labels or {}
+        #         if self.args.logs_pv_labels is not None and isinstance(
+        #             self.args.logs_pv_labels, dict
+        #         ):
+        #             logs_pv_labels.update(self.args.logs_pv_labels)
+        #
+        #         logs_pvc = CreatePVC(
+        #             pvc_name=f"{logs_volume_name}-pvc",
+        #             app_name=app_name,
+        #             namespace=ns_name,
+        #             request_storage=(self.args.logs_pv_requests_storage or "1Mi"),
+        #             storage_class_name="",
+        #             access_modes=(
+        #                 self.args.logs_pv_access_modes or [PVAccessMode.READ_WRITE_MANY]
+        #             ),
+        #             labels=logs_pv_labels,
+        #         )
+        #         pvcs.append(logs_pvc)
+        #
+        #         logs_pv = CreatePersistentVolume(
+        #             pv_name=f"{logs_volume_name}-pv",
+        #             app_name=app_name,
+        #             labels=logs_pv_labels,
+        #             access_modes=(
+        #                 self.args.logs_pv_access_modes or [PVAccessMode.READ_WRITE_MANY]
+        #             ),
+        #             capacity={"storage": (self.args.logs_pv_requests_storage or "1Mi")},
+        #             mount_options=(
+        #                 self.args.logs_pv_mount_options or default_mount_options
+        #             ),
+        #             persistent_volume_reclaim_policy=(
+        #                 self.args.logs_pv_reclaim_policy or "Retain"
+        #             ),
+        #             storage_class_name=self.args.logs_pv_storage_class,
+        #             volume_type=VolumeType.NFS,
+        #             # nfs=NFSVolumeSource(
+        #             #     path=self.args.logs_volume_container_path,
+        #             # ),
+        #             # claim_ref=ClaimRef(
+        #             #     name=logs_pvc.pvc_name,
+        #             #     namespace=logs_pvc.namespace,
+        #             # ),
+        #         )
+        #         pvs.append(logs_pv)
+        #
+        #         logs_volume = CreateVolume(
+        #             volume_name=logs_volume_name,
+        #             app_name=app_name,
+        #             mount_path=self.args.logs_volume_container_path,
+        #             volume_type=VolumeType.PERSISTENT_VOLUME_CLAIM,
+        #             pvc=PersistentVolumeClaimVolumeSource(
+        #                 claim_name=logs_volume_name,
+        #             ),
+        #         )
+        #         volumes.append(logs_volume)
+        #     else:
+        #         logger.error(f"{self.args.logs_volume_type.value} not supported")
+        #         return None
 
         # Create the ports to open
         # if open_container_port = True

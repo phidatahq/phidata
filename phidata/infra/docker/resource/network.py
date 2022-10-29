@@ -1,8 +1,5 @@
 from typing import Optional, Any, List, Dict
 
-from docker.models.networks import Network
-from docker.errors import NotFound
-
 from phidata.infra.docker.api_client import DockerApiClient
 from phidata.infra.docker.resource.base import DockerResource
 from phidata.utils.log import logger
@@ -40,13 +37,16 @@ class DockerNetwork(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker import DockerClient
+        from docker.models.networks import Network
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
         network_name: Optional[str] = self.name
         network_object: Optional[Network] = None
 
         try:
-            network_object = docker_client.api_client.networks.create(network_name)
+            _api_client: DockerClient = docker_client.api_client
+            network_object = _api_client.networks.create(network_name)
             if network_object is not None:
                 logger.debug("Network Created: {}".format(network_object.name))
             else:
@@ -69,14 +69,15 @@ class DockerNetwork(DockerResource):
 
     def _read(self, docker_client: DockerApiClient) -> Any:
         """Returns a Network object if the network is active on the docker_client"""
+        from docker import DockerClient
+        from docker.models.networks import Network
 
         logger.debug("Reading: {}".format(self.get_resource_name()))
         # Get active networks from the docker_client
         network_name: Optional[str] = self.name
         try:
-            network_list: Optional[
-                List[Network]
-            ] = docker_client.api_client.networks.list()
+            _api_client: DockerClient = docker_client.api_client
+            network_list: Optional[List[Network]] = _api_client.networks.list()
             # logger.debug("network_list: {}".format(network_list))
             if network_list is not None:
                 for network in network_list:
@@ -96,6 +97,8 @@ class DockerNetwork(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker.models.networks import Network
+        from docker.errors import NotFound
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         network_name: Optional[str] = self.name

@@ -85,7 +85,7 @@ class DataboxArgs(PhidataAppArgs):
     # Install python dependencies using a requirements.txt file
     install_requirements: bool = False
     # Path to the requirements.txt file relative to the workspace_root
-    requirements_file_path: str = "requirements.txt"
+    requirements_file: str = "requirements.txt"
 
     # Configure airflow
     # If init_airflow = True, this databox initializes airflow and
@@ -325,7 +325,7 @@ class DataboxArgs(PhidataAppArgs):
 
     # Add extra Kubernetes resources
     extra_secrets: Optional[List[CreateSecret]] = None
-    extra_config_maps: Optional[List[CreateConfigMap]] = None
+    extra_configmaps: Optional[List[CreateConfigMap]] = None
     extra_storage_classes: Optional[List[CreateStorageClass]] = None
     extra_services: Optional[List[CreateService]] = None
     extra_deployments: Optional[List[CreateDeployment]] = None
@@ -359,7 +359,7 @@ class Databox(PhidataApp):
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
-        requirements_file_path: str = "requirements.txt",
+        requirements_file: str = "requirements.txt",
         # Configure airflow,
         # If init_airflow = True, this databox initializes airflow and,
         # sets the env var INIT_AIRFLOW = True,
@@ -585,7 +585,7 @@ class Databox(PhidataApp):
         print_env_on_load: bool = True,
         # Add extra Kubernetes resources,
         extra_secrets: Optional[List[CreateSecret]] = None,
-        extra_config_maps: Optional[List[CreateConfigMap]] = None,
+        extra_configmaps: Optional[List[CreateConfigMap]] = None,
         extra_storage_classes: Optional[List[CreateStorageClass]] = None,
         extra_services: Optional[List[CreateService]] = None,
         extra_deployments: Optional[List[CreateDeployment]] = None,
@@ -623,7 +623,7 @@ class Databox(PhidataApp):
                 entrypoint=entrypoint,
                 command=command,
                 install_requirements=install_requirements,
-                requirements_file_path=requirements_file_path,
+                requirements_file=requirements_file,
                 init_airflow=init_airflow,
                 airflow_env=airflow_env,
                 airflow_home=airflow_home,
@@ -707,7 +707,7 @@ class Databox(PhidataApp):
                 load_examples=load_examples,
                 print_env_on_load=print_env_on_load,
                 extra_secrets=extra_secrets,
-                extra_config_maps=extra_config_maps,
+                extra_configmaps=extra_configmaps,
                 extra_storage_classes=extra_storage_classes,
                 extra_services=extra_services,
                 extra_deployments=extra_deployments,
@@ -964,7 +964,7 @@ class Databox(PhidataApp):
             self.args.workspace_mount_container_path
         ).joinpath(workspace_name)
         requirements_file_container_path = workspace_root_container_path.joinpath(
-            self.args.requirements_file_path
+            self.args.requirements_file
         )
         scripts_dir_container_path = (
             workspace_root_container_path.joinpath(self.scripts_dir)
@@ -1285,7 +1285,7 @@ class Databox(PhidataApp):
             self.args.workspace_mount_container_path
         ).joinpath(workspace_name)
         requirements_file_container_path = workspace_root_container_path.joinpath(
-            self.args.requirements_file_path
+            self.args.requirements_file
         )
         scripts_dir_container_path = (
             workspace_root_container_path.joinpath(self.scripts_dir)
@@ -1324,7 +1324,7 @@ class Databox(PhidataApp):
         cr: Optional[CreateClusterRole] = self.args.cluster_role
         crb: Optional[CreateClusterRoleBinding] = self.args.cluster_role_binding
         secrets: List[CreateSecret] = self.args.extra_secrets or []
-        config_maps: List[CreateConfigMap] = self.args.extra_config_maps or []
+        config_maps: List[CreateConfigMap] = self.args.extra_configmaps or []
         storage_classes: List[CreateStorageClass] = (
             self.args.extra_storage_classes or []
         )

@@ -26,6 +26,7 @@ def prep_infra_config(
     infra_config.meta_dir = ws_config.meta_dir
     infra_config.products_dir = ws_config.products_dir
     infra_config.notebooks_dir = ws_config.notebooks_dir
+    infra_config.workflows_dir = ws_config.workflows_dir
     # The workspace_root_path is the ROOT directory for the workspace
     infra_config.workspace_root_path = ws_config.workspace_root_path
     infra_config.workspace_config_dir = ws_config.workspace_config_dir

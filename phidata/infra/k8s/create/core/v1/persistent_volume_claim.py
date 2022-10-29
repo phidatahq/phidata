@@ -14,7 +14,6 @@ from phidata.infra.k8s.resource.core.v1.resource_requirements import (
 )
 from phidata.infra.k8s.create.common.labels import create_component_labels_dict
 from phidata.infra.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phidata.utils.cli_console import print_info
 from phidata.utils.log import logger
 
 

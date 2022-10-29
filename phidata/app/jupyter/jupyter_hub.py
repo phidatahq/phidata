@@ -105,10 +105,10 @@ class JupyterHubArgs(PhidataAppArgs):
     jupyter_config_file: Optional[str] = None
 
     # Install python dependencies using a requirements.txt file
-    # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path
+    # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file
     install_requirements: bool = False
     # Path to the requirements.txt file relative to the workspace_root
-    requirements_file_path: str = "workspace/jupyter/requirements.txt"
+    requirements_file: str = "workspace/jupyter/requirements.txt"
 
     # Overwrite the PYTHONPATH env var, which is usually set
     # to workspace_root_contaier_path:resources_dir_container_path
@@ -268,10 +268,10 @@ class JupyterHub(PhidataApp):
         # This value is also appended to the command using `-f`
         jupyter_config_file: Optional[str] = None,
         # Install python dependencies using a requirements.txt file,
-        # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path,
+        # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
-        requirements_file_path: str = "workspace/jupyter/requirements.txt",
+        requirements_file: str = "workspace/jupyter/requirements.txt",
         # Overwrite the PYTHONPATH env var, which is usually set,
         # to workspace_root_contaier_path:resources_dir_container_path,
         python_path: Optional[str] = None,
@@ -405,7 +405,7 @@ class JupyterHub(PhidataApp):
                 resources_volume_name=resources_volume_name,
                 jupyter_config_file=jupyter_config_file,
                 install_requirements=install_requirements,
-                requirements_file_path=requirements_file_path,
+                requirements_file=requirements_file,
                 python_path=python_path,
                 wait_for_db=wait_for_db,
                 db_app=db_app,
@@ -499,7 +499,7 @@ class JupyterHub(PhidataApp):
             self.args.workspace_parent_container_path
         ).joinpath(workspace_name)
         requirements_file_container_path = workspace_root_container_path.joinpath(
-            self.args.requirements_file_path
+            self.args.requirements_file
         )
         scripts_dir_container_path = (
             workspace_root_container_path.joinpath(self.scripts_dir)
@@ -745,7 +745,7 @@ class JupyterHub(PhidataApp):
             self.args.workspace_parent_container_path
         ).joinpath(workspace_name)
         requirements_file_container_path = workspace_root_container_path.joinpath(
-            self.args.requirements_file_path
+            self.args.requirements_file
         )
         scripts_dir_container_path = (
             workspace_root_container_path.joinpath(self.scripts_dir)

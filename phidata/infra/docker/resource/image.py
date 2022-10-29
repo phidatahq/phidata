@@ -1,8 +1,5 @@
 from typing import Optional, Any, Dict, List
 
-from docker.models.images import Image
-from docker.errors import BuildError, APIError, ImageNotFound, NotFound
-
 from phidata.infra.docker.api_client import DockerApiClient
 from phidata.infra.docker.resource.base import DockerResource
 from phidata.utils.cli_console import print_info, print_error
@@ -85,7 +82,9 @@ class DockerImage(DockerResource):
             image_name_tag = f"{image_name_tag}:{self.tag}"
         return image_name_tag
 
-    def build_image(self, docker_client: DockerApiClient) -> Optional[Image]:
+    def build_image(self, docker_client: DockerApiClient) -> Optional[Any]:
+        from docker import DockerClient
+        from docker.errors import BuildError, APIError
 
         print_info(f"Building image: {self.get_name_tag()}")
         nocache = self.skip_docker_cache
@@ -98,7 +97,8 @@ class DockerImage(DockerResource):
         logger.debug(f"nocache: {nocache}")
         logger.debug(f"pull: {pull}")
         try:
-            build_stream = docker_client.api_client.api.build(
+            _api_client: DockerClient = docker_client.api_client
+            build_stream = _api_client.api.build(
                 tag=self.get_name_tag(),
                 path=self.path,
                 dockerfile=self.dockerfile,
@@ -143,7 +143,7 @@ class DockerImage(DockerResource):
                 print_info(f"Pushing {self.get_name_tag()}")
                 push_progress = None
                 prev_push_progress = None
-                for push_output in docker_client.api_client.images.push(
+                for push_output in _api_client.images.push(
                     repository=self.name,
                     tag=self.tag,
                     stream=True,
@@ -183,6 +183,7 @@ class DockerImage(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker.models.images import Image
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
 
@@ -204,10 +205,14 @@ class DockerImage(DockerResource):
 
     def _read(self, docker_client: DockerApiClient) -> Any:
         """Returns an Image object if available"""
+        from docker import DockerClient
+        from docker.models.images import Image
+        from docker.errors import ImageNotFound, NotFound
 
         logger.debug("Reading: {}".format(self.get_name_tag()))
         try:
-            image_object: Optional[List[Image]] = docker_client.api_client.images.get(
+            _api_client: DockerClient = docker_client.api_client
+            image_object: Optional[List[Image]] = _api_client.images.get(
                 name=self.get_name_tag()
             )
             if image_object is not None and isinstance(image_object, Image):
@@ -225,7 +230,6 @@ class DockerImage(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
-
         logger.debug("Updating: {}".format(self.get_resource_name()))
         return self._create(docker_client=docker_client)
 
@@ -235,6 +239,8 @@ class DockerImage(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker import DockerClient
+        from docker.models.images import Image
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         image_object: Optional[Image] = self._read(docker_client)
@@ -247,7 +253,8 @@ class DockerImage(DockerResource):
         try:
             self.active_resource = None
             logger.debug("Deleting image: {}".format(self.tag))
-            docker_client.api_client.images.remove(image=self.tag, force=True)
+            _api_client: DockerClient = docker_client.api_client
+            _api_client.images.remove(image=self.tag, force=True)
             return True
         except Exception as e:
             logger.exception("Error while deleting image: {}".format(e))

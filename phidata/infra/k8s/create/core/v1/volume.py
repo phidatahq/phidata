@@ -14,7 +14,7 @@ from phidata.infra.k8s.resource.core.v1.volume import (
     GitRepoVolumeSource,
     HostPathVolumeSource,
 )
-from phidata.utils.cli_console import print_error, print_info
+from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
 
 

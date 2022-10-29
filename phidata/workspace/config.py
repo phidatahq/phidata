@@ -1,10 +1,7 @@
 from pathlib import Path
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, Any
 
 from phidata.infra.base import InfraConfig, InfraArgs
-from phidata.infra.docker.config import DockerConfig
-from phidata.infra.k8s.config import K8sConfig
-from phidata.infra.aws.config import AwsConfig
 from phidata.utils.log import logger
 
 
@@ -15,11 +12,14 @@ class WorkspaceConfigArgs(InfraArgs):
     default_config: Optional[str] = None
 
     # List of Docker configurations
-    docker: Optional[List[DockerConfig]] = None
+    # Type: DockerConfig
+    docker: Optional[List[Any]] = None
     # List of K8s configurations
-    k8s: Optional[List[K8sConfig]] = None
+    # Type: K8sConfig
+    k8s: Optional[List[Any]] = None
     # List of AWS configurations
-    aws: Optional[List[AwsConfig]] = None
+    # Type: AwsConfig
+    aws: Optional[List[Any]] = None
 
     # Path to important directories relative to the workspace_root
     meta_dir: str
@@ -41,11 +41,14 @@ class WorkspaceConfig(InfraConfig):
         # default config for phi ws ... commands
         default_config: Optional[str] = None,
         # List of Docker configurations
-        docker: Optional[List[DockerConfig]] = None,
+        # Type: DockerConfig
+        docker: Optional[List[Any]] = None,
         # List of K8s configurations
-        k8s: Optional[List[K8sConfig]] = None,
+        # Type: K8sConfig
+        k8s: Optional[List[Any]] = None,
         # List of AWS configurations
-        aws: Optional[List[AwsConfig]] = None,
+        # Type: AwsConfig
+        aws: Optional[List[Any]] = None,
         # Path to important directories relative to the workspace_root
         meta_dir: str = "meta",
         notebooks_dir: str = "notebooks",
@@ -130,19 +133,21 @@ class WorkspaceConfig(InfraConfig):
         return self.args.default_config if self.args else None
 
     @property
-    def docker(self) -> Optional[List[DockerConfig]]:
+    def docker(self) -> Optional[List[Any]]:
         return self.args.docker if self.args else None
 
     @property
-    def k8s(self) -> Optional[List[K8sConfig]]:
+    def k8s(self) -> Optional[List[Any]]:
         return self.args.k8s if self.args else None
 
     @property
-    def aws(self) -> Optional[List[AwsConfig]]:
+    def aws(self) -> Optional[List[Any]]:
         return self.args.aws if self.args else None
 
     def is_valid(self) -> bool:
         if self.docker is not None:
+            from phidata.infra.docker.config import DockerConfig
+
             if not isinstance(self.docker, list):
                 raise ValueError("docker should be a list")
             for dc in self.docker:
@@ -150,6 +155,8 @@ class WorkspaceConfig(InfraConfig):
                     raise ValueError(f"Invalid DockerConfig: {dc}")
 
         if self.k8s is not None:
+            from phidata.infra.k8s.config import K8sConfig
+
             if not isinstance(self.k8s, list):
                 raise ValueError("k8s should be a list")
             for kc in self.k8s:
@@ -157,6 +164,8 @@ class WorkspaceConfig(InfraConfig):
                     raise ValueError(f"Invalid K8sConfig: {kc}")
 
         if self.aws is not None:
+            from phidata.infra.aws.config import AwsConfig
+
             if not isinstance(self.aws, list):
                 raise ValueError("aws should be a list")
             for awsc in self.aws:

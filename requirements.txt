@@ -4,9 +4,9 @@
 #
 #    ./scripts/upgrade.sh
 #
-anyio==3.6.1
-boto3==1.24.93
-botocore==1.27.93
+anyio==3.6.2
+boto3==1.25.4
+botocore==1.28.4
 cachetools==5.2.0
 certifi==2022.9.24
 charset-normalizer==2.1.1
@@ -21,10 +21,10 @@ httpcore==0.15.0
 httpx==0.23.0
 idna==3.4
 jmespath==1.0.1
-kubernetes==24.2.0
+kubernetes==25.3.0
 oauthlib==3.2.2
 packaging==21.3
-phiterm==0.2.25
+phiterm==0.2.40.dev3
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pydantic==1.10.2
@@ -44,7 +44,6 @@ smmap==5.0.0
 sniffio==1.3.0
 tomli==2.0.1
 typer==0.6.1
-types-pyyaml==6.0.12
 typing-extensions==4.4.0
 urllib3==1.26.12
 websocket-client==1.4.1

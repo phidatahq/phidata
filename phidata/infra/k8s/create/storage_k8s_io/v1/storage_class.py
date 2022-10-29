@@ -9,7 +9,7 @@ from phidata.infra.k8s.resource.storage_k8s_io.v1.storage_class import StorageCl
 from phidata.infra.k8s.create.common.labels import create_component_labels_dict
 from phidata.infra.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phidata.infra.k8s.exceptions import StorageClassNotFoundException
-from phidata.utils.cli_console import print_error, print_info
+from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
 
 

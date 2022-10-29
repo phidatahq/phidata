@@ -1,6 +1,4 @@
-from typing import Optional
-
-import boto3.session
+from typing import Optional, Any
 
 from phidata.infra.base.api_client import InfraApiClient
 from phidata.infra.aws.exceptions import AwsApiClientException
@@ -23,7 +21,7 @@ class AwsApiClient(InfraApiClient):
         self.aws_profile: Optional[str] = aws_profile
 
         # aws boto3 session
-        self._boto3_session: Optional[boto3.session.Session] = None
+        self._boto3_session: Optional[Any] = None
         logger.debug(f"**-+-** AwsApiClient created")
 
     def is_initialized(self) -> bool:
@@ -31,13 +29,14 @@ class AwsApiClient(InfraApiClient):
             return True
         return False
 
-    def create_boto3_session(self) -> boto3.session.Session:
+    def create_boto3_session(self) -> Optional[Any]:
         """Create a boto3 session"""
+        from boto3 import session as boto3_session
 
         logger.debug(f"Creating boto3.Session")
         session = None
         try:
-            session = boto3.session.Session(
+            session = boto3_session.Session(
                 region_name=self.aws_region,
                 profile_name=self.aws_profile,
             )
@@ -52,7 +51,7 @@ class AwsApiClient(InfraApiClient):
         return session
 
     @property
-    def boto3_session(self) -> boto3.session.Session:
+    def boto3_session(self) -> Optional[Any]:
         if self._boto3_session is None:
             self._boto3_session = self.create_boto3_session()
         return self._boto3_session

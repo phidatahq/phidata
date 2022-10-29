@@ -1,78 +1,11 @@
-from collections import OrderedDict
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
-from typing_extensions import Literal
 
 from phidata.app.db import DbApp
-from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
-from phidata.constants import (
-    SCRIPTS_DIR_ENV_VAR,
-    STORAGE_DIR_ENV_VAR,
-    META_DIR_ENV_VAR,
-    PRODUCTS_DIR_ENV_VAR,
-    NOTEBOOKS_DIR_ENV_VAR,
-    WORKSPACE_CONFIG_DIR_ENV_VAR,
-    PHIDATA_RUNTIME_ENV_VAR,
-)
-from phidata.infra.docker.resource.group import (
-    DockerResourceGroup,
-    DockerBuildContext,
-    DockerContainer,
-    DockerNetwork,
-)
-from phidata.infra.k8s.create.apps.v1.deployment import RestartPolicy
-from phidata.infra.k8s.create.core.v1.service import ServiceType
-from phidata.infra.k8s.create.core.v1.container import CreateContainer, ImagePullPolicy
-from phidata.infra.k8s.create.core.v1.persistent_volume import (
-    ClaimRef,
-    NFSVolumeSource,
-)
-from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
-    PolicyRule,
-)
-from phidata.infra.k8s.create.core.v1.volume import (
-    CreateVolume,
-    HostPathVolumeSource,
-    VolumeType,
-    PersistentVolumeClaimVolumeSource,
-)
-from phidata.infra.k8s.create.common.port import CreatePort
-from phidata.infra.k8s.create.group import (
-    CreateK8sResourceGroup,
-    CreateNamespace,
-    CreateServiceAccount,
-    CreateClusterRole,
-    CreateClusterRoleBinding,
-    CreateSecret,
-    CreateConfigMap,
-    CreateStorageClass,
-    CreateService,
-    CreateDeployment,
-    CreateCustomObject,
-    CreateCustomResourceDefinition,
-    CreatePersistentVolume,
-    CreatePVC,
-)
-from phidata.infra.k8s.enums.pv import PVAccessMode
-from phidata.infra.k8s.resource.group import (
-    K8sResourceGroup,
-    K8sBuildContext,
-)
-from phidata.utils.common import (
-    get_image_str,
-    get_default_ns_name,
-    get_default_container_name,
-    get_default_configmap_name,
-    get_default_secret_name,
-    get_default_service_name,
-    get_default_deploy_name,
-    get_default_pod_name,
-    get_default_volume_name,
-    get_default_cr_name,
-    get_default_crb_name,
-    get_default_sa_name,
-)
-from phidata.utils.enums import ExtendedEnum
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType
+from phidata.infra.k8s.enums.service_type import ServiceType
+from phidata.infra.k8s.enums.image_pull_policy import ImagePullPolicy
+from phidata.infra.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.log import logger
 
 
@@ -81,18 +14,13 @@ class SupersetBaseArgs(PhidataAppArgs):
     version: str = "1"
     enabled: bool = True
 
-    # Image args
+    # -*- Image Configuration
     image_name: str = "phidata/superset"
     image_tag: str = "2.0.0"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
-    # Install python dependencies using a requirements.txt file
-    # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path
-    install_requirements: bool = False
-    # Path to the requirements.txt file relative to the workspace_root
-    requirements_file_path: str = "requirements.txt"
-
+    # -*- Superset Configuration
     # Configure Superset db
     wait_for_db: bool = False
     # Connect to database using a DbApp
@@ -131,13 +59,13 @@ class SupersetBaseArgs(PhidataAppArgs):
     # REDIS_DRIVER env var in the secrets_file
     redis_driver: Optional[str] = None
 
-    # Configure the superset container
+    # -*- Container Configuration
     container_name: Optional[str] = None
     # Set the SUPERSET_CONFIG_PATH env var
     superset_config_path: Optional[str] = None
     # Set the FLASK_ENV env var
     flask_env: str = "production"
-    # Set the SUPERSET_ENV env var
+    # Set the SUPERSET_ENV n var
     superset_env: str = "production"
     # Set the PYTHONPATH env var
     # defaults to "/app/pythonpath:/app/docker/pythonpath_dev"
@@ -145,71 +73,7 @@ class SupersetBaseArgs(PhidataAppArgs):
     # Add labels to the container
     container_labels: Optional[Dict[str, Any]] = None
 
-    # Docker configuration
-    # NOTE: Only available for Docker
-    # Run container in the background and return a Container object.
-    container_detach: bool = True
-    # Enable auto-removal of the container on daemon side when the container’s process exits.
-    container_auto_remove: bool = True
-    # Remove the container when it has finished running. Default: False.
-    container_remove: bool = True
-    # Username or UID to run commands as inside the container.
-    container_user: Optional[Union[str, int]] = None
-    # Keep STDIN open even if not attached.
-    container_stdin_open: bool = True
-    container_tty: bool = True
-    # Specify a test to perform to check that the container is healthy.
-    container_healthcheck: Optional[Dict[str, Any]] = None
-    # Optional hostname for the container.
-    container_hostname: Optional[str] = None
-    # Platform in the format os[/arch[/variant]].
-    container_platform: Optional[str] = None
-    # Path to the working directory.
-    container_working_dir: Optional[str] = None
-    # Restart the container when it exits. Configured as a dictionary with keys:
-    # Name: One of on-failure, or always.
-    # MaximumRetryCount: Number of times to restart the container on failure.
-    # For example: {"Name": "on-failure", "MaximumRetryCount": 5}
-    container_restart_policy_docker: Optional[Dict[str, Any]] = None
-    # Add volumes to DockerContainer
-    # container_volumes is a dictionary which adds the volumes to mount
-    # inside the container. The key is either the host path or a volume name,
-    # and the value is a dictionary with 2 keys:
-    #   bind - The path to mount the volume inside the container
-    #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
-    # For example:
-    # {
-    #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
-    #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
-    # }
-    container_volumes_docker: Optional[Dict[str, dict]] = None
-    # Add ports to DockerContainer
-    # The keys of the dictionary are the ports to bind inside the container,
-    # either as an integer or a string in the form port/protocol, where the protocol is either tcp, udp.
-    # The values of the dictionary are the corresponding ports to open on the host, which can be either:
-    #   - The port number, as an integer.
-    #       For example, {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
-    #   - None, to assign a random host port. For example, {'2222/tcp': None}.
-    #   - A tuple of (address, port) if you want to specify the host interface.
-    #       For example, {'1111/tcp': ('127.0.0.1', 1111)}.
-    #   - A list of integers, if you want to bind multiple host ports to a single container port.
-    #       For example, {'1111/tcp': [1234, 4567]}.
-    container_ports_docker: Optional[Dict[str, Any]] = None
-
-    # K8s configuration
-    # NOTE: Only available for Kubernetes
-    image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT
-
     # Container ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = False
-    # Port number on the container
-    container_port: int = 8000
-    # Port name: Only used by the K8sContainer
-    container_port_name: str = "http"
-    # Host port: Only used by the DockerContainer
-    container_host_port: int = 8000
-
     # Open the app port if open_app_port=True
     open_app_port: bool = False
     # App port number on the container
@@ -220,46 +84,8 @@ class SupersetBaseArgs(PhidataAppArgs):
     # Only used by the DockerContainer
     app_host_port: int = 8088
 
-    # Container env
-    # Add env variables to container env
-    env: Optional[Dict[str, str]] = None
-    # Read env variables from a file in yaml format
-    env_file: Optional[Path] = None
-    # Configure the ConfigMap name used for env variables that are not Secret
-    config_map_name: Optional[str] = None
-
-    # Container secrets
-    # Add secret variables to container env
-    secrets: Optional[Dict[str, str]] = None
-    # Read secret variables from a file in yaml format
-    secrets_file: Optional[Path] = None
-    # Read secret variables from AWS Secrets Manager
-    aws_secret: Optional[Any] = None
-    # Configure the Secret name used for env variables that are Secret
-    secret_name: Optional[str] = None
-
     # Container volumes
-    # Configure workspace volume
-    # Mount the workspace directory on the container
-    mount_workspace: bool = False
-    workspace_volume_name: Optional[str] = None
-    # Path to mount the workspace volume under
-    # This is the parent directory for the workspace on the container
-    # i.e. the ws is mounted as a subdir in this dir
-    # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata
-    workspace_mount_container_path: str = "/mnt/workspaces"
-    # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path
-    # because we assume that DockerContainers are running locally on the user's machine
-    # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container
-    create_git_sync_sidecar: bool = False
-    create_git_sync_init_container: bool = True
-    git_sync_repo: Optional[str] = None
-    git_sync_branch: Optional[str] = None
-    git_sync_wait: int = 1
-    # When running k8s locally, we can mount the workspace using host path as well.
-    k8s_mount_local_workspace = False
-
-    # Configure resources volume - only on docker
+    # Configure resources volume. Only on docker
     # Superset resources directory relative to the workspace_root
     # This directory contains all the files required by superset.
     # eg: docker-bootstrap.sh
@@ -269,28 +95,9 @@ class SupersetBaseArgs(PhidataAppArgs):
     resources_dir_container_path: str = "/app/docker"
     resources_volume_name: Optional[str] = None
 
-    # Configure the deployment
-    deploy_name: Optional[str] = None
-    pod_name: Optional[str] = None
-    replicas: int = 1
-    pod_annotations: Optional[Dict[str, str]] = None
-    pod_node_selector: Optional[Dict[str, str]] = None
-    deploy_restart_policy: RestartPolicy = RestartPolicy.ALWAYS
-    termination_grace_period_seconds: Optional[int] = None
-    # Add deployment labels
-    deploy_labels: Optional[Dict[str, Any]] = None
-    # Determine how to spread the deployment across a topology
-    # Key to spread the pods across
-    topology_spread_key: Optional[str] = None
-    # The degree to which pods may be unevenly distributed
-    topology_spread_max_skew: Optional[int] = None
-    # How to deal with a pod if it doesn't satisfy the spread constraint.
-    topology_spread_when_unsatisfiable: Optional[
-        Literal["DoNotSchedule", "ScheduleAnyway"]
-    ] = None
-
-    # Configure the app service
+    # K8s Service Configuration
     create_app_service: bool = False
+    # Configure the app service
     app_svc_name: Optional[str] = None
     app_svc_type: Optional[ServiceType] = None
     # The port that will be exposed by the service.
@@ -301,7 +108,7 @@ class SupersetBaseArgs(PhidataAppArgs):
     # It can be the port number or port name on the pod.
     app_target_port: Optional[Union[str, int]] = None
     # Extra ports exposed by the app service
-    app_svc_ports: Optional[List[CreatePort]] = None
+    app_svc_ports: Optional[List[Any]] = None
     # Add labels to app service
     app_svc_labels: Optional[Dict[str, Any]] = None
     # Add annotations to app service
@@ -314,45 +121,9 @@ class SupersetBaseArgs(PhidataAppArgs):
     app_svc_load_balancer_source_ranges: Optional[List[str]] = None
     app_svc_allocate_load_balancer_node_ports: Optional[bool] = None
 
-    # Configure K8s rbac: use a separate Namespace, ServiceAccount,
-    # ClusterRole & ClusterRoleBinding
-    use_rbac: bool = False
-    # Create a Namespace with name ns_name & default values
-    ns_name: Optional[str] = None
-    # Provide the full Namespace definition
-    namespace: Optional[CreateNamespace] = None
-    # Create a ServiceAccount with name sa_name & default values
-    sa_name: Optional[str] = None
-    # Provide the full ServiceAccount definition
-    service_account: Optional[CreateServiceAccount] = None
-    # Create a ClusterRole with name sa_name & default values
-    cr_name: Optional[str] = None
-    # Provide the full ClusterRole definition
-    cluster_role: Optional[CreateClusterRole] = None
-    # Create a ClusterRoleBinding with name sa_name & default values
-    crb_name: Optional[str] = None
-    # Provide the full ClusterRoleBinding definition
-    cluster_role_binding: Optional[CreateClusterRoleBinding] = None
-
     # Other args
     # Set SUPERSET_LOAD_EXAMPLES = "yes"
     load_examples: bool = False
-    print_env_on_load: bool = True
-
-    # Add extra Kubernetes resources
-    extra_secrets: Optional[List[CreateSecret]] = None
-    extra_config_maps: Optional[List[CreateConfigMap]] = None
-    extra_storage_classes: Optional[List[CreateStorageClass]] = None
-    extra_services: Optional[List[CreateService]] = None
-    extra_deployments: Optional[List[CreateDeployment]] = None
-    extra_custom_objects: Optional[List[CreateCustomObject]] = None
-    extra_crds: Optional[List[CreateCustomResourceDefinition]] = None
-    extra_pvs: Optional[List[CreatePersistentVolume]] = None
-    extra_pvcs: Optional[List[CreatePVC]] = None
-    extra_containers: Optional[List[CreateContainer]] = None
-    extra_init_containers: Optional[List[CreateContainer]] = None
-    extra_ports: Optional[List[CreatePort]] = None
-    extra_volumes: Optional[List[CreateVolume]] = None
 
 
 class SupersetBase(PhidataApp):
@@ -361,16 +132,17 @@ class SupersetBase(PhidataApp):
         name: str = "superset",
         version: str = "1",
         enabled: bool = True,
-        # Image args,
+        # -*- Image Configuration,
         image_name: str = "phidata/superset",
         image_tag: str = "2.0.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
-        # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file_path,
+        # Sets the REQUIREMENTS_LOCAL & REQUIREMENTS_FILE_PATH env var to requirements_file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
-        requirements_file_path: str = "requirements.txt",
+        requirements_file: str = "requirements.txt",
+        # -*- Superset Configuration,
         # Configure Superset db,
         wait_for_db: bool = False,
         # Connect to database using a DbApp,
@@ -407,7 +179,7 @@ class SupersetBase(PhidataApp):
         # redis_driver can be provided here or as the,
         # REDIS_DRIVER env var in the secrets_file,
         redis_driver: Optional[str] = None,
-        # Configure the superset container,
+        # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Set the SUPERSET_CONFIG_PATH env var,
         superset_config_path: Optional[str] = None,
@@ -420,13 +192,78 @@ class SupersetBase(PhidataApp):
         python_path: Optional[str] = None,
         # Add labels to the container,
         container_labels: Optional[Dict[str, Any]] = None,
-        # Docker configuration,
-        # NOTE: Only available for Docker,
+        # Container env passed to the PhidataApp,
+        # Add env variables to container env,
+        env: Optional[Dict[str, str]] = None,
+        # Read env variables from a file in yaml format,
+        env_file: Optional[Path] = None,
+        # Container secrets,
+        # Add secret variables to container env,
+        secrets: Optional[Dict[str, str]] = None,
+        # Read secret variables from a file in yaml format,
+        secrets_file: Optional[Path] = None,
+        # Read secret variables from AWS Secrets,
+        aws_secrets: Optional[Any] = None,
+        # Container ports,
+        # Open a container port if open_container_port=True,
+        open_container_port: bool = False,
+        # Port number on the container,
+        container_port: int = 8000,
+        # Port name: Only used by the K8sContainer,
+        container_port_name: str = "http",
+        # Host port: Only used by the DockerContainer,
+        container_host_port: int = 8000,
+        # Open the app port if open_app_port=True,
+        open_app_port: bool = False,
+        # App port number on the container,
+        # Set the SUPERSET_PORT env var,
+        app_port: int = 8088,
+        # Only used by the K8sContainer,
+        app_port_name: str = "app",
+        # Only used by the DockerContainer,
+        app_host_port: int = 8088,
+        # Container volumes,
+        # Mount the workspace directory on the container,
+        mount_workspace: bool = False,
+        workspace_volume_name: Optional[str] = None,
+        workspace_volume_type: Optional[WorkspaceVolumeType] = None,
+        # Path to mount the workspace volume,
+        # This is the parent directory for the workspace on the container,
+        # i.e. the ws is mounted as a subdir in this dir,
+        # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata,
+        workspace_volume_container_path: str = "/mnt/workspaces",
+        # How to mount the workspace volume,
+        # Option 1: Mount the workspace from the host machine,
+        # If None, use the workspace_root_path,
+        # Note: This is the default on DockerContainers. We assume that DockerContainers,
+        # are running locally on the user's machine so the local workspace_root_path,
+        # is mounted to the workspace_volume_container_path,
+        workspace_volume_host_path: Optional[str] = None,
+        # Option 2: Load the workspace from git using a git-sync sidecar container,
+        # This the default on K8sContainers.,
+        create_git_sync_sidecar: bool = False,
+        # Required to create an initial copy of the workspace,
+        create_git_sync_init_container: bool = True,
+        git_sync_image_name: str = "k8s.gcr.io/git-sync",
+        git_sync_image_tag: str = "v3.1.1",
+        git_sync_repo: Optional[str] = None,
+        git_sync_branch: Optional[str] = None,
+        git_sync_wait: int = 1,
+        # Configure resources volume. Only on docker,
+        # Superset resources directory relative to the workspace_root,
+        # This directory contains all the files required by superset.,
+        # eg: docker-bootstrap.sh,
+        # This dir is mounted to the `/app/docker` directory on the container,
+        mount_resources: bool = False,
+        resources_dir: str = "workspace/superset",
+        resources_dir_container_path: str = "/app/docker",
+        resources_volume_name: Optional[str] = None,
+        # -*- Docker configuration,
         # Run container in the background and return a Container object.,
         container_detach: bool = True,
         # Enable auto-removal of the container on daemon side when the container’s process exits.,
         container_auto_remove: bool = True,
-        # Remove the container when it has finished running. Default: False.,
+        # Remove the container when it has finished running. Default: True.,
         container_remove: bool = True,
         # Username or UID to run commands as inside the container.,
         container_user: Optional[Union[str, int]] = None,
@@ -470,94 +307,56 @@ class SupersetBase(PhidataApp):
         #   - A list of integers, if you want to bind multiple host ports to a single container port.,
         #       For example, {'1111/tcp': [1234, 4567]}.,
         container_ports_docker: Optional[Dict[str, Any]] = None,
-        # K8s configuration,
-        # NOTE: Only available for Kubernetes,
-        image_pull_policy: ImagePullPolicy = ImagePullPolicy.IF_NOT_PRESENT,
-        # Container ports,
-        # Open a container port if open_container_port=True,
-        open_container_port: bool = False,
-        # Port number on the container,
-        container_port: int = 8000,
-        # Port name: Only used by the K8sContainer,
-        container_port_name: str = "http",
-        # Host port: Only used by the DockerContainer,
-        container_host_port: int = 8000,
-        # Open the app port if open_app_port=True,
-        open_app_port: bool = False,
-        # App port number on the container,
-        # Set the SUPERSET_PORT env var,
-        app_port: int = 8088,
-        # Only used by the K8sContainer,
-        app_port_name: str = "app",
-        # Only used by the DockerContainer,
-        app_host_port: int = 8088,
-        # Container env,
-        # Add env variables to container env,
-        env: Optional[Dict[str, str]] = None,
-        # Read env variables from a file in yaml format,
-        env_file: Optional[Path] = None,
-        # Configure the ConfigMap name used for env variables that are not Secret,
-        config_map_name: Optional[str] = None,
-        # Container secrets,
-        # Add secret variables to container env,
-        secrets: Optional[Dict[str, str]] = None,
-        # Read secret variables from a file in yaml format,
-        secrets_file: Optional[Path] = None,
-        # Read secret variables from AWS Secrets Manager,
-        aws_secret: Optional[Any] = None,
-        # Configure the Secret name used for env variables that are Secret,
-        secret_name: Optional[str] = None,
-        # Container volumes,
-        # Configure workspace volume,
-        # Mount the workspace directory on the container,
-        mount_workspace: bool = False,
-        workspace_volume_name: Optional[str] = None,
-        # Path to mount the workspace volume under,
-        # This is the parent directory for the workspace on the container,
-        # i.e. the ws is mounted as a subdir in this dir,
-        # eg: if ws name is: idata, workspace_dir would be: /workspaces/idata,
-        # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata,
-        workspace_mount_container_path: str = "/mnt/workspaces",
-        # NOTE: On DockerContainers the local workspace_root_path is mounted under workspace_mount_container_path,
-        # because we assume that DockerContainers are running locally on the user's machine,
-        # On K8sContainers, we load the workspace_dir from git using a git-sync sidecar container,
-        create_git_sync_sidecar: bool = False,
-        create_git_sync_init_container: bool = True,
-        git_sync_repo: Optional[str] = None,
-        git_sync_branch: Optional[str] = None,
-        git_sync_wait: int = 1,
-        # When running k8s locally, we can mount the workspace using host path as well.,
-        k8s_mount_local_workspace=False,
-        # Configure resources volume - only on docker,
-        # Superset resources directory relative to the workspace_root,
-        # This directory contains all the files required by superset.,
-        # eg: docker-bootstrap.sh,
-        # This dir is mounted to the `/app/docker` directory on the container,
-        mount_resources: bool = False,
-        resources_dir: str = "workspace/superset",
-        resources_dir_container_path: str = "/app/docker",
-        resources_volume_name: Optional[str] = None,
-        # Configure the deployment,
-        deploy_name: Optional[str] = None,
-        pod_name: Optional[str] = None,
+        # -*- K8s configuration,
+        # K8s Deployment configuration,
         replicas: int = 1,
+        pod_name: Optional[str] = None,
+        deploy_name: Optional[str] = None,
+        secret_name: Optional[str] = None,
+        configmap_name: Optional[str] = None,
+        # Type: ImagePullPolicy,
+        image_pull_policy: Optional[ImagePullPolicy] = None,
         pod_annotations: Optional[Dict[str, str]] = None,
         pod_node_selector: Optional[Dict[str, str]] = None,
-        deploy_restart_policy: RestartPolicy = RestartPolicy.ALWAYS,
-        termination_grace_period_seconds: Optional[int] = None,
-        # Add deployment labels,
+        # Type: RestartPolicy,
+        deploy_restart_policy: Optional[RestartPolicy] = None,
         deploy_labels: Optional[Dict[str, Any]] = None,
-        # Determine how to spread the deployment across a topology,
+        termination_grace_period_seconds: Optional[int] = None,
+        # How to spread the deployment across a topology,
         # Key to spread the pods across,
         topology_spread_key: Optional[str] = None,
         # The degree to which pods may be unevenly distributed,
         topology_spread_max_skew: Optional[int] = None,
         # How to deal with a pod if it doesn't satisfy the spread constraint.,
-        topology_spread_when_unsatisfiable: Optional[
-            Literal["DoNotSchedule", "ScheduleAnyway"]
-        ] = None,
-        # Configure the app service,
+        topology_spread_when_unsatisfiable: Optional[str] = None,
+        # K8s Service Configuration,
+        create_service: bool = False,
+        service_name: Optional[str] = None,
+        # Type: ServiceType,
+        service_type: Optional[Any] = None,
+        # The port exposed by the service.,
+        service_port: int = 8000,
+        # The node_port exposed by the service if service_type = ServiceType.NODE_PORT,
+        service_node_port: Optional[int] = None,
+        # The target_port is the port to access on the pods targeted by the service.,
+        # It can be the port number or port name on the pod.,
+        service_target_port: Optional[Union[str, int]] = None,
+        # Extra ports exposed by the webserver service. Type: List[CreatePort],
+        service_ports: Optional[List[Any]] = None,
+        # Service labels,
+        service_labels: Optional[Dict[str, Any]] = None,
+        # Service annotations,
+        service_annotations: Optional[Dict[str, str]] = None,
+        # If ServiceType == ServiceType.LoadBalancer,
+        service_health_check_node_port: Optional[int] = None,
+        service_internal_traffic_policy: Optional[str] = None,
+        service_load_balancer_class: Optional[str] = None,
+        service_load_balancer_ip: Optional[str] = None,
+        service_load_balancer_source_ranges: Optional[List[str]] = None,
+        service_allocate_load_balancer_node_ports: Optional[bool] = None,
+        # App Service Configuration,
         create_app_service: bool = False,
+        # Configure the app service,
         app_svc_name: Optional[str] = None,
         app_svc_type: Optional[ServiceType] = None,
         # The port that will be exposed by the service.,
@@ -568,7 +367,7 @@ class SupersetBase(PhidataApp):
         # It can be the port number or port name on the pod.,
         app_target_port: Optional[Union[str, int]] = None,
         # Extra ports exposed by the app service,
-        app_svc_ports: Optional[List[CreatePort]] = None,
+        app_svc_ports: Optional[List[Any]] = None,
         # Add labels to app service,
         app_svc_labels: Optional[Dict[str, Any]] = None,
         # Add annotations to app service,
@@ -580,54 +379,64 @@ class SupersetBase(PhidataApp):
         app_svc_load_balancer_ip: Optional[str] = None,
         app_svc_load_balancer_source_ranges: Optional[List[str]] = None,
         app_svc_allocate_load_balancer_node_ports: Optional[bool] = None,
-        # Configure K8s rbac: use a separate Namespace, ServiceAccount,,
-        # ClusterRole & ClusterRoleBinding,
+        # K8s RBAC Configuration,
         use_rbac: bool = False,
         # Create a Namespace with name ns_name & default values,
         ns_name: Optional[str] = None,
-        # Provide the full Namespace definition,
-        namespace: Optional[CreateNamespace] = None,
+        # or Provide the full Namespace definition,
+        # Type: CreateNamespace,
+        namespace: Optional[Any] = None,
         # Create a ServiceAccount with name sa_name & default values,
         sa_name: Optional[str] = None,
-        # Provide the full ServiceAccount definition,
-        service_account: Optional[CreateServiceAccount] = None,
-        # Create a ClusterRole with name sa_name & default values,
+        # or Provide the full ServiceAccount definition,
+        # Type: CreateServiceAccount,
+        service_account: Optional[Any] = None,
+        # Create a ClusterRole with name cr_name & default values,
         cr_name: Optional[str] = None,
-        # Provide the full ClusterRole definition,
-        cluster_role: Optional[CreateClusterRole] = None,
-        # Create a ClusterRoleBinding with name sa_name & default values,
+        # or Provide the full ClusterRole definition,
+        # Type: CreateClusterRole,
+        cluster_role: Optional[Any] = None,
+        # Create a ClusterRoleBinding with name crb_name & default values,
         crb_name: Optional[str] = None,
-        # Provide the full ClusterRoleBinding definition,
-        cluster_role_binding: Optional[CreateClusterRoleBinding] = None,
+        # or Provide the full ClusterRoleBinding definition,
+        # Type: CreateClusterRoleBinding,
+        cluster_role_binding: Optional[Any] = None,
+        # Add additional Kubernetes resources to the App,
+        # Type: CreateSecret,
+        extra_secrets: Optional[List[Any]] = None,
+        # Type: CreateConfigMap,
+        extra_configmaps: Optional[List[Any]] = None,
+        # Type: CreateService,
+        extra_services: Optional[List[Any]] = None,
+        # Type: CreateDeployment,
+        extra_deployments: Optional[List[Any]] = None,
+        # Type: CreatePersistentVolume,
+        extra_pvs: Optional[List[Any]] = None,
+        # Type: CreatePVC,
+        extra_pvcs: Optional[List[Any]] = None,
+        # Type: CreateContainer,
+        extra_containers: Optional[List[Any]] = None,
+        # Type: CreateContainer,
+        extra_init_containers: Optional[List[Any]] = None,
+        # Type: CreatePort,
+        extra_ports: Optional[List[Any]] = None,
+        # Type: CreateVolume,
+        extra_volumes: Optional[List[Any]] = None,
+        # Type: CreateStorageClass,
+        extra_storage_classes: Optional[List[Any]] = None,
+        # Type: CreateCustomObject,
+        extra_custom_objects: Optional[List[Any]] = None,
+        # Type: CreateCustomResourceDefinition,
+        extra_crds: Optional[List[Any]] = None,
         # Other args,
+        print_env_on_load: bool = True,
+        # If True, skip resource creation if active resources with the same name exist.,
+        use_cache: bool = True,
         # Set SUPERSET_LOAD_EXAMPLES = "yes",
         load_examples: bool = False,
-        print_env_on_load: bool = True,
-        # Add extra Kubernetes resources,
-        extra_secrets: Optional[List[CreateSecret]] = None,
-        extra_config_maps: Optional[List[CreateConfigMap]] = None,
-        extra_storage_classes: Optional[List[CreateStorageClass]] = None,
-        extra_services: Optional[List[CreateService]] = None,
-        extra_deployments: Optional[List[CreateDeployment]] = None,
-        extra_custom_objects: Optional[List[CreateCustomObject]] = None,
-        extra_crds: Optional[List[CreateCustomResourceDefinition]] = None,
-        extra_pvs: Optional[List[CreatePersistentVolume]] = None,
-        extra_pvcs: Optional[List[CreatePVC]] = None,
-        extra_containers: Optional[List[CreateContainer]] = None,
-        extra_init_containers: Optional[List[CreateContainer]] = None,
-        extra_ports: Optional[List[CreatePort]] = None,
-        extra_volumes: Optional[List[CreateVolume]] = None,
-        # If True, use cached resources
-        # i.e. skip resource creation/deletion if active resources with the same name exist.
-        use_cache: bool = True,
-        **extra_kwargs,
+        **kwargs,
     ):
         super().__init__()
-
-        # Cache env_data & secret_data
-        self.env_data: Optional[Dict[str, Any]] = None
-        self.secret_data: Optional[Dict[str, Any]] = None
-
         try:
             self.args: SupersetBaseArgs = SupersetBaseArgs(
                 name=name,
@@ -638,7 +447,7 @@ class SupersetBase(PhidataApp):
                 entrypoint=entrypoint,
                 command=command,
                 install_requirements=install_requirements,
-                requirements_file_path=requirements_file_path,
+                requirements_file=requirements_file,
                 wait_for_db=wait_for_db,
                 db_app=db_app,
                 db_user=db_user,
@@ -658,6 +467,35 @@ class SupersetBase(PhidataApp):
                 superset_env=superset_env,
                 python_path=python_path,
                 container_labels=container_labels,
+                env=env,
+                env_file=env_file,
+                secrets=secrets,
+                secrets_file=secrets_file,
+                aws_secrets=aws_secrets,
+                open_container_port=open_container_port,
+                container_port=container_port,
+                container_port_name=container_port_name,
+                container_host_port=container_host_port,
+                open_app_port=open_app_port,
+                app_port=app_port,
+                app_port_name=app_port_name,
+                app_host_port=app_host_port,
+                mount_workspace=mount_workspace,
+                workspace_volume_name=workspace_volume_name,
+                workspace_volume_type=workspace_volume_type,
+                workspace_volume_container_path=workspace_volume_container_path,
+                workspace_volume_host_path=workspace_volume_host_path,
+                create_git_sync_sidecar=create_git_sync_sidecar,
+                create_git_sync_init_container=create_git_sync_init_container,
+                git_sync_image_name=git_sync_image_name,
+                git_sync_image_tag=git_sync_image_tag,
+                git_sync_repo=git_sync_repo,
+                git_sync_branch=git_sync_branch,
+                git_sync_wait=git_sync_wait,
+                mount_resources=mount_resources,
+                resources_dir=resources_dir,
+                resources_dir_container_path=resources_dir_container_path,
+                resources_volume_name=resources_volume_name,
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
                 container_remove=container_remove,
@@ -671,46 +509,35 @@ class SupersetBase(PhidataApp):
                 container_restart_policy_docker=container_restart_policy_docker,
                 container_volumes_docker=container_volumes_docker,
                 container_ports_docker=container_ports_docker,
-                image_pull_policy=image_pull_policy,
-                open_container_port=open_container_port,
-                container_port=container_port,
-                container_port_name=container_port_name,
-                container_host_port=container_host_port,
-                open_app_port=open_app_port,
-                app_port=app_port,
-                app_port_name=app_port_name,
-                app_host_port=app_host_port,
-                env=env,
-                env_file=env_file,
-                config_map_name=config_map_name,
-                secrets=secrets,
-                secrets_file=secrets_file,
-                aws_secret=aws_secret,
-                secret_name=secret_name,
-                mount_workspace=mount_workspace,
-                workspace_volume_name=workspace_volume_name,
-                workspace_mount_container_path=workspace_mount_container_path,
-                create_git_sync_sidecar=create_git_sync_sidecar,
-                create_git_sync_init_container=create_git_sync_init_container,
-                git_sync_repo=git_sync_repo,
-                git_sync_branch=git_sync_branch,
-                git_sync_wait=git_sync_wait,
-                k8s_mount_local_workspace=k8s_mount_local_workspace,
-                mount_resources=mount_resources,
-                resources_dir=resources_dir,
-                resources_dir_container_path=resources_dir_container_path,
-                resources_volume_name=resources_volume_name,
-                deploy_name=deploy_name,
-                pod_name=pod_name,
                 replicas=replicas,
+                pod_name=pod_name,
+                deploy_name=deploy_name,
+                secret_name=secret_name,
+                configmap_name=configmap_name,
+                image_pull_policy=image_pull_policy,
                 pod_annotations=pod_annotations,
                 pod_node_selector=pod_node_selector,
                 deploy_restart_policy=deploy_restart_policy,
-                termination_grace_period_seconds=termination_grace_period_seconds,
                 deploy_labels=deploy_labels,
+                termination_grace_period_seconds=termination_grace_period_seconds,
                 topology_spread_key=topology_spread_key,
                 topology_spread_max_skew=topology_spread_max_skew,
                 topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
+                create_service=create_service,
+                service_name=service_name,
+                service_type=service_type,
+                service_port=service_port,
+                service_node_port=service_node_port,
+                service_target_port=service_target_port,
+                service_ports=service_ports,
+                service_labels=service_labels,
+                service_annotations=service_annotations,
+                service_health_check_node_port=service_health_check_node_port,
+                service_internal_traffic_policy=service_internal_traffic_policy,
+                service_load_balancer_class=service_load_balancer_class,
+                service_load_balancer_ip=service_load_balancer_ip,
+                service_load_balancer_source_ranges=service_load_balancer_source_ranges,
+                service_allocate_load_balancer_node_ports=service_allocate_load_balancer_node_ports,
                 create_app_service=create_app_service,
                 app_svc_name=app_svc_name,
                 app_svc_type=app_svc_type,
@@ -735,46 +562,35 @@ class SupersetBase(PhidataApp):
                 cluster_role=cluster_role,
                 crb_name=crb_name,
                 cluster_role_binding=cluster_role_binding,
-                load_examples=load_examples,
-                print_env_on_load=print_env_on_load,
                 extra_secrets=extra_secrets,
-                extra_config_maps=extra_config_maps,
-                extra_storage_classes=extra_storage_classes,
+                extra_configmaps=extra_configmaps,
                 extra_services=extra_services,
                 extra_deployments=extra_deployments,
-                extra_custom_objects=extra_custom_objects,
-                extra_crds=extra_crds,
                 extra_pvs=extra_pvs,
                 extra_pvcs=extra_pvcs,
                 extra_containers=extra_containers,
                 extra_init_containers=extra_init_containers,
                 extra_ports=extra_ports,
                 extra_volumes=extra_volumes,
+                extra_storage_classes=extra_storage_classes,
+                extra_custom_objects=extra_custom_objects,
+                extra_crds=extra_crds,
+                print_env_on_load=print_env_on_load,
                 use_cache=use_cache,
-                extra_kwargs=extra_kwargs,
+                load_examples=load_examples,
+                extra_kwargs=kwargs,
             )
         except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
+            logger.error(f"Args for {self.name} are not valid")
             raise
 
-    def get_container_name(self) -> str:
-        return self.args.container_name or get_default_container_name(self.args.name)
-
     def get_app_service_name(self) -> str:
+        from phidata.utils.common import get_default_service_name
+
         return self.args.app_svc_name or get_default_service_name(self.args.name)
 
     def get_app_service_port(self) -> int:
         return self.args.app_svc_port
-
-    def get_env_data(self) -> Optional[Dict[str, str]]:
-        if self.env_data is None:
-            self.env_data = self.read_yaml_file(file_path=self.args.env_file)
-        return self.env_data
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.secret_data is None:
-            self.secret_data = self.read_yaml_file(file_path=self.args.secrets_file)
-        return self.secret_data
 
     def get_db_user(self) -> Optional[str]:
         db_user_var: Optional[str] = self.args.db_user if self.args else None
@@ -874,54 +690,50 @@ class SupersetBase(PhidataApp):
     ## Docker Resources
     ######################################################
 
-    def get_docker_rg(
-        self, docker_build_context: DockerBuildContext
-    ) -> Optional[DockerResourceGroup]:
+    def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
 
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
+
+        from phidata.constants import (
+            PYTHONPATH_ENV_VAR,
+            PHIDATA_RUNTIME_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACES_MOUNT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+        )
+        from phidata.infra.docker.resource.group import (
+            DockerNetwork,
+            DockerContainer,
+            DockerResourceGroup,
+            DockerBuildContext,
+        )
+        from phidata.types.context import ContainerPathContext
+        from phidata.utils.common import get_default_volume_name
+
+        if docker_build_context is None or not isinstance(
+            docker_build_context, DockerBuildContext
+        ):
+            logger.error("docker_build_context must be a DockerBuildContext")
+            return None
 
         # Workspace paths
         if self.workspace_root_path is None:
             logger.error("Invalid workspace_root_path")
             return None
+
         workspace_name = self.workspace_root_path.stem
-        workspace_root_container_path = Path(
-            self.args.workspace_mount_container_path
-        ).joinpath(workspace_name)
-        requirements_file_container_path = workspace_root_container_path.joinpath(
-            self.args.requirements_file_path
-        )
-        scripts_dir_container_path = (
-            workspace_root_container_path.joinpath(self.scripts_dir)
-            if self.scripts_dir
-            else None
-        )
-        storage_dir_container_path = (
-            workspace_root_container_path.joinpath(self.storage_dir)
-            if self.storage_dir
-            else None
-        )
-        meta_dir_container_path = (
-            workspace_root_container_path.joinpath(self.meta_dir)
-            if self.meta_dir
-            else None
-        )
-        products_dir_container_path = (
-            workspace_root_container_path.joinpath(self.products_dir)
-            if self.products_dir
-            else None
-        )
-        notebooks_dir_container_path = (
-            workspace_root_container_path.joinpath(self.notebooks_dir)
-            if self.notebooks_dir
-            else None
-        )
-        workspace_config_dir_container_path = (
-            workspace_root_container_path.joinpath(self.workspace_config_dir)
-            if self.workspace_config_dir
-            else None
-        )
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        if container_paths is None:
+            logger.error("Could not build container paths")
+            return None
+        logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
 
         # Container pythonpath
         python_path = (
@@ -930,21 +742,22 @@ class SupersetBase(PhidataApp):
         )
 
         # Container Environment
-        container_env: Dict[str, str] = {
+        container_env: Dict[str, Any] = {
             # Env variables used by data workflows and data assets
-            "PHI_WORKSPACE_MOUNT": str(self.args.workspace_mount_container_path),
-            "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": python_path,
+            PYTHONPATH_ENV_VAR: python_path,
             PHIDATA_RUNTIME_ENV_VAR: "docker",
-            SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
-            STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
-            META_DIR_ENV_VAR: str(meta_dir_container_path),
-            PRODUCTS_DIR_ENV_VAR: str(products_dir_container_path),
-            NOTEBOOKS_DIR_ENV_VAR: str(notebooks_dir_container_path),
-            WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
+            SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
+            STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
+            META_DIR_ENV_VAR: container_paths.meta_dir,
+            PRODUCTS_DIR_ENV_VAR: container_paths.products_dir,
+            NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir,
+            WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir,
+            WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root,
+            WORKSPACES_MOUNT_ENV_VAR: container_paths.workspace_parent,
+            WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir,
             "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
-            "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
-            "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
+            "REQUIREMENTS_FILE_PATH": container_paths.requirements_file,
+            "REQUIREMENTS_LOCAL": container_paths.requirements_file,
             "MOUNT_WORKSPACE": str(self.args.mount_workspace),
             "MOUNT_RESOURCES": str(self.args.mount_resources),
             "WAIT_FOR_DB": str(self.args.wait_for_db),
@@ -990,8 +803,9 @@ class SupersetBase(PhidataApp):
 
         if db_user is not None:
             container_env["DATABASE_USER"] = db_user
-        # Ideally we dont want the password in the env
-        # But the superest image expects it :(
+
+        # Ideally we don't want the password in the env
+        # But the superset image expects it :(
         if db_password is not None:
             container_env["DATABASE_PASSWORD"] = db_password
         if db_schema is not None:
@@ -1053,14 +867,41 @@ class SupersetBase(PhidataApp):
         container_volumes = self.args.container_volumes_docker or {}
         # Create a volume for the workspace dir
         if self.args.mount_workspace:
-            workspace_root_path_str = str(self.workspace_root_path)
-            workspace_root_container_path_str = str(workspace_root_container_path)
-            logger.debug(f"Mounting: {workspace_root_path_str}")
-            logger.debug(f"\tto: {workspace_root_container_path_str}")
-            container_volumes[workspace_root_path_str] = {
-                "bind": workspace_root_container_path_str,
-                "mode": "rw",
-            }
+            workspace_volume_container_path_str = container_paths.workspace_root
+
+            if (
+                self.args.workspace_volume_type is None
+                or self.args.workspace_volume_type == WorkspaceVolumeType.HostPath
+            ):
+                workspace_volume_host_path = (
+                    self.args.workspace_volume_host_path
+                    or str(self.workspace_root_path)
+                )
+                logger.debug(f"Mounting: {workspace_volume_host_path}")
+                logger.debug(f"\tto: {workspace_volume_container_path_str}")
+                container_volumes[workspace_volume_host_path] = {
+                    "bind": workspace_volume_container_path_str,
+                    "mode": "rw",
+                }
+            elif self.args.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
+                workspace_volume_name = self.args.workspace_volume_name
+                if workspace_volume_name is None:
+                    if workspace_name is not None:
+                        workspace_volume_name = get_default_volume_name(
+                            f"airflow-{workspace_name}-ws"
+                        )
+                    else:
+                        workspace_volume_name = get_default_volume_name("airflow-ws")
+                logger.debug(f"Mounting: {workspace_volume_name}")
+                logger.debug(f"\tto: {workspace_volume_container_path_str}")
+                container_volumes[workspace_volume_name] = {
+                    "bind": workspace_volume_container_path_str,
+                    "mode": "rw",
+                }
+            else:
+                logger.error(f"{self.args.workspace_volume_type.value} not supported")
+                return None
+
         # Create a volume for the resources
         if self.args.mount_resources:
             resources_dir_path = str(
@@ -1100,7 +941,7 @@ class SupersetBase(PhidataApp):
         # Create the container
         docker_container = DockerContainer(
             name=self.get_container_name(),
-            image=get_image_str(self.args.image_name, self.args.image_tag),
+            image=self.get_image_str(),
             entrypoint=self.args.entrypoint,
             command=self.args.command,
             detach=self.args.container_detach,
@@ -1121,7 +962,6 @@ class SupersetBase(PhidataApp):
             working_dir=self.args.container_working_dir,
             use_cache=self.args.use_cache,
         )
-        # logger.debug(f"Container Env: {docker_container.environment}")
 
         docker_rg = DockerResourceGroup(
             name=app_name,
@@ -1131,11 +971,11 @@ class SupersetBase(PhidataApp):
         )
         return docker_rg
 
-    def init_docker_resource_groups(
-        self, docker_build_context: DockerBuildContext
-    ) -> None:
+    def init_docker_resource_groups(self, docker_build_context: Any) -> None:
         docker_rg = self.get_docker_rg(docker_build_context)
         if docker_rg is not None:
+            from collections import OrderedDict
+
             if self.docker_resource_groups is None:
                 self.docker_resource_groups = OrderedDict()
             self.docker_resource_groups[docker_rg.name] = docker_rg
@@ -1144,54 +984,68 @@ class SupersetBase(PhidataApp):
     ## K8s Resources
     ######################################################
 
-    def get_k8s_rg(
-        self, k8s_build_context: K8sBuildContext
-    ) -> Optional[K8sResourceGroup]:
+    def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
 
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
+
+        from phidata.constants import (
+            PYTHONPATH_ENV_VAR,
+            PHIDATA_RUNTIME_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACES_MOUNT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+        )
+        from phidata.infra.k8s.create.common.port import CreatePort
+        from phidata.infra.k8s.create.core.v1.container import CreateContainer
+        from phidata.infra.k8s.create.core.v1.volume import (
+            CreateVolume,
+            HostPathVolumeSource,
+            VolumeType,
+        )
+        from phidata.infra.k8s.create.group import (
+            CreateK8sResourceGroup,
+            CreateNamespace,
+            CreateServiceAccount,
+            CreateClusterRole,
+            CreateClusterRoleBinding,
+            CreateSecret,
+            CreateConfigMap,
+            CreateStorageClass,
+            CreateService,
+            CreateDeployment,
+            CreateCustomObject,
+            CreateCustomResourceDefinition,
+            CreatePersistentVolume,
+            CreatePVC,
+        )
+        from phidata.infra.k8s.resource.group import K8sBuildContext
+        from phidata.types.context import ContainerPathContext
+        from phidata.utils.common import get_default_volume_name
+
+        if k8s_build_context is None or not isinstance(
+            k8s_build_context, K8sBuildContext
+        ):
+            logger.error("k8s_build_context must be a K8sBuildContext")
+            return None
 
         # Workspace paths
         if self.workspace_root_path is None:
             logger.error("Invalid workspace_root_path")
             return None
+
         workspace_name = self.workspace_root_path.stem
-        workspace_root_container_path = Path(
-            self.args.workspace_mount_container_path
-        ).joinpath(workspace_name)
-        requirements_file_container_path = workspace_root_container_path.joinpath(
-            self.args.requirements_file_path
-        )
-        scripts_dir_container_path = (
-            workspace_root_container_path.joinpath(self.scripts_dir)
-            if self.scripts_dir
-            else None
-        )
-        storage_dir_container_path = (
-            workspace_root_container_path.joinpath(self.storage_dir)
-            if self.storage_dir
-            else None
-        )
-        meta_dir_container_path = (
-            workspace_root_container_path.joinpath(self.meta_dir)
-            if self.meta_dir
-            else None
-        )
-        products_dir_container_path = (
-            workspace_root_container_path.joinpath(self.products_dir)
-            if self.products_dir
-            else None
-        )
-        notebooks_dir_container_path = (
-            workspace_root_container_path.joinpath(self.notebooks_dir)
-            if self.notebooks_dir
-            else None
-        )
-        workspace_config_dir_container_path = (
-            workspace_root_container_path.joinpath(self.workspace_config_dir)
-            if self.workspace_config_dir
-            else None
-        )
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        if container_paths is None:
+            logger.error("Could not build container paths")
+            return None
+        logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
 
         # Init K8s resources for the CreateK8sResourceGroup
         ns: Optional[CreateNamespace] = self.args.namespace
@@ -1199,33 +1053,35 @@ class SupersetBase(PhidataApp):
         cr: Optional[CreateClusterRole] = self.args.cluster_role
         crb: Optional[CreateClusterRoleBinding] = self.args.cluster_role_binding
         secrets: List[CreateSecret] = self.args.extra_secrets or []
-        config_maps: List[CreateConfigMap] = self.args.extra_config_maps or []
-        storage_classes: List[CreateStorageClass] = (
-            self.args.extra_storage_classes or []
-        )
+        config_maps: List[CreateConfigMap] = self.args.extra_configmaps or []
         services: List[CreateService] = self.args.extra_services or []
         deployments: List[CreateDeployment] = self.args.extra_deployments or []
-        custom_objects: List[CreateCustomObject] = self.args.extra_custom_objects or []
-        crds: List[CreateCustomResourceDefinition] = self.args.extra_crds or []
         pvs: List[CreatePersistentVolume] = self.args.extra_pvs or []
         pvcs: List[CreatePVC] = self.args.extra_pvcs or []
         containers: List[CreateContainer] = self.args.extra_containers or []
         init_containers: List[CreateContainer] = self.args.extra_init_containers or []
         ports: List[CreatePort] = self.args.extra_ports or []
         volumes: List[CreateVolume] = self.args.extra_volumes or []
+        storage_classes: List[CreateStorageClass] = (
+            self.args.extra_storage_classes or []
+        )
+        custom_objects: List[CreateCustomObject] = self.args.extra_custom_objects or []
+        crds: List[CreateCustomResourceDefinition] = self.args.extra_crds or []
 
         # Common variables used by all resources
+        # Use the Namespace provided with the App or
+        # use the default Namespace from the k8s_build_context
         ns_name: str = self.args.ns_name or k8s_build_context.namespace
         sa_name: Optional[str] = (
             self.args.sa_name or k8s_build_context.service_account_name
         )
         common_labels: Optional[Dict[str, str]] = k8s_build_context.labels
 
-        # -*- Define RBAC resources
-        # WebUI/Scheduler pods should run with serviceAccount which have RBAC
-        # permissions on the k8s cluster to get logs
-        # https://github.com/apache/airflow/issues/11696#issuecomment-715886117
+        # -*- Use K8s RBAC
+        # If use_rbac is True, use separate RBAC for this App
+        # Create a namespace, service account, cluster role and cluster role binding
         if self.args.use_rbac:
+            # Create Namespace for this App
             if ns is None:
                 ns = CreateNamespace(
                     ns=ns_name,
@@ -1233,16 +1089,24 @@ class SupersetBase(PhidataApp):
                     labels=common_labels,
                 )
             ns_name = ns.ns
+
+            # Create Service Account for this App
             if sa is None:
                 sa = CreateServiceAccount(
-                    sa_name=sa_name or get_default_sa_name(app_name),
+                    sa_name=sa_name or self.get_sa_name(),
                     app_name=app_name,
                     namespace=ns_name,
                 )
             sa_name = sa.sa_name
+
+            # Create Cluster Role for this App
+            from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+                PolicyRule,
+            )
+
             if cr is None:
                 cr = CreateClusterRole(
-                    cr_name=self.args.cr_name or get_default_cr_name(app_name),
+                    cr_name=self.args.cr_name or self.get_cr_name(),
                     rules=[
                         PolicyRule(
                             api_groups=[""],
@@ -1285,9 +1149,11 @@ class SupersetBase(PhidataApp):
                     app_name=app_name,
                     labels=common_labels,
                 )
+
+            # Create ClusterRoleBinding for this App
             if crb is None:
                 crb = CreateClusterRoleBinding(
-                    crb_name=self.args.crb_name or get_default_crb_name(app_name),
+                    crb_name=self.args.crb_name or self.get_crb_name(),
                     cr_name=cr.cr_name,
                     service_account_name=sa.sa_name,
                     app_name=app_name,
@@ -1302,21 +1168,22 @@ class SupersetBase(PhidataApp):
         )
 
         # Container Environment
-        container_env: Dict[str, str] = {
+        container_env: Dict[str, Any] = {
             # Env variables used by data workflows and data assets
-            "PHI_WORKSPACE_MOUNT": str(self.args.workspace_mount_container_path),
-            "PHI_WORKSPACE_ROOT": str(workspace_root_container_path),
-            "PYTHONPATH": python_path,
+            PYTHONPATH_ENV_VAR: python_path,
             PHIDATA_RUNTIME_ENV_VAR: "kubernetes",
-            SCRIPTS_DIR_ENV_VAR: str(scripts_dir_container_path),
-            STORAGE_DIR_ENV_VAR: str(storage_dir_container_path),
-            META_DIR_ENV_VAR: str(meta_dir_container_path),
-            PRODUCTS_DIR_ENV_VAR: str(products_dir_container_path),
-            NOTEBOOKS_DIR_ENV_VAR: str(notebooks_dir_container_path),
-            WORKSPACE_CONFIG_DIR_ENV_VAR: str(workspace_config_dir_container_path),
+            SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
+            STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
+            META_DIR_ENV_VAR: container_paths.meta_dir,
+            PRODUCTS_DIR_ENV_VAR: container_paths.products_dir,
+            NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir,
+            WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir,
+            WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root,
+            WORKSPACES_MOUNT_ENV_VAR: container_paths.workspace_parent,
+            WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir,
             "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
-            "REQUIREMENTS_FILE_PATH": str(requirements_file_container_path),
-            "REQUIREMENTS_LOCAL": str(requirements_file_container_path),
+            "REQUIREMENTS_FILE_PATH": container_paths.requirements_file,
+            "REQUIREMENTS_LOCAL": container_paths.requirements_file,
             "MOUNT_WORKSPACE": str(self.args.mount_workspace),
             "MOUNT_RESOURCES": str(self.args.mount_resources),
             "WAIT_FOR_DB": str(self.args.wait_for_db),
@@ -1362,8 +1229,9 @@ class SupersetBase(PhidataApp):
 
         if db_user is not None:
             container_env["DATABASE_USER"] = db_user
-        # Ideally we dont want the password in the env
-        # But the superest image expects it :(
+
+        # Ideally we don't want the password in the env
+        # But the superset image expects it :(
         if db_password is not None:
             container_env["DATABASE_PASSWORD"] = db_password
         if db_schema is not None:
@@ -1408,35 +1276,102 @@ class SupersetBase(PhidataApp):
 
         # Create a ConfigMap to set the container env variables which are not Secret
         container_env_cm = CreateConfigMap(
-            cm_name=self.args.config_map_name or get_default_configmap_name(app_name),
+            cm_name=self.args.configmap_name or self.get_configmap_name(),
             app_name=app_name,
+            namespace=ns_name,
             data=container_env,
+            labels=common_labels,
         )
-        # logger.debug(f"ConfigMap {container_env_cm.cm_name}: {container_env_cm.json(indent=2)}")
         config_maps.append(container_env_cm)
 
         # Create a Secret to set the container env variables which are Secret
         _secret_data = self.get_secret_data()
         if _secret_data is not None:
             container_env_secret = CreateSecret(
-                secret_name=self.args.secret_name or get_default_secret_name(app_name),
+                secret_name=self.args.secret_name or self.get_secret_name(),
                 app_name=app_name,
                 string_data=_secret_data,
+                namespace=ns_name,
+                labels=common_labels,
             )
             secrets.append(container_env_secret)
 
         # Container Volumes
-        # If mount_workspace=True first check if the workspace
-        # should be mounted locally, otherwise
-        # Create a Sidecar git-sync container and volume
         if self.args.mount_workspace:
-            workspace_volume_name = (
-                self.args.workspace_volume_name or get_default_volume_name(app_name)
-            )
+            workspace_volume_name = self.args.workspace_volume_name
+            if workspace_volume_name is None:
+                if workspace_name is not None:
+                    workspace_volume_name = get_default_volume_name(
+                        f"airflow-{workspace_name}-ws"
+                    )
+                else:
+                    workspace_volume_name = get_default_volume_name("airflow-ws")
 
-            if self.args.k8s_mount_local_workspace:
+            # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
+            if (
+                self.args.workspace_volume_type is None
+                or self.args.workspace_volume_type == WorkspaceVolumeType.EmptyDir
+            ):
+                workspace_parent_container_path_str = container_paths.workspace_parent
+                logger.debug(f"Creating EmptyDir")
+                logger.debug(f"\tat: {workspace_parent_container_path_str}")
+                workspace_volume = CreateVolume(
+                    volume_name=workspace_volume_name,
+                    app_name=app_name,
+                    mount_path=workspace_parent_container_path_str,
+                    volume_type=VolumeType.EMPTY_DIR,
+                )
+                volumes.append(workspace_volume)
+
+                if self.args.create_git_sync_sidecar:
+                    if self.args.git_sync_repo is not None:
+                        git_sync_env = {
+                            "GIT_SYNC_REPO": self.args.git_sync_repo,
+                            "GIT_SYNC_ROOT": workspace_parent_container_path_str,
+                            "GIT_SYNC_DEST": workspace_name,
+                        }
+                        if self.args.git_sync_branch is not None:
+                            git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
+                        if self.args.git_sync_wait is not None:
+                            git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
+                        git_sync_container = CreateContainer(
+                            container_name="git-sync",
+                            app_name=app_name,
+                            image_name=self.args.git_sync_image_name,
+                            image_tag=self.args.git_sync_image_name,
+                            env=git_sync_env,
+                            envs_from_configmap=[cm.cm_name for cm in config_maps]
+                            if len(config_maps) > 0
+                            else None,
+                            envs_from_secret=[secret.secret_name for secret in secrets]
+                            if len(secrets) > 0
+                            else None,
+                            volumes=[workspace_volume],
+                        )
+                        containers.append(git_sync_container)
+
+                        if self.args.create_git_sync_init_container:
+                            git_sync_init_env: Dict[str, Any] = {
+                                "GIT_SYNC_ONE_TIME": True
+                            }
+                            git_sync_init_env.update(git_sync_env)
+                            _git_sync_init_container = CreateContainer(
+                                container_name="git-sync-init",
+                                app_name=git_sync_container.app_name,
+                                image_name=git_sync_container.image_name,
+                                image_tag=git_sync_container.image_tag,
+                                env=git_sync_init_env,
+                                envs_from_configmap=git_sync_container.envs_from_configmap,
+                                envs_from_secret=git_sync_container.envs_from_secret,
+                                volumes=git_sync_container.volumes,
+                            )
+                            init_containers.append(_git_sync_init_container)
+                    else:
+                        logger.error("GIT_SYNC_REPO invalid")
+
+            elif self.args.workspace_volume_type == WorkspaceVolumeType.HostPath:
                 workspace_root_path_str = str(self.workspace_root_path)
-                workspace_root_container_path_str = str(workspace_root_container_path)
+                workspace_root_container_path_str = container_paths.workspace_root
                 logger.debug(f"Mounting: {workspace_root_path_str}")
                 logger.debug(f"\tto: {workspace_root_container_path_str}")
                 workspace_volume = CreateVolume(
@@ -1450,76 +1385,20 @@ class SupersetBase(PhidataApp):
                 )
                 volumes.append(workspace_volume)
 
-            elif self.args.create_git_sync_sidecar:
-                workspace_mount_container_path_str = str(
-                    self.args.workspace_mount_container_path
-                )
-                logger.debug(f"Creating EmptyDir")
-                logger.debug(f"\tat: {workspace_mount_container_path_str}")
-                workspace_volume = CreateVolume(
-                    volume_name=workspace_volume_name,
-                    app_name=app_name,
-                    mount_path=workspace_mount_container_path_str,
-                    volume_type=VolumeType.EMPTY_DIR,
-                )
-                volumes.append(workspace_volume)
-
-                if self.args.git_sync_repo is not None:
-                    git_sync_env = {
-                        "GIT_SYNC_REPO": self.args.git_sync_repo,
-                        "GIT_SYNC_ROOT": str(self.args.workspace_mount_container_path),
-                        "GIT_SYNC_DEST": workspace_name,
-                    }
-                    if self.args.git_sync_branch is not None:
-                        git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
-                    if self.args.git_sync_wait is not None:
-                        git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
-                    git_sync_container = CreateContainer(
-                        container_name="git-sync-workspaces",
-                        app_name=app_name,
-                        image_name="k8s.gcr.io/git-sync",
-                        image_tag="v3.1.1",
-                        env=git_sync_env,
-                        envs_from_configmap=[cm.cm_name for cm in config_maps]
-                        if len(config_maps) > 0
-                        else None,
-                        envs_from_secret=[secret.secret_name for secret in secrets]
-                        if len(secrets) > 0
-                        else None,
-                        volumes=[workspace_volume],
-                    )
-                    containers.append(git_sync_container)
-
-                    if self.args.create_git_sync_init_container:
-                        git_sync_init_env: Dict[str, Any] = {"GIT_SYNC_ONE_TIME": True}
-                        git_sync_init_env.update(git_sync_env)
-                        _git_sync_init_container = CreateContainer(
-                            container_name="git-sync-init",
-                            app_name=git_sync_container.app_name,
-                            image_name=git_sync_container.image_name,
-                            image_tag=git_sync_container.image_tag,
-                            env=git_sync_init_env,
-                            envs_from_configmap=git_sync_container.envs_from_configmap,
-                            envs_from_secret=git_sync_container.envs_from_secret,
-                            volumes=git_sync_container.volumes,
-                        )
-                        init_containers.append(_git_sync_init_container)
-                else:
-                    logger.error("GIT_SYNC_REPO invalid")
-
         # Create the ports to open
-        # if open_container_port = True
         if self.args.open_container_port:
             container_port = CreatePort(
                 name=self.args.container_port_name,
                 container_port=self.args.container_port,
+                service_port=self.args.service_port,
+                target_port=self.args.service_target_port
+                or self.args.container_port_name,
             )
             ports.append(container_port)
 
         # if open_app_port = True
         # 1. Set the app_port in the container env
         # 2. Open the superset app port
-        app_port: Optional[CreatePort] = None
         if self.args.open_app_port:
             # Set the app port in the container env
             if container_env_cm.data is not None:
@@ -1540,7 +1419,7 @@ class SupersetBase(PhidataApp):
         ):
             container_labels.update(self.args.container_labels)
 
-        # Create the container
+        # Create the Superset container
         superset_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
@@ -1554,7 +1433,8 @@ class SupersetBase(PhidataApp):
             command=[self.args.entrypoint]
             if isinstance(self.args.entrypoint, str)
             else self.args.entrypoint,
-            image_pull_policy=self.args.image_pull_policy,
+            image_pull_policy=self.args.image_pull_policy
+            or ImagePullPolicy.IF_NOT_PRESENT,
             envs_from_configmap=[cm.cm_name for cm in config_maps]
             if len(config_maps) > 0
             else None,
@@ -1565,7 +1445,7 @@ class SupersetBase(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.append(superset_container)
+        containers.insert(0, superset_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
@@ -1585,8 +1465,8 @@ class SupersetBase(PhidataApp):
 
         # Create the deployment
         superset_deployment = CreateDeployment(
-            deploy_name=self.args.deploy_name or get_default_deploy_name(app_name),
-            pod_name=self.args.pod_name or get_default_pod_name(app_name),
+            deploy_name=self.get_deploy_name(),
+            pod_name=self.get_pod_name(),
             app_name=app_name,
             namespace=ns_name,
             service_account_name=sa_name,
@@ -1594,7 +1474,7 @@ class SupersetBase(PhidataApp):
             containers=containers,
             init_containers=init_containers if len(init_containers) > 0 else None,
             pod_node_selector=self.args.pod_node_selector,
-            restart_policy=self.args.deploy_restart_policy,
+            restart_policy=self.args.deploy_restart_policy or RestartPolicy.ALWAYS,
             termination_grace_period_seconds=self.args.termination_grace_period_seconds,
             volumes=volumes if len(volumes) > 0 else None,
             labels=deploy_labels,
@@ -1606,6 +1486,25 @@ class SupersetBase(PhidataApp):
         deployments.append(superset_deployment)
 
         # Create the services
+        if self.args.create_service:
+            service_labels: Dict[str, Any] = common_labels or {}
+            if self.args.service_labels is not None and isinstance(
+                self.args.service_labels, dict
+            ):
+                service_labels.update(self.args.service_labels)
+
+            _service = CreateService(
+                service_name=self.get_service_name(),
+                app_name=app_name,
+                namespace=ns_name,
+                service_account_name=sa_name,
+                service_type=self.args.service_type,
+                deployment=superset_deployment,
+                ports=ports if len(ports) > 0 else None,
+                labels=service_labels,
+            )
+            services.append(_service)
+
         if self.args.create_app_service:
             app_svc_labels: Dict[str, Any] = common_labels or {}
             if self.args.app_svc_labels is not None and isinstance(
@@ -1620,7 +1519,7 @@ class SupersetBase(PhidataApp):
                 service_account_name=sa_name,
                 service_type=self.args.app_svc_type,
                 deployment=superset_deployment,
-                ports=[app_port] if app_port else None,
+                ports=ports if len(ports) > 0 else None,
                 labels=app_svc_labels,
             )
             services.append(app_service)
@@ -1646,9 +1545,11 @@ class SupersetBase(PhidataApp):
 
         return k8s_resource_group.create()
 
-    def init_k8s_resource_groups(self, k8s_build_context: K8sBuildContext) -> None:
+    def init_k8s_resource_groups(self, k8s_build_context: Any) -> None:
         k8s_rg = self.get_k8s_rg(k8s_build_context)
         if k8s_rg is not None:
+            from collections import OrderedDict
+
             if self.k8s_resource_groups is None:
                 self.k8s_resource_groups = OrderedDict()
             self.k8s_resource_groups[k8s_rg.name] = k8s_rg

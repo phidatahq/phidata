@@ -3,7 +3,7 @@ from typing import Any, Optional
 from phidata.constants import AWS_REGION_ENV_VAR, AWS_PROFILE_ENV_VAR
 from phidata.infra.base.resource import InfraResource
 from phidata.infra.aws.api_client import AwsApiClient
-from phidata.utils.cli_console import print_info, print_error
+from phidata.utils.cli_console import print_info
 from phidata.utils.log import logger
 
 
@@ -70,15 +70,21 @@ class AwsResource(AwsObject):
         return True
 
     def get_service_client(self, aws_client: AwsApiClient):
+        from boto3 import session
+
         if self.service_client is None:
-            self.service_client = aws_client.boto3_session.client(
+            boto3_session: session = aws_client.boto3_session
+            self.service_client = boto3_session.client(
                 service_name=self.service_name, region_name=aws_client.aws_region
             )
         return self.service_client
 
     def get_service_resource(self, aws_client: AwsApiClient):
+        from boto3 import session
+
         if self.service_resource is None:
-            self.service_resource = aws_client.boto3_session.resource(
+            boto3_session: session = aws_client.boto3_session
+            self.service_resource = boto3_session.resource(
                 service_name=self.service_name, region_name=aws_client.aws_region
             )
         return self.service_resource

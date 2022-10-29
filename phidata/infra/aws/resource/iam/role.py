@@ -1,7 +1,5 @@
 from typing import Optional, Any, List, Dict
 
-from botocore.exceptions import ClientError
-
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.iam.policy import IamPolicy
@@ -127,6 +125,8 @@ class IamRole(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
+        from botocore.exceptions import ClientError
+
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
         try:
             service_resource = self.get_service_resource(aws_client)

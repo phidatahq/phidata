@@ -1,29 +1,18 @@
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Type, Set, cast, Tuple
+from typing import Dict, List, Optional
 
 from phidata.infra.aws.args import AwsArgs
 from phidata.infra.aws.api_client import AwsApiClient
-from phidata.infra.aws.exceptions import (
-    AwsArgsException,
-    AwsApiClientException,
-    AwsResourceCreationFailedException,
-)
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.group import AwsResourceGroup
-from phidata.infra.aws.resource.types import AwsResourceType
 from phidata.infra.aws.resource.utils import (
-    get_aws_resources_from_group,
     filter_and_flatten_aws_resource_groups,
 )
 from phidata.utils.cli_console import (
     print_info,
-    print_info,
     print_heading,
-    print_subheading,
-    print_error,
     confirm_yes_no,
 )
-from phidata.utils.common import is_empty
 from phidata.utils.log import logger
 
 

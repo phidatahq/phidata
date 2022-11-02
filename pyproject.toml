@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "0.2.40.dev1"
+version = "0.3.0.dev2"
 description = "Build data products as code"
 requires-python = ">3.7"
 readme = "README.md"
@@ -10,7 +10,7 @@ authors = [
 
 dependencies = [
   "boto3",
-  "phiterm==0.2.40.dev3",
+  "phiterm==0.3.0.dev2",
 ]
 
 [project.optional-dependencies]

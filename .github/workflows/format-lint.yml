@@ -4,6 +4,10 @@ on:
   pull_request:
     types:
       - opened
+      - synchronize
+      - edited
+      - reopened
+      - ready_for_review
     branches:
       - 'main'
 
@@ -31,9 +35,9 @@ jobs:
       - name: Format with black
         run: |
           black .
-      - name: Lint with mypy
-        run: |
-          mypy .
-      - name: Test with pytest
-        run: |
-          pytest
+#      - name: Lint with mypy
+#        run: |
+#          mypy .
+#      - name: Test with pytest
+#        run: |
+#          pytest

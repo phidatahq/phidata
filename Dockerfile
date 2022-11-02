@@ -1,4 +1,4 @@
-FROM phidata/python:3.9.2
+FROM phidata/python:3.9.12
 LABEL maintainer="Ashpreet Bedi <ashpreet@phidata.com>"
 
 ARG PHIDATA_DIR=/phidata

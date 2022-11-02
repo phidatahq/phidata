@@ -38,6 +38,6 @@ jobs:
 #      - name: Lint with mypy
 #        run: |
 #          mypy .
-#      - name: Test with pytest
-#        run: |
-#          pytest
+      - name: Test with pytest
+        run: |
+          pytest

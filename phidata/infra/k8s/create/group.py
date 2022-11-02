@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Type
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -25,9 +25,7 @@ from phidata.infra.k8s.create.apiextensions_k8s_io.v1.custom_object import (
 from phidata.infra.k8s.create.storage_k8s_io.v1.storage_class import CreateStorageClass
 from phidata.infra.k8s.resource.group import (
     K8sResourceGroup,
-    K8sBuildContext,
 )
-from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
 
 

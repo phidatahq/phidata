@@ -31,6 +31,20 @@ class PathContext(BaseModel):
     workflow_file: Optional[Path] = None
 
 
+class ContainerPathContext(BaseModel):
+    workspace_name: Optional[str] = None
+    workspace_root: Optional[str] = None
+    workspace_parent: Optional[str] = None
+    scripts_dir: Optional[str] = None
+    storage_dir: Optional[str] = None
+    meta_dir: Optional[str] = None
+    products_dir: Optional[str] = None
+    notebooks_dir: Optional[str] = None
+    workflows_dir: Optional[str] = None
+    workspace_config_dir: Optional[str] = None
+    requirements_file: Optional[str] = None
+
+
 class AirflowContext(BaseModel):
     ds: Optional[Any] = None
     ds_nodash: Optional[Any] = None

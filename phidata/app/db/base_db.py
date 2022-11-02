@@ -14,7 +14,7 @@ class DbAppArgs(PhidataAppArgs):
 class DbApp(PhidataApp):
     def __init__(self):
         super().__init__()
-        self.args: Optional[DbAppArgs] = None
+        self.args: DbAppArgs
 
     def get_db_user(self) -> Optional[str]:
         logger.debug(f"@get_db_user not defined for {self.__class__.__name__}")

@@ -10,10 +10,6 @@ from phidata.infra.k8s.enums.service_type import ServiceType
 from phidata.infra.k8s.resource.core.v1.service import Service, ServicePort, ServiceSpec
 from phidata.infra.k8s.create.common.labels import create_component_labels_dict
 from phidata.infra.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phidata.utils.common import (
-    get_default_pod_name,
-)
-from phidata.utils.cli_console import print_info
 from phidata.utils.log import logger
 
 

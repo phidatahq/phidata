@@ -1,8 +1,6 @@
 from typing import Optional, Any, Dict, List
 from textwrap import dedent
 
-from botocore.exceptions import ClientError
-
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
@@ -178,6 +176,8 @@ class EksFargateProfile(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
+        from botocore.exceptions import ClientError
+
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
         try:
             service_client = self.get_service_client(aws_client)

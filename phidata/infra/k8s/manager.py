@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 
 from phidata.infra.k8s.args import K8sArgs
-from phidata.infra.k8s.enums import K8sManagerStatus
+from phidata.infra.k8s.enums.manager_status import K8sManagerStatus
 from phidata.infra.k8s.exceptions import K8sArgsException
 from phidata.infra.k8s.resource.base import K8sResource
 from phidata.infra.k8s.resource.group import K8sResourceGroup

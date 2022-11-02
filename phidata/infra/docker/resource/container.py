@@ -1,9 +1,6 @@
 from time import sleep
 from typing import Optional, Any, Dict, Union, List
 
-from docker.models.containers import Container
-from docker.errors import NotFound, ImageNotFound, APIError
-
 from phidata.infra.docker.api_client import DockerApiClient
 from phidata.infra.docker.resource.base import DockerResource
 from phidata.infra.docker.exceptions import DockerResourceCreationFailedException
@@ -109,7 +106,9 @@ class DockerContainer(DockerResource):
     # Data provided by the resource running on the docker client
     status: Optional[str] = None
 
-    def run_container(self, docker_client: DockerApiClient) -> Optional[Container]:
+    def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
+        from docker import DockerClient
+        from docker.errors import NotFound, ImageNotFound, APIError
 
         print_info("Running container: {}".format(self.name))
         # logger.debug()(
@@ -118,7 +117,8 @@ class DockerContainer(DockerResource):
         #     )
         # )
         try:
-            container = docker_client.api_client.containers.run(
+            _api_client: DockerClient = docker_client.api_client
+            container = _api_client.containers.run(
                 name=self.name,
                 image=self.image,
                 command=self.command,
@@ -174,6 +174,7 @@ class DockerContainer(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker.models.containers import Container
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
         container_name: Optional[str] = self.name
@@ -250,15 +251,18 @@ class DockerContainer(DockerResource):
         logger.debug("Container not found :(")
         return False
 
-    def _read(self, docker_client: DockerApiClient) -> Optional[Container]:
+    def _read(self, docker_client: DockerApiClient) -> Optional[Any]:
         """Returns a Container object if the container is active on the docker_client"""
+        from docker import DockerClient
+        from docker.models.containers import Container
 
         logger.debug("Reading: {}".format(self.get_resource_name()))
         container_name: Optional[str] = self.name
         try:
-            container_list: Optional[
-                List[Container]
-            ] = docker_client.api_client.containers.list(all=True)
+            _api_client: DockerClient = docker_client.api_client
+            container_list: Optional[List[Container]] = _api_client.containers.list(
+                all=True
+            )
             if container_list is not None:
                 for container in container_list:
                     if container.name == container_name:
@@ -277,6 +281,8 @@ class DockerContainer(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker.models.containers import Container
+        from docker.errors import NotFound
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         container_name: Optional[str] = self.name

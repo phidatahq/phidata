@@ -1,8 +1,5 @@
 from typing import Optional, Any, Dict, List
 
-from botocore.exceptions import ClientError
-from botocore import errorfactory
-
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource, AwsObject
 from phidata.infra.aws.resource.iam.role import IamRole
@@ -129,6 +126,7 @@ class GlueCrawler(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
+        from botocore.exceptions import ClientError
 
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
         try:
@@ -199,6 +197,8 @@ class GlueCrawler(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
+        from botocore.exceptions import ClientError
+
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
         try:
             service_client = self.get_service_client(aws_client)

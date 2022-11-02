@@ -111,6 +111,7 @@ class DockerWorker:
                 app.meta_dir = self.docker_args.meta_dir
                 app.products_dir = self.docker_args.products_dir
                 app.notebooks_dir = self.docker_args.notebooks_dir
+                app.workflows_dir = self.docker_args.workflows_dir
                 # The ws_root_path is the ROOT directory for the workspace
                 app.workspace_root_path = self.docker_args.workspace_root_path
                 app.workspace_config_dir = self.docker_args.workspace_config_dir

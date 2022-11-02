@@ -1,10 +1,6 @@
-from typing import Optional
-from typing_extensions import Literal
-
-import docker
+from typing import Optional, Any
 
 from phidata.infra.base.api_client import InfraApiClient
-from phidata.infra.docker.exceptions import DockerApiClientException
 from phidata.utils.cli_console import print_error
 from phidata.utils.log import logger
 
@@ -23,7 +19,8 @@ class DockerApiClient(InfraApiClient):
         self.base_url: Optional[str] = base_url
 
         # docker API client
-        self._api_client: Optional[docker.DockerClient] = None
+        # Type: docker.DockerClient
+        self._api_client: Optional[Any] = None
         logger.debug(f"**-+-** DockerApiClient created")
 
     def is_initialized(self) -> bool:
@@ -31,8 +28,9 @@ class DockerApiClient(InfraApiClient):
             return True
         return False
 
-    def create_api_client(self) -> docker.DockerClient:
+    def create_api_client(self) -> Optional[Any]:
         """Create a docker.DockerApiClient"""
+        import docker
 
         logger.debug("Creating docker.DockerApiClient")
         api_client = None
@@ -48,7 +46,7 @@ class DockerApiClient(InfraApiClient):
         return api_client
 
     @property
-    def api_client(self) -> docker.DockerClient:
+    def api_client(self) -> Optional[Any]:
         if self._api_client is None:
             self._api_client = self.create_api_client()
         return self._api_client

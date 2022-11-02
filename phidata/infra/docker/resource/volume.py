@@ -1,7 +1,4 @@
-from typing import Optional, Any, Dict, Union, List
-
-from docker.models.volumes import Volume
-from docker.errors import NotFound
+from typing import Optional, Any, Dict, List
 
 from phidata.infra.docker.api_client import DockerApiClient
 from phidata.infra.docker.resource.base import DockerResource
@@ -24,13 +21,16 @@ class DockerVolume(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker import DockerClient
+        from docker.models.volumes import Volume
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
         volume_name: Optional[str] = self.name
         volume_object: Optional[Volume] = None
 
         try:
-            volume_object = docker_client.api_client.volumes.create(
+            _api_client: DockerClient = docker_client.api_client
+            volume_object = _api_client.volumes.create(
                 name=volume_name,
                 driver=self.driver,
                 driver_opts=self.driver_opts,
@@ -73,14 +73,15 @@ class DockerVolume(DockerResource):
 
     def _read(self, docker_client: DockerApiClient) -> Any:
         """Returns a Volume object if the volume is active on the docker_client"""
+        from docker import DockerClient
+        from docker.models.volumes import Volume
 
         logger.debug("Reading: {}".format(self.get_resource_name()))
         volume_name: Optional[str] = self.name
 
         try:
-            volume_list: Optional[
-                List[Volume]
-            ] = docker_client.api_client.volumes.list()
+            _api_client: DockerClient = docker_client.api_client
+            volume_list: Optional[List[Volume]] = _api_client.volumes.list()
             # logger.debug("volume_list: {}".format(volume_list))
             if volume_list is not None:
                 for volume in volume_list:
@@ -100,6 +101,8 @@ class DockerVolume(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
+        from docker.models.volumes import Volume
+        from docker.errors import NotFound
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         volume_name: Optional[str] = self.name

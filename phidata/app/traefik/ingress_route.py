@@ -144,7 +144,7 @@ class IngressRouteArgs(PhidataAppArgs):
     # Configure the service
     service_name: Optional[str] = None
     service_type: ServiceType = ServiceType.LOAD_BALANCER
-    service_annotations: Optional[Dict[str, Optional[str]]] = None
+    service_annotations: Optional[Dict[str, str]] = None
 
     # Add env variables to container env
     env: Optional[Dict[str, str]] = None

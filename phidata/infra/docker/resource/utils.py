@@ -192,8 +192,9 @@ def filter_and_flatten_docker_resource_groups(
     if docker_resource_groups:
         # Iterate through docker_resource_groups
         for docker_rg_name, docker_rg in docker_resource_groups.items():
-            # logger.debug("docker_rg_name: {}".format(docker_rg_name))
             # logger.debug("docker_rg: {}".format(docker_rg))
+            # logger.debug("docker_rg_name: {}".format(docker_rg_name))
+            # logger.debug("docker_rg_type: {}".format(type(docker_rg)))
 
             # skip disabled DockerResourceGroups
             if not docker_rg.enabled:

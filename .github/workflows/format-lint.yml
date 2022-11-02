@@ -30,15 +30,14 @@ jobs:
         run: |
           python -m pip install --upgrade \
             pip setuptools wheel \
-            black mypy pytest \
-            types-PyYAML typing-extensions
+            black mypy pytest
           pip install --no-deps -r requirements.txt
       - name: Format with black
         run: |
           black .
       - name: Lint with mypy
         run: |
-          mypy .
+          mypy . --config-file pyproject.toml
       - name: Test with pytest
         run: |
           pytest

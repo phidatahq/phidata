@@ -35,9 +35,9 @@ jobs:
       - name: Format with black
         run: |
           black .
-      - name: Lint with mypy
-        run: |
-          mypy . --config-file pyproject.toml
-      - name: Test with pytest
-        run: |
-          pytest
+#      - name: Lint with mypy
+#        run: |
+#          mypy .
+#      - name: Test with pytest
+#        run: |
+#          pytest

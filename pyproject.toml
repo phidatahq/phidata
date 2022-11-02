@@ -15,8 +15,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "black",
-  "pytest",
+    "mypy",
+    "black",
+    "pytest",
+    "types-PyYAML",
 ]
 
 [project.urls]

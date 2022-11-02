@@ -1,16 +1,8 @@
-# This workflow will upload a Python Package using Twine when
-# a tag is pushed to the main branch and the pyproject.toml file is updated
-# References:
-# - https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows
-# - https://github.com/marketplace/actions/pypi-publish
-# - https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
-
 name: Build & Release
 
 on:
-  push:
-    branches:
-      - 'main'
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -32,14 +24,12 @@ jobs:
     - name: Build package
       run: python -m build
     - name: Publish to TestPyPI
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:
         user: __token__
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
         repository_url: https://test.pypi.org/legacy/
     - name: Publish to PyPI
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:
         user: __token__

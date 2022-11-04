@@ -2,7 +2,7 @@ Copyright 2022 Phidata, Inc.
 
 --------------------------------------------------------------------------------
 
-Elastic License 2.0
+# Elastic License 2.0
 
 ## Acceptance
 

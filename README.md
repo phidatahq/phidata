@@ -1,3 +1,5 @@
-## Phidata: Build data products as code
+# phidata
 
-Phidata is a universal api for data. It converts common data tasks into reusable python objects that can be used to build high quality data products as code.
+[![Build & Release](https://github.com/phidatahq/phidata/actions/workflows/build-release.yml/badge.svg?branch=main)](https://github.com/phidatahq/phidata/actions/workflows/build-release.yml)
+
+Automate Data Engineering as Code.

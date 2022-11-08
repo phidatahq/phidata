@@ -21,14 +21,11 @@
     <img src="https://github.com/phidatahq/phidata/actions/workflows/test.yml/badge.svg" alt="test-status">
 </a>
 </p>
-
----
-
-**Website**: <a href="https://phidata.com" target="_blank">phidata.com</a>
-
-**Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
-
-**Chat**: <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord link</a>
+<p align="center">
+<a href="https://phidata.com" target="_blank">website</a> |
+<a href="https://docs.phidata.com" target="_blank">docs</a> |
+<a href="https://discord.gg/4MtYHHrgA8" target="_blank">discord</a>
+</p>
 
 ---
 

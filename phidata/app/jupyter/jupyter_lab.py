@@ -41,7 +41,7 @@ class JupyterLabArgs(PhidataAppArgs):
     # -*- Airflow Configuration
     # sets the env var INIT_AIRFLOW = True
     # INIT_AIRFLOW = True is required by phidata to build dags
-    init_airflow: bool = True
+    init_airflow: bool = False
     # The AIRFLOW_ENV defines the current airflow runtime and can be used by
     # DAGs to separate dev/stg/prd code
     airflow_env: Optional[str] = None
@@ -227,7 +227,7 @@ class JupyterLab(PhidataApp):
         # -*- Airflow Configuration,
         # sets the env var INIT_AIRFLOW = True,
         # INIT_AIRFLOW = True is required by phidata to build dags,
-        init_airflow: bool = True,
+        init_airflow: bool = False,
         # The AIRFLOW_ENV defines the current airflow runtime and can be used by,
         # DAGs to separate dev/stg/prd code,
         airflow_env: Optional[str] = None,

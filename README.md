@@ -27,26 +27,25 @@
 
 ### Phidata is a toolkit for building high-quality, reliable data products.
 
-Our goal is to create high quality tables, metrics and dashboards that can be used for analytics and machine learning.
+Our goal is to create high quality tables, metrics and dashboards that can be used for Analytics and ML.
 
 Features:
-1. Define your data products as code.
-2. Build a data platform with dev and prd environments.
-3. Manage tables as python objects and build a data lake as code.
-4. Run Airflow and Superset locally on docker and production on aws.
-5. Manage everything in 1 codebase using engineering best practices.
+- Define your data products as code.
+- Build a data platform with dev and prd environments.
+- Manage tables as python objects and build a data lake as code.
+- Run Airflow and Superset locally on docker and production on aws.
+- Manage everything in 1 codebase using engineering best practices.
 
-**Website**: <a href="https://phidata.com" target="_blank">phidata.com</a>
-
-**Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
-
-**Chat**: <a href="https://discord.gg/4MtYHHrgA8" target="_blank">discord</a>
+More Information:
+- **Website**: <a href="https://phidata.com" target="_blank">phidata.com</a>
+- **Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
+- **Chat**: <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
 
 ---
 
 ## Quick start
 
-Phidata is designed to build data products, so lets build example data products using cryptocurrency data.
+This guide shows how to run Airflow, Superset, Jupyter and Postgres locally on docker.
 
 To following along, you need:
 
@@ -71,9 +70,9 @@ phi init
 
 ## Create workspace
 
-**Workspace** is the directory containing the code for your data platform. It is version controlled using git and shared by your team. Data is a team sport and **code is the best way to collaborate**.
+**Workspace** is the directory containing the code for your data platform. It is version controlled using git and shared by your team.
 
-Run `phi ws init` to create a new workspace in the current directory. This will create a default scaffolding based on a blueprint. Press enter for defaults and create a workspace using the `aws` template.
+Run `phi ws init` to create a new workspace in the current directory. Press enter to create a default workspace using the `aws` blueprint.
 
 ```shell
 phi ws init
@@ -97,10 +96,9 @@ superset_enabled: bool = True
 jupyter_enabled: bool = True
 airflow_enabled: bool = True
 traefik_enabled: bool = True
-whoami_enabled: bool = False
 ```
 
-Then run `phi ws up` to create docker resources. Give 5 minutes for containers to start and the app to initialize.
+Then run `phi ws up` to create docker resources. Give 5 minutes for containers to start and the apps to initialize.
 
 ```shell
 phi ws up

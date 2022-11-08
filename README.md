@@ -1,6 +1,6 @@
-<p align="center" style="font-size:250%;">
+<h1 align="center">
   phidata
-</p>
+</h1>
 <p align="center">
     <em>Build data products as code</em>
 </p>

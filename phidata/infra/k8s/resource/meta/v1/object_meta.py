@@ -46,7 +46,6 @@ class ObjectMeta(BaseModel):
             namespace=self.namespace,
             labels=self.labels,
             annotations=self.annotations,
-            cluster_name=self.cluster_name,
         )
         return _v1_object_meta
 

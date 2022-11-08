@@ -335,7 +335,7 @@ class K8sWorker:
                     print_info(
                         f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
                     )
-                    # logger.debug(resource)
+                    logger.debug(f"Resource: {resource}")
                     try:
                         _resource_created = resource.create(
                             k8s_client=self.k8s_api_client

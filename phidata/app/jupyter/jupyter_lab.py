@@ -1753,7 +1753,7 @@ class JupyterLab(PhidataApp):
                             container_name="git-sync",
                             app_name=app_name,
                             image_name=self.args.git_sync_image_name,
-                            image_tag=self.args.git_sync_image_name,
+                            image_tag=self.args.git_sync_image_tag,
                             env=git_sync_env,
                             envs_from_configmap=[cm.cm_name for cm in config_maps]
                             if len(config_maps) > 0

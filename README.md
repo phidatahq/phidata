@@ -15,10 +15,10 @@
     <img src="https://pepy.tech/badge/phidata" alt="downloads">
 </a>
 <a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank">
-    <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg?branch=main" alt="build-status">
+    <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
 </a>
 <a href="https://github.com/phidatahq/phidata/actions/workflows/test.yml" target="_blank">
-    <img src="https://github.com/phidatahq/phidata/actions/workflows/test.yml/badge.svg?branch=main" alt="test-status">
+    <img src="https://github.com/phidatahq/phidata/actions/workflows/test.yml/badge.svg" alt="test-status">
 </a>
 </p>
 

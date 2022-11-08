@@ -1,10 +1,16 @@
-# Phidata: Build data products as code
+# Phidata
 
 [![image-version](https://img.shields.io/pypi/v/phidata?color=blue&label=version)](https://python.org/pypi/phidata)
 [![image-python-versions](https://img.shields.io/badge/python->=3.7-blue)](https://github.com/phidatahq/phidata)
 [![image-pypi-downloads](https://pepy.tech/badge/phidata)](https://github.com/phidatahq/phidata)
 [![build](https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/phidatahq/phidata/actions/workflows/build.yml)
 [![test](https://github.com/phidatahq/phidata/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/phidatahq/phidata/actions/workflows/test.yml)
+
+- [Website](https://phidata.com)
+- [Docs](https://docs.phidata.com)
+- [Discord](https://discord.gg/4MtYHHrgA8)
+
+---
 
 ## Automate Data Engineering as Code.
 

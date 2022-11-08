@@ -1,13 +1,11 @@
-name: Format & Lint
+name: test
 
 on:
   pull_request:
     types:
       - opened
-      - synchronize
       - edited
       - reopened
-      - ready_for_review
     branches:
       - 'main'
 

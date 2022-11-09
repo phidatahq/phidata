@@ -27,7 +27,7 @@
 
 ### Phidata is a toolkit for building high-quality, reliable data products.
 
-Our goal is to create high quality tables, metrics and dashboards that can be used for Analytics and ML.
+Our goal is to create tables, metrics and dashboards that can be used for Analytics and Machine Learning.
 
 Features:
 - Define your data products as code.
@@ -47,7 +47,7 @@ More Information:
 
 This guide shows how to run Airflow, Superset, Jupyter and Postgres locally on docker.
 
-To following along, you need:
+To follow along, you need:
 
 - python 3.7+
 - [docker desktop](https://docs.docker.com/desktop/install/mac-install/)
@@ -70,7 +70,7 @@ phi init
 
 ## Create workspace
 
-**Workspace** is the directory containing the code for your data platform. It is version controlled using git and shared by your team.
+**Workspace** is the directory containing the code for your data platform. It is version controlled using git and shared with your team.
 
 Run `phi ws init` to create a new workspace in the current directory. Press enter to create a default workspace using the `aws` blueprint.
 
@@ -86,7 +86,7 @@ cd data-platform
 
 ## Run Apps
 
-**Apps** are open-source tools like airflow, superset and jupyter that run our data products.
+**Apps** are open-source tools like airflow, superset and jupyter that run the data products.
 
 Open **workspace/settings.py** and enable all apps on line 24.
 
@@ -166,3 +166,10 @@ phi ws down --app airflow
 
 phi ws down --app superset
 ```
+
+## More Information:
+- **Website**: <a href="https://phidata.com" target="_blank">phidata.com</a>
+- **Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
+- **Chat**: <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
+
+---

@@ -31,7 +31,7 @@ Our goal is to create tables, metrics and dashboards that can be used for Analyt
 
 Features:
 - Define your data products as code.
-- Build a data platform with dev and prd environments.
+- Build a data platform with dev and production environments.
 - Manage tables as python objects and build a data lake as code.
 - Run Airflow and Superset locally on docker and production on aws.
 - Manage everything in 1 codebase using engineering best practices.
@@ -83,6 +83,96 @@ cd into directory
 ```shell
 cd data-platform
 ```
+
+## Install dependencies
+
+The following examples use packages like `pandas`, `sqlalchemy` and `black`.
+The workspace includes a script to install dependencies, run it:
+
+```shell
+./scripts/install.sh
+```
+
+**Or** install dependencies manually using pip:
+
+```shell
+pip install --editable ".[dev]"
+```
+
+## Run workflow
+
+The **workflows/crypto/prices.py** file contains an example task that will download crypto price data and store it locally in a CSV file.
+
+Note how we define the file as a **File** object:
+
+```shell
+crypto_prices_file = File(
+    name="crypto_prices.csv",
+    file_dir="crypto",
+)
+```
+
+This task pulls crypto prices from coingecko.com and stores them at `storage/crypto/crypto_prices.csv`. Run it using the `phi wf run` command:
+
+```shell
+phi wf run crypto/prices
+```
+
+While this works as a toy example, storing data locally is not of much use. We want to either load this data to a database or store it in cloud storage like s3.
+
+Let's load this data to a postgres table running locally on docker.
+
+## Run postgres on docker
+
+**Docker** is a great tool for testing locally. The default `aws` workspace includes a pre-configured postgres database for testing.
+
+After you have the docker engine running, deploy the workspace using:
+
+```shell
+phi ws up
+```
+
+**phi** will create 1 container running postgres. Press Enter to confirm.
+
+Verify the container is running using the docker dashboard or:
+
+```shell
+docker ps --format 'table {{.Names}}\t{{.Image}}'
+
+NAMES                          IMAGE
+dev-pg-starter-aws-container   postgres:14
+```
+
+## Create postgres table
+
+The **workflows/crypto/prices_pg.py** file contains a workflow that loads crypto price data to a postgres table: `crypto_prices_daily`
+
+We define the table using a **PostgresTable** object:
+
+```shell
+crypto_prices_daily_pg = PostgresTable(
+    name="crypto_prices_daily",
+    db_app=PG_DB_APP,
+    airflow_conn_id=PG_DB_CONN_ID,
+)
+```
+
+Run the workflow using:
+
+```shell
+phi wf run crypto/prices_pg
+```
+
+You can now query the table using the database tool of your choice.
+
+Credentials:
+- Host: 127.0.0.1
+- Port: 5432
+- User: starter-aws
+- Pass: starter-aws
+- Database: starter-aws
+
+> We're big fans of [TablePlus](https://tableplus.com/) for database management.
 
 ## Run Apps
 

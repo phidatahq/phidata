@@ -27,7 +27,7 @@
 
 ### Phidata is a toolkit for building high-quality, reliable data products.
 
-Our goal is to create tables, metrics and dashboards that can be used for Analytics and Machine Learning.
+Use phidata to create tables, metrics and dashboards for analytics and machine learning.
 
 Features:
 - Define your data products as code.
@@ -45,7 +45,9 @@ More Information:
 
 ## Quick start
 
-This guide shows how to run Airflow, Superset, Jupyter and Postgres locally on docker.
+This guide shows how to:
+1. Run Airflow, Superset, Jupyter and Postgres locally on docker.
+2. Run workflows to create a postgres tables.
 
 To follow along, you need:
 
@@ -83,96 +85,6 @@ cd into directory
 ```shell
 cd data-platform
 ```
-
-## Install dependencies
-
-The following examples use packages like `pandas`, `sqlalchemy` and `black`.
-The workspace includes a script to install dependencies, run it:
-
-```shell
-./scripts/install.sh
-```
-
-**Or** install dependencies manually using pip:
-
-```shell
-pip install --editable ".[dev]"
-```
-
-## Run workflow
-
-The **workflows/crypto/prices.py** file contains an example task that will download crypto price data and store it locally in a CSV file.
-
-Note how we define the file as a **File** object:
-
-```shell
-crypto_prices_file = File(
-    name="crypto_prices.csv",
-    file_dir="crypto",
-)
-```
-
-This task pulls crypto prices from coingecko.com and stores them at `storage/crypto/crypto_prices.csv`. Run it using the `phi wf run` command:
-
-```shell
-phi wf run crypto/prices
-```
-
-While this works as a toy example, storing data locally is not of much use. We want to either load this data to a database or store it in cloud storage like s3.
-
-Let's load this data to a postgres table running locally on docker.
-
-## Run postgres on docker
-
-**Docker** is a great tool for testing locally. The default `aws` workspace includes a pre-configured postgres database for testing.
-
-After you have the docker engine running, deploy the workspace using:
-
-```shell
-phi ws up
-```
-
-**phi** will create 1 container running postgres. Press Enter to confirm.
-
-Verify the container is running using the docker dashboard or:
-
-```shell
-docker ps --format 'table {{.Names}}\t{{.Image}}'
-
-NAMES                          IMAGE
-dev-pg-starter-aws-container   postgres:14
-```
-
-## Create postgres table
-
-The **workflows/crypto/prices_pg.py** file contains a workflow that loads crypto price data to a postgres table: `crypto_prices_daily`
-
-We define the table using a **PostgresTable** object:
-
-```shell
-crypto_prices_daily_pg = PostgresTable(
-    name="crypto_prices_daily",
-    db_app=PG_DB_APP,
-    airflow_conn_id=PG_DB_CONN_ID,
-)
-```
-
-Run the workflow using:
-
-```shell
-phi wf run crypto/prices_pg
-```
-
-You can now query the table using the database tool of your choice.
-
-Credentials:
-- Host: 127.0.0.1
-- Port: 5432
-- User: starter-aws
-- Pass: starter-aws
-- Database: starter-aws
-
-> We're big fans of [TablePlus](https://tableplus.com/) for database management.
 
 ## Run Apps
 
@@ -238,6 +150,80 @@ Open [localhost:8888](http://localhost:888) in a browser to view the jupyterlab 
 
 - Pass: admin
 - Logs: `docker logs -f jupyter-container`
+
+## Run workflow
+
+### Install dependencies
+
+Before running workflows, we need to install dependencies like `pandas` and `sqlalchemy`.
+The workspace includes a script to install dependencies, run it:
+
+```shell
+./scripts/install.sh
+```
+
+**Or** install dependencies manually using pip:
+
+```shell
+pip install --editable ".[dev]"
+```
+
+### Download crypto prices to a file
+
+The **workflows/crypto/prices.py** file contains a task that pulls crypto prices from coingecko.com and stores them at `storage/crypto/crypto_prices.csv`. Run it using the `phi wf run` command:
+
+```shell
+phi wf run crypto/prices
+```
+
+Note how we define the file as a **File** object:
+
+```shell
+crypto_prices_file = File(
+    name="crypto_prices.csv",
+    file_dir="crypto",
+)
+```
+
+While this works as a toy example, storing data locally is not of much use. We want to either load this data to a database or store it in cloud storage like s3.
+
+Let's load this data to a postgres table running locally on docker.
+
+### Download crypto prices to a postgres table
+
+The **workflows/crypto/prices_pg.py** file contains a workflow that loads crypto price data to a postgres table: `crypto_prices_daily`. Run it using the `phi wf run` command:
+
+```shell
+phi wf run crypto/prices_pg
+```
+
+We define the table using a **PostgresTable** object:
+
+```shell
+crypto_prices_daily_pg = PostgresTable(
+    name="crypto_prices_daily",
+    db_app=PG_DB_APP,
+    airflow_conn_id=PG_DB_CONN_ID,
+)
+```
+
+You can now query the table using the database tool of your choice.
+
+Credentials:
+- Host: 127.0.0.1
+- Port: 5432
+- User: starter-aws
+- Pass: starter-aws
+- Database: starter-aws
+
+> We're big fans of [TablePlus](https://tableplus.com/) for database management.
+
+## Next steps
+
+1. [Deploy to AWS](https://docs.phidata.com/aws/setup).
+2. [Enabling traefik](https://docs.phidata.com/local/traefik-docker) and using `airflow.dp` and `superset.dp` local domains.
+3. Read the [documentation](https://docs.phidata.com) to learn more about phidata.
+
 
 ## Shutdown workspace
 

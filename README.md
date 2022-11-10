@@ -30,7 +30,7 @@
 Use phidata to create tables, metrics and dashboards for analytics and machine learning.
 
 Features:
-- Define your data products as code.
+- Build data products as code.
 - Build a data platform with dev and production environments.
 - Manage tables as python objects and build a data lake as code.
 - Run Airflow and Superset locally on docker and production on aws.

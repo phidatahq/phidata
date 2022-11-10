@@ -151,7 +151,7 @@ Open [localhost:8888](http://localhost:888) in a browser to view the jupyterlab 
 - Pass: admin
 - Logs: `docker logs -f jupyter-container`
 
-## Run workflow
+## Run workflows
 
 ### Install dependencies
 

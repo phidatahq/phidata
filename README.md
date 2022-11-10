@@ -47,7 +47,7 @@ More Information:
 
 This guide shows how to:
 1. Run Airflow, Superset, Jupyter and Postgres locally on docker.
-2. Run workflows to create a postgres tables.
+2. Run workflows and create postgres tables.
 
 To follow along, you need:
 
@@ -90,7 +90,7 @@ cd data-platform
 
 **Apps** are open-source tools like airflow, superset and jupyter that run the data products.
 
-Open **workspace/settings.py** and enable all apps on line 24.
+Open **workspace/settings.py** and enable the apps you want to run (line 24). Note: Each app uses a lot of memory so you may need to increase the memory allocated to docker.
 
 ```shell
 pg_dbs_enabled: bool = True
@@ -221,7 +221,7 @@ Credentials:
 ## Next steps
 
 1. [Deploy to AWS](https://docs.phidata.com/aws/setup).
-2. [Enabling traefik](https://docs.phidata.com/local/traefik-docker) and using `airflow.dp` and `superset.dp` local domains.
+2. [Enable traefik](https://docs.phidata.com/local/traefik-docker) and use `airflow.dp` and `superset.dp` local domains.
 3. Read the [documentation](https://docs.phidata.com) to learn more about phidata.
 
 

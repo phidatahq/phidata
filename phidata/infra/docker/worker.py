@@ -246,7 +246,7 @@ class DockerWorker:
                 print_info("-*-")
                 print_info("-*- Skipping deploy")
                 print_info("-*-")
-                return False
+                exit(0)
 
         # track the total number of DockerResources to create for validation
         num_resources_to_create: int = len(docker_resources_to_create)
@@ -395,8 +395,10 @@ class DockerWorker:
             print_info(f"\nTotal {len(docker_resources_to_delete)} resources")
             confirm = confirm_yes_no("\nConfirm delete")
             if not confirm:
-                print_info("Skipping delete")
-                return False
+                print_info("-*-")
+                print_info("-*- Skipping delete")
+                print_info("-*-")
+                exit(0)
 
         # track the total number of DockerResources to delete for validation
         num_resources_to_delete: int = len(docker_resources_to_delete)
@@ -513,8 +515,10 @@ class DockerWorker:
             print_info(f"\nTotal {len(docker_resources_to_patch)} resources")
             confirm = confirm_yes_no("\nConfirm patch")
             if not confirm:
-                print_info("Skipping patch")
-                return False
+                print_info("-*-")
+                print_info("-*- Skipping patch")
+                print_info("-*-")
+                exit(0)
 
         # track the total number of DockerResources to patch for validation
         num_resources_to_patch: int = len(docker_resources_to_patch)

@@ -46,7 +46,6 @@ class K8sWorker:
 
     def build_k8s_resource_groups(
         self,
-        name_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> Optional[Dict[str, K8sResourceGroup]]:
         """
@@ -91,13 +90,6 @@ class K8sWorker:
                 # skip apps not matching app_filter if provided
                 if app_filter is not None:
                     if app_filter.lower() not in app.name:
-                        logger.debug(f"Skipping {app.name}")
-                        num_rgs_built += 1
-                        continue
-
-                # skip apps not matching name_filter if provided
-                if name_filter is not None:
-                    if name_filter.lower() not in app.name:
                         logger.debug(f"Skipping {app.name}")
                         num_rgs_built += 1
                         continue
@@ -187,13 +179,6 @@ class K8sWorker:
                         num_rgs_built += 1
                         continue
 
-                # skip groups not matching name_filter if provided
-                if name_filter is not None:
-                    if name_filter.lower() not in create_resource.name:
-                        logger.debug(f"Skipping {create_resource.name}")
-                        num_rgs_built += 1
-                        continue
-
                 logger.debug("-*- Resource: {}".format(create_resource.name))
 
                 if isinstance(create_resource, CreateK8sResourceGroup):
@@ -224,13 +209,6 @@ class K8sWorker:
                         num_rgs_built += 1
                         continue
 
-                # skip groups not matching name_filter if provided
-                if name_filter is not None:
-                    if name_filter.lower() not in resource.name:
-                        logger.debug(f"Skipping {resource.name}")
-                        num_rgs_built += 1
-                        continue
-
                 logger.debug("-*- Resource: {}".format(resource.name))
 
                 if isinstance(resource, K8sResourceGroup):
@@ -257,9 +235,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")
@@ -321,7 +297,7 @@ class K8sWorker:
                 print_info("-*-")
                 print_info("-*- Skipping deploy")
                 print_info("-*-")
-                return False
+                exit(0)
 
         # track the total number of K8sResources to create for validation
         num_resources_to_create: int = 0
@@ -383,9 +359,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")
@@ -452,9 +426,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")
@@ -486,9 +458,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")
@@ -549,8 +519,10 @@ class K8sWorker:
             print_info(f"\nTotal {resource_number} resources")
             confirm = confirm_yes_no("\nConfirm delete")
             if not confirm:
-                print_info("Skipping delete")
-                return False
+                print_info("-*-")
+                print_info("-*- Skipping delete")
+                print_info("-*-")
+                exit(0)
 
         # track the total number of K8sResources to create for validation
         num_resources_to_delete: int = 0
@@ -609,9 +581,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")
@@ -680,9 +650,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")
@@ -741,8 +709,10 @@ class K8sWorker:
             print_info(f"\nTotal {resource_number} resources")
             confirm = confirm_yes_no("\nConfirm patch")
             if not confirm:
-                print_info("Skipping patch")
-                return False
+                print_info("-*-")
+                print_info("-*- Skipping patch")
+                print_info("-*-")
+                exit(0)
 
         # track the total number of K8sResources to patch for validation
         num_resources_to_patch: int = 0
@@ -801,9 +771,7 @@ class K8sWorker:
 
         k8s_resource_groups: Optional[
             Dict[str, K8sResourceGroup]
-        ] = self.build_k8s_resource_groups(
-            name_filter=name_filter, app_filter=app_filter
-        )
+        ] = self.build_k8s_resource_groups(app_filter=app_filter)
 
         if k8s_resource_groups is None:
             print_info("No resources available")

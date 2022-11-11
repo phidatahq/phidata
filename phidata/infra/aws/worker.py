@@ -126,7 +126,7 @@ class AwsWorker:
                 print_info("-*-")
                 print_info("-*- Skipping deploy")
                 print_info("-*-")
-                return False
+                exit(0)
 
         # track the total number of AwsResources to create for validation
         num_resources_to_create: int = len(aws_resources_to_create)
@@ -279,8 +279,10 @@ class AwsWorker:
             print_info(f"\nTotal {len(aws_resources_to_delete)} resources")
             confirm = confirm_yes_no("\nConfirm delete")
             if not confirm:
-                print_info("Skipping delete")
-                return False
+                print_info("-*-")
+                print_info("-*- Skipping delete")
+                print_info("-*-")
+                exit(0)
 
         # track the total number of AwsResources to delete for validation
         num_resources_to_delete: int = len(aws_resources_to_delete)
@@ -403,8 +405,10 @@ class AwsWorker:
             print_info(f"\nTotal {len(aws_resources_to_patch)} resources")
             confirm = confirm_yes_no("\nConfirm patch")
             if not confirm:
-                print_info("Skipping patch")
-                return False
+                print_info("-*-")
+                print_info("-*- Skipping patch")
+                print_info("-*-")
+                exit(0)
 
         # track the total number of AwsResources to patch for validation
         num_resources_to_patch: int = len(aws_resources_to_patch)

@@ -329,7 +329,7 @@ class AirflowFlower(AirflowBase):
         ws_svc_load_balancer_source_ranges: Optional[List[str]] = None,
         ws_svc_allocate_load_balancer_node_ports: Optional[bool] = None,
         # Configure the flower service,
-        create_flower_service: bool = False,
+        create_flower_service: bool = True,
         flower_svc_name: Optional[str] = None,
         flower_svc_type: Optional[ServiceType] = None,
         # The port exposed by the service.,

@@ -496,7 +496,7 @@ class JupyterLab(PhidataApp):
         service_load_balancer_source_ranges: Optional[List[str]] = None,
         service_allocate_load_balancer_node_ports: Optional[bool] = None,
         # App Service Configuration,
-        create_app_service: bool = False,
+        create_app_service: bool = True,
         # Configure the app service,
         app_svc_name: Optional[str] = None,
         app_svc_type: Optional[ServiceType] = None,

@@ -305,7 +305,7 @@ class AirflowWebserver(AirflowBase):
         service_load_balancer_ip: Optional[str] = None,
         service_load_balancer_source_ranges: Optional[List[str]] = None,
         service_allocate_load_balancer_node_ports: Optional[bool] = None,
-        create_webserver_service: bool = False,
+        create_webserver_service: bool = True,
         # Configure the webserver service,
         ws_svc_name: Optional[str] = None,
         ws_svc_type: Optional[ServiceType] = None,

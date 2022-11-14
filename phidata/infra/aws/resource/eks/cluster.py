@@ -78,7 +78,7 @@ class EksCluster(AwsResource):
     ] = None
 
     # EKS Addons
-    addons: List[Union[str, EksAddon]] = ["aws-ebs-csi-driver"]
+    addons: List[Union[str, EksAddon]] = ["aws-ebs-csi-driver", "vpc-cni", "coredns"]
 
     # Kubeconfig
     # If True, updates the kubeconfig on create/delete

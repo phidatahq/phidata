@@ -104,7 +104,7 @@ class AcmCertificate(AwsResource):
         service_client = self.get_service_client(aws_client)
         try:
             request_cert_response = service_client.request_certificate(
-                DomainName=self.name,
+                DomainName=domain_name,
                 ValidationMethod=self.validation_method,
                 **not_null_args,
             )

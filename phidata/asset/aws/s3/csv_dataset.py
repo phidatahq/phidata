@@ -382,8 +382,13 @@ class S3DatasetCsv(S3DatasetBase):
         not_null_args.update(pandas_kwargs)
 
         try:
-            import awswrangler as wr
+            import awswrangler as wr  # type: ignore
+        except ImportError:
+            logger.error("awswrangler not installed")
+            logger.error("Please install awswrangler and try again")
+            return False
 
+        try:
             # Create database if needed
             if _database is not None and create_database:
                 logger.info(f"Creating database: '{_database}'")

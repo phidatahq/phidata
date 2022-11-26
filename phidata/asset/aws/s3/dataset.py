@@ -413,8 +413,13 @@ class S3Dataset(S3DatasetBase):
             not_null_args["projection_digits"] = _projection_digits
 
         try:
-            import awswrangler as wr
+            import awswrangler as wr  # type: ignore
+        except ImportError:
+            logger.error("awswrangler not installed")
+            logger.error("Please install awswrangler and try again")
+            return False
 
+        try:
             # Create boto3 session
             _boto3_session = boto3_session or self.boto3_session
             if _boto3_session is None:

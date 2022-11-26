@@ -5,6 +5,7 @@ from phidata.infra.docker.args import DockerArgs
 from phidata.infra.docker.api_client import DockerApiClient
 from phidata.infra.docker.resource.base import DockerResource
 from phidata.infra.docker.resource.group import (
+    DockerContainer,
     DockerResourceGroup,
     DockerBuildContext,
 )
@@ -256,6 +257,9 @@ class DockerWorker:
             print_info(
                 f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
             )
+            if isinstance(resource, DockerContainer):
+                if resource.network is None and self.docker_args.network is not None:
+                    resource.network = self.docker_args.network
             # logger.debug(resource)
             try:
                 _resource_created = resource.create(docker_client=self.docker_client)
@@ -528,6 +532,9 @@ class DockerWorker:
             print_info(
                 f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}"
             )
+            if isinstance(resource, DockerContainer):
+                if resource.network is None and self.docker_args.network is not None:
+                    resource.network = self.docker_args.network
             # logger.debug(resource)
             try:
                 _resource_patched = resource.update(docker_client=self.docker_client)

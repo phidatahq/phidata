@@ -15,6 +15,7 @@ from phidata.infra.aws.resource.glue.crawler import GlueCrawler
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.infra.aws.resource.emr.cluster import EmrCluster
 from phidata.infra.aws.resource.rds.db_cluster import DbCluster
+from phidata.infra.aws.resource.rds.db_instance import DbInstance
 from phidata.infra.aws.resource.rds.db_subnet_group import DbSubnetGroup
 
 # Use this as a type for an object which can hold any Aws Resource
@@ -32,6 +33,7 @@ AwsResourceType = Union[
     S3Bucket,
     DbSubnetGroup,
     DbCluster,
+    DbInstance,
     EmrCluster,
 ]
 
@@ -46,6 +48,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     CloudFormationStack,
     DbSubnetGroup,
     DbCluster,
+    DbInstance,
     GlueCrawler,
     EksCluster,
     EksKubeconfig,

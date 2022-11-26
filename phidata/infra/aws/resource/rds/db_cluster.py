@@ -207,7 +207,7 @@ class DbCluster(AwsResource):
     performance_insights_kms_key_id: Optional[str] = None
     performance_insights_retention_period: Optional[int] = None
     # Contains the scaling configuration of an Aurora Serverless v2 DB cluster.
-    serverless_v2_scaling_configuration: Dict[str, int] = {
+    serverless_v2_scaling_configuration: Dict[str, Any] = {
         "MinCapacity": 0.5,
         "MaxCapacity": 8,
     }

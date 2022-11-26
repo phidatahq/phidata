@@ -17,6 +17,7 @@ from phidata.infra.aws.resource.emr.cluster import EmrCluster
 from phidata.infra.aws.resource.rds.db_cluster import DbCluster
 from phidata.infra.aws.resource.rds.db_instance import DbInstance
 from phidata.infra.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phidata.infra.aws.resource.elasticache.cluster import CacheCluster
 
 
 class AwsResourceGroup(BaseModel):
@@ -30,6 +31,7 @@ class AwsResourceGroup(BaseModel):
     iam_policies: Optional[List[IamPolicy]] = None
     acm_certificates: Optional[List[AcmCertificate]] = None
     s3_buckets: Optional[List[S3Bucket]] = None
+    cache_clusters: Optional[List[CacheCluster]] = None
     db_subnet_groups: Optional[List[DbSubnetGroup]] = None
     db_clusters: Optional[List[DbCluster]] = None
     db_instances: Optional[List[DbInstance]] = None

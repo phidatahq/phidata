@@ -17,6 +17,7 @@ from phidata.infra.aws.resource.emr.cluster import EmrCluster
 from phidata.infra.aws.resource.rds.db_cluster import DbCluster
 from phidata.infra.aws.resource.rds.db_instance import DbInstance
 from phidata.infra.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phidata.infra.aws.resource.elasticache.cluster import CacheCluster
 
 # Use this as a type for an object which can hold any Aws Resource
 AwsResourceType = Union[
@@ -34,6 +35,7 @@ AwsResourceType = Union[
     DbSubnetGroup,
     DbCluster,
     DbInstance,
+    CacheCluster,
     EmrCluster,
 ]
 
@@ -46,10 +48,11 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     EbsVolume,
     AcmCertificate,
     CloudFormationStack,
+    GlueCrawler,
     DbSubnetGroup,
     DbCluster,
     DbInstance,
-    GlueCrawler,
+    CacheCluster,
     EksCluster,
     EksKubeconfig,
     EksFargateProfile,

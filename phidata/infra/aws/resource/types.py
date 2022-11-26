@@ -5,6 +5,7 @@ from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.acm.certificate import AcmCertificate
 from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.infra.aws.resource.ec2.volume import EbsVolume
+from phidata.infra.aws.resource.ecs.cluster import EcsCluster
 from phidata.infra.aws.resource.eks.cluster import EksCluster
 from phidata.infra.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.infra.aws.resource.eks.node_group import EksNodeGroup
@@ -37,6 +38,7 @@ AwsResourceType = Union[
     DbInstance,
     CacheCluster,
     EmrCluster,
+    EcsCluster,
 ]
 
 # Use this as an ordered list to iterate over all Aws Resource Classes
@@ -53,6 +55,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     DbCluster,
     DbInstance,
     CacheCluster,
+    EcsCluster,
     EksCluster,
     EksKubeconfig,
     EksFargateProfile,

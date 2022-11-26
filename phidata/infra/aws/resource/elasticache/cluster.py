@@ -9,7 +9,7 @@ from phidata.utils.log import logger
 
 class CacheCluster(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
+    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/elasticache.html
     """
 
     resource_type = "CacheCluster"

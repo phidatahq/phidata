@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, List, Literal
+from typing import Optional, Any, Dict, List, Literal, Union
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
@@ -23,16 +23,18 @@ class EcsService(AwsResource):
     ecs_service_name: Optional[str] = None
 
     # EcsCluster for the service.
-    ecs_cluster: Optional[EcsCluster] = None
-    # The short name or full Amazon Resource Name (ARN) of the cluster that you run your service on.
+    # Can be
+    # - string: The short name or full Amazon Resource Name (ARN) of the cluster
+    # - EcsCluster
     # If you do not specify a cluster, the default cluster is assumed.
-    ecs_cluster_name: Optional[str] = None
+    cluster: Optional[Union[EcsCluster, str]] = None
 
     # EcsTaskDefinition for the service.
-    ecs_task_definition: Optional[EcsTaskDefinition] = None
-    # The family and revision (family:revision ) or full ARN of the task definition to run in your service.
+    # Can be
+    # - string: The family and revision (family:revision ) or full ARN of the task definition.
+    # - EcsTaskDefinition
     # If a revision isn't specified, the latest ACTIVE revision is used.
-    task_definition: Optional[str] = None
+    task_definition: Optional[Union[EcsTaskDefinition, str]] = None
 
     # A load balancer object representing the load balancers to use with your service.
     load_balancers: Optional[List[Dict[str, Any]]] = None
@@ -67,14 +69,18 @@ class EcsService(AwsResource):
         return self.ecs_service_name or self.name
 
     def get_ecs_cluster_name(self):
-        return self.ecs_cluster.name if self.ecs_cluster else self.ecs_cluster_name
+        if self.cluster is not None:
+            if isinstance(self.cluster, EcsCluster):
+                return self.cluster.name
+            else:
+                return self.cluster
 
     def get_ecs_task_definition(self):
-        return (
-            self.ecs_task_definition.get_task_family()
-            if self.ecs_task_definition
-            else self.task_definition
-        )
+        if self.task_definition is not None:
+            if isinstance(self.task_definition, EcsTaskDefinition):
+                return self.task_definition.get_task_family()
+            else:
+                return self.task_definition
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Create EcsService"""
@@ -174,8 +180,10 @@ class EcsService(AwsResource):
                 for resource in resource_list:
                     _service_name = resource.get("serviceName", None)
                     if _service_name == service_name:
-                        self.active_resource = resource
-                        break
+                        _service_status = resource.get("status", None)
+                        if _service_status == "ACTIVE":
+                            self.active_resource = resource
+                            break
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:

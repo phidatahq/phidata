@@ -1,9 +1,11 @@
+from textwrap import dedent
 from typing import Optional, Any, Dict, List, Literal
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.ecs.container import EcsContainer
 from phidata.infra.aws.resource.ecs.volume import EcsVolume
+from phidata.infra.aws.resource.iam.role import IamRole
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
@@ -24,9 +26,6 @@ class EcsTaskDefinition(AwsResource):
     # You can use it track multiple versions of the same task definition.
     # The family is used as a name for your task definition.
     family: Optional[str] = None
-    # The short name or full Amazon Resource Name (ARN) of the IAM role that containers in this task can assume.
-    task_role_arn: Optional[str] = None
-    execution_role_arn: Optional[str] = None
     # Networking mode to use for the containers in the task.
     # The valid values are none, bridge, awsvpc, and host.
     # If no network mode is specified, the default is bridge.
@@ -46,6 +45,27 @@ class EcsTaskDefinition(AwsResource):
     ephemeral_storage: Optional[Dict[str, Any]] = None
     runtime_platform: Optional[Dict[str, Any]] = None
 
+    # Amazon ECS IAM roles
+    # The short name or full Amazon Resource Name (ARN) of the IAM role that containers in this task can assume.
+    task_role_arn: Optional[str] = None
+    # If task_role_arn is None, a default role is created if create_task_role is True
+    create_task_role: bool = False
+    # Name for the default role when task_role_arn is None, use "name-task-role" if not provided
+    task_role_name: Optional[str] = None
+    # Provide a list of policy ARNs to attach to the role
+    add_task_role_policy_arns: Optional[List[str]] = None
+
+    # The Amazon Resource Name (ARN) of the task execution role that grants the Amazon ECS container agent permission
+    # to make Amazon Web Services API calls on your behalf. The task execution IAM role is required depending on the
+    # requirements of your task.
+    execution_role_arn: Optional[str] = None
+    # If execution_role_arn is None, a default role is created if create_execution_role is True
+    create_execution_role: bool = True
+    # Name for the default role when execution_role_arn is None, use "name-execution-role" if not provided
+    execution_role_name: Optional[str] = None
+    # Provide a list of policy ARNs to attach to the role
+    add_execution_role_policy_arns: Optional[List[str]] = None
+
     def get_task_family(self):
         return self.family or self.name
 
@@ -53,12 +73,40 @@ class EcsTaskDefinition(AwsResource):
         """Create EcsTaskDefinition"""
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # Step 1: Get task role arn
+        task_role_arn = self.task_role_arn
+        if task_role_arn is None and self.create_task_role:
+            # Create the IamRole and get task_role_arn
+            task_role = self.get_task_role()
+            try:
+                task_role.create(aws_client)
+                task_role_arn = task_role.read(aws_client).arn
+                print_info(f"ARN for {task_role.name}: {task_role_arn}")
+            except Exception as e:
+                print_error("IamRole creation failed, please fix and try again")
+                print_error(e)
+                return False
+
+        # Step 2: Get execution role arn
+        execution_role_arn = self.execution_role_arn
+        if execution_role_arn is None and self.create_execution_role:
+            # Create the IamRole and get execution_role_arn
+            execution_role = self.get_execution_role()
+            try:
+                execution_role.create(aws_client)
+                execution_role_arn = execution_role.read(aws_client).arn
+                print_info(f"ARN for {execution_role.name}: {execution_role_arn}")
+            except Exception as e:
+                print_error("IamRole creation failed, please fix and try again")
+                print_error(e)
+                return False
+
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.task_role_arn is not None:
-            not_null_args["taskRoleArn"] = self.task_role_arn
+            not_null_args["taskRoleArn"] = task_role_arn
         if self.execution_role_arn is not None:
-            not_null_args["executionRoleArn"] = self.execution_role_arn
+            not_null_args["executionRoleArn"] = execution_role_arn
         if self.network_mode is not None:
             not_null_args["networkMode"] = self.network_mode
         if self.containers is not None:
@@ -141,6 +189,28 @@ class EcsTaskDefinition(AwsResource):
         """Delete EcsTaskDefinition"""
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # Step 1: Delete the task role
+        if self.task_role_arn is None and self.create_task_role:
+            task_role = self.get_task_role()
+            try:
+                task_role.delete(aws_client)
+            except Exception as e:
+                print_error(
+                    "IamRole deletion failed, please try again or delete manually"
+                )
+                print_error(e)
+
+        # Step 2: Delete the execution role
+        if self.execution_role_arn is None and self.create_execution_role:
+            execution_role = self.get_execution_role()
+            try:
+                execution_role.delete(aws_client)
+            except Exception as e:
+                print_error(
+                    "IamRole deletion failed, please try again or delete manually"
+                )
+                print_error(e)
+
         service_client = self.get_service_client(aws_client)
         self.active_resource = None
         try:
@@ -169,6 +239,62 @@ class EcsTaskDefinition(AwsResource):
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
         return self._create(aws_client)
+
+    def get_task_role(self) -> IamRole:
+        policy_arns = ["arn:aws:iam::aws:policy/AmazonECSTaskExecutionRolePolicy"]
+        if self.add_task_role_policy_arns is not None and isinstance(
+            self.add_task_role_policy_arns, list
+        ):
+            policy_arns.extend(self.add_task_role_policy_arns)
+
+        return IamRole(
+            name=self.task_role_name or f"{self.name}-task-role",
+            assume_role_policy_document=dedent(
+                """\
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "ecs-tasks.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            }
+            """
+            ),
+            policy_arns=policy_arns,
+        )
+
+    def get_execution_role(self) -> IamRole:
+        policy_arns = ["arn:aws:iam::aws:policy/AmazonECSTaskExecutionRolePolicy"]
+        if self.add_execution_role_policy_arns is not None and isinstance(
+            self.add_execution_role_policy_arns, list
+        ):
+            policy_arns.extend(self.add_execution_role_policy_arns)
+
+        return IamRole(
+            name=self.execution_role_name or f"{self.name}-execution-role",
+            assume_role_policy_document=dedent(
+                """\
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "ecs-tasks.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            }
+            """
+            ),
+            policy_arns=policy_arns,
+        )
 
     def task_definition_up_to_date(self, task_definition: Dict[str, Any]) -> bool:
         """Return True if task_definition from the cluster matches the current state"""

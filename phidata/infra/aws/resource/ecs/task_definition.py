@@ -103,9 +103,9 @@ class EcsTaskDefinition(AwsResource):
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
-        if self.task_role_arn is not None:
+        if task_role_arn is not None:
             not_null_args["taskRoleArn"] = task_role_arn
-        if self.execution_role_arn is not None:
+        if execution_role_arn is not None:
             not_null_args["executionRoleArn"] = execution_role_arn
         if self.network_mode is not None:
             not_null_args["networkMode"] = self.network_mode
@@ -241,7 +241,9 @@ class EcsTaskDefinition(AwsResource):
         return self._create(aws_client)
 
     def get_task_role(self) -> IamRole:
-        policy_arns = ["arn:aws:iam::aws:policy/AmazonECSTaskExecutionRolePolicy"]
+        policy_arns = [
+            "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+        ]
         if self.add_task_role_policy_arns is not None and isinstance(
             self.add_task_role_policy_arns, list
         ):
@@ -269,7 +271,9 @@ class EcsTaskDefinition(AwsResource):
         )
 
     def get_execution_role(self) -> IamRole:
-        policy_arns = ["arn:aws:iam::aws:policy/AmazonECSTaskExecutionRolePolicy"]
+        policy_arns = [
+            "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+        ]
         if self.add_execution_role_policy_arns is not None and isinstance(
             self.add_execution_role_policy_arns, list
         ):

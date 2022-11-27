@@ -269,14 +269,13 @@ class CacheCluster(AwsResource):
         """
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
-        service_client = self.get_service_client(aws_client)
-        self.active_resource = None
-
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.final_snapshot_identifier:
             not_null_args["FinalSnapshotIdentifier"] = self.final_snapshot_identifier
 
+        service_client = self.get_service_client(aws_client)
+        self.active_resource = None
         try:
             delete_response = service_client.delete_cache_cluster(
                 CacheClusterId=self.get_cache_cluster_id(),

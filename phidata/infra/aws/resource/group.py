@@ -6,7 +6,10 @@ from phidata.infra.aws.resource.acm.certificate import AcmCertificate
 from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.infra.aws.resource.ec2.volume import EbsVolume
 from phidata.infra.aws.resource.ecs.cluster import EcsCluster
-from phidata.infra.aws.resource.ecs.task import EcsTaskDefinition
+from phidata.infra.aws.resource.ecs.container import EcsContainer
+from phidata.infra.aws.resource.ecs.task_definition import EcsTaskDefinition
+from phidata.infra.aws.resource.ecs.volume import EcsVolume
+from phidata.infra.aws.resource.ecs.service import EcsService
 from phidata.infra.aws.resource.eks.cluster import EksCluster
 from phidata.infra.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.infra.aws.resource.eks.node_group import EksNodeGroup
@@ -39,6 +42,7 @@ class AwsResourceGroup(BaseModel):
     db_instances: Optional[List[DbInstance]] = None
     ecs_clusters: Optional[List[EcsCluster]] = None
     ecs_task_definitions: Optional[List[EcsTaskDefinition]] = None
+    ecs_services: Optional[List[EcsService]] = None
     volumes: Optional[List[EbsVolume]] = None
     cloudformation_stacks: Optional[List[CloudFormationStack]] = None
     eks_cluster: Optional[EksCluster] = None

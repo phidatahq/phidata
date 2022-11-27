@@ -2,109 +2,145 @@ from typing import Optional, Any, Dict, List, Literal
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
-from phidata.infra.aws.resource.ecs.container import EcsContainer
-from phidata.infra.aws.resource.ecs.volume import EcsVolume
+from phidata.infra.aws.resource.ecs.cluster import EcsCluster
+from phidata.infra.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
 
-class EcsTaskDefinition(AwsResource):
+class EcsService(AwsResource):
     """
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
-    resource_type = "EcsTaskDefinition"
+    resource_type = "EcsService"
     service_name = "ecs"
 
-    # Name of the task definition.
-    # Used as task definition family.
+    # Name for the service.
     name: str
-    # The family for a task definition.
-    # Use name as family if not provided
-    # You can use it track multiple versions of the same task definition.
-    # The family is used as a name for your task definition.
-    family: Optional[str] = None
-    # The short name or full Amazon Resource Name (ARN) of the IAM role that containers in this task can assume.
-    task_role_arn: Optional[str] = None
-    execution_role_arn: Optional[str] = None
-    # Networking mode to use for the containers in the task.
-    # The valid values are none, bridge, awsvpc, and host.
-    # If no network mode is specified, the default is bridge.
-    network_mode: Optional[Literal["bridge", "host", "awsvpc", "none"]] = None
-    # A list of container definitions that describe the different containers that make up the task.
-    containers: Optional[List[EcsContainer]] = None
-    volumes: Optional[List[EcsVolume]] = None
-    placement_constraints: Optional[List[Dict[str, Any]]] = None
-    requires_compatibilities: Optional[List[str]] = None
-    cpu: Optional[str] = None
-    memory: Optional[str] = None
-    tags: Optional[List[Dict[str, str]]] = None
-    pid_mode: Optional[Literal["host", "task"]] = None
-    ipc_mode: Optional[Literal["host", "task", "none"]] = None
-    proxy_configuration: Optional[Dict[str, Any]] = None
-    inference_accelerators: Optional[List[Dict[str, Any]]] = None
-    ephemeral_storage: Optional[Dict[str, Any]] = None
-    runtime_platform: Optional[Dict[str, Any]] = None
+    # Name for the service.
+    # Use name if not provided.
+    ecs_service_name: Optional[str] = None
 
-    def get_task_family(self):
-        return self.family or self.name
+    # EcsCluster for the service.
+    ecs_cluster: Optional[EcsCluster] = None
+    # The short name or full Amazon Resource Name (ARN) of the cluster that you run your service on.
+    # If you do not specify a cluster, the default cluster is assumed.
+    ecs_cluster_name: Optional[str] = None
+
+    # EcsTaskDefinition for the service.
+    ecs_task_definition: Optional[EcsTaskDefinition] = None
+    # The family and revision (family:revision ) or full ARN of the task definition to run in your service.
+    # If a revision isn't specified, the latest ACTIVE revision is used.
+    task_definition: Optional[str] = None
+
+    # A load balancer object representing the load balancers to use with your service.
+    load_balancers: Optional[List[Dict[str, Any]]] = None
+    service_registries: Optional[List[Dict[str, Any]]] = None
+    # The number of instantiations of the specified task definition to place and keep running on your cluster.
+    # This is required if schedulingStrategy is REPLICA or isn't specified.
+    # If schedulingStrategy is DAEMON then this isn't required.
+    desired_count: Optional[int] = None
+    # An identifier that you provide to ensure the idempotency of the request. It must be unique and is case-sensitive.
+    client_token: Optional[str] = None
+    # The infrastructure that you run your service on.
+    launch_type: Optional[Literal["EC2", "FARGATE", "EXTERNAL"]] = None
+    # The capacity provider strategy to use for the service.
+    capacity_provider_strategy: Optional[List[Dict[str, Any]]] = None
+    platform_version: Optional[str] = None
+    role: Optional[str] = None
+    deployment_configuration: Optional[Dict[str, Any]] = None
+    placement_constraints: Optional[List[Dict[str, Any]]] = None
+    placement_strategy: Optional[List[Dict[str, Any]]] = None
+    network_configuration: Optional[Dict[str, Any]] = None
+    health_check_grace_period_seconds: Optional[int] = None
+    scheduling_strategy: Optional[Literal["REPLICA", "DAEMON"]] = None
+    deployment_controller: Optional[Dict[str, Any]] = None
+    tags: Optional[List[Dict[str, Any]]] = None
+    enable_ecsmanaged_tags: Optional[bool] = None
+    propagate_tags: Optional[Literal["TASK_DEFINITION", "SERVICE", "NONE"]] = None
+    enable_execute_command: Optional[bool] = None
+
+    force_delete: Optional[bool] = None
+
+    def get_ecs_service_name(self):
+        return self.ecs_service_name or self.name
+
+    def get_ecs_cluster_name(self):
+        return self.ecs_cluster.name if self.ecs_cluster else self.ecs_cluster_name
+
+    def get_ecs_task_definition(self):
+        return (
+            self.ecs_task_definition.get_task_family()
+            if self.ecs_task_definition
+            else self.task_definition
+        )
 
     def _create(self, aws_client: AwsApiClient) -> bool:
-        """Create EcsTaskDefinition"""
+        """Create EcsService"""
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
-        if self.task_role_arn is not None:
-            not_null_args["taskRoleArn"] = self.task_role_arn
-        if self.execution_role_arn is not None:
-            not_null_args["executionRoleArn"] = self.execution_role_arn
-        if self.network_mode is not None:
-            not_null_args["networkMode"] = self.network_mode
-        if self.containers is not None:
-            container_definitions = [
-                c.get_container_definition() for c in self.containers
-            ]
-            not_null_args["containerDefinitions"] = container_definitions
-        if self.volumes is not None:
-            volume_definitions = [v.get_volume_definition() for v in self.volumes]
-            not_null_args["volumes"] = volume_definitions
+
+        cluster_name = self.get_ecs_cluster_name()
+        if cluster_name is not None:
+            not_null_args["cluster"] = cluster_name
+        if self.load_balancers is not None:
+            not_null_args["loadBalancers"] = self.load_balancers
+        if self.service_registries is not None:
+            not_null_args["serviceRegistries"] = self.service_registries
+        if self.desired_count is not None:
+            not_null_args["desiredCount"] = self.desired_count
+        if self.client_token is not None:
+            not_null_args["clientToken"] = self.client_token
+        if self.launch_type is not None:
+            not_null_args["launchType"] = self.launch_type
+        if self.capacity_provider_strategy is not None:
+            not_null_args["capacityProviderStrategy"] = self.capacity_provider_strategy
+        if self.platform_version is not None:
+            not_null_args["platformVersion"] = self.platform_version
+        if self.role is not None:
+            not_null_args["role"] = self.role
+        if self.deployment_configuration is not None:
+            not_null_args["deploymentConfiguration"] = self.deployment_configuration
         if self.placement_constraints is not None:
             not_null_args["placementConstraints"] = self.placement_constraints
-        if self.requires_compatibilities is not None:
-            not_null_args["requiresCompatibilities"] = self.requires_compatibilities
-        if self.cpu is not None:
-            not_null_args["cpu"] = self.cpu
-        if self.memory is not None:
-            not_null_args["memory"] = self.memory
+        if self.placement_strategy is not None:
+            not_null_args["placementStrategy"] = self.placement_strategy
+        if self.network_configuration is not None:
+            not_null_args["networkConfiguration"] = self.network_configuration
+        if self.health_check_grace_period_seconds is not None:
+            not_null_args[
+                "healthCheckGracePeriodSeconds"
+            ] = self.health_check_grace_period_seconds
+        if self.scheduling_strategy is not None:
+            not_null_args["schedulingStrategy"] = self.scheduling_strategy
+        if self.deployment_controller is not None:
+            not_null_args["deploymentController"] = self.deployment_controller
         if self.tags is not None:
             not_null_args["tags"] = self.tags
-        if self.pid_mode is not None:
-            not_null_args["pidMode"] = self.pid_mode
-        if self.ipc_mode is not None:
-            not_null_args["ipcMode"] = self.ipc_mode
-        if self.proxy_configuration is not None:
-            not_null_args["proxyConfiguration"] = self.proxy_configuration
-        if self.inference_accelerators is not None:
-            not_null_args["inferenceAccelerators"] = self.inference_accelerators
-        if self.ephemeral_storage is not None:
-            not_null_args["ephemeralStorage"] = self.ephemeral_storage
-        if self.runtime_platform is not None:
-            not_null_args["runtimePlatform"] = self.runtime_platform
+        if self.enable_ecsmanaged_tags is not None:
+            not_null_args["enableECSManagedTags"] = self.enable_ecsmanaged_tags
+        if self.propagate_tags is not None:
+            not_null_args["propagateTags"] = self.propagate_tags
+        if self.enable_execute_command is not None:
+            not_null_args["enableExecuteCommand"] = self.enable_execute_command
 
-        # Register EcsTaskDefinition
+        # Register EcsService
         service_client = self.get_service_client(aws_client)
         try:
-            create_response = service_client.register_task_definition(
-                family=self.get_task_family(),
+            create_response = service_client.create_service(
+                serviceName=self.get_ecs_service_name(),
+                taskDefinition=self.get_ecs_task_definition(),
                 **not_null_args,
             )
-            logger.debug(f"EcsTaskDefinition: {create_response}")
-            resource_dict = create_response.get("taskDefinition", {})
+            logger.debug(f"EcsService: {create_response}")
+            resource_dict = create_response.get("service", {})
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"EcsTaskDefinition created: {self.get_resource_name()}")
+                print_info(f"EcsService created: {self.get_resource_name()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -113,23 +149,33 @@ class EcsTaskDefinition(AwsResource):
         return False
 
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
-        """Read EcsTaskDefinition"""
+        """Read EcsService"""
         from botocore.exceptions import ClientError
 
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
+        cluster_name = self.get_ecs_cluster_name()
+        if cluster_name is not None:
+            not_null_args["cluster"] = cluster_name
+
         service_client = self.get_service_client(aws_client)
         try:
-            describe_response = service_client.describe_task_definition(
-                taskDefinition=self.get_task_family()
+            service_name = self.get_ecs_service_name()
+            describe_response = service_client.describe_services(
+                services=[service_name], **not_null_args
             )
-            logger.debug(f"EcsTaskDefinition: {describe_response}")
-            resource = describe_response.get("taskDefinition", None)
-            if resource is not None:
-                # compare the task definition with the current state
-                # if there is a difference, create a new task definition
-                # TODO: fix the task_definition_up_to_date function
-                # if self.task_definition_up_to_date(task_definition=resource):
-                self.active_resource = resource
+            logger.debug(f"EcsService: {describe_response}")
+            resource_list = describe_response.get("services", None)
+
+            if resource_list is not None and isinstance(resource_list, list):
+                for resource in resource_list:
+                    _service_name = resource.get("serviceName", None)
+                    if _service_name == service_name:
+                        self.active_resource = resource
+                        break
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -138,26 +184,30 @@ class EcsTaskDefinition(AwsResource):
         return self.active_resource
 
     def _delete(self, aws_client: AwsApiClient) -> bool:
-        """Delete EcsTaskDefinition"""
+        """Delete EcsService"""
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
+        cluster_name = self.get_ecs_cluster_name()
+        if cluster_name is not None:
+            not_null_args["cluster"] = cluster_name
+        if self.force_delete is not None:
+            not_null_args["force"] = self.force_delete
 
         service_client = self.get_service_client(aws_client)
         self.active_resource = None
         try:
-            # Get the task definition revisions
-            list_response = service_client.list_task_definitions(
-                familyPrefix=self.get_task_family(), sort="DESC"
+            delete_response = service_client.delete_service(
+                service=self.get_ecs_service_name(),
+                **not_null_args,
             )
-            logger.debug(f"EcsTaskDefinition: {list_response}")
-            task_definition_arns = list_response.get("taskDefinitionArns", [])
-            if task_definition_arns:
-                # Delete all revisions
-                for task_definition_arn in task_definition_arns:
-                    service_client.deregister_task_definition(
-                        taskDefinition=task_definition_arn
-                    )
-                print_info(f"EcsTaskDefinition deleted: {self.get_resource_name()}")
-                return True
+            logger.debug(f"EcsService: {delete_response}")
+            print_info(
+                f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
+            )
+            return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be deleted.")
             print_error("Please try again or delete resources manually.")
@@ -165,7 +215,7 @@ class EcsTaskDefinition(AwsResource):
         return False
 
     def _update(self, aws_client: AwsApiClient) -> bool:
-        """Update EcsTaskDefinition"""
+        """Update EcsService"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        return self._create(aws_client)
+        return True

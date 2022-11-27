@@ -6,8 +6,9 @@ from phidata.infra.aws.resource.acm.certificate import AcmCertificate
 from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.infra.aws.resource.ec2.volume import EbsVolume
 from phidata.infra.aws.resource.ecs.cluster import EcsCluster
-from phidata.infra.aws.resource.ecs.task import EcsTaskDefinition
+from phidata.infra.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phidata.infra.aws.resource.eks.cluster import EksCluster
+from phidata.infra.aws.resource.ecs.service import EcsService
 from phidata.infra.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.infra.aws.resource.eks.node_group import EksNodeGroup
 from phidata.infra.aws.resource.eks.kubeconfig import EksKubeconfig
@@ -41,6 +42,7 @@ AwsResourceType = Union[
     EmrCluster,
     EcsCluster,
     EcsTaskDefinition,
+    EcsService,
 ]
 
 # Use this as an ordered list to iterate over all Aws Resource Classes
@@ -59,6 +61,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     CacheCluster,
     EcsCluster,
     EcsTaskDefinition,
+    EcsService,
     EksCluster,
     EksKubeconfig,
     EksFargateProfile,

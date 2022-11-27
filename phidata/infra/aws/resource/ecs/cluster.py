@@ -97,8 +97,10 @@ class EcsCluster(AwsResource):
                 for resource in resource_list:
                     _cluster_identifier = resource.get("clusterName", None)
                     if _cluster_identifier == cluster_name:
-                        self.active_resource = resource
-                        break
+                        _cluster_status = resource.get("status", None)
+                        if _cluster_status == "ACTIVE":
+                            self.active_resource = resource
+                            break
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:

@@ -5,7 +5,10 @@ from phidata.infra.aws.resource.base import AwsResource
 from phidata.infra.aws.resource.acm.certificate import AcmCertificate
 from phidata.infra.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.infra.aws.resource.ec2.volume import EbsVolume
+from phidata.infra.aws.resource.ecs.cluster import EcsCluster
+from phidata.infra.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phidata.infra.aws.resource.eks.cluster import EksCluster
+from phidata.infra.aws.resource.ecs.service import EcsService
 from phidata.infra.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.infra.aws.resource.eks.node_group import EksNodeGroup
 from phidata.infra.aws.resource.eks.kubeconfig import EksKubeconfig
@@ -15,7 +18,9 @@ from phidata.infra.aws.resource.glue.crawler import GlueCrawler
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.infra.aws.resource.emr.cluster import EmrCluster
 from phidata.infra.aws.resource.rds.db_cluster import DbCluster
+from phidata.infra.aws.resource.rds.db_instance import DbInstance
 from phidata.infra.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phidata.infra.aws.resource.elasticache.cluster import CacheCluster
 
 # Use this as a type for an object which can hold any Aws Resource
 AwsResourceType = Union[
@@ -32,7 +37,12 @@ AwsResourceType = Union[
     S3Bucket,
     DbSubnetGroup,
     DbCluster,
+    DbInstance,
+    CacheCluster,
     EmrCluster,
+    EcsCluster,
+    EcsTaskDefinition,
+    EcsService,
 ]
 
 # Use this as an ordered list to iterate over all Aws Resource Classes
@@ -44,9 +54,14 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     EbsVolume,
     AcmCertificate,
     CloudFormationStack,
+    GlueCrawler,
     DbSubnetGroup,
     DbCluster,
-    GlueCrawler,
+    DbInstance,
+    CacheCluster,
+    EcsCluster,
+    EcsTaskDefinition,
+    EcsService,
     EksCluster,
     EksKubeconfig,
     EksFargateProfile,

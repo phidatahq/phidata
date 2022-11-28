@@ -84,8 +84,9 @@ class DockerContainer(DockerResource):
     stdin_open: Optional[bool] = None
     # stdout (bool) – Return logs from STDOUT when detach=False. Default: True.
     stdout: Optional[bool] = None
-    # stderr (bool) – Return logs from STDERR when detach=False. Default: False.    # tty (bool) – Allocate a pseudo-TTY.
+    # stderr (bool) – Return logs from STDERR when detach=False. Default: False.
     stderr: Optional[bool] = None
+    # tty (bool) – Allocate a pseudo-TTY.
     tty: Optional[bool] = None
     # user (str or int) – Username or UID to run commands as inside the container.
     user: Optional[Union[str, int]] = None
@@ -148,20 +149,18 @@ class DockerContainer(DockerResource):
             )
             return container
         except AttributeError as attr_error:
-            logger.warning("AttributeError")
+            logger.error("AttributeError")
             raise DockerResourceCreationFailedException(attr_error)
         except ImageNotFound as img_error:
-            logger.warning("ImageNotFound")
+            logger.error("ImageNotFound")
             raise DockerResourceCreationFailedException(
                 f"Image {self.image} not found. Explanation: {img_error.explanation}"
             )
         except NotFound as not_found_error:
-            logger.warning("NotFound")
-            raise DockerResourceCreationFailedException(
-                f"Image {self.image} not found. Explanation: {not_found_error.explanation}"
-            )
+            logger.error("NotFound")
+            raise DockerResourceCreationFailedException(not_found_error)
         except APIError as api_err:
-            logger.warning("APIError")
+            logger.error("APIError")
             raise DockerResourceCreationFailedException(
                 f"Explanation: {api_err.explanation}"
             )

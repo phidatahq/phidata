@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "0.3.12"
+version = "0.3.13"
 description = "Build data products as code"
 requires-python = ">3.7"
 readme = "README.md"

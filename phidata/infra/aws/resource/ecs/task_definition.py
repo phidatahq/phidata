@@ -243,6 +243,7 @@ class EcsTaskDefinition(AwsResource):
     def get_task_role(self) -> IamRole:
         policy_arns = [
             "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+            "arn:aws:iam::aws:policy/CloudWatchFullAccess",
         ]
         if self.add_task_role_policy_arns is not None and isinstance(
             self.add_task_role_policy_arns, list
@@ -273,6 +274,7 @@ class EcsTaskDefinition(AwsResource):
     def get_execution_role(self) -> IamRole:
         policy_arns = [
             "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+            "arn:aws:iam::aws:policy/CloudWatchFullAccess",
         ]
         if self.add_execution_role_policy_arns is not None and isinstance(
             self.add_execution_role_policy_arns, list

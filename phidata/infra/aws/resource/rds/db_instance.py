@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Any, Dict, List, Literal
+from typing import Optional, Any, Dict, List, Literal, Union
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
@@ -22,25 +22,28 @@ class DbInstance(AwsResource):
     # Name of the db instance.
     name: str
     # The name of the database engine to be used for this instance.
-    engine: Literal[
-        "aurora",
-        "aurora-mysql",
-        "aurora-postgresql",
-        "custom-oracle-ee",
-        "custom-sqlserver-ee",
-        "custom-sqlserver-se",
-        "custom-sqlserver-web",
-        "mariadb",
-        "mysql",
-        "oracle-ee",
-        "oracle-ee-cdb",
-        "oracle-se2",
-        "oracle-se2-cdb",
-        "postgres",
-        "sqlserver-ee",
-        "sqlserver-se",
-        "sqlserver-ex",
-        "sqlserver-web",
+    engine: Union[
+        str,
+        Literal[
+            "aurora",
+            "aurora-mysql",
+            "aurora-postgresql",
+            "custom-oracle-ee",
+            "custom-sqlserver-ee",
+            "custom-sqlserver-se",
+            "custom-sqlserver-web",
+            "mariadb",
+            "mysql",
+            "oracle-ee",
+            "oracle-ee-cdb",
+            "oracle-se2",
+            "oracle-se2-cdb",
+            "postgres",
+            "sqlserver-ee",
+            "sqlserver-se",
+            "sqlserver-ex",
+            "sqlserver-web",
+        ],
     ]
     # Compute and memory capacity of the DB instance, for example db.m5.large.
     db_instance_class: str

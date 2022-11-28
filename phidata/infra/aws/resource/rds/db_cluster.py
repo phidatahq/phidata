@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Any, Dict, List, Literal
+from typing import Optional, Any, Dict, List, Literal, Union
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
@@ -21,7 +21,9 @@ class DbCluster(AwsResource):
     # Name of the cluster.
     name: str
     # The name of the database engine to be used for this DB cluster.
-    engine: Literal["aurora", "aurora-mysql", "aurora-postgresql", "mysql", "postgres"]
+    engine: Union[
+        str, Literal["aurora", "aurora-mysql", "aurora-postgresql", "mysql", "postgres"]
+    ]
     # DbInstances to add to this cluster
     db_instances: Optional[List[DbInstance]] = None
     # The version number of the database engine to use.

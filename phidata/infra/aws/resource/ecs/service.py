@@ -46,7 +46,7 @@ class EcsService(AwsResource):
     # An identifier that you provide to ensure the idempotency of the request. It must be unique and is case-sensitive.
     client_token: Optional[str] = None
     # The infrastructure that you run your service on.
-    launch_type: Optional[Literal["EC2", "FARGATE", "EXTERNAL"]] = None
+    launch_type: Optional[Union[str, Literal["EC2", "FARGATE", "EXTERNAL"]]] = None
     # The capacity provider strategy to use for the service.
     capacity_provider_strategy: Optional[List[Dict[str, Any]]] = None
     platform_version: Optional[str] = None

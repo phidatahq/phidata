@@ -23,6 +23,9 @@ class InfraResource(BaseModel):
     # resource management
     # If True, skip resource creation if an active resources with the same name exists.
     use_cache: bool = True
+    # Force the function to be implemented
+    # i.e. force recreate, force delete, force update
+    force: bool = False
 
     # If enabled=False: mark skip_create, skip_delete, skip_update as True
     enabled: bool = True
@@ -56,6 +59,12 @@ class InfraResource(BaseModel):
 
     def get_resource_type(self) -> Optional[str]:
         return self.resource_type
+
+    @validator("force", pre=True, always=True)
+    def set_force(cls, force):
+        from os import getenv
+        force = force or getenv("PHI_WS_FORCE", False)
+        return force
 
     @validator("skip_create", pre=True, always=True)
     def set_skip_create(cls, skip_create, values):

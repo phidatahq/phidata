@@ -63,6 +63,7 @@ class InfraResource(BaseModel):
     @validator("force", pre=True, always=True)
     def set_force(cls, force):
         from os import getenv
+
         force = force or getenv("PHI_WS_FORCE", False)
         return force
 

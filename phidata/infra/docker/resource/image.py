@@ -96,6 +96,9 @@ class DockerImage(DockerResource):
         logger.debug(f"platform: {self.platform}")
         logger.debug(f"nocache: {nocache}")
         logger.debug(f"pull: {pull}")
+
+        last_status = None
+        last_build_log = None
         try:
             _api_client: DockerClient = docker_client.api_client
             build_stream = _api_client.api.build(
@@ -121,20 +124,38 @@ class DockerImage(DockerResource):
                 use_config_proxy=self.use_config_proxy,
                 decode=True,
             )
+
             for build_log in build_stream:
-                line = build_log.get("stream", None)
-                if line is None:
+                if build_log != last_build_log:
+                    last_build_log = build_log
+
+                build_status: str = build_log.get("status")
+                if build_status is not None:
+                    _status = build_status.lower()
+                    if _status in (
+                        "waiting",
+                        "downloading",
+                        "extracting",
+                        "verifying checksum",
+                        "pulling fs layer",
+                    ):
+                        continue
+                    if build_status != last_status:
+                        logger.debug(build_status)
+                        last_status = build_status
+
+                stream = build_log.get("stream", None)
+                if stream is None or stream == "\n":
                     continue
-                if len(line) < 5:
-                    continue
-                line = line.strip()
-                if "Step" in line and self.print_build_log:
-                    print_info(line)
+                stream = stream.strip()
+                if "Step" in stream and self.print_build_log:
+                    print_info(stream)
                 else:
-                    logger.debug(line)
-                if "ERROR" in line or "error" in line:
+                    logger.debug(stream)
+                if "ERROR" in stream or "error" in stream:
+                    logger.debug(build_log)
                     print_error(f"Image build failed: {self.get_name_tag()}")
-                    print_error(line)
+                    print_error(stream)
                     return None
                 if build_log.get("aux", None) is not None:
                     logger.debug("build_log['aux'] :{}".format(build_log["aux"]))
@@ -168,13 +189,11 @@ class DockerImage(DockerResource):
             return self._read(docker_client)
         except TypeError as type_error:
             print_error(type_error)
-            # print_error("TypeError: {}".format(type_error))
         except BuildError as build_error:
             print_error(build_error)
-            # print_error("BuildError: {}".format(build_error))
         except APIError as api_err:
             print_error(api_err)
-            # print_error("ApiError: {}".format(api_err))
+        logger.debug(last_build_log)
         return None
 
     def _create(self, docker_client: DockerApiClient) -> bool:
@@ -260,3 +279,14 @@ class DockerImage(DockerResource):
             logger.exception("Error while deleting image: {}".format(e))
 
         return False
+
+    def create(self, docker_client: DockerApiClient) -> bool:
+        # if self.force then always create image
+        if not self.force:
+            if self.use_cache and self.is_active_on_cluster(docker_client):
+                print_info(
+                    f"{self.get_resource_type()} {self.get_resource_name()} already active."
+                )
+                return True
+
+        return self._create(docker_client)

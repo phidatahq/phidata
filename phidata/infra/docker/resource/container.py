@@ -179,8 +179,9 @@ class DockerContainer(DockerResource):
         container_name: Optional[str] = self.name
         container_object: Optional[Container] = self._read(docker_client)
 
-        # delete the container if it exists and use_cache = False
-        if container_object is not None and not self.use_cache:
+        # delete the container if it exists and force = True or use_cache = False
+        if container_object is not None and (self.force or self.use_cache is False):
+            logger.debug(f"force: {self.force}, use_cache: {self.use_cache}")
             print_info(
                 f"Deleting container {container_object.name}, use_cache={self.use_cache}"
             )
@@ -321,3 +322,14 @@ class DockerContainer(DockerResource):
             logger.debug("Got NotFound Exception, container is deleted")
 
         return True
+
+    def create(self, docker_client: DockerApiClient) -> bool:
+        # if self.force then always create container
+        if not self.force:
+            if self.use_cache and self.is_active_on_cluster(docker_client):
+                print_info(
+                    f"{self.get_resource_type()} {self.get_resource_name()} already active."
+                )
+                return True
+
+        return self._create(docker_client)

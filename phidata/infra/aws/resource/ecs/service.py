@@ -291,4 +291,3 @@ class EcsService(AwsResource):
             print_error(f"{self.get_resource_type()} could not be updated.")
             print_error(e)
         return False
-

@@ -20,7 +20,7 @@ main() {
     -r ${REPO_ROOT}/requirements.txt
 
   print_info "Installing phidata with [dev] extras"
-  pip3 install --editable "${REPO_ROOT}[dev]"
+  pip install --editable "${REPO_ROOT}[dev]"
 }
 
 main "$@"

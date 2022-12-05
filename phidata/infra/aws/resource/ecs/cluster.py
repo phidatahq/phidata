@@ -17,6 +17,10 @@ class EcsCluster(AwsResource):
 
     # Name of the cluster.
     name: str
+    # Name for the cluster.
+    # Use name if not provided.
+    ecs_cluster_name: Optional[str] = None
+
     tags: Optional[List[Dict[str, str]]] = None
     # The setting to use when creating a cluster.
     settings: Optional[List[Dict[str, Any]]] = None
@@ -30,6 +34,9 @@ class EcsCluster(AwsResource):
     # is set for a cluster, when you call the RunTask or CreateService APIs with no capacity provider strategy or
     # launch type specified, the default capacity provider strategy for the cluster is used.
     default_capacity_provider_strategy: Optional[List[Dict[str, Any]]] = None
+
+    def get_ecs_cluster_name(self):
+        return self.ecs_cluster_name or self.name
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the EcsCluster
@@ -58,7 +65,7 @@ class EcsCluster(AwsResource):
         service_client = self.get_service_client(aws_client)
         try:
             create_response = service_client.create_cluster(
-                clusterName=self.get_resource_name(),
+                clusterName=self.get_ecs_cluster_name(),
                 **not_null_args,
             )
             logger.debug(f"EcsCluster: {create_response}")
@@ -86,7 +93,7 @@ class EcsCluster(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            cluster_name = self.get_resource_name()
+            cluster_name = self.get_ecs_cluster_name()
             describe_response = service_client.describe_clusters(
                 clusters=[cluster_name]
             )
@@ -121,7 +128,7 @@ class EcsCluster(AwsResource):
 
         try:
             delete_response = service_client.delete_cluster(
-                cluster=self.get_resource_name()
+                cluster=self.get_ecs_cluster_name()
             )
             logger.debug(f"EcsCluster: {delete_response}")
             print_info(

@@ -64,6 +64,14 @@ class EcsService(AwsResource):
     enable_execute_command: Optional[bool] = None
 
     force_delete: Optional[bool] = None
+    # Force a new deployment of the service on update.
+    # By default, deployments aren't forced.
+    # You can use this option to start a new deployment with no service
+    # definition changes. For example, you can update a service's
+    # tasks to use a newer Docker image with the same
+    # image/tag combination (my_image:latest ) or
+    # to roll Fargate tasks onto a newer platform version.
+    force_new_deployment: Optional[bool] = None
 
     def get_ecs_service_name(self):
         return self.ecs_service_name or self.name
@@ -71,7 +79,7 @@ class EcsService(AwsResource):
     def get_ecs_cluster_name(self):
         if self.cluster is not None:
             if isinstance(self.cluster, EcsCluster):
-                return self.cluster.name
+                return self.cluster.get_ecs_cluster_name()
             else:
                 return self.cluster
 
@@ -226,4 +234,60 @@ class EcsService(AwsResource):
         """Update EcsService"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        return True
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
+        cluster_name = self.get_ecs_cluster_name()
+        if cluster_name is not None:
+            not_null_args["cluster"] = cluster_name
+        if self.desired_count is not None:
+            not_null_args["desiredCount"] = self.desired_count
+        if self.capacity_provider_strategy is not None:
+            not_null_args["capacityProviderStrategy"] = self.capacity_provider_strategy
+        if self.deployment_configuration is not None:
+            not_null_args["deploymentConfiguration"] = self.deployment_configuration
+        if self.network_configuration is not None:
+            not_null_args["networkConfiguration"] = self.network_configuration
+        if self.placement_constraints is not None:
+            not_null_args["placementConstraints"] = self.placement_constraints
+        if self.placement_strategy is not None:
+            not_null_args["placementStrategy"] = self.placement_strategy
+        if self.platform_version is not None:
+            not_null_args["platformVersion"] = self.platform_version
+        if self.force_new_deployment is not None:
+            not_null_args["forceNewDeployment"] = self.force_new_deployment
+        if self.health_check_grace_period_seconds is not None:
+            not_null_args[
+                "healthCheckGracePeriodSeconds"
+            ] = self.health_check_grace_period_seconds
+        if self.enable_execute_command is not None:
+            not_null_args["enableExecuteCommand"] = self.enable_execute_command
+        if self.enable_ecsmanaged_tags is not None:
+            not_null_args["enableECSManagedTags"] = self.enable_ecsmanaged_tags
+        if self.load_balancers is not None:
+            not_null_args["loadBalancers"] = self.load_balancers
+        if self.propagate_tags is not None:
+            not_null_args["propagateTags"] = self.propagate_tags
+        if self.service_registries is not None:
+            not_null_args["serviceRegistries"] = self.service_registries
+
+        # Update EcsService
+        service_client = self.get_service_client(aws_client)
+        try:
+            update_response = service_client.update_service(
+                service=self.get_ecs_service_name(),
+                taskDefinition=self.get_ecs_task_definition(),
+                **not_null_args,
+            )
+            logger.debug(f"EcsService: {update_response}")
+            resource_dict = update_response.get("service", {})
+
+            # Validate resource creation
+            if resource_dict is not None:
+                print_info(f"EcsService updated: {self.get_resource_name()}")
+                self.active_resource = update_response
+                return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be updated.")
+            print_error(e)
+        return False

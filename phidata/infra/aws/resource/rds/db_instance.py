@@ -46,7 +46,7 @@ class DbInstance(AwsResource):
         ],
     ]
     # Compute and memory capacity of the DB instance, for example db.m5.large.
-    db_instance_class: str
+    db_instance_class: Optional[str] = None
 
     # This is the name of the database to create when the DB instance is created.
     # Note: The meaning of this parameter differs according to the database engine you use.
@@ -204,7 +204,13 @@ class DbInstance(AwsResource):
             secret_data = self.get_secret_data()
             if secret_data is not None:
                 db_name = secret_data.get("DB_NAME", db_name)
+                if db_name is None:
+                    db_name = secret_data.get("DATABASE_NAME", db_name)
         return db_name
+
+    def get_database_name(self) -> Optional[str]:
+        # Alias for get_db_name because db_instances use `db_name` and db_clusters use `database_name`
+        return self.get_db_name()
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the DbInstance

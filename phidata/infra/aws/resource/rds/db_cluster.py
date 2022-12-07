@@ -275,7 +275,13 @@ class DbCluster(AwsResource):
             secret_data = self.get_secret_data()
             if secret_data is not None:
                 database_name = secret_data.get("DATABASE_NAME", database_name)
+                if database_name is None:
+                    database_name = secret_data.get("DB_NAME", database_name)
         return database_name
+
+    def get_db_name(self) -> Optional[str]:
+        # Alias for get_database_name because db_instances use `db_name` and db_clusters use `database_name`
+        return self.get_database_name()
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the DbCluster

@@ -146,6 +146,10 @@ class EksNodeGroup(AwsResource):
     created_at: Optional[str] = None
     nodegroup_status: Optional[str] = None
 
+    # provided by api on update
+    update_id: Optional[str] = None
+    update_status: Optional[str] = None
+
     # bump the wait time for Eks to 30 seconds
     waiter_delay = 30
 
@@ -435,3 +439,67 @@ class EksNodeGroup(AwsResource):
             ),
             policy_arns=policy_arns,
         )
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Update EKsNodeGroup"""
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        scaling_config: Optional[Dict[str, Union[str, int]]] = self.scaling_config
+        if scaling_config is None:
+            # Build the scaling_config
+            if self.min_size is not None:
+                if scaling_config is None:
+                    scaling_config = {}
+                scaling_config["minSize"] = self.min_size
+                # use min_size as the default for maxSize/desiredSize incase maxSize/desiredSize is not provided
+                scaling_config["maxSize"] = self.min_size
+                scaling_config["desiredSize"] = self.min_size
+            if self.max_size is not None:
+                if scaling_config is None:
+                    scaling_config = {}
+                scaling_config["maxSize"] = self.max_size
+            if self.desired_size is not None:
+                if scaling_config is None:
+                    scaling_config = {}
+                scaling_config["desiredSize"] = self.desired_size
+
+        # TODO: Add logic to calculate updated_labels and updated_taints
+
+        updated_labels = None
+        updated_taints = None
+    
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if scaling_config is not None:
+            not_null_args["scalingConfig"] = scaling_config
+        if updated_labels is not None:
+            not_null_args["labels"] = updated_labels
+        if updated_taints is not None:
+            not_null_args["taints"] = updated_taints
+        if self.update_config is not None:
+            not_null_args["updateConfig"] = self.update_config
+
+        # Step 4: Update EksNodeGroup
+        service_client = self.get_service_client(aws_client)
+        try:
+            update_response = service_client.update_nodegroup_config(
+                clusterName=self.eks_cluster.name,
+                nodegroupName=self.name,
+                **not_null_args,
+            )
+            logger.debug(f"EksNodeGroup: {update_response}")
+            nodegroup_dict = update_response.get("update", {})
+
+            # Validate EksNodeGroup update
+            self.update_id = nodegroup_dict.get("id", None)
+            self.update_status = nodegroup_dict.get("status", None)
+            logger.debug(f"update_id: {self.update_id}")
+            logger.debug(f"update_status: {self.update_status}")
+            if self.update_id is not None:
+                print_info(f"EksNodeGroup updated: {self.name}")
+                return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be updated.")
+            print_error(e)
+        return False
+        

@@ -441,7 +441,7 @@ class EksNodeGroup(AwsResource):
         )
 
     def _update(self, aws_client: AwsApiClient) -> bool:
-        """Update EcsService"""
+        """Update EKsNodeGroup"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
         scaling_config: Optional[Dict[str, Union[str, int]]] = self.scaling_config
@@ -462,6 +462,8 @@ class EksNodeGroup(AwsResource):
                 if scaling_config is None:
                     scaling_config = {}
                 scaling_config["desiredSize"] = self.desired_size
+
+        # TODO: Add logic to calculate updated_labels and updated_taints
 
         updated_labels = None
         updated_taints = None
@@ -500,3 +502,4 @@ class EksNodeGroup(AwsResource):
             print_error(f"{self.get_resource_type()} could not be updated.")
             print_error(e)
         return False
+        

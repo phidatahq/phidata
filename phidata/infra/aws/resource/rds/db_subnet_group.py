@@ -26,7 +26,7 @@ class DbSubnetGroup(AwsResource):
     #   Example: mydbsubnetgroup
     name: str
     # The description for the DB subnet group.
-    description: str
+    description: Optional[str] = None
     # The EC2 Subnet IDs for the DB subnet group.
     subnet_ids: Optional[List[str]] = None
     # Get Subnet IDs from a VPC CloudFormationStack
@@ -59,7 +59,7 @@ class DbSubnetGroup(AwsResource):
             service_client = self.get_service_client(aws_client)
             create_response = service_client.create_db_subnet_group(
                 DBSubnetGroupName=self.name,
-                DBSubnetGroupDescription=self.description,
+                DBSubnetGroupDescription=self.description or f"Created for {self.name}",
                 SubnetIds=subnet_ids,
                 **not_null_args,
             )

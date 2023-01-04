@@ -20,7 +20,7 @@ class AirflowFlower(AirflowBase):
         enabled: bool = True,
         # -*- Image Configuration,
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.4.2",
+        image_tag: str = "2.5.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "flower",
         # Install python dependencies using a requirements.txt file,
@@ -103,6 +103,9 @@ class AirflowFlower(AirflowBase):
         # Overwrite the PYTHONPATH env var,,
         # which is usually set to the workspace_root_container_path,
         python_path: Optional[str] = None,
+        # Add to the PYTHONPATH env var. If python_path is set, this is ignored
+        # Does not overwrite the PYTHONPATH env var - adds to it.
+        add_python_path: Optional[str] = None,
         # Add labels to the container,
         container_labels: Optional[Dict[str, Any]] = None,
         # Container env passed to the PhidataApp,
@@ -446,6 +449,7 @@ class AirflowFlower(AirflowBase):
             redis_driver=redis_driver,
             container_name=container_name,
             python_path=python_path,
+            add_python_path=add_python_path,
             container_labels=container_labels,
             env=env,
             env_file=env_file,

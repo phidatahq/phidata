@@ -467,7 +467,7 @@ class EksNodeGroup(AwsResource):
 
         updated_labels = None
         updated_taints = None
-    
+
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if scaling_config is not None:
@@ -502,4 +502,3 @@ class EksNodeGroup(AwsResource):
             print_error(f"{self.get_resource_type()} could not be updated.")
             print_error(e)
         return False
-        

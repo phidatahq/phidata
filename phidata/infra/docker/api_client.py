@@ -40,7 +40,9 @@ class DockerApiClient(InfraApiClient):
             else:
                 api_client = docker.DockerClient(base_url=self.base_url)
         except Exception as e:
-            print_error("Could not connect to docker. Please confirm docker is installed and running")
+            print_error(
+                "Could not connect to docker. Please confirm docker is installed and running"
+            )
             print_error(e)
             exit(0)
         return api_client

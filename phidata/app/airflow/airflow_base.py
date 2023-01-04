@@ -26,7 +26,7 @@ class AirflowBaseArgs(PhidataAppArgs):
 
     # -*- Image Configuration
     image_name: str = "phidata/airflow"
-    image_tag: str = "2.4.2"
+    image_tag: str = "2.5.0"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
@@ -120,6 +120,9 @@ class AirflowBaseArgs(PhidataAppArgs):
     # Overwrite the PYTHONPATH env var,
     # which is usually set to the workspace_root_container_path
     python_path: Optional[str] = None
+    # Add to the PYTHONPATH env var. If python_path is set, this is ignored
+    # Does not overwrite the PYTHONPATH env var - adds to it.
+    add_python_path: Optional[str] = None
     # Add labels to the container
     container_labels: Optional[Dict[str, Any]] = None
 
@@ -250,7 +253,7 @@ class AirflowBase(PhidataApp):
         enabled: bool = True,
         # -*- Image Configuration,
         image_name: str = "phidata/airflow",
-        image_tag: str = "2.4.2",
+        image_tag: str = "2.5.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
@@ -333,6 +336,9 @@ class AirflowBase(PhidataApp):
         # Overwrite the PYTHONPATH env var,,
         # which is usually set to the workspace_root_container_path,
         python_path: Optional[str] = None,
+        # Add to the PYTHONPATH env var. If python_path is set, this is ignored
+        # Does not overwrite the PYTHONPATH env var - adds to it.
+        add_python_path: Optional[str] = None,
         # Add labels to the container,
         container_labels: Optional[Dict[str, Any]] = None,
         # Container env passed to the PhidataApp,
@@ -678,6 +684,7 @@ class AirflowBase(PhidataApp):
                 redis_driver=redis_driver,
                 container_name=container_name,
                 python_path=python_path,
+                add_python_path=add_python_path,
                 container_labels=container_labels,
                 env=env,
                 env_file=env_file,
@@ -960,6 +967,13 @@ class AirflowBase(PhidataApp):
                 redis_driver_var = secret_data.get("REDIS_DRIVER", redis_driver_var)
         return redis_driver_var
 
+    def get_airflow_home(self) -> str:
+        return (
+            self.args.airflow_home
+            if self.args and self.args.airflow_home
+            else "/usr/local/airflow"
+        )
+
     ######################################################
     ## Docker Resources
     ######################################################
@@ -983,6 +997,7 @@ class AirflowBase(PhidataApp):
             WORKSPACE_CONFIG_DIR_ENV_VAR,
             INIT_AIRFLOW_ENV_VAR,
             AIRFLOW_ENV_ENV_VAR,
+            AIRFLOW_HOME_ENV_VAR,
             AIRFLOW_DAGS_FOLDER_ENV_VAR,
             AIRFLOW_EXECUTOR_ENV_VAR,
             AIRFLOW_DB_CONN_URL_ENV_VAR,
@@ -1015,7 +1030,13 @@ class AirflowBase(PhidataApp):
         logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
 
         # Container pythonpath
-        python_path = self.args.python_path or container_paths.workspace_root
+        python_path = self.args.python_path
+        if python_path is None:
+            python_path = "{}:{}{}".format(
+                container_paths.workspace_root,
+                self.get_airflow_home(),
+                f":{self.args.add_python_path}" if self.args.add_python_path else "",
+            )
 
         # Container Environment
         container_env: Dict[str, Any] = {
@@ -1062,6 +1083,10 @@ class AirflowBase(PhidataApp):
         # Set the AIRFLOW_ENV
         if self.args.airflow_env is not None:
             container_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
+
+        # Set the AIRFLOW_HOME
+        if self.args.airflow_home is not None:
+            container_env[AIRFLOW_HOME_ENV_VAR] = self.args.airflow_home
 
         # Set the AIRFLOW__CONN_ variables
         if self.args.db_connections is not None:
@@ -1225,10 +1250,7 @@ class AirflowBase(PhidataApp):
         if self.args.mount_logs:
             logs_volume_container_path_str = self.args.logs_volume_container_path
             if logs_volume_container_path_str is None:
-                if self.args.airflow_home is not None:
-                    logs_volume_container_path_str = f"{self.args.airflow_home}/logs"
-                else:
-                    logs_volume_container_path_str = "/usr/local/airflow/logs"
+                logs_volume_container_path_str = f"{self.get_airflow_home()}/logs"
 
             if self.args.logs_volume_type == AirflowLogsVolumeType.EmptyDir:
                 logs_volume_name = self.args.logs_volume_name
@@ -1376,6 +1398,7 @@ class AirflowBase(PhidataApp):
             WORKSPACE_CONFIG_DIR_ENV_VAR,
             INIT_AIRFLOW_ENV_VAR,
             AIRFLOW_ENV_ENV_VAR,
+            AIRFLOW_HOME_ENV_VAR,
             AIRFLOW_DAGS_FOLDER_ENV_VAR,
             AIRFLOW_EXECUTOR_ENV_VAR,
             AIRFLOW_DB_CONN_URL_ENV_VAR,
@@ -1543,7 +1566,13 @@ class AirflowBase(PhidataApp):
                 )
 
         # Container pythonpath
-        python_path = self.args.python_path or container_paths.workspace_root
+        python_path = self.args.python_path
+        if python_path is None:
+            python_path = "{}:{}{}".format(
+                container_paths.workspace_root,
+                self.get_airflow_home(),
+                f":{self.args.add_python_path}" if self.args.add_python_path else "",
+            )
 
         # Container Environment
         container_env: Dict[str, Any] = {
@@ -1590,6 +1619,10 @@ class AirflowBase(PhidataApp):
         # Set the AIRFLOW_ENV
         if self.args.airflow_env is not None:
             container_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
+
+        # Set the AIRFLOW_HOME
+        if self.args.airflow_home is not None:
+            container_env[AIRFLOW_HOME_ENV_VAR] = self.args.airflow_home
 
         # Set the AIRFLOW__CONN_ variables
         if self.args.db_connections is not None:

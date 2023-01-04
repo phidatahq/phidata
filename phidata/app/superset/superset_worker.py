@@ -19,7 +19,7 @@ class SupersetWorker(SupersetBase):
         enabled: bool = True,
         # -*- Image Configuration,
         image_name: str = "phidata/superset",
-        image_tag: str = "2.0.0",
+        image_tag: str = "2.0.1",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "worker",
         # Install python dependencies using a requirements.txt file,

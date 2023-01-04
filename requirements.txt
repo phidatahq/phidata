@@ -5,8 +5,8 @@
 #    ./scripts/upgrade.sh
 #
 anyio==3.6.2
-boto3==1.26.42
-botocore==1.29.42
+boto3==1.26.43
+botocore==1.29.43
 cachetools==5.2.0
 certifi==2022.12.7
 charset-normalizer==2.1.1
@@ -18,13 +18,13 @@ gitpython==3.1.30
 google-auth==2.15.0
 h11==0.14.0
 httpcore==0.16.3
-httpx==0.23.2
+httpx==0.23.3
 idna==3.4
 jmespath==1.0.1
 kubernetes==25.3.0
 oauthlib==3.2.2
 packaging==22.0
-phiterm==0.4.5
+phiterm==0.4.6
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pydantic==1.10.4

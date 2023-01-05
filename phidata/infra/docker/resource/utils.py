@@ -81,6 +81,11 @@ def get_docker_resources_from_group(
                 if isinstance(_r, DockerResource):
                     rn = _r.get_resource_name()
                     rt = _r.get_resource_type()
+                    # skip disabled resources
+                    if not _r.enabled:
+                        logger.debug(f"  -*- skipping {rt}:{rn}")
+                        continue
+
                     if name_filter is not None and rn is not None:
                         # logger.debug(f"name_filter: {name_filter.lower()}")
                         # logger.debug(f"resource name: {rn.lower()}")
@@ -101,6 +106,11 @@ def get_docker_resources_from_group(
         elif isinstance(resource_data, DockerResource):
             rn = resource_data.get_resource_name()
             rt = resource_data.get_resource_type()
+            # skip disabled resources
+            if not resource_data.enabled:
+                logger.debug(f"  -*- skipping {rt}:{rn}")
+                continue
+
             if name_filter is not None and rn is not None:
                 # logger.debug(f"name_filter: {name_filter.lower()}")
                 # logger.debug(f"resource name: {rn.lower()}")

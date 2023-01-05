@@ -83,6 +83,8 @@ class IngressRouteArgs(PhidataAppArgs):
     web_key: str = "web"
     web_ingress_name: str = "web-ingress"
     forward_web_to_websecure: bool = False
+    enable_web_proxy_protocol: bool = False
+    enable_web_forward_headers: bool = False
 
     websecure_enabled: bool = False
     websecure_routes: Optional[List[dict]] = None
@@ -91,6 +93,9 @@ class IngressRouteArgs(PhidataAppArgs):
     websecure_node_port: Optional[int] = None
     websecure_key: str = "websecure"
     websecure_ingress_name: str = "websecure-ingress"
+    enable_websecure_proxy_protocol: bool = False
+    enable_websecure_forward_headers: bool = False
+    add_headers: Optional[Dict[str, dict]] = None
 
     dashboard_enabled: bool = False
     dashboard_routes: Optional[List[dict]] = None
@@ -145,6 +150,7 @@ class IngressRouteArgs(PhidataAppArgs):
     service_name: Optional[str] = None
     service_type: ServiceType = ServiceType.LOAD_BALANCER
     service_annotations: Optional[Dict[str, str]] = None
+    external_traffic_policy: Optional[Literal["Cluster", "Local"]] = None
 
     # Add env variables to container env
     env: Optional[Dict[str, str]] = None
@@ -174,7 +180,7 @@ class IngressRouteArgs(PhidataAppArgs):
     # `ip` mode will route traffic directly to the pod IP.
     #       network plugin must use native AWS VPC networking configuration for pod IP,
     #       for example Amazon VPC CNI plugin.
-    nlb_target_type: Optional[Literal["instance", "ip"]] = None
+    nlb_target_type: Literal["instance", "ip"] = "ip"
     # Write Access Logs to s3
     access_logs_to_s3: bool = False
     # The name of the aws S3 bucket where the access logs are stored
@@ -193,6 +199,9 @@ class IngressRouteArgs(PhidataAppArgs):
     # Using the secrets_file is recommended
     load_balancer_source_ranges: Optional[List[str]] = None
     allocate_load_balancer_node_ports: Optional[bool] = None
+    enable_load_balancer_proxy_protocol: bool = True
+    enable_cross_zone_load_balancing: bool = True
+    load_balancer_subnets: Optional[List[str]] = None
 
     # Set to False when multiple IngressRoutes are installed
     # in the same cluster.
@@ -218,6 +227,8 @@ class IngressRoute(PhidataApp):
         web_key: str = "web",
         web_ingress_name: str = "web-ingress",
         forward_web_to_websecure: bool = False,
+        enable_web_proxy_protocol: bool = False,
+        enable_web_forward_headers: bool = False,
         websecure_enabled: bool = False,
         websecure_routes: Optional[List[dict]] = None,
         websecure_container_port: int = 443,
@@ -225,6 +236,9 @@ class IngressRoute(PhidataApp):
         websecure_node_port: Optional[int] = None,
         websecure_key: str = "websecure",
         websecure_ingress_name: str = "websecure-ingress",
+        enable_websecure_proxy_protocol: bool = False,
+        enable_websecure_forward_headers: bool = False,
+        add_headers: Optional[Dict[str, dict]] = None,
         dashboard_enabled: bool = False,
         dashboard_routes: Optional[List[dict]] = None,
         dashboard_container_port: int = 8080,
@@ -276,6 +290,7 @@ class IngressRoute(PhidataApp):
         service_name: Optional[str] = None,
         service_type: ServiceType = ServiceType.LOAD_BALANCER,
         service_annotations: Optional[Dict[str, Optional[str]]] = None,
+        external_traffic_policy: Optional[Literal["Cluster", "Local"]] = None,
         # Add env variables to container env,
         env: Optional[Dict[str, str]] = None,
         # Read env variables from a file in yaml format,
@@ -301,7 +316,7 @@ class IngressRoute(PhidataApp):
         # `ip` mode will route traffic directly to the pod IP.,
         #       network plugin must use native AWS VPC networking configuration for pod IP,,
         #       for example Amazon VPC CNI plugin.,
-        nlb_target_type: Optional[Literal["instance", "ip"]] = None,
+        nlb_target_type: Literal["instance", "ip"] = "ip",
         # Write Access Logs to s3,
         access_logs_to_s3: bool = False,
         # The name of the aws S3 bucket where the access logs are stored,
@@ -320,6 +335,9 @@ class IngressRoute(PhidataApp):
         # Using the secrets_file is recommended
         load_balancer_source_ranges: Optional[List[str]] = None,
         allocate_load_balancer_node_ports: Optional[bool] = None,
+        enable_load_balancer_proxy_protocol: bool = True,
+        enable_cross_zone_load_balancing: bool = True,
+        load_balancer_subnets: Optional[List[str]] = None,
         # Set to False when multiple IngressRoutes are installed
         # in the same cluster.
         install_crds: bool = True,
@@ -351,6 +369,8 @@ class IngressRoute(PhidataApp):
                 web_key=web_key,
                 web_ingress_name=web_ingress_name,
                 forward_web_to_websecure=forward_web_to_websecure,
+                enable_web_proxy_protocol=enable_web_proxy_protocol,
+                enable_web_forward_headers=enable_web_forward_headers,
                 websecure_enabled=websecure_enabled,
                 websecure_routes=websecure_routes,
                 websecure_container_port=websecure_container_port,
@@ -358,6 +378,9 @@ class IngressRoute(PhidataApp):
                 websecure_node_port=websecure_node_port,
                 websecure_key=websecure_key,
                 websecure_ingress_name=websecure_ingress_name,
+                enable_websecure_proxy_protocol=enable_websecure_proxy_protocol,
+                enable_websecure_forward_headers=enable_websecure_forward_headers,
+                add_headers=add_headers,
                 dashboard_enabled=dashboard_enabled,
                 dashboard_routes=dashboard_routes,
                 dashboard_container_port=dashboard_container_port,
@@ -389,6 +412,7 @@ class IngressRoute(PhidataApp):
                 service_name=service_name,
                 service_type=service_type,
                 service_annotations=service_annotations,
+                external_traffic_policy=external_traffic_policy,
                 env=env,
                 env_file=env_file,
                 config_map_name=config_map_name,
@@ -406,6 +430,9 @@ class IngressRoute(PhidataApp):
                 load_balancer_scheme=load_balancer_scheme,
                 load_balancer_source_ranges=load_balancer_source_ranges,
                 allocate_load_balancer_node_ports=allocate_load_balancer_node_ports,
+                enable_load_balancer_proxy_protocol=enable_load_balancer_proxy_protocol,
+                enable_cross_zone_load_balancing=enable_cross_zone_load_balancing,
+                load_balancer_subnets=load_balancer_subnets,
                 install_crds=install_crds,
                 use_cache=use_cache,
             )
@@ -620,6 +647,14 @@ class IngressRoute(PhidataApp):
             container_args.append(
                 f"--entrypoints.{self.args.web_key}.Address=:{self.args.web_service_port}"
             )
+            if self.args.enable_web_proxy_protocol:
+                container_args.append(
+                    f"--entrypoints.{self.args.web_key}.proxyProtocol.insecure=true"
+                )
+            if self.args.enable_web_forward_headers:
+                container_args.append(
+                    f"--entrypoints.{self.args.web_key}.forwardedHeaders.insecure=true"
+                )
 
             web_port = CreatePort(
                 name=self.args.web_key,
@@ -651,6 +686,14 @@ class IngressRoute(PhidataApp):
             container_args.append(
                 f"--entrypoints.{self.args.websecure_key}.Address=:{self.args.websecure_service_port}"
             )
+            if self.args.enable_websecure_proxy_protocol:
+                container_args.append(
+                    f"--entrypoints.{self.args.websecure_key}.proxyProtocol.insecure=true"
+                )
+            if self.args.enable_websecure_forward_headers:
+                container_args.append(
+                    f"--entrypoints.{self.args.websecure_key}.forwardedHeaders.insecure=true"
+                )
             if self.args.forward_web_to_websecure:
                 container_args.extend(
                     [
@@ -684,6 +727,18 @@ class IngressRoute(PhidataApp):
                 namespace=k8s_build_context.namespace,
             )
             custom_objects.append(websecure_ingressroute)
+
+        if self.args.add_headers:
+            headers_middleware = CreateCustomObject(
+                name="header-middleware",
+                crd=middleware_crd,
+                spec={
+                    "headers": self.args.add_headers,
+                },
+                app_name=app_name,
+                namespace=k8s_build_context.namespace,
+            )
+            custom_objects.append(headers_middleware)
 
         if self.args.dashboard_enabled:
             container_args.append(f"--api=true")
@@ -849,43 +904,67 @@ class IngressRoute(PhidataApp):
                 service_annotations[
                     "service.beta.kubernetes.io/aws-load-balancer-scheme"
                 ] = self.args.load_balancer_scheme
+                if self.args.load_balancer_scheme == "internal":
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-internal"
+                    ] = "true"
 
-        # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
-        # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
-        if self.args.acm_certificate_arn is not None:
-            service_annotations[
-                "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
-            ] = self.args.acm_certificate_arn
-            service_annotations[
-                "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
-            ] = str(self.args.websecure_service_port)
-        # if acm_certificate_summary_file is provided, use that
-        if self.args.acm_certificate_summary_file is not None and isinstance(
-            self.args.acm_certificate_summary_file, Path
-        ):
-            if (
-                self.args.acm_certificate_summary_file.exists()
-                and self.args.acm_certificate_summary_file.is_file()
-            ):
-                from phidata.infra.aws.resource.acm.certificate import (
-                    CertificateSummary,
-                )
-
-                cert_summary = CertificateSummary.parse_file(
-                    self.args.acm_certificate_summary_file
-                )
-                certificate_arn = cert_summary.CertificateArn
-                logger.debug(f"CertificateArn: {certificate_arn}")
+            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
+            # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
+            if self.args.acm_certificate_arn is not None:
                 service_annotations[
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
-                ] = certificate_arn
+                ] = self.args.acm_certificate_arn
                 service_annotations[
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
                 ] = str(self.args.websecure_service_port)
-            else:
-                print_warning(
-                    f"Does not exist: {self.args.acm_certificate_summary_file}"
-                )
+            # if acm_certificate_summary_file is provided, use that
+            if self.args.acm_certificate_summary_file is not None and isinstance(
+                self.args.acm_certificate_summary_file, Path
+            ):
+                if (
+                    self.args.acm_certificate_summary_file.exists()
+                    and self.args.acm_certificate_summary_file.is_file()
+                ):
+                    from phidata.infra.aws.resource.acm.certificate import (
+                        CertificateSummary,
+                    )
+
+                    cert_summary = CertificateSummary.parse_file(
+                        self.args.acm_certificate_summary_file
+                    )
+                    certificate_arn = cert_summary.CertificateArn
+                    logger.debug(f"CertificateArn: {certificate_arn}")
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
+                    ] = certificate_arn
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"
+                    ] = str(self.args.websecure_service_port)
+                else:
+                    print_warning(
+                        f"Does not exist: {self.args.acm_certificate_summary_file}"
+                    )
+
+            # Enable proxy protocol for NLB
+            if self.args.enable_load_balancer_proxy_protocol:
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol"
+                ] = "*"
+
+            # Enable cross-zone load balancing
+            if self.args.enable_cross_zone_load_balancing:
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled"
+                ] = "true"
+
+            # Add subnets to NLB
+            if self.args.load_balancer_subnets is not None and isinstance(
+                self.args.load_balancer_subnets, list
+            ):
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-subnets"
+                ] = ", ".join(self.args.load_balancer_subnets)
 
         service = CreateService(
             service_name=self.get_service_name(),
@@ -895,6 +974,7 @@ class IngressRoute(PhidataApp):
             service_type=self.args.service_type,
             deployment=deployment,
             ports=ports,
+            external_traffic_policy=self.args.external_traffic_policy,
             labels=k8s_build_context.labels,
             annotations=service_annotations,
             load_balancer_ip=self.args.load_balancer_ip,

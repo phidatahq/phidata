@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from phidata.app.phidata_app import PhidataApp
+from phidata.app.group import AppGroup, get_apps_from_app_groups
 from phidata.app.databox import default_databox_name
 from phidata.infra.base import InfraConfig
 from phidata.infra.docker.args import DockerArgs
@@ -22,6 +23,7 @@ class DockerConfig(InfraConfig):
         network: str = "phi",
         base_url: Optional[str] = None,
         apps: Optional[List[PhidataApp]] = None,
+        app_groups: Optional[List[AppGroup]] = None,
         images: Optional[List[DockerImage]] = None,
         containers: Optional[List[DockerContainer]] = None,
         volumes: Optional[List[DockerVolume]] = None,
@@ -30,6 +32,10 @@ class DockerConfig(InfraConfig):
     ):
         super().__init__()
         try:
+            _apps = apps if apps is not None else []
+            if app_groups is not None:
+                _apps.extend(get_apps_from_app_groups(app_groups))
+
             self.args: DockerArgs = DockerArgs(
                 name=name,
                 env=env,
@@ -37,7 +43,7 @@ class DockerConfig(InfraConfig):
                 enabled=enabled,
                 network=network,
                 base_url=base_url,
-                apps=apps,
+                apps=_apps,
                 images=images,
                 containers=containers,
                 volumes=volumes,

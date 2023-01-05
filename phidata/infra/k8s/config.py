@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from phidata.app.phidata_app import PhidataApp
+from phidata.app.group import AppGroup, get_apps_from_app_groups
 from phidata.app.databox import default_databox_name
 from phidata.infra.base import InfraConfig
 from phidata.infra.k8s.args import K8sArgs
@@ -27,6 +28,8 @@ class K8sConfig(InfraConfig):
         common_labels: Optional[Dict[str, str]] = None,
         # PhidataApp to deploy
         apps: Optional[List[PhidataApp]] = None,
+        # AppGroups to deploy
+        app_groups: Optional[List[AppGroup]] = None,
         # K8sResourceGroup to deploy
         resources: Optional[List[K8sResourceGroup]] = None,
         # CreateK8sResourceGroup to deploy
@@ -58,6 +61,10 @@ class K8sConfig(InfraConfig):
                 k8s_context = eks_cluster.get_kubeconfig_context_name()
                 k8s_kubeconfig_path = eks_cluster.kubeconfig_path
 
+            _apps = apps if apps is not None else []
+            if app_groups is not None:
+                _apps.extend(get_apps_from_app_groups(app_groups))
+
             self.args: K8sArgs = K8sArgs(
                 env=env,
                 version=version,
@@ -66,7 +73,7 @@ class K8sConfig(InfraConfig):
                 context=k8s_context,
                 service_account_name=service_account_name,
                 common_labels=common_labels,
-                apps=apps,
+                apps=_apps,
                 resources=resources,
                 create_resources=create_resources,
                 databox_name=databox_name,

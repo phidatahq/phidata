@@ -21,6 +21,7 @@ from phidata.infra.aws.resource.rds.db_cluster import DbCluster
 from phidata.infra.aws.resource.rds.db_instance import DbInstance
 from phidata.infra.aws.resource.rds.db_subnet_group import DbSubnetGroup
 from phidata.infra.aws.resource.elasticache.cluster import CacheCluster
+from phidata.infra.aws.resource.elasticache.subnet_group import CacheSubnetGroup
 
 # Use this as a type for an object which can hold any Aws Resource
 AwsResourceType = Union[
@@ -38,6 +39,7 @@ AwsResourceType = Union[
     DbSubnetGroup,
     DbCluster,
     DbInstance,
+    CacheSubnetGroup,
     CacheCluster,
     EmrCluster,
     EcsCluster,
@@ -58,6 +60,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     DbSubnetGroup,
     DbCluster,
     DbInstance,
+    CacheSubnetGroup,
     CacheCluster,
     EcsCluster,
     EcsTaskDefinition,

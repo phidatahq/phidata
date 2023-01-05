@@ -3,6 +3,7 @@ from typing import Optional, Any, Dict, List, Literal
 
 from phidata.infra.aws.api_client import AwsApiClient
 from phidata.infra.aws.resource.base import AwsResource
+from phidata.infra.aws.resource.elasticache.subnet_group import CacheSubnetGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -54,6 +55,9 @@ class CacheCluster(AwsResource):
     engine_version: Optional[str] = None
     cache_parameter_group_name: Optional[str] = None
     cache_subnet_group_name: Optional[str] = None
+    # If cache_subnet_group_name is None,
+    # Read the cache_subnet_group_name from cache_subnet_group
+    cache_subnet_group: Optional[CacheSubnetGroup] = None
     cache_security_group_names: Optional[List[str]] = None
     security_group_ids: Optional[List[str]] = None
     tags: Optional[List[Dict[str, str]]] = None
@@ -120,6 +124,12 @@ class CacheCluster(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # Get the CacheSubnetGroupName
+        cache_subnet_group_name = self.cache_subnet_group_name
+        if cache_subnet_group_name is None and self.cache_subnet_group is not None:
+            cache_subnet_group_name = self.cache_subnet_group.name
+            logger.debug(f"Using CacheSubnetGroup: {cache_subnet_group_name}")
+
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.replication_group_id is not None:
@@ -144,8 +154,8 @@ class CacheCluster(AwsResource):
             not_null_args["EngineVersion"] = self.engine_version
         if self.cache_parameter_group_name is not None:
             not_null_args["CacheParameterGroupName"] = self.cache_parameter_group_name
-        if self.cache_subnet_group_name is not None:
-            not_null_args["CacheSubnetGroupName"] = self.cache_subnet_group_name
+        if cache_subnet_group_name is not None:
+            not_null_args["CacheSubnetGroupName"] = cache_subnet_group_name
         if self.cache_security_group_names is not None:
             not_null_args["CacheSecurityGroupNames"] = self.cache_security_group_names
         if self.security_group_ids is not None:

@@ -17,12 +17,13 @@ class LocalFileFormat(ExtendedEnum):
 
 
 class LocalFileArgs(LocalAssetArgs):
+    # File name
     name: Optional[str] = None
+    # File format
     file_format: Optional[LocalFileFormat] = None
 
-    # If the file is located in the current dir.
-    # Default: True
-    # Used to build the file_path
+    # True If the file is located in the current dir.
+    # Default: False
     current_dir: bool = False
 
     # Parent directory of the file relative to the storage_dir
@@ -36,7 +37,9 @@ class LocalFileArgs(LocalAssetArgs):
 class LocalFile(LocalAsset):
     def __init__(
         self,
+        # File name
         name: Optional[str] = None,
+        # File format
         file_format: Optional[LocalFileFormat] = None,
         # Set as True if the file is located in the current directory.
         # By default, we store files in the storage_dir.

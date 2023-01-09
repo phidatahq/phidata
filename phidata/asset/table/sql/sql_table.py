@@ -13,15 +13,18 @@ from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
 
 
-class SqlFormat(ExtendedEnum):
+class SqlTableFormat(ExtendedEnum):
     POSTGRES = "POSTGRES"
 
 
 class SqlTableArgs(DataAssetArgs):
     # Table Name
     name: str
-    # Type of SQL table
-    sql_type: SqlFormat
+    # SQLModel for this table
+    sql_model: Any
+    # SQL Table Format
+    sql_format: SqlTableFormat
+
     # Table schema
     db_schema: Optional[str] = None
     # sqlalchemy.engine.(Engine or Connection)
@@ -43,34 +46,24 @@ class SqlTable(DataAsset):
 
     def __init__(
         self,
-        # Table Name,
-        name: Optional[str] = None,
-        # Type of SQL table,
-        sql_type: Optional[SqlFormat] = None,
-        # Table schema,
+        # Table Name: required
+        name: str,
+        # SQLModel for this table: required
+        sql_model: Any,
+        # SQLTable Format: required
+        sql_format: SqlTableFormat,
+        # Table schema
         db_schema: Optional[str] = None,
-        # sqlalchemy.engine.(Engine or Connection),
-        # Using SQLAlchemy makes it possible to use any DB supported by that library.,
-        # NOTE: db_engine is required but can be derived using other args.,
+        # sqlalchemy.engine.(Engine or Connection)
+        # Using SQLAlchemy makes it possible to use any DB supported by that library.
+        # NOTE: db_engine is required but can be derived using other args.
         db_engine: Optional[Union[Engine, Connection]] = None,
-        # a db_conn_url can be used to create the sqlalchemy.engine.Engine object,
+        # a db_conn_url can be used to create the sqlalchemy.engine.Engine object
         db_conn_url: Optional[str] = None,
-        # airflow connection_id used for running workflows on airflow,
+        # airflow connection_id used for running workflows on airflow
         airflow_conn_id: Optional[str] = None,
         # Phidata DbApp to connect to the database,
         db_app: Optional[Any] = None,
-        # Checks to run before loading the table,
-        pre_checks: Optional[List[Check]] = None,
-        # List of tasks to create the table
-        create_tasks: Optional[List[Task]] = None,
-        # Checks to run after loading the table,
-        post_checks: Optional[List[Check]] = None,
-        # List of tasks to update the table,
-        update_tasks: Optional[List[Task]] = None,
-        # List of tasks to delete the table,
-        delete_tasks: Optional[List[Task]] = None,
-        # Control which environment the table is created in
-        env: Optional[str] = None,
         cached_db_engine: Optional[Union[Engine, Connection]] = None,
         version: Optional[str] = None,
         enabled: bool = True,
@@ -78,39 +71,49 @@ class SqlTable(DataAsset):
     ) -> None:
         super().__init__()
         self.args: Optional[SqlTableArgs] = None
-        if name is not None and sql_type is not None:
-            try:
-                self.args = SqlTableArgs(
-                    name=name,
-                    sql_type=sql_type,
-                    db_schema=db_schema,
-                    db_engine=db_engine,
-                    db_conn_url=db_conn_url,
-                    airflow_conn_id=airflow_conn_id,
-                    db_app=db_app,
-                    pre_checks=pre_checks,
-                    create_tasks=create_tasks,
-                    post_checks=post_checks,
-                    update_tasks=update_tasks,
-                    delete_tasks=delete_tasks,
-                    env=env,
-                    cached_db_engine=cached_db_engine,
-                    version=version,
-                    enabled=enabled,
-                    **kwargs,
-                )
-            except Exception as e:
-                logger.error(f"Args for {self.name} are not valid")
-                raise
+        if name is None:
+            raise ValueError("name is required")
+        if sql_model is None:
+            raise ValueError("sql_model is required")
+        if sql_format is None:
+            raise ValueError("sql_format is required")
+
+        try:
+            self.args = SqlTableArgs(
+                name=name,
+                sql_model=sql_model,
+                sql_format=sql_format,
+                db_schema=db_schema,
+                db_engine=db_engine,
+                db_conn_url=db_conn_url,
+                airflow_conn_id=airflow_conn_id,
+                db_app=db_app,
+                cached_db_engine=cached_db_engine,
+                version=version,
+                enabled=enabled,
+                **kwargs,
+            )
+        except Exception as e:
+            logger.error(f"Args for {self.name} are not valid")
+            raise
 
     @property
-    def sql_type(self) -> Optional[SqlFormat]:
-        return self.args.sql_type if self.args else None
+    def sql_model(self) -> Optional[Any]:
+        return self.args.sql_model if self.args else None
 
-    @sql_type.setter
-    def sql_type(self, sql_type: SqlFormat) -> None:
-        if self.args and sql_type:
-            self.args.sql_type = sql_type
+    @sql_model.setter
+    def sql_model(self, sql_model: Any) -> None:
+        if self.args and sql_model:
+            self.args.sql_model = sql_model
+
+    @property
+    def sql_format(self) -> Optional[SqlTableFormat]:
+        return self.args.sql_format if self.args else None
+
+    @sql_format.setter
+    def sql_format(self, sql_format: SqlTableFormat) -> None:
+        if self.args and sql_format:
+            self.args.sql_format = sql_format
 
     @property
     def db_schema(self) -> Optional[str]:
@@ -170,18 +173,18 @@ class SqlTable(DataAsset):
         # Create the SQLAlchemy engine using db_conn_url
 
         try:
-            from sqlalchemy import create_engine
+            from sqlmodel import create_engine
 
-            # logger.info(f"Creating db_engine using db_conn_url: {self.db_conn_url}")
+            logger.info("Creating db_engine using db_conn_url")
             db_engine = create_engine(self.db_conn_url)
-            logger.debug(f"db_engine: {db_engine}")
+            logger.debug(f"Created db_engine: {db_engine}")
             if isinstance(db_engine, tuple) and len(db_engine) > 0:
                 self.db_engine = db_engine[0]
             else:
                 self.db_engine = db_engine
             return self.db_engine
         except Exception as e:
-            logger.error(f"Error creating db_engine using {self.db_conn_url}")
+            logger.error("Error creating db_engine using db_conn_url")
             logger.error(e)
             return None
 
@@ -196,7 +199,7 @@ class SqlTable(DataAsset):
             logger.info(
                 f"Creating db_engine using airflow_conn_id: {self.airflow_conn_id}"
             )
-            if self.sql_type == SqlFormat.POSTGRES:
+            if self.sql_format == SqlTableFormat.POSTGRES:
                 pg_hook = PostgresHook(postgres_conn_id=self.airflow_conn_id)
                 self.db_engine = pg_hook.get_sqlalchemy_engine()
             return self.db_engine
@@ -227,19 +230,19 @@ class SqlTable(DataAsset):
             if conn_url is None or "None" in conn_url:
                 return None
 
-            # Create the SQLAlchemy engine using conn_url
-            from sqlalchemy import create_engine
+            # Create the SQLAlchemy engine
+            from sqlmodel import create_engine
 
-            # logger.info(f"Creating db_engine using conn_url: {conn_url}")
+            logger.debug("Creating db_engine using db_app")
             db_engine = create_engine(conn_url)
-            logger.debug(f"db_engine: {db_engine}")
+            logger.debug(f"Created db_engine: {db_engine}")
             if isinstance(db_engine, tuple) and len(db_engine) > 0:
                 self.db_engine = db_engine[0]
             else:
                 self.db_engine = db_engine
             return self.db_engine
         except Exception as e:
-            logger.error(f"Error creating db_engine using {self.db_app}")
+            logger.error("Error creating db_engine using db_app")
             logger.error(e)
             return None
 
@@ -286,9 +289,11 @@ class SqlTable(DataAsset):
         df: Optional[Any] = None,
         # -*- Number of rows that are processed per thread.
         # By default, all rows will be written at once.
-        batch_size: Optional[int] = None,
-        # -*- Create database if it does not exist.
-        create_database: bool = False,
+        batch_size: int = 1024,
+        # -*- Create the table if it does not exist
+        create_table: bool = True,
+        # -*- Create db_schema if it does not exist.
+        create_db_schema: bool = True,
         # -*- How to behave if the table already exists.
         # fail: Raise a ValueError.
         # replace: Drop the table before inserting new values.
@@ -305,55 +310,114 @@ class SqlTable(DataAsset):
 
         # Check name is available
         if self.name is None:
-            logger.error("SqlTable name not available")
+            logger.error("Table name invalid")
             return False
+
+        # Update batch_size
+        if batch_size < 1:
+            batch_size = 1
 
         # Check engine is available
         db_engine = self.create_db_engine()
         if db_engine is None:
-            logger.error("DbEngine not available")
+            logger.error("DbEngine invalid")
             return False
 
         # Validate polars is installed
         try:
             import polars as pl
-        except ImportError:
-            logger.error("Polars not installed")
+        except ImportError as ie:
+            logger.error(f"Polars not installed: {ie}")
             return False
 
+        # Validate sqlmodel is installed
+        try:
+            from sqlmodel import SQLModel, Session
+        except ImportError as ie:
+            logger.error(f"SQLModel not installed: {ie}")
+            return False
+
+        # Validate df
         if df is None or not isinstance(df, pl.DataFrame):
             logger.error("DataFrame invalid")
             return False
 
+        # Validate sql_model
+        if self.sql_model is None or self.sql_model.__tablename__ is None:
+            logger.error("SQLModel invalid")
+            return False
+        sql_model: SQLModel = self.sql_model
+        sql_model_table = sql_model.__table__  # type: ignore
+
+        # Validate dataframe columns match sql_model columns
+        df_columns = df.columns
+        sql_model_columns = sql_model.__fields__.keys()
+        if not set(df_columns).issubset(set(sql_model_columns)):
+            logger.error("DataFrame columns do not match SQLModel columns")
+            logger.debug(f"DataFrame columns: {set(df_columns)}")
+            logger.debug(f"SQLModel columns: {set(sql_model_columns)}")
+            return False
+
+        # Load table
         rows_in_df = df.shape[0]
         logger.info(f"Writing {rows_in_df} rows to table: {self.name}")
-
-        # create a dict of args provided
-        not_null_args: Dict[str, Any] = {}
-        if self.db_schema:
-            not_null_args["schema"] = self.db_schema
-        if if_exists:
-            not_null_args["if_exists"] = if_exists
-        if index:
-            not_null_args["index"] = index
-        if index_label:
-            not_null_args["index_label"] = index_label
-        if chunksize:
-            not_null_args["chunksize"] = chunksize
-
         try:
-            with db_engine.connect() as connection:
-                if self.db_schema is not None and create_database:
-                    logger.info(f"Creating database: {self.db_schema}")
-                    # Create database if it does not exist
-                    connection.execute(f"CREATE SCHEMA IF NOT EXISTS {self.db_schema}")
+            # Create session
+            session = Session(db_engine)
 
-                df.to_sql(
-                    name=self.name,
-                    con=connection,
-                    **not_null_args,
-                )
-                logger.info(f"--**-- Done")
+            # Create db_schema if it does not exist
+            if self.db_schema is not None and create_db_schema:
+                logger.info(f"Creating schema: {self.db_schema}")
+                session.execute(f"CREATE SCHEMA IF NOT EXISTS {self.db_schema}")
+
+            # Create table if it does not exist
+            if create_table:
+                sql_model_table.create(db_engine, checkfirst=True)
+                # sql_model.__table__.create(db_engine, checkfirst=True)
+                # logger.info(f"config: {sql_model.__config__}")
+                # logger.info(f"config fields: {sql_model.__config__.fields}")
+                # logger.info(f"table: {sql_model.__table__.__dict__}")
+                # logger.info(f"table metadata: {sql_model.__table__.metadata}")
+                # logger.info(f"model metadata: {sql_model.metadata.create_all()}")
+                # sql_model.__table__.create(db_engine)
+
+            # Write DataFrame to table
+            rows_to_commit = 0
+            if rows_in_df > 0:
+                for df_row in df.rows():
+                    row_dict = {}
+                    for idx, col_name in enumerate(sql_model_columns, start=0):
+                        row_dict[col_name] = df_row[idx]
+                    logger.debug(f"Building row: {row_dict}")
+
+                    # Create SQLModel for row
+                    row_model = sql_model(**row_dict)  # type: ignore # noqa
+                    logger.debug(f"Writing row: {row_model}")
+                    # Add to session
+                #     session.add(row_model)
+                #     rows_to_commit += 1
+                #     if rows_to_commit >= batch_size:
+                #         # Commit session
+                #         session.commit()
+                #         logger.info(f"Loaded {rows_to_commit} rows")
+                #         rows_to_commit = 0
+                # if rows_to_commit > 0:
+                #     # Final Commit
+                #     session.commit()
+                #     logger.info(f"Loaded {rows_to_commit} rows")
+
+            # with db_engine.connect() as connection:
+            #     if self.db_schema is not None and create_database:
+            #         logger.info(f"Creating database: {self.db_schema}")
+            #         # Create database if it does not exist
+            #         connection.execute(f"CREATE SCHEMA IF NOT EXISTS {self.db_schema}")
+            #
+            #     df.to_sql(
+            #         name=self.name,
+            #         con=connection,
+            #         **not_null_args,
+            #     )
+            logger.info(f"--**-- Done")
             return True
         except Exception:
             logger.error("Could not write table: {}".format(self.name))

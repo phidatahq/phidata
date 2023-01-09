@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Any, Union, List, Dict
+from typing import Optional, Any, Union, List
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.task import Task
@@ -8,7 +8,6 @@ from phidata.types.phidata_runtime import (
     PhidataRuntimeType,
     get_phidata_runtime,
 )
-from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
@@ -16,21 +15,16 @@ class DataAssetArgs(PhidataBaseArgs):
     # Runtime: local, docker or kubernetes
     phidata_runtime: Optional[PhidataRuntimeType] = None
 
-    # Checks to run before creating the asset
+    # Checks to run before creating/updating the asset
     pre_checks: Optional[List[Check]] = None
     # List of tasks to create the asset
     create_tasks: Optional[List[Task]] = None
-    # Checks to run after creating the asset, but before writing to disk
-    post_checks: Optional[List[Check]] = None
-
-    # List of tasks to update the table
+    # List of tasks to update the asset
     update_tasks: Optional[List[Task]] = None
-
-    # List of tasks to delete the table
+    # List of tasks to delete the asset
     delete_tasks: Optional[List[Task]] = None
-
-    # Control which environment the table is created in
-    env: Optional[str] = None
+    # Checks to run after creating/updating the asset, but before writing to disk
+    post_checks: Optional[List[Check]] = None
 
     # If enabled=False: mark skip_create, skip_delete, skip_update as True
     enabled: bool = True
@@ -140,15 +134,6 @@ class DataAsset(PhidataBase):
             self.args.create_tasks = create_tasks
 
     @property
-    def post_checks(self) -> Optional[List[Check]]:
-        return self.args.post_checks if self.args else None
-
-    @post_checks.setter
-    def post_checks(self, post_checks: List[Check]) -> None:
-        if self.args and post_checks:
-            self.args.post_checks = post_checks
-
-    @property
     def update_tasks(self) -> Optional[List[Task]]:
         return self.args.update_tasks if self.args else None
 
@@ -167,13 +152,13 @@ class DataAsset(PhidataBase):
             self.args.delete_tasks = delete_tasks
 
     @property
-    def env(self) -> Optional[str]:
-        return self.args.env if self.args else None
+    def post_checks(self) -> Optional[List[Check]]:
+        return self.args.post_checks if self.args else None
 
-    @env.setter
-    def env(self, env: str) -> None:
-        if self.args and env:
-            self.args.env = env
+    @post_checks.setter
+    def post_checks(self, post_checks: List[Check]) -> None:
+        if self.args and post_checks:
+            self.args.post_checks = post_checks
 
     @property
     def skip_create(self) -> Optional[bool]:

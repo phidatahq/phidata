@@ -989,7 +989,7 @@ class Workflow(PhidataBase):
         # Specifies if the dag is paused when created for the first time.
         # If the dag exists already, this flag will be ignored. If this optional parameter
         # is not specified, the global config setting will be used.
-        is_paused_upon_creation: Optional[bool] = None,
+        is_paused_upon_creation: Optional[bool] = True,
         # additional configuration options to be passed to Jinja
         # ``Environment`` for template rendering
         # **Example**: to avoid Jinja from removing a trailing newline from template strings ::

@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import Optional, Literal, Union, List
 
-from phidata.asset.file import File, FileType
-from phidata.asset.table.sql import SqlTable
+from phidata.asset.local.file import LocalFile, LocalFileFormat
+from phidata.asset.table.sql.sql_table import SqlTable
 from phidata.utils.log import logger
 from phidata.task import PythonTask, PythonTaskArgs
 
 
 class UploadFileToSqlArgs(PythonTaskArgs):
-    file: File
+    file: LocalFile
     sql_table: SqlTable
     # How to behave if the sql_table already exists.
     # fail: Raise a ValueError.
@@ -31,7 +31,7 @@ class UploadFileToSqlArgs(PythonTaskArgs):
 class UploadFileToSql(PythonTask):
     def __init__(
         self,
-        file: File,
+        file: LocalFile,
         sql_table: SqlTable,
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         index: Optional[bool] = None,
@@ -64,11 +64,11 @@ class UploadFileToSql(PythonTask):
             raise
 
     @property
-    def file(self) -> Optional[File]:
+    def file(self) -> Optional[LocalFile]:
         return self.args.file
 
     @file.setter
-    def file(self, file: File) -> None:
+    def file(self, file: LocalFile) -> None:
         if file is not None:
             self.args.file = file
 
@@ -86,7 +86,7 @@ def load_file_to_sql_table_pandas(args: UploadFileToSqlArgs) -> bool:
 
     import pandas as pd
 
-    file_to_load: Optional[File] = args.file
+    file_to_load: Optional[LocalFile] = args.file
     if file_to_load is None:
         logger.error("File not available")
         return False
@@ -94,7 +94,7 @@ def load_file_to_sql_table_pandas(args: UploadFileToSqlArgs) -> bool:
     if file_path is None:
         logger.error("FilePath not available")
         return False
-    file_type: Optional[FileType] = file_to_load.file_type
+    file_type: Optional[LocalFileFormat] = file_to_load.file_format
     if file_type is None:
         logger.error("FileType not available")
         return False
@@ -108,11 +108,11 @@ def load_file_to_sql_table_pandas(args: UploadFileToSqlArgs) -> bool:
 
     logger.info("Reading: {}".format(file_path))
     df: Optional[pd.DataFrame] = None
-    if file_type == FileType.CSV:
+    if file_type == LocalFileFormat.CSV:
         df = pd.read_csv(file_path)
-    elif file_type == FileType.JSON:
+    elif file_type == LocalFileFormat.JSON:
         df = pd.read_json(file_path)
-    elif file_type == FileType.TSV:
+    elif file_type == LocalFileFormat.TSV:
         df = pd.read_csv(file_path, sep="\t")
 
     if df is not None:

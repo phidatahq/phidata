@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, Literal
 
-from phidata.asset.file import File
+from phidata.asset.local.file import LocalFile
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.log import logger
@@ -62,7 +62,7 @@ class S3Object(DataAsset):
 
     def upload_file(
         self,
-        file: File,
+        file: LocalFile,
         if_exists: Optional[Literal["fail", "replace", "skip"]] = "skip",
     ) -> bool:
 
@@ -139,7 +139,7 @@ class S3Object(DataAsset):
     ## Read from s3
     ######################################################
 
-    def download_file(self, file: File) -> bool:
+    def download_file(self, file: LocalFile) -> bool:
         """
 
         :param file:

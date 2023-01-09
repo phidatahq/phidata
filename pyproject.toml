@@ -62,6 +62,7 @@ module = [
   "docker.*",
   "airflow.*",
   "pandas.*",
+  "pyarrow.*",
   "kubernetes.*",
   "sqlalchemy.*",
   "matplotlib.*",

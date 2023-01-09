@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Dict
 from typing_extensions import Literal
 
 from phidata.asset.local import LocalAsset, LocalAssetArgs
@@ -238,7 +238,7 @@ class LocalFile(LocalAsset):
             logger.debug("Format: {}".format(self.file_format))
             if self.file_format == LocalFileFormat.CSV:
                 # Create a dict of args which are not null
-                csv_args = {}
+                csv_args: Dict[str, Any] = {}
                 if include_header is not None:
                     csv_args["include_header"] = include_header
                 if sep is not None:
@@ -258,16 +258,16 @@ class LocalFile(LocalAsset):
                 if null_value is not None:
                     csv_args["null_value"] = null_value
 
-                df.write_csv(file_path, **csv_args)
+                df.write_csv(file_path, **csv_args)  # type: ignore
             elif self.file_format == LocalFileFormat.JSON:
                 # Create a dict of args which are not null
-                json_args = {}
+                json_args: Dict[str, Any] = {}
                 if include_header is not None:
                     json_args["pretty"] = pretty
                 if sep is not None:
                     json_args["row_oriented"] = row_oriented
 
-                df.write_csv(file_path, **json_args)
+                df.write_csv(file_path, **json_args)  # type: ignore
             else:
                 logger.error(f"FileFormat: {self.file_format} not yet supported")
                 return False

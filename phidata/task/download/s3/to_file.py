@@ -1,20 +1,20 @@
 from typing import Optional
 
-from phidata.asset.file import File
+from phidata.asset.local.file import LocalFile
 from phidata.asset.aws.s3.object import S3Object
 from phidata.utils.log import logger
 from phidata.task import PythonTask, PythonTaskArgs
 
 
 class DownloadS3ObjectToFileArgs(PythonTaskArgs):
-    file: File
+    file: LocalFile
     s3_object: S3Object
 
 
 class DownloadS3ObjectToFile(PythonTask):
     def __init__(
         self,
-        file: File,
+        file: LocalFile,
         s3_object: S3Object,
         name: str = "download_s3_object_to_file",
         task_id: Optional[str] = None,
@@ -39,11 +39,11 @@ class DownloadS3ObjectToFile(PythonTask):
             raise
 
     @property
-    def file(self) -> File:
+    def file(self) -> LocalFile:
         return self.args.file
 
     @file.setter
-    def file(self, file: File) -> None:
+    def file(self, file: LocalFile) -> None:
         if file is not None:
             self.args.file = file
 

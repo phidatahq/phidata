@@ -181,6 +181,8 @@ class SqlTable(DataAsset):
     def create_db_engine_using_conn_url(self) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using db_conn_url
 
+        if self.db_conn_url is None:
+            return None
         try:
             from sqlmodel import create_engine
 
@@ -326,7 +328,7 @@ class SqlTable(DataAsset):
             logger.error("DbEngine invalid")
             return False
 
-        sql_model: SQLModel = self.sql_model
+        sql_model: SQLModel = self.sql_model  # type: ignore
         sql_model_table = sql_model.__table__  # type: ignore
         if sql_model_table is None:
             logger.error("SQLModel table invalid")
@@ -377,7 +379,7 @@ class SqlTable(DataAsset):
         logger.info("Running Query:\n{}".format(q))
         try:
             with db_engine.begin() as connection:
-                result = connection.execute(text(q))
+                result = connection.execute(text(q))  # type: ignore
             return result
         except ResourceClosedError as rce:
             logger.info(
@@ -828,7 +830,7 @@ class SqlTable(DataAsset):
             logger.error("DbEngine invalid")
             return False
 
-        sql_model: SQLModel = self.sql_model
+        sql_model: SQLModel = self.sql_model  # type: ignore
         sql_model_table = sql_model.__table__  # type: ignore
         if sql_model_table is None:
             logger.error("SQLModel table invalid")

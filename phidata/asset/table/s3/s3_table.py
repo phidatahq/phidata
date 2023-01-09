@@ -109,3 +109,81 @@ class S3Table(DataAsset):
         except Exception as e:
             logger.error(f"Args for {self.name} are not valid")
             raise
+
+    ######################################################
+    ## Get FileSystem
+    ######################################################
+
+    def _get_fs(self) -> Optional[Any]:
+        from pyarrow import fs
+
+        logger.debug("initializing S3FileSystem")
+        return fs.S3FileSystem()
+
+    ######################################################
+    ## Build data asset
+    ######################################################
+
+    def build(self) -> bool:
+        logger.debug(f"@build not defined for {self.name}")
+        return False
+
+    ######################################################
+    ## Create DataAsset
+    ######################################################
+
+    def is_valid(self) -> bool:
+        return True
+
+    def _create(self) -> bool:
+        logger.error(f"@_create not defined for {self.name}")
+        return False
+
+    def post_create(self) -> bool:
+        return True
+
+    def write_df(self, df: Optional[Any] = None) -> bool:
+        logger.debug(f"@write_df not defined for {self.name}")
+        return False
+
+    def write_pandas_df(self, df: Optional[Any] = None) -> bool:
+        logger.debug(f"@write_pandas_df not defined for {self.name}")
+        return False
+
+    ######################################################
+    ## Read DataAsset
+    ######################################################
+
+    def read_df(self) -> Optional[Any]:
+        logger.debug(f"@read_df not defined for {self.name}")
+        return False
+
+    def read_pandas_df(self) -> Optional[Any]:
+        logger.debug(f"@read_pandas_df not defined for {self.name}")
+        return False
+
+    def _read(self) -> Any:
+        logger.error(f"@_read not defined for {self.name}")
+        return False
+
+    ######################################################
+    ## Update DataAsset
+    ######################################################
+
+    def _update(self) -> Any:
+        logger.error(f"@_update not defined for {self.name}")
+        return False
+
+    def post_update(self) -> bool:
+        return True
+
+    ######################################################
+    ## Delete DataAsset
+    ######################################################
+
+    def _delete(self) -> Any:
+        logger.error(f"@_delete not defined for {self.name}")
+        return False
+
+    def post_delete(self) -> bool:
+        return True

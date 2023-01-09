@@ -602,10 +602,6 @@ class DataAsset(PhidataBase):
     ## Update DataAsset
     ######################################################
 
-    def update_pandas_df(self) -> Optional[Any]:
-        logger.debug(f"@update_pandas_df not defined for {self.name}")
-        return False
-
     def _update(self) -> Any:
         logger.error(f"@_update not defined for {self.name}")
         return False

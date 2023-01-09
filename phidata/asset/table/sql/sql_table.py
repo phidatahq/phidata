@@ -13,7 +13,7 @@ from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
 
 
-class SqlType(ExtendedEnum):
+class SqlFormat(ExtendedEnum):
     POSTGRES = "POSTGRES"
 
 
@@ -21,7 +21,7 @@ class SqlTableArgs(DataAssetArgs):
     # Table Name
     name: str
     # Type of SQL table
-    sql_type: SqlType
+    sql_type: SqlFormat
     # Table schema
     db_schema: Optional[str] = None
     # sqlalchemy.engine.(Engine or Connection)
@@ -46,7 +46,7 @@ class SqlTable(DataAsset):
         # Table Name,
         name: Optional[str] = None,
         # Type of SQL table,
-        sql_type: Optional[SqlType] = None,
+        sql_type: Optional[SqlFormat] = None,
         # Table schema,
         db_schema: Optional[str] = None,
         # sqlalchemy.engine.(Engine or Connection),
@@ -71,19 +71,6 @@ class SqlTable(DataAsset):
         delete_tasks: Optional[List[Task]] = None,
         # Control which environment the table is created in
         env: Optional[str] = None,
-        # Dev Args,
-        dev_name: Optional[str] = None,
-        dev_env: Optional[Dict[str, Any]] = None,
-        seed_dev_tasks: Optional[List[Task]] = None,
-        dev_stg_swap_tasks: Optional[List[Task]] = None,
-        # Staging Args,
-        stg_name: Optional[str] = None,
-        stg_env: Optional[Dict[str, Any]] = None,
-        seed_stg_tasks: Optional[List[Task]] = None,
-        stg_prd_swap_tasks: Optional[List[Task]] = None,
-        # Production Args,
-        prd_name: Optional[str] = None,
-        prd_env: Optional[Dict[str, Any]] = None,
         cached_db_engine: Optional[Union[Engine, Connection]] = None,
         version: Optional[str] = None,
         enabled: bool = True,
@@ -107,16 +94,6 @@ class SqlTable(DataAsset):
                     update_tasks=update_tasks,
                     delete_tasks=delete_tasks,
                     env=env,
-                    dev_name=dev_name,
-                    dev_env=dev_env,
-                    seed_dev_tasks=seed_dev_tasks,
-                    dev_stg_swap_tasks=dev_stg_swap_tasks,
-                    stg_name=stg_name,
-                    stg_env=stg_env,
-                    seed_stg_tasks=seed_stg_tasks,
-                    stg_prd_swap_tasks=stg_prd_swap_tasks,
-                    prd_name=prd_name,
-                    prd_env=prd_env,
                     cached_db_engine=cached_db_engine,
                     version=version,
                     enabled=enabled,
@@ -127,11 +104,11 @@ class SqlTable(DataAsset):
                 raise
 
     @property
-    def sql_type(self) -> Optional[SqlType]:
+    def sql_type(self) -> Optional[SqlFormat]:
         return self.args.sql_type if self.args else None
 
     @sql_type.setter
-    def sql_type(self, sql_type: SqlType) -> None:
+    def sql_type(self, sql_type: SqlFormat) -> None:
         if self.args and sql_type:
             self.args.sql_type = sql_type
 
@@ -219,7 +196,7 @@ class SqlTable(DataAsset):
             logger.info(
                 f"Creating db_engine using airflow_conn_id: {self.airflow_conn_id}"
             )
-            if self.sql_type == SqlType.POSTGRES:
+            if self.sql_type == SqlFormat.POSTGRES:
                 pg_hook = PostgresHook(postgres_conn_id=self.airflow_conn_id)
                 self.db_engine = pg_hook.get_sqlalchemy_engine()
             return self.db_engine
@@ -303,26 +280,20 @@ class SqlTable(DataAsset):
     ## Write table
     ######################################################
 
-    def write_pandas_df(
+    def write_df(
         self,
+        # A polars DataFrame
         df: Optional[Any] = None,
-        # How to behave if the table already exists.
+        # -*- Number of rows that are processed per thread.
+        # By default, all rows will be written at once.
+        batch_size: Optional[int] = None,
+        # -*- Create database if it does not exist.
+        create_database: bool = False,
+        # -*- How to behave if the table already exists.
         # fail: Raise a ValueError.
         # replace: Drop the table before inserting new values.
         # append: Insert new values to the existing table.
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
-        # Write DataFrame index as a column.
-        # Uses index_label as the column name in the table.
-        index: Optional[bool] = None,
-        # Column label for index column(s).
-        # If None is given (default) and index is True, then the index names are used.
-        # A sequence should be given if the DataFrame uses MultiIndex.
-        index_label: Optional[Union[str, List[str]]] = None,
-        # Specify the number of rows in each batch to be written at a time.
-        # By default, all rows will be written at once.
-        chunksize: Optional[int] = None,
-        # Create database if it does not exist.
-        create_database: bool = False,
     ) -> bool:
         """
         Write DataFrame to table.
@@ -343,8 +314,97 @@ class SqlTable(DataAsset):
             logger.error("DbEngine not available")
             return False
 
-        # write to table
-        import pandas as pd
+        # Validate polars is installed
+        try:
+            import polars as pl
+        except ImportError:
+            logger.error("Polars not installed")
+            return False
+
+        if df is None or not isinstance(df, pl.DataFrame):
+            logger.error("DataFrame invalid")
+            return False
+
+        rows_in_df = df.shape[0]
+        logger.info(f"Writing {rows_in_df} rows to table: {self.name}")
+
+        # create a dict of args provided
+        not_null_args: Dict[str, Any] = {}
+        if self.db_schema:
+            not_null_args["schema"] = self.db_schema
+        if if_exists:
+            not_null_args["if_exists"] = if_exists
+        if index:
+            not_null_args["index"] = index
+        if index_label:
+            not_null_args["index_label"] = index_label
+        if chunksize:
+            not_null_args["chunksize"] = chunksize
+
+        try:
+            with db_engine.connect() as connection:
+                if self.db_schema is not None and create_database:
+                    logger.info(f"Creating database: {self.db_schema}")
+                    # Create database if it does not exist
+                    connection.execute(f"CREATE SCHEMA IF NOT EXISTS {self.db_schema}")
+
+                df.to_sql(
+                    name=self.name,
+                    con=connection,
+                    **not_null_args,
+                )
+                logger.info(f"--**-- Done")
+            return True
+        except Exception:
+            logger.error("Could not write table: {}".format(self.name))
+            raise
+
+    def write_pandas_df(
+        self,
+        df: Optional[Any] = None,
+        # -*- Write DataFrame index as a column.
+        # Uses index_label as the column name in the table.
+        index: Optional[bool] = None,
+        # -*- Column label for index column(s).
+        # If None is given (default) and index is True, then the index names are used.
+        # A sequence should be given if the DataFrame uses MultiIndex.
+        index_label: Optional[Union[str, List[str]]] = None,
+        # -*- Specify the number of rows in each batch to be written at a time.
+        # By default, all rows will be written at once.
+        chunksize: Optional[int] = None,
+        # -*- Create database if it does not exist.
+        create_database: bool = False,
+        # -*- How to behave if the table already exists.
+        # fail: Raise a ValueError.
+        # replace: Drop the table before inserting new values.
+        # append: Insert new values to the existing table.
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+    ) -> bool:
+        """
+        Write DataFrame to table.
+        """
+
+        # SqlTable not yet initialized
+        if self.args is None:
+            return False
+
+        # Check name is available
+        if self.name is None:
+            logger.error("SqlTable name not available")
+            return False
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
+            return False
+
+        # Validate pandas is installed
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("Pandas not installed")
+            return False
 
         if df is None or not isinstance(df, pd.DataFrame):
             logger.error("DataFrame invalid")

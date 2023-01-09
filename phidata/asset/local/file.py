@@ -2,21 +2,23 @@ from pathlib import Path
 from typing import Optional, Union, Any
 from typing_extensions import Literal
 
-from phidata.asset import DataAsset, DataAssetArgs
+from phidata.asset.local import LocalAsset, LocalAssetArgs
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
-class FileType(ExtendedEnum):
+class LocalFileFormat(ExtendedEnum):
     CSV = "CSV"
     TSV = "TSV"
     TXT = "TXT"
     JSON = "JSON"
+    PARQUET = "PARQUET"
+    FEATHER = "FEATHER"
 
 
-class FileArgs(DataAssetArgs):
+class LocalFileArgs(LocalAssetArgs):
     name: Optional[str] = None
-    file_type: Optional[FileType] = None
+    file_format: Optional[LocalFileFormat] = None
 
     # If the file is located in the current dir.
     # Default: True
@@ -31,14 +33,14 @@ class FileArgs(DataAssetArgs):
     file_path: Optional[Path] = None
 
 
-class File(DataAsset):
+class LocalFile(LocalAsset):
     def __init__(
         self,
         name: Optional[str] = None,
-        file_type: Optional[FileType] = None,
-        # If the file is located in the current dir.
+        file_format: Optional[LocalFileFormat] = None,
+        # Set as True if the file is located in the current directory.
+        # By default, we store files in the storage_dir.
         # Default: False
-        # Used to build the file_path
         current_dir: bool = False,
         # Parent directory of the file relative to the storage_dir
         # Used to build the file_path
@@ -51,9 +53,9 @@ class File(DataAsset):
 
         super().__init__()
         try:
-            self.args: FileArgs = FileArgs(
+            self.args: LocalFileArgs = LocalFileArgs(
                 name=name,
-                file_type=file_type,
+                file_format=file_format,
                 current_dir=current_dir,
                 file_dir=file_dir,
                 file_path=file_path,
@@ -61,31 +63,31 @@ class File(DataAsset):
                 enabled=enabled,
             )
         except Exception as e:
-            logger.error(f"Args for {self.__class__.__name__} are not valid")
+            logger.error(f"Args for {self.name} are not valid")
             raise
 
     @property
-    def file_type(self) -> Optional[FileType]:
-        if self.args.file_type is not None:
-            return self.args.file_type
+    def file_format(self) -> Optional[LocalFileFormat]:
+        if self.args.file_format is not None:
+            return self.args.file_format
 
-        # logger.debug("-*--*- Building file_type")
+        # logger.debug("-*--*- Building file_format")
         fp = self.file_path
         if fp is None:
             return None
         suffix = fp.suffix[1:]  # remove the . from ".json" or ".csv"
         # logger.debug("suffix: {}".format(suffix))
 
-        derived_file_type: Optional[FileType] = None
-        if suffix.upper() in FileType.values_list():
-            derived_file_type = FileType.from_str(suffix.upper())
-            self.args.file_type = derived_file_type
-        return self.args.file_type
+        derived_file_format: Optional[LocalFileFormat] = None
+        if suffix.upper() in LocalFileFormat.values_list():
+            derived_file_format = LocalFileFormat.from_str(suffix.upper())
+            self.args.file_format = derived_file_format
+        return self.args.file_format
 
-    @file_type.setter
-    def file_type(self, file_type: Optional[FileType]) -> None:
-        if file_type is not None:
-            self.args.file_type = file_type
+    @file_format.setter
+    def file_format(self, file_format: Optional[LocalFileFormat]) -> None:
+        if file_format is not None:
+            self.args.file_format = file_format
 
     @property
     def current_dir(self) -> bool:
@@ -142,12 +144,132 @@ class File(DataAsset):
         return self.args.file_path
 
     @classmethod
-    def temporary(cls, name: str) -> "File":
+    def temporary(cls, name: str) -> "LocalFile":
         return cls(name=name, file_dir="tmp")
 
     ######################################################
     ## Write to file
     ######################################################
+
+    def write_df(
+        self,
+        # A polars DataFrame
+        df: Optional[Any] = None,
+        #
+        # -*- CSV Files
+        #
+        # Whether to include header in the CSV output.
+        include_header: Optional[bool] = None,
+        # Separate CSV fields with this symbol.
+        sep: Optional[str] = None,
+        # Byte to use as quoting character.
+        quote: Optional[str] = None,
+        # Number of rows that will be processed per thread.
+        batch_size: Optional[int] = None,
+        datetime_format: Optional[str] = None,
+        date_format: Optional[str] = None,
+        time_format: Optional[str] = None,
+        float_precision: Optional[int] = None,
+        null_value: Optional[str] = None,
+        #
+        # -*- JSON Files
+        #
+        # Pretty serialize json.
+        pretty: Optional[bool] = None,
+        # Write to row oriented json. This is slower, but more common.
+        row_oriented: Optional[bool] = None,
+        # -*- How to behave if the file already exists.
+        # fail: Raise a ValueError.
+        # replace: Drop the file before inserting new values.
+        # append: Insert new values to the existing table.
+        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+    ) -> bool:
+        """
+        Write Polars DataFrame to a file.
+        """
+
+        # LocalFile not yet initialized
+        if self.args is None:
+            return False
+
+        # Check path is available
+        if self.file_path is None:
+            logger.error("FilePath invalid")
+            return False
+
+        # Validate pyarrow is installed
+        try:
+            import pyarrow as pa
+        except ImportError:
+            logger.error("PyArrow not installed")
+            return False
+
+        # Validate polars is installed
+        try:
+            import polars as pl
+        except ImportError:
+            logger.error("Polars not installed")
+            return False
+
+        if df is None or not isinstance(df, pl.DataFrame):
+            logger.error("DataFrame invalid")
+            return False
+
+        # Write the DataFrame to a file
+        file_path: Path = self.file_path
+        logger.info("Writing to file: {}".format(file_path))
+        if file_path.exists():
+            if if_exists == "fail":
+                raise ValueError("File exists: {}".format(file_path))
+            elif if_exists == "replace":
+                from phidata.utils.filesystem import delete_from_fs
+
+                logger.debug("Deleting: {}".format(file_path))
+                delete_from_fs(file_path)
+
+        # Create parent directories if they don't exist
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            logger.debug("Format: {}".format(self.file_format))
+            if self.file_format == LocalFileFormat.CSV:
+                # Create a dict of args which are not null
+                csv_args = {}
+                if include_header is not None:
+                    csv_args["include_header"] = include_header
+                if sep is not None:
+                    csv_args["sep"] = sep
+                if quote is not None:
+                    csv_args["quote"] = quote
+                if batch_size is not None:
+                    csv_args["batch_size"] = batch_size
+                if datetime_format is not None:
+                    csv_args["datetime_format"] = datetime_format
+                if date_format is not None:
+                    csv_args["date_format"] = date_format
+                if time_format is not None:
+                    csv_args["time_format"] = time_format
+                if float_precision is not None:
+                    csv_args["float_precision"] = float_precision
+                if null_value is not None:
+                    csv_args["null_value"] = null_value
+
+                df.write_csv(file_path, **csv_args)
+            elif self.file_format == LocalFileFormat.JSON:
+                # Create a dict of args which are not null
+                json_args = {}
+                if include_header is not None:
+                    json_args["pretty"] = pretty
+                if sep is not None:
+                    json_args["row_oriented"] = row_oriented
+
+                df.write_csv(file_path, **json_args)
+            else:
+                logger.error(f"FileFormat: {self.file_format} not yet supported")
+                return False
+            return True
+        except Exception as e:
+            logger.error("Could not write to: {}".format(file_path))
+            raise
 
     def write_pandas_df(
         self,
@@ -162,7 +284,7 @@ class File(DataAsset):
         Write DataFrame to file.
         """
 
-        # File not yet initialized
+        # LocalFile not yet initialized
         if self.args is None:
             return False
 
@@ -171,8 +293,12 @@ class File(DataAsset):
             logger.error("FilePath invalid")
             return False
 
-        # write to file
-        import pandas as pd
+        # Validate pandas is installed
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("Pandas not installed")
+            return False
 
         if df is None or not isinstance(df, pd.DataFrame):
             logger.error("DataFrame invalid")
@@ -183,7 +309,7 @@ class File(DataAsset):
         mode: str = "w"
         if file_path.exists():
             if if_exists == "fail":
-                raise ValueError("File already exists: {}".format(file_path))
+                raise ValueError("LocalFile already exists: {}".format(file_path))
             elif if_exists == "replace":
                 from phidata.utils.filesystem import delete_from_fs
 
@@ -197,13 +323,15 @@ class File(DataAsset):
         try:
             file_path.touch(exist_ok=True)
             with file_path.open(mode) as open_file:
-                logger.debug("file_type: {}".format(self.file_type))
-                if self.file_type == FileType.JSON:
+                logger.debug("file_format: {}".format(self.file_format))
+                if self.file_format == LocalFileFormat.JSON:
                     df.to_json(open_file, orient="index", indent=4)
-                elif self.file_type == FileType.CSV:
+                elif self.file_format == LocalFileFormat.CSV:
                     df.to_csv(open_file)
                 else:
-                    logger.error(f"FileType: {self.file_type} not yet supported")
+                    logger.error(
+                        f"LocalFileFormat: {self.file_format} not yet supported"
+                    )
                     return False
             return True
         except Exception as e:
@@ -211,7 +339,7 @@ class File(DataAsset):
             raise
 
     def download_url(self, url: str) -> bool:
-        # File not yet initialized
+        # LocalFile not yet initialized
         if self.args is None:
             return False
 

@@ -12,20 +12,15 @@ from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
-class DataLoader(ExtendedEnum):
-    pandas = "pandas"
-    pyarrow = "pyarrow"
-
-
 class DataAssetArgs(PhidataBaseArgs):
-    # local, docker or kubernetes
+    # Runtime: local, docker or kubernetes
     phidata_runtime: Optional[PhidataRuntimeType] = None
 
-    # Checks to run before creating the table
+    # Checks to run before creating the asset
     pre_checks: Optional[List[Check]] = None
-    # List of tasks to create the table
+    # List of tasks to create the asset
     create_tasks: Optional[List[Task]] = None
-    # Checks to run after creating the table
+    # Checks to run after creating the asset, but before writing to disk
     post_checks: Optional[List[Check]] = None
 
     # List of tasks to update the table
@@ -37,48 +32,35 @@ class DataAssetArgs(PhidataBaseArgs):
     # Control which environment the table is created in
     env: Optional[str] = None
 
-    # Dev Args
-    dev_name: Optional[str] = None
-    dev_env: Optional[Dict[str, Any]] = None
-    seed_dev_tasks: Optional[List[Task]] = None
-    dev_stg_swap_tasks: Optional[List[Task]] = None
-
-    # Staging Args
-    stg_name: Optional[str] = None
-    stg_env: Optional[Dict[str, Any]] = None
-    seed_stg_tasks: Optional[List[Task]] = None
-    stg_prd_swap_tasks: Optional[List[Task]] = None
-
-    # Production Args
-    prd_name: Optional[str] = None
-    prd_env: Optional[Dict[str, Any]] = None
-
-    # If True, phi does not create the resource
+    # If enabled=False: mark skip_create, skip_delete, skip_update as True
+    enabled: bool = True
+    # If True, phi does not create the asset
     skip_create: bool = False
-    # If True, phi does not read the resource
+    # If True, phi does not read the asset
     skip_read: bool = False
-    # If True, phi does not update the resource
+    # If True, phi does not update the asset
     skip_update: bool = False
-    # If True, phi does not delete the resource
+    # If True, phi does not delete the asset
     skip_delete: bool = False
 
-    # If True, waits for the resource to be created
+    # If True, waits for the asset to be created
     wait_for_creation: bool = True
-    # If True, waits for the resource to be updated
+    # If True, waits for the asset to be updated
     wait_for_update: bool = True
-    # If True, waits for the resource to be deleted
+    # If True, waits for the asset to be deleted
     wait_for_deletion: bool = True
     # The amount of time in seconds to wait between attempts.
     waiter_delay: int = 30
     # The maximum number of attempts to be made.
     waiter_max_attempts: int = 50
 
-    # If True, continues running even if an error occurs during the creation of the resource
+    # If True, continues running even if an error occurs during the creation of the asset
+    # Set as True for assets where creation is non-blocking
     continue_on_create_failure: Optional[bool] = None
-    # If True, continues running even if an error occurs during the deletion of the resource
+    # If True, continues running even if an error occurs during the deletion of the asset
     # Defaults to True because we do not want deletion to be a blocking function
     continue_on_delete_failure: Optional[bool] = True
-    # If True, continues running even if an error occurs during the update of the resource
+    # If True, continues running even if an error occurs during the update of the asset
     continue_on_update_failure: Optional[bool] = None
 
     # A cache for the active resource details
@@ -94,7 +76,6 @@ class DataAssetArgs(PhidataBaseArgs):
     # For a URL, it could be used for temporary storage
     # Default is $WORKSPACE_ROOT/storage and
     # the absolute path depends on the environment (local vs container)
-    # This is built using the storage_dir relative path
     storage_dir_path: Optional[Path] = None
 
     # Path to the workspace root directory
@@ -116,6 +97,7 @@ class DataAsset(PhidataBase):
 
     def __init__(self) -> None:
         super().__init__()
+        self.fs: Optional[Any] = None
         self.resource_created: bool = False
         self.resource_updated: bool = False
         self.resource_deleted: bool = False
@@ -192,96 +174,6 @@ class DataAsset(PhidataBase):
     def env(self, env: str) -> None:
         if self.args and env:
             self.args.env = env
-
-    @property
-    def dev_name(self) -> Optional[str]:
-        return self.args.dev_name if self.args else None
-
-    @dev_name.setter
-    def dev_name(self, dev_name: str) -> None:
-        if self.args and dev_name:
-            self.args.dev_name = dev_name
-
-    @property
-    def dev_env(self) -> Optional[Dict[str, Any]]:
-        return self.args.dev_env if self.args else None
-
-    @dev_env.setter
-    def dev_env(self, dev_env: Dict[str, Any]) -> None:
-        if self.args and dev_env:
-            self.args.dev_env = dev_env
-
-    @property
-    def seed_dev_tasks(self) -> Optional[List[Task]]:
-        return self.args.seed_dev_tasks if self.args else None
-
-    @seed_dev_tasks.setter
-    def seed_dev_tasks(self, seed_dev_tasks: List[Task]) -> None:
-        if self.args and seed_dev_tasks:
-            self.args.seed_dev_tasks = seed_dev_tasks
-
-    @property
-    def dev_stg_swap_tasks(self) -> Optional[List[Task]]:
-        return self.args.dev_stg_swap_tasks if self.args else None
-
-    @dev_stg_swap_tasks.setter
-    def dev_stg_swap_tasks(self, dev_stg_swap_tasks: List[Task]) -> None:
-        if self.args and dev_stg_swap_tasks:
-            self.args.dev_stg_swap_tasks = dev_stg_swap_tasks
-
-    @property
-    def stg_name(self) -> Optional[str]:
-        return self.args.stg_name if self.args else None
-
-    @stg_name.setter
-    def stg_name(self, stg_name: str) -> None:
-        if self.args and stg_name:
-            self.args.stg_name = stg_name
-
-    @property
-    def stg_env(self) -> Optional[Dict[str, Any]]:
-        return self.args.stg_env if self.args else None
-
-    @stg_env.setter
-    def stg_env(self, stg_env: Dict[str, Any]) -> None:
-        if self.args and stg_env:
-            self.args.stg_env = stg_env
-
-    @property
-    def seed_stg_tasks(self) -> Optional[List[Task]]:
-        return self.args.seed_stg_tasks if self.args else None
-
-    @seed_stg_tasks.setter
-    def seed_stg_tasks(self, seed_stg_tasks: List[Task]) -> None:
-        if self.args and seed_stg_tasks:
-            self.args.seed_stg_tasks = seed_stg_tasks
-
-    @property
-    def stg_prd_swap_tasks(self) -> Optional[List[Task]]:
-        return self.args.stg_prd_swap_tasks if self.args else None
-
-    @stg_prd_swap_tasks.setter
-    def stg_prd_swap_tasks(self, stg_prd_swap_tasks: List[Task]) -> None:
-        if self.args and stg_prd_swap_tasks:
-            self.args.stg_prd_swap_tasks = stg_prd_swap_tasks
-
-    @property
-    def prd_name(self) -> Optional[str]:
-        return self.args.prd_name if self.args else None
-
-    @prd_name.setter
-    def prd_name(self, prd_name: str) -> None:
-        if self.args and prd_name:
-            self.args.prd_name = prd_name
-
-    @property
-    def prd_env(self) -> Optional[Dict[str, Any]]:
-        return self.args.prd_env if self.args else None
-
-    @prd_env.setter
-    def prd_env(self, prd_env: Dict[str, Any]) -> None:
-        if self.args and prd_env:
-            self.args.prd_env = prd_env
 
     @property
     def skip_create(self) -> Optional[bool]:
@@ -623,11 +515,30 @@ class DataAsset(PhidataBase):
             self.args.workspace_config_dir = workspace_config_dir
 
     ######################################################
+    ## Get FileSystem
+    ######################################################
+
+    def _get_fs(self) -> Optional[Any]:
+        logger.error(f"@_get_fs not defined for {self.name}")
+        return False
+
+    def get_fs(self) -> Optional[Any]:
+        """
+        Returns a pyarrow filesystem object initialized by the subclass
+        """
+        if self.fs is not None:
+            # use cached value if available
+            return self.fs
+
+        self.fs = self._get_fs()
+        return self.fs
+
+    ######################################################
     ## Build data asset
     ######################################################
 
     def build(self) -> bool:
-        logger.debug(f"@build not defined for {self.__class__.__name__}")
+        logger.debug(f"@build not defined for {self.name}")
         return False
 
     ######################################################
@@ -639,7 +550,7 @@ class DataAsset(PhidataBase):
         return True
 
     def _create(self) -> bool:
-        logger.error(f"@_create not defined for {self.__class__.__name__}")
+        logger.error(f"@_create not defined for {self.name}")
         return False
 
     def create(self) -> bool:
@@ -665,20 +576,28 @@ class DataAsset(PhidataBase):
         # return True because this function is not used for most resources
         return True
 
-    def write_pandas_df(self, df: Any = None) -> bool:
-        logger.debug(f"@write_pandas_df not defined for {self.__class__.__name__}")
+    def write_df(self, df: Optional[Any] = None) -> bool:
+        logger.debug(f"@write_df not defined for {self.name}")
+        return False
+
+    def write_pandas_df(self, df: Optional[Any] = None) -> bool:
+        logger.debug(f"@write_pandas_df not defined for {self.name}")
         return False
 
     ######################################################
     ## Read DataAsset
     ######################################################
 
+    def read_df(self) -> Optional[Any]:
+        logger.debug(f"@read_df not defined for {self.name}")
+        return False
+
     def read_pandas_df(self) -> Optional[Any]:
-        logger.debug(f"@read_pandas_df not defined for {self.__class__.__name__}")
+        logger.debug(f"@read_pandas_df not defined for {self.name}")
         return False
 
     def _read(self) -> Any:
-        logger.error(f"@_read not defined for {self.__class__.__name__}")
+        logger.error(f"@_read not defined for {self.name}")
         return False
 
     def read(self) -> Any:
@@ -699,11 +618,11 @@ class DataAsset(PhidataBase):
     ######################################################
 
     def update_pandas_df(self) -> Optional[Any]:
-        logger.debug(f"@update_pandas_df not defined for {self.__class__.__name__}")
+        logger.debug(f"@update_pandas_df not defined for {self.name}")
         return False
 
     def _update(self) -> Any:
-        logger.error(f"@_update not defined for {self.__class__.__name__}")
+        logger.error(f"@_update not defined for {self.name}")
         return False
 
     def update(self) -> bool:
@@ -734,7 +653,7 @@ class DataAsset(PhidataBase):
     ######################################################
 
     def _delete(self) -> Any:
-        logger.error(f"@_delete not defined for {self.__class__.__name__}")
+        logger.error(f"@_delete not defined for {self.name}")
         return False
 
     def delete(self) -> bool:
@@ -768,7 +687,7 @@ class DataAsset(PhidataBase):
         if self.args is not None:
             return self.args.json(indent=2, exclude_none=True, exclude={"enabled"})
         else:
-            return self.__class__.__name__
+            return self.name
 
     def save_to_file(self) -> bool:
 

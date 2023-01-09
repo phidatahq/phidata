@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Union, Any
 
 from phidata.infra.base import InfraConfig, InfraArgs
+from phidata.workspace.settings import WorkspaceSettings
 from phidata.utils.log import logger
 
 
@@ -10,6 +11,8 @@ class WorkspaceConfigArgs(InfraArgs):
     default_env: Optional[str] = None
     # default config for phi ws ... commands
     default_config: Optional[str] = None
+    # A copy of the workspace settings
+    ws_settings: Optional[WorkspaceSettings] = None
 
     # List of Docker configurations
     # Type: DockerConfig
@@ -40,6 +43,7 @@ class WorkspaceConfig(InfraConfig):
         default_env: Optional[str] = None,
         # default config for phi ws ... commands
         default_config: Optional[str] = None,
+        ws_settings: Optional[WorkspaceSettings] = None,
         # List of Docker configurations
         # Type: DockerConfig
         docker: Optional[List[Any]] = None,
@@ -96,6 +100,7 @@ class WorkspaceConfig(InfraConfig):
                 enabled=enabled,
                 default_env=default_env,
                 default_config=default_config,
+                ws_settings=ws_settings,
                 docker=docker,
                 k8s=k8s,
                 aws=aws,

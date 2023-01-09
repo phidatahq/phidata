@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from typing_extensions import Literal
 
 from pydantic import BaseModel
@@ -43,7 +43,7 @@ class CreateDeployment(BaseModel):
     topology_spread_key: Optional[str] = None
     topology_spread_max_skew: Optional[int] = None
     topology_spread_when_unsatisfiable: Optional[
-        Literal["DoNotSchedule", "ScheduleAnyway"]
+        Union[str, Literal["DoNotSchedule", "ScheduleAnyway"]]
     ] = None
 
     def create(self) -> Optional[Deployment]:

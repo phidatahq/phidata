@@ -20,7 +20,7 @@ class DockerImage(DockerResource):
     dockerfile: Optional[str] = None
 
     # Print the build log
-    print_build_log: bool = False
+    print_build_log: bool = True
     # Push the image to the registry. Similar to the docker push command.
     push_image: bool = False
     print_push_output: bool = False

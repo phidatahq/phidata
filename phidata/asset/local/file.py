@@ -52,6 +52,7 @@ class LocalFile(LocalAsset):
         file_path: Optional[Path] = None,
         version: Optional[str] = None,
         enabled: bool = True,
+        **kwargs,
     ) -> None:
 
         super().__init__()
@@ -64,6 +65,7 @@ class LocalFile(LocalAsset):
                 file_path=file_path,
                 version=version,
                 enabled=enabled,
+                **kwargs,
             )
         except Exception as e:
             logger.error(f"Args for {self.name} are not valid")

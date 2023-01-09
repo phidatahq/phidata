@@ -553,7 +553,7 @@ class DataAsset(PhidataBase):
 
         # Step 5: Run post create steps
         if self.resource_created:
-            logger.debug(f"Running post-create steps for {self.name}.")
+            logger.debug(f"Running post-create steps for {self.name}")
             return self.post_create()
         return self.resource_created
 
@@ -625,7 +625,7 @@ class DataAsset(PhidataBase):
 
         # Step 4: Run post update steps
         if self.resource_updated:
-            logger.debug(f"Running post-update steps for {self.name}.")
+            logger.debug(f"Running post-update steps for {self.name}")
             return self.post_update()
         return self.resource_updated
 
@@ -656,7 +656,7 @@ class DataAsset(PhidataBase):
 
         # Step 4: Run post delete steps
         if self.resource_deleted:
-            logger.debug(f"Running post-delete steps for {self.name}.")
+            logger.debug(f"Running post-delete steps for {self.name}")
             return self.post_delete()
         return self.resource_deleted
 

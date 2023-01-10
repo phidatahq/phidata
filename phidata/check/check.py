@@ -13,6 +13,6 @@ class Check(PhidataBase):
         super().__init__()
         self.result: bool = False
 
-    def check(self) -> bool:
+    def check(self, **kwargs) -> bool:
         logger.debug(f"@check not defined for {self.name}")
         return False

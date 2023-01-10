@@ -1,14 +1,14 @@
+from pathlib import Path
 from typing import Optional, Any, Union, List, Dict
 from typing_extensions import Literal
 
-from phidata.asset.aws.aws_asset import AwsAsset, AwsAssetArgs
+from phidata.asset.local import LocalAsset, LocalAssetArgs
 from phidata.check.df.dataframe_check import DataFrameCheck
-from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
-class S3TableFormat(ExtendedEnum):
+class LocalTableFormat(ExtendedEnum):
     CSV = "csv"
     IPC = "ipc"
     ARROW = "arrow"
@@ -17,27 +17,26 @@ class S3TableFormat(ExtendedEnum):
     PARQUET = "parquet"
 
 
-class S3TableArgs(AwsAssetArgs):
+class LocalTableArgs(LocalAssetArgs):
     # Table Name
     name: str
     # Database for the table
     database: str = "default"
     # Table Format
-    table_format: S3TableFormat
+    table_format: LocalTableFormat
 
     # Checks to run before reading from disk
     read_checks: Optional[List[DataFrameCheck]] = None
     # Checks to run before writing to disk
     write_checks: Optional[List[DataFrameCheck]] = None
 
-    # S3 Bucket
-    bucket: Optional[S3Bucket] = None
-    # S3 Bucket Name must be provided if bucket is not provided
-    bucket_name: Optional[str] = None
-    # Path to table directory in bucket. Without the s3:// prefix
-    path: Optional[str] = None
-    # To level directory for all tables
+    # -*- Table Path
+    # If current_dir=True, store the table in the current directory
+    current_dir: bool = False
+    # Top level directory for all tables, under the "storage" directory
     top_level_dir: Optional[str] = "tables"
+    # Provide absolute path to the table directory
+    table_dir: Optional[str] = None
     # A template string used to generate basenames of written data files.
     # The token ‘{i}’ will be replaced with an automatically incremented integer.
     # If not specified, it defaults to “part-{i}.” + format.default_extname
@@ -76,15 +75,15 @@ class S3TableArgs(AwsAssetArgs):
     ] = "delete_matching"
 
 
-class S3Table(AwsAsset):
-    """Base Class for S3 tables"""
+class LocalTable(LocalAsset):
+    """Base Class for Local tables"""
 
     def __init__(
         self,
         # Table Name: required
         name: str,
-        # Table Format: required
-        table_format: S3TableFormat,
+        # S3 Table Format: required
+        table_format: LocalTableFormat,
         # Database for the table
         database: str = "default",
         # DataModel for this table
@@ -93,14 +92,13 @@ class S3Table(AwsAsset):
         read_checks: Optional[List[DataFrameCheck]] = None,
         # Checks to run before writing to disk
         write_checks: Optional[List[DataFrameCheck]] = None,
-        # S3 Bucket
-        bucket: Optional[S3Bucket] = None,
-        # S3 Bucket Name
-        bucket_name: Optional[str] = None,
-        # Path to table directory in bucket. Without the s3:// prefix
-        path: Optional[str] = None,
-        # To level directory for all tables
+        # -*- Table Path
+        # If current_dir=True, store the table in the current directory
+        current_dir: bool = False,
+        # Top level directory for all tables, under the "storage" directory
         top_level_dir: Optional[str] = "tables",
+        # Provide absolute path to the table directory
+        table_dir: Optional[str] = None,
         # A template string used to generate basenames of written data files.
         # The token ‘{i}’ will be replaced with an automatically incremented integer.
         # If not specified, it defaults to “part-{i}.” + format.default_extname
@@ -140,24 +138,23 @@ class S3Table(AwsAsset):
         **kwargs,
     ) -> None:
         super().__init__()
-        self.args: Optional[S3TableArgs] = None
+        self.args: Optional[LocalTableArgs] = None
         if name is None:
             raise ValueError("name is required")
         if table_format is None:
             raise ValueError("table_format is required")
 
         try:
-            self.args = S3TableArgs(
+            self.args = LocalTableArgs(
                 name=name,
                 table_format=table_format,
                 database=database,
                 data_model=data_model,
                 read_checks=read_checks,
                 write_checks=write_checks,
-                bucket=bucket,
-                bucket_name=bucket_name,
-                path=path,
+                current_dir=current_dir,
                 top_level_dir=top_level_dir,
+                table_dir=table_dir,
                 basename_template=basename_template,
                 partitions=partitions,
                 max_partitions=max_partitions,
@@ -184,11 +181,11 @@ class S3Table(AwsAsset):
             self.args.database = database
 
     @property
-    def table_format(self) -> Optional[S3TableFormat]:
+    def table_format(self) -> Optional[LocalTableFormat]:
         return self.args.table_format if self.args else None
 
     @table_format.setter
-    def table_format(self, table_format: S3TableFormat) -> None:
+    def table_format(self, table_format: LocalTableFormat) -> None:
         if self.args and table_format:
             self.args.table_format = table_format
 
@@ -211,31 +208,13 @@ class S3Table(AwsAsset):
             self.args.write_checks = write_checks
 
     @property
-    def bucket(self) -> Optional[S3Bucket]:
-        return self.args.bucket if self.args else None
+    def current_dir(self) -> Optional[bool]:
+        return self.args.current_dir if self.args else None
 
-    @bucket.setter
-    def bucket(self, bucket: S3Bucket) -> None:
-        if self.args and bucket:
-            self.args.bucket = bucket
-
-    @property
-    def bucket_name(self) -> Optional[str]:
-        return self.args.bucket_name if self.args else None
-
-    @bucket_name.setter
-    def bucket_name(self, bucket_name: str) -> None:
-        if self.args and bucket_name:
-            self.args.bucket_name = bucket_name
-
-    @property
-    def path(self) -> Optional[str]:
-        return self.args.path if self.args else None
-
-    @path.setter
-    def path(self, path: str) -> None:
-        if self.args and path:
-            self.args.path = path
+    @current_dir.setter
+    def current_dir(self, current_dir: bool) -> None:
+        if self.args and current_dir:
+            self.args.current_dir = current_dir
 
     @property
     def top_level_dir(self) -> Optional[str]:
@@ -245,6 +224,15 @@ class S3Table(AwsAsset):
     def top_level_dir(self, top_level_dir: str) -> None:
         if self.args and top_level_dir:
             self.args.top_level_dir = top_level_dir
+
+    @property
+    def table_dir(self) -> Optional[str]:
+        return self.args.table_dir if self.args else None
+
+    @table_dir.setter
+    def table_dir(self, table_dir: str) -> None:
+        if self.args and table_dir:
+            self.args.table_dir = table_dir
 
     @property
     def basename_template(self) -> Optional[str]:
@@ -324,24 +312,39 @@ class S3Table(AwsAsset):
 
     @property
     def table_location(self) -> str:
-        if self.path is not None:
-            return self.path
-        else:
-            if self.bucket_name is not None:
-                return "{}/{}{}/{}".format(
-                    self.bucket_name,
-                    f"{self.top_level_dir}/" if self.top_level_dir else "",
-                    self.database,
-                    self.name,
-                )
-            if self.bucket is not None:
-                return "{}/{}{}/{}".format(
-                    self.bucket.name,
-                    f"{self.top_level_dir}/" if self.top_level_dir else "",
-                    self.database,
-                    self.name,
-                )
-        return ""
+        if self.table_dir is not None:
+            return self.table_dir
+
+        logger.debug("-*- Building local table location")
+        base_dir: Optional[Path] = None
+
+        # Use current_dir as base path if set
+        if self.current_dir:
+            base_dir = Path(__file__).resolve()
+
+        # Or use storage_dir_path as the base path
+        if base_dir is None:
+            # storage_dir_path is loaded from the current environment variable
+            base_dir = self.storage_dir_path
+
+        # Add the file_dir if provided
+        if self.top_level_dir is not None:
+            if base_dir is None:
+                # base_dir is None meaning no storage_dir_path
+                base_dir = Path(".").resolve().joinpath(self.top_level_dir)
+            else:
+                base_dir = base_dir.joinpath(self.top_level_dir)
+
+        # Add the file_name
+        if self.name is not None:
+            if base_dir is None:
+                base_dir = Path(".").resolve().joinpath(self.name)
+            else:
+                base_dir = base_dir.joinpath(self.name)
+
+        self.table_dir = str(base_dir)
+        logger.debug(f"-*- Table location: {self.table_dir}")
+        return self.table_dir
 
     ######################################################
     ## Validate data asset
@@ -374,7 +377,7 @@ class S3Table(AwsAsset):
         Write DataFrame to disk.
         """
 
-        # S3Table not yet initialized
+        # LocalTable not yet initialized
         if self.args is None:
             return False
 
@@ -392,7 +395,7 @@ class S3Table(AwsAsset):
         # Check S3FileSystem is available
         fs = self._get_fs()
         if fs is None:
-            logger.error("Could not create S3FileSystem")
+            logger.error("Could not create LocalFileSystem")
             return False
 
         # Validate polars is installed
@@ -495,7 +498,7 @@ class S3Table(AwsAsset):
         Read DataFrame from disk.
         """
 
-        # S3Table not yet initialized
+        # LocalTable not yet initialized
         if self.args is None:
             return None
 
@@ -513,7 +516,7 @@ class S3Table(AwsAsset):
         # Check S3FileSystem is available
         fs = self._get_fs()
         if fs is None:
-            logger.error("Could not create S3FileSystem")
+            logger.error("Could not create LocalFileSystem")
             return False
 
         # Validate polars is installed

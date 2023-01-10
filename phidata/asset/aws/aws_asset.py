@@ -1,7 +1,8 @@
-from typing import Optional
+from typing import Optional, Any
 
 from phidata.asset.data_asset import DataAsset, DataAssetArgs
 from phidata.infra.aws.api_client import AwsApiClient
+from phidata.utils.log import logger
 
 
 class AwsAssetArgs(DataAssetArgs):
@@ -86,3 +87,16 @@ class AwsAsset(DataAsset):
     def aws_api_client(self, aws_api_client: AwsApiClient) -> None:
         if self.args is not None and aws_api_client is not None:
             self.args.aws_api_client = aws_api_client
+
+    ######################################################
+    ## Get FileSystem
+    ######################################################
+
+    def _get_fs(self) -> Optional[Any]:
+        from pyarrow import fs
+
+        logger.debug("initializing S3FileSystem")
+        if self.aws_region is not None:
+            return fs.S3FileSystem(region=self.aws_region)
+        else:
+            return fs.S3FileSystem()

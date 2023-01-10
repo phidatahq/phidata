@@ -12,6 +12,10 @@ class LocalAsset(DataAsset):
     def __init__(self) -> None:
         super().__init__()
 
+    ######################################################
+    ## Get FileSystem
+    ######################################################
+
     def _get_fs(self) -> Optional[Any]:
         from pyarrow import fs
 

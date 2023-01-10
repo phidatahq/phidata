@@ -48,7 +48,7 @@ class DataFrameCheck(Check):
         logger.error(f"@check_dataframe not defined for {self.name}")
         return False
 
-    def check(self, df: Optional[Any] = None) -> bool:
+    def check(self, df: Optional[Any] = None, **kwargs) -> bool:
         if df is None:
             logger.warning(f"{self.name}: Dataframe None")
             return False

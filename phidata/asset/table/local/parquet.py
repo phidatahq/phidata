@@ -1,12 +1,15 @@
 from typing import Optional, Any, List
 from typing_extensions import Literal
 
-from phidata.asset.table.s3.s3_table import S3Table, S3TableArgs, S3TableFormat
+from phidata.asset.table.local.local_table import (
+    LocalTable,
+    LocalTableArgs,
+    LocalTableFormat,
+)
 from phidata.check.df.dataframe_check import DataFrameCheck
-from phidata.infra.aws.resource.s3.bucket import S3Bucket
 
 
-class CsvTable(S3Table):
+class ParquetTable(LocalTable):
     def __init__(
         self,
         # Table Name: required
@@ -19,15 +22,13 @@ class CsvTable(S3Table):
         read_checks: Optional[List[DataFrameCheck]] = None,
         # Checks to run before writing to disk
         write_checks: Optional[List[DataFrameCheck]] = None,
-        # S3 Bucket
-        bucket: Optional[S3Bucket] = None,
-        # S3 Bucket Name
-        bucket_name: Optional[str] = None,
-        # S3 Full Path URI
-        path: Optional[str] = None,
-        # -*- Build S3 Path using
+        # -*- Table Path
+        # If current_dir=True, store the table in the current directory
+        current_dir: bool = False,
+        # Top level directory for all tables, under the "storage" directory
         top_level_dir: Optional[str] = "tables",
-        path_prefix: Optional[str] = None,
+        # Provide absolute path to the table directory
+        table_dir: Optional[str] = None,
         # A template string used to generate basenames of written data files.
         # The token ‘{i}’ will be replaced with an automatically incremented integer.
         # If not specified, it defaults to “part-{i}.” + format.default_extname
@@ -68,16 +69,14 @@ class CsvTable(S3Table):
     ) -> None:
         super().__init__(
             name=name,
-            table_format=S3TableFormat.CSV,
+            table_format=LocalTableFormat.PARQUET,
             database=database,
             data_model=data_model,
             read_checks=read_checks,
             write_checks=write_checks,
-            bucket=bucket,
-            bucket_name=bucket_name,
-            path=path,
+            current_dir=current_dir,
             top_level_dir=top_level_dir,
-            path_prefix=path_prefix,
+            table_dir=table_dir,
             basename_template=basename_template,
             partitions=partitions,
             max_partitions=max_partitions,

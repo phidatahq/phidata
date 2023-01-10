@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Optional, Any, Dict
 
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.check.check import Check
 from phidata.utils.context import get_run_date
 from phidata.utils.env_var import validate_env_vars
 from phidata.utils.log import logger

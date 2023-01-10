@@ -2,7 +2,7 @@ from typing import Optional, Any, Union, List, Dict
 from typing_extensions import Literal
 
 from phidata.asset.aws.aws_asset import AwsAsset, AwsAssetArgs
-from phidata.check.check import Check
+from phidata.check.df.dataframe_check import DataFrameCheck
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
@@ -25,11 +25,16 @@ class S3TableArgs(AwsAssetArgs):
     # S3 Table Format
     table_format: S3TableFormat
 
+    # Checks to run before reading from disk
+    read_checks: Optional[List[DataFrameCheck]] = None
+    # Checks to run before writing to disk
+    write_checks: Optional[List[DataFrameCheck]] = None
+
     # S3 Bucket
     bucket: Optional[S3Bucket] = None
     # S3 Bucket Name must be provided if bucket is not provided
     bucket_name: Optional[str] = None
-    # S3 Full Path URI
+    # Path to table directory in bucket. Without the s3:// prefix
     path: Optional[str] = None
     # To level directory for all tables
     top_level_dir: Optional[str] = "tables"
@@ -84,13 +89,15 @@ class S3Table(AwsAsset):
         database: str = "default",
         # DataModel for this table
         data_model: Optional[Any] = None,
+        # Checks to run before reading from disk
+        read_checks: Optional[List[DataFrameCheck]] = None,
         # Checks to run before writing to disk
-        checks: Optional[List[Check]] = None,
+        write_checks: Optional[List[DataFrameCheck]] = None,
         # S3 Bucket
         bucket: Optional[S3Bucket] = None,
         # S3 Bucket Name
         bucket_name: Optional[str] = None,
-        # S3 Full Path URI
+        # Path to table directory in bucket. Without the s3:// prefix
         path: Optional[str] = None,
         # To level directory for all tables
         top_level_dir: Optional[str] = "tables",
@@ -145,7 +152,8 @@ class S3Table(AwsAsset):
                 table_format=table_format,
                 database=database,
                 data_model=data_model,
-                checks=checks,
+                read_checks=read_checks,
+                write_checks=write_checks,
                 bucket=bucket,
                 bucket_name=bucket_name,
                 path=path,
@@ -207,6 +215,24 @@ class S3Table(AwsAsset):
     def table_format(self, table_format: S3TableFormat) -> None:
         if self.args and table_format:
             self.args.table_format = table_format
+
+    @property
+    def read_checks(self) -> Optional[List[DataFrameCheck]]:
+        return self.args.read_checks if self.args else None
+
+    @read_checks.setter
+    def read_checks(self, read_checks: List[DataFrameCheck]) -> None:
+        if self.args and read_checks:
+            self.args.read_checks = read_checks
+
+    @property
+    def write_checks(self) -> Optional[List[DataFrameCheck]]:
+        return self.args.write_checks if self.args else None
+
+    @write_checks.setter
+    def write_checks(self, write_checks: List[DataFrameCheck]) -> None:
+        if self.args and write_checks:
+            self.args.write_checks = write_checks
 
     @property
     def bucket(self) -> Optional[S3Bucket]:
@@ -361,7 +387,7 @@ class S3Table(AwsAsset):
 
     def write_df(self, df: Optional[Any] = None, **write_options) -> bool:
         """
-        Write DataFrame to table.
+        Write DataFrame to disk.
         """
 
         # S3Table not yet initialized
@@ -373,6 +399,18 @@ class S3Table(AwsAsset):
             logger.error("Table name invalid")
             return False
 
+        # Check table_location is available
+        table_location = self.table_location
+        if table_location is None:
+            logger.error("Table location invalid")
+            return False
+
+        # Check S3FileSystem is available
+        fs = self._get_fs()
+        if fs is None:
+            logger.error("Could not create S3FileSystem")
+            return False
+
         # Validate polars is installed
         try:
             import polars as pl
@@ -382,7 +420,7 @@ class S3Table(AwsAsset):
 
         # Validate pyarrow is installed
         try:
-            import pyarrow
+            import pyarrow as pa
             import pyarrow.dataset
         except ImportError as ie:
             logger.error(f"PyArrow not installed: {ie}")
@@ -393,32 +431,19 @@ class S3Table(AwsAsset):
             logger.error("DataFrame invalid")
             return False
 
+        logger.debug("Format: {}".format(self.args.table_format.value))
         try:
-            logger.debug("Format: {}".format(self.args.table_format.value))
+            # Run write checks
+            if self.write_checks is not None:
+                for check in self.write_checks:
+                    if not check.check(df):
+                        return False
 
             # Create arrow table
-            arrow_table = df.to_arrow()
-            if arrow_table is None:
+            table: pa.Table = df.to_arrow()
+            if table is None:
                 logger.error("Could not create Arrow table")
                 return False
-            # logger.debug(f"arrow_table: {type(arrow_table)}")
-            # logger.debug(f"arrow_table: {arrow_table}")
-
-            # S3 path for the table
-            table_location = self.table_location
-            if table_location is None:
-                logger.error("Table location invalid")
-                return False
-            # logger.debug(f"table_location: {type(table_location)}")
-            # logger.debug(f"table_location: {table_location}")
-
-            # Create S3FileSystem
-            fs = self._get_fs()
-            if fs is None:
-                logger.error("Could not create S3FileSystem")
-                return False
-            # logger.debug(f"fs: {type(fs)}")
-            # logger.debug(f"fs: {fs}")
 
             # Create a dict of args which are not null
             not_null_args: Dict[str, Any] = {}
@@ -429,13 +454,13 @@ class S3Table(AwsAsset):
                 not_null_args["partitioning_flavor"] = "hive"
                 # cast partition keys to string
                 # ref: https://bneijt.nl/blog/write-polars-dataframe-as-parquet-dataset/
-                arrow_table = arrow_table.cast(
+                table = table.cast(
                     pyarrow.schema(
                         [
                             f.with_type(pyarrow.string())
                             if f.name in self.args.partitions
                             else f
-                            for f in arrow_table.schema
+                            for f in table.schema
                         ]
                     )
                 )
@@ -460,13 +485,14 @@ class S3Table(AwsAsset):
 
             # Write table to s3
             pyarrow.dataset.write_dataset(
-                arrow_table,
+                table,
                 table_location,
                 format=self.args.table_format.value,
                 filesystem=fs,
                 existing_data_behavior=self.args.write_mode,
                 **not_null_args,
             )
+            logger.info(f"Table {self.name} written to {table_location}")
             return True
         except Exception:
             logger.error("Could not write table: {}".format(self.name))
@@ -481,8 +507,77 @@ class S3Table(AwsAsset):
     ######################################################
 
     def read_df(self) -> Optional[Any]:
-        logger.debug(f"@read_df not defined for {self.name}")
-        return False
+        """
+        Read DataFrame from disk.
+        """
+
+        # S3Table not yet initialized
+        if self.args is None:
+            return None
+
+        # Check name is available
+        if self.name is None:
+            logger.error("Table name invalid")
+            return None
+
+        # Check table_location is available
+        table_location = self.table_location
+        if table_location is None:
+            logger.error("Table location invalid")
+            return False
+
+        # Check S3FileSystem is available
+        fs = self._get_fs()
+        if fs is None:
+            logger.error("Could not create S3FileSystem")
+            return False
+
+        # Validate polars is installed
+        try:
+            import polars as pl
+        except ImportError as ie:
+            logger.error(f"Polars not installed: {ie}")
+            return None
+
+        # Validate pyarrow is installed
+        try:
+            import pyarrow as pa
+            import pyarrow.dataset
+        except ImportError as ie:
+            logger.error(f"PyArrow not installed: {ie}")
+            return None
+
+        logger.debug("Format: {}".format(self.args.table_format.value))
+        try:
+            # Create a dict of args which are not null
+            not_null_args: Dict[str, Any] = {}
+            if self.args.partitions is not None:
+                not_null_args["partitioning"] = "hive"
+
+            # Read dataset from s3
+            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset
+            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Dataset.html#pyarrow.dataset.Dataset
+            dataset: pyarrow.dataset.Dataset = pyarrow.dataset.dataset(
+                table_location,
+                format=self.args.table_format.value,
+                filesystem=fs,
+                **not_null_args,
+            )
+
+            # Convert dataset to polars DataFrame
+            # https://pola-rs.github.io/polars/py-polars/html/reference/api/polars.from_arrow.html
+            df: Union[pl.DataFrame, pl.Series] = pl.from_arrow(dataset.to_table())
+
+            # Run read checks
+            if self.read_checks is not None:
+                for check in self.read_checks:
+                    if not check.check(df):
+                        return None
+
+            return df
+        except Exception:
+            logger.error("Could not read table: {}".format(self.name))
+            raise
 
     def read_pandas_df(self) -> Optional[Any]:
         logger.debug(f"@read_pandas_df not defined for {self.name}")

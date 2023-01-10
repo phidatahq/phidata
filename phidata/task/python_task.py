@@ -97,7 +97,7 @@ class PythonTask(Task):
             if self.args is not None and entrypoint is not None:
                 run_status = entrypoint(**self.args.dict())
         except Exception as e:
-            logger.error("Could not run PythonTask")
+            # logger.error("Could not run PythonTask")
             logger.error(e)
         return run_status
 

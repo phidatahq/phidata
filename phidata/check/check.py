@@ -1,13 +1,18 @@
-from phidata.task.task import Task, TaskArgs
+from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.utils.log import logger
 
 
-class CheckArgs(TaskArgs):
+class CheckArgs(PhidataBaseArgs):
     pass
 
 
-class Check(Task):
-    """Base Class for all DQChecks"""
+class Check(PhidataBase):
+    """Base Class for all Checks"""
 
     def __init__(self):
         super().__init__()
+        self.result: bool = False
+
+    def check(self) -> bool:
+        logger.debug(f"@check not defined for {self.name}")
+        return False

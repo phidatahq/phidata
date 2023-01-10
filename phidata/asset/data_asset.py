@@ -17,9 +17,6 @@ class DataAssetArgs(PhidataBaseArgs):
     # DataModel for the DataAsset
     data_model: Optional[Any] = None
 
-    # Checks to run before writing to disk
-    checks: Optional[List[Check]] = None
-
     # If enabled=False: mark skip_create, skip_delete, skip_update as True
     enabled: bool = True
     # If True, phi does not create the asset
@@ -116,15 +113,6 @@ class DataAsset(PhidataBase):
     def data_model(self, data_model: Any) -> None:
         if self.args and data_model:
             self.args.data_model = data_model
-
-    @property
-    def checks(self) -> Optional[List[Check]]:
-        return self.args.checks if self.args else None
-
-    @checks.setter
-    def checks(self, checks: List[Check]) -> None:
-        if self.args and checks:
-            self.args.checks = checks
 
     @property
     def skip_create(self) -> Optional[bool]:

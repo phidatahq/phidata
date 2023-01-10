@@ -1,4 +1,4 @@
-from phidata.task import Task, TaskArgs
+from phidata.task.task import Task, TaskArgs
 from phidata.utils.log import logger
 
 

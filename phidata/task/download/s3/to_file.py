@@ -3,7 +3,7 @@ from typing import Optional
 from phidata.asset.local.file import LocalFile
 from phidata.asset.aws.s3.object import S3Object
 from phidata.utils.log import logger
-from phidata.task import PythonTask, PythonTaskArgs
+from phidata.task.python_task import PythonTask, PythonTaskArgs
 
 
 class DownloadS3ObjectToFileArgs(PythonTaskArgs):

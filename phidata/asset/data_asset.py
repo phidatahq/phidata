@@ -2,8 +2,7 @@ from pathlib import Path
 from typing import Optional, Any, Union, List
 
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.task import Task
-from phidata.check import Check
+from phidata.check.check import Check
 from phidata.types.phidata_runtime import (
     PhidataRuntimeType,
     get_phidata_runtime,
@@ -15,16 +14,11 @@ class DataAssetArgs(PhidataBaseArgs):
     # Runtime: local, docker or kubernetes
     phidata_runtime: Optional[PhidataRuntimeType] = None
 
-    # Checks to run before creating/updating the asset
-    pre_checks: Optional[List[Check]] = None
-    # List of tasks to create the asset
-    create_tasks: Optional[List[Task]] = None
-    # List of tasks to update the asset
-    update_tasks: Optional[List[Task]] = None
-    # List of tasks to delete the asset
-    delete_tasks: Optional[List[Task]] = None
-    # Checks to run after creating/updating the asset, but before writing to disk
-    post_checks: Optional[List[Check]] = None
+    # DataModel for the DataAsset
+    data_model: Optional[Any] = None
+
+    # Checks to run before writing to disk
+    checks: Optional[List[Check]] = None
 
     # If enabled=False: mark skip_create, skip_delete, skip_update as True
     enabled: bool = True
@@ -63,7 +57,6 @@ class DataAssetArgs(PhidataBaseArgs):
     resource_file: Optional[Union[str, Path]] = None
 
     # -*- Path parameters
-
     # The storage_dir_path is a local directory which is available
     # for use by the data asset.
     # For a file, it could be used as the base directory
@@ -116,49 +109,22 @@ class DataAsset(PhidataBase):
             self.args.phidata_runtime = phidata_runtime
 
     @property
-    def pre_checks(self) -> Optional[List[Check]]:
-        return self.args.pre_checks if self.args else None
+    def data_model(self) -> Optional[Any]:
+        return self.args.data_model if self.args else None
 
-    @pre_checks.setter
-    def pre_checks(self, pre_checks: List[Check]) -> None:
-        if self.args and pre_checks:
-            self.args.pre_checks = pre_checks
-
-    @property
-    def create_tasks(self) -> Optional[List[Task]]:
-        return self.args.create_tasks if self.args else None
-
-    @create_tasks.setter
-    def create_tasks(self, create_tasks: List[Task]) -> None:
-        if self.args and create_tasks:
-            self.args.create_tasks = create_tasks
+    @data_model.setter
+    def data_model(self, data_model: Any) -> None:
+        if self.args and data_model:
+            self.args.data_model = data_model
 
     @property
-    def update_tasks(self) -> Optional[List[Task]]:
-        return self.args.update_tasks if self.args else None
+    def checks(self) -> Optional[List[Check]]:
+        return self.args.checks if self.args else None
 
-    @update_tasks.setter
-    def update_tasks(self, update_tasks: List[Task]) -> None:
-        if self.args and update_tasks:
-            self.args.update_tasks = update_tasks
-
-    @property
-    def delete_tasks(self) -> Optional[List[Task]]:
-        return self.args.delete_tasks if self.args else None
-
-    @delete_tasks.setter
-    def delete_tasks(self, delete_tasks: List[Task]) -> None:
-        if self.args and delete_tasks:
-            self.args.delete_tasks = delete_tasks
-
-    @property
-    def post_checks(self) -> Optional[List[Check]]:
-        return self.args.post_checks if self.args else None
-
-    @post_checks.setter
-    def post_checks(self, post_checks: List[Check]) -> None:
-        if self.args and post_checks:
-            self.args.post_checks = post_checks
+    @checks.setter
+    def checks(self, checks: List[Check]) -> None:
+        if self.args and checks:
+            self.args.checks = checks
 
     @property
     def skip_create(self) -> Optional[bool]:
@@ -519,6 +485,14 @@ class DataAsset(PhidataBase):
         return self.fs
 
     ######################################################
+    ## Validate data asset
+    ######################################################
+
+    def is_valid(self) -> bool:
+        # DataAssets can use this function to add validation checks
+        return True
+
+    ######################################################
     ## Build data asset
     ######################################################
 
@@ -529,10 +503,6 @@ class DataAsset(PhidataBase):
     ######################################################
     ## Create DataAsset
     ######################################################
-
-    def is_valid(self) -> bool:
-        # DataAssets can use this function to add validation checks
-        return True
 
     def _create(self) -> bool:
         logger.error(f"@_create not defined for {self.name}")

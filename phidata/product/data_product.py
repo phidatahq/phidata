@@ -2,9 +2,9 @@ from collections import OrderedDict
 from datetime import datetime, timedelta
 from typing import Optional, Any, List, Dict, Literal
 
+from phidata.asset.data_asset import DataAsset
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.asset import DataAsset
-from phidata.check import Check
+from phidata.check.check import Check
 from phidata.exceptions.workflow import WorkflowFailure
 from phidata.utils.context import get_run_date, build_path_context_from_env
 from phidata.utils.cli_console import print_info, print_subheading

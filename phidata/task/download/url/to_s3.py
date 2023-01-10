@@ -3,7 +3,7 @@
 # from phidata.asset.file import File
 # from phidata.asset.aws.s3.object import S3Object
 # from phidata.utils.log import logger
-# from phidata.task import PythonTask, PythonTaskArgs
+# from phidata.task.python_task import PythonTask, PythonTaskArgs
 #
 #
 # class DownloadUrlToS3Args(PythonTaskArgs):

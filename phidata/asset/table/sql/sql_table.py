@@ -4,7 +4,7 @@ from typing_extensions import Literal
 from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.exc import ResourceClosedError
 
-from phidata.asset import DataAsset, DataAssetArgs
+from phidata.asset.data_asset import DataAsset, DataAssetArgs
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType

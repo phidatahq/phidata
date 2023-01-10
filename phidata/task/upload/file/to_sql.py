@@ -4,7 +4,7 @@ from typing import Optional, Literal, Union, List
 from phidata.asset.local.file import LocalFile, LocalFileFormat
 from phidata.asset.table.sql.sql_table import SqlTable
 from phidata.utils.log import logger
-from phidata.task import PythonTask, PythonTaskArgs
+from phidata.task.python_task import PythonTask, PythonTaskArgs
 
 
 class UploadFileToSqlArgs(PythonTaskArgs):

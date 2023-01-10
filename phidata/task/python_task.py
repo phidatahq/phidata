@@ -1,7 +1,7 @@
 from typing import Optional, Any, Callable, Dict, cast, List, Tuple
 from typing_extensions import Protocol
 
-from phidata.task import Task, TaskArgs
+from phidata.task.task import Task, TaskArgs
 from phidata.utils.cli_console import print_info
 from phidata.utils.log import logger
 

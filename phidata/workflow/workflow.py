@@ -14,10 +14,11 @@ from typing import (
 )
 
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.asset import DataAsset
-from phidata.check import Check
+from phidata.asset.data_asset import DataAsset
+from phidata.check.check import Check
 from phidata.exceptions.task import TaskFailure
-from phidata.task import Task, PythonTask, PythonTaskType
+from phidata.task.task import Task
+from phidata.task.python_task import PythonTask, PythonTaskType
 from phidata.task.task_relatives import TaskRelatives
 from phidata.utils.context import get_run_date, build_path_context_from_env
 from phidata.utils.cli_console import print_subheading, print_info

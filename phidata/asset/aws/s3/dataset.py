@@ -5,8 +5,8 @@ from phidata.asset.aws.s3.dataset_base import (
     S3DatasetBaseArgs,
     S3DatasetType,
 )
-from phidata.task import Task
-from phidata.check import Check
+from phidata.task.task import Task
+from phidata.check.check import Check
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.log import logger
 

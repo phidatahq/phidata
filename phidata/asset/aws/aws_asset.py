@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phidata.asset import DataAsset, DataAssetArgs
+from phidata.asset.data_asset import DataAsset, DataAssetArgs
 from phidata.infra.aws.api_client import AwsApiClient
 
 

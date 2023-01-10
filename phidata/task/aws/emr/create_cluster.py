@@ -2,7 +2,7 @@ from typing import Optional
 
 from phidata.utils.log import logger
 from phidata.infra.aws.resource.emr.cluster import EmrCluster
-from phidata.task import PythonTask, PythonTaskArgs
+from phidata.task.python_task import PythonTask, PythonTaskArgs
 
 
 class CreateEmrClusterArgs(PythonTaskArgs):

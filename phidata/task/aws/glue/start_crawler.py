@@ -1,7 +1,7 @@
 from typing import Optional
 
 from phidata.utils.log import logger
-from phidata.task import PythonTask, PythonTaskArgs
+from phidata.task.python_task import PythonTask, PythonTaskArgs
 from phidata.infra.aws.resource.glue.crawler import GlueCrawler
 
 

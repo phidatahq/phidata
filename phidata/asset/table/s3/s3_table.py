@@ -2,6 +2,7 @@ from typing import Optional, Any, Union, List, Dict
 from typing_extensions import Literal
 
 from phidata.asset.aws.aws_asset import AwsAsset, AwsAssetArgs
+from phidata.check.check import Check
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
@@ -20,9 +21,7 @@ class S3TableArgs(AwsAssetArgs):
     # Table Name
     name: str
     # Database for the table
-    db_name: str = "default"
-    # DataModel for this table
-    data_model: Optional[Any] = None
+    database: str = "default"
     # S3 Table Format
     table_format: S3TableFormat
 
@@ -82,9 +81,11 @@ class S3Table(AwsAsset):
         # S3 Table Format: required
         table_format: S3TableFormat,
         # Database for the table
-        db_name: str = "default",
+        database: str = "default",
         # DataModel for this table
         data_model: Optional[Any] = None,
+        # Checks to run before writing to disk
+        checks: Optional[List[Check]] = None,
         # S3 Bucket
         bucket: Optional[S3Bucket] = None,
         # S3 Bucket Name
@@ -142,8 +143,9 @@ class S3Table(AwsAsset):
             self.args = S3TableArgs(
                 name=name,
                 table_format=table_format,
-                db_name=db_name,
+                database=database,
                 data_model=data_model,
+                checks=checks,
                 bucket=bucket,
                 bucket_name=bucket_name,
                 path=path,
@@ -176,17 +178,147 @@ class S3Table(AwsAsset):
                 return "{}/{}{}/{}".format(
                     self.args.bucket_name,
                     f"{self.args.top_level_dir}/" if self.args.top_level_dir else "",
-                    self.args.db_name,
+                    self.args.database,
                     self.args.name,
                 )
             if self.args.bucket is not None:
                 return "{}/{}{}/{}".format(
                     self.args.bucket.name,
                     f"{self.args.top_level_dir}/" if self.args.top_level_dir else "",
-                    self.args.db_name,
+                    self.args.database,
                     self.args.name,
                 )
         return ""
+
+    @property
+    def database(self) -> Optional[str]:
+        return self.args.database if self.args else None
+
+    @database.setter
+    def database(self, database: str) -> None:
+        if self.args and database:
+            self.args.database = database
+
+    @property
+    def table_format(self) -> Optional[S3TableFormat]:
+        return self.args.table_format if self.args else None
+
+    @table_format.setter
+    def table_format(self, table_format: S3TableFormat) -> None:
+        if self.args and table_format:
+            self.args.table_format = table_format
+
+    @property
+    def bucket(self) -> Optional[S3Bucket]:
+        return self.args.bucket if self.args else None
+
+    @bucket.setter
+    def bucket(self, bucket: S3Bucket) -> None:
+        if self.args and bucket:
+            self.args.bucket = bucket
+
+    @property
+    def bucket_name(self) -> Optional[str]:
+        return self.args.bucket_name if self.args else None
+
+    @bucket_name.setter
+    def bucket_name(self, bucket_name: str) -> None:
+        if self.args and bucket_name:
+            self.args.bucket_name = bucket_name
+
+    @property
+    def path(self) -> Optional[str]:
+        return self.args.path if self.args else None
+
+    @path.setter
+    def path(self, path: str) -> None:
+        if self.args and path:
+            self.args.path = path
+
+    @property
+    def top_level_dir(self) -> Optional[str]:
+        return self.args.top_level_dir if self.args else None
+
+    @top_level_dir.setter
+    def top_level_dir(self, top_level_dir: str) -> None:
+        if self.args and top_level_dir:
+            self.args.top_level_dir = top_level_dir
+
+    @property
+    def basename_template(self) -> Optional[str]:
+        return self.args.basename_template if self.args else None
+
+    @basename_template.setter
+    def basename_template(self, basename_template: str) -> None:
+        if self.args and basename_template:
+            self.args.basename_template = basename_template
+
+    @property
+    def partitions(self) -> Optional[List[str]]:
+        return self.args.partitions if self.args else None
+
+    @partitions.setter
+    def partitions(self, partitions: List[str]) -> None:
+        if self.args and partitions:
+            self.args.partitions = partitions
+
+    @property
+    def max_partitions(self) -> Optional[int]:
+        return self.args.max_partitions if self.args else None
+
+    @max_partitions.setter
+    def max_partitions(self, max_partitions: int) -> None:
+        if self.args and max_partitions:
+            self.args.max_partitions = max_partitions
+
+    @property
+    def max_open_files(self) -> Optional[int]:
+        return self.args.max_open_files if self.args else None
+
+    @max_open_files.setter
+    def max_open_files(self, max_open_files: int) -> None:
+        if self.args and max_open_files:
+            self.args.max_open_files = max_open_files
+
+    @property
+    def max_rows_per_file(self) -> Optional[int]:
+        return self.args.max_rows_per_file if self.args else None
+
+    @max_rows_per_file.setter
+    def max_rows_per_file(self, max_rows_per_file: int) -> None:
+        if self.args and max_rows_per_file:
+            self.args.max_rows_per_file = max_rows_per_file
+
+    @property
+    def min_rows_per_group(self) -> Optional[int]:
+        return self.args.min_rows_per_group if self.args else None
+
+    @min_rows_per_group.setter
+    def min_rows_per_group(self, min_rows_per_group: int) -> None:
+        if self.args and min_rows_per_group:
+            self.args.min_rows_per_group = min_rows_per_group
+
+    @property
+    def max_rows_per_group(self) -> Optional[int]:
+        return self.args.max_rows_per_group if self.args else None
+
+    @max_rows_per_group.setter
+    def max_rows_per_group(self, max_rows_per_group: int) -> None:
+        if self.args and max_rows_per_group:
+            self.args.max_rows_per_group = max_rows_per_group
+
+    @property
+    def write_mode(
+        self,
+    ) -> Optional[Literal["delete_matching", "overwrite_or_ignore", "error"]]:
+        return self.args.write_mode if self.args else None
+
+    @write_mode.setter
+    def write_mode(
+        self, write_mode: Literal["delete_matching", "overwrite_or_ignore", "error"]
+    ) -> None:
+        if self.args and write_mode:
+            self.args.write_mode = write_mode
 
     ######################################################
     ## Get FileSystem
@@ -202,6 +334,13 @@ class S3Table(AwsAsset):
             return fs.S3FileSystem()
 
     ######################################################
+    ## Validate data asset
+    ######################################################
+
+    def is_valid(self) -> bool:
+        return True
+
+    ######################################################
     ## Build data asset
     ######################################################
 
@@ -212,9 +351,6 @@ class S3Table(AwsAsset):
     ######################################################
     ## Create DataAsset
     ######################################################
-
-    def is_valid(self) -> bool:
-        return True
 
     def _create(self) -> bool:
         logger.error(f"@_create not defined for {self.name}")

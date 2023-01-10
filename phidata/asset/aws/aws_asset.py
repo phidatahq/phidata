@@ -3,8 +3,6 @@ from typing import Optional
 from phidata.asset import DataAsset, DataAssetArgs
 from phidata.infra.aws.api_client import AwsApiClient
 
-from phidata.utils.log import logger
-
 
 class AwsAssetArgs(DataAssetArgs):
     # Aws variables added by WorkspaceConfig().__init__()

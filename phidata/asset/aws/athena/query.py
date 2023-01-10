@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 
-from phidata.asset.aws import AwsAsset, AwsAssetArgs
+from phidata.asset.aws.aws_asset import AwsAsset, AwsAssetArgs
 from phidata.infra.aws.resource.athena.query import AthenaQueryExecution
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger

@@ -38,30 +38,6 @@ class S3Dataset(S3DatasetBase):
         path_prefix: Optional[str] = None,
         bucket: Optional[S3Bucket] = None,
         filename_prefix: Optional[str] = None,
-        # Checks to run before loading the table,
-        pre_checks: Optional[List[Check]] = None,
-        # List of tasks to create the table
-        create_tasks: Optional[List[Task]] = None,
-        # Checks to run after loading the table,
-        post_checks: Optional[List[Check]] = None,
-        # List of tasks to update the table,
-        update_tasks: Optional[List[Task]] = None,
-        # List of tasks to delete the table,
-        delete_tasks: Optional[List[Task]] = None,
-        env: Optional[str] = None,
-        # Dev Args,
-        dev_name: Optional[str] = None,
-        dev_env: Optional[Dict[str, Any]] = None,
-        seed_dev_tasks: Optional[List[Task]] = None,
-        dev_stg_swap_tasks: Optional[List[Task]] = None,
-        # Staging Args,
-        stg_name: Optional[str] = None,
-        stg_env: Optional[Dict[str, Any]] = None,
-        seed_stg_tasks: Optional[List[Task]] = None,
-        stg_prd_swap_tasks: Optional[List[Task]] = None,
-        # Production Args,
-        prd_name: Optional[str] = None,
-        prd_env: Optional[Dict[str, Any]] = None,
         dtype: Optional[Dict[str, str]] = None,
         parameters: Optional[Dict[str, str]] = None,
         columns_comments: Optional[Dict[str, str]] = None,
@@ -106,22 +82,6 @@ class S3Dataset(S3DatasetBase):
                 path_prefix=path_prefix,
                 bucket=bucket,
                 filename_prefix=filename_prefix,
-                pre_checks=pre_checks,
-                create_tasks=create_tasks,
-                post_checks=post_checks,
-                update_tasks=update_tasks,
-                delete_tasks=delete_tasks,
-                env=env,
-                dev_name=dev_name,
-                dev_env=dev_env,
-                seed_dev_tasks=seed_dev_tasks,
-                dev_stg_swap_tasks=dev_stg_swap_tasks,
-                stg_name=stg_name,
-                stg_env=stg_env,
-                seed_stg_tasks=seed_stg_tasks,
-                stg_prd_swap_tasks=stg_prd_swap_tasks,
-                prd_name=prd_name,
-                prd_env=prd_env,
                 dtype=dtype,
                 parameters=parameters,
                 columns_comments=columns_comments,
@@ -414,9 +374,8 @@ class S3Dataset(S3DatasetBase):
 
         try:
             import awswrangler as wr  # type: ignore
-        except ImportError:
-            logger.error("awswrangler not installed")
-            logger.error("Please install awswrangler and try again")
+        except ImportError as ie:
+            logger.error(f"awswrangler not installed: {ie}")
             return False
 
         try:

@@ -493,9 +493,15 @@ class LocalTable(LocalAsset):
     ## Read DataAsset
     ######################################################
 
-    def read_df(self) -> Optional[Any]:
+    def read_df(self, **reader_options) -> Optional[Any]:
         """
         Read DataFrame from disk.
+
+        reader_options: Dict[str, Any]
+            Additional options to pass to the reader.
+            More info:
+                https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Scanner.html#pyarrow.dataset.Scanner.from_dataset
+                https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset.to_table
         """
 
         # LocalTable not yet initialized
@@ -553,7 +559,9 @@ class LocalTable(LocalAsset):
 
             # Convert dataset to polars DataFrame
             # https://pola-rs.github.io/polars/py-polars/html/reference/api/polars.from_arrow.html
-            df: Union[pl.DataFrame, pl.Series] = pl.from_arrow(dataset.to_table())
+            df: Union[pl.DataFrame, pl.Series] = pl.from_arrow(
+                dataset.to_table(**reader_options)
+            )
 
             # Run read checks
             if self.read_checks is not None:

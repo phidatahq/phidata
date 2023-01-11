@@ -15,7 +15,7 @@ from typing import (
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.asset.data_asset import DataAsset
-from phidata.check.check import Check
+from phidata.check.wf.workflow_check import WorkflowCheck
 from phidata.exceptions.task import TaskFailure
 from phidata.task.task import Task
 from phidata.task.python_task import PythonTask, PythonTaskType
@@ -53,7 +53,7 @@ class WorkflowArgs(PhidataBaseArgs):
     # NOTE: Only for local execution
     # What to do when a task fails while running the workflow locally.
     # Continue to next task or stop?
-    on_failure: Literal["stop", "continue"] = "stop"
+    on_fail: Literal["fail", "warn", "ignore"] = "fail"
 
     # Context
     # run_context provided by wf_operator
@@ -73,9 +73,9 @@ class WorkflowArgs(PhidataBaseArgs):
     outputs: Optional[List[DataAsset]] = None
 
     # Checks to run before the workflow
-    pre_checks: Optional[List[Check]] = None
+    pre_checks: Optional[List[WorkflowCheck]] = None
     # Checks to run after the workflow
-    post_checks: Optional[List[Check]] = None
+    post_checks: Optional[List[WorkflowCheck]] = None
 
     # Add an EmptyOperator at the start of the workflow
     add_start_task: bool = False
@@ -143,7 +143,7 @@ class Workflow(PhidataBase):
         # NOTE: Only for local execution
         # What to do when a task fails while running the workflow locally.
         # Continue to next task or stop?
-        on_failure: Literal["stop", "continue"] = "stop",
+        on_fail: Literal["fail", "warn", "ignore"] = "fail",
         # Context
         # run_context provided by wf_operator
         run_context: Optional[RunContext] = None,
@@ -156,9 +156,9 @@ class Workflow(PhidataBase):
         # DataAssets produced by this workflow, used for building the lineage graph
         outputs: Optional[List[DataAsset]] = None,
         # Checks to run before the workflow
-        pre_checks: Optional[List[Check]] = None,
+        pre_checks: Optional[List[WorkflowCheck]] = None,
         # Checks to run after the workflow
-        post_checks: Optional[List[Check]] = None,
+        post_checks: Optional[List[WorkflowCheck]] = None,
         # Add an EmptyOperator at the start of the workflow
         add_start_task: bool = False,
         # Add an EmptyOperator at the end of the workflow
@@ -188,7 +188,7 @@ class Workflow(PhidataBase):
                 name=name,
                 tasks=tasks,
                 graph=graph,
-                on_failure=on_failure,
+                on_fail=on_fail,
                 run_context=run_context,
                 path_context=path_context,
                 airflow_context=airflow_context,
@@ -238,13 +238,13 @@ class Workflow(PhidataBase):
             self.args.graph = graph
 
     @property
-    def on_failure(self) -> Literal["stop", "continue"]:
-        return self.args.on_failure if self.args else "stop"
+    def on_fail(self) -> Literal["fail", "warn", "ignore"]:
+        return self.args.on_fail if self.args else "fail"
 
-    @on_failure.setter
-    def on_failure(self, on_failure: Literal["stop", "continue"]) -> None:
-        if self.args is not None and on_failure is not None:
-            self.args.on_failure = on_failure
+    @on_fail.setter
+    def on_fail(self, on_fail: Literal["fail", "warn", "ignore"]) -> None:
+        if self.args is not None and on_fail is not None:
+            self.args.on_fail = on_fail
 
     @property
     def run_context(self) -> Optional[RunContext]:
@@ -301,20 +301,20 @@ class Workflow(PhidataBase):
             self.args.outputs = outputs
 
     @property
-    def pre_checks(self) -> Optional[List[Check]]:
+    def pre_checks(self) -> Optional[List[WorkflowCheck]]:
         return self.args.pre_checks if self.args else None
 
     @pre_checks.setter
-    def pre_checks(self, pre_checks: List[Check]) -> None:
+    def pre_checks(self, pre_checks: List[WorkflowCheck]) -> None:
         if self.args is not None and pre_checks is not None:
             self.args.pre_checks = pre_checks
 
     @property
-    def post_checks(self) -> Optional[List[Check]]:
+    def post_checks(self) -> Optional[List[WorkflowCheck]]:
         return self.args.post_checks if self.args else None
 
     @post_checks.setter
-    def post_checks(self, post_checks: List[Check]) -> None:
+    def post_checks(self, post_checks: List[WorkflowCheck]) -> None:
         if self.args is not None and post_checks is not None:
             self.args.post_checks = post_checks
 
@@ -509,12 +509,12 @@ class Workflow(PhidataBase):
     ## Checks
     ######################################################
 
-    def add_pre_check(self, check: Check):
+    def add_pre_check(self, check: WorkflowCheck):
         if self.args.pre_checks is None:
             self.args.pre_checks = []
         self.args.pre_checks.append(check)
 
-    def add_post_check(self, check: Check):
+    def add_post_check(self, check: WorkflowCheck):
         if self.args.post_checks is None:
             self.args.post_checks = []
         self.args.post_checks.append(check)
@@ -574,9 +574,13 @@ class Workflow(PhidataBase):
                 for task in self.tasks:
                     run_status = self.run_task_in_local_env(task)
                     task_run_status.append(run_status)
-                    if not run_status.success and self.args.on_failure == "stop":
-                        logger.error(f"Task {task.task_id} failed")
-                        break
+                    if not run_status.success:
+                        if self.args.on_fail == "fail":
+                            raise Exception(f"Task {task.task_id} failed")
+                        elif self.args.on_fail == "warn":
+                            logger.warning(f"Task {task.task_id} failed")
+                        else:
+                            logger.info(f"Task {task.task_id} failed")
         except Exception as e:
             logger.error(e)
 
@@ -662,8 +666,13 @@ class Workflow(PhidataBase):
                         docker_env=docker_env,
                     )
                     task_run_status.append(run_status)
-                    if not run_status.success and self.args.on_failure == "stop":
-                        raise TaskFailure(f"Task {task.task_id} failed")
+                    if not run_status.success:
+                        if self.args.on_fail == "fail":
+                            raise Exception(f"Task {task.task_id} failed")
+                        elif self.args.on_fail == "warn":
+                            logger.warning(f"Task {task.task_id} failed")
+                        else:
+                            logger.info(f"Task {task.task_id} failed")
         except TaskFailure as tf:
             logger.error(tf)
 

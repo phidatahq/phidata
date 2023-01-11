@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "1.0.0.dev1"
+version = "1.0.0.dev3"
 description = "A toolkit for data engineering"
 requires-python = ">3.7"
 readme = "README.md"
@@ -11,7 +11,7 @@ authors = [
 dependencies = [
   "boto3",
   "httpx",
-  "phiterm==1.0.0.dev1",
+  "phiterm==1.0.0.dev3",
   "polars",
   "pyarrow",
   "pydantic",

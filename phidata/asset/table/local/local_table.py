@@ -20,10 +20,10 @@ class LocalTableFormat(ExtendedEnum):
 class LocalTableArgs(LocalAssetArgs):
     # Table Name
     name: str
-    # Database for the table
-    database: str = "default"
     # Table Format
     table_format: LocalTableFormat
+    # Database for the table
+    database: str
 
     # Checks to run before reading from disk
     read_checks: Optional[List[DataFrameCheck]] = None
@@ -82,7 +82,7 @@ class LocalTable(LocalAsset):
         self,
         # Table Name: required
         name: str,
-        # S3 Table Format: required
+        # Table Format: required
         table_format: LocalTableFormat,
         # Database for the table
         database: str = "default",
@@ -172,15 +172,6 @@ class LocalTable(LocalAsset):
             raise
 
     @property
-    def database(self) -> Optional[str]:
-        return self.args.database if self.args else None
-
-    @database.setter
-    def database(self, database: str) -> None:
-        if self.args and database:
-            self.args.database = database
-
-    @property
     def table_format(self) -> Optional[LocalTableFormat]:
         return self.args.table_format if self.args else None
 
@@ -188,6 +179,15 @@ class LocalTable(LocalAsset):
     def table_format(self, table_format: LocalTableFormat) -> None:
         if self.args and table_format:
             self.args.table_format = table_format
+
+    @property
+    def database(self) -> Optional[str]:
+        return self.args.database if self.args else None
+
+    @database.setter
+    def database(self, database: str) -> None:
+        if self.args and database:
+            self.args.database = database
 
     @property
     def read_checks(self) -> Optional[List[DataFrameCheck]]:
@@ -365,14 +365,12 @@ class LocalTable(LocalAsset):
     ## Create DataAsset
     ######################################################
 
-    def _create(self) -> bool:
-        logger.error(f"@_create not defined for {self.name}")
-        return False
-
-    def post_create(self) -> bool:
-        return True
-
-    def write_df(self, df: Optional[Any] = None, **write_options) -> bool:
+    def write_polars_df(
+        self,
+        df: Optional[Any] = None,
+        write_options: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> bool:
         """
         Write DataFrame to disk.
         """
@@ -485,15 +483,24 @@ class LocalTable(LocalAsset):
             logger.error("Could not write table: {}".format(self.name))
             raise
 
-    def write_pandas_df(self, df: Optional[Any] = None) -> bool:
+    def write_pandas_df(self, df: Optional[Any] = None, **kwargs) -> bool:
         logger.debug(f"@write_pandas_df not defined for {self.name}")
         return False
+
+    def _create(self) -> bool:
+        logger.error(f"@_create not defined for {self.name}")
+        return False
+
+    def post_create(self) -> bool:
+        return True
 
     ######################################################
     ## Read DataAsset
     ######################################################
 
-    def read_df(self, **reader_options) -> Optional[Any]:
+    def read_polars_df(
+        self, reader_options: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Optional[Any]:
         """
         Read DataFrame from disk.
 
@@ -574,7 +581,7 @@ class LocalTable(LocalAsset):
             logger.error("Could not read table: {}".format(self.name))
             raise
 
-    def read_pandas_df(self) -> Optional[Any]:
+    def read_pandas_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_pandas_df not defined for {self.name}")
         return False
 

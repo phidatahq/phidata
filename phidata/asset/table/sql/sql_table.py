@@ -5,6 +5,7 @@ from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.exc import ResourceClosedError
 
 from phidata.asset.data_asset import DataAsset, DataAssetArgs
+from phidata.check.df.dataframe_check import DataFrameCheck
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
@@ -17,16 +18,21 @@ class SqlTableFormat(ExtendedEnum):
 class SqlTableArgs(DataAssetArgs):
     # Table Name
     name: str
-    # SQLModel for this table
-    sql_model: Any
-    # SQL Table Format
-    sql_format: SqlTableFormat
+    # Table Format
+    table_format: SqlTableFormat
+    # Database for the table (eg: "public" on postgres)
+    database: Optional[str] = None
 
-    # Table schema
-    db_schema: Optional[str] = None
+    # Checks to run before reading from disk
+    read_checks: Optional[List[DataFrameCheck]] = None
+    # Checks to run before writing to disk
+    write_checks: Optional[List[DataFrameCheck]] = None
+
+    # -*- Table Connection
     # sqlalchemy.engine.(Engine or Connection)
     # Using SQLAlchemy makes it possible to use any DB supported by that library.
-    # NOTE: db_engine is required but can be derived using other args.
+    # NOTE: db_engine is required but can be derived using
+    # db_conn_url, airflow_conn_id or db_app
     db_engine: Optional[Union[Engine, Connection]] = None
     # a db_conn_url can be used to create the sqlalchemy.engine.Engine object
     db_conn_url: Optional[str] = None
@@ -46,15 +52,21 @@ class SqlTable(DataAsset):
         self,
         # Table Name: required
         name: str,
-        # SQLModel for this table: required
-        sql_model: Any,
-        # SQLTable Format: required
-        sql_format: SqlTableFormat,
-        # Table schema
-        db_schema: Optional[str] = None,
+        # Table Format: required
+        table_format: SqlTableFormat,
+        # Database for the table (eg: "public" on postgres)
+        database: Optional[str] = None,
+        # DataModel for this table (SQLModel object)
+        data_model: Optional[Any] = None,
+        # Checks to run before reading from disk
+        read_checks: Optional[List[DataFrameCheck]] = None,
+        # Checks to run before writing to disk
+        write_checks: Optional[List[DataFrameCheck]] = None,
+        # -*- Table Connection
         # sqlalchemy.engine.(Engine or Connection)
         # Using SQLAlchemy makes it possible to use any DB supported by that library.
-        # NOTE: db_engine is required but can be derived using other args.
+        # NOTE: db_engine is required but can be derived using
+        # db_conn_url, airflow_conn_id or db_app
         db_engine: Optional[Union[Engine, Connection]] = None,
         # a db_conn_url can be used to create the sqlalchemy.engine.Engine object
         db_conn_url: Optional[str] = None,
@@ -72,17 +84,17 @@ class SqlTable(DataAsset):
         self.args: Optional[SqlTableArgs] = None
         if name is None:
             raise ValueError("name is required")
-        if sql_model is None:
-            raise ValueError("sql_model is required")
-        if sql_format is None:
-            raise ValueError("sql_format is required")
+        if table_format is None:
+            raise ValueError("table_format is required")
 
         try:
             self.args = SqlTableArgs(
                 name=name,
-                sql_model=sql_model,
-                sql_format=sql_format,
-                db_schema=db_schema,
+                table_format=table_format,
+                database=database,
+                data_model=data_model,
+                read_checks=read_checks,
+                write_checks=write_checks,
                 db_engine=db_engine,
                 db_conn_url=db_conn_url,
                 airflow_conn_id=airflow_conn_id,
@@ -98,31 +110,40 @@ class SqlTable(DataAsset):
             raise
 
     @property
-    def sql_model(self) -> Optional[Any]:
-        return self.args.sql_model if self.args else None
+    def table_format(self) -> Optional[SqlTableFormat]:
+        return self.args.table_format if self.args else None
 
-    @sql_model.setter
-    def sql_model(self, sql_model: Any) -> None:
-        if self.args and sql_model:
-            self.args.sql_model = sql_model
-
-    @property
-    def sql_format(self) -> Optional[SqlTableFormat]:
-        return self.args.sql_format if self.args else None
-
-    @sql_format.setter
-    def sql_format(self, sql_format: SqlTableFormat) -> None:
-        if self.args and sql_format:
-            self.args.sql_format = sql_format
+    @table_format.setter
+    def table_format(self, table_format: SqlTableFormat) -> None:
+        if self.args and table_format:
+            self.args.table_format = table_format
 
     @property
-    def db_schema(self) -> Optional[str]:
-        return self.args.db_schema if self.args else None
+    def database(self) -> Optional[str]:
+        return self.args.database if self.args else None
 
-    @db_schema.setter
-    def db_schema(self, db_schema: str) -> None:
-        if self.args and db_schema:
-            self.args.db_schema = db_schema
+    @database.setter
+    def database(self, database: str) -> None:
+        if self.args and database:
+            self.args.database = database
+
+    @property
+    def read_checks(self) -> Optional[List[DataFrameCheck]]:
+        return self.args.read_checks if self.args else None
+
+    @read_checks.setter
+    def read_checks(self, read_checks: List[DataFrameCheck]) -> None:
+        if self.args and read_checks:
+            self.args.read_checks = read_checks
+
+    @property
+    def write_checks(self) -> Optional[List[DataFrameCheck]]:
+        return self.args.write_checks if self.args else None
+
+    @write_checks.setter
+    def write_checks(self, write_checks: List[DataFrameCheck]) -> None:
+        if self.args and write_checks:
+            self.args.write_checks = write_checks
 
     @property
     def db_engine(self) -> Optional[Union[Engine, Connection]]:
@@ -291,6 +312,13 @@ class SqlTable(DataAsset):
         return None
 
     ######################################################
+    ## Validate data asset
+    ######################################################
+
+    def is_valid(self) -> bool:
+        return True
+
+    ######################################################
     ## Build data asset
     ######################################################
 
@@ -298,190 +326,11 @@ class SqlTable(DataAsset):
         logger.debug(f"@build not defined for {self.name}")
         return False
 
-    def is_valid(self) -> bool:
-        # Validate polars is installed
-        try:
-            import polars as pl
-        except ImportError as ie:
-            logger.error(f"Polars not installed: {ie}")
-            return False
-
-        # Validate sqlmodel is installed
-        try:
-            from sqlmodel import SQLModel, Session
-        except ImportError as ie:
-            logger.error(f"SQLModel not installed: {ie}")
-            return False
-
-        return True
-
-    ######################################################
-    ## Create DataAsset
-    ######################################################
-
-    def _create(self, if_not_exists: bool = True) -> bool:
-        from sqlmodel import SQLModel
-
-        # Check engine is available
-        db_engine = self.create_db_engine()
-        if db_engine is None:
-            logger.error("DbEngine invalid")
-            return False
-
-        sql_model: SQLModel = self.sql_model  # type: ignore
-        sql_model_table = sql_model.__table__  # type: ignore
-        if sql_model_table is None:
-            logger.error("SQLModel table invalid")
-            return False
-
-        # https://docs.sqlalchemy.org/en/14/core/metadata.html#sqlalchemy.schema.Table.create
-        logger.debug(f"Creating table: {sql_model_table.name}")
-        sql_model_table.create(bind=db_engine, checkfirst=if_not_exists)
-        return True
-
-    def create(self, if_not_exists: bool = True) -> bool:
-        # Step 1: Check if resource is valid
-        if not self.is_valid():
-            return False
-
-        # Step 2: Skip resource creation if skip_create = True
-        if self.skip_create:
-            logger.debug(f"Skipping create: {self.name}")
-            return True
-
-        # Step 3: Create the resource
-        self.resource_created = self._create(if_not_exists=if_not_exists)
-        return self.resource_deleted
-
-    ######################################################
-    ## Query table
-    ######################################################
-
-    def query(
-        self,
-        q: str,
-    ) -> Optional[Any]:
-        """
-        Run SQL query using SqlAlchemy.
-        """
-        from sqlalchemy.sql import text
-
-        # SqlTable not yet initialized
-        if self.args is None:
-            return None
-
-        # Check engine is available
-        db_engine = self.create_db_engine()
-        if db_engine is None:
-            logger.error("DbEngine not available")
-            return False
-
-        logger.info("Running Query:\n{}".format(q))
-        try:
-            with db_engine.begin() as connection:
-                result = connection.execute(text(q))  # type: ignore
-            return result
-        except ResourceClosedError as rce:
-            logger.info(
-                f"The result object was closed automatically, returning no rows."
-            )
-        return None
-
-    def run_sql_query(
-        self,
-        sql_query: str,
-        index_col: Optional[Union[str, List[str]]] = None,
-        coerce_float: bool = True,
-        parse_dates: Optional[Union[List, Dict]] = None,
-        columns: Optional[List[str]] = None,
-        chunksize: Optional[int] = None,
-    ) -> Optional[Any]:
-        """
-        Run SQL query using pandas.read_sql()
-
-        Args:
-            sql_query (str): SQL query to be executed.
-            index_col : str or list of str, optional, default: None
-                Column(s) to set as index(MultiIndex).
-            coerce_float : bool, default True
-                Attempts to convert values of non-string, non-numeric objects (like
-                decimal.Decimal) to floating point. Can result in loss of Precision.
-            parse_dates : list or dict, default None
-                - List of column names to parse as dates.
-                - Dict of ``{column_name: format string}`` where format string is
-                strftime compatible in case of parsing string times or is one of
-                (D, s, ns, ms, us) in case of parsing integer timestamps.
-                - Dict of ``{column_name: arg dict}``, where the arg dict corresponds
-                to the keyword arguments of :func:`pandas.to_datetime`
-                Especially useful with databases without native Datetime support,
-                such as SQLite.
-            columns : list, default None
-                List of column names to select from SQL table.
-            chunksize : int, default None
-                If specified, returns an iterator where `chunksize` is the number of
-                rows to include in each chunk.
-
-        Returns:
-            DataFrame or Iterator[DataFrame]
-            A SQL table is returned as two-dimensional data structure with labeled
-            axes.
-        """
-
-        # SqlTable not yet initialized
-        if self.args is None:
-            return None
-
-        # Check engine is available
-        db_engine = self.create_db_engine()
-        if db_engine is None:
-            logger.error("DbEngine not available")
-            return False
-
-        # Validate pandas is installed
-        try:
-            import pandas as pd
-        except ImportError:
-            logger.error("Pandas not installed")
-            return False
-
-        logger.info("Running Query:\n{}".format(sql_query))
-
-        # create a dict of args provided
-        not_null_args: Dict[str, Any] = {}
-        if self.db_schema:
-            not_null_args["schema"] = self.db_schema
-        if index_col:
-            not_null_args["index_col"] = index_col
-        if coerce_float:
-            not_null_args["coerce_float"] = coerce_float
-        if parse_dates:
-            not_null_args["parse_dates"] = parse_dates
-        if columns:
-            not_null_args["columns"] = columns
-        if chunksize:
-            not_null_args["chunksize"] = chunksize
-
-        try:
-            with db_engine.connect() as connection:
-                result_df = pd.read_sql(
-                    sql=sql_query,
-                    con=connection,
-                    **not_null_args,
-                )
-            return result_df
-        except ResourceClosedError as rce:
-            logger.info(
-                f"The result object was closed automatically, returning no rows."
-            )
-        # except Exception as e:
-        #     logger.error(f"Sql query failed: {e}")
-        return None
-
     ######################################################
     ## Write table
     ######################################################
 
-    def write_df(
+    def write_polars_df(
         self,
         # A polars DataFrame
         df: Optional[Any] = None,
@@ -497,6 +346,7 @@ class SqlTable(DataAsset):
         # replace: Drop the table before inserting new values.
         # append: Insert new values to the existing table.
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+        **kwargs,
     ) -> bool:
         """
         Write DataFrame to table.
@@ -631,6 +481,7 @@ class SqlTable(DataAsset):
         # replace: Drop the table before inserting new values.
         # append: Insert new values to the existing table.
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+        **kwargs,
     ) -> bool:
         """
         Write DataFrame to table.
@@ -697,10 +548,172 @@ class SqlTable(DataAsset):
             raise
 
     ######################################################
+    ## Query table
+    ######################################################
+
+    def query(
+        self,
+        q: str,
+    ) -> Optional[Any]:
+        """
+        Run SQL query using SqlAlchemy.
+        """
+        from sqlalchemy.sql import text
+
+        # SqlTable not yet initialized
+        if self.args is None:
+            return None
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
+            return False
+
+        logger.info("Running Query:\n{}".format(q))
+        try:
+            with db_engine.begin() as connection:
+                result = connection.execute(text(q))  # type: ignore
+            return result
+        except ResourceClosedError as rce:
+            logger.info(
+                f"The result object was closed automatically, returning no rows."
+            )
+        return None
+
+    def run_sql_query(
+        self,
+        sql_query: str,
+        index_col: Optional[Union[str, List[str]]] = None,
+        coerce_float: bool = True,
+        parse_dates: Optional[Union[List, Dict]] = None,
+        columns: Optional[List[str]] = None,
+        chunksize: Optional[int] = None,
+    ) -> Optional[Any]:
+        """
+        Run SQL query using pandas.read_sql()
+
+        Args:
+            sql_query (str): SQL query to be executed.
+            index_col : str or list of str, optional, default: None
+                Column(s) to set as index(MultiIndex).
+            coerce_float : bool, default True
+                Attempts to convert values of non-string, non-numeric objects (like
+                decimal.Decimal) to floating point. Can result in loss of Precision.
+            parse_dates : list or dict, default None
+                - List of column names to parse as dates.
+                - Dict of ``{column_name: format string}`` where format string is
+                strftime compatible in case of parsing string times or is one of
+                (D, s, ns, ms, us) in case of parsing integer timestamps.
+                - Dict of ``{column_name: arg dict}``, where the arg dict corresponds
+                to the keyword arguments of :func:`pandas.to_datetime`
+                Especially useful with databases without native Datetime support,
+                such as SQLite.
+            columns : list, default None
+                List of column names to select from SQL table.
+            chunksize : int, default None
+                If specified, returns an iterator where `chunksize` is the number of
+                rows to include in each chunk.
+
+        Returns:
+            DataFrame or Iterator[DataFrame]
+            A SQL table is returned as two-dimensional data structure with labeled
+            axes.
+        """
+
+        # SqlTable not yet initialized
+        if self.args is None:
+            return None
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
+            return False
+
+        # Validate pandas is installed
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("Pandas not installed")
+            return False
+
+        logger.info("Running Query:\n{}".format(sql_query))
+
+        # create a dict of args provided
+        not_null_args: Dict[str, Any] = {}
+        if self.db_schema:
+            not_null_args["schema"] = self.db_schema
+        if index_col:
+            not_null_args["index_col"] = index_col
+        if coerce_float:
+            not_null_args["coerce_float"] = coerce_float
+        if parse_dates:
+            not_null_args["parse_dates"] = parse_dates
+        if columns:
+            not_null_args["columns"] = columns
+        if chunksize:
+            not_null_args["chunksize"] = chunksize
+
+        try:
+            with db_engine.connect() as connection:
+                result_df = pd.read_sql(
+                    sql=sql_query,
+                    con=connection,
+                    **not_null_args,
+                )
+            return result_df
+        except ResourceClosedError as rce:
+            logger.info(
+                f"The result object was closed automatically, returning no rows."
+            )
+        # except Exception as e:
+        #     logger.error(f"Sql query failed: {e}")
+        return None
+
+    ######################################################
+    ## Create DataAsset
+    ######################################################
+
+    def _create(self, if_not_exists: bool = True) -> bool:
+        from sqlmodel import SQLModel
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine invalid")
+            return False
+
+        sql_model: SQLModel = self.data_model  # type: ignore
+        sql_model_table = sql_model.__table__  # type: ignore
+        if sql_model_table is None:
+            logger.error("SQLModel table invalid")
+            return False
+
+        # https://docs.sqlalchemy.org/en/14/core/metadata.html#sqlalchemy.schema.Table.create
+        logger.debug(f"Creating table: {sql_model_table.name}")
+        sql_model_table.create(bind=db_engine, checkfirst=if_not_exists)
+        return True
+
+    def create(self, if_not_exists: bool = True) -> bool:
+        # Step 1: Check if resource is valid
+        if not self.is_valid():
+            return False
+
+        # Step 2: Skip resource creation if skip_create = True
+        if self.skip_create:
+            logger.debug(f"Skipping create: {self.name}")
+            return True
+
+        # Step 3: Create the resource
+        self.resource_created = self._create(if_not_exists=if_not_exists)
+        return self.resource_deleted
+
+    ######################################################
     ## Read DataAsset
     ######################################################
 
-    def read_df(self) -> Optional[Any]:
+    def read_polars_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_df not defined for {self.name}")
         return False
 
@@ -711,6 +724,7 @@ class SqlTable(DataAsset):
         parse_dates: Optional[Union[List, Dict]] = None,
         columns: Optional[List[str]] = None,
         chunksize: Optional[int] = None,
+        **kwargs,
     ) -> Optional[Any]:
         """
         Read table into a DataFrame.

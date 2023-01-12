@@ -52,8 +52,19 @@ class DbSubnetGroup(AwsResource):
 
             subnet_ids = self.subnet_ids
             if subnet_ids is None and self.vpc_stack is not None:
+                subnet_ids = []
+                logger.debug("Getting public subnet_ids from vpc stack")
+                public_subnet_ids = self.vpc_stack.get_private_subnets(
+                    aws_client=aws_client
+                )
+                if public_subnet_ids is not None:
+                    subnet_ids.extend(public_subnet_ids)
                 logger.debug("Getting private subnet_ids from vpc stack")
-                subnet_ids = self.vpc_stack.get_private_subnets(aws_client=aws_client)
+                private_subnet_ids = self.vpc_stack.get_private_subnets(
+                    aws_client=aws_client
+                )
+                if private_subnet_ids is not None:
+                    subnet_ids.extend(private_subnet_ids)
 
             # Create DbSubnetGroup
             service_client = self.get_service_client(aws_client)

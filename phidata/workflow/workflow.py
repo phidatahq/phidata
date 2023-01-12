@@ -900,7 +900,7 @@ class Workflow(PhidataBase):
         if self.add_start_task:
             workflow_start: EmptyOperator = self.get_start_workflow_task(dag=dag)
             roots = self.roots
-            # Add workflow_end to be upstream of all root tasks
+            # Add workflow_start to be upstream of all root tasks
             if roots is not None:
                 for root_task in roots:
                     root_task_airflow_op = airflow_tasks[root_task.task_id]

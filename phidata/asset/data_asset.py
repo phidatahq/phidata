@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import Optional, Any, Union, List
+from typing import Optional, Any, Union
 
 from phidata.base import PhidataBase, PhidataBaseArgs
-from phidata.check.check import Check
 from phidata.types.phidata_runtime import (
     PhidataRuntimeType,
     get_phidata_runtime,
@@ -492,6 +491,14 @@ class DataAsset(PhidataBase):
     ## Create DataAsset
     ######################################################
 
+    def write_polars_df(self, df: Optional[Any] = None, **kwargs) -> bool:
+        logger.debug(f"@write_polars_df not defined for {self.name}")
+        return False
+
+    def write_pandas_df(self, df: Optional[Any] = None, **kwargs) -> bool:
+        logger.debug(f"@write_pandas_df not defined for {self.name}")
+        return False
+
     def _create(self) -> bool:
         logger.error(f"@_create not defined for {self.name}")
         return False
@@ -519,23 +526,15 @@ class DataAsset(PhidataBase):
         # return True because this function is not used for most resources
         return True
 
-    def write_df(self, df: Optional[Any] = None) -> bool:
-        logger.debug(f"@write_df not defined for {self.name}")
-        return False
-
-    def write_pandas_df(self, df: Optional[Any] = None) -> bool:
-        logger.debug(f"@write_pandas_df not defined for {self.name}")
-        return False
-
     ######################################################
     ## Read DataAsset
     ######################################################
 
-    def read_df(self) -> Optional[Any]:
+    def read_polars_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_df not defined for {self.name}")
         return False
 
-    def read_pandas_df(self) -> Optional[Any]:
+    def read_pandas_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_pandas_df not defined for {self.name}")
         return False
 

@@ -20,16 +20,17 @@ class S3TableFormat(ExtendedEnum):
 class S3TableArgs(AwsAssetArgs):
     # Table Name
     name: str
-    # Database for the table
-    database: str = "default"
     # Table Format
     table_format: S3TableFormat
+    # Database for the table
+    database: str = "default"
 
     # Checks to run before reading from disk
     read_checks: Optional[List[DataFrameCheck]] = None
     # Checks to run before writing to disk
     write_checks: Optional[List[DataFrameCheck]] = None
 
+    # -*- Table Path
     # S3 Bucket
     bucket: Optional[S3Bucket] = None
     # S3 Bucket Name must be provided if bucket is not provided
@@ -37,7 +38,7 @@ class S3TableArgs(AwsAssetArgs):
     # Path to table directory in bucket. Without the s3:// prefix
     path: Optional[str] = None
     # To level directory for all tables
-    top_level_dir: Optional[str] = "tables"
+    top_level_dir: Optional[str] = None
     # A template string used to generate basenames of written data files.
     # The token ‘{i}’ will be replaced with an automatically incremented integer.
     # If not specified, it defaults to “part-{i}.” + format.default_extname
@@ -93,6 +94,7 @@ class S3Table(AwsAsset):
         read_checks: Optional[List[DataFrameCheck]] = None,
         # Checks to run before writing to disk
         write_checks: Optional[List[DataFrameCheck]] = None,
+        # -*- Table Path
         # S3 Bucket
         bucket: Optional[S3Bucket] = None,
         # S3 Bucket Name
@@ -175,15 +177,6 @@ class S3Table(AwsAsset):
             raise
 
     @property
-    def database(self) -> Optional[str]:
-        return self.args.database if self.args else None
-
-    @database.setter
-    def database(self, database: str) -> None:
-        if self.args and database:
-            self.args.database = database
-
-    @property
     def table_format(self) -> Optional[S3TableFormat]:
         return self.args.table_format if self.args else None
 
@@ -191,6 +184,15 @@ class S3Table(AwsAsset):
     def table_format(self, table_format: S3TableFormat) -> None:
         if self.args and table_format:
             self.args.table_format = table_format
+
+    @property
+    def database(self) -> Optional[str]:
+        return self.args.database if self.args else None
+
+    @database.setter
+    def database(self, database: str) -> None:
+        if self.args and database:
+            self.args.database = database
 
     @property
     def read_checks(self) -> Optional[List[DataFrameCheck]]:
@@ -362,16 +364,14 @@ class S3Table(AwsAsset):
     ## Create DataAsset
     ######################################################
 
-    def _create(self) -> bool:
-        logger.error(f"@_create not defined for {self.name}")
-        return False
-
-    def post_create(self) -> bool:
-        return True
-
-    def write_df(self, df: Optional[Any] = None, **write_options) -> bool:
+    def write_polars_df(
+        self,
+        df: Optional[Any] = None,
+        write_options: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> bool:
         """
-        Write DataFrame to disk.
+        Write DataFrame to S3.
         """
 
         # S3Table not yet initialized
@@ -482,15 +482,24 @@ class S3Table(AwsAsset):
             logger.error("Could not write table: {}".format(self.name))
             raise
 
-    def write_pandas_df(self, df: Optional[Any] = None) -> bool:
+    def write_pandas_df(self, df: Optional[Any] = None, **kwargs) -> bool:
         logger.debug(f"@write_pandas_df not defined for {self.name}")
         return False
+
+    def _create(self) -> bool:
+        logger.error(f"@_create not defined for {self.name}")
+        return False
+
+    def post_create(self) -> bool:
+        return True
 
     ######################################################
     ## Read DataAsset
     ######################################################
 
-    def read_df(self, **reader_options) -> Optional[Any]:
+    def read_df(
+        self, reader_options: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Optional[Any]:
         """
         Read DataFrame from disk.
 
@@ -571,7 +580,7 @@ class S3Table(AwsAsset):
             logger.error("Could not read table: {}".format(self.name))
             raise
 
-    def read_pandas_df(self) -> Optional[Any]:
+    def read_pandas_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_pandas_df not defined for {self.name}")
         return False
 

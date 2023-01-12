@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 from phidata.app.k8s.app import K8sApp, K8sAppArgs
 from phidata.exceptions.app import AppInvalidException
-from phidata.infra.k8s.resource.group import (
+from phidata.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
 )

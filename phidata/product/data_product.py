@@ -33,7 +33,7 @@ class DataProductArgs(PhidataBaseArgs):
     graph: Optional[Dict[Workflow, List[Workflow]]] = None
     # What to do when a workflow fails while running the data_product locally.
     # Continue to next task or stop?
-    on_failure: Literal["stop", "continue"] = "stop"
+    on_fail: Literal["stop", "continue"] = "stop"
 
     # Add an EmptyOperator at the start of the workflows
     add_start_task: bool = True
@@ -107,7 +107,7 @@ class DataProduct(PhidataBase):
         graph: Optional[Dict[Workflow, List[Workflow]]] = None,
         # What to do when a task fails while running the workflow locally.
         # Continue to next task or stop?
-        on_failure: Literal["stop", "continue"] = "stop",
+        on_fail: Literal["stop", "continue"] = "stop",
         # Add an EmptyOperator at the start of the workflows
         add_start_task: bool = True,
         # Add an EmptyOperator at the end of the workflows
@@ -138,7 +138,7 @@ class DataProduct(PhidataBase):
                 name=name,
                 workflows=workflows,
                 graph=graph,
-                on_failure=on_failure,
+                on_fail=on_fail,
                 add_start_task=add_start_task,
                 add_end_task=add_end_task,
                 dag_id=dag_id,
@@ -175,13 +175,13 @@ class DataProduct(PhidataBase):
             self.args.graph = graph
 
     @property
-    def on_failure(self) -> Literal["stop", "continue"]:
-        return self.args.on_failure if self.args else "stop"
+    def on_fail(self) -> Literal["stop", "continue"]:
+        return self.args.on_fail if self.args else "stop"
 
-    @on_failure.setter
-    def on_failure(self, on_failure: Literal["stop", "continue"]) -> None:
-        if self.args is not None and on_failure is not None:
-            self.args.on_failure = on_failure
+    @on_fail.setter
+    def on_fail(self, on_fail: Literal["stop", "continue"]) -> None:
+        if self.args is not None and on_fail is not None:
+            self.args.on_fail = on_fail
 
     @property
     def add_start_task(self) -> bool:
@@ -454,7 +454,7 @@ class DataProduct(PhidataBase):
             for wf in self.workflows:
                 run_status = self.run_workflow_in_local_env(wf)
                 wf_run_status.append(run_status)
-                if not run_status.success and self.args.on_failure == "stop":
+                if not run_status.success and self.args.on_fail == "stop":
                     # logger.error(f"Workflow {wf.name} failed")
                     break
 
@@ -538,7 +538,7 @@ class DataProduct(PhidataBase):
                     docker_env=docker_env,
                 )
                 wf_run_status.append(run_status)
-                if not run_status.success and self.args.on_failure == "stop":
+                if not run_status.success and self.args.on_fail == "stop":
                     raise WorkflowFailure(f"Workflow {wf.name} failed")
 
         print_run_status_table("Workflow Run Status", wf_run_status)

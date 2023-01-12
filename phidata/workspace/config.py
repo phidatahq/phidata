@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Optional, List, Dict, Union, Any
 
-from phidata.infra.base import InfraConfig, InfraArgs
+from phidata.infra.args import InfraArgs
+from phidata.infra.config import InfraConfig
 from phidata.workspace.settings import WorkspaceSettings
 from phidata.utils.log import logger
 
@@ -151,7 +152,7 @@ class WorkspaceConfig(InfraConfig):
 
     def is_valid(self) -> bool:
         if self.docker is not None:
-            from phidata.infra.docker.config import DockerConfig
+            from phidata.docker.config import DockerConfig
 
             if not isinstance(self.docker, list):
                 raise ValueError("docker should be a list")
@@ -160,7 +161,7 @@ class WorkspaceConfig(InfraConfig):
                     raise ValueError(f"Invalid DockerConfig: {dc}")
 
         if self.k8s is not None:
-            from phidata.infra.k8s.config import K8sConfig
+            from phidata.k8s.config import K8sConfig
 
             if not isinstance(self.k8s, list):
                 raise ValueError("k8s should be a list")
@@ -169,7 +170,7 @@ class WorkspaceConfig(InfraConfig):
                     raise ValueError(f"Invalid K8sConfig: {kc}")
 
         if self.aws is not None:
-            from phidata.infra.aws.config import AwsConfig
+            from phidata.aws.config import AwsConfig
 
             if not isinstance(self.aws, list):
                 raise ValueError("aws should be a list")

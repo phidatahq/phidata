@@ -1,6 +1,6 @@
 from typing import Optional, Literal, Union, List
 
-from phidata.asset.table.sql.sql_table import SqlTable
+from phidata.table.sql.sql_table import SqlTable
 from phidata.utils.log import logger
 from phidata.task.python_task import PythonTask, PythonTaskArgs
 

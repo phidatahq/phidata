@@ -1,7 +1,7 @@
 from typing import Optional, Any
 
 from phidata.asset.data_asset import DataAsset, DataAssetArgs
-from phidata.infra.aws.api_client import AwsApiClient
+from phidata.aws.api_client import AwsApiClient
 from phidata.utils.log import logger
 
 

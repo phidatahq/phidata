@@ -1,4 +1,4 @@
-from phidata.infra.base import InfraConfig
+from phidata.infra.config import InfraConfig
 from phidata.workspace import WorkspaceConfig
 
 from phidata.utils.log import logger

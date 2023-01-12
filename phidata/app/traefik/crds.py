@@ -1,4 +1,4 @@
-from phidata.infra.k8s.create.apiextensions_k8s_io.v1.custom_resource_definition import (
+from phidata.k8s.create.apiextensions_k8s_io.v1.custom_resource_definition import (
     CreateCustomResourceDefinition,
     CustomResourceDefinitionNames,
     CustomResourceDefinitionVersion,

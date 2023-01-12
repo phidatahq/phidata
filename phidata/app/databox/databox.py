@@ -14,21 +14,21 @@ from phidata.constants import (
     WORKSPACE_CONFIG_DIR_ENV_VAR,
     PHIDATA_RUNTIME_ENV_VAR,
 )
-from phidata.infra.docker.resource.group import (
+from phidata.docker.resource.group import (
     DockerResourceGroup,
     DockerBuildContext,
     DockerContainer,
     DockerNetwork,
 )
-from phidata.infra.k8s.create.apps.v1.deployment import RestartPolicy
-from phidata.infra.k8s.create.core.v1.container import CreateContainer, ImagePullPolicy
-from phidata.infra.k8s.create.core.v1.volume import (
+from phidata.k8s.create.apps.v1.deployment import RestartPolicy
+from phidata.k8s.create.core.v1.container import CreateContainer, ImagePullPolicy
+from phidata.k8s.create.core.v1.volume import (
     CreateVolume,
     VolumeType,
     HostPathVolumeSource,
 )
-from phidata.infra.k8s.create.common.port import CreatePort
-from phidata.infra.k8s.create.group import (
+from phidata.k8s.create.common.port import CreatePort
+from phidata.k8s.create.group import (
     CreateK8sResourceGroup,
     CreateNamespace,
     CreateServiceAccount,
@@ -44,10 +44,10 @@ from phidata.infra.k8s.create.group import (
     CreatePersistentVolume,
     CreatePVC,
 )
-from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
     PolicyRule,
 )
-from phidata.infra.k8s.resource.group import (
+from phidata.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
 )

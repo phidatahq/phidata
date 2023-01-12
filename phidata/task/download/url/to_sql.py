@@ -2,7 +2,7 @@
 # from typing import Optional, Literal, Union, List
 #
 # from phidata.asset.file import File, FileType
-# from phidata.asset.table.sql import SqlTable
+# from phidata.table.sql import SqlTable
 # from phidata.utils.cli_console import print_info, print_warning
 # from phidata.utils.log import logger
 # from phidata.task.python_task import PythonTask, PythonTaskArgs

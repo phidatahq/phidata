@@ -8,12 +8,12 @@ from phidata.utils.log import logger
 
 
 class LocalFileFormat(ExtendedEnum):
-    CSV = "CSV"
-    TSV = "TSV"
-    TXT = "TXT"
-    JSON = "JSON"
-    PARQUET = "PARQUET"
-    FEATHER = "FEATHER"
+    CSV = "csv"
+    TSV = "tsv"
+    TXT = "txt"
+    JSON = "json"
+    PARQUET = "parquet"
+    FEATHER = "feather"
 
 
 class LocalFileArgs(LocalAssetArgs):
@@ -84,8 +84,8 @@ class LocalFile(LocalAsset):
         # logger.debug("suffix: {}".format(suffix))
 
         derived_file_format: Optional[LocalFileFormat] = None
-        if suffix.upper() in LocalFileFormat.values_list():
-            derived_file_format = LocalFileFormat.from_str(suffix.upper())
+        if suffix.lower() in LocalFileFormat.values_list():
+            derived_file_format = LocalFileFormat.from_str(suffix.lower())
             self.args.file_format = derived_file_format
         return self.args.file_format
 
@@ -156,7 +156,7 @@ class LocalFile(LocalAsset):
     ## Write to file
     ######################################################
 
-    def write_df(
+    def write_polars_df(
         self,
         # A polars DataFrame
         df: Optional[Any] = None,
@@ -188,6 +188,7 @@ class LocalFile(LocalAsset):
         # replace: Drop the file before inserting new values.
         # append: Insert new values to the existing table.
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+        **kwargs,
     ) -> bool:
         """
         Write Polars DataFrame to a file.
@@ -267,7 +268,7 @@ class LocalFile(LocalAsset):
                 if sep is not None:
                     json_args["row_oriented"] = row_oriented
 
-                df.write_csv(file_path, **json_args)  # type: ignore
+                df.write_json(file_path, **json_args)  # type: ignore
             else:
                 logger.error(f"FileFormat: {self.file_format} not yet supported")
                 return False
@@ -284,6 +285,7 @@ class LocalFile(LocalAsset):
         # replace: Drop the file before inserting new values.
         # append: Insert new values to the existing table.
         if_exists: Optional[Literal["fail", "replace", "append"]] = None,
+        **kwargs,
     ) -> bool:
         """
         Write DataFrame to file.

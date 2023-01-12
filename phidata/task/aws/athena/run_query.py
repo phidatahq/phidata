@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phidata.asset.aws.athena.query import AthenaQuery
+from phidata.aws.athena.query import AthenaQuery
 from phidata.utils.cli_console import print_info, print_heading
 from phidata.utils.log import logger
 from phidata.task.python_task import PythonTask, PythonTaskArgs

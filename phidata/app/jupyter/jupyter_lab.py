@@ -3,9 +3,9 @@ from typing import Optional, Dict, Any, List, Union, Literal
 
 from phidata.app.db import DbApp
 from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType
-from phidata.infra.k8s.enums.service_type import ServiceType
-from phidata.infra.k8s.enums.image_pull_policy import ImagePullPolicy
-from phidata.infra.k8s.enums.restart_policy import RestartPolicy
+from phidata.k8s.enums.service_type import ServiceType
+from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
+from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
@@ -918,7 +918,7 @@ class JupyterLab(PhidataApp):
             AIRFLOW_DAGS_FOLDER_ENV_VAR,
             AIRFLOW_DB_CONN_URL_ENV_VAR,
         )
-        from phidata.infra.docker.resource.group import (
+        from phidata.docker.resource.group import (
             DockerNetwork,
             DockerContainer,
             DockerResourceGroup,
@@ -1256,15 +1256,15 @@ class JupyterLab(PhidataApp):
             AIRFLOW_EXECUTOR_ENV_VAR,
             AIRFLOW_DB_CONN_URL_ENV_VAR,
         )
-        from phidata.infra.k8s.create.common.port import CreatePort
-        from phidata.infra.k8s.create.core.v1.container import CreateContainer
-        from phidata.infra.k8s.create.core.v1.volume import (
+        from phidata.k8s.create.common.port import CreatePort
+        from phidata.k8s.create.core.v1.container import CreateContainer
+        from phidata.k8s.create.core.v1.volume import (
             CreateVolume,
             HostPathVolumeSource,
             AwsElasticBlockStoreVolumeSource,
             VolumeType,
         )
-        from phidata.infra.k8s.create.group import (
+        from phidata.k8s.create.group import (
             CreateK8sResourceGroup,
             CreateNamespace,
             CreateServiceAccount,
@@ -1280,7 +1280,7 @@ class JupyterLab(PhidataApp):
             CreatePersistentVolume,
             CreatePVC,
         )
-        from phidata.infra.k8s.resource.group import K8sBuildContext
+        from phidata.k8s.resource.group import K8sBuildContext
         from phidata.types.context import ContainerPathContext
         from phidata.utils.common import get_default_volume_name
 
@@ -1355,7 +1355,7 @@ class JupyterLab(PhidataApp):
             sa_name = sa.sa_name
 
             # Create Cluster Role for this App
-            from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+            from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
                 PolicyRule,
             )
 

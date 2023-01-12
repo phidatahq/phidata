@@ -132,7 +132,7 @@ class PythonTask(Task):
         from docker.errors import APIError
         from docker.models.containers import Container
 
-        from phidata.infra.docker.utils.container import execute_command
+        from phidata.docker.utils.container import execute_command
 
         if active_container is None or not isinstance(active_container, Container):
             logger.error("Invalid Container object")
@@ -222,10 +222,10 @@ class PythonTask(Task):
 
         from pathlib import Path
 
-        from phidata.infra.k8s.resource.core.v1.pod import Pod
-        from phidata.infra.k8s.api_client import K8sApiClient
+        from phidata.k8s.resource.core.v1.pod import Pod
+        from phidata.k8s.api_client import K8sApiClient
 
-        from phidata.infra.k8s.utils.pod import execute_command
+        from phidata.k8s.utils.pod import execute_command
 
         if pod is None or not isinstance(pod, Pod):
             logger.error("Invalid Pod")

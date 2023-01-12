@@ -2,12 +2,12 @@ from collections import OrderedDict
 from typing import Optional, List
 
 from phidata.app.phidata_app import PhidataApp, PhidataAppArgs
-from phidata.infra.docker.resource.group import (
+from phidata.docker.resource.group import (
     DockerResourceGroup,
     DockerBuildContext,
 )
-from phidata.infra.k8s.create.group import CreateK8sResourceGroup
-from phidata.infra.k8s.resource.group import (
+from phidata.k8s.create.group import CreateK8sResourceGroup
+from phidata.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
 )

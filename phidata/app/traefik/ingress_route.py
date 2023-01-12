@@ -15,31 +15,31 @@ from phidata.app.traefik.crds import (
     tlsstore_crd,
     traefikservice_crd,
 )
-from phidata.infra.docker.resource.group import (
+from phidata.docker.resource.group import (
     DockerResourceGroup,
     DockerBuildContext,
 )
-from phidata.infra.k8s.create.apiextensions_k8s_io.v1.custom_object import (
+from phidata.k8s.create.apiextensions_k8s_io.v1.custom_object import (
     CreateCustomObject,
 )
-from phidata.infra.k8s.create.core.v1.service_account import CreateServiceAccount
-from phidata.infra.k8s.create.core.v1.container import CreateContainer
-from phidata.infra.k8s.create.core.v1.config_map import CreateConfigMap
-from phidata.infra.k8s.create.apps.v1.deployment import CreateDeployment
-from phidata.infra.k8s.create.core.v1.secret import CreateSecret
-from phidata.infra.k8s.create.core.v1.service import CreateService, ServiceType
-from phidata.infra.k8s.create.common.port import CreatePort
-from phidata.infra.k8s.create.group import CreateK8sResourceGroup
-from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+from phidata.k8s.create.core.v1.service_account import CreateServiceAccount
+from phidata.k8s.create.core.v1.container import CreateContainer
+from phidata.k8s.create.core.v1.config_map import CreateConfigMap
+from phidata.k8s.create.apps.v1.deployment import CreateDeployment
+from phidata.k8s.create.core.v1.secret import CreateSecret
+from phidata.k8s.create.core.v1.service import CreateService, ServiceType
+from phidata.k8s.create.common.port import CreatePort
+from phidata.k8s.create.group import CreateK8sResourceGroup
+from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
     CreateClusterRole,
     PolicyRule,
 )
-from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import (
+from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import (
     CreateClusterRoleBinding,
 )
-from phidata.infra.k8s.enums.image_pull_policy import ImagePullPolicy
-from phidata.infra.k8s.enums.restart_policy import RestartPolicy
-from phidata.infra.k8s.resource.group import (
+from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
+from phidata.k8s.enums.restart_policy import RestartPolicy
+from phidata.k8s.resource.group import (
     K8sResourceGroup,
     K8sBuildContext,
 )
@@ -926,7 +926,7 @@ class IngressRoute(PhidataApp):
                     self.args.acm_certificate_summary_file.exists()
                     and self.args.acm_certificate_summary_file.is_file()
                 ):
-                    from phidata.infra.aws.resource.acm.certificate import (
+                    from phidata.aws.resource.acm.certificate import (
                         CertificateSummary,
                     )
 

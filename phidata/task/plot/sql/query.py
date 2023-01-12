@@ -1,6 +1,6 @@
 from typing import Optional, Any
 
-from phidata.asset.table.sql.sql_table import SqlTable
+from phidata.table.sql.sql_table import SqlTable
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 from phidata.task.python_task import PythonTask, PythonTaskArgs

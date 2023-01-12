@@ -2,9 +2,9 @@ from pathlib import Path
 from typing import Optional, Dict, List, Union, Any
 
 from phidata.app.db import DbApp, DbAppArgs
-from phidata.infra.k8s.enums.service_type import ServiceType
-from phidata.infra.k8s.enums.image_pull_policy import ImagePullPolicy
-from phidata.infra.k8s.enums.restart_policy import RestartPolicy
+from phidata.k8s.enums.service_type import ServiceType
+from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
+from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
@@ -498,7 +498,7 @@ class Redis(DbApp):
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
-        from phidata.infra.docker.resource.group import (
+        from phidata.docker.resource.group import (
             DockerNetwork,
             DockerContainer,
             DockerResourceGroup,
@@ -620,15 +620,15 @@ class Redis(DbApp):
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 
-        from phidata.infra.k8s.create.common.port import CreatePort
-        from phidata.infra.k8s.create.core.v1.container import CreateContainer
-        from phidata.infra.k8s.create.core.v1.volume import (
+        from phidata.k8s.create.common.port import CreatePort
+        from phidata.k8s.create.core.v1.container import CreateContainer
+        from phidata.k8s.create.core.v1.volume import (
             CreateVolume,
             HostPathVolumeSource,
             AwsElasticBlockStoreVolumeSource,
             VolumeType,
         )
-        from phidata.infra.k8s.create.group import (
+        from phidata.k8s.create.group import (
             CreateK8sResourceGroup,
             CreateNamespace,
             CreateServiceAccount,
@@ -644,7 +644,7 @@ class Redis(DbApp):
             CreatePersistentVolume,
             CreatePVC,
         )
-        from phidata.infra.k8s.resource.group import K8sBuildContext
+        from phidata.k8s.resource.group import K8sBuildContext
         from phidata.utils.common import get_default_volume_name
 
         if k8s_build_context is None or not isinstance(
@@ -706,7 +706,7 @@ class Redis(DbApp):
             sa_name = sa.sa_name
 
             # Create Cluster Role for this App
-            from phidata.infra.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
+            from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
                 PolicyRule,
             )
 

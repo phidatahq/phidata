@@ -15,7 +15,7 @@ from typing import (
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.asset.data_asset import DataAsset
-from phidata.check.wf.workflow_check import WorkflowCheck
+from phidata.checks.check import Check
 from phidata.exceptions.task import TaskFailure
 from phidata.task.task import Task
 from phidata.task.python_task import PythonTask, PythonTaskType
@@ -73,9 +73,9 @@ class WorkflowArgs(PhidataBaseArgs):
     outputs: Optional[List[DataAsset]] = None
 
     # Checks to run before the workflow
-    pre_checks: Optional[List[WorkflowCheck]] = None
+    pre_checks: Optional[List[Check]] = None
     # Checks to run after the workflow
-    post_checks: Optional[List[WorkflowCheck]] = None
+    post_checks: Optional[List[Check]] = None
 
     # Add an EmptyOperator at the start of the workflow
     add_start_task: bool = False
@@ -156,9 +156,9 @@ class Workflow(PhidataBase):
         # DataAssets produced by this workflow, used for building the lineage graph
         outputs: Optional[List[DataAsset]] = None,
         # Checks to run before the workflow
-        pre_checks: Optional[List[WorkflowCheck]] = None,
+        pre_checks: Optional[List[Check]] = None,
         # Checks to run after the workflow
-        post_checks: Optional[List[WorkflowCheck]] = None,
+        post_checks: Optional[List[Check]] = None,
         # Add an EmptyOperator at the start of the workflow
         add_start_task: bool = False,
         # Add an EmptyOperator at the end of the workflow
@@ -301,20 +301,20 @@ class Workflow(PhidataBase):
             self.args.outputs = outputs
 
     @property
-    def pre_checks(self) -> Optional[List[WorkflowCheck]]:
+    def pre_checks(self) -> Optional[List[Check]]:
         return self.args.pre_checks if self.args else None
 
     @pre_checks.setter
-    def pre_checks(self, pre_checks: List[WorkflowCheck]) -> None:
+    def pre_checks(self, pre_checks: List[Check]) -> None:
         if self.args is not None and pre_checks is not None:
             self.args.pre_checks = pre_checks
 
     @property
-    def post_checks(self) -> Optional[List[WorkflowCheck]]:
+    def post_checks(self) -> Optional[List[Check]]:
         return self.args.post_checks if self.args else None
 
     @post_checks.setter
-    def post_checks(self, post_checks: List[WorkflowCheck]) -> None:
+    def post_checks(self, post_checks: List[Check]) -> None:
         if self.args is not None and post_checks is not None:
             self.args.post_checks = post_checks
 
@@ -509,12 +509,12 @@ class Workflow(PhidataBase):
     ## Checks
     ######################################################
 
-    def add_pre_check(self, check: WorkflowCheck):
+    def add_pre_check(self, check: Check):
         if self.args.pre_checks is None:
             self.args.pre_checks = []
         self.args.pre_checks.append(check)
 
-    def add_post_check(self, check: WorkflowCheck):
+    def add_post_check(self, check: Check):
         if self.args.post_checks is None:
             self.args.post_checks = []
         self.args.post_checks.append(check)

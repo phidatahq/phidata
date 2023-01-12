@@ -1,13 +1,13 @@
 from typing import Optional, Any, Literal
 
-from phidata.check.df.dataframe_check import DataFrameCheck
+from phidata.checks.check import Check
 from phidata.utils.log import logger
 
 
-class DFNotEmpty(DataFrameCheck):
+class NotEmpty(Check):
     def __init__(
         self,
-        name: str = "DataFrameNotEmpty",
+        name: str = "TableNotEmpty",
         on_fail: Literal["fail", "warn", "ignore"] = "fail",
         version: Optional[str] = None,
         enabled: bool = True,
@@ -19,9 +19,9 @@ class DFNotEmpty(DataFrameCheck):
             enabled=enabled,
         )
 
-    def check_dataframe(self, df) -> bool:
+    def _check_table(self, table: Any, **kwargs) -> bool:
         logger.info(f"-*- Running Check: {self.name}")
-        if df.is_empty():
-            logger.error(f"DataFrame is empty")
+        if table is None:
+            logger.error(f"Table is empty")
             return False
         return True

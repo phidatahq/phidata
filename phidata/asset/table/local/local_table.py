@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Optional, Any, Union, List, Dict
+from typing import Optional, Any, List, Dict
 from typing_extensions import Literal
 
 from phidata.asset.local import LocalAsset, LocalAssetArgs
-from phidata.check.df.dataframe_check import DataFrameCheck
+from phidata.checks.check import Check
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
@@ -24,11 +24,6 @@ class LocalTableArgs(LocalAssetArgs):
     table_format: LocalTableFormat
     # Database for the table
     database: str
-
-    # Checks to run before reading from disk
-    read_checks: Optional[List[DataFrameCheck]] = None
-    # Checks to run before writing to disk
-    write_checks: Optional[List[DataFrameCheck]] = None
 
     # -*- Table Path
     # If current_dir=True, store the table in the current directory
@@ -89,9 +84,9 @@ class LocalTable(LocalAsset):
         # DataModel for this table
         data_model: Optional[Any] = None,
         # Checks to run before reading from disk
-        read_checks: Optional[List[DataFrameCheck]] = None,
+        read_checks: Optional[List[Check]] = None,
         # Checks to run before writing to disk
-        write_checks: Optional[List[DataFrameCheck]] = None,
+        write_checks: Optional[List[Check]] = None,
         # -*- Table Path
         # If current_dir=True, store the table in the current directory
         current_dir: bool = False,
@@ -188,24 +183,6 @@ class LocalTable(LocalAsset):
     def database(self, database: str) -> None:
         if self.args and database:
             self.args.database = database
-
-    @property
-    def read_checks(self) -> Optional[List[DataFrameCheck]]:
-        return self.args.read_checks if self.args else None
-
-    @read_checks.setter
-    def read_checks(self, read_checks: List[DataFrameCheck]) -> None:
-        if self.args and read_checks:
-            self.args.read_checks = read_checks
-
-    @property
-    def write_checks(self) -> Optional[List[DataFrameCheck]]:
-        return self.args.write_checks if self.args else None
-
-    @write_checks.setter
-    def write_checks(self, write_checks: List[DataFrameCheck]) -> None:
-        if self.args and write_checks:
-            self.args.write_checks = write_checks
 
     @property
     def current_dir(self) -> Optional[bool]:
@@ -315,7 +292,7 @@ class LocalTable(LocalAsset):
         if self.table_dir is not None:
             return self.table_dir
 
-        logger.debug("-*- Building local table location")
+        # logger.debug("-*- Building local table location")
         base_dir: Optional[Path] = None
 
         # Use current_dir as base path if set
@@ -362,26 +339,27 @@ class LocalTable(LocalAsset):
         return False
 
     ######################################################
-    ## Create DataAsset
+    ## Write DataAsset
     ######################################################
 
-    def write_polars_df(
-        self,
-        df: Optional[Any] = None,
-        write_options: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ) -> bool:
+    def write_table(self, table: Any, **write_options) -> bool:
         """
-        Write DataFrame to disk.
+        Write pyarrow.Table to disk.
+
+        https://arrow.apache.org/docs/python/generated/pyarrow.Table.html#pyarrow.Table
         """
+        # Validate pyarrow is installed
+        try:
+            import pyarrow as pa
+            import pyarrow.dataset as ds
+        except ImportError as ie:
+            raise Exception(
+                f"PyArrow not installed. Please install with `pip install pyarrow`"
+            ) from ie
 
-        # LocalTable not yet initialized
-        if self.args is None:
-            return False
-
-        # Check name is available
-        if self.name is None:
-            logger.error("Table name invalid")
+        # Validate table
+        if table is None or not isinstance(table, pa.Table):
+            logger.error("Table invalid")
             return False
 
         # Check table_location is available
@@ -390,30 +368,10 @@ class LocalTable(LocalAsset):
             logger.error("Table location invalid")
             return False
 
-        # Check S3FileSystem is available
+        # Check LocalFileSystem is available
         fs = self._get_fs()
         if fs is None:
             logger.error("Could not create LocalFileSystem")
-            return False
-
-        # Validate polars is installed
-        try:
-            import polars as pl
-        except ImportError as ie:
-            logger.error(f"Polars not installed: {ie}")
-            return False
-
-        # Validate pyarrow is installed
-        try:
-            import pyarrow as pa
-            import pyarrow.dataset
-        except ImportError as ie:
-            logger.error(f"PyArrow not installed: {ie}")
-            return False
-
-        # Validate df
-        if df is None or not isinstance(df, pl.DataFrame):
-            logger.error("DataFrame invalid")
             return False
 
         logger.debug("Format: {}".format(self.args.table_format.value))
@@ -421,14 +379,8 @@ class LocalTable(LocalAsset):
             # Run write checks
             if self.write_checks is not None:
                 for check in self.write_checks:
-                    if not check.check(df):
+                    if not check.check_table(table):
                         return False
-
-            # Create arrow table
-            table: pa.Table = df.to_arrow()
-            if table is None:
-                logger.error("Could not create Arrow table")
-                return False
 
             # Create a dict of args which are not null
             not_null_args: Dict[str, Any] = {}
@@ -440,9 +392,9 @@ class LocalTable(LocalAsset):
                 # cast partition keys to string
                 # ref: https://bneijt.nl/blog/write-polars-dataframe-as-parquet-dataset/
                 table = table.cast(
-                    pyarrow.schema(
+                    pa.schema(
                         [
-                            f.with_type(pyarrow.string())
+                            f.with_type(pa.string())
                             if f.name in self.args.partitions
                             else f
                             for f in table.schema
@@ -463,13 +415,11 @@ class LocalTable(LocalAsset):
             # Build file_options: FileFormat specific write options
             # created using the FileFormat.make_write_options() function.
             if write_options:
-                file_options = pyarrow.dataset.FileFormat.make_write_options(
-                    **write_options
-                )
+                file_options = ds.FileFormat.make_write_options(**write_options)
                 not_null_args["file_options"] = file_options
 
-            # Write table to s3
-            pyarrow.dataset.write_dataset(
+            # Write table to disk
+            ds.write_dataset(
                 table,
                 table_location,
                 format=self.args.table_format.value,
@@ -478,14 +428,43 @@ class LocalTable(LocalAsset):
                 **not_null_args,
             )
             logger.info(f"Table {self.name} written to {table_location}")
+
             return True
         except Exception:
             logger.error("Could not write table: {}".format(self.name))
             raise
 
+    def write_polars_df(
+        self,
+        df: Optional[Any] = None,
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> bool:
+        """
+        Write Polars DataFrame to disk.
+        """
+        # Validate polars is installed
+        try:
+            import polars as pl
+        except ImportError as ie:
+            logger.error(f"Polars not installed: {ie}")
+            return False
+
+        # Validate df
+        if df is None or not isinstance(df, pl.DataFrame):
+            logger.error("DataFrame invalid")
+            return False
+
+        # Create arrow table and write to disk
+        return self.write_table(df.to_arrow(), options=options)
+
     def write_pandas_df(self, df: Optional[Any] = None, **kwargs) -> bool:
         logger.debug(f"@write_pandas_df not defined for {self.name}")
         return False
+
+    ######################################################
+    ## Create DataAsset
+    ######################################################
 
     def _create(self) -> bool:
         logger.error(f"@_create not defined for {self.name}")
@@ -498,27 +477,20 @@ class LocalTable(LocalAsset):
     ## Read DataAsset
     ######################################################
 
-    def read_polars_df(
-        self, reader_options: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Optional[Any]:
+    def read_table(self, **read_options) -> Optional[Any]:
         """
-        Read DataFrame from disk.
+        Read pyarrow.Table from disk.
 
-        reader_options: Dict[str, Any]
-            Additional options to pass to the reader.
-            More info:
-                https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Scanner.html#pyarrow.dataset.Scanner.from_dataset
-                https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset.to_table
+        https://arrow.apache.org/docs/python/generated/pyarrow.Table.html#pyarrow.Table
         """
-
-        # LocalTable not yet initialized
-        if self.args is None:
-            return None
-
-        # Check name is available
-        if self.name is None:
-            logger.error("Table name invalid")
-            return None
+        # Validate pyarrow is installed
+        try:
+            import pyarrow as pa
+            import pyarrow.dataset as ds
+        except ImportError as ie:
+            raise Exception(
+                f"PyArrow not installed. Please install with `pip install pyarrow`"
+            ) from ie
 
         # Check table_location is available
         table_location = self.table_location
@@ -526,26 +498,11 @@ class LocalTable(LocalAsset):
             logger.error("Table location invalid")
             return False
 
-        # Check S3FileSystem is available
+        # Check LocalFileSystem is available
         fs = self._get_fs()
         if fs is None:
             logger.error("Could not create LocalFileSystem")
             return False
-
-        # Validate polars is installed
-        try:
-            import polars as pl
-        except ImportError as ie:
-            logger.error(f"Polars not installed: {ie}")
-            return None
-
-        # Validate pyarrow is installed
-        try:
-            import pyarrow as pa
-            import pyarrow.dataset
-        except ImportError as ie:
-            logger.error(f"PyArrow not installed: {ie}")
-            return None
 
         logger.debug("Format: {}".format(self.args.table_format.value))
         try:
@@ -557,29 +514,52 @@ class LocalTable(LocalAsset):
             # Read dataset from s3
             # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset
             # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Dataset.html#pyarrow.dataset.Dataset
-            dataset: pyarrow.dataset.Dataset = pyarrow.dataset.dataset(
+            dataset: ds.Dataset = ds.dataset(
                 table_location,
                 format=self.args.table_format.value,
                 filesystem=fs,
                 **not_null_args,
             )
 
-            # Convert dataset to polars DataFrame
-            # https://pola-rs.github.io/polars/py-polars/html/reference/api/polars.from_arrow.html
-            df: Union[pl.DataFrame, pl.Series] = pl.from_arrow(
-                dataset.to_table(**reader_options)
-            )
+            # Convert dataset to table
+            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Dataset.html#pyarrow.dataset.Dataset.to_table
+            # for available options, see:
+            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Scanner.html#pyarrow.dataset.Scanner.from_dataset
+            table: pa.Table = dataset.to_table(**read_options)
 
             # Run read checks
             if self.read_checks is not None:
                 for check in self.read_checks:
-                    if not check.check(df):
+                    if not check.check_table(table):
                         return None
 
-            return df
+            return table
         except Exception:
             logger.error("Could not read table: {}".format(self.name))
             raise
+
+    def read_polars_df(
+        self, options: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Optional[Any]:
+        """
+        Read Polars DataFrame from disk.
+
+        options: Dict[str, Any]
+            Additional options to pass to the reader.
+            More info:
+                https://arrow.apache.org/docs/python/generated/pyarrow.dataset.Scanner.html#pyarrow.dataset.Scanner.from_dataset
+                https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset.to_table
+        """
+        # Validate polars is installed
+        try:
+            import polars as pl
+        except ImportError as ie:
+            logger.error(f"Polars not installed: {ie}")
+            return None
+
+        # Convert table to polars DataFrame
+        # https://pola-rs.github.io/polars/py-polars/html/reference/api/polars.from_arrow.html
+        return pl.from_arrow(self.read_table(options=options))
 
     def read_pandas_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_pandas_df not defined for {self.name}")

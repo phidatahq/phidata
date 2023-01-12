@@ -2,11 +2,11 @@ from typing import Optional, Any, List
 from typing_extensions import Literal
 
 from phidata.asset.table.s3.s3_table import S3Table, S3TableArgs, S3TableFormat
-from phidata.check.df.dataframe_check import DataFrameCheck
+from phidata.checks.check import Check
 from phidata.infra.aws.resource.s3.bucket import S3Bucket
 
 
-class CsvTable(S3Table):
+class CsvTableS3(S3Table):
     def __init__(
         self,
         # Table Name: required
@@ -16,9 +16,10 @@ class CsvTable(S3Table):
         # DataModel for this table
         data_model: Optional[Any] = None,
         # Checks to run before reading from disk
-        read_checks: Optional[List[DataFrameCheck]] = None,
+        read_checks: Optional[List[Check]] = None,
         # Checks to run before writing to disk
-        write_checks: Optional[List[DataFrameCheck]] = None,
+        write_checks: Optional[List[Check]] = None,
+        # -*- Table Path
         # S3 Bucket
         bucket: Optional[S3Bucket] = None,
         # S3 Bucket Name

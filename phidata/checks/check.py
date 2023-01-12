@@ -1,17 +1,17 @@
 from typing import Optional, Any, Literal
 
-from phidata.check.check import Check, CheckArgs
+from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.utils.log import logger
 
 
-class DataFrameCheckArgs(CheckArgs):
+class CheckArgs(PhidataBaseArgs):
     # Check Name
     name: str
     # How to handle check failure
     on_fail: Literal["fail", "warn", "ignore"] = "fail"
 
 
-class DataFrameCheck(Check):
+class Check(PhidataBase):
     """Base Class for all Checks"""
 
     def __init__(
@@ -22,16 +22,14 @@ class DataFrameCheck(Check):
         enabled: bool = True,
     ):
         super().__init__()
-        self.df: Optional[Any] = None
-        self.result: bool = False
         try:
-            self.args: DataFrameCheckArgs = DataFrameCheckArgs(
+            self.args: CheckArgs = CheckArgs(
                 name=name,
                 on_fail=on_fail,
                 version=version,
                 enabled=enabled,
             )
-        except Exception as e:
+        except Exception:
             logger.error(f"Args for {self.name} are not valid")
             raise
 
@@ -44,23 +42,9 @@ class DataFrameCheck(Check):
         if self.args and on_fail in ["fail", "warn", "ignore"]:
             self.args.on_fail = on_fail
 
-    def check_dataframe(self, df: Any) -> bool:
-        logger.error(f"@check_dataframe not defined for {self.name}")
-        return False
-
-    def check(self, df: Optional[Any] = None, **kwargs) -> bool:
-        if df is None:
-            logger.warning(f"{self.name}: Dataframe None")
-            return False
-
-        try:
-            self.result = self.check_dataframe(df)
-        except Exception as e:
-            logger.error(f"Error in check {self.name}: {e}")
-
-        if self.result:
+    def validate(self, result: bool = False) -> bool:
+        if result:
             logger.info(f"-*- Check: {self.name} passed")
-            return self.result
         else:
             if self.args.on_fail == "fail":
                 raise Exception(f"Check: {self.name} failed")
@@ -68,4 +52,30 @@ class DataFrameCheck(Check):
                 logger.warning(f"Check: {self.name} failed")
             else:
                 logger.info(f"-*- Check: {self.name} failed")
-            return True
+
+        # Blocking/failed checks return an Exception above
+        return True
+
+    def _check_polars_df(self, df: Any, **kwargs) -> bool:
+        # subclasses should implement this check and return True/False
+        logger.error(f"@check_dataframe not defined for {self.name}")
+        return True
+
+    def check_polars_df(self, df: Any, **kwargs) -> bool:
+        return self.validate(self._check_polars_df(df, **kwargs))
+
+    def _check_pandas_df(self, df: Any, **kwargs) -> bool:
+        # subclasses should implement this check and return True/False
+        logger.error(f"@check_dataframe not defined for {self.name}")
+        return True
+
+    def check_pandas_df(self, df: Any, **kwargs) -> bool:
+        return self.validate(self._check_pandas_df(df, **kwargs))
+
+    def _check_table(self, table: Any, **kwargs) -> bool:
+        # subclasses should implement this check and return True/False
+        logger.error(f"@check_table not defined for {self.name}")
+        return True
+
+    def check_table(self, table: Any, **kwargs) -> bool:
+        return self.validate(self._check_table(table, **kwargs))

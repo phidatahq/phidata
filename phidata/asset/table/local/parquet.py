@@ -6,10 +6,10 @@ from phidata.asset.table.local.local_table import (
     LocalTableArgs,
     LocalTableFormat,
 )
-from phidata.check.df.dataframe_check import DataFrameCheck
+from phidata.checks.check import Check
 
 
-class ParquetTable(LocalTable):
+class ParquetTableLocal(LocalTable):
     def __init__(
         self,
         # Table Name: required
@@ -19,9 +19,9 @@ class ParquetTable(LocalTable):
         # DataModel for this table
         data_model: Optional[Any] = None,
         # Checks to run before reading from disk
-        read_checks: Optional[List[DataFrameCheck]] = None,
+        read_checks: Optional[List[Check]] = None,
         # Checks to run before writing to disk
-        write_checks: Optional[List[DataFrameCheck]] = None,
+        write_checks: Optional[List[Check]] = None,
         # -*- Table Path
         # If current_dir=True, store the table in the current directory
         current_dir: bool = False,

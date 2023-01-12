@@ -5,7 +5,7 @@ from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.exc import ResourceClosedError
 
 from phidata.asset.data_asset import DataAsset, DataAssetArgs
-from phidata.check.df.dataframe_check import DataFrameCheck
+from phidata.checks.check import Check
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 from phidata.types.phidata_runtime import PhidataRuntimeType
@@ -22,11 +22,6 @@ class SqlTableArgs(DataAssetArgs):
     table_format: SqlTableFormat
     # Database for the table (eg: "public" on postgres)
     database: Optional[str] = None
-
-    # Checks to run before reading from disk
-    read_checks: Optional[List[DataFrameCheck]] = None
-    # Checks to run before writing to disk
-    write_checks: Optional[List[DataFrameCheck]] = None
 
     # -*- Table Connection
     # sqlalchemy.engine.(Engine or Connection)
@@ -59,9 +54,9 @@ class SqlTable(DataAsset):
         # DataModel for this table (SQLModel object)
         data_model: Optional[Any] = None,
         # Checks to run before reading from disk
-        read_checks: Optional[List[DataFrameCheck]] = None,
+        read_checks: Optional[List[Check]] = None,
         # Checks to run before writing to disk
-        write_checks: Optional[List[DataFrameCheck]] = None,
+        write_checks: Optional[List[Check]] = None,
         # -*- Table Connection
         # sqlalchemy.engine.(Engine or Connection)
         # Using SQLAlchemy makes it possible to use any DB supported by that library.
@@ -126,24 +121,6 @@ class SqlTable(DataAsset):
     def database(self, database: str) -> None:
         if self.args and database:
             self.args.database = database
-
-    @property
-    def read_checks(self) -> Optional[List[DataFrameCheck]]:
-        return self.args.read_checks if self.args else None
-
-    @read_checks.setter
-    def read_checks(self, read_checks: List[DataFrameCheck]) -> None:
-        if self.args and read_checks:
-            self.args.read_checks = read_checks
-
-    @property
-    def write_checks(self) -> Optional[List[DataFrameCheck]]:
-        return self.args.write_checks if self.args else None
-
-    @write_checks.setter
-    def write_checks(self, write_checks: List[DataFrameCheck]) -> None:
-        if self.args and write_checks:
-            self.args.write_checks = write_checks
 
     @property
     def db_engine(self) -> Optional[Union[Engine, Connection]]:

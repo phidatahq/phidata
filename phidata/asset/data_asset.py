@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, List
 
 from phidata.base import PhidataBase, PhidataBaseArgs
+from phidata.checks.check import Check
 from phidata.types.phidata_runtime import (
     PhidataRuntimeType,
     get_phidata_runtime,
@@ -15,6 +16,10 @@ class DataAssetArgs(PhidataBaseArgs):
 
     # DataModel for the DataAsset
     data_model: Optional[Any] = None
+    # Checks to run before reading from disk
+    read_checks: Optional[List[Check]] = None
+    # Checks to run before writing to disk
+    write_checks: Optional[List[Check]] = None
 
     # If enabled=False: mark skip_create, skip_delete, skip_update as True
     enabled: bool = True
@@ -112,6 +117,24 @@ class DataAsset(PhidataBase):
     def data_model(self, data_model: Any) -> None:
         if self.args and data_model:
             self.args.data_model = data_model
+
+    @property
+    def read_checks(self) -> Optional[List[Check]]:
+        return self.args.read_checks if self.args else None
+
+    @read_checks.setter
+    def read_checks(self, read_checks: List[Check]) -> None:
+        if self.args and read_checks:
+            self.args.read_checks = read_checks
+
+    @property
+    def write_checks(self) -> Optional[List[Check]]:
+        return self.args.write_checks if self.args else None
+
+    @write_checks.setter
+    def write_checks(self, write_checks: List[Check]) -> None:
+        if self.args and write_checks:
+            self.args.write_checks = write_checks
 
     @property
     def skip_create(self) -> Optional[bool]:
@@ -488,16 +511,24 @@ class DataAsset(PhidataBase):
         return False
 
     ######################################################
-    ## Create DataAsset
+    ## Write DataAsset
     ######################################################
 
-    def write_polars_df(self, df: Optional[Any] = None, **kwargs) -> bool:
+    def write_table(self, table: Any, **write_options) -> bool:
+        logger.debug(f"@write_table not defined for {self.name}")
+        return False
+
+    def write_polars_df(self, df: Any, **kwargs) -> bool:
         logger.debug(f"@write_polars_df not defined for {self.name}")
         return False
 
-    def write_pandas_df(self, df: Optional[Any] = None, **kwargs) -> bool:
+    def write_pandas_df(self, df: Any, **kwargs) -> bool:
         logger.debug(f"@write_pandas_df not defined for {self.name}")
         return False
+
+    ######################################################
+    ## Create DataAsset
+    ######################################################
 
     def _create(self) -> bool:
         logger.error(f"@_create not defined for {self.name}")
@@ -529,6 +560,10 @@ class DataAsset(PhidataBase):
     ######################################################
     ## Read DataAsset
     ######################################################
+
+    def read_table(self, **read_options) -> Optional[Any]:
+        logger.debug(f"@read_table not defined for {self.name}")
+        return False
 
     def read_polars_df(self, **kwargs) -> Optional[Any]:
         logger.debug(f"@read_df not defined for {self.name}")

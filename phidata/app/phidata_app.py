@@ -64,6 +64,9 @@ class PhidataAppArgs(PhidataBaseArgs):
     # Overwrite the PYTHONPATH env var
     # which is usually set to the workspace_root_container_path
     python_path: Optional[str] = None
+    # Add to the PYTHONPATH env var. If python_path is set, this is ignored
+    # Does not overwrite the PYTHONPATH env var - adds to it.
+    add_python_path: Optional[str] = None
     # Add labels to the container
     container_labels: Optional[Dict[str, Any]] = None
 

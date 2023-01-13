@@ -32,12 +32,14 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Dev Apps
     #
-    dev_postgres_enabled: bool = False
+    dev_airbyte_enabled: bool = False
     dev_airflow_enabled: bool = False
-    dev_superset_enabled: bool = False
+    dev_assistant_enabled: bool = False
+    dev_databox_enabled: bool = False
     dev_jupyter_enabled: bool = False
+    dev_postgres_enabled: bool = False
+    dev_superset_enabled: bool = False
     dev_traefik_enabled: bool = False
-    dev_monitor_enabled: bool = False
     #
     # -*- Staging settings
     #
@@ -51,12 +53,14 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Staging Apps
     #
-    stg_postgres_enabled: bool = False
+    stg_airbyte_enabled: bool = False
     stg_airflow_enabled: bool = False
-    stg_superset_enabled: bool = False
+    stg_assistant_enabled: bool = False
+    stg_databox_enabled: bool = False
     stg_jupyter_enabled: bool = False
+    stg_postgres_enabled: bool = False
+    stg_superset_enabled: bool = False
     stg_traefik_enabled: bool = False
-    stg_monitor_enabled: bool = False
     stg_whoami_enabled: bool = False
     #
     # -*- Production settings
@@ -71,12 +75,14 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Production Apps
     #
-    prd_postgres_enabled: bool = False
+    prd_airbyte_enabled: bool = False
     prd_airflow_enabled: bool = False
-    prd_superset_enabled: bool = False
+    prd_assistant_enabled: bool = False
+    prd_databox_enabled: bool = False
     prd_jupyter_enabled: bool = False
+    prd_postgres_enabled: bool = False
+    prd_superset_enabled: bool = False
     prd_traefik_enabled: bool = False
-    prd_monitor_enabled: bool = False
     prd_whoami_enabled: bool = False
     #
     # -*- AWS settings

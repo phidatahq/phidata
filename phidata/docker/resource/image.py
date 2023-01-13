@@ -87,8 +87,8 @@ class DockerImage(DockerResource):
         from docker.errors import BuildError, APIError
 
         print_info(f"Building image: {self.get_name_tag()}")
-        nocache = self.skip_docker_cache
-        pull = self.pull
+        nocache = self.skip_docker_cache or self.force
+        pull = self.pull or self.force
         if self.path is not None:
             print_info(f"\t  path: {self.path}")
         if self.dockerfile is not None:

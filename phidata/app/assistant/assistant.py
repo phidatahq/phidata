@@ -6,8 +6,6 @@ from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
 from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.log import logger
 
-default_databox_name: str = "databox"
-
 
 class AssistantArgs(PhidataAppArgs):
     name: str = "assistant"

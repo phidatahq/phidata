@@ -18,6 +18,8 @@ class SupersetWorkerBeat(SupersetBase):
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
+        # Image can be provided as a DockerImage object or as image_name:image_tag
+        image: Optional[Any] = None,
         image_name: str = "phidata/superset",
         image_tag: str = "2.0.1",
         entrypoint: Optional[Union[str, List]] = None,
@@ -325,6 +327,7 @@ class SupersetWorkerBeat(SupersetBase):
             name=name,
             version=version,
             enabled=enabled,
+            image=image,
             image_name=image_name,
             image_tag=image_tag,
             entrypoint=entrypoint,

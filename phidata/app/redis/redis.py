@@ -89,6 +89,8 @@ class Redis(DbApp):
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
+        # Image can be provided as a DockerImage object or as image_name:image_tag
+        image: Optional[Any] = None,
         image_name: str = "redis",
         image_tag: str = "6.2.6",
         entrypoint: Optional[Union[str, List]] = None,
@@ -306,6 +308,7 @@ class Redis(DbApp):
                 name=name,
                 version=version,
                 enabled=enabled,
+                image=image,
                 image_name=image_name,
                 image_tag=image_tag,
                 entrypoint=entrypoint,
@@ -599,6 +602,7 @@ class Redis(DbApp):
             enabled=self.args.enabled,
             network=DockerNetwork(name=docker_build_context.network),
             containers=[docker_container],
+            images=[self.args.image] if self.args.image else None,
         )
         return docker_rg
 

@@ -35,10 +35,12 @@ class Assistant(PhidataApp):
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
+        # Image can be provided as a DockerImage object or as image_name:image_tag
+        image: Optional[Any] = None,
         image_name: str = "phidata/assistant",
         image_tag: str = "1.0.0",
         entrypoint: Optional[Union[str, List]] = None,
-        command: Optional[Union[str, List]] = None,
+        command: Optional[Union[str, List]] = "start",
         # -*- Assistant Configuration
         runtime: str = "dev",
         env_dir: Optional[str] = None,
@@ -267,6 +269,7 @@ class Assistant(PhidataApp):
                 name=name,
                 version=version,
                 enabled=enabled,
+                image=image,
                 image_name=image_name,
                 image_tag=image_tag,
                 entrypoint=entrypoint,
@@ -579,6 +582,7 @@ class Assistant(PhidataApp):
             enabled=self.args.enabled,
             network=DockerNetwork(name=docker_build_context.network),
             containers=[docker_container],
+            images=[self.args.image] if self.args.image else None,
         )
         return docker_rg
 

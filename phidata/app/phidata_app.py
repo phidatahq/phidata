@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Dict, Any, Union, List, Tuple
+from typing import Optional, Dict, Any, Union, List
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.utils.enums import ExtendedEnum
@@ -47,6 +47,8 @@ class PhidataAppArgs(PhidataBaseArgs):
     k8s_env: Optional[Dict[str, str]] = None
 
     # -*- Image Configuration
+    # Image can be provided as a DockerImage object or as image_name:image_tag
+    image: Optional[Any] = None
     image_name: Optional[str] = None
     image_tag: Optional[str] = None
     entrypoint: Optional[Union[str, List]] = None
@@ -452,7 +454,14 @@ class PhidataApp(PhidataBase):
     ######################################################
 
     def get_image_str(self):
-        return f"{self.args.image_name}:{self.args.image_tag}"
+        if self.args.image:
+            return f"{self.args.image.name}:{self.args.image.tag}"
+        elif self.args.image_name and self.args.image_tag:
+            return f"{self.args.image_name}:{self.args.image_tag}"
+        elif self.args.image_name:
+            return f"{self.args.image_name}:latest"
+        else:
+            return None
 
     def get_container_name(self) -> str:
         from phidata.utils.common import get_default_container_name

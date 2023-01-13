@@ -193,7 +193,6 @@ def filter_and_flatten_docker_resource_groups(
     """
 
     logger.debug("Filtering & Flattening DockerResourceGroups")
-
     # Step 1: Create docker_resource_list_with_weight
     # A List of Tuples where each tuple is a (DockerResource, Resource Group Weight)
     # This list helps us sort the DockerResources

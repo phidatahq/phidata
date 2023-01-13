@@ -17,6 +17,9 @@ class AssistantArgs(PhidataAppArgs):
     image_tag: str = "1.0.0"
 
     # -*- Assistant Configuration
+    runtime: str = "dev"
+    env_dir: Optional[str] = None
+    secrets_dir: Optional[str] = None
 
     # Install phidata in development mode
     install_phidata_dev: bool = False
@@ -37,6 +40,9 @@ class Assistant(PhidataApp):
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # -*- Assistant Configuration
+        runtime: str = "dev",
+        env_dir: Optional[str] = None,
+        secrets_dir: Optional[str] = None,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
@@ -265,6 +271,9 @@ class Assistant(PhidataApp):
                 image_tag=image_tag,
                 entrypoint=entrypoint,
                 command=command,
+                runtime=runtime,
+                env_dir=env_dir,
+                secrets_dir=secrets_dir,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
                 container_name=container_name,
@@ -427,6 +436,7 @@ class Assistant(PhidataApp):
 
         # Container Environment
         container_env: Dict[str, Any] = {
+            "ASSISTANT_RUNTIME": self.args.runtime,
             # Env variables used by data workflows and data assets
             PYTHONPATH_ENV_VAR: python_path,
             PHIDATA_RUNTIME_ENV_VAR: "docker",
@@ -775,6 +785,7 @@ class Assistant(PhidataApp):
 
         # Container Environment
         container_env: Dict[str, Any] = {
+            "ASSISTANT_RUNTIME": self.args.runtime,
             # Env variables used by data workflows and data assets
             PYTHONPATH_ENV_VAR: python_path,
             PHIDATA_RUNTIME_ENV_VAR: "kubernetes",

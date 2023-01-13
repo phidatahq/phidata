@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Optional, Dict, List, Union, Any
-from typing_extensions import Literal
 
-from phidata.app.db import DbApp
 from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType
 from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
 from phidata.k8s.enums.restart_policy import RestartPolicy
@@ -11,242 +9,40 @@ from phidata.utils.log import logger
 default_databox_name: str = "databox"
 
 
-class DataboxArgs(PhidataAppArgs):
-    name: str = default_databox_name
+class AssistantArgs(PhidataAppArgs):
+    name: str = "assistant"
     version: str = "1"
     enabled: bool = True
 
     # -*- Image Configuration
-    image_name: str = "phidata/databox"
-    image_tag: str = "2.5.0"
+    image_name: str = "phidata/assistant"
+    image_tag: str = "1.0.0"
 
-    # -*- Airflow Configuration
-    # If init_airflow = True, this databox initializes airflow and
-    # sets the env var INIT_AIRFLOW = True
-    # INIT_AIRFLOW = True is required by phidata to build dags
-    init_airflow: bool = True
-    # The AIRFLOW_ENV defines the current airflow runtime and can be used by
-    # DAGs to separate dev/stg/prd code
-    airflow_env: Optional[str] = None
-    # Set the AIRFLOW_HOME env variable
-    # Defaults to container env variable: /usr/local/airflow
-    airflow_home: Optional[str] = None
-    # If use_products_as_airflow_dags = True
-    # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir
-    use_products_as_airflow_dags: bool = True
-    # If use_products_as_airflow_dags = False
-    # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path
-    # airflow_dags_path is the directory in the container containing the airflow dags
-    airflow_dags_path: Optional[str] = None
-    # Creates an airflow admin with username: admin, pass: admin
-    create_airflow_admin_user: bool = False
-    # Airflow Executor
-    airflow_executor: Union[
-        str,
-        Literal[
-            "DebugExecutor",
-            "LocalExecutor",
-            "SequentialExecutor",
-            "CeleryExecutor",
-            "CeleryKubernetesExecutor",
-            "DaskExecutor",
-            "KubernetesExecutor",
-        ],
-    ] = "SequentialExecutor"
-    # Configure airflow db
-    # If True, initialize the airflow_db on this databox
-    # If None, value is derived from init_airflow i.e. initialize the airflow_db if init_airflow = True
-    #   Locally, airflow_db uses sqllite
-    # NOTE: If using the databox with an external Airflow database
-    # Set init_airflow_db = False
-    init_airflow_db: Optional[bool] = None
-    # Upgrade the airflow db
-    upgrade_airflow_db: bool = False
-    wait_for_airflow_db: bool = False
-    # delay start by 60 seconds for the db to be initialized
-    wait_for_airflow_db_init: bool = False
-    # Connect to database using DbApp
-    airflow_db_app: Optional[DbApp] = None
-    # Provide database connection details manually
-    # db_user can be provided here or as the
-    # AIRFLOW_DATABASE_USER env var in the secrets_file
-    airflow_db_user: Optional[str] = None
-    # db_password can be provided here or as the
-    # AIRFLOW_DATABASE_PASSWORD env var in the secrets_file
-    airflow_db_password: Optional[str] = None
-    # db_schema can be provided here or as the
-    # AIRFLOW_DATABASE_DB env var in the secrets_file
-    airflow_db_schema: Optional[str] = None
-    # db_host can be provided here or as the
-    # AIRFLOW_DATABASE_HOST env var in the secrets_file
-    airflow_db_host: Optional[str] = None
-    # db_port can be provided here or as the
-    # AIRFLOW_DATABASE_PORT env var in the secrets_file
-    airflow_db_port: Optional[int] = None
-    # db_driver can be provided here or as the
-    # AIRFLOW_DATABASE_DRIVER env var in the secrets_file
-    airflow_db_driver: str = "postgresql+psycopg2"
-    # Airflow db connections in the format { conn_id: conn_url }
-    # converted to env var: AIRFLOW_CONN__conn_id = conn_url
-    db_connections: Optional[Dict] = None
-
-    # Configure airflow redis
-    wait_for_airflow_redis: bool = False
-    # Connect to redis using a PhidataApp
-    airflow_redis_app: Optional[DbApp] = None
-    # Provide redis connection details manually
-    # redis_password can be provided here or as the
-    # AIRFLOW_REDIS_PASSWORD env var in the secrets_file
-    airflow_redis_password: Optional[str] = None
-    # redis_schema can be provided here or as the
-    # AIRFLOW_REDIS_SCHEMA env var in the secrets_file
-    airflow_redis_schema: Optional[str] = None
-    # redis_host can be provided here or as the
-    # AIRFLOW_REDIS_HOST env var in the secrets_file
-    airflow_redis_host: Optional[str] = None
-    # redis_port can be provided here or as the
-    # AIRFLOW_REDIS_PORT env var in the secrets_file
-    airflow_redis_port: Optional[int] = None
-    # redis_driver can be provided here or as the
-    # AIRFLOW_REDIS_DRIVER env var in the secrets_file
-    airflow_redis_driver: Optional[str] = None
-
-    # Start airflow standalone
-    start_airflow_standalone: bool = False
-    # Open the airflow_standalone_container_port on the container
-    # if start_airflow_standalone=True
-    airflow_standalone_container_port: int = 8080
-    # standalone port on the host machine
-    airflow_standalone_host_port: int = 8080
-    # standalone port name on K8sContainer
-    airflow_standalone_port_name: str = "standalone"
-
-    # Only on DockerContainers
-    # Mount airflow home from container to host machine
-    # Useful when debugging the airflow conf
-    mount_airflow_home: bool = False
-    # Path to the dir on host machine relative to the workspace root
-    airflow_home_dir: str = "databox_airflow_home"
-    delete_webserver_pid: bool = True
-    # Path to airflow home on the container
-    airflow_home_container_path: str = "/usr/local/airflow"
-    # when airflow_home from the databox is mounted on the local host machine
-    # the "databox_airflow_home/airflow-webserver.pid" file prevents
-    # the databox airflow webserver from starting up
-    # when remove_webserver_pid = True, the file is removed at startup if exists
-    remove_webserver_pid: bool = True
+    # -*- Assistant Configuration
 
     # Install phidata in development mode
     install_phidata_dev: bool = False
-    phidata_volume_name: str = "databox-phidata-volume"
+    phidata_volume_name: str = "assistant-phidata-volume"
     phidata_dir_path: Path = Path.home().joinpath("lab", "phidata")
     phidata_dir_container_path: str = "/phidata"
 
 
-class Databox(PhidataApp):
+class Assistant(PhidataApp):
     def __init__(
         self,
-        name: str = default_databox_name,
+        name: str = "assistant",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
-        image_name: str = "phidata/databox",
-        image_tag: str = "2.5.0",
+        image_name: str = "phidata/assistant",
+        image_tag: str = "1.0.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
+        # -*- Assistant Configuration
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Airflow Configuration,
-        # If init_airflow = True, this databox initializes airflow and,
-        # sets the env var INIT_AIRFLOW = True,
-        # INIT_AIRFLOW = True is required by phidata to build dags,
-        init_airflow: bool = True,
-        # The AIRFLOW_ENV defines the current airflow runtime and can be used by,
-        # DAGs to separate dev/stg/prd code,
-        airflow_env: Optional[str] = None,
-        # Set the AIRFLOW_HOME env variable,
-        # Defaults to container env variable: /usr/local/airflow,
-        airflow_home: Optional[str] = None,
-        # If use_products_as_airflow_dags = True,
-        # set the AIRFLOW__CORE__DAGS_FOLDER to the products_dir,
-        use_products_as_airflow_dags: bool = True,
-        # If use_products_as_airflow_dags = False,
-        # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path,
-        # airflow_dags_path is the directory in the container containing the airflow dags,
-        airflow_dags_path: Optional[str] = None,
-        # Creates an airflow admin with username: admin, pass: admin,
-        create_airflow_admin_user: bool = False,
-        # Airflow Executor,
-        airflow_executor: Union[
-            str,
-            Literal[
-                "DebugExecutor",
-                "LocalExecutor",
-                "SequentialExecutor",
-                "CeleryExecutor",
-                "CeleryKubernetesExecutor",
-                "DaskExecutor",
-                "KubernetesExecutor",
-            ],
-        ] = "SequentialExecutor",
-        # Configure airflow db,
-        # If True, initialize the airflow_db on this databox,
-        # If None, value is derived from init_airflow i.e. initialize the airflow_db if init_airflow = True,
-        #   Locally, airflow_db uses sqllite,
-        # NOTE: If using the databox with an external Airflow database,
-        # Set init_airflow_db = False,
-        init_airflow_db: Optional[bool] = None,
-        # Upgrade the airflow db,
-        upgrade_airflow_db: bool = False,
-        wait_for_airflow_db: bool = False,
-        # delay start by 60 seconds for the db to be initialized,
-        wait_for_airflow_db_init: bool = False,
-        # Connect to database using DbApp,
-        airflow_db_app: Optional[DbApp] = None,
-        # Provide database connection details manually,
-        # db_user can be provided here or as the,
-        # AIRFLOW_DATABASE_USER env var in the secrets_file,
-        airflow_db_user: Optional[str] = None,
-        # db_password can be provided here or as the,
-        # AIRFLOW_DATABASE_PASSWORD env var in the secrets_file,
-        airflow_db_password: Optional[str] = None,
-        # db_schema can be provided here or as the,
-        # AIRFLOW_DATABASE_DB env var in the secrets_file,
-        airflow_db_schema: Optional[str] = None,
-        # db_host can be provided here or as the,
-        # AIRFLOW_DATABASE_HOST env var in the secrets_file,
-        airflow_db_host: Optional[str] = None,
-        # db_port can be provided here or as the,
-        # AIRFLOW_DATABASE_PORT env var in the secrets_file,
-        airflow_db_port: Optional[int] = None,
-        # db_driver can be provided here or as the,
-        # AIRFLOW_DATABASE_DRIVER env var in the secrets_file,
-        airflow_db_driver: str = "postgresql+psycopg2",
-        # Airflow db connections in the format { conn_id: conn_url },
-        # converted to env var: AIRFLOW_CONN__conn_id = conn_url,
-        db_connections: Optional[Dict] = None,
-        # Configure airflow redis,
-        wait_for_airflow_redis: bool = False,
-        # Connect to redis using a PhidataApp,
-        airflow_redis_app: Optional[DbApp] = None,
-        # Provide redis connection details manually,
-        # redis_password can be provided here or as the,
-        # AIRFLOW_REDIS_PASSWORD env var in the secrets_file,
-        airflow_redis_password: Optional[str] = None,
-        # redis_schema can be provided here or as the,
-        # AIRFLOW_REDIS_SCHEMA env var in the secrets_file,
-        airflow_redis_schema: Optional[str] = None,
-        # redis_host can be provided here or as the,
-        # AIRFLOW_REDIS_HOST env var in the secrets_file,
-        airflow_redis_host: Optional[str] = None,
-        # redis_port can be provided here or as the,
-        # AIRFLOW_REDIS_PORT env var in the secrets_file,
-        airflow_redis_port: Optional[int] = None,
-        # redis_driver can be provided here or as the,
-        # AIRFLOW_REDIS_DRIVER env var in the secrets_file,
-        airflow_redis_driver: Optional[str] = None,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,,
@@ -269,32 +65,18 @@ class Databox(PhidataApp):
         secrets_file: Optional[Path] = None,
         # Read secret variables from AWS Secrets,
         aws_secrets: Optional[Any] = None,
-        # Start airflow standalone,
-        start_airflow_standalone: bool = False,
-        # Open the airflow_standalone_container_port on the container,
-        # if start_airflow_standalone=True,
-        airflow_standalone_container_port: int = 8080,
-        # standalone port on the host machine,
-        airflow_standalone_host_port: int = 8080,
-        # standalone port name on K8sContainer,
-        airflow_standalone_port_name: str = "standalone",
-        # Only on DockerContainers,
-        # Mount airflow home from container to host machine,
-        # Useful when debugging the airflow conf,
-        mount_airflow_home: bool = False,
-        # Path to the dir on host machine relative to the workspace root,
-        airflow_home_dir: str = "databox_airflow_home",
-        delete_webserver_pid: bool = True,
-        # Path to airflow home on the container,
-        airflow_home_container_path: str = "/usr/local/airflow",
-        # when airflow_home from the databox is mounted on the local host machine,
-        # the "databox_airflow_home/airflow-webserver.pid" file prevents,
-        # the databox airflow webserver from starting up,
-        # when remove_webserver_pid = True, the file is removed at startup if exists,
-        remove_webserver_pid: bool = True,
+        # Container ports,
+        # Open a container port if open_container_port=True,
+        open_container_port: bool = True,
+        # Port number on the container,
+        container_port: int = 9090,
+        # Port name: Only used by the K8sContainer,
+        container_port_name: str = "http",
+        # Host port: Only used by the DockerContainer,
+        container_host_port: int = 9090,
         # Container volumes,
         # Mount the workspace directory on the container,
-        mount_workspace: bool = False,
+        mount_workspace: bool = True,
         workspace_volume_name: Optional[str] = None,
         workspace_volume_type: Optional[WorkspaceVolumeType] = None,
         # Path to mount the workspace volume,
@@ -391,12 +173,12 @@ class Databox(PhidataApp):
         # How to deal with a pod if it doesn't satisfy the spread constraint.,
         topology_spread_when_unsatisfiable: Optional[str] = None,
         # K8s Service Configuration,
-        create_service: bool = False,
+        create_service: bool = True,
         service_name: Optional[str] = None,
         # Type: ServiceType,
         service_type: Optional[Any] = None,
         # The port exposed by the service.,
-        service_port: int = 8000,
+        service_port: int = 9090,
         # The node_port exposed by the service if service_type = ServiceType.NODE_PORT,
         service_node_port: Optional[int] = None,
         # The target_port is the port to access on the pods targeted by the service.,
@@ -470,14 +252,14 @@ class Databox(PhidataApp):
         use_cache: bool = True,
         # Install phidata in development mode,
         install_phidata_dev: bool = False,
-        phidata_volume_name: str = "databox-phidata-volume",
+        phidata_volume_name: str = "assistant-phidata-volume",
         phidata_dir_path: Path = Path.home().joinpath("lab", "phidata"),
         phidata_dir_container_path: str = "/phidata",
         **kwargs,
     ):
         super().__init__()
         try:
-            self.args: DataboxArgs = DataboxArgs(
+            self.args: AssistantArgs = AssistantArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -487,32 +269,6 @@ class Databox(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                init_airflow=init_airflow,
-                airflow_env=airflow_env,
-                airflow_home=airflow_home,
-                use_products_as_airflow_dags=use_products_as_airflow_dags,
-                airflow_dags_path=airflow_dags_path,
-                create_airflow_admin_user=create_airflow_admin_user,
-                airflow_executor=airflow_executor,
-                init_airflow_db=init_airflow_db,
-                upgrade_airflow_db=upgrade_airflow_db,
-                wait_for_airflow_db=wait_for_airflow_db,
-                wait_for_airflow_db_init=wait_for_airflow_db_init,
-                airflow_db_app=airflow_db_app,
-                airflow_db_user=airflow_db_user,
-                airflow_db_password=airflow_db_password,
-                airflow_db_schema=airflow_db_schema,
-                airflow_db_host=airflow_db_host,
-                airflow_db_port=airflow_db_port,
-                airflow_db_driver=airflow_db_driver,
-                db_connections=db_connections,
-                wait_for_airflow_redis=wait_for_airflow_redis,
-                airflow_redis_app=airflow_redis_app,
-                airflow_redis_password=airflow_redis_password,
-                airflow_redis_schema=airflow_redis_schema,
-                airflow_redis_host=airflow_redis_host,
-                airflow_redis_port=airflow_redis_port,
-                airflow_redis_driver=airflow_redis_driver,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -522,15 +278,10 @@ class Databox(PhidataApp):
                 secrets=secrets,
                 secrets_file=secrets_file,
                 aws_secrets=aws_secrets,
-                start_airflow_standalone=start_airflow_standalone,
-                airflow_standalone_container_port=airflow_standalone_container_port,
-                airflow_standalone_host_port=airflow_standalone_host_port,
-                airflow_standalone_port_name=airflow_standalone_port_name,
-                mount_airflow_home=mount_airflow_home,
-                airflow_home_dir=airflow_home_dir,
-                delete_webserver_pid=delete_webserver_pid,
-                airflow_home_container_path=airflow_home_container_path,
-                remove_webserver_pid=remove_webserver_pid,
+                open_container_port=open_container_port,
+                container_port=container_port,
+                container_port_name=container_port_name,
+                container_host_port=container_host_port,
                 mount_workspace=mount_workspace,
                 workspace_volume_name=workspace_volume_name,
                 workspace_volume_type=workspace_volume_type,
@@ -615,363 +366,13 @@ class Databox(PhidataApp):
                 phidata_dir_container_path=phidata_dir_container_path,
                 extra_kwargs=kwargs,
             )
-        except Exception as e:
+        except Exception:
             logger.error(f"Args for {self.name} are not valid")
             raise
-
-    def get_airflow_db_user(self) -> Optional[str]:
-        airflow_db_user_var: Optional[str] = (
-            self.args.airflow_db_user if self.args else None
-        )
-        if airflow_db_user_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_DATABASE_USER from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_db_user_var = secret_data.get(
-                    "AIRFLOW_DATABASE_USER", airflow_db_user_var
-                )
-        return airflow_db_user_var
-
-    def get_airflow_db_password(self) -> Optional[str]:
-        airflow_db_password_var: Optional[str] = (
-            self.args.airflow_db_password if self.args else None
-        )
-        if airflow_db_password_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_DATABASE_PASSWORD from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_db_password_var = secret_data.get(
-                    "AIRFLOW_DATABASE_PASSWORD", airflow_db_password_var
-                )
-        return airflow_db_password_var
-
-    def get_airflow_db_schema(self) -> Optional[str]:
-        airflow_db_schema_var: Optional[str] = (
-            self.args.airflow_db_schema if self.args else None
-        )
-        if airflow_db_schema_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_DATABASE_DB from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_db_schema_var = secret_data.get(
-                    "AIRFLOW_DATABASE_DB", airflow_db_schema_var
-                )
-        return airflow_db_schema_var
-
-    def get_airflow_db_host(self) -> Optional[str]:
-        airflow_db_host_var: Optional[str] = (
-            self.args.airflow_db_host if self.args else None
-        )
-        if airflow_db_host_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_DATABASE_HOST from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_db_host_var = secret_data.get(
-                    "AIRFLOW_DATABASE_HOST", airflow_db_host_var
-                )
-        return airflow_db_host_var
-
-    def get_airflow_db_port(self) -> Optional[str]:
-        airflow_db_port_var: Optional[Union[int, str]] = (
-            self.args.airflow_db_port if self.args else None
-        )
-        if airflow_db_port_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_DATABASE_PORT from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_db_port_var = secret_data.get(
-                    "AIRFLOW_DATABASE_PORT", airflow_db_port_var
-                )
-        return (
-            str(airflow_db_port_var)
-            if airflow_db_port_var is not None
-            else airflow_db_port_var
-        )
-
-    def get_airflow_db_driver(self) -> Optional[str]:
-        airflow_db_driver_var: Optional[str] = (
-            self.args.airflow_db_driver if self.args else None
-        )
-        if airflow_db_driver_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_DATABASE_DRIVER from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_db_driver_var = secret_data.get(
-                    "AIRFLOW_DATABASE_DRIVER", airflow_db_driver_var
-                )
-        return airflow_db_driver_var
-
-    def get_airflow_redis_password(self) -> Optional[str]:
-        airflow_redis_password_var: Optional[str] = (
-            self.args.airflow_redis_password if self.args else None
-        )
-        if airflow_redis_password_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_REDIS_PASSWORD from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_redis_password_var = secret_data.get(
-                    "AIRFLOW_REDIS_PASSWORD", airflow_redis_password_var
-                )
-        return airflow_redis_password_var
-
-    def get_airflow_redis_schema(self) -> Optional[str]:
-        airflow_redis_schema_var: Optional[str] = (
-            self.args.airflow_redis_schema if self.args else None
-        )
-        if airflow_redis_schema_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_REDIS_SCHEMA from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_redis_schema_var = secret_data.get(
-                    "AIRFLOW_REDIS_SCHEMA", airflow_redis_schema_var
-                )
-        return airflow_redis_schema_var
-
-    def get_airflow_redis_host(self) -> Optional[str]:
-        airflow_redis_host_var: Optional[str] = (
-            self.args.airflow_redis_host if self.args else None
-        )
-        if airflow_redis_host_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_REDIS_HOST from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_redis_host_var = secret_data.get(
-                    "AIRFLOW_REDIS_HOST", airflow_redis_host_var
-                )
-        return airflow_redis_host_var
-
-    def get_airflow_redis_port(self) -> Optional[str]:
-        airflow_redis_port_var: Optional[Union[int, str]] = (
-            self.args.airflow_redis_port if self.args else None
-        )
-        if airflow_redis_port_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_REDIS_PORT from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_redis_port_var = secret_data.get(
-                    "AIRFLOW_REDIS_PORT", airflow_redis_port_var
-                )
-        return (
-            str(airflow_redis_port_var)
-            if airflow_redis_port_var is not None
-            else airflow_redis_port_var
-        )
-
-    def get_airflow_redis_driver(self) -> Optional[str]:
-        airflow_redis_driver_var: Optional[str] = (
-            self.args.airflow_redis_driver if self.args else None
-        )
-        if airflow_redis_driver_var is None:
-            # read from secrets_file
-            logger.debug(f"Reading AIRFLOW_REDIS_DRIVER from secrets")
-            secret_data = self.get_secret_data()
-            if secret_data is not None:
-                airflow_redis_driver_var = secret_data.get(
-                    "AIRFLOW_REDIS_DRIVER", airflow_redis_driver_var
-                )
-        return airflow_redis_driver_var
-
-    def get_airflow_home(self) -> str:
-        return (
-            self.args.airflow_home
-            if self.args and self.args.airflow_home
-            else "/usr/local/airflow"
-        )
 
     ######################################################
     ## Docker Resources
     ######################################################
-
-    def init_airflow_on_docker_container(self, container: Any) -> None:
-        """
-        Initialize airflow on a docker container
-        """
-
-        from phidata.constants import (
-            AIRFLOW_ENV_ENV_VAR,
-            AIRFLOW_HOME_ENV_VAR,
-            AIRFLOW_DAGS_FOLDER_ENV_VAR,
-            AIRFLOW_EXECUTOR_ENV_VAR,
-            AIRFLOW_DB_CONN_URL_ENV_VAR,
-            INIT_AIRFLOW_ENV_VAR,
-        )
-        from phidata.types.context import ContainerPathContext
-
-        if not self.args.init_airflow:
-            return
-
-        # Update init_airflow_db arg if None
-        if self.args.init_airflow_db is None:
-            self.args.init_airflow_db = True
-
-        # Workspace paths
-        if self.workspace_root_path is None:
-            logger.error("Invalid workspace_root_path")
-            return
-
-        workspace_name = self.workspace_root_path.stem
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
-        if container_paths is None:
-            logger.error("Could not build container paths")
-            return None
-
-        airflow_env: Dict[str, str] = {
-            # Env variables used by Airflow
-            # INIT_AIRFLOW env var is required for phidata to generate DAGs
-            INIT_AIRFLOW_ENV_VAR: str(self.args.init_airflow),
-            "WAIT_FOR_AIRFLOW_DB": str(self.args.wait_for_airflow_db),
-            "WAIT_FOR_AIRFLOW_DB_INIT": str(self.args.wait_for_airflow_db_init),
-            "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
-            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
-            "WAIT_FOR_AIRFLOW_REDIS": str(self.args.wait_for_airflow_redis),
-            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
-            AIRFLOW_EXECUTOR_ENV_VAR: str(self.args.airflow_executor),
-            "INIT_AIRFLOW_STANDALONE": str(self.args.start_airflow_standalone),
-        }
-
-        # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if (
-            self.args.mount_workspace
-            and self.args.use_products_as_airflow_dags
-            and container_paths.products_dir
-        ):
-            airflow_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = container_paths.products_dir
-        elif self.args.airflow_dags_path is not None:
-            airflow_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = self.args.airflow_dags_path
-
-        # Set the AIRFLOW_ENV
-        if self.args.airflow_env is not None:
-            airflow_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
-
-        # Set the AIRFLOW_HOME
-        if self.args.airflow_home is not None:
-            airflow_env[AIRFLOW_HOME_ENV_VAR] = self.args.airflow_home
-
-        # Set the AIRFLOW__CONN_ variables
-        if self.args.db_connections is not None:
-            for conn_id, conn_url in self.args.db_connections.items():
-                try:
-                    af_conn_id = str("AIRFLOW_CONN_{}".format(conn_id)).upper()
-                    airflow_env[af_conn_id] = conn_url
-                except Exception as e:
-                    logger.exception(e)
-                    continue
-
-        # Airflow db connection
-        airflow_db_user = self.get_airflow_db_user()
-        airflow_db_password = self.get_airflow_db_password()
-        airflow_db_schema = self.get_airflow_db_schema()
-        airflow_db_host = self.get_airflow_db_host()
-        airflow_db_port = self.get_airflow_db_port()
-        airflow_db_driver = self.get_airflow_db_driver()
-        if self.args.airflow_db_app is not None and isinstance(
-            self.args.airflow_db_app, DbApp
-        ):
-            logger.debug(
-                f"Reading db connection details from: {self.args.airflow_db_app.name}"
-            )
-            if airflow_db_user is None:
-                airflow_db_user = self.args.airflow_db_app.get_db_user()
-            if airflow_db_password is None:
-                airflow_db_password = self.args.airflow_db_app.get_db_password()
-            if airflow_db_schema is None:
-                airflow_db_schema = self.args.airflow_db_app.get_db_schema()
-            if airflow_db_host is None:
-                airflow_db_host = self.args.airflow_db_app.get_db_host_docker()
-            if airflow_db_port is None:
-                airflow_db_port = str(self.args.airflow_db_app.get_db_port_docker())
-            if airflow_db_driver is None:
-                airflow_db_driver = self.args.airflow_db_app.get_db_driver()
-        db_connection_url = f"{airflow_db_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
-
-        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-        if "None" not in db_connection_url:
-            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            airflow_env[AIRFLOW_DB_CONN_URL_ENV_VAR] = db_connection_url
-
-        # Set the database connection details in the container env
-        if airflow_db_host is not None:
-            airflow_env["AIRFLOW_DATABASE_HOST"] = airflow_db_host
-        if airflow_db_port is not None:
-            airflow_env["AIRFLOW_DATABASE_PORT"] = str(airflow_db_port)
-
-        # Airflow redis connection
-        if self.args.airflow_executor == "CeleryExecutor":
-            # Airflow celery result backend
-            celery_result_backend_driver = self.args.airflow_db_driver
-            celery_result_backend_url = f"{celery_result_backend_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            if "None" not in celery_result_backend_url:
-                airflow_env[
-                    "AIRFLOW__CELERY__RESULT_BACKEND"
-                ] = celery_result_backend_url
-
-            # Airflow celery broker url
-            _redis_pass = self.get_airflow_redis_password()
-            redis_password = f"{_redis_pass}@" if _redis_pass else ""
-            redis_schema = self.get_airflow_redis_schema()
-            redis_host = self.get_airflow_redis_host()
-            redis_port = self.get_airflow_redis_port()
-            redis_driver = self.get_airflow_redis_driver()
-            if self.args.airflow_redis_app is not None and isinstance(
-                self.args.airflow_redis_app, DbApp
-            ):
-                logger.debug(
-                    f"Reading redis connection details from: {self.args.airflow_redis_app.name}"
-                )
-                if redis_password is None:
-                    redis_password = self.args.airflow_redis_app.get_db_password()
-                if redis_schema is None:
-                    redis_schema = self.args.airflow_redis_app.get_db_schema() or "0"
-                if redis_host is None:
-                    redis_host = self.args.airflow_redis_app.get_db_host_docker()
-                if redis_port is None:
-                    redis_port = str(self.args.airflow_redis_app.get_db_port_docker())
-                if redis_driver is None:
-                    redis_driver = self.args.airflow_redis_app.get_db_driver()
-
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            celery_broker_url = f"{redis_driver}://{redis_password}{redis_host}:{redis_port}/{redis_schema}"
-            if "None" not in celery_broker_url:
-                # logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
-                airflow_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
-
-            # Set the redis connection details in the container env
-            if redis_host is not None:
-                airflow_env["REDIS_HOST"] = redis_host
-            if redis_port is not None:
-                airflow_env["REDIS_PORT"] = str(redis_port)
-
-        # if start_airflow_standalone = True
-        # 1. Open the airflow standalone port
-        if self.args.start_airflow_standalone:
-            # Open the port
-            standalone_port: Dict[str, int] = {
-                str(
-                    self.args.airflow_standalone_container_port
-                ): self.args.airflow_standalone_host_port,
-            }
-            if container.ports is None:
-                container.ports = {}
-            container.ports.update(standalone_port)
-
-        # Update the container.environment to include airflow_env
-        if isinstance(container.environment, dict):
-            container.environment.update(airflow_env)
-        else:
-            logger.warning(
-                f"Could not update container environment because it is of type: {type(container.environment)}"
-            )
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
 
@@ -1021,9 +422,8 @@ class Databox(PhidataApp):
         # Container pythonpath
         python_path = self.args.python_path
         if python_path is None:
-            python_path = "{}:{}{}".format(
+            python_path = "{}{}".format(
                 container_paths.workspace_root,
-                self.get_airflow_home(),
                 f":{self.args.add_python_path}" if self.args.add_python_path else "",
             )
 
@@ -1102,10 +502,10 @@ class Databox(PhidataApp):
                 if workspace_volume_name is None:
                     if workspace_name is not None:
                         workspace_volume_name = get_default_volume_name(
-                            f"databox-{workspace_name}-ws"
+                            f"assistant-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("databox-ws")
+                        workspace_volume_name = get_default_volume_name("assistant-ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -1116,36 +516,6 @@ class Databox(PhidataApp):
                 logger.error(f"{self.args.workspace_volume_type.value} not supported")
                 return None
 
-        # Create a volume for airflow home
-        if self.args.mount_airflow_home:
-            host_airflow_home_dir = self.workspace_root_path.joinpath(
-                self.args.airflow_home_dir
-            ).resolve()
-            airflow_home_path_str = str(host_airflow_home_dir)
-            airflow_home_container_path_str = str(self.args.airflow_home_container_path)
-            logger.debug(f"Mounting: {airflow_home_path_str}")
-            logger.debug(f"\tto: {airflow_home_container_path_str}")
-            container_volumes[airflow_home_path_str] = {
-                "bind": airflow_home_container_path_str,
-                "mode": "rw",
-            }
-
-            # remove the airflow-webserver.pid if exists
-            if self.args.remove_webserver_pid:
-                _ws_pid_file: Path = (
-                    self.workspace_root_path.joinpath(self.args.airflow_home_dir)
-                    .joinpath("airflow-webserver.pid")
-                    .resolve()
-                )
-                if (
-                    host_airflow_home_dir.exists()
-                    and host_airflow_home_dir.is_dir()
-                    and _ws_pid_file.exists()
-                    and _ws_pid_file.is_file()
-                ):
-                    logger.debug(f"Removing {str(_ws_pid_file)}")
-                    _ws_pid_file.unlink(missing_ok=True)
-
         # Create a volume for phidata in dev mode
         if self.args.install_phidata_dev and self.args.phidata_dir_path is not None:
             phidata_dir_absolute_path_str = str(self.args.phidata_dir_path)
@@ -1155,6 +525,21 @@ class Databox(PhidataApp):
                 "bind": self.args.phidata_dir_container_path,
                 "mode": "rw",
             }
+
+        # Container Ports
+        # container_ports is a dictionary which configures the ports to bind
+        # inside the container. The key is the port to bind inside the container
+        #   either as an integer or a string in the form port/protocol
+        # and the value is the corresponding port to open on the host.
+        # For example:
+        #   {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
+        container_ports: Dict[str, int] = self.args.container_ports_docker or {}
+
+        # if open_container_port = True
+        if self.args.open_container_port:
+            container_ports[
+                str(self.args.container_port)
+            ] = self.args.container_host_port
 
         # Create the container
         docker_container = DockerContainer(
@@ -1170,6 +555,7 @@ class Databox(PhidataApp):
             environment=container_env,
             network=docker_build_context.network,
             platform=self.args.container_platform,
+            ports=container_ports if len(container_ports) > 0 else None,
             remove=self.args.container_remove,
             restart_policy=self.args.container_restart_policy_docker,
             stdin_open=self.args.container_stdin_open,
@@ -1179,10 +565,6 @@ class Databox(PhidataApp):
             working_dir=self.args.container_working_dir,
             use_cache=self.args.use_cache,
         )
-
-        # Initialize airflow on container
-        self.init_airflow_on_docker_container(docker_container)
-        # logger.debug(f"Databox Container Env: {docker_container.environment}")
 
         docker_rg = DockerResourceGroup(
             name=app_name,
@@ -1204,201 +586,6 @@ class Databox(PhidataApp):
     ######################################################
     ## K8s Resources
     ######################################################
-
-    def init_airflow_on_k8s_container(
-        self, container: Any, k8s_resource_group: Any
-    ) -> None:
-        """
-        Initialize airflow on a k8s container
-        """
-
-        from phidata.constants import (
-            INIT_AIRFLOW_ENV_VAR,
-            AIRFLOW_ENV_ENV_VAR,
-            AIRFLOW_HOME_ENV_VAR,
-            AIRFLOW_DAGS_FOLDER_ENV_VAR,
-            AIRFLOW_EXECUTOR_ENV_VAR,
-            AIRFLOW_DB_CONN_URL_ENV_VAR,
-        )
-        from phidata.k8s.create.common.port import CreatePort
-        from phidata.k8s.create.group import CreateConfigMap
-        from phidata.types.context import ContainerPathContext
-
-        if not self.args.init_airflow:
-            return
-
-        # Update init_airflow_db arg if None
-        if self.args.init_airflow_db is None:
-            self.args.init_airflow_db = True
-
-        # Workspace paths
-        if self.workspace_root_path is None:
-            logger.error("Invalid workspace_root_path")
-            return
-
-        # Workspace paths
-        if self.workspace_root_path is None:
-            logger.error("Invalid workspace_root_path")
-            return None
-
-        workspace_name = self.workspace_root_path.stem
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
-        if container_paths is None:
-            logger.error("Could not build container paths")
-            return None
-        logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
-
-        airflow_env: Dict[str, str] = {
-            # Env variables used by Airflow
-            # INIT_AIRFLOW env var is required for phidata to generate DAGs
-            INIT_AIRFLOW_ENV_VAR: str(self.args.init_airflow),
-            "WAIT_FOR_AIRFLOW_DB": str(self.args.wait_for_airflow_db),
-            "WAIT_FOR_AIRFLOW_DB_INIT": str(self.args.wait_for_airflow_db_init),
-            "INIT_AIRFLOW_DB": str(self.args.init_airflow_db),
-            "UPGRADE_AIRFLOW_DB": str(self.args.upgrade_airflow_db),
-            "WAIT_FOR_AIRFLOW_REDIS": str(self.args.wait_for_airflow_redis),
-            "CREATE_AIRFLOW_ADMIN_USER": str(self.args.create_airflow_admin_user),
-            AIRFLOW_EXECUTOR_ENV_VAR: str(self.args.airflow_executor),
-            "INIT_AIRFLOW_STANDALONE": str(self.args.start_airflow_standalone),
-        }
-
-        # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if (
-            self.args.mount_workspace
-            and self.args.use_products_as_airflow_dags
-            and container_paths.products_dir
-        ):
-            airflow_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = container_paths.products_dir
-        elif self.args.airflow_dags_path is not None:
-            airflow_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = self.args.airflow_dags_path
-
-        # Set the AIRFLOW_ENV
-        if self.args.airflow_env is not None:
-            airflow_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
-
-        # Set the AIRFLOW_HOME
-        if self.args.airflow_home is not None:
-            airflow_env[AIRFLOW_HOME_ENV_VAR] = self.args.airflow_home
-
-        # Set the AIRFLOW__CONN_ variables
-        if self.args.db_connections is not None:
-            for conn_id, conn_url in self.args.db_connections.items():
-                try:
-                    af_conn_id = str("AIRFLOW_CONN_{}".format(conn_id)).upper()
-                    airflow_env[af_conn_id] = conn_url
-                except Exception as e:
-                    logger.exception(e)
-                    continue
-
-        # Airflow db connection
-        airflow_db_user = self.get_airflow_db_user()
-        airflow_db_password = self.get_airflow_db_password()
-        airflow_db_schema = self.get_airflow_db_schema()
-        airflow_db_host = self.get_airflow_db_host()
-        airflow_db_port = self.get_airflow_db_port()
-        airflow_db_driver = self.get_airflow_db_driver()
-        if self.args.airflow_db_app is not None and isinstance(
-            self.args.airflow_db_app, DbApp
-        ):
-            logger.debug(
-                f"Reading db connection details from: {self.args.airflow_db_app.name}"
-            )
-            if airflow_db_user is None:
-                airflow_db_user = self.args.airflow_db_app.get_db_user()
-            if airflow_db_password is None:
-                airflow_db_password = self.args.airflow_db_app.get_db_password()
-            if airflow_db_schema is None:
-                airflow_db_schema = self.args.airflow_db_app.get_db_schema()
-            if airflow_db_host is None:
-                airflow_db_host = self.args.airflow_db_app.get_db_host_k8s()
-            if airflow_db_port is None:
-                airflow_db_port = str(self.args.airflow_db_app.get_db_port_k8s())
-            if airflow_db_driver is None:
-                airflow_db_driver = self.args.airflow_db_app.get_db_driver()
-        db_connection_url = f"{airflow_db_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
-
-        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-        if "None" not in db_connection_url:
-            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            airflow_env[AIRFLOW_DB_CONN_URL_ENV_VAR] = db_connection_url
-
-        # Set the database connection details in the container env
-        if airflow_db_host is not None:
-            airflow_env["AIRFLOW_DATABASE_HOST"] = airflow_db_host
-        if airflow_db_port is not None:
-            airflow_env["AIRFLOW_DATABASE_PORT"] = str(airflow_db_port)
-
-        # Airflow redis connection
-        if self.args.airflow_executor == "CeleryExecutor":
-            # Airflow celery result backend
-            celery_result_backend_driver = self.args.airflow_db_driver
-            celery_result_backend_url = f"{celery_result_backend_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            if "None" not in celery_result_backend_url:
-                airflow_env[
-                    "AIRFLOW__CELERY__RESULT_BACKEND"
-                ] = celery_result_backend_url
-
-            # Airflow celery broker url
-            _redis_pass = self.get_airflow_redis_password()
-            redis_password = f"{_redis_pass}@" if _redis_pass else ""
-            redis_schema = self.get_airflow_redis_schema()
-            redis_host = self.get_airflow_redis_host()
-            redis_port = self.get_airflow_redis_port()
-            redis_driver = self.get_airflow_redis_driver()
-            if self.args.airflow_redis_app is not None and isinstance(
-                self.args.airflow_redis_app, DbApp
-            ):
-                logger.debug(
-                    f"Reading redis connection details from: {self.args.airflow_redis_app.name}"
-                )
-                if redis_password is None:
-                    redis_password = self.args.airflow_redis_app.get_db_password()
-                if redis_schema is None:
-                    redis_schema = self.args.airflow_redis_app.get_db_schema() or "0"
-                if redis_host is None:
-                    redis_host = self.args.airflow_redis_app.get_db_host_docker()
-                if redis_port is None:
-                    redis_port = str(self.args.airflow_redis_app.get_db_port_docker())
-                if redis_driver is None:
-                    redis_driver = self.args.airflow_redis_app.get_db_driver()
-
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            celery_broker_url = f"{redis_driver}://{redis_password}{redis_host}:{redis_port}/{redis_schema}"
-            if "None" not in celery_broker_url:
-                # logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
-                airflow_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
-
-            # Set the redis connection details in the container env
-            if redis_host is not None:
-                airflow_env["REDIS_HOST"] = redis_host
-            if redis_port is not None:
-                airflow_env["REDIS_PORT"] = str(redis_port)
-
-        # if start_airflow_standalone = True
-        # 1. Open the airflow standalone port
-        if self.args.start_airflow_standalone:
-            # Open the port
-            standalone_port = CreatePort(
-                name=self.args.airflow_standalone_port_name,
-                container_port=self.args.airflow_standalone_container_port,
-            )
-            if container.ports is None:
-                container.ports = []
-            container.ports.append(standalone_port)
-
-        airflow_env_cm = CreateConfigMap(
-            cm_name="databox-airflow-cm",
-            app_name=self.args.name,
-            data=airflow_env,
-        )
-        # Add airflow_env_cm to container env
-        if container.envs_from_configmap is None:
-            container.envs_from_configmap = []
-        container.envs_from_configmap.append(airflow_env_cm.cm_name)
-        if k8s_resource_group.config_maps is None:
-            k8s_resource_group.config_maps = []
-        k8s_resource_group.config_maps.append(airflow_env_cm)
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
 
@@ -1554,16 +741,16 @@ class Databox(PhidataApp):
                                 "list",
                             ],
                         ),
-                        # PolicyRule(
-                        #     api_groups=[""],
-                        #     resources=[
-                        #         "pods/exec",
-                        #     ],
-                        #     verbs=[
-                        #         "get",
-                        #         "create",
-                        #     ],
-                        # ),
+                        PolicyRule(
+                            api_groups=[""],
+                            resources=[
+                                "pods/exec",
+                            ],
+                            verbs=[
+                                "get",
+                                "create",
+                            ],
+                        ),
                     ],
                     app_name=app_name,
                     labels=common_labels,
@@ -1583,9 +770,8 @@ class Databox(PhidataApp):
         # Container pythonpath
         python_path = self.args.python_path
         if python_path is None:
-            python_path = "{}:{}{}".format(
+            python_path = "{}{}".format(
                 container_paths.workspace_root,
-                self.get_airflow_home(),
                 f":{self.args.add_python_path}" if self.args.add_python_path else "",
             )
 
@@ -1650,10 +836,10 @@ class Databox(PhidataApp):
             if workspace_volume_name is None:
                 if workspace_name is not None:
                     workspace_volume_name = get_default_volume_name(
-                        f"databox-{workspace_name}-ws"
+                        f"assistant-{workspace_name}-ws"
                     )
                 else:
-                    workspace_volume_name = get_default_volume_name("databox-ws")
+                    workspace_volume_name = get_default_volume_name("assistant-ws")
 
             # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
             if (
@@ -1733,14 +919,25 @@ class Databox(PhidataApp):
                 )
                 volumes.append(workspace_volume)
 
+        # Create the ports to open
+        if self.args.open_container_port:
+            container_port = CreatePort(
+                name=self.args.container_port_name,
+                container_port=self.args.container_port,
+                service_port=self.args.service_port,
+                target_port=self.args.service_target_port
+                or self.args.container_port_name,
+            )
+            ports.append(container_port)
+
         container_labels: Dict[str, Any] = common_labels or {}
         if self.args.container_labels is not None and isinstance(
             self.args.container_labels, dict
         ):
             container_labels.update(self.args.container_labels)
 
-        # Create the Databox container
-        databox_container = CreateContainer(
+        # Create the Assistant container
+        assistant_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
@@ -1765,12 +962,12 @@ class Databox(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, databox_container)
+        containers.insert(0, assistant_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": databox_container.container_name
+            "kubectl.kubernetes.io/default-container": assistant_container.container_name
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -1784,7 +981,7 @@ class Databox(PhidataApp):
             deploy_labels.update(self.args.deploy_labels)
 
         # Create the deployment
-        databox_deployment = CreateDeployment(
+        assistant_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
             pod_name=self.get_pod_name(),
             app_name=app_name,
@@ -1803,7 +1000,27 @@ class Databox(PhidataApp):
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
-        deployments.append(databox_deployment)
+        deployments.append(assistant_deployment)
+
+        # Create the services
+        if self.args.create_service:
+            service_labels: Dict[str, Any] = common_labels or {}
+            if self.args.service_labels is not None and isinstance(
+                self.args.service_labels, dict
+            ):
+                service_labels.update(self.args.service_labels)
+
+            _service = CreateService(
+                service_name=self.get_service_name(),
+                app_name=app_name,
+                namespace=ns_name,
+                service_account_name=sa_name,
+                service_type=self.args.service_type,
+                deployment=assistant_deployment,
+                ports=ports if len(ports) > 0 else None,
+                labels=service_labels,
+            )
+            services.append(_service)
 
         # Create the K8sResourceGroup
         k8s_resource_group = CreateK8sResourceGroup(
@@ -1823,9 +1040,6 @@ class Databox(PhidataApp):
             pvs=pvs if len(pvs) > 0 else None,
             pvcs=pvcs if len(pvcs) > 0 else None,
         )
-
-        # Initialize airflow on container
-        self.init_airflow_on_k8s_container(databox_container, k8s_resource_group)
 
         return k8s_resource_group.create()
 

@@ -1130,10 +1130,10 @@ class JupyterLab(PhidataApp):
                 if workspace_volume_name is None:
                     if workspace_name is not None:
                         workspace_volume_name = get_default_volume_name(
-                            f"airflow-{workspace_name}-ws"
+                            f"jupyter-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("airflow-ws")
+                        workspace_volume_name = get_default_volume_name("jupyter-ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -1717,10 +1717,10 @@ class JupyterLab(PhidataApp):
             if workspace_volume_name is None:
                 if workspace_name is not None:
                     workspace_volume_name = get_default_volume_name(
-                        f"airflow-{workspace_name}-ws"
+                        f"jupyter-{workspace_name}-ws"
                     )
                 else:
-                    workspace_volume_name = get_default_volume_name("airflow-ws")
+                    workspace_volume_name = get_default_volume_name("jupyter-ws")
 
             # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
             if (

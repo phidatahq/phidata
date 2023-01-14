@@ -176,7 +176,7 @@ class SqlTable(DataAsset):
         if self.db_conn_url is None:
             return None
         try:
-            from sqlmodel import create_engine
+            from sqlmodel import create_engine  # type: ignore
 
             logger.info("Creating db_engine using db_conn_url")
             db_engine = create_engine(self.db_conn_url, echo=self.echo)

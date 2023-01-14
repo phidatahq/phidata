@@ -110,7 +110,7 @@ class WorkspaceSettings(BaseSettings):
     # Repository for images
     image_repo: str = "phidata"
     # Suffix added to the image name
-    image_suffix: str = "dp"
+    image_suffix: str = "aws-dp"
     # Build images locally
     build_images: bool = False
     # Skip docker cache when building images

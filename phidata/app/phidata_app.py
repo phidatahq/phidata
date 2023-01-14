@@ -531,6 +531,9 @@ class PhidataApp(PhidataBase):
     ## Docker functions
     ######################################################
 
+    def get_container_restart_policy_docker(self) -> Optional[Dict[str, Any]]:
+        return self.args.container_restart_policy_docker if self.args else None
+
     def init_docker_resource_groups(self, docker_build_context: Any) -> None:
         logger.debug(
             f"@init_docker_resource_groups not defined for {self.__class__.__name__}"

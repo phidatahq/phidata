@@ -1352,7 +1352,7 @@ class AirflowBase(PhidataApp):
             platform=self.args.container_platform,
             ports=container_ports if len(container_ports) > 0 else None,
             remove=self.args.container_remove,
-            restart_policy=self.args.container_restart_policy_docker,
+            restart_policy=self.get_container_restart_policy_docker(),
             stdin_open=self.args.container_stdin_open,
             tty=self.args.container_tty,
             user=self.args.container_user,

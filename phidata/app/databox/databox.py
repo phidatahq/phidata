@@ -1174,7 +1174,7 @@ class Databox(PhidataApp):
             network=docker_build_context.network,
             platform=self.args.container_platform,
             remove=self.args.container_remove,
-            restart_policy=self.args.container_restart_policy_docker,
+            restart_policy=self.get_container_restart_policy_docker(),
             stdin_open=self.args.container_stdin_open,
             tty=self.args.container_tty,
             user=self.args.container_user,

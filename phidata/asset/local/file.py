@@ -212,7 +212,7 @@ class LocalFile(LocalAsset):
 
         # Validate polars is installed
         try:
-            import polars as pl
+            import polars as pl  # type: ignore
         except ImportError:
             logger.error("Polars not installed")
             return False

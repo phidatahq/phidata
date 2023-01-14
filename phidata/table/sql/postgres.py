@@ -11,9 +11,10 @@ class PostgresTable(SqlTable):
         # Table Name: required
         name: str,
         # SQLModel for this table: required
-        sql_model: Any,
-        # Table schema
-        db_schema: Optional[str] = None,
+        data_model: Any,
+        # Database for the table (eg: "public" on postgres)
+        database: Optional[str] = None,
+        # -*- Table Connection
         # sqlalchemy.engine.(Engine or Connection)
         # Using SQLAlchemy makes it possible to use any DB supported by that library.
         # NOTE: db_engine is required but can be derived using other args.
@@ -32,9 +33,9 @@ class PostgresTable(SqlTable):
     ) -> None:
         super().__init__(
             name=name,
-            sql_model=sql_model,
-            sql_format=SqlTableFormat.POSTGRES,
-            db_schema=db_schema,
+            data_model=data_model,
+            table_format=SqlTableFormat.POSTGRES,
+            database=database,
             db_engine=db_engine,
             db_conn_url=db_conn_url,
             airflow_conn_id=airflow_conn_id,

@@ -175,9 +175,14 @@ class SqlTable(DataAsset):
 
         if self.db_conn_url is None:
             return None
+
+        # Validate sqlmodel is installed
         try:
             from sqlmodel import create_engine  # type: ignore
+        except ImportError as ie:
+            raise Exception("SQLModel not installed") from ie
 
+        try:
             logger.info("Creating db_engine using db_conn_url")
             db_engine = create_engine(self.db_conn_url, echo=self.echo)
             logger.debug(f"Created db_engine: {db_engine}")
@@ -196,9 +201,13 @@ class SqlTable(DataAsset):
     ) -> Optional[Union[Engine, Connection]]:
         # Create the SQLAlchemy engine using airflow_conn_id
 
+        # Validate airflow is installed
         try:
             from airflow.providers.postgres.hooks.postgres import PostgresHook
+        except ImportError as ie:
+            raise Exception("Airflow not installed") from ie
 
+        try:
             logger.info(
                 f"Creating db_engine using airflow_conn_id: {self.airflow_conn_id}"
             )
@@ -233,9 +242,13 @@ class SqlTable(DataAsset):
             if conn_url is None or "None" in conn_url:
                 return None
 
-            # Create the SQLAlchemy engine
-            from sqlmodel import create_engine
+            # Validate sqlmodel is installed
+            try:
+                from sqlmodel import create_engine
+            except ImportError as ie:
+                raise Exception("SQLModel not installed") from ie
 
+            # Create the SQLAlchemy engine
             logger.debug("Creating db_engine using db_app")
             db_engine = create_engine(conn_url, echo=self.echo)
             logger.debug(f"Created db_engine: {db_engine}")
@@ -298,38 +311,45 @@ class SqlTable(DataAsset):
         return False
 
     ######################################################
-    ## Write table
+    ## Write DataAsset
     ######################################################
 
-    def write_polars_df(
+    def write_table(
         self,
-        # A polars DataFrame
-        df: Optional[Any] = None,
+        # A pyarrow.Table
+        table: Optional[Any] = None,
         # -*- Number of rows that are processed per thread.
         # By default, all rows will be written at once.
         batch_size: int = 1024,
         # -*- Create the table if it does not exist
-        create_table: bool = True,
+        create_table: bool = False,
         # -*- Create database if it does not exist.
         create_database: bool = False,
-        # -*- How to behave if the table already exists.
-        # fail: Raise a ValueError.
-        # replace: Drop the table before inserting new values.
-        # append: Insert new values to the existing table.
-        if_exists: Optional[Literal["fail", "replace", "append"]] = None,
         **kwargs,
     ) -> bool:
         """
-        Write DataFrame to table.
-        """
+        Write pyarrow.Table to table.
 
-        # SqlTable not yet initialized
-        if self.args is None:
+        https://arrow.apache.org/docs/python/generated/pyarrow.Table.html#pyarrow.Table
+        """
+        # Validate pyarrow is installed
+        try:
+            import pyarrow as pa
+        except ImportError as ie:
+            raise Exception(
+                f"PyArrow not installed. Please install with `pip install pyarrow`"
+            ) from ie
+
+        # Validate sqlmodel is installed
+        try:
+            from sqlmodel import SQLModel, Session
+        except ImportError as ie:
+            logger.error(f"SQLModel not installed: {ie}")
             return False
 
-        # Check name is available
-        if self.name is None:
-            logger.error("Table name invalid")
+        # Validate table
+        if table is None or not isinstance(table, pa.Table):
+            logger.error("Table invalid")
             return False
 
         # Update batch_size
@@ -342,9 +362,99 @@ class SqlTable(DataAsset):
             logger.error("DbEngine invalid")
             return False
 
+        # Validate sql_model
+        if self.data_model is None:
+            logger.error("SQLModel invalid")
+            return False
+        sql_model: SQLModel = self.data_model
+
+        # Validate the Table object
+        # https://docs.sqlalchemy.org/en/14/core/metadata.html#sqlalchemy.schema.Table
+        # https://docs.sqlalchemy.org/en/14/orm/declarative_tables.html#accessing-table-and-metadata
+        sql_model_table = sql_model.__table__  # type: ignore
+        if sql_model_table is None:
+            logger.error("SQLModel table invalid")
+            return False
+
+        # Validate table columns match sql_model columns
+        table_columns = table.column_names
+        sql_model_columns = sql_model.__fields__.keys()
+        if not set(table_columns).issubset(set(sql_model_columns)):
+            logger.error("Table columns do not match SQLModel columns")
+            logger.debug(f"Table columns: {set(table_columns)}")
+            logger.debug(f"SQLModel columns: {set(sql_model_columns)}")
+            return False
+
+        # Load table
+        rows_in_table = table.num_rows
+        logger.info(f"Writing {rows_in_table} rows to table: {self.name}")
+        try:
+            # Create database if it does not exist
+            # TODO: This is not working
+            if self.database is not None and create_database:
+                with db_engine.connect() as connection:
+                    connection.execute(f"CREATE SCHEMA IF NOT EXISTS {self.database}")
+                    logger.info(f"Schema created: {self.database}")
+
+            # Create session
+            session = Session(db_engine)
+
+            # Create table if it does not exist
+            if create_table:
+                sql_model_table.create(db_engine, checkfirst=True)
+
+            # Write DataFrame to table
+            rows_to_commit = 0
+            if rows_in_table > 0:
+                batches: List[pa.RecordBatch] = table.to_batches(
+                    max_chunksize=batch_size
+                )
+                for batch in batches:
+                    batch_rows = batch.to_pylist()
+
+                    for row in batch_rows:
+                        logger.debug(f"Building row: {row}")
+
+                        # Create SQLModel for row
+                        row_model = sql_model(**row)  # type: ignore # noqa
+                        logger.debug(f"Writing row: {row_model}")
+                        # Add to session
+                        session.add(row_model)
+                        rows_to_commit += 1
+                        if rows_to_commit >= batch_size:
+                            # Commit session
+                            session.commit()
+                            logger.info(f"Commit {rows_to_commit} rows")
+                            rows_to_commit = 0
+                if rows_to_commit > 0:
+                    # Final Commit
+                    session.commit()
+                    logger.info(f"Commit {rows_to_commit} rows")
+            logger.info(f"--**-- Done")
+            return True
+        except Exception:
+            logger.error("Could not write table: {}".format(self.name))
+            raise
+
+    def write_polars_df(
+        self,
+        # A polars DataFrame
+        df: Optional[Any] = None,
+        # -*- Number of rows that are processed per thread.
+        # By default, all rows will be written at once.
+        batch_size: int = 1024,
+        # -*- Create the table if it does not exist
+        create_table: bool = False,
+        # -*- Create database if it does not exist.
+        create_database: bool = False,
+        **kwargs,
+    ) -> bool:
+        """
+        Write DataFrame to table.
+        """
         # Validate polars is installed
         try:
-            import polars as pl
+            import polars as pl  # type: ignore
         except ImportError as ie:
             logger.error(f"Polars not installed: {ie}")
             return False
@@ -359,6 +469,16 @@ class SqlTable(DataAsset):
         # Validate df
         if df is None or not isinstance(df, pl.DataFrame):
             logger.error("DataFrame invalid")
+            return False
+
+        # Update batch_size
+        if batch_size < 1:
+            batch_size = 1
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine invalid")
             return False
 
         # Validate sql_model
@@ -457,22 +577,6 @@ class SqlTable(DataAsset):
         """
         Write DataFrame to table.
         """
-
-        # SqlTable not yet initialized
-        if self.args is None:
-            return False
-
-        # Check name is available
-        if self.name is None:
-            logger.error("SqlTable name not available")
-            return False
-
-        # Check engine is available
-        db_engine = self.create_db_engine()
-        if db_engine is None:
-            logger.error("DbEngine not available")
-            return False
-
         # Validate pandas is installed
         try:
             import pandas as pd
@@ -480,8 +584,15 @@ class SqlTable(DataAsset):
             logger.error("Pandas not installed")
             return False
 
+        # Validate df
         if df is None or not isinstance(df, pd.DataFrame):
             logger.error("DataFrame invalid")
+            return False
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
             return False
 
         rows_in_df = df.shape[0]
@@ -529,11 +640,12 @@ class SqlTable(DataAsset):
         """
         Run SQL query using SqlAlchemy.
         """
-        from sqlalchemy.sql import text
-
-        # SqlTable not yet initialized
-        if self.args is None:
-            return None
+        # Validate sqlalchemy is installed
+        try:
+            from sqlalchemy.sql import text
+        except ImportError as ie:
+            logger.error(f"SQLAlchemy not installed: {ie}")
+            return False
 
         # Check engine is available
         db_engine = self.create_db_engine()
@@ -591,22 +703,17 @@ class SqlTable(DataAsset):
             A SQL table is returned as two-dimensional data structure with labeled
             axes.
         """
-
-        # SqlTable not yet initialized
-        if self.args is None:
-            return None
-
-        # Check engine is available
-        db_engine = self.create_db_engine()
-        if db_engine is None:
-            logger.error("DbEngine not available")
-            return False
-
         # Validate pandas is installed
         try:
             import pandas as pd
         except ImportError:
             logger.error("Pandas not installed")
+            return False
+
+        # Check engine is available
+        db_engine = self.create_db_engine()
+        if db_engine is None:
+            logger.error("DbEngine not available")
             return False
 
         logger.info("Running Query:\n{}".format(sql_query))
@@ -647,7 +754,12 @@ class SqlTable(DataAsset):
     ######################################################
 
     def _create(self, if_not_exists: bool = True) -> bool:
-        from sqlmodel import SQLModel
+        # Validate sqlmodel is installed
+        try:
+            from sqlmodel import SQLModel
+        except ImportError as ie:
+            logger.error(f"SQLModel not installed: {ie}")
+            return False
 
         # Check engine is available
         db_engine = self.create_db_engine()
@@ -684,8 +796,24 @@ class SqlTable(DataAsset):
     ## Read DataAsset
     ######################################################
 
+    def read_table(self, **read_options) -> Optional[Any]:
+        """
+        Read pyarrow.Table from table.
+
+        https://arrow.apache.org/docs/python/generated/pyarrow.Table.html#pyarrow.Table
+        """
+        # Validate pyarrow is installed
+        try:
+            import pyarrow as pa
+            import pyarrow.dataset as ds
+        except ImportError as ie:
+            raise Exception(
+                f"PyArrow not installed. Please install with `pip install pyarrow`"
+            ) from ie
+        return None
+
     def read_polars_df(self, **kwargs) -> Optional[Any]:
-        logger.debug(f"@read_df not defined for {self.name}")
+        logger.debug(f"@read_polars_df not defined for {self.name}")
         return False
 
     def read_pandas_df(
@@ -726,22 +854,17 @@ class SqlTable(DataAsset):
             A SQL table is returned as two-dimensional data structure with labeled
             axes.
         """
-
-        # SqlTable not yet initialized
-        if self.args is None:
+        # Validate pandas is installed
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("Pandas not installed")
             return False
 
         # Check engine is available
         db_engine = self.create_db_engine()
         if db_engine is None:
             logger.error("DbEngine not available")
-            return False
-
-        # Validate pandas is installed
-        try:
-            import pandas as pd
-        except ImportError:
-            logger.error("Pandas not installed")
             return False
 
         logger.info("Reading table: {}".format(self.name))
@@ -807,7 +930,12 @@ class SqlTable(DataAsset):
         return self.resource_deleted
 
     def drop(self) -> Any:
-        from sqlmodel import SQLModel
+        # Validate sqlmodel is installed
+        try:
+            from sqlmodel import SQLModel
+        except ImportError as ie:
+            logger.error(f"SQLModel not installed: {ie}")
+            return False
 
         # Check engine is available
         db_engine = self.create_db_engine()

@@ -439,7 +439,7 @@ class LocalTable(LocalAsset):
         """
         # Validate polars is installed
         try:
-            import polars as pl
+            import polars as pl  # type: ignore
         except ImportError as ie:
             logger.error(f"Polars not installed: {ie}")
             return False

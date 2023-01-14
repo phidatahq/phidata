@@ -23,6 +23,8 @@ class WorkspaceSettings(BaseSettings):
     # -*- Dev settings
     #
     dev_env: str = "dev"
+    # Dev git repo branch: used to git-sync DAGs and Charts
+    dev_branch: str = "main"
     # Key for naming dev resources
     dev_key: Optional[str] = None
     # Tags for dev resources
@@ -44,6 +46,8 @@ class WorkspaceSettings(BaseSettings):
     # -*- Staging settings
     #
     stg_env: str = "stg"
+    # Staging git repo branch: used to git-sync DAGs and Charts
+    stg_branch: str = "main"
     # Key for naming staging resources
     stg_key: Optional[str] = None
     # Tags for staging resources
@@ -66,6 +70,8 @@ class WorkspaceSettings(BaseSettings):
     # -*- Production settings
     #
     prd_env: str = "prd"
+    # Production git repo branch: used to git-sync DAGs and Charts
+    prd_branch: str = "main"
     # Key for naming production resources
     prd_key: Optional[str] = None
     # Tags for production resources

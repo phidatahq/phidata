@@ -413,11 +413,11 @@ class SqlTable(DataAsset):
                     batch_rows = batch.to_pylist()
 
                     for row in batch_rows:
-                        logger.debug(f"Building row: {row}")
+                        # logger.debug(f"Building row: {row}")
 
                         # Create SQLModel for row
                         row_model = sql_model(**row)  # type: ignore # noqa
-                        logger.debug(f"Writing row: {row_model}")
+                        # logger.debug(f"Writing row: {row_model}")
                         # Add to session
                         session.add(row_model)
                         rows_to_commit += 1

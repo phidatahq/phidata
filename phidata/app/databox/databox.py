@@ -6,6 +6,7 @@ from phidata.app.db import DbApp
 from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType
 from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
 from phidata.k8s.enums.restart_policy import RestartPolicy
+from phidata.k8s.enums.service_type import ServiceType
 from phidata.utils.log import logger
 
 default_databox_name: str = "databox"
@@ -1757,8 +1758,7 @@ class Databox(PhidataApp):
             command=[self.args.entrypoint]
             if isinstance(self.args.entrypoint, str)
             else self.args.entrypoint,
-            image_pull_policy=self.args.image_pull_policy
-            or ImagePullPolicy.IF_NOT_PRESENT,
+            image_pull_policy=self.args.image_pull_policy or ImagePullPolicy.ALWAYS,
             envs_from_configmap=[cm.cm_name for cm in config_maps]
             if len(config_maps) > 0
             else None,

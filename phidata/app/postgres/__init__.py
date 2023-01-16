@@ -3,4 +3,6 @@ from phidata.app.postgres.postgres_db import (
     PostgresDbArgs,
     ServiceType,
     PostgresVolumeType,
+    ImagePullPolicy,
+    RestartPolicy,
 )

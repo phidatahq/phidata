@@ -36,7 +36,7 @@ class JupyterLabArgs(PhidataAppArgs):
     jupyter_config_file: Optional[str] = None
     # Absolute path to the notebook directory
     # Sets the `--notebook-dir` parameter
-    notebook_dir: Optional[str] = "/mnt"
+    notebook_dir: Optional[str] = None
 
     # -*- Airflow Configuration
     # sets the env var INIT_AIRFLOW = True
@@ -225,7 +225,7 @@ class JupyterLab(PhidataApp):
         jupyter_config_file: Optional[str] = None,
         # Absolute path to the notebook directory,
         # Sets the `--notebook-dir` parameter,
-        notebook_dir: Optional[str] = "/mnt",
+        notebook_dir: Optional[str] = None,
         # -*- Airflow Configuration,
         # sets the env var INIT_AIRFLOW = True,
         # INIT_AIRFLOW = True is required by phidata to build dags,
@@ -1187,7 +1187,10 @@ class JupyterLab(PhidataApp):
         if self.args.jupyter_config_file is not None:
             container_cmd.append(f"--config={str(self.args.jupyter_config_file)}")
 
-        if self.args.notebook_dir is not None:
+        if self.args.notebook_dir is None:
+            if container_paths.workspace_root is not None:
+                container_cmd.append(f"--notebook-dir={str(container_paths.workspace_root)}")
+        else:
             container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
 
         # Create the container
@@ -1842,7 +1845,10 @@ class JupyterLab(PhidataApp):
         if self.args.jupyter_config_file is not None:
             container_args.append(f"--config={str(self.args.jupyter_config_file)}")
 
-        if self.args.notebook_dir is not None:
+        if self.args.notebook_dir is None:
+            if container_paths.workspace_root is not None:
+                container_args.append(f"--notebook-dir={str(container_paths.workspace_root)}")
+        else:
             container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
 
         # container_args.append("--ip=0.0.0.0")

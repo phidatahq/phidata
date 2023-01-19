@@ -119,12 +119,12 @@ class WorkspaceSettings(BaseSettings):
     image_suffix: str = "aws-dp"
     # Build images locally
     build_images: bool = False
-    # Skip docker cache when building images
-    skip_docker_cache: bool = False
-    # Force pull images in FROM
-    pull_docker_images: bool = False
     # Push images after building
-    push_docker_images: bool = False
+    push_images: bool = False
+    # Skip cache when building images
+    skip_image_cache: bool = False
+    # Force pull images in FROM
+    force_pull_images: bool = False
     #
     # -*- Other Settings
     #

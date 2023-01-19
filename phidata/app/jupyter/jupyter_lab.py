@@ -1189,7 +1189,11 @@ class JupyterLab(PhidataApp):
 
         if self.args.notebook_dir is None:
             if container_paths.workspace_root is not None:
-                container_cmd.append(f"--notebook-dir={str(container_paths.workspace_root)}")
+                container_cmd.append(
+                    f"--notebook-dir={str(container_paths.workspace_root)}"
+                )
+            else:
+                container_cmd.append("--notebook-dir=/mnt")
         else:
             container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
 
@@ -1846,8 +1850,7 @@ class JupyterLab(PhidataApp):
             container_args.append(f"--config={str(self.args.jupyter_config_file)}")
 
         if self.args.notebook_dir is None:
-            if container_paths.workspace_root is not None:
-                container_args.append(f"--notebook-dir={str(container_paths.workspace_root)}")
+            container_args.append("--notebook-dir=/mnt")
         else:
             container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
 

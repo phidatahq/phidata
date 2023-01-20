@@ -132,8 +132,9 @@ class EksCluster(AwsResource):
         # Step 2: Get the VPC config
         resources_vpc_config = self.resources_vpc_config
         if resources_vpc_config is None and self.create_vpc_stack:
+            print_info("Creating default vpc stack as no resources_vpc_config provided")
             # Create the CloudFormationStack and get resources_vpc_config
-            vpc_stack = self.get_eks_vpc_stack()
+            vpc_stack = self.get_vpc_stack()
             try:
                 vpc_stack.create(aws_client)
                 resources_vpc_config = self.get_eks_resources_vpc_config(
@@ -289,7 +290,7 @@ class EksCluster(AwsResource):
 
         # Step 2: Delete the CloudFormationStack if needed
         if self.resources_vpc_config is None and self.create_vpc_stack:
-            vpc_stack = self.get_eks_vpc_stack()
+            vpc_stack = self.get_vpc_stack()
             try:
                 vpc_stack.delete(aws_client)
             except Exception as e:
@@ -368,12 +369,16 @@ class EksCluster(AwsResource):
             policy_arns=policy_arns,
         )
 
-    def get_eks_vpc_stack(self) -> CloudFormationStack:
+    def get_vpc_stack(self) -> CloudFormationStack:
         if self.vpc_stack is not None:
             return self.vpc_stack
         return CloudFormationStack(
-            name=self.vpc_stack_name or f"{self.name}-vpc-stack",
+            name=self.vpc_stack_name or f"{self.name}-vpc",
             template_url=self.vpc_stack_template_url,
+            skip_create=self.skip_create,
+            skip_delete=self.skip_delete,
+            wait_for_creation=self.wait_for_creation,
+            wait_for_deletion=self.wait_for_deletion,
         )
 
     def get_subnets(
@@ -396,7 +401,7 @@ class EksCluster(AwsResource):
 
         # Option 2: Get subnets from the cloudformation VPC stack
         if vpc_stack is None:
-            vpc_stack = self.get_eks_vpc_stack()
+            vpc_stack = self.get_vpc_stack()
 
         if self.use_public_subnets:
             public_subnets: Optional[List[str]] = vpc_stack.get_public_subnets(

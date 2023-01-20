@@ -81,7 +81,7 @@ class EksFargateProfile(AwsResource):
 
             # Get private subnets
             # Only private subnets are supported for pods that are running on Fargate.
-            eks_vpc_stack: CloudFormationStack = self.eks_cluster.get_eks_vpc_stack()
+            eks_vpc_stack: CloudFormationStack = self.eks_cluster.get_vpc_stack()
             private_subnets: Optional[List[str]] = eks_vpc_stack.get_private_subnets(
                 aws_client
             )

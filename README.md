@@ -2,7 +2,7 @@
   phidata
 </h1>
 <p align="center">
-    <em>Build data products as code</em>
+    <em>Building Blocks for Data Engineering</em>
 </p>
 
 <p align="center">
@@ -25,227 +25,131 @@
 
 ---
 
-### Phidata is a toolkit for building high-quality, reliable data products.
+### **Phidata is a set of building blocks for data engineering**
 
-Use phidata to create tables, metrics and dashboards for analytics and machine learning.
+It makes data tools plug-n-play so teams can deliver high-quality, reliable data products
 
-Features:
-- Build data products as code.
-- Build a data platform with dev and production environments.
-- Manage tables as python objects and build a data lake as code.
-- Run Airflow and Superset locally on docker and production on aws.
-- Manage everything in 1 codebase using engineering best practices.
+### How it works
 
-More Information:
+- You start with a codebase that has data tools pre-configured
+- Enable the Apps you need - Airflow, Superset, Jupyter, MLFlow
+- Build data products (tables, metrics) in a dev environment running locally on docker
+- Write pipelines in python or SQL. Use GPT-3 to generate boilerplate code
+- Run production on AWS. Infrastructure is also pre-configured
+
+### Advantages
+
+- Automate the grunt work
+- Recipes for common data tasks
+- Everything is version controlled: Infra, Apps and Workflows
+- Equal `dev` and `production` environments for data development at scale
+- Multiple teams working together share code and define dependencies in a pythonic way
+- Formatting (`black`), linting (`ruff`), type-checking (`mypy`) and testing (`pytest`) included
+
+### More Information:
+
 - **Website**: <a href="https://phidata.com" target="_blank">phidata.com</a>
 - **Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
 - **Chat**: <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
 
 ---
 
-## Quick start
+## Quickstart
 
-This guide shows how to:
-1. Run Airflow, Superset, Jupyter and Postgres locally on docker.
-2. Run workflows and create postgres tables.
+Let's build a data product using crypto data. Open the `Terminal` and follow along to download sample data and analyze it in a jupyter notebook.
 
-To follow along, you need:
-
-- python 3.7+
-- [docker desktop](https://docs.docker.com/desktop/install/mac-install/)
-
-## Install phidata
+## Setup
 
 Create a python virtual environment
 
-```shell
+```bash
 python3 -m venv ~/.venvs/dpenv
 source ~/.venvs/dpenv/bin/activate
 ```
 
 Install and initialize phidata
 
-```shell
+```bash
 pip install phidata
 phi init
 ```
 
+> If you encounter errors, try updating pip using `python -m pip install --upgrade pip`
+
 ## Create workspace
 
-**Workspace** is the directory containing the code for your data platform. It is version controlled using git and shared with your team.
+**Workspace** is a directory containing the source code for your data platform. Run `phi ws init` to create a new workspace.
 
-Run `phi ws init` to create a new workspace in the current directory. Press enter to create a default workspace using the `aws` blueprint.
+Press Enter to select the default name (`data-platform`) and template (`aws-data-platform`)
 
-```shell
+```bash
 phi ws init
 ```
 
-cd into directory
+cd into the new workspace directory
 
-```shell
+```bash
 cd data-platform
 ```
 
-## Run Apps
+## Run your first workflow
 
-**Apps** are open-source tools like airflow, superset and jupyter that run the data products.
+The first step of building a data product is collecting the data. The `workflows/crypto/prices.py` file contains an example task for downloading crypto data locally to a CSV file. Run it using
 
-Open **workspace/settings.py** and enable the apps you want to run (line 24). Note: Each app uses a lot of memory so you may need to increase the memory allocated to docker.
-
-```shell
-pg_dbs_enabled: bool = True
-superset_enabled: bool = True
-jupyter_enabled: bool = True
-airflow_enabled: bool = True
-traefik_enabled: bool = True
-```
-
-Then run `phi ws up` to create docker resources. Give 5 minutes for containers to start and the apps to initialize.
-
-```shell
-phi ws up
-
-Deploying workspace: data-platform
-
---**-- Docker env: dev
---**-- Confirm resources:
-  -+-> Network: starter-aws
-  -+-> Container: dev-pg-starter-aws-container
-  -+-> Container: airflow-db-starter-aws-container
-  -+-> Container: airflow-redis-starter-aws-container
-  -+-> Container: airflow-ws-container
-  -+-> Container: airflow-scheduler-container
-  -+-> Container: airflow-worker-container
-  -+-> Container: jupyter-container
-  -+-> Container: superset-db-starter-aws-container
-  -+-> Container: superset-redis-starter-aws-container
-  -+-> Container: superset-ws-container
-  -+-> Container: superset-init-container
-  -+-> Container: traefik
-
-Network: starter-aws
-Total 13 resources
-Confirm deploy [Y/n]:
-```
-
-### Checkout Superset
-
-Open [localhost:8410](http://localhost:8410) in your browser to view the superset UI.
-
-- User: admin
-- Pass: admin
-- Logs: `docker logs -f superset-ws-container`
-
-### Checkout Airflow
-
-Open [localhost:8310](http://localhost:8310) in a separate browser or private window to view the Airflow UI.
-
-- User: admin
-- Pass: admin
-- Logs: `docker logs -f airflow-ws-container`
-
-### Checkout Jupyter
-
-Open [localhost:8888](http://localhost:888) in a browser to view the jupyterlab UI.
-
-- Pass: admin
-- Logs: `docker logs -f jupyter-container`
-
-## Run workflows
-
-### Install dependencies
-
-Before running workflows, we need to install dependencies like `pandas` and `sqlalchemy`.
-The workspace includes a script to install dependencies, run it:
-
-```shell
-./scripts/install.sh
-```
-
-**Or** install dependencies manually using pip:
-
-```shell
-pip install --editable ".[dev]"
-```
-
-### Download crypto prices to a file
-
-The **workflows/crypto/prices.py** file contains a task that pulls crypto prices from coingecko.com and stores them at `storage/crypto/crypto_prices.csv`. Run it using the `phi wf run` command:
-
-```shell
+```bash
 phi wf run crypto/prices
 ```
 
-Note how we define the file as a **File** object:
+Note how we define the output as a `CsvTableLocal` object with partitions and pre-write checks
 
-```shell
-crypto_prices_file = File(
-    name="crypto_prices.csv",
-    file_dir="crypto",
+```python
+# Step 1: Define CsvTableLocal for storing data
+# Path: `storage/tables/crypto_prices`
+crypto_prices_local = CsvTableLocal(
+    name="crypto_prices",
+    database="crypto",
+    partitions=["ds"],
+    write_checks=[NotEmpty()],
 )
 ```
 
-While this works as a toy example, storing data locally is not of much use. We want to either load this data to a database or store it in cloud storage like s3.
+Checkout `data-platform/storage/tables/crypto_prices` for the CSVs
 
-Let's load this data to a postgres table running locally on docker.
+## Run your first App
 
-### Download crypto prices to a postgres table
+**Docker** is a great tool for testing locally. Your workspace comes pre-configured with a jupyter notebook for analyzing data. Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) and after the engine is running, start the workspace using
 
-The **workflows/crypto/prices_pg.py** file contains a workflow that loads crypto price data to a postgres table: `crypto_prices_daily`. Run it using the `phi wf run` command:
-
-```shell
-phi wf run crypto/prices_pg
+```bash
+phi ws up
 ```
 
-We define the table using a **PostgresTable** object:
+Press Enter to confirm. Verify the container is running using the docker dashboard or `docker ps`
 
-```shell
-crypto_prices_daily_pg = PostgresTable(
-    name="crypto_prices_daily",
-    db_app=PG_DB_APP,
-    airflow_conn_id=PG_DB_CONN_ID,
-)
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}'
+
+NAMES               IMAGE
+jupyter-container   phidata/jupyter-aws-dp:dev
 ```
 
-You can now query the table using the database tool of your choice.
+## Jupyter UI
 
-Credentials:
-- Host: 127.0.0.1
-- Port: 5432
-- User: starter-aws
-- Pass: starter-aws
-- Database: starter-aws
+Open [localhost:8888](http://localhost:8888) in a new tab to view the jupyterlab UI. Password: **admin**
 
-> We're big fans of [TablePlus](https://tableplus.com/) for database management.
+Navigate to `notebooks/examples/crypto_prices.ipynb` and run all cells.
 
-## Next steps
+## Shutdown
 
-1. [Deploy to AWS](https://docs.phidata.com/aws/setup).
-2. [Enable traefik](https://docs.phidata.com/local/traefik-docker) and use `airflow.dp` and `superset.dp` local domains.
-3. Read the [documentation](https://docs.phidata.com) to learn more about phidata.
+Play around and then stop the workspace using
 
 
-## Shutdown workspace
-
-Shut down all resources using `phi ws down`:
-
-```shell
+```bash
 phi ws down
 ```
 
-or shut down using the app name:
 
-```shell
-phi ws down --app jupyter
+## Next
 
-phi ws down --app airflow
-
-phi ws down --app superset
-```
-
-## More Information:
-- **Website**: <a href="https://phidata.com" target="_blank">phidata.com</a>
-- **Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
-- **Chat**: <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
+Checkout the [documentation](https://docs.phidata.com) for more information or chat with us on [discord](https://discord.gg/4MtYHHrgA8)
 
 ---

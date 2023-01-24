@@ -177,6 +177,14 @@ class Deployment(K8sResource):
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
 
+        if self.recreate_on_update:
+            logger.info("Recreating Deployment")
+            resource_deleted = self._delete(k8s_client=k8s_client)
+            if not resource_deleted:
+                logger.error("Could not delete resource, please delete manually")
+                return False
+            return self._create(k8s_client=k8s_client)
+
         # update `spec.template.metadata` section
         # to add `kubectl.kubernetes.io/restartedAt` annotation
         # https://github.com/kubernetes-client/python/issues/1378#issuecomment-779323573

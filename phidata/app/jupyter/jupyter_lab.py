@@ -1898,6 +1898,16 @@ class JupyterLab(PhidataApp):
         ):
             deploy_labels.update(self.args.deploy_labels)
 
+        # If using EbsVolume, restart the deployment on update
+        recreate_deployment_on_update = (
+            True
+            if (
+                self.args.create_volume
+                and self.args.volume_type == JupyterVolumeType.AwsEbs
+            )
+            else False
+        )
+
         # Create the deployment
         jupyterlab_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
@@ -1917,6 +1927,7 @@ class JupyterLab(PhidataApp):
             topology_spread_key=self.args.topology_spread_key,
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
+            recreate_on_update=recreate_deployment_on_update,
         )
         deployments.append(jupyterlab_deployment)
 

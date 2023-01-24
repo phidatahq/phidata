@@ -8,7 +8,7 @@ from phidata.utils.log import logger
 
 class InfraResource(BaseModel):
     """Base class for all Phidata infrastructure resources.
-    All Models in the phidata.infra.*.resource modules are expected to be subclasses of this Model.
+    All Models in the phidata.*.resource modules are expected to be subclasses of this Model.
 
     We use a pydantic model for resources because the data which creates the resource
     may come from an external sources like users or an api.
@@ -35,6 +35,9 @@ class InfraResource(BaseModel):
     skip_read: bool = False
     # If True, phi does not update the resource
     skip_update: bool = False
+    # If True, recreate the resource on update
+    # Used for deployments with EBS volumes
+    recreate_on_update: bool = False
     # If True, phi does not delete the resource
     skip_delete: bool = False
 

@@ -1005,6 +1005,17 @@ class Redis(DbApp):
         ):
             deploy_labels.update(self.args.deploy_labels)
 
+        # If using EbsVolume, restart the deployment on update
+        recreate_deployment_on_update = (
+            True
+            if (
+                self.args.create_volume
+                and self.args.volume_type
+                in (RedisVolumeType.AwsEbs, RedisVolumeType.AWS_EBS)
+            )
+            else False
+        )
+
         # Create the Redis deployment
         redis_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
@@ -1024,6 +1035,7 @@ class Redis(DbApp):
             topology_spread_key=self.args.topology_spread_key,
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
+            recreate_on_update=recreate_deployment_on_update,
         )
         deployments.append(redis_deployment)
 

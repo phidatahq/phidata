@@ -45,6 +45,9 @@ class CreateDeployment(BaseModel):
     topology_spread_when_unsatisfiable: Optional[
         Union[str, Literal["DoNotSchedule", "ScheduleAnyway"]]
     ] = None
+    # If True, recreate the resource on update
+    # Used for deployments with EBS volumes
+    recreate_on_update: bool = False
 
     def create(self) -> Optional[Deployment]:
         """Creates the Deployment resource"""
@@ -130,6 +133,7 @@ class CreateDeployment(BaseModel):
                     ),
                 ),
             ),
+            recreate_on_update=self.recreate_on_update,
         )
 
         # logger.debug(

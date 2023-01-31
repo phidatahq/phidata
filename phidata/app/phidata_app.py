@@ -223,6 +223,12 @@ class PhidataAppArgs(PhidataBaseArgs):
     service_load_balancer_source_ranges: Optional[List[str]] = None
     service_allocate_load_balancer_node_ports: Optional[bool] = None
 
+    # K8s Ingress Configuration
+    create_ingress: bool = False
+    ingress_name: Optional[str] = None
+    # Ingress annotations
+    ingress_annotations: Optional[Dict[str, str]] = None
+
     # K8s RBAC Configuration
     use_rbac: bool = False
     # Create a Namespace with name ns_name & default values

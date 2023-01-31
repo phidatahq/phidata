@@ -38,6 +38,7 @@ class K8sApiClient(InfraApiClient):
         self._apiextensions_v1_api: Optional[
             kubernetes.client.ApiextensionsV1Api
         ] = None
+        self._networking_v1_api: Optional[kubernetes.client.NetworkingV1Api] = None
         self._custom_objects_api: Optional[kubernetes.client.CustomObjectsApi] = None
 
         logger.debug(f"**-+-** K8sApiClient created")
@@ -116,6 +117,12 @@ class K8sApiClient(InfraApiClient):
                 self.api_client
             )
         return self._apiextensions_v1_api
+
+    @property
+    def networking_v1_api(self) -> kubernetes.client.NetworkingV1Api:
+        if self._networking_v1_api is None:
+            self._networking_v1_api = kubernetes.client.NetworkingV1Api(self.api_client)
+        return self._networking_v1_api
 
     @property
     def custom_objects_api(self) -> kubernetes.client.CustomObjectsApi:

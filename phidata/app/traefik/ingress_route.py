@@ -28,6 +28,7 @@ from phidata.k8s.create.core.v1.config_map import CreateConfigMap
 from phidata.k8s.create.apps.v1.deployment import CreateDeployment
 from phidata.k8s.create.core.v1.secret import CreateSecret
 from phidata.k8s.create.core.v1.service import CreateService, ServiceType
+from phidata.k8s.create.networking_k8s_io.v1.ingress import CreateIngress, V1IngressRule
 from phidata.k8s.create.common.port import CreatePort
 from phidata.k8s.create.group import CreateK8sResourceGroup
 from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
@@ -53,6 +54,7 @@ from phidata.utils.common import (
     get_default_crb_name,
     get_default_sa_name,
     get_default_secret_name,
+    get_default_ingress_name,
 )
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.cli_console import print_error, print_info, print_warning
@@ -291,6 +293,11 @@ class IngressRoute(PhidataApp):
         service_type: ServiceType = ServiceType.LOAD_BALANCER,
         service_annotations: Optional[Dict[str, Optional[str]]] = None,
         external_traffic_policy: Optional[Literal["Cluster", "Local"]] = None,
+        # K8s Ingress Configuration
+        create_ingress: bool = False,
+        ingress_name: Optional[str] = None,
+        # Ingress annotations
+        ingress_annotations: Optional[Dict[str, str]] = None,
         # Add env variables to container env,
         env: Optional[Dict[str, str]] = None,
         # Read env variables from a file in yaml format,
@@ -344,8 +351,6 @@ class IngressRoute(PhidataApp):
         # Additional args
         # If True, skip resource creation if active resources with the same name exist.
         use_cache: bool = True,
-        # If True, log extra debug messages
-        use_verbose_logs: bool = False,
     ):
         super().__init__()
 
@@ -413,6 +418,9 @@ class IngressRoute(PhidataApp):
                 service_type=service_type,
                 service_annotations=service_annotations,
                 external_traffic_policy=external_traffic_policy,
+                create_ingress=create_ingress,
+                ingress_name=ingress_name,
+                ingress_annotations=ingress_annotations,
                 env=env,
                 env_file=env_file,
                 config_map_name=config_map_name,
@@ -445,6 +453,9 @@ class IngressRoute(PhidataApp):
 
     def get_service_name(self) -> str:
         return self.args.service_name or get_default_service_name(self.args.name)
+
+    def get_ingress_name(self) -> str:
+        return self.args.ingress_name or get_default_ingress_name(self.args.name)
 
     def get_env_data(self) -> Optional[Dict[str, str]]:
         if self.env_data is None:
@@ -982,6 +993,64 @@ class IngressRoute(PhidataApp):
             allocate_load_balancer_node_ports=self.args.allocate_load_balancer_node_ports,
         )
 
+        ingress = None
+        ingress_annotations = self.args.ingress_annotations
+        if ingress_annotations is None:
+            ingress_annotations = {
+                "alb.ingress.kubernetes.io/scheme": "internal"
+                if self.args.load_balancer_scheme == "internal"
+                else "internet-facing",
+                "alb.ingress.kubernetes.io/load-balancer-name": self.get_ingress_name(),
+            }
+        # Add subnets to ALB
+        if self.args.load_balancer_subnets is not None and isinstance(
+            self.args.load_balancer_subnets, list
+        ):
+            ingress_annotations["alb.ingress.kubernetes.io/subnets"] = ", ".join(
+                self.args.load_balancer_subnets
+            )
+
+        if self.args.create_ingress:
+            from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
+            from kubernetes.client.models.v1_ingress_service_backend import (
+                V1IngressServiceBackend,
+            )
+            from kubernetes.client.models.v1_http_ingress_path import V1HTTPIngressPath
+            from kubernetes.client.models.v1_http_ingress_rule_value import (
+                V1HTTPIngressRuleValue,
+            )
+            from kubernetes.client.models.v1_service_port import V1ServicePort
+
+            ingress = CreateIngress(
+                ingress_name=self.get_ingress_name(),
+                app_name=app_name,
+                namespace=k8s_build_context.namespace,
+                service_account_name=sa.sa_name,
+                annotations=ingress_annotations,
+                ingress_class_name="alb",
+                rules=[
+                    V1IngressRule(
+                        http=V1HTTPIngressRuleValue(
+                            paths=[
+                                V1HTTPIngressPath(
+                                    path="/",
+                                    path_type="Prefix",
+                                    backend=V1IngressBackend(
+                                        service=V1IngressServiceBackend(
+                                            name=service.service_name,
+                                            port=V1ServicePort(
+                                                name=self.args.web_key,
+                                                port=self.args.web_service_port,
+                                            ),
+                                        )
+                                    ),
+                                ),
+                            ]
+                        ),
+                    ),
+                ],
+            )
+
         traefik_crds = (
             [
                 ingressroute_crd,
@@ -1008,6 +1077,7 @@ class IngressRoute(PhidataApp):
             config_maps=config_maps,
             secrets=secrets,
             services=[service],
+            ingresses=[ingress] if ingress is not None else [],
             deployments=[deployment],
             custom_objects=custom_objects,
         )

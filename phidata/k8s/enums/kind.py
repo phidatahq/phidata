@@ -10,6 +10,7 @@ class Kind(ExtendedEnum):
     POD = "Pod"
     NAMESPACE = "Namespace"
     SERVICE = "Service"
+    INGRESS = "Ingress"
     SERVICEACCOUNT = "ServiceAccount"
     SECRET = "Secret"
     PERSISTENTVOLUME = "PersistentVolume"

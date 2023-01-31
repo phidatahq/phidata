@@ -34,6 +34,10 @@ def get_default_service_name(app_name: str) -> str:
     return "{}-svc".format(app_name)
 
 
+def get_default_ingress_name(app_name: str) -> str:
+    return "{}-ingress".format(app_name)
+
+
 def get_default_deploy_name(app_name: str) -> str:
     return "{}-deploy".format(app_name)
 

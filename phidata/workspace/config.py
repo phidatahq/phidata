@@ -63,15 +63,17 @@ class WorkspaceConfig(InfraConfig):
         workflows_dir: str = "workflows",
         workspace_config_dir: str = "workspace",
         # -*- Environment parameters
-        # Env vars added to local env
+        # NOTE: These are NOT used by the WorkspaceConfig
+        # So cannot be used in the workspace files
+        # Env vars added to local env when running workflows
         local_env: Optional[Dict[str, str]] = None,
         # Load local env using env file
         local_env_file: Optional[Union[str, Path]] = None,
-        # Env vars added to docker env
+        # Env vars added to docker env when running workflows
         docker_env: Optional[Dict[str, str]] = None,
         # Load docker env using env file
         docker_env_file: Optional[Union[str, Path]] = None,
-        # Env vars added to k8s env
+        # Env vars added to k8s env when running workflows
         k8s_env: Optional[Dict[str, str]] = None,
         # Load k8s env using env file
         k8s_env_file: Optional[Union[str, Path]] = None,

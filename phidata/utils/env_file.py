@@ -32,3 +32,17 @@ def read_env_from_file(env_file: Path) -> Optional[Dict[str, str]]:
         return env_dict
 
     return None
+
+
+def load_env_from_file(env_file: Path) -> None:
+    from os import environ
+    import yaml
+
+    if (
+        env_file.exists()
+        and env_file.is_file()
+        and env_file.suffix in (".yaml", ".yml")
+    ):
+        env_from_file = yaml.safe_load(env_file.read_text())
+        if env_from_file is not None and isinstance(env_from_file, dict):
+            environ.update(env_from_file)

@@ -24,6 +24,7 @@ from phidata.k8s.resource.rbac_authorization_k8s_io.v1.cluste_role_binding impor
 from phidata.k8s.resource.rbac_authorization_k8s_io.v1.cluster_role import (
     ClusterRole,
 )
+from phidata.k8s.resource.networking_k8s_io.v1.ingress import Ingress
 from phidata.k8s.resource.storage_k8s_io.v1.storage_class import StorageClass
 from phidata.utils.log import logger
 
@@ -63,6 +64,7 @@ class K8sResourceGroup(BaseModel):
     config_maps: Optional[List[ConfigMap]] = None
     storage_classes: Optional[List[StorageClass]] = None
     services: Optional[List[Service]] = None
+    ingresses: Optional[List[Ingress]] = None
     deployments: Optional[List[Deployment]] = None
     custom_objects: Optional[List[CustomObject]] = None
     crds: Optional[List[CustomResourceDefinition]] = None
@@ -200,6 +202,20 @@ class K8sResourceGroup(BaseModel):
                     self.services.append(_svc_resource)
                 logger.debug(
                     f"Parsed: {_svc_resource.get_resource_type()}: {_svc_resource.get_resource_name()}"
+                )
+            ######################################################
+            ## Parse Ingresses
+            ######################################################
+            elif kind == "Ingress":
+                from phidata.k8s.resource.networking_k8s_io.v1.ingress import Ingress
+
+                _ingress_resource = Ingress(**manifest)
+                if _ingress_resource is not None:
+                    if self.ingresses is None:
+                        self.ingresses = []
+                    self.ingresses.append(_ingress_resource)
+                logger.debug(
+                    f"Parsed: {_ingress_resource.get_resource_type()}: {_ingress_resource.get_resource_name()}"
                 )
             ######################################################
             ## Parse Deployments

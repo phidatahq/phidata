@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import BaseSettings, validator
+from pydantic import BaseSettings, validator, Extra
 
 
-class WorkspaceSettings(BaseSettings):
+class WorkspaceSettings(BaseSettings, extra=Extra.allow):
     """
     -*- Workspace settings
     Initialize workspace settings by:
@@ -16,7 +16,7 @@ class WorkspaceSettings(BaseSettings):
     # Workspace name: used for naming cloud resources
     ws_name: str
     # Workspace git repo url: used to git-sync DAGs and Charts
-    ws_repo: str
+    ws_repo: Optional[str] = None
     # Path to the workspace directory
     ws_dir: Path
     #
@@ -36,10 +36,12 @@ class WorkspaceSettings(BaseSettings):
     #
     dev_airbyte_enabled: bool = False
     dev_airflow_enabled: bool = False
+    dev_api_enabled: bool = False
     dev_assistant_enabled: bool = False
     dev_databox_enabled: bool = False
     dev_jupyter_enabled: bool = False
     dev_postgres_enabled: bool = False
+    dev_redis_enabled: bool = False
     dev_superset_enabled: bool = False
     dev_traefik_enabled: bool = False
     #
@@ -59,10 +61,12 @@ class WorkspaceSettings(BaseSettings):
     #
     stg_airbyte_enabled: bool = False
     stg_airflow_enabled: bool = False
+    stg_api_enabled: bool = False
     stg_assistant_enabled: bool = False
     stg_databox_enabled: bool = False
     stg_jupyter_enabled: bool = False
     stg_postgres_enabled: bool = False
+    stg_redis_enabled: bool = False
     stg_superset_enabled: bool = False
     stg_traefik_enabled: bool = False
     stg_whoami_enabled: bool = False
@@ -83,10 +87,12 @@ class WorkspaceSettings(BaseSettings):
     #
     prd_airbyte_enabled: bool = False
     prd_airflow_enabled: bool = False
+    prd_api_enabled: bool = False
     prd_assistant_enabled: bool = False
     prd_databox_enabled: bool = False
     prd_jupyter_enabled: bool = False
     prd_postgres_enabled: bool = False
+    prd_redis_enabled: bool = False
     prd_superset_enabled: bool = False
     prd_traefik_enabled: bool = False
     prd_whoami_enabled: bool = False

@@ -7,6 +7,7 @@ class ApiVersion(ExtendedEnum):
     RBAC_AUTH_V1 = "rbac.authorization.k8s.io/v1"
     STORAGE_V1 = "storage.k8s.io/v1"
     APIEXTENSIONS_V1 = "apiextensions.k8s.io/v1"
+    NETWORKING_V1 = "networking.k8s.io/v1"
     # CRDs for Traefik
     TRAEFIK_CONTAINO_US_V1ALPHA1 = "traefik.containo.us/v1alpha1"
     CLIENT_AUTHENTICATION_V1ALPHA1 = "client.authentication.k8s.io/v1alpha1"

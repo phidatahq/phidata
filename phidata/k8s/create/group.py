@@ -23,6 +23,7 @@ from phidata.k8s.create.apiextensions_k8s_io.v1.custom_object import (
     CreateCustomObject,
 )
 from phidata.k8s.create.storage_k8s_io.v1.storage_class import CreateStorageClass
+from phidata.k8s.create.networking_k8s_io.v1.ingress import CreateIngress
 from phidata.k8s.resource.group import (
     K8sResourceGroup,
 )
@@ -41,6 +42,7 @@ class CreateK8sResourceGroup(BaseModel):
     config_maps: Optional[List[CreateConfigMap]] = None
     storage_classes: Optional[List[CreateStorageClass]] = None
     services: Optional[List[CreateService]] = None
+    ingresses: Optional[List[CreateIngress]] = None
     deployments: Optional[List[CreateDeployment]] = None
     custom_objects: Optional[List[CreateCustomObject]] = None
     crds: Optional[List[CreateCustomResourceDefinition]] = None
@@ -243,6 +245,32 @@ class CreateK8sResourceGroup(BaseModel):
                         service_resources.append(_service_resource)
                 if len(service_resources) >= 0:
                     k8s_resource_group.services = service_resources
+
+            ######################################################
+            ## Create Ingresses
+            ######################################################
+            if key == "ingresses":
+                if not isinstance(value, List):
+                    logger.error(
+                        f"Expected: List[CreateIngress]. Received: {type(value)}. Skipping."
+                    )
+                    continue
+
+                # Add necessary imports here to speed up file load time
+                from phidata.k8s.resource.networking_k8s_io.v1.ingress import Ingress
+
+                ingress_resources: List[Ingress] = []
+                for _ingress in value:
+                    if not isinstance(_ingress, CreateIngress):
+                        logger.error(
+                            f"Expected: CreateIngress. Received: {type(_ingress)}. Skipping."
+                        )
+                        continue
+                    _ingress_resource: Optional[Ingress] = _ingress.create()
+                    if _ingress_resource is not None:
+                        ingress_resources.append(_ingress_resource)
+                if len(ingress_resources) >= 0:
+                    k8s_resource_group.ingresses = ingress_resources
 
             ######################################################
             ## Create Deployments

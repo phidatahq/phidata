@@ -77,10 +77,16 @@ class DockerImage(DockerResource):
         return self.get_name_tag()
 
     def get_name_tag(self) -> str:
+        # Deprecated
         image_name_tag = self.name
         if self.tag:
             image_name_tag = f"{image_name_tag}:{self.tag}"
         return image_name_tag
+
+    def get_image_str(self) -> str:
+        if self.tag:
+            return f"{self.name}:{self.tag}"
+        return f"{self.name}:latest"
 
     def build_image(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient

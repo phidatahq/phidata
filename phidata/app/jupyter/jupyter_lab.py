@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Literal
+from typing import Optional, Dict, Any, List, Union
+from typing_extensions import Literal
 
 from phidata.app.db import DbApp
 from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType

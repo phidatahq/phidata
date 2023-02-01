@@ -8,6 +8,7 @@ from phidata.docker.resource.group import (
     DockerContainer,
     DockerResourceGroup,
     DockerBuildContext,
+    DockerNetwork,
 )
 from phidata.docker.resource.utils import filter_and_flatten_docker_resource_groups
 from phidata.utils.cli_console import (
@@ -156,6 +157,7 @@ class DockerWorker:
             num_rgs_to_build += 1
             default_docker_rg = DockerResourceGroup(
                 # weight=10,
+                network=DockerNetwork(name=self.docker_args.network),
                 images=self.docker_args.images,
                 containers=self.docker_args.containers,
                 volumes=self.docker_args.volumes,

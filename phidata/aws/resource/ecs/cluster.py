@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Any, Dict, List, Literal
+from typing import Optional, Any, Dict, List
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource

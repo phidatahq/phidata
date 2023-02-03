@@ -1,4 +1,5 @@
-from typing import Optional, Literal, List, Tuple, Dict, Any, Union
+from typing import Optional, List, Tuple, Dict, Any, Union
+from typing_extensions import Literal
 
 from phidata.asset.aws.aws_asset import AwsAsset, AwsAssetArgs
 from phidata.aws.resource.s3.bucket import S3Bucket

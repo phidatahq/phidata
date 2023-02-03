@@ -7,11 +7,11 @@ from typing import (
     List,
     Callable,
     Tuple,
-    Literal,
     cast,
     Union,
     Iterable,
 )
+from typing_extensions import Literal
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.asset.data_asset import DataAsset

@@ -1,4 +1,5 @@
-from typing import Optional, Literal, List, Tuple, Dict, Any, Union
+from typing import Optional, List, Tuple, Dict, Any, Union
+from typing_extensions import Literal
 
 from phidata.aws.s3.dataset_base import (
     S3DatasetBase,

@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Optional, Literal, Union, List
+from typing import Optional, Union, List
+from typing_extensions import Literal
 
 from phidata.asset.local.file import LocalFile, LocalFileFormat
 from phidata.table.sql.sql_table import SqlTable

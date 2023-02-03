@@ -1,4 +1,5 @@
-from typing import Optional, Literal, Union, List
+from typing import Optional, Union, List
+from typing_extensions import Literal
 
 from phidata.table.sql.sql_table import SqlTable
 from phidata.utils.log import logger

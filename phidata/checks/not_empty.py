@@ -1,4 +1,5 @@
-from typing import Optional, Any, Literal
+from typing import Optional, Any
+from typing_extensions import Literal
 
 from phidata.checks.check import Check
 from phidata.utils.log import logger

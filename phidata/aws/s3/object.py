@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional
+from typing_extensions import Literal
 
 from phidata.asset.local.file import LocalFile
 from phidata.asset.data_asset import DataAsset, DataAssetArgs

@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Optional, Any, List, Dict, Literal
+from typing import Optional, Any, List, Dict
+from typing_extensions import Literal
 
 from phidata.asset.data_asset import DataAsset
 from phidata.base import PhidataBase, PhidataBaseArgs

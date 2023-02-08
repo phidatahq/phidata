@@ -14,7 +14,7 @@ from phidata.app.spark.spark_base import (
 class SparkWorker(SparkBase):
     def __init__(
         self,
-        name: str = "spark",
+        name: str = "spark-worker",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,

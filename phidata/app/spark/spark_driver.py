@@ -14,7 +14,7 @@ from phidata.app.spark.spark_base import (
 class SparkDriver(SparkBase):
     def __init__(
         self,
-        name: str = "spark",
+        name: str = "spark-driver",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,

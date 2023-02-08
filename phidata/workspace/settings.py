@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import BaseSettings, validator, Extra
+from pydantic import BaseSettings, validator
 
 
-class WorkspaceSettings(BaseSettings, extra=Extra.allow):
+class WorkspaceSettings(BaseSettings):
     """
     -*- Workspace settings
     Initialize workspace settings by:
@@ -39,10 +39,13 @@ class WorkspaceSettings(BaseSettings, extra=Extra.allow):
     dev_api_server_enabled: bool = False
     dev_assistant_enabled: bool = False
     dev_databox_enabled: bool = False
+    dev_grafana_enabled: bool = False
     dev_jupyter_enabled: bool = False
     dev_ml_server_enabled: bool = False
     dev_postgres_enabled: bool = False
+    dev_prometheus_enabled: bool = False
     dev_redis_enabled: bool = False
+    dev_spark_enabled: bool = False
     dev_superset_enabled: bool = False
     dev_traefik_enabled: bool = False
     #
@@ -65,10 +68,13 @@ class WorkspaceSettings(BaseSettings, extra=Extra.allow):
     stg_api_server_enabled: bool = False
     stg_assistant_enabled: bool = False
     stg_databox_enabled: bool = False
+    stg_grafana_enabled: bool = False
     stg_jupyter_enabled: bool = False
     stg_ml_server_enabled: bool = False
     stg_postgres_enabled: bool = False
+    stg_prometheus_enabled: bool = False
     stg_redis_enabled: bool = False
+    stg_spark_enabled: bool = False
     stg_superset_enabled: bool = False
     stg_traefik_enabled: bool = False
     stg_whoami_enabled: bool = False
@@ -92,10 +98,13 @@ class WorkspaceSettings(BaseSettings, extra=Extra.allow):
     prd_api_server_enabled: bool = False
     prd_assistant_enabled: bool = False
     prd_databox_enabled: bool = False
+    prd_grafana_enabled: bool = False
     prd_jupyter_enabled: bool = False
     prd_ml_server_enabled: bool = False
     prd_postgres_enabled: bool = False
+    prd_prometheus_enabled: bool = False
     prd_redis_enabled: bool = False
+    prd_spark_enabled: bool = False
     prd_superset_enabled: bool = False
     prd_traefik_enabled: bool = False
     prd_whoami_enabled: bool = False

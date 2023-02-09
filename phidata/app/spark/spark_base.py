@@ -547,12 +547,27 @@ class SparkBase(PhidataApp):
                 str(self.args.container_port)
             ] = self.args.container_host_port
 
+        container_cmd: List[str]
+        if isinstance(self.args.command, str):
+            container_cmd = self.args.command.split(" ")
+        else:
+            container_cmd = self.args.command
+
+        if self.args.cores is not None:
+            container_cmd.append(f"--cores {str(self.args.cores)}")
+
+        if self.args.memory is not None:
+            container_cmd.append(f"--memory {str(self.args.memory)}")
+
+        if self.args.properties_file is not None:
+            container_cmd.append(f"--properties-file {str(self.args.properties_file)}")
+
         # Create the container
         docker_container = DockerContainer(
             name=self.get_container_name(),
             image=self.get_image_str(),
             entrypoint=self.args.entrypoint,
-            command=self.args.command,
+            command=" ".join(container_cmd),
             detach=self.args.container_detach,
             auto_remove=self.args.container_auto_remove,
             healthcheck=self.args.container_healthcheck,

@@ -22,11 +22,6 @@ class PrometheusArgs(PhidataAppArgs):
     # -*- Prometheus Configuration
     scrape_interval: Optional[int] = None
     scrape_timeout: Optional[int]  = 10
-#     alerting: alertmanagers:
-#   - scheme: http
-#     static_configs:
-#     - targets:
-#       - "alertmanager:9093"
 
 class Prometheus(PhidataApp):
     def __init__(

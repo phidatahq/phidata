@@ -20,7 +20,6 @@ class GrafanaArgs(PhidataAppArgs):
     command: Optional[Union[str, List]] = None
 
     # -*- Grafana Configuration
-    depends_on: Optional[str] = None
 
 class Grafana(PhidataApp):
     def __init__(
@@ -40,7 +39,6 @@ class Grafana(PhidataApp):
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
         # -*- Grafana Configuration
-        depends_on: str = 'prometheus',
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -263,7 +261,6 @@ class Grafana(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                depends_on=depends_on,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,

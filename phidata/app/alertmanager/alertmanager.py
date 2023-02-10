@@ -20,7 +20,6 @@ class AlertManagerArgs(PhidataAppArgs):
     command: Optional[Union[str, List]] = None
 
     # -*- AlertManager Configuration
-    restart:Optional[str] = None
 
 class AlertManager(PhidataApp):
     def __init__(
@@ -39,7 +38,7 @@ class AlertManager(PhidataApp):
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Grafana Configuration
+        # -*- AlertManager Configuration
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -911,7 +910,7 @@ class AlertManager(PhidataApp):
         ):
             container_labels.update(self.args.container_labels)
 
-        # Create the Grafana container
+        # Create the AlertManager container
         alertmanager_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,

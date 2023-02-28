@@ -20,6 +20,10 @@ class GrafanaArgs(PhidataAppArgs):
     command: Optional[Union[str, List]] = None
 
     # -*- Grafana Configuration
+    grafana_config: Optional[str] = None
+    mount_resources: bool = False
+    resources_dir: str = "/workspace/dev/monitoring/resources"
+    resources_dir_container_path: str = "/etc/grafana/provisioning"
 
 class Grafana(PhidataApp):
     def __init__(
@@ -39,6 +43,10 @@ class Grafana(PhidataApp):
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
         # -*- Grafana Configuration
+        grafana_config: Optional[str] = None,
+        mount_resources: bool = False,
+        resources_dir: str = "/workspace/dev/monitoring/resources",
+        resources_dir_container_path: str = "/etc/grafana/provisioning",
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -261,6 +269,10 @@ class Grafana(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
+                grafana_config = grafana_config,
+                mount_resources=mount_resources,
+                resources_dir=resources_dir,
+                resources_dir_container_path=resources_dir_container_path,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -436,6 +448,12 @@ class Grafana(PhidataApp):
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
+        # if self.args.grafana_config is not None:
+        #     grafana_config_path_str = f"{container_paths.workspace_root}/{self.args.grafana_config}"
+        #     container_env["GF_PATHS_CONFIG"] = grafana_config_path_str
+
+        # logger.debug(grafana_config_path_str)
+
         # Set aws env vars
         self.set_aws_env_vars(env_dict=container_env)
 
@@ -502,6 +520,20 @@ class Grafana(PhidataApp):
                 logger.error(f"{self.args.workspace_volume_type.value} not supported")
                 return None
 
+        # Create a volume for the resources
+        if self.args.mount_resources:
+            resources_dir_path = str(
+                self.workspace_root_path.joinpath(self.args.resources_dir)
+            )
+            logger.debug(f"Mounting: {resources_dir_path}")
+            logger.debug(f"\tto: {self.args.resources_dir_container_path}")
+            container_volumes[resources_dir_path] = {
+                "bind": self.args.resources_dir_container_path,
+                "mode": "ro",
+            }
+        logger.debug(container_volumes[resources_dir_path])
+        logger.debug(self.args.resources_dir_container_path)
+
         # Container Ports
         # container_ports is a dictionary which configures the ports to bind
         # inside the container. The key is the port to bind inside the container
@@ -516,6 +548,18 @@ class Grafana(PhidataApp):
             container_ports[
                 str(self.args.container_port)
             ] = self.args.container_host_port
+
+
+        # container_cmd: List[str]
+        # if isinstance(self.args.command, str):
+        #     container_cmd = self.args.command.split(" ")
+        # else:
+        #     container_cmd = self.args.command
+
+        # if self.args.grafana_config is not None:
+        #     grafana_config_path_str = f"{container_paths.workspace_root}/{self.args.grafana_config}"
+        #     container_cmd.append(f"--config={grafana_config_path_str}")
+        # logger.debug(f"Container command: {container_cmd}")
 
         # Create the container
         docker_container = DockerContainer(

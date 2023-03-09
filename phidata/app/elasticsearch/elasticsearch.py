@@ -8,47 +8,43 @@ from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.log import logger
 
 
-class PrometheusArgs(PhidataAppArgs):
-    name: str = "prometheus"
+class ElasticSearchArgs(PhidataAppArgs):
+    name: str = "elasticsearch"
     version: str = "1"
     enabled: bool = True
 
     # -*- Image Configuration
-    image_name: str = "prom/prometheus"
-    image_tag: str = "v2.42.0"
+    image_name: str = "elasticsearch"
+    image_tag: str = "7.17.9"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
-    # -*- Prometheus Configuration
-    # Mount resources volume. Only on docker
-    # resources_dir is relative to the workspace_root
-    # resources_dir contains all the config files required by Prometheus.
-    # resources_dir is mounted to the `/etc/prometheus` directory on the container
-    mount_resources: bool = False
-    resources_dir: str = "/workspace/dev/monitoring/resources"
-    resources_dir_container_path: str = "/etc/prometheus"
+    # -*- elasticsearch Configuration
+    discovery: Optional[str] = "single-node"
+    # scrape_interval: Optional[int] = None
+    # scrape_timeout: Optional[int]  = 10
 
-class Prometheus(PhidataApp):
+class ElasticSearch(PhidataApp):
     def __init__(
         self,
-        name: str = "prometheus",
+        name: str = "elasticsearch",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
-        image_name: str = "prom/prometheus",
-        image_tag: str = "v2.42.0",
+        image_name: str = "elasticsearch",
+        image_tag: str = "7.17.9",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Prometheus Configuration
-        mount_resources: bool = False,
-        resources_dir: str = "/workspace/dev/monitoring/resources",
-        resources_dir_container_path: str = "/etc/prometheus",
+        # -*- elasticsearch Configuration
+        discovery: Optional[str] = "single-node",
+        # scrape_interval: Optional[int] = None,
+        # scrape_timeout: Optional[int]  = 10,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -75,11 +71,11 @@ class Prometheus(PhidataApp):
         # Open a container port if open_container_port=True,
         open_container_port: bool = True,
         # Port number on the container,
-        container_port: int = 9090,
+        container_port: int = 9200,
         # Port name: Only used by the K8sContainer,
         container_port_name: str = "http",
         # Host port: Only used by the DockerContainer,
-        container_host_port: int = 9090,
+        container_host_port: int = 9200,
         # Container volumes,
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
@@ -260,7 +256,7 @@ class Prometheus(PhidataApp):
     ):
         super().__init__()
         try:
-            self.args: PrometheusArgs = PrometheusArgs(
+            self.args: ElasticSearchArgs = ElasticSearchArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -271,9 +267,7 @@ class Prometheus(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                mount_resources=mount_resources,
-                resources_dir=resources_dir,
-                resources_dir_container_path=resources_dir_container_path,
+                discovery = discovery,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -447,6 +441,8 @@ class Prometheus(PhidataApp):
             "MOUNT_WORKSPACE": str(self.args.mount_workspace),
             # Print env when the container starts
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+            # elasticsearch env
+            "discovery.type": str(self.args.discovery),
         }
 
         # Set aws env vars
@@ -501,10 +497,10 @@ class Prometheus(PhidataApp):
                 if workspace_volume_name is None:
                     if workspace_name is not None:
                         workspace_volume_name = get_default_volume_name(
-                            f"prometheus-{workspace_name}-ws"
+                            f"elasticsearch-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("prometheus-ws")
+                        workspace_volume_name = get_default_volume_name("elasticsearch-ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -514,18 +510,6 @@ class Prometheus(PhidataApp):
             else:
                 logger.error(f"{self.args.workspace_volume_type.value} not supported")
                 return None
-
-        # Create a volume for the resources
-        if self.args.mount_resources:
-            resources_dir_path = str(
-                self.workspace_root_path.joinpath(self.args.resources_dir)
-            )
-            logger.debug(f"Mounting: {resources_dir_path}")
-            logger.debug(f"\tto: {self.args.resources_dir_container_path}")
-            container_volumes[resources_dir_path] = {
-                "bind": self.args.resources_dir_container_path,
-                "mode": "ro",
-            }
 
         # Container Ports
         # container_ports is a dictionary which configures the ports to bind
@@ -541,6 +525,16 @@ class Prometheus(PhidataApp):
             container_ports[
                 str(self.args.container_port)
             ] = self.args.container_host_port
+
+        container_cmd: List[str]
+        if isinstance(self.args.command, str):
+            container_cmd = self.args.command.split(" ")
+        else:
+            container_cmd = self.args.command
+
+        # if self.args.discovery is not None:
+        #     container_cmd.append(f"--discovery{str(self.args.discovery)}")
+
 
         # Create the container
         docker_container = DockerContainer(
@@ -835,10 +829,10 @@ class Prometheus(PhidataApp):
             if workspace_volume_name is None:
                 if workspace_name is not None:
                     workspace_volume_name = get_default_volume_name(
-                        f"prometheus-{workspace_name}-ws"
+                        f"elasticsearch-{workspace_name}-ws"
                     )
                 else:
-                    workspace_volume_name = get_default_volume_name("prometheus-ws")
+                    workspace_volume_name = get_default_volume_name("elasticsearch-ws")
 
             # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
             if (
@@ -935,8 +929,8 @@ class Prometheus(PhidataApp):
         ):
             container_labels.update(self.args.container_labels)
 
-        # Create the Prometheus container
-        prometheus_container = CreateContainer(
+        # Create the elasticsearch container
+        elasticsearch_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
@@ -961,12 +955,12 @@ class Prometheus(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, prometheus_container)
+        containers.insert(0, elasticsearch_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": prometheus_container.container_name,
+            "kubectl.kubernetes.io/default-container": elasticsearch_container.container_name,
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -980,7 +974,7 @@ class Prometheus(PhidataApp):
             deploy_labels.update(self.args.deploy_labels)
 
         # Create the deployment
-        prometheus_deployment = CreateDeployment(
+        elasticsearch_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
             pod_name=self.get_pod_name(),
             app_name=app_name,
@@ -999,7 +993,7 @@ class Prometheus(PhidataApp):
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
-        deployments.append(prometheus_deployment)
+        deployments.append(elasticsearch_deployment)
 
         # Create the services
         if self.args.create_service:
@@ -1015,7 +1009,7 @@ class Prometheus(PhidataApp):
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=prometheus_deployment,
+                deployment=elasticsearch_deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )

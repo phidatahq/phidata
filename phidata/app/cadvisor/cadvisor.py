@@ -8,47 +8,37 @@ from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.log import logger
 
 
-class PrometheusArgs(PhidataAppArgs):
-    name: str = "prometheus"
+class CadvisorArgs(PhidataAppArgs):
+    name: str = "cadvisor"
     version: str = "1"
     enabled: bool = True
 
     # -*- Image Configuration
-    image_name: str = "prom/prometheus"
-    image_tag: str = "v2.42.0"
+    image_name: str = "gcr.io/cadvisor/cadvisor"
+    image_tag: str = "v0.47.1"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
-    # -*- Prometheus Configuration
-    # Mount resources volume. Only on docker
-    # resources_dir is relative to the workspace_root
-    # resources_dir contains all the config files required by Prometheus.
-    # resources_dir is mounted to the `/etc/prometheus` directory on the container
-    mount_resources: bool = False
-    resources_dir: str = "/workspace/dev/monitoring/resources"
-    resources_dir_container_path: str = "/etc/prometheus"
+    # -*- Cadvisor Configuration
 
-class Prometheus(PhidataApp):
+class Cadvisor(PhidataApp):
     def __init__(
         self,
-        name: str = "prometheus",
+        name: str = "cadvisor",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
-        image_name: str = "prom/prometheus",
-        image_tag: str = "v2.42.0",
+        image_name: str = "gcr.io/cadvisor/cadvisor",
+        image_tag: str = "v0.47.1",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Prometheus Configuration
-        mount_resources: bool = False,
-        resources_dir: str = "/workspace/dev/monitoring/resources",
-        resources_dir_container_path: str = "/etc/prometheus",
+        # -*- Cadvisor Configuration
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -75,11 +65,11 @@ class Prometheus(PhidataApp):
         # Open a container port if open_container_port=True,
         open_container_port: bool = True,
         # Port number on the container,
-        container_port: int = 9090,
+        container_port: int = 8080,
         # Port name: Only used by the K8sContainer,
         container_port_name: str = "http",
         # Host port: Only used by the DockerContainer,
-        container_host_port: int = 9090,
+        container_host_port: int = 8080,
         # Container volumes,
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
@@ -260,7 +250,7 @@ class Prometheus(PhidataApp):
     ):
         super().__init__()
         try:
-            self.args: PrometheusArgs = PrometheusArgs(
+            self.args: CadvisorArgs = CadvisorArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -271,9 +261,7 @@ class Prometheus(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                mount_resources=mount_resources,
-                resources_dir=resources_dir,
-                resources_dir_container_path=resources_dir_container_path,
+
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -515,18 +503,49 @@ class Prometheus(PhidataApp):
                 logger.error(f"{self.args.workspace_volume_type.value} not supported")
                 return None
 
-        # Create a volume for the resources
-        if self.args.mount_resources:
-            resources_dir_path = str(
-                self.workspace_root_path.joinpath(self.args.resources_dir)
-            )
-            logger.debug(f"Mounting: {resources_dir_path}")
-            logger.debug(f"\tto: {self.args.resources_dir_container_path}")
-            container_volumes[resources_dir_path] = {
-                "bind": self.args.resources_dir_container_path,
+        mount_docker_socket = True
+        if mount_docker_socket:
+            docker_socket_host_path = "/var/run"
+            docker_socket_container_path_str = "/var/run"
+            logger.debug(f"Mounting: {docker_socket_host_path}")
+            logger.debug(f"\tto: {docker_socket_container_path_str}")
+            container_volumes[docker_socket_host_path] = {
+                "bind": docker_socket_container_path_str,
                 "mode": "ro",
             }
 
+        mount_docker_lib = True
+        if mount_docker_lib:
+            docker_lib_host_path = "/var/lib/docker"
+            docker_lib_container_path_str = "/var/lib/docker"
+            logger.debug(f"Mounting: {docker_lib_host_path}")
+            logger.debug(f"\tto: {docker_lib_container_path_str}")
+            container_volumes[docker_lib_host_path] = {
+                "bind": docker_lib_container_path_str,
+                "mode": "ro",
+            }
+
+        # mount_docker_disk = True
+        # if mount_docker_disk:
+        #     docker_disk_host_path = "/dev/disk"
+        #     docker_disk_container_path_str = "/dev/disk"
+        #     logger.debug(f"Mounting: {docker_disk_host_path}")
+        #     logger.debug(f"\tto: {docker_disk_container_path_str}")
+        #     container_volumes[docker_disk_host_path] = {
+        #         "bind": docker_disk_container_path_str,
+        #         "mode": "ro",
+        #    }
+
+        mount_docker_sys = True
+        if mount_docker_sys:
+            docker_sys_host_path = "/sys"
+            docker_sys_container_path_str = "/sys"
+            logger.debug(f"Mounting: {docker_sys_host_path}")
+            logger.debug(f"\tto: {docker_sys_container_path_str}")
+            container_volumes[docker_sys_host_path] = {
+                "bind": docker_sys_container_path_str,
+                "mode": "ro",
+            }
         # Container Ports
         # container_ports is a dictionary which configures the ports to bind
         # inside the container. The key is the port to bind inside the container
@@ -565,6 +584,7 @@ class Prometheus(PhidataApp):
             volumes=container_volumes if len(container_volumes) > 0 else None,
             working_dir=self.args.container_working_dir,
             use_cache=self.args.use_cache,
+            # devices=["/dev/kmsg"],
         )
 
         docker_rg = DockerResourceGroup(

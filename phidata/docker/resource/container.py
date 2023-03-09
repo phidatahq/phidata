@@ -103,6 +103,7 @@ class DockerContainer(DockerResource):
     volumes: Optional[Union[Dict[str, Any], List]] = None
     # working_dir (str) – Path to the working directory.
     working_dir: Optional[str] = None
+    devices: Optional[list] = None
 
     # Data provided by the resource running on the docker client
     status: Optional[str] = None
@@ -146,6 +147,7 @@ class DockerContainer(DockerResource):
                 user=self.user,
                 volumes=self.volumes,
                 working_dir=self.working_dir,
+                devices=self.devices,
             )
             return container
         except AttributeError as attr_error:

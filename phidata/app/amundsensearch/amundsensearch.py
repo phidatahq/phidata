@@ -8,37 +8,37 @@ from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.log import logger
 
 
-class CadvisorArgs(PhidataAppArgs):
-    name: str = "cadvisor"
+class AmundsenSearchArgs(PhidataAppArgs):
+    name: str = "amundsensearch"
     version: str = "1"
     enabled: bool = True
 
     # -*- Image Configuration
-    image_name: str = "gcr.io/cadvisor/cadvisor"
-    image_tag: str = "v0.47.1"
+    image_name: str = "amundsendev/amundsen-search"
+    image_tag: str = "4.0.2"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
-    # -*- Cadvisor Configuration
+    # -*- AmundsenSearch Configuration
 
-class Cadvisor(PhidataApp):
+class AmundsenSearch(PhidataApp):
     def __init__(
         self,
-        name: str = "cadvisor",
+        name: str = "amundsen-search",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
-        image_name: str = "gcr.io/cadvisor/cadvisor",
-        image_tag: str = "v0.47.1",
+        image_name: str = "amundsendev/amundsen-search",
+        image_tag: str = "4.0.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Cadvisor Configuration
+        # -*- AmundsenSearch Configuration
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -65,11 +65,11 @@ class Cadvisor(PhidataApp):
         # Open a container port if open_container_port=True,
         open_container_port: bool = True,
         # Port number on the container,
-        container_port: int = 8080,
+        container_port: int = 5000,
         # Port name: Only used by the K8sContainer,
         container_port_name: str = "http",
         # Host port: Only used by the DockerContainer,
-        container_host_port: int = 8080,
+        container_host_port: int = 5001,
         # Container volumes,
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
@@ -250,7 +250,7 @@ class Cadvisor(PhidataApp):
     ):
         super().__init__()
         try:
-            self.args: CadvisorArgs = CadvisorArgs(
+            self.args: AmundsenSearchArgs = AmundsenSearchArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -261,7 +261,6 @@ class Cadvisor(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -489,10 +488,10 @@ class Cadvisor(PhidataApp):
                 if workspace_volume_name is None:
                     if workspace_name is not None:
                         workspace_volume_name = get_default_volume_name(
-                            f"prometheus-{workspace_name}-ws"
+                            f"AmundsenSearch-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("prometheus-ws")
+                        workspace_volume_name = get_default_volume_name("AmundsenSearch-ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -503,49 +502,6 @@ class Cadvisor(PhidataApp):
                 logger.error(f"{self.args.workspace_volume_type.value} not supported")
                 return None
 
-        mount_docker_socket = True
-        if mount_docker_socket:
-            docker_socket_host_path = "/var/run"
-            docker_socket_container_path_str = "/var/run"
-            logger.debug(f"Mounting: {docker_socket_host_path}")
-            logger.debug(f"\tto: {docker_socket_container_path_str}")
-            container_volumes[docker_socket_host_path] = {
-                "bind": docker_socket_container_path_str,
-                "mode": "ro",
-            }
-
-        mount_docker_lib = True
-        if mount_docker_lib:
-            docker_lib_host_path = "/var/lib/docker"
-            docker_lib_container_path_str = "/var/lib/docker"
-            logger.debug(f"Mounting: {docker_lib_host_path}")
-            logger.debug(f"\tto: {docker_lib_container_path_str}")
-            container_volumes[docker_lib_host_path] = {
-                "bind": docker_lib_container_path_str,
-                "mode": "ro",
-            }
-
-        # mount_docker_disk = True
-        # if mount_docker_disk:
-        #     docker_disk_host_path = "/dev/disk"
-        #     docker_disk_container_path_str = "/dev/disk"
-        #     logger.debug(f"Mounting: {docker_disk_host_path}")
-        #     logger.debug(f"\tto: {docker_disk_container_path_str}")
-        #     container_volumes[docker_disk_host_path] = {
-        #         "bind": docker_disk_container_path_str,
-        #         "mode": "ro",
-        #    }
-
-        mount_docker_sys = True
-        if mount_docker_sys:
-            docker_sys_host_path = "/sys"
-            docker_sys_container_path_str = "/sys"
-            logger.debug(f"Mounting: {docker_sys_host_path}")
-            logger.debug(f"\tto: {docker_sys_container_path_str}")
-            container_volumes[docker_sys_host_path] = {
-                "bind": docker_sys_container_path_str,
-                "mode": "ro",
-            }
         # Container Ports
         # container_ports is a dictionary which configures the ports to bind
         # inside the container. The key is the port to bind inside the container
@@ -584,7 +540,6 @@ class Cadvisor(PhidataApp):
             volumes=container_volumes if len(container_volumes) > 0 else None,
             working_dir=self.args.container_working_dir,
             use_cache=self.args.use_cache,
-            # devices=["/dev/kmsg"],
         )
 
         docker_rg = DockerResourceGroup(
@@ -855,10 +810,10 @@ class Cadvisor(PhidataApp):
             if workspace_volume_name is None:
                 if workspace_name is not None:
                     workspace_volume_name = get_default_volume_name(
-                        f"prometheus-{workspace_name}-ws"
+                        f"AmundsenSearch-{workspace_name}-ws"
                     )
                 else:
-                    workspace_volume_name = get_default_volume_name("prometheus-ws")
+                    workspace_volume_name = get_default_volume_name("AmundsenSearch-ws")
 
             # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
             if (
@@ -955,8 +910,8 @@ class Cadvisor(PhidataApp):
         ):
             container_labels.update(self.args.container_labels)
 
-        # Create the Prometheus container
-        prometheus_container = CreateContainer(
+        # Create the AmundsenSearch container
+        AmundsenSearch_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
@@ -981,12 +936,12 @@ class Cadvisor(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, prometheus_container)
+        containers.insert(0, AmundsenSearch_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": prometheus_container.container_name,
+            "kubectl.kubernetes.io/default-container": AmundsenSearch_container.container_name,
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -1000,7 +955,7 @@ class Cadvisor(PhidataApp):
             deploy_labels.update(self.args.deploy_labels)
 
         # Create the deployment
-        prometheus_deployment = CreateDeployment(
+        AmundsenSearch_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
             pod_name=self.get_pod_name(),
             app_name=app_name,
@@ -1019,7 +974,7 @@ class Cadvisor(PhidataApp):
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
-        deployments.append(prometheus_deployment)
+        deployments.append(AmundsenSearch_deployment)
 
         # Create the services
         if self.args.create_service:
@@ -1035,7 +990,7 @@ class Cadvisor(PhidataApp):
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=prometheus_deployment,
+                deployment=AmundsenSearch_deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )

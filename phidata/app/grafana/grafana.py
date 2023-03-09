@@ -23,7 +23,7 @@ class GrafanaArgs(PhidataAppArgs):
     grafana_config: Optional[str] = None
     mount_resources: bool = False
     resources_dir: str = "/workspace/dev/monitoring/resources"
-    resources_dir_container_path: str = "/etc/grafana/provisioning"
+    resources_dir_container_path: str = "/etc/grafana"
 
 class Grafana(PhidataApp):
     def __init__(
@@ -46,7 +46,7 @@ class Grafana(PhidataApp):
         grafana_config: Optional[str] = None,
         mount_resources: bool = False,
         resources_dir: str = "/workspace/dev/monitoring/resources",
-        resources_dir_container_path: str = "/etc/grafana/provisioning",
+        resources_dir_container_path: str = "/etc/grafana",
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,

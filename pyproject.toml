@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "1.4.1"
+version = "1.4.2.dev1"
 description = "Building blocks for Data Engineering"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -10,7 +10,7 @@ authors = [
 
 dependencies = [
   "boto3",
-  "phiterm==1.4.1",
+  "phiterm==1.4.2.dev1",
   "pyarrow",
   "pydantic",
 ]

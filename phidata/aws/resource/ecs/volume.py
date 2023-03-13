@@ -19,7 +19,6 @@ class EcsVolume(AwsResource):
     fsx_windows_file_server_volume_configuration: Optional[Dict[str, Any]] = None
 
     def get_volume_definition(self) -> Dict[str, Any]:
-
         volume_definition: Dict[str, Any] = {}
 
         if self.name is not None:
@@ -40,7 +39,6 @@ class EcsVolume(AwsResource):
         return volume_definition
 
     def volume_definition_up_to_date(self, volume_definition: Dict[str, Any]) -> bool:
-
         if self.name is not None:
             if volume_definition.get("name") != self.name:
                 logger.debug(

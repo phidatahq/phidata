@@ -214,7 +214,6 @@ class AwsWorker:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> Optional[List[AwsResource]]:
-
         logger.debug("-*- Getting AwsResources")
 
         aws_resource_groups: Optional[

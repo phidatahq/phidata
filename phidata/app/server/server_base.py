@@ -8,46 +8,35 @@ from phidata.k8s.enums.restart_policy import RestartPolicy
 from phidata.utils.log import logger
 
 
-class GrafanaArgs(PhidataAppArgs):
-    name: str = "grafana"
+class ServerBaseArgs(PhidataAppArgs):
+    name: str = "server"
     version: str = "1"
     enabled: bool = True
 
     # -*- Image Configuration
-    image_name: str = "grafana/grafana-enterprise"
-    image_tag: str = "9.3.6"
+    image_name: str = "phidata/server"
+    image_tag: str = "1.4.1"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
-    # -*- Grafana Configuration
-    grafana_config: Optional[str] = None
-    mount_resources: bool = False
-    resources_dir: str = "/workspace/dev/monitoring/resources"
-    resources_dir_container_path: str = "/etc/grafana"
 
-
-class Grafana(PhidataApp):
+class ServerBase(PhidataApp):
     def __init__(
         self,
-        name: str = "grafana",
+        name: str = "server",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
-        image_name: str = "grafana/grafana-enterprise",
-        image_tag: str = "9.3.6",
+        image_name: str = "phidata/server",
+        image_tag: str = "1.4.1",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Grafana Configuration
-        grafana_config: Optional[str] = None,
-        mount_resources: bool = False,
-        resources_dir: str = "/workspace/dev/monitoring/resources",
-        resources_dir_container_path: str = "/etc/grafana",
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -72,23 +61,20 @@ class Grafana(PhidataApp):
         aws_secrets: Optional[Any] = None,
         # Container ports,
         # Open a container port if open_container_port=True,
-        open_container_port: bool = True,
+        open_container_port: bool = False,
         # Port number on the container,
-        container_port: int = 3000,
+        container_port: int = 8080,
         # Port name: Only used by the K8sContainer,
         container_port_name: str = "http",
         # Host port: Only used by the DockerContainer,
-        container_host_port: int = 3000,
+        container_host_port: int = 8080,
         # Container volumes,
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
         workspace_volume_name: Optional[str] = None,
         workspace_volume_type: Optional[WorkspaceVolumeType] = None,
-        # Path to mount the workspace volume,
-        # This is the parent directory for the workspace on the container,
-        # i.e. the ws is mounted as a subdir in this dir,
-        # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata,
-        workspace_volume_container_path: str = "/mnt/workspaces",
+        # Path to mount the workspace volume inside the container,
+        workspace_volume_container_path: str = "/usr/local/server",
         # How to mount the workspace volume,
         # Option 1: Mount the workspace from the host machine,
         # If None, use the workspace_root_path,
@@ -259,7 +245,7 @@ class Grafana(PhidataApp):
     ):
         super().__init__()
         try:
-            self.args: GrafanaArgs = GrafanaArgs(
+            self.args: ServerBaseArgs = ServerBaseArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -270,10 +256,6 @@ class Grafana(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                grafana_config=grafana_config,
-                mount_resources=mount_resources,
-                resources_dir=resources_dir,
-                resources_dir_container_path=resources_dir_container_path,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -448,12 +430,6 @@ class Grafana(PhidataApp):
             "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
         }
 
-        # if self.args.grafana_config is not None:
-        #     grafana_config_path_str = f"{container_paths.workspace_root}/{self.args.grafana_config}"
-        #     container_env["GF_PATHS_CONFIG"] = grafana_config_path_str
-
-        # logger.debug(grafana_config_path_str)
-
         # Set aws env vars
         self.set_aws_env_vars(env_dict=container_env)
 
@@ -506,10 +482,10 @@ class Grafana(PhidataApp):
                 if workspace_volume_name is None:
                     if workspace_name is not None:
                         workspace_volume_name = get_default_volume_name(
-                            f"grafana-{workspace_name}-ws"
+                            f"spark-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("grafana-ws")
+                        workspace_volume_name = get_default_volume_name("spark-ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -519,20 +495,6 @@ class Grafana(PhidataApp):
             else:
                 logger.error(f"{self.args.workspace_volume_type.value} not supported")
                 return None
-
-        # Create a volume for the resources
-        if self.args.mount_resources:
-            resources_dir_path = str(
-                self.workspace_root_path.joinpath(self.args.resources_dir)
-            )
-            logger.debug(f"Mounting: {resources_dir_path}")
-            logger.debug(f"\tto: {self.args.resources_dir_container_path}")
-            container_volumes[resources_dir_path] = {
-                "bind": self.args.resources_dir_container_path,
-                "mode": "ro",
-            }
-        logger.debug(container_volumes[resources_dir_path])
-        logger.debug(self.args.resources_dir_container_path)
 
         # Container Ports
         # container_ports is a dictionary which configures the ports to bind
@@ -548,17 +510,6 @@ class Grafana(PhidataApp):
             container_ports[
                 str(self.args.container_port)
             ] = self.args.container_host_port
-
-        # container_cmd: List[str]
-        # if isinstance(self.args.command, str):
-        #     container_cmd = self.args.command.split(" ")
-        # else:
-        #     container_cmd = self.args.command
-
-        # if self.args.grafana_config is not None:
-        #     grafana_config_path_str = f"{container_paths.workspace_root}/{self.args.grafana_config}"
-        #     container_cmd.append(f"--config={grafana_config_path_str}")
-        # logger.debug(f"Container command: {container_cmd}")
 
         # Create the container
         docker_container = DockerContainer(
@@ -852,10 +803,10 @@ class Grafana(PhidataApp):
             if workspace_volume_name is None:
                 if workspace_name is not None:
                     workspace_volume_name = get_default_volume_name(
-                        f"grafana-{workspace_name}-ws"
+                        f"spark-{workspace_name}-ws"
                     )
                 else:
-                    workspace_volume_name = get_default_volume_name("grafana-ws")
+                    workspace_volume_name = get_default_volume_name("spark-ws")
 
             # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
             if (
@@ -952,8 +903,8 @@ class Grafana(PhidataApp):
         ):
             container_labels.update(self.args.container_labels)
 
-        # Create the Grafana container
-        grafana_container = CreateContainer(
+        # Create the Spark container
+        spark_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
@@ -978,12 +929,12 @@ class Grafana(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, grafana_container)
+        containers.insert(0, spark_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": grafana_container.container_name,
+            "kubectl.kubernetes.io/default-container": spark_container.container_name,
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -997,7 +948,7 @@ class Grafana(PhidataApp):
             deploy_labels.update(self.args.deploy_labels)
 
         # Create the deployment
-        grafana_deployment = CreateDeployment(
+        spark_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
             pod_name=self.get_pod_name(),
             app_name=app_name,
@@ -1016,7 +967,7 @@ class Grafana(PhidataApp):
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
-        deployments.append(grafana_deployment)
+        deployments.append(spark_deployment)
 
         # Create the services
         if self.args.create_service:
@@ -1032,7 +983,7 @@ class Grafana(PhidataApp):
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=grafana_deployment,
+                deployment=spark_deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )

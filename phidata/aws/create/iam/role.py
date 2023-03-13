@@ -61,7 +61,6 @@ def create_glue_iam_role(
     skip_create: bool = False,
     skip_delete: bool = False,
 ) -> IamRole:
-
     iam_policy = create_glue_iam_policy(
         name=iam_policy_name, version=iam_policy_version, s3_buckets=s3_buckets
     )

@@ -62,7 +62,6 @@ class PlotSqlQuery(PythonTask):
 
 
 def run_sql_query_pandas(args: PlotSqlQueryArgs) -> bool:
-
     import pandas as pd
     import matplotlib.pyplot as plt
 

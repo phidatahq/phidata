@@ -20,7 +20,6 @@ class CreateNamespace(BaseModel):
     labels: Optional[Dict[str, str]] = None
 
     def create(self) -> Optional[Namespace]:
-
         ns_name = self.ns if self.ns else get_default_ns_name(self.app_name)
         logger.debug(f"Init Namespace resource: {ns_name}")
 

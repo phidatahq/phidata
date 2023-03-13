@@ -161,7 +161,6 @@ class EbsVolume(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for Volume to be created
         if self.wait_for_creation:
             try:

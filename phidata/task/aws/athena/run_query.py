@@ -58,7 +58,6 @@ class RunAthenaQuery(PythonTask):
 
 
 def run_athena_query(**kwargs) -> bool:
-
     args: RunAthenaQueryArgs = RunAthenaQueryArgs(**kwargs)
     # logger.debug("RunAthenaQueryArgs: {}".format(args))
 

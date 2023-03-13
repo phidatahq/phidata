@@ -190,7 +190,6 @@ class EksCluster(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for Cluster to be created
         if self.wait_for_creation:
             try:
@@ -316,7 +315,6 @@ class EksCluster(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for Cluster to be deleted
         if self.wait_for_deletion:
             try:
@@ -384,7 +382,6 @@ class EksCluster(AwsResource):
     def get_subnets(
         self, aws_client: AwsApiClient, vpc_stack: Optional[CloudFormationStack] = None
     ) -> List[str]:
-
         subnet_ids: List[str] = []
 
         # Option 1: Get subnets from the resources_vpc_config provided by the user
@@ -495,7 +492,6 @@ class EksCluster(AwsResource):
         return self.kubeconfig_cluster_context or self.name
 
     def write_kubeconfig(self, aws_client: AwsApiClient) -> bool:
-
         # Step 1: Get the EksCluster to generate the kubeconfig for
         eks_cluster = self._read(aws_client)
         if eks_cluster is None:

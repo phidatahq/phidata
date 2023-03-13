@@ -36,7 +36,6 @@ class Toleration(K8sObject):
     value: Optional[str] = None
 
     def get_k8s_object(self) -> V1Toleration:
-
         # Return a V1Toleration object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_toleration.py
         _v1_toleration = V1Toleration(

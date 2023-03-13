@@ -24,7 +24,6 @@ def create_eks_admin_crb(
     skip_create: bool = False,
     skip_delete: bool = False,
 ) -> Optional[ClusterRoleBinding]:
-
     crb_labels = create_component_labels_dict(
         component_name=name,
         app_name=app_name,

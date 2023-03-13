@@ -108,7 +108,6 @@ class CustomObject(K8sResource):
         return custom_objects
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         custom_objects_api: CustomObjectsApi = k8s_client.custom_objects_api
         k8s_object: Dict[str, Any] = self.get_k8s_object()
         namespace = self.get_namespace()
@@ -164,7 +163,6 @@ class CustomObject(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         custom_objects_api: CustomObjectsApi = k8s_client.custom_objects_api
         custom_object_name = self.get_resource_name()
         k8s_object: Dict[str, Any] = self.get_k8s_object()
@@ -191,7 +189,6 @@ class CustomObject(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         custom_objects_api: CustomObjectsApi = k8s_client.custom_objects_api
         custom_object_name = self.get_resource_name()
         namespace = self.get_namespace()

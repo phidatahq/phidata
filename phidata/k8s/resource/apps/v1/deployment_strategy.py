@@ -21,7 +21,6 @@ class RollingUpdateDeployment(K8sObject):
     max_unavailable: Optional[Union[int, str]] = Field(None, alias="maxUnavailable")
 
     def get_k8s_object(self) -> V1RollingUpdateDeployment:
-
         # Return a V1RollingUpdateDeployment object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_rolling_update_deployment.py
         _v1_rolling_update_deployment = V1RollingUpdateDeployment(
@@ -42,7 +41,6 @@ class DeploymentStrategy(K8sObject):
     type: Literal["Recreate", "RollingUpdate"] = "RollingUpdate"
 
     def get_k8s_object(self) -> V1DeploymentStrategy:
-
         # Return a V1DeploymentStrategy object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_deployment_strategy.py
         _v1_deployment_strategy = V1DeploymentStrategy(

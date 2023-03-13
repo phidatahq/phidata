@@ -45,7 +45,6 @@ class CreateEmrCluster(PythonTask):
 
 
 def create_emr_cluster(**kwargs) -> bool:
-
     args: CreateEmrClusterArgs = CreateEmrClusterArgs(**kwargs)
     # logger.debug("CreateEmrClusterArgs: {}".format(args))
 

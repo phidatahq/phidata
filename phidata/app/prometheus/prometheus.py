@@ -28,6 +28,7 @@ class PrometheusArgs(PhidataAppArgs):
     resources_dir: str = "/workspace/dev/monitoring/resources"
     resources_dir_container_path: str = "/etc/prometheus"
 
+
 class Prometheus(PhidataApp):
     def __init__(
         self,
@@ -376,7 +377,6 @@ class Prometheus(PhidataApp):
     ######################################################
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -590,7 +590,6 @@ class Prometheus(PhidataApp):
     ######################################################
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

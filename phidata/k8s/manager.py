@@ -56,7 +56,6 @@ class K8sManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot create resources")
@@ -79,7 +78,6 @@ class K8sManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot create resources")
@@ -101,7 +99,6 @@ class K8sManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> bool:
-
         logger.debug("Validating resources are created...")
         return True
 
@@ -113,7 +110,6 @@ class K8sManager:
         self,
         app_filter: Optional[str] = None,
     ) -> Optional[Dict[str, K8sResourceGroup]]:
-
         status = self.get_status()
         if not status.can_get_resources():
             logger.debug("Cannot get resources")
@@ -130,7 +126,6 @@ class K8sManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> Optional[List[K8sResource]]:
-
         status = self.get_status()
         if not status.can_get_resources():
             logger.debug("Cannot get resources")
@@ -154,7 +149,6 @@ class K8sManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-
         status = self.get_status()
         if not status.can_delete_resources():
             logger.debug("Cannot delete resources")
@@ -178,7 +172,6 @@ class K8sManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         status = self.get_status()
         if not status.can_delete_resources():
             logger.debug("Cannot delete resources")
@@ -200,7 +193,6 @@ class K8sManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> bool:
-
         logger.debug("Validating resources are deleted...")
         return True
 
@@ -215,7 +207,6 @@ class K8sManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot patch resources")
@@ -239,7 +230,6 @@ class K8sManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot patch resources")
@@ -261,6 +251,5 @@ class K8sManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> bool:
-
         logger.debug("Validating resources are patched...")
         return True

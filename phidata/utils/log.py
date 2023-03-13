@@ -3,7 +3,6 @@ import sys
 
 
 def get_simple_logger(logger_name: str) -> logging.Logger:
-
     handler = logging.StreamHandler(sys.stdout)
     # handler.setLevel(logging.INFO)
     simple_formatter = logging.Formatter(
@@ -23,7 +22,6 @@ def get_simple_logger(logger_name: str) -> logging.Logger:
 
 
 def get_rich_logger(logger_name: str, show_path: bool = False) -> logging.Logger:
-
     from rich.logging import RichHandler
 
     # https://rich.readthedocs.io/en/latest/reference/logging.html#rich.logging.RichHandler

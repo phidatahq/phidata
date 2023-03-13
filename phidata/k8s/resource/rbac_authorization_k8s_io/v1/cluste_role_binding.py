@@ -137,7 +137,6 @@ class ClusterRoleBinding(K8sResource):
         return crbs
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         rbac_auth_v1_api: RbacAuthorizationV1Api = k8s_client.rbac_auth_v1_api
         k8s_object: V1ClusterRoleBinding = self.get_k8s_object()
 
@@ -180,7 +179,6 @@ class ClusterRoleBinding(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         rbac_auth_v1_api: RbacAuthorizationV1Api = k8s_client.rbac_auth_v1_api
         crb_name = self.get_resource_name()
         k8s_object: V1ClusterRoleBinding = self.get_k8s_object()
@@ -204,7 +202,6 @@ class ClusterRoleBinding(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         rbac_auth_v1_api: RbacAuthorizationV1Api = k8s_client.rbac_auth_v1_api
         crb_name = self.get_resource_name()
 

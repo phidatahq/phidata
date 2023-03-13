@@ -449,7 +449,6 @@ class DbCluster(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         db_instances_created = []
         if self.db_instances is not None:
             for db_instance in self.db_instances:
@@ -556,7 +555,6 @@ class DbCluster(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for DbCluster to be deleted
         if self.wait_for_deletion:
             try:

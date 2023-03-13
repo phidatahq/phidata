@@ -84,7 +84,6 @@ class UploadFileToSql(PythonTask):
 
 
 def load_file_to_sql_table_pandas(args: UploadFileToSqlArgs) -> bool:
-
     import pandas as pd
 
     file_to_load: Optional[LocalFile] = args.file

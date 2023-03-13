@@ -65,7 +65,6 @@ class S3Dataset(S3DatasetBase):
         enabled: bool = True,
         **kwargs,
     ) -> None:
-
         super().__init__()
         try:
             self.args: S3DatasetArgs = S3DatasetArgs(

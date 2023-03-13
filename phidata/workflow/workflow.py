@@ -524,7 +524,6 @@ class Workflow(PhidataBase):
     ######################################################
 
     def run_task_in_local_env(self, task: Task) -> RunStatus:
-
         _task_id = task.task_id
         if not task.enabled:
             return RunStatus(name=_task_id, success=True)
@@ -596,7 +595,6 @@ class Workflow(PhidataBase):
         active_container: Any,
         docker_env: Optional[Dict[str, str]] = None,
     ) -> RunStatus:
-
         _task_id = task.task_id
         if not task.enabled:
             return RunStatus(name=_task_id, success=True)
@@ -811,13 +809,11 @@ class Workflow(PhidataBase):
     #     )
 
     def get_start_workflow_task(self, dag: Optional[Any]) -> Any:
-
         from phidata.airflow.operators.empty import EmptyOperator
 
         return EmptyOperator(task_id=self.start_workflow_task_id, dag=dag)
 
     def get_end_workflow_task(self, dag: Optional[Any]) -> Any:
-
         from phidata.airflow.operators.empty import EmptyOperator
 
         return EmptyOperator(task_id=self.end_workflow_task_id, dag=dag)

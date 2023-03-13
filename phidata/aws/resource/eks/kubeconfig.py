@@ -19,7 +19,6 @@ from phidata.utils.log import logger
 
 
 class EksKubeconfig(AwsResource):
-
     resource_type = "Kubeconfig"
     service_name = "na"
 
@@ -137,7 +136,6 @@ class EksKubeconfig(AwsResource):
         return self.kubeconfig_role_arn or self.eks_cluster.kubeconfig_role_arn
 
     def write_kubeconfig(self, aws_client: AwsApiClient) -> bool:
-
         # Step 1: Get the EksCluster to generate the kubeconfig for
         eks_cluster = self.eks_cluster._read(aws_client=aws_client)  # type: ignore
         if eks_cluster is None:

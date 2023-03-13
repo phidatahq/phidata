@@ -62,7 +62,6 @@ class DockerManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot create resources")
@@ -85,7 +84,6 @@ class DockerManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot create resources")
@@ -107,7 +105,6 @@ class DockerManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> bool:
-
         logger.debug("Validating resources are created...")
         return True
 
@@ -119,7 +116,6 @@ class DockerManager:
         self,
         app_filter: Optional[str] = None,
     ) -> Optional[Dict[str, DockerResourceGroup]]:
-
         status = self.get_status()
         if not status.can_get_resources():
             logger.debug("Cannot get resources")
@@ -136,7 +132,6 @@ class DockerManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> Optional[List[DockerResource]]:
-
         status = self.get_status()
         if not status.can_get_resources():
             logger.debug("Cannot get resources")
@@ -160,7 +155,6 @@ class DockerManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-
         status = self.get_status()
         if not status.can_delete_resources():
             logger.debug("Cannot delete resources")
@@ -184,7 +178,6 @@ class DockerManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         status = self.get_status()
         if not status.can_delete_resources():
             logger.debug("Cannot delete resources")
@@ -206,7 +199,6 @@ class DockerManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> bool:
-
         logger.debug("Validating resources are deleted...")
         return True
 
@@ -221,7 +213,6 @@ class DockerManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot patch resources")
@@ -245,7 +236,6 @@ class DockerManager:
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> bool:
-
         status = self.get_status()
         if not status.can_create_resources():
             logger.debug("Cannot patch resources")
@@ -267,6 +257,5 @@ class DockerManager:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> bool:
-
         logger.debug("Validating resources are patched...")
         return True

@@ -34,7 +34,6 @@ class ElasticApp(PhidataApp):
         k8s_resource_groups: Optional[List[K8sResourceGroup]] = None,
         create_k8s_resource_groups: Optional[List[CreateK8sResourceGroup]] = None,
     ):
-
         super().__init__()
         try:
             self.args: ElasticAppArgs = ElasticAppArgs(

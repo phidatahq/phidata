@@ -107,7 +107,6 @@ class IngressSpec(K8sObject):
     tls: Optional[List[V1IngressTLS]] = None
 
     def get_k8s_object(self) -> V1IngressSpec:
-
         # Return a V1IngressSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_ingress_spec.py
 
@@ -176,7 +175,6 @@ class Ingress(K8sResource):
         return ingress
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         networking_v1_api: NetworkingV1Api = k8s_client.networking_v1_api
         k8s_object: V1Ingress = self.get_k8s_object()
         namespace = self.get_namespace()
@@ -223,7 +221,6 @@ class Ingress(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         networking_v1_api: NetworkingV1Api = k8s_client.networking_v1_api
         ingress_name = self.get_resource_name()
         k8s_object: V1Ingress = self.get_k8s_object()
@@ -247,7 +244,6 @@ class Ingress(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         networking_v1_api: NetworkingV1Api = k8s_client.networking_v1_api
         ingress_name = self.get_resource_name()
         namespace = self.get_namespace()

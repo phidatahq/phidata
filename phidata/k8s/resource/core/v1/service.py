@@ -52,7 +52,6 @@ class ServicePort(K8sObject):
     app_protocol: Optional[str] = Field(None, alias="appProtocol")
 
     def get_k8s_object(self) -> V1ServicePort:
-
         # logger.info(f"Building {self.get_resource_type()} : {self.get_resource_name()}")
 
         target_port_int: Optional[int] = None
@@ -185,7 +184,6 @@ class ServiceSpec(K8sObject):
     # session_affinity_config: Optional[SessionAffinityConfig] = Field(None, alias="sessionAffinityConfig")
 
     def get_k8s_object(self) -> V1ServiceSpec:
-
         # Return a V1ServiceSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service_spec.py
         _ports: Optional[List[V1ServicePort]] = None
@@ -278,7 +276,6 @@ class Service(K8sResource):
         return services
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         k8s_object: V1Service = self.get_k8s_object()
         namespace = self.get_namespace()
@@ -325,7 +322,6 @@ class Service(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         svc_name = self.get_resource_name()
         k8s_object: V1Service = self.get_k8s_object()
@@ -349,7 +345,6 @@ class Service(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         svc_name = self.get_resource_name()
         namespace = self.get_namespace()

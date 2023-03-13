@@ -287,7 +287,6 @@ class EksNodeGroup(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for EksNodeGroup to be created
         if self.wait_for_creation:
             try:
@@ -380,7 +379,6 @@ class EksNodeGroup(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for EksNodeGroup to be deleted
         if self.wait_for_deletion:
             try:

@@ -57,7 +57,6 @@ class StartGlueCrawler(PythonTask):
 
 
 def start_glue_crawler(**kwargs) -> bool:
-
     args: StartGlueCrawlerArgs = StartGlueCrawlerArgs(**kwargs)
     # logger.debug("StartGlueCrawlerArgs: {}".format(args))
 

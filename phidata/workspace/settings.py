@@ -17,8 +17,8 @@ class WorkspaceSettings(BaseSettings):
     ws_name: str
     # Workspace git repo url: used to git-sync DAGs and Charts
     ws_repo: Optional[str] = None
-    # Path to the workspace directory
-    ws_dir: Path
+    # Path to the workspace root
+    ws_root: Path
     #
     # -*- Dev settings
     #
@@ -36,12 +36,12 @@ class WorkspaceSettings(BaseSettings):
     #
     dev_airbyte_enabled: bool = False
     dev_airflow_enabled: bool = False
-    dev_api_server_enabled: bool = False
+    dev_api_enabled: bool = False
+    dev_app_enabled: bool = False
     dev_assistant_enabled: bool = False
     dev_databox_enabled: bool = False
     dev_grafana_enabled: bool = False
     dev_jupyter_enabled: bool = False
-    dev_ml_server_enabled: bool = False
     dev_postgres_enabled: bool = False
     dev_prometheus_enabled: bool = False
     dev_redis_enabled: bool = False
@@ -65,12 +65,12 @@ class WorkspaceSettings(BaseSettings):
     #
     stg_airbyte_enabled: bool = False
     stg_airflow_enabled: bool = False
-    stg_api_server_enabled: bool = False
+    stg_api_enabled: bool = False
+    stg_app_enabled: bool = False
     stg_assistant_enabled: bool = False
     stg_databox_enabled: bool = False
     stg_grafana_enabled: bool = False
     stg_jupyter_enabled: bool = False
-    stg_ml_server_enabled: bool = False
     stg_postgres_enabled: bool = False
     stg_prometheus_enabled: bool = False
     stg_redis_enabled: bool = False
@@ -95,12 +95,12 @@ class WorkspaceSettings(BaseSettings):
     #
     prd_airbyte_enabled: bool = False
     prd_airflow_enabled: bool = False
-    prd_api_server_enabled: bool = False
+    prd_api_enabled: bool = False
+    prd_app_enabled: bool = False
     prd_assistant_enabled: bool = False
     prd_databox_enabled: bool = False
     prd_grafana_enabled: bool = False
     prd_jupyter_enabled: bool = False
-    prd_ml_server_enabled: bool = False
     prd_postgres_enabled: bool = False
     prd_prometheus_enabled: bool = False
     prd_redis_enabled: bool = False
@@ -134,7 +134,7 @@ class WorkspaceSettings(BaseSettings):
     # Repository for images
     image_repo: str = "phidata"
     # Suffix added to the image name
-    image_suffix: str = "aws-dp"
+    image_suffix: Optional[str] = None
     # Build images locally
     build_images: bool = False
     # Push images after building

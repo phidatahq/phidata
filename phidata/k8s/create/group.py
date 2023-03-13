@@ -60,7 +60,6 @@ class CreateK8sResourceGroup(BaseModel):
         )
 
         for key, value in self.__dict__.items():
-
             if value is None:
                 continue
             # logger.debug(f"Parsing {key}")

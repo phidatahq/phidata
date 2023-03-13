@@ -18,4 +18,3 @@ from phidata.app.amundsen.search import (
     RestartPolicy,
     ImagePullPolicy,
 )
-

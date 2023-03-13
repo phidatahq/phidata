@@ -328,7 +328,6 @@ class DockerWorker:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> Optional[List[DockerResource]]:
-
         logger.debug("-*- Getting DockerResources")
 
         docker_resource_groups: Optional[

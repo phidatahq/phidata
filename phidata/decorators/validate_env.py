@@ -18,6 +18,7 @@ def validate_env(env_var_dict: Dict[str, Any]):
         - Create a decorator with an argument
         https://realpython.com/primer-on-python-decorators/#decorators-with-arguments
     """
+
     # Return this decorator if env is valid
     def decorator_validate_env(func):
         @functools.wraps(func)

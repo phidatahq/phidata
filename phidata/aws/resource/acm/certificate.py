@@ -124,7 +124,6 @@ class AcmCertificate(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for AcmCertificate to be validated
         if self.wait_for_creation:
             try:

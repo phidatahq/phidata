@@ -21,6 +21,7 @@ class AmundsenSearchArgs(PhidataAppArgs):
 
     # -*- AmundsenSearch Configuration
 
+
 class AmundsenSearch(PhidataApp):
     def __init__(
         self,
@@ -363,7 +364,6 @@ class AmundsenSearch(PhidataApp):
     ######################################################
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -491,7 +491,9 @@ class AmundsenSearch(PhidataApp):
                             f"AmundsenSearch-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("AmundsenSearch-ws")
+                        workspace_volume_name = get_default_volume_name(
+                            "AmundsenSearch-ws"
+                        )
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -565,7 +567,6 @@ class AmundsenSearch(PhidataApp):
     ######################################################
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

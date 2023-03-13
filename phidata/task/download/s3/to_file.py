@@ -58,7 +58,6 @@ class DownloadS3ObjectToFile(PythonTask):
 
 
 def download_s3_object_to_file(**kwargs) -> bool:
-
     args: DownloadS3ObjectToFileArgs = DownloadS3ObjectToFileArgs(**kwargs)
     # logger.debug("DownloadS3ObjectToFileArgs: {}".format(args))
 

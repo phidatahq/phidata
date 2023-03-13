@@ -54,7 +54,6 @@ class LocalFile(LocalAsset):
         enabled: bool = True,
         **kwargs,
     ) -> None:
-
         super().__init__()
         try:
             self.args: LocalFileArgs = LocalFileArgs(

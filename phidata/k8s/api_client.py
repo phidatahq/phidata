@@ -19,7 +19,6 @@ class K8sApiClient(InfraApiClient):
         context: Optional[str] = None,
         kubeconfig_path: Optional[Path] = None,
     ):
-
         super().__init__()
         # logger.debug(f"Creating K8sApiClient")
         # Cluster configuration

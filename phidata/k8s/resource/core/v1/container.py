@@ -81,7 +81,6 @@ class ResourceFieldSelector(K8sObject):
     resource: str
 
     def get_k8s_object(self) -> V1ResourceFieldSelector:
-
         # Return a V1ResourceFieldSelector object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_resource_field_selector.py
         _v1_resource_field_selector = V1ResourceFieldSelector(
@@ -105,7 +104,6 @@ class ObjectFieldSelector(K8sObject):
     field_path: str = Field(..., alias="fieldPath")
 
     def get_k8s_object(self) -> V1ObjectFieldSelector:
-
         # Return a V1ObjectFieldSelector object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_object_field_selector.py
         _v1_object_field_selector = V1ObjectFieldSelector(
@@ -129,7 +127,6 @@ class SecretKeySelector(K8sObject):
     optional: Optional[bool] = None
 
     def get_k8s_object(self) -> V1SecretKeySelector:
-
         # Return a V1SecretKeySelector object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_secret_key_selector.py
         _v1_secret_key_selector = V1SecretKeySelector(
@@ -154,7 +151,6 @@ class ConfigMapKeySelector(K8sObject):
     optional: Optional[bool] = None
 
     def get_k8s_object(self) -> V1ConfigMapKeySelector:
-
         # Return a V1ConfigMapKeySelector object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_config_map_key_selector.py
         _v1_config_map_key_selector = V1ConfigMapKeySelector(
@@ -184,7 +180,6 @@ class EnvVarSource(K8sObject):
     secret_key_ref: Optional[SecretKeySelector] = Field(None, alias="secretKeyRef")
 
     def get_k8s_object(self) -> V1EnvVarSource:
-
         # Return a V1EnvVarSource object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_env_var_source.py
         _v1_env_var_source = V1EnvVarSource(
@@ -216,7 +211,6 @@ class EnvVar(K8sObject):
     value_from: Optional[EnvVarSource] = Field(None, alias="valueFrom")
 
     def get_k8s_object(self) -> V1EnvVar:
-
         # Return a V1EnvVar object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_env_var.py
         _v1_env_var = V1EnvVar(
@@ -283,7 +277,6 @@ class EnvFromSource(K8sObject):
     secret_ref: Optional[SecretEnvSource] = Field(None, alias="secretRef")
 
     def get_k8s_object(self) -> V1EnvFromSource:
-
         # Return a V1EnvFromSource object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_env_from_source.py
         _v1_env_from_source = V1EnvFromSource(
@@ -401,7 +394,6 @@ class Container(K8sObject):
     working_dir: Optional[str] = Field(None, alias="workingDir")
 
     def get_k8s_object(self) -> V1Container:
-
         # Return a V1Container object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_container.py
         _ports: Optional[List[V1ContainerPort]] = None

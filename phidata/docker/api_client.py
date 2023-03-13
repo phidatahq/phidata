@@ -12,7 +12,6 @@ class DockerApiClient(InfraApiClient):
     """
 
     def __init__(self, base_url: Optional[str] = None):
-
         super().__init__()
         # logger.debug(f"Creating DockerApiClient")
         # configuration

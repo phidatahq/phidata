@@ -40,7 +40,6 @@ class K8sDir(K8sApp):
     def get_k8s_rg(
         self, k8s_build_context: K8sBuildContext
     ) -> Optional[K8sResourceGroup]:
-
         # Validate URL
         manifest_dir = self.args.dir
         if manifest_dir is None:

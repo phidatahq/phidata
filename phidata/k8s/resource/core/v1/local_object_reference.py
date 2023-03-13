@@ -14,7 +14,6 @@ class LocalObjectReference(K8sObject):
     name: str
 
     def get_k8s_object(self) -> V1LocalObjectReference:
-
         # Return a V1LocalObjectReference object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_local_object_reference.py
         _v1_local_object_reference = V1LocalObjectReference(name=self.name)

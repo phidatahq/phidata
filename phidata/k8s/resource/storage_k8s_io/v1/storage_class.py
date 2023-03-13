@@ -86,7 +86,6 @@ class StorageClass(K8sResource):
         return scs
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         storage_v1_api: StorageV1Api = k8s_client.storage_v1_api
         k8s_object: V1StorageClass = self.get_k8s_object()
 
@@ -127,7 +126,6 @@ class StorageClass(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         storage_v1_api: StorageV1Api = k8s_client.storage_v1_api
         sc_name = self.get_resource_name()
         k8s_object: V1StorageClass = self.get_k8s_object()
@@ -149,7 +147,6 @@ class StorageClass(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         storage_v1_api: StorageV1Api = k8s_client.storage_v1_api
         sc_name = self.get_resource_name()
 

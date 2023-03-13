@@ -57,7 +57,6 @@ class TopologySpreadConstraint(K8sObject):
     )
 
     def get_k8s_object(self) -> V1TopologySpreadConstraint:
-
         # Return a V1TopologySpreadConstraint object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_topology_spread_constraint.py
         _v1_topology_spread_constraint = V1TopologySpreadConstraint(

@@ -54,7 +54,6 @@ class CloudFormationStack(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for Stack to be created
         if self.wait_for_creation:
             try:
@@ -128,7 +127,6 @@ class CloudFormationStack(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for Stack to be deleted
         if self.wait_for_deletion:
             try:

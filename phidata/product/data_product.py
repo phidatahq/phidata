@@ -732,7 +732,6 @@ class DataProduct(PhidataBase):
         if self.graph is not None:
             # logger.info("Updating dependencies")
             for downstream_workflow, upstream_workflow_list in self.graph.items():
-
                 downstream_wf_start_task: Optional[Operator] = None
                 downstream_wf_start_task_id = downstream_workflow.start_workflow_task_id
                 # logger.info(f"downstream_workflow_start: {downstream_wf_start_task_id}")

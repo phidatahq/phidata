@@ -202,7 +202,6 @@ class K8sConfig(InfraConfig):
         return K8sManager(k8s_args=self.args)
 
     def get_app_by_name(self, app_name: str) -> Optional[PhidataApp]:
-
         if self.apps is None:
             return None
 

@@ -26,7 +26,6 @@ class ObjectReference(K8sResource):
     uid: Optional[str] = None
 
     def get_k8s_object(self) -> V1ObjectReference:
-
         # Return a V1ObjectReference object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_object_reference.py
         _v1_object_reference = V1ObjectReference(

@@ -204,7 +204,6 @@ class InfraResource(BaseModel):
         return None
 
     def save_resource_file(self) -> bool:
-
         if self.resource_file is not None:
             resource_file_path: Optional[Path] = None
             if isinstance(self.resource_file, str):

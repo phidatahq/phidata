@@ -25,7 +25,6 @@ class CreateServiceAccount(BaseModel):
     labels: Optional[Dict[str, str]] = None
 
     def create(self) -> Optional[ServiceAccount]:
-
         sa_name = self.sa_name if self.sa_name else get_default_sa_name(self.app_name)
         logger.debug(f"Init ServiceAccount resource: {sa_name}")
 

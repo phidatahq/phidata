@@ -58,7 +58,6 @@ class UploadFileToS3(PythonTask):
 
 
 def upload_file_to_s3_object(**kwargs) -> bool:
-
     args: UploadFileToS3Args = UploadFileToS3Args(**kwargs)
     # logger.debug("UploadFileToS3Args: {}".format(args))
 

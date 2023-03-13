@@ -516,7 +516,6 @@ class PostgresDb(DbApp):
     ######################################################
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -671,7 +670,6 @@ class PostgresDb(DbApp):
     ######################################################
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

@@ -62,7 +62,6 @@ class CustomResourceDefinitionNames(K8sObject):
     def get_k8s_object(
         self,
     ) -> V1CustomResourceDefinitionNames:
-
         # Return a V1CustomResourceDefinitionNames object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_custom_resource_definition_names.py
         _v1_custom_resource_definition_names = V1CustomResourceDefinitionNames(
@@ -107,7 +106,6 @@ class CustomResourceDefinitionVersion(K8sObject):
     def get_k8s_object(
         self,
     ) -> V1CustomResourceDefinitionVersion:
-
         # Return a V1CustomResourceDefinitionVersion object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_custom_resource_definition_version.py
         _v1_custom_resource_definition_version = V1CustomResourceDefinitionVersion(
@@ -152,7 +150,6 @@ class CustomResourceDefinitionSpec(K8sObject):
     def get_k8s_object(
         self,
     ) -> V1CustomResourceDefinitionSpec:
-
         # Return a V1CustomResourceDefinitionSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_custom_resource_definition_spec.py
         _v1_custom_resource_definition_spec = V1CustomResourceDefinitionSpec(
@@ -214,7 +211,6 @@ class CustomResourceDefinition(K8sResource):
         return crds
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         apiextensions_v1_api: ApiextensionsV1Api = k8s_client.apiextensions_v1_api
         k8s_object: V1CustomResourceDefinition = self.get_k8s_object()
 
@@ -265,7 +261,6 @@ class CustomResourceDefinition(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         apiextensions_v1_api: ApiextensionsV1Api = k8s_client.apiextensions_v1_api
         crd_name = self.get_resource_name()
         k8s_object: V1CustomResourceDefinition = self.get_k8s_object()
@@ -289,7 +284,6 @@ class CustomResourceDefinition(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         apiextensions_v1_api: ApiextensionsV1Api = k8s_client.apiextensions_v1_api
         crd_name = self.get_resource_name()
 

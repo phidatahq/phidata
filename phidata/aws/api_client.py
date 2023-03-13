@@ -13,7 +13,6 @@ class AwsApiClient(InfraApiClient):
         aws_region: Optional[str] = None,
         aws_profile: Optional[str] = None,
     ):
-
         super().__init__()
         # logger.debug("Creating AwsApiClient")
         # AWS configuration

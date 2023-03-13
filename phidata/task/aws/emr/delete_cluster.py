@@ -45,7 +45,6 @@ class DeleteEmrCluster(PythonTask):
 
 
 def delete_emr_cluster(**kwargs) -> bool:
-
     args: DeleteEmrClusterArgs = DeleteEmrClusterArgs(**kwargs)
     # logger.debug("DeleteEmrClusterArgs: {}".format(args))
 

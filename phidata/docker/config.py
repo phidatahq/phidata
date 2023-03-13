@@ -117,7 +117,6 @@ class DockerConfig(InfraConfig):
         return DockerManager(docker_args=self.args)
 
     def get_app_by_name(self, app_name: str) -> Optional[PhidataApp]:
-
         if self.apps is None:
             return None
 

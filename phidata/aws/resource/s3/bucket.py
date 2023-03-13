@@ -92,7 +92,6 @@ class S3Bucket(AwsResource):
         return False
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-
         # Wait for Bucket to be created
         if self.wait_for_creation:
             try:

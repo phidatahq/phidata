@@ -55,7 +55,6 @@ class S3DatasetCsv(S3DatasetBase):
         enabled: bool = True,
         **kwargs,
     ) -> None:
-
         super().__init__()
         try:
             self.args: S3DatasetCsvArgs = S3DatasetCsvArgs(

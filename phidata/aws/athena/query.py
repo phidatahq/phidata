@@ -78,7 +78,6 @@ class AthenaQuery(AwsAsset):
         version: Optional[str] = None,
         enabled: bool = True,
     ) -> None:
-
         super().__init__()
         try:
             self.args: AthenaQueryArgs = AthenaQueryArgs(
@@ -144,7 +143,6 @@ class AthenaQuery(AwsAsset):
     ######################################################
 
     def start_query(self) -> bool:
-
         # AthenaQuery not yet initialized
         if self.args is None:
             return False
@@ -172,7 +170,6 @@ class AthenaQuery(AwsAsset):
     ######################################################
 
     def get_results(self) -> Any:
-
         # AthenaQuery not yet initialized
         if self.args is None:
             return False

@@ -34,7 +34,6 @@ class PersistentVolumeClaimSpec(K8sObject):
     def get_k8s_object(
         self,
     ) -> V1PersistentVolumeClaimSpec:
-
         # Return a V1PersistentVolumeClaimSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_persistent_volume_claim_spec.py
         _v1_persistent_volume_claim_spec = V1PersistentVolumeClaimSpec(
@@ -111,7 +110,6 @@ class PersistentVolumeClaim(K8sResource):
         return pvcs
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         k8s_object: V1PersistentVolumeClaim = self.get_k8s_object()
         namespace = self.get_namespace()
@@ -155,7 +153,6 @@ class PersistentVolumeClaim(K8sResource):
         return active_pvc
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         pvc_name = self.get_resource_name()
         k8s_object: V1PersistentVolumeClaim = self.get_k8s_object()
@@ -177,7 +174,6 @@ class PersistentVolumeClaim(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         pvc_name = self.get_resource_name()
         namespace = self.get_namespace()

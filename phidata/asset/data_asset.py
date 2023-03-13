@@ -663,7 +663,6 @@ class DataAsset(PhidataBase):
             return self.name
 
     def save_to_file(self) -> bool:
-
         if self.resource_file is not None:
             resource_file_path: Optional[Path] = None
             if isinstance(self.resource_file, str):

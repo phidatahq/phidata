@@ -978,7 +978,6 @@ class Databox(PhidataApp):
             )
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -1406,7 +1405,6 @@ class Databox(PhidataApp):
         k8s_resource_group.config_maps.append(airflow_env_cm)
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

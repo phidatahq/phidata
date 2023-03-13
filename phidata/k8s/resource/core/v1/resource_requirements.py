@@ -22,7 +22,6 @@ class ResourceRequirements(K8sObject):
     requests: Optional[Dict[str, str]] = None
 
     def get_k8s_object(self) -> V1ResourceRequirements:
-
         # Return a V1ResourceRequirements object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_resource_requirements.py
         _v1_resource_requirements = V1ResourceRequirements(

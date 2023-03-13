@@ -78,7 +78,6 @@ def create_eks_admin_role(
     skip_create: bool = False,
     skip_delete: bool = False,
 ) -> IamRole:
-
     eks_admin_iam_policy = create_eks_admin_policy(
         account_id=account_id,
         name=iam_policy_name,

@@ -70,7 +70,6 @@ class Secret(K8sResource):
         return secrets
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         k8s_object: V1Secret = self.get_k8s_object()
         namespace = self.get_namespace()
@@ -117,7 +116,6 @@ class Secret(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         secret_name = self.get_resource_name()
         k8s_object: V1Secret = self.get_k8s_object()
@@ -141,7 +139,6 @@ class Secret(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         secret_name = self.get_resource_name()
         namespace = self.get_namespace()

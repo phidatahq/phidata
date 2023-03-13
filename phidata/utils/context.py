@@ -18,7 +18,6 @@ def get_run_date(
     run_context: Optional[RunContext] = None,
     airflow_context: Optional[AirflowContext] = None,
 ) -> datetime:
-
     if run_context is not None and run_context.run_date is not None:
         return run_context.run_date
     if airflow_context is not None and airflow_context.logical_date is not None:
@@ -27,7 +26,6 @@ def get_run_date(
 
 
 def build_path_context_from_env() -> Optional[PathContext]:
-
     logger.debug(f"--++**++--> Building PathContext from env")
     path_context = PathContext()
 

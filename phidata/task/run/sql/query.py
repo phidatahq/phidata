@@ -88,7 +88,6 @@ class RunSqlQuery(PythonTask):
 
 
 def run_sql_query_pandas(args: RunSqlQueryArgs) -> bool:
-
     import pandas as pd
 
     query: str = args.query

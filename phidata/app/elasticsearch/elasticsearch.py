@@ -24,6 +24,7 @@ class ElasticSearchArgs(PhidataAppArgs):
     # scrape_interval: Optional[int] = None
     # scrape_timeout: Optional[int]  = 10
 
+
 class ElasticSearch(PhidataApp):
     def __init__(
         self,
@@ -267,7 +268,7 @@ class ElasticSearch(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                discovery = discovery,
+                discovery=discovery,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -370,7 +371,6 @@ class ElasticSearch(PhidataApp):
     ######################################################
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -500,7 +500,9 @@ class ElasticSearch(PhidataApp):
                             f"elasticsearch-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("elasticsearch-ws")
+                        workspace_volume_name = get_default_volume_name(
+                            "elasticsearch-ws"
+                        )
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -534,7 +536,6 @@ class ElasticSearch(PhidataApp):
 
         # if self.args.discovery is not None:
         #     container_cmd.append(f"--discovery{str(self.args.discovery)}")
-
 
         # Create the container
         docker_container = DockerContainer(
@@ -584,7 +585,6 @@ class ElasticSearch(PhidataApp):
     ######################################################
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

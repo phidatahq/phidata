@@ -21,6 +21,7 @@ class CadvisorArgs(PhidataAppArgs):
 
     # -*- Cadvisor Configuration
 
+
 class Cadvisor(PhidataApp):
     def __init__(
         self,
@@ -261,7 +262,6 @@ class Cadvisor(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -364,7 +364,6 @@ class Cadvisor(PhidataApp):
     ######################################################
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -610,7 +609,6 @@ class Cadvisor(PhidataApp):
     ######################################################
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

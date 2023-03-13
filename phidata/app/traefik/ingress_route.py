@@ -529,7 +529,6 @@ class IngressRoute(PhidataApp):
     def get_ingress_route_k8s_rg(
         self, k8s_build_context: K8sBuildContext
     ) -> Optional[K8sResourceGroup]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 

@@ -21,7 +21,6 @@ class S3Object(DataAsset):
         version: Optional[str] = None,
         enabled: bool = True,
     ) -> None:
-
         super().__init__()
         try:
             self.args: S3ObjectArgs = S3ObjectArgs(
@@ -66,7 +65,6 @@ class S3Object(DataAsset):
         file: LocalFile,
         if_exists: Optional[Literal["fail", "replace", "skip"]] = "skip",
     ) -> bool:
-
         ######################################################
         ## Validate
         ######################################################

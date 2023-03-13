@@ -24,7 +24,6 @@ class NamespaceSpec(K8sObject):
     finalizers: Optional[List[str]] = None
 
     def get_k8s_object(self) -> V1NamespaceSpec:
-
         # Return a V1NamespaceSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_namespace_spec.py
         _v1_namespace_spec = V1NamespaceSpec(
@@ -86,7 +85,6 @@ class Namespace(K8sResource):
         return namespaces
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         k8s_object: V1Namespace = self.get_k8s_object()
 
@@ -127,7 +125,6 @@ class Namespace(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         ns_name = self.get_resource_name()
         k8s_object: V1Namespace = self.get_k8s_object()
@@ -149,7 +146,6 @@ class Namespace(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         ns_name = self.get_resource_name()
 

@@ -303,7 +303,7 @@ class K8sWorker:
         num_resources_to_create: int = 0
         num_resources_created: int = 0
 
-        for (group_name, group_weight, resource_list) in k8s_resources_to_create_sorted:
+        for group_name, group_weight, resource_list in k8s_resources_to_create_sorted:
             print_subheading(f"\n-*- {group_name}")
             num_resources_to_create += len(resource_list)
             for resource in resource_list:
@@ -399,7 +399,7 @@ class K8sWorker:
         group_number = 1
         num_resources_to_create: int = 0
         print_heading("--**-- Kubernetes resources:")
-        for (group_name, group_weight, resource_list) in k8s_resources_to_create_sorted:
+        for group_name, group_weight, resource_list in k8s_resources_to_create_sorted:
             print_subheading(f"\n{group_number}. {group_name}")
             num_resources_to_create += len(resource_list)
             group_number += 1
@@ -421,7 +421,6 @@ class K8sWorker:
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
     ) -> Optional[List[K8sResource]]:
-
         logger.debug("-*- Getting K8sResources")
 
         k8s_resource_groups: Optional[
@@ -528,7 +527,7 @@ class K8sWorker:
         num_resources_to_delete: int = 0
         num_resources_deleted: int = 0
 
-        for (group_name, group_weight, resource_list) in k8s_resources_to_delete_sorted:
+        for group_name, group_weight, resource_list in k8s_resources_to_delete_sorted:
             print_subheading(f"\n-*- {group_name}")
             num_resources_to_delete += len(resource_list)
             for resource in resource_list:
@@ -623,7 +622,7 @@ class K8sWorker:
         group_number = 1
         num_resources_to_delete: int = 0
         print_heading("--**-- Kubernetes resources:")
-        for (group_name, group_weight, resource_list) in k8s_resources_to_delete_sorted:
+        for group_name, group_weight, resource_list in k8s_resources_to_delete_sorted:
             print_subheading(f"\n{group_number}. {group_name}")
             num_resources_to_delete += len(resource_list)
             group_number += 1
@@ -718,7 +717,7 @@ class K8sWorker:
         num_resources_to_patch: int = 0
         num_resources_patched: int = 0
 
-        for (group_name, group_weight, resource_list) in k8s_resources_to_patch_sorted:
+        for group_name, group_weight, resource_list in k8s_resources_to_patch_sorted:
             print_subheading(f"\n-*- {group_name}")
             num_resources_to_patch += len(resource_list)
             for resource in resource_list:
@@ -811,7 +810,7 @@ class K8sWorker:
         group_number = 1
         num_resources_to_patch: int = 0
         print_heading("--**-- Kubernetes resources:")
-        for (group_name, group_weight, resource_list) in k8s_resources_to_patch_sorted:
+        for group_name, group_weight, resource_list in k8s_resources_to_patch_sorted:
             print_subheading(f"\n{group_number}. {group_name}")
             num_resources_to_patch += len(resource_list)
             group_number += 1

@@ -8,7 +8,6 @@ def prep_infra_config(
     infra_config: InfraConfig,
     ws_config: WorkspaceConfig,
 ) -> InfraConfig:
-
     logger.debug(f"Updating {infra_config.__class__.__name__} using WorkspaceConfig")
 
     ######################################################################

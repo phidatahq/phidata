@@ -21,6 +21,7 @@ class NodeExporterArgs(PhidataAppArgs):
 
     # -*- node-exporter Configuration
 
+
 class NodeExporter(PhidataApp):
     def __init__(
         self,
@@ -363,7 +364,6 @@ class NodeExporter(PhidataApp):
     ######################################################
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
@@ -491,7 +491,9 @@ class NodeExporter(PhidataApp):
                             f"node-exporter-{workspace_name}-ws"
                         )
                     else:
-                        workspace_volume_name = get_default_volume_name("node-exporter-ws")
+                        workspace_volume_name = get_default_volume_name(
+                            "node-exporter-ws"
+                        )
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -565,7 +567,6 @@ class NodeExporter(PhidataApp):
     ######################################################
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 
@@ -936,12 +937,13 @@ class NodeExporter(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, node-exporter_container)
+        containers.insert(0, node - exporter_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": node-exporter_container.container_name,
+            "kubectl.kubernetes.io/default-container": node
+            - exporter_container.container_name,
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -974,7 +976,7 @@ class NodeExporter(PhidataApp):
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
-        deployments.append(node-exporter_deployment)
+        deployments.append(node - exporter_deployment)
 
         # Create the services
         if self.args.create_service:
@@ -990,7 +992,7 @@ class NodeExporter(PhidataApp):
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=node-exporter_deployment,
+                deployment=node - exporter_deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )

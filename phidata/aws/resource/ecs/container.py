@@ -85,7 +85,6 @@ class EcsContainer(AwsResource):
     firelens_configuration: Optional[Dict[str, Any]] = None
 
     def get_container_definition(self) -> Dict[str, Any]:
-
         container_definition: Dict[str, Any] = {}
         if self.name is not None:
             container_definition["name"] = self.name

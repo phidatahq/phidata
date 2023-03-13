@@ -48,7 +48,6 @@ class DeploymentSpec(K8sObject):
     template: PodTemplateSpec
 
     def get_k8s_object(self) -> V1DeploymentSpec:
-
         # Return a V1DeploymentSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_deployment_spec.py
         _strategy = self.strategy.get_k8s_object() if self.strategy else None
@@ -130,7 +129,6 @@ class Deployment(K8sResource):
         return deploys
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
-
         apps_v1_api: AppsV1Api = k8s_client.apps_v1_api
         k8s_object: V1Deployment = self.get_k8s_object()
         namespace = self.get_namespace()
@@ -176,7 +174,6 @@ class Deployment(K8sResource):
         return active_resource
 
     def _update(self, k8s_client: K8sApiClient) -> bool:
-
         if self.recreate_on_update:
             logger.info("Recreating Deployment")
             resource_deleted = self._delete(k8s_client=k8s_client)
@@ -219,7 +216,6 @@ class Deployment(K8sResource):
         return False
 
     def _delete(self, k8s_client: K8sApiClient) -> bool:
-
         apps_v1_api: AppsV1Api = k8s_client.apps_v1_api
         deploy_name = self.get_resource_name()
         namespace = self.get_namespace()

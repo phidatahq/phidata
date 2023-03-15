@@ -533,6 +533,26 @@ class PhidataApp(PhidataBase):
             self.secret_data = self.read_yaml_file(file_path=self.args.secrets_file)
         return self.secret_data
 
+    def set_container_env(self, container_env: Dict[str, Any]) -> None:
+        # Update the container env with user provided env
+        # this overwrites any existing variables
+        if self.args.env is not None and isinstance(self.args.env, dict):
+            container_env.update(
+                {k: str(v) for k, v in self.args.env.items() if v is not None}
+            )
+
+        # Update the container env using env_file
+        env_data_from_file = self.get_env_data()
+        if env_data_from_file is not None:
+            container_env.update(env_data_from_file)
+
+        # Update the container env using secrets_file or a secrets backend
+        secret_data_from_file = self.get_secret_data()
+        if secret_data_from_file is not None:
+            container_env.update(secret_data_from_file)
+
+        logger.debug(f"Container env: {container_env}")
+
     ######################################################
     ## Docker functions
     ######################################################

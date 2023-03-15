@@ -433,19 +433,8 @@ class ServerBase(PhidataApp):
         # Set aws env vars
         self.set_aws_env_vars(env_dict=container_env)
 
-        # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
-        if env_data_from_file is not None:
-            container_env.update(env_data_from_file)
-
-        # Update the container env using secrets_file or a secrets backend
-        secret_data_from_file = self.get_secret_data()
-        if secret_data_from_file is not None:
-            container_env.update(secret_data_from_file)
-
-        # Update the container env with user provided env, this overwrites any existing variables
-        if self.args.env is not None and isinstance(self.args.env, dict):
-            container_env.update(self.args.env)
+        # Set container env using env_dict, env_file or secrets_file
+        self.set_container_env(container_env=container_env)
 
         # Container Volumes
         # container_volumes is a dictionary which configures the volumes to mount

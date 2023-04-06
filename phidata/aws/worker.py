@@ -2,6 +2,7 @@ from collections import OrderedDict
 from typing import Dict, List, Optional
 
 from phidata.aws.args import AwsArgs
+from phidata.app.phidata_app import PhidataApp
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.group import AwsResourceGroup
@@ -47,14 +48,93 @@ class AwsWorker:
         """
         logger.debug("-*- Initializing AwsResourceGroups")
 
+        aws_resource_groups: Optional[Dict[str, AwsResourceGroup]] = None
+
+        aws_apps: Optional[List[PhidataApp]] = self.aws_args.apps
         aws_rgs: Optional[List[AwsResourceGroup]] = self.aws_args.resources
 
-        num_rgs_to_build = len(aws_rgs) if aws_rgs is not None else 0
+        num_apps = len(aws_apps) if aws_apps is not None else 0
+        num_rgs = len(aws_rgs) if aws_rgs is not None else 0
+        num_rgs_to_build = num_apps + num_rgs
         num_rgs_built = 0
 
-        if aws_rgs is not None and isinstance(aws_rgs, list):
-            aws_resource_groups: Dict[str, AwsResourceGroup] = OrderedDict()
+        # Step 1: Convert each PhidataApp to AwsResourceGroup.
+        if aws_apps is not None and isinstance(aws_apps, list):
+            for app in aws_apps:
+                if app.args is None:
+                    logger.error("Args for App {} are None".format(app))
+                    num_rgs_built += 1
+                    continue
 
+                if not app.enabled:
+                    logger.debug(f"{app.name} disabled")
+                    num_rgs_built += 1
+                    continue
+
+                # skip apps not matching app_filter if provided
+                if app_filter is not None:
+                    if app_filter.lower() not in app.name:
+                        logger.debug(f"Skipping {app.name}")
+                        num_rgs_built += 1
+                        continue
+
+                logger.debug("-*- App: {}".format(app.name))
+
+                ######################################################################
+                # NOTE: VERY IMPORTANT TO GET RIGHT
+                # Pass down parameters from K8sArgs -> PhidataApp
+                # The K8sConfig inherits these params from the WorkspaceConfig
+                # 1. Pass down the paths from the WorkspaceConfig
+                # 2. Pass down k8s_env
+                # 3. Pass down common cloud configuration. eg: aws_region, aws_profile
+                # This should match phidata.infra.prep_infra_config.prep_infra_config()
+                ######################################################################
+
+                # -*- Path parameters
+                app.scripts_dir = self.aws_args.scripts_dir
+                app.storage_dir = self.aws_args.storage_dir
+                app.meta_dir = self.aws_args.meta_dir
+                app.products_dir = self.aws_args.products_dir
+                app.notebooks_dir = self.aws_args.notebooks_dir
+                app.workflows_dir = self.aws_args.workflows_dir
+                # The ws_root_path is the ROOT directory for the workspace
+                app.workspace_root_path = self.aws_args.workspace_root_path
+                app.workspace_config_dir = self.aws_args.workspace_config_dir
+                app.workspace_config_file_path = (
+                    self.aws_args.workspace_config_file_path
+                )
+
+                # -*- AWS parameters
+                # only update the params if they are not available on the app.
+                # so we can prefer the app param if provided
+                if app.aws_region is None and self.aws_args.aws_region is not None:
+                    app.aws_region = self.aws_args.aws_region
+                if app.aws_profile is None and self.aws_args.aws_profile is not None:
+                    app.aws_profile = self.aws_args.aws_profile
+                if (
+                    app.aws_config_file is None
+                    and self.aws_args.aws_config_file is not None
+                ):
+                    app.aws_config_file = self.aws_args.aws_config_file
+                if (
+                    app.aws_shared_credentials_file is None
+                    and self.aws_args.aws_shared_credentials_file is not None
+                ):
+                    app.aws_shared_credentials_file = (
+                        self.aws_args.aws_shared_credentials_file
+                    )
+
+                app_rgs: Optional[
+                    Dict[str, AwsResourceGroup]
+                ] = app.get_aws_resource_groups(aws_build_context=self.aws_args)
+                if app_rgs is not None:
+                    if aws_resource_groups is None:
+                        aws_resource_groups = OrderedDict()
+                    aws_resource_groups.update(app_rgs)
+                    num_rgs_built += 1
+
+        # Step 2: Add all AwsResourceGroups to the aws_resource_groups dict
+        if aws_rgs is not None and isinstance(aws_rgs, list):
             for rg in aws_rgs:
                 if not rg.enabled:
                     logger.debug(f"{rg.name} disabled")
@@ -69,15 +149,13 @@ class AwsWorker:
                         continue
 
                 if isinstance(rg, AwsResourceGroup):
+                    if aws_resource_groups is None:
+                        aws_resource_groups = OrderedDict()
                     aws_resource_groups[rg.name] = rg
                     num_rgs_built += 1
 
-            logger.debug(
-                f"# AwsResourceGroups built: {num_rgs_built}/{num_rgs_to_build}"
-            )
-            return aws_resource_groups
-
-        return None
+        logger.debug(f"# AwsResourceGroups built: {num_rgs_built}/{num_rgs_to_build}")
+        return aws_resource_groups
 
     ######################################################
     ## Create Resources

@@ -22,6 +22,8 @@ class ServerBaseArgs(PhidataAppArgs):
     # -*- AWS Configuration
     ecs_cluster: Optional[Any] = None
     ecs_launch_type: str = "FARGATE"
+    ecs_task_cpu: str = "256"
+    ecs_task_memory: str = "512"
     ecs_service_count: int = 1
     assign_public_ip: bool = True
 
@@ -246,12 +248,14 @@ class ServerBase(PhidataApp):
         # -*- AWS configuration,
         ecs_cluster: Optional[Any] = None,
         ecs_launch_type: str = "FARGATE",
+        ecs_task_cpu: str = "256",
+        ecs_task_memory: str = "512",
         ecs_service_count: int = 1,
         assign_public_ip: bool = True,
         aws_subnets: Optional[List[str]] = None,
         aws_security_groups: Optional[List[str]] = None,
         # Other args,
-        print_env_on_load: bool = True,
+        print_env_on_load: bool = False,
         skip_create: bool = False,
         skip_read: bool = False,
         skip_update: bool = False,
@@ -370,6 +374,8 @@ class ServerBase(PhidataApp):
                 extra_crds=extra_crds,
                 ecs_cluster=ecs_cluster,
                 ecs_launch_type=ecs_launch_type,
+                ecs_task_cpu=ecs_task_cpu,
+                ecs_task_memory=ecs_task_memory,
                 ecs_service_count=ecs_service_count,
                 assign_public_ip=assign_public_ip,
                 aws_subnets=aws_subnets,
@@ -1068,7 +1074,13 @@ class ServerBase(PhidataApp):
             WORKSPACES_MOUNT_ENV_VAR,
             WORKSPACE_CONFIG_DIR_ENV_VAR,
         )
-        from phidata.aws.resource.group import AwsResourceGroup, EcsCluster, EcsContainer, EcsTaskDefinition, EcsService
+        from phidata.aws.resource.group import (
+            AwsResourceGroup,
+            EcsCluster,
+            EcsContainer,
+            EcsTaskDefinition,
+            EcsService,
+        )
         from phidata.types.context import ContainerPathContext
 
         # Workspace paths
@@ -1077,24 +1089,26 @@ class ServerBase(PhidataApp):
             return None
 
         workspace_name = self.workspace_root_path.stem
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths(
+            add_ws_name_to_container_path=False
+        )
         if container_paths is None:
             logger.error("Could not build container paths")
             return None
         logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
 
         # Container pythonpath
-        python_path = self.args.python_path
-        if python_path is None:
-            python_path = "{}{}".format(
-                container_paths.workspace_root,
-                f":{self.args.add_python_path}" if self.args.add_python_path else "",
-            )
+        # python_path = self.args.python_path
+        # if python_path is None:
+        #     python_path = "{}{}".format(
+        #         container_paths.workspace_root,
+        #         f":{self.args.add_python_path}" if self.args.add_python_path else "",
+        #     )
 
         # Container Environment
         container_env: Dict[str, Any] = {
             # Env variables used by data workflows and data assets
-            PYTHONPATH_ENV_VAR: python_path,
+            # PYTHONPATH_ENV_VAR: python_path,
             PHIDATA_RUNTIME_ENV_VAR: "ecs",
             SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
             STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
@@ -1147,7 +1161,7 @@ class ServerBase(PhidataApp):
                     "awslogs-group": app_name,
                     "awslogs-region": self.aws_region,
                     "awslogs-create-group": "true",
-                    # "awslogs-stream-prefix": app_name,
+                    "awslogs-stream-prefix": app_name,
                 },
             },
             skip_create=self.args.skip_create,
@@ -1161,8 +1175,8 @@ class ServerBase(PhidataApp):
             name=f"{app_name}-td",
             family=app_name,
             network_mode="awsvpc",
-            cpu="512",
-            memory="1024",
+            cpu=self.args.ecs_task_cpu,
+            memory=self.args.ecs_task_memory,
             containers=[ecs_container],
             requires_compatibilities=[self.args.ecs_launch_type],
             skip_create=self.args.skip_create,
@@ -1170,6 +1184,14 @@ class ServerBase(PhidataApp):
             wait_for_creation=self.args.wait_for_creation,
             wait_for_deletion=self.args.wait_for_deletion,
         )
+
+        aws_vpc_config = {}
+        if self.args.aws_subnets is not None:
+            aws_vpc_config["subnets"] = self.args.aws_subnets
+        if self.args.aws_security_groups is not None:
+            aws_vpc_config["securityGroups"] = self.args.aws_security_groups
+        if self.args.assign_public_ip:
+            aws_vpc_config["assignPublicIp"] = "ENABLED"
 
         # -*- Create ECS Service
         ecs_service = EcsService(
@@ -1185,13 +1207,7 @@ class ServerBase(PhidataApp):
             #         "containerPort": app_container_port,
             #     }
             # ],
-            network_configuration={
-                "awsvpcConfiguration": {
-                    "subnets": self.args.aws_subnets,
-                    "securityGroups": self.args.aws_security_groups,
-                    "assignPublicIp": self.args.assign_public_ip,
-                }
-            },
+            network_configuration={"awsvpcConfiguration": aws_vpc_config},
             # Force delete the service.
             force_delete=True,
             # Force a new deployment of the service on update.
@@ -1203,14 +1219,13 @@ class ServerBase(PhidataApp):
         )
 
         # -*- Create AwsResourceGroup
-        aws_rg = AwsResourceGroup(
+        return AwsResourceGroup(
             name=app_name,
             enabled=self.enabled,
             ecs_clusters=[ecs_cluster],
             ecs_task_definitions=[ecs_task_definition],
             ecs_services=[ecs_service],
         )
-        return aws_rg
 
     def init_aws_resource_groups(self, aws_build_context: Any) -> None:
         aws_rg = self.get_aws_rg(aws_build_context)

@@ -1,5 +1,7 @@
 from typing import Optional, List, Union
 
+from phidata.app.phidata_app import PhidataApp
+from phidata.app.group import AppGroup, get_apps_from_app_groups
 from phidata.infra.config import InfraConfig
 from phidata.aws.args import AwsArgs
 from phidata.aws.manager import AwsManager
@@ -13,6 +15,8 @@ class AwsConfig(InfraConfig):
         env: Optional[str] = "prd",
         version: Optional[str] = None,
         enabled: bool = True,
+        apps: Optional[List[PhidataApp]] = None,
+        app_groups: Optional[List[AppGroup]] = None,
         # AwsResourceGroups to deploy
         resources: Optional[Union[AwsResourceGroup, List[AwsResourceGroup]]] = None,
         # Resources dir where aws manifests are stored
@@ -29,17 +33,24 @@ class AwsConfig(InfraConfig):
         if isinstance(resources, AwsResourceGroup):
             _resources = [resources]
         elif isinstance(resources, list):
-            _resources = resources
-        else:
-            raise TypeError(
-                "AwsConfig.resources should be AwsResourceGroup or List[AwsResourceGroup]"
-            )
+            for _r in resources:
+                if isinstance(_r, AwsResourceGroup):
+                    if _resources is None:
+                        _resources = []
+                    _resources.append(_r)
+                else:
+                    logger.error(f"Invalid resource group: {_r}")
+
+        _apps = apps if apps is not None else []
+        if app_groups is not None:
+            _apps.extend(get_apps_from_app_groups(app_groups))
 
         try:
             self.args: AwsArgs = AwsArgs(
                 env=env,
                 version=version,
                 enabled=enabled,
+                apps=_apps,
                 resources=_resources,
                 resources_dir=resources_dir,
                 aws_region=aws_region,

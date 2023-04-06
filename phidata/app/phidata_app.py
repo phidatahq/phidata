@@ -285,7 +285,7 @@ class PhidataAppArgs(PhidataBaseArgs):
     aws_security_groups: Optional[List[str]] = None
 
     # Other args
-    print_env_on_load: bool = True
+    print_env_on_load: bool = False
     # If True, skip resource creation if active resources with the same name exist.
     use_cache: bool = True
 
@@ -569,9 +569,7 @@ class PhidataApp(PhidataBase):
         return self.args.container_restart_policy_docker if self.args else None
 
     def init_docker_resource_groups(self, docker_build_context: Any) -> None:
-        logger.debug(
-            f"@init_docker_resource_groups not defined for {self.name}"
-        )
+        logger.debug(f"@init_docker_resource_groups not defined for {self.name}")
 
     def get_docker_resource_groups(
         self, docker_build_context: Any
@@ -592,9 +590,7 @@ class PhidataApp(PhidataBase):
     ######################################################
 
     def init_k8s_resource_groups(self, k8s_build_context: Any) -> None:
-        logger.debug(
-            f"@init_docker_resource_groups not defined for {self.name}"
-        )
+        logger.debug(f"@init_docker_resource_groups not defined for {self.name}")
 
     def get_k8s_resource_groups(
         self, k8s_build_context: Any
@@ -615,9 +611,7 @@ class PhidataApp(PhidataBase):
     ######################################################
 
     def init_aws_resource_groups(self, aws_build_context: Any) -> None:
-        logger.debug(
-            f"@init_aws_resource_groups not defined for {self.name}"
-        )
+        logger.debug(f"@init_aws_resource_groups not defined for {self.name}")
 
     def get_aws_resource_groups(
         self, aws_build_context: Any
@@ -628,16 +622,19 @@ class PhidataApp(PhidataBase):
         if self.aws_resource_groups:
             logger.debug("AwsResourceGroups:")
             for rg_name, rg in self.aws_resource_groups.items():
-                logger.debug(
-                    "{}:{}\n{}".format(rg_name, type(rg), rg)
-                )
-        return self.k8s_resource_groups
+                try:
+                    logger.debug("{}\n{}".format(rg_name, rg.json(indent=2)))
+                except Exception:
+                    pass
+        return self.aws_resource_groups
 
     ######################################################
     ## Helpers
     ######################################################
 
-    def get_container_paths(self) -> Optional[Any]:
+    def get_container_paths(
+        self, add_ws_name_to_container_path: bool = True
+    ) -> Optional[Any]:
         if self.workspace_root_path is None:
             return None
 
@@ -653,6 +650,8 @@ class PhidataApp(PhidataBase):
 
         workspace_root_container_path = (
             f"{workspace_volume_container_path}/{workspace_name}"
+            if add_ws_name_to_container_path
+            else workspace_volume_container_path
         )
         container_paths = ContainerPathContext(
             workspace_name=workspace_name,

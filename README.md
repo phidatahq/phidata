@@ -25,17 +25,18 @@
 
 ---
 
-### **Phidata is a set of building blocks for data engineering**
+### **A python library of data engineering building blocks**
 
-It makes data tools plug-n-play so teams can deliver high-quality, reliable data products
+Python library of OSS data tools, use it deliver high-quality data products on the cheap.
+
+Honestly our goal is just to save money and run OSS on the cheap. So we run stuff locally using docker and in production on AWS. Because we're running OSS, we're OSS too with a MPL-2.0 license.
 
 ### How it works
 
-- You start with a codebase that has data tools pre-configured
-- Enable the Apps you need - Airflow, Superset, Jupyter, MLFlow
-- Build data products (tables, metrics) in a dev environment running locally on docker
-- Write pipelines in python or SQL. Use GPT-3 to generate boilerplate code
-- Run production on AWS. Infrastructure is also pre-configured
+- Phidata converts infrastructure, tools and data assets into python classes.
+- These classes are then put together to build data platforms, ML Apis, AI Apps, etc.
+- Run your platform locally for development using docker with `phi ws up dev:docker`
+- Run it in production on AWS: `phi ws up prod:aws`
 
 ### Advantages
 

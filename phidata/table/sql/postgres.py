@@ -10,8 +10,8 @@ class PostgresTable(SqlTable):
         self,
         # Table Name: required
         name: str,
-        # SQLModel for this table: required
-        data_model: Any,
+        # SQLModel for this table
+        data_model: Optional[Any] = None,
         # Database for the table (eg: "public" on postgres)
         database: Optional[str] = None,
         # -*- Table Connection

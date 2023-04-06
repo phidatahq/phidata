@@ -1,0 +1,5 @@
+[user]
+    name = JupyterLab
+    email = jupyter@lab.com
+[credential]
+    helper = /bin/bash /usr/local/jupyter/git-credential-helper.sh

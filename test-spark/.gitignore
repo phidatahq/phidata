@@ -1,0 +1,43 @@
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+.DS_Store
+
+# Python cache
+.mypy_cache
+*__pycache__*
+*.egg-info
+*.pyc
+*.pytest_cache
+*.ruff_cache
+
+# Machine specific
+.idea
+.vscode
+cloud_sql_proxy
+
+# Ignore .env files
+.env
+.envrc
+
+# ignore storage dir
+storage
+
+# ignore dist dir
+dist
+
+# ignore virtualenvs
+.venv
+venv*
+dpenv*
+mlenv*
+dataenv*
+testenv*
+
+# ignore mounted databox_airflow_home
+databox_airflow*
+
+# ignore everything jupyterhub
+jupyterhub*
+# except jupyter_hub_config.py
+!jupyter_hub_config.py
+.ipynb*

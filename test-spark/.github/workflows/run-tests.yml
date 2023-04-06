@@ -1,0 +1,44 @@
+name: Test
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+    branches:
+      - 'main'
+
+jobs:
+  format-lint:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.7"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade \
+            pip setuptools wheel \
+            black mypy pytest ruff
+          pip install --no-deps -r requirements.txt
+      - name: Format with black
+        run: |
+          black .
+      - name: Type-check with mypy
+        run: |
+          mypy .
+      - name: Test with pytest
+        run: |
+          pytest .
+      - name: Lint with ruff
+        run: |
+          ruff .

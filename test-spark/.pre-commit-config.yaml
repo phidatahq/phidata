@@ -1,0 +1,31 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    - id: trailing-whitespace
+    - id: end-of-file-fixer
+    - id: check-yaml
+      args: [--allow-multiple-documents]
+    - id: check-toml
+    - id: check-added-large-files
+    - id: detect-aws-credentials
+    - id: detect-private-key
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.209
+    hooks:
+      - id: ruff
+        args: ["--force-exclude"]
+
+  - repo: https://github.com/psf/black
+    rev: 22.12.0
+    hooks:
+      - id: black
+      # - id: black-jupyter
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.991
+    hooks:
+      - id: mypy

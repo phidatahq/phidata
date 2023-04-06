@@ -8,6 +8,18 @@ class PhidataBaseArgs(BaseModel):
     version: Optional[str] = None
     enabled: bool = True
 
+    skip_create: bool = False
+    skip_read: bool = False
+    skip_update: bool = False
+    recreate_on_update: bool = False
+    skip_delete: bool = False
+
+    wait_for_creation: bool = True
+    wait_for_update: bool = True
+    wait_for_deletion: bool = True
+    waiter_delay: int = 30
+    waiter_max_attempts: int = 50
+
     class Config:
         arbitrary_types_allowed = True
 

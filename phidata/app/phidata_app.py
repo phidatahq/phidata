@@ -280,6 +280,10 @@ class PhidataAppArgs(PhidataBaseArgs):
     # Type: CreateCustomResourceDefinition
     extra_crds: Optional[List[Any]] = None
 
+    # -*- AWS configuration
+    aws_subnets: Optional[List[str]] = None
+    aws_security_groups: Optional[List[str]] = None
+
     # Other args
     print_env_on_load: bool = True
     # If True, skip resource creation if active resources with the same name exist.
@@ -319,6 +323,10 @@ class PhidataApp(PhidataBase):
         # Dict of KubernetesResourceGroups
         # Type: Optional[Dict[str, K8sResourceGroup]]
         self.k8s_resource_groups: Optional[Dict[str, Any]] = None
+
+        # Dict of AwsResourceGroups
+        # Type: Optional[Dict[str, AwsResourceGroup]]
+        self.aws_resource_groups: Optional[Dict[str, Any]] = None
 
     @property
     def workspace_root_path(self) -> Optional[Path]:
@@ -562,7 +570,7 @@ class PhidataApp(PhidataBase):
 
     def init_docker_resource_groups(self, docker_build_context: Any) -> None:
         logger.debug(
-            f"@init_docker_resource_groups not defined for {self.__class__.__name__}"
+            f"@init_docker_resource_groups not defined for {self.name}"
         )
 
     def get_docker_resource_groups(
@@ -585,7 +593,7 @@ class PhidataApp(PhidataBase):
 
     def init_k8s_resource_groups(self, k8s_build_context: Any) -> None:
         logger.debug(
-            f"@init_docker_resource_groups not defined for {self.__class__.__name__}"
+            f"@init_docker_resource_groups not defined for {self.name}"
         )
 
     def get_k8s_resource_groups(
@@ -600,6 +608,29 @@ class PhidataApp(PhidataBase):
         #         logger.debug(
         #             "{}:{}\n{}".format(rg_name, type(rg), rg)
         #         )
+        return self.k8s_resource_groups
+
+    ######################################################
+    ## AWS functions
+    ######################################################
+
+    def init_aws_resource_groups(self, aws_build_context: Any) -> None:
+        logger.debug(
+            f"@init_aws_resource_groups not defined for {self.name}"
+        )
+
+    def get_aws_resource_groups(
+        self, aws_build_context: Any
+    ) -> Optional[Dict[str, Any]]:
+        if self.aws_resource_groups is None:
+            self.init_aws_resource_groups(aws_build_context)
+        # Comment out in production
+        if self.aws_resource_groups:
+            logger.debug("AwsResourceGroups:")
+            for rg_name, rg in self.aws_resource_groups.items():
+                logger.debug(
+                    "{}:{}\n{}".format(rg_name, type(rg), rg)
+                )
         return self.k8s_resource_groups
 
     ######################################################

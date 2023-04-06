@@ -15,9 +15,15 @@ class ServerBaseArgs(PhidataAppArgs):
 
     # -*- Image Configuration
     image_name: str = "phidata/server"
-    image_tag: str = "1.4.1"
+    image_tag: str = "1.5.0"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
+
+    # -*- AWS Configuration
+    ecs_cluster: Optional[Any] = None
+    ecs_launch_type: str = "FARGATE"
+    ecs_service_count: int = 1
+    assign_public_ip: bool = True
 
 
 class ServerBase(PhidataApp):
@@ -30,7 +36,7 @@ class ServerBase(PhidataApp):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "phidata/server",
-        image_tag: str = "1.4.1",
+        image_tag: str = "1.5.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,
@@ -237,8 +243,25 @@ class ServerBase(PhidataApp):
         extra_custom_objects: Optional[List[Any]] = None,
         # Type: CreateCustomResourceDefinition,
         extra_crds: Optional[List[Any]] = None,
+        # -*- AWS configuration,
+        ecs_cluster: Optional[Any] = None,
+        ecs_launch_type: str = "FARGATE",
+        ecs_service_count: int = 1,
+        assign_public_ip: bool = True,
+        aws_subnets: Optional[List[str]] = None,
+        aws_security_groups: Optional[List[str]] = None,
         # Other args,
         print_env_on_load: bool = True,
+        skip_create: bool = False,
+        skip_read: bool = False,
+        skip_update: bool = False,
+        recreate_on_update: bool = False,
+        skip_delete: bool = False,
+        wait_for_creation: bool = True,
+        wait_for_update: bool = True,
+        wait_for_deletion: bool = True,
+        waiter_delay: int = 30,
+        waiter_max_attempts: int = 50,
         # If True, skip resource creation if active resources with the same name exist.,
         use_cache: bool = True,
         **kwargs,
@@ -345,7 +368,23 @@ class ServerBase(PhidataApp):
                 extra_storage_classes=extra_storage_classes,
                 extra_custom_objects=extra_custom_objects,
                 extra_crds=extra_crds,
+                ecs_cluster=ecs_cluster,
+                ecs_launch_type=ecs_launch_type,
+                ecs_service_count=ecs_service_count,
+                assign_public_ip=assign_public_ip,
+                aws_subnets=aws_subnets,
+                aws_security_groups=aws_security_groups,
                 print_env_on_load=print_env_on_load,
+                skip_create=skip_create,
+                skip_read=skip_read,
+                skip_update=skip_update,
+                recreate_on_update=recreate_on_update,
+                skip_delete=skip_delete,
+                wait_for_creation=wait_for_creation,
+                wait_for_update=wait_for_update,
+                wait_for_deletion=wait_for_deletion,
+                waiter_delay=waiter_delay,
+                waiter_max_attempts=waiter_max_attempts,
                 use_cache=use_cache,
                 extra_kwargs=kwargs,
             )
@@ -1007,3 +1046,177 @@ class ServerBase(PhidataApp):
             if self.k8s_resource_groups is None:
                 self.k8s_resource_groups = OrderedDict()
             self.k8s_resource_groups[k8s_rg.name] = k8s_rg
+
+    ######################################################
+    ## Aws Resources
+    ######################################################
+
+    def get_aws_rg(self, aws_build_context: Any) -> Optional[Any]:
+        app_name = self.args.name
+        logger.debug(f"Building {app_name} AwsResourceGroup")
+
+        from phidata.constants import (
+            PYTHONPATH_ENV_VAR,
+            PHIDATA_RUNTIME_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACES_MOUNT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+        )
+        from phidata.aws.resource.group import AwsResourceGroup, EcsCluster, EcsContainer, EcsTaskDefinition, EcsService
+        from phidata.types.context import ContainerPathContext
+
+        # Workspace paths
+        if self.workspace_root_path is None:
+            logger.error("Invalid workspace_root_path")
+            return None
+
+        workspace_name = self.workspace_root_path.stem
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        if container_paths is None:
+            logger.error("Could not build container paths")
+            return None
+        logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
+
+        # Container pythonpath
+        python_path = self.args.python_path
+        if python_path is None:
+            python_path = "{}{}".format(
+                container_paths.workspace_root,
+                f":{self.args.add_python_path}" if self.args.add_python_path else "",
+            )
+
+        # Container Environment
+        container_env: Dict[str, Any] = {
+            # Env variables used by data workflows and data assets
+            PYTHONPATH_ENV_VAR: python_path,
+            PHIDATA_RUNTIME_ENV_VAR: "ecs",
+            SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
+            STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
+            META_DIR_ENV_VAR: container_paths.meta_dir,
+            PRODUCTS_DIR_ENV_VAR: container_paths.products_dir,
+            NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir,
+            WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir,
+            WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root,
+            WORKSPACES_MOUNT_ENV_VAR: container_paths.workspace_parent,
+            WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir,
+            "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
+            "REQUIREMENTS_FILE_PATH": container_paths.requirements_file,
+            "MOUNT_WORKSPACE": str(self.args.mount_workspace),
+            # Print env when the container starts
+            "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+        }
+
+        # Set aws env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
+        # Set container env using env_dict, env_file or secrets_file
+        self.set_container_env(container_env=container_env)
+
+        # -*- Create ECS cluster
+        ecs_cluster = self.args.ecs_cluster
+        if ecs_cluster is None:
+            ecs_cluster = EcsCluster(
+                name=f"{app_name}-cluster",
+                ecs_cluster_name=app_name,
+                capacity_providers=[self.args.ecs_launch_type],
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
+        elif not isinstance(ecs_cluster, EcsCluster):
+            logger.error("Invalid EcsCluster")
+            return None
+
+        # -*- Create ECS Container
+        ecs_container = EcsContainer(
+            name=app_name,
+            image=self.get_image_str(),
+            port_mappings=[{"containerPort": self.get_container_port()}],
+            command=self.args.command,
+            environment=[{"name": k, "value": v} for k, v in container_env.items()],
+            log_configuration={
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": app_name,
+                    "awslogs-region": self.aws_region,
+                    "awslogs-create-group": "true",
+                    # "awslogs-stream-prefix": app_name,
+                },
+            },
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create ECS Task Definition
+        ecs_task_definition = EcsTaskDefinition(
+            name=f"{app_name}-td",
+            family=app_name,
+            network_mode="awsvpc",
+            cpu="512",
+            memory="1024",
+            containers=[ecs_container],
+            requires_compatibilities=[self.args.ecs_launch_type],
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create ECS Service
+        ecs_service = EcsService(
+            name=f"{app_name}-service",
+            desired_count=self.args.ecs_service_count,
+            launch_type=self.args.ecs_launch_type,
+            cluster=ecs_cluster,
+            task_definition=ecs_task_definition,
+            # load_balancers=[
+            #     {
+            #         "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:386435111151:targetgroup/backend-prd-api-tg/f43488b11bcb886f",  # noqa: E501
+            #         "containerName": ecs_container.name,
+            #         "containerPort": app_container_port,
+            #     }
+            # ],
+            network_configuration={
+                "awsvpcConfiguration": {
+                    "subnets": self.args.aws_subnets,
+                    "securityGroups": self.args.aws_security_groups,
+                    "assignPublicIp": self.args.assign_public_ip,
+                }
+            },
+            # Force delete the service.
+            force_delete=True,
+            # Force a new deployment of the service on update.
+            force_new_deployment=True,
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create AwsResourceGroup
+        aws_rg = AwsResourceGroup(
+            name=app_name,
+            enabled=self.enabled,
+            ecs_clusters=[ecs_cluster],
+            ecs_task_definitions=[ecs_task_definition],
+            ecs_services=[ecs_service],
+        )
+        return aws_rg
+
+    def init_aws_resource_groups(self, aws_build_context: Any) -> None:
+        aws_rg = self.get_aws_rg(aws_build_context)
+        if aws_rg is not None:
+            from collections import OrderedDict
+
+            if self.aws_resource_groups is None:
+                self.aws_resource_groups = OrderedDict()
+            self.aws_resource_groups[aws_rg.name] = aws_rg

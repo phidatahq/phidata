@@ -1,0 +1,2 @@
+jupyterlab-s3-browser==0.12.0
+jupyterlab-git==0.41.0

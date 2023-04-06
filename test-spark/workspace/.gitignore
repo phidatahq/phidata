@@ -1,0 +1,10 @@
+# ignore ACM certificate
+aws/acm
+
+# k8s/prd may contain secrets which should not be checked in
+k8s/prd
+# ignore dev manifests
+k8s/dev
+
+# ignore secrets
+secrets

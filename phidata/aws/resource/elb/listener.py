@@ -2,6 +2,7 @@ from typing import Optional, Any, Dict, List
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.elb.load_balancer import LoadBalancer
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -14,72 +15,51 @@ class Listener(AwsResource):
     resource_type = "Listener"
     service_name = "elbv2"
 
-    # Name of the Target Group
-    name: str
+    # Name of the Listener
+    load_balancer: Optional[LoadBalancer] = None
+    load_balancer_arn: Optional[str] = None
     protocol: Optional[str] = None
-    protocol_version: Optional[str] = None
     port: Optional[int] = None
-    vpc_id: Optional[str] = None
-    health_check_protocol: Optional[str] = None
-    health_check_port: Optional[str] = None
-    health_check_enabled: Optional[bool] = None
-    health_check_path: Optional[str] = None
-    health_check_interval_seconds: Optional[int] = None
-    health_check_timeout_seconds: Optional[int] = None
-    healthy_threshold_count: Optional[int] = None
-    unhealthy_threshold_count: Optional[int] = None
-    matcher: Optional[Dict[str, str]] = None
-    target_type: Optional[str] = None
-    tags: Optional[List[Dict[str, str]]] = None
-    ip_address_type: Optional[str] = None
+    ssl_policy: Optional[str] = None
+    certificates: Optional[List[Dict[str,bool]]]
+    defaultactions:Optional[List[Dict]]
+    alpn_policy:Optional[List[str]]
+    tags:Optional[List[Dict[str,str]]]
 
     def _create(self, aws_client: AwsApiClient) -> bool:
-        """Creates the Target Group
+        """Creates the Listener
 
         Args:
-            aws_client: The AwsApiClient for the current Target Group
+            aws_client: The AwsApiClient for the current Listener
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        load_balancer_arn = self.get_load_balancer_arn()
+        if load_balancer_arn is None:
+            logger.error(f"Load balancer ARN not available")
+            return True
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.protocol is not None:
             not_null_args["Protocol"] = self.protocol
-        if self.protocol_version is not None:
-            not_null_args["ProtocolVersion"] = self.protocol_version
         if self.port is not None:
             not_null_args["Port"] = self.port
-        if self.vpc_id is not None:
-            not_null_args["VpcId"] = self.vpc_id
-        if self.health_check_protocol is not None:
-            not_null_args["HealthCheckProtocol"] = self.health_check_protocol
-        if self.health_check_port is not None:
-            not_null_args["HealthCheckPort"] = self.health_check_port
-        if self.health_check_enabled is not None:
-            not_null_args["HealthCheckEnabled"] = self.health_check_enabled
-        if self.health_check_path is not None:
-            not_null_args["HealthCheckPath"] = self.health_check_path
-        if self.health_check_interval_seconds is not None:
-            not_null_args["HealthCheckIntervalSeconds"] = self.health_check_interval_seconds
-        if self.health_check_timeout_seconds is not None:
-            not_null_args["HealthCheckTimeoutSeconds"] = self.health_check_timeout_seconds
-        if self.healthy_threshold_count is not None:
-            not_null_args["HealthyThresholdCount"] = self.healthy_threshold_count
-        if self.unhealthy_threshold_count is not None:
-            not_null_args["UnhealthyThresholdCount"] = self.unhealthy_threshold_count
-        if self.matcher is not None:
-            not_null_args["Matcher"] = self.matcher
-        if self.target_type is not None:
-            not_null_args["TargetType"] = self.target_type
+        if self.ssl_policy is not None:
+            not_null_args["SslPolicy"] = self.ssl_policy
+        if self.certificates is not None:
+            not_null_args["Certificates"] = self.certificates
+        if self.defaultactions is not None:
+            not_null_args["DefaultActions"] = self.defaultactions
+        if self.alpn_policy is not None:
+            not_null_args["AlpnPolicy"] = self.alpn_policy
         if self.tags is not None:
             not_null_args["Tags"] = self.tags
-        if self.ip_address_type is not None:
-            not_null_args["IpAddressType"] = self.ip_address_type
 
         # Create Listener
         service_client = self.get_service_client(aws_client)
         try:
-            create_response = service_client.create_target_group(
+            create_response = service_client.create_listener(
                 Name=self.name,
                 **not_null_args,
             )
@@ -108,8 +88,12 @@ class Listener(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            describe_response = service_client.describe_target_groups(
-                Names=[self.name]
+            load_balancer_arn = self.get_load_balancer_arn()
+            if load_balancer_arn is None:
+                logger.error(f"Load balancer ARN not available")
+                return True
+            describe_response = service_client.describe_listeners(
+                LoadBalancerArn=load_balancer_arn
             )
             logger.debug(f"Describe Response: {describe_response}")
             resource_list = describe_response.get("Listeners", None)
@@ -135,11 +119,11 @@ class Listener(AwsResource):
         self.active_resource = None
 
         try:
-            tg_arn = self.get_arn
-            if tg_arn is None:
+            listener_arn = self.get_arn
+            if listener_arn is None:
                 print_error(f"Listener {self.get_resource_name()} not found.")
                 return True
-            delete_response = service_client.delete_target_group(
+            delete_response = service_client.delete_listener(
                 ListenerArn=self.get_arn
             )
             logger.debug(f"Delete Response: {delete_response}")
@@ -157,36 +141,30 @@ class Listener(AwsResource):
         """Update EcsService"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        tg_arn = self.get_arn
-        if tg_arn is None:
+        listener_arn = self.get_arn
+        if listener_arn is None:
             print_error(f"Listener {self.get_resource_name()} not found.")
             return True
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
-        if self.health_check_protocol is not None:
-            not_null_args["HealthCheckProtocol"] = self.health_check_protocol
-        if self.health_check_port is not None:
-            not_null_args["HealthCheckPort"] = self.health_check_port
-        if self.health_check_enabled is not None:
-            not_null_args["HealthCheckEnabled"] = self.health_check_enabled
-        if self.health_check_path is not None:
-            not_null_args["HealthCheckPath"] = self.health_check_path
-        if self.health_check_interval_seconds is not None:
-            not_null_args["HealthCheckIntervalSeconds"] = self.health_check_interval_seconds
-        if self.health_check_timeout_seconds is not None:
-            not_null_args["HealthCheckTimeoutSeconds"] = self.health_check_timeout_seconds
-        if self.healthy_threshold_count is not None:
-            not_null_args["HealthyThresholdCount"] = self.healthy_threshold_count
-        if self.unhealthy_threshold_count is not None:
-            not_null_args["UnhealthyThresholdCount"] = self.unhealthy_threshold_count
-        if self.matcher is not None:
-            not_null_args["Matcher"] = self.matcher
+        if self.protocol is not None:
+            not_null_args["Protocol"] = self.protocol
+        if self.port is not None:
+            not_null_args["Port"] = self.port
+        if self.ssl_policy is not None:
+            not_null_args["SslPolicy"] = self.ssl_policy
+        if self.certificates is not None:
+            not_null_args["Certificates"] = self.certificates
+        if self.defaultactions is not None:
+            not_null_args["DefaultActions"] = self.defaultactions
+        if self.alpn_policy is not None:
+            not_null_args["AlpnPolicy"] = self.alpn_policy
 
         service_client = self.get_service_client(aws_client)
         try:
-            create_response = service_client.modify_target_group(
-                ListenerArn=tg_arn,
+            create_response = service_client.modify_listener(
+                ListenerArn=listener_arn,
                 **not_null_args,
             )
             logger.debug(f"Update Response: {create_response}")
@@ -203,8 +181,16 @@ class Listener(AwsResource):
         return False
 
     def get_arn(self, aws_client: AwsApiClient) -> Optional[str]:
-        tg = self._read(aws_client)
-        if tg is None:
+        listener = self._read(aws_client)
+        if listener is None:
             return None
-        tg_arn = tg.get("ListenerArn", None)
-        return tg_arn
+        listener_arn = listener.get("ListenerArn", None)
+        return listener_arn
+
+    def get_load_balancer_arn(self,aws_client: AwsApiClient):
+
+        load_balancer_arn = self.load_balancer_arn
+        if load_balancer_arn is None and self.load_balancer:
+            load_balancer_arn = self.load_balancer.get_arn(aws_client)
+
+        return load_balancer_arn

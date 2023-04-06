@@ -140,3 +140,10 @@ class EcsCluster(AwsResource):
             print_error("Please try again or delete resources manually.")
             print_error(e)
         return False
+
+    def get_arn(self, aws_client: AwsApiClient) -> Optional[str]:
+        tg = self._read(aws_client)
+        if tg is None:
+            return None
+        tg_arn = tg.get("ListenerArn", None)
+        return tg_arn

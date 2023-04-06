@@ -85,19 +85,13 @@ class LoadBalancer(AwsResource):
         service_client = self.get_service_client(aws_client)
         try:
             describe_response = service_client.describe_load_balancers(
-                LoadBalancerArns=[self.name]
+                Names=[self.name]
             )
-            logger.debug(f"LoadBalancer: {describe_response}")
-            resource_list = describe_response.get("clusters", None)
+            logger.debug(f"LoadBalancers: {describe_response}")
+            resource_list = describe_response.get("LoadBalancers", None)
 
             if resource_list is not None and isinstance(resource_list, list):
-                for resource in resource_list:
-                    _cluster_identifier = resource.get("clusterName", None)
-                    if _cluster_identifier == cluster_name:
-                        _cluster_status = resource.get("status", None)
-                        if _cluster_status == "ACTIVE":
-                            self.active_resource = resource
-                            break
+                self.active_resource = resource_list[0]
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -130,3 +124,10 @@ class LoadBalancer(AwsResource):
             print_error("Please try again or delete resources manually.")
             print_error(e)
         return False
+
+    def get_arn(self, aws_client: AwsApiClient) -> Optional[str]:
+        lb = self._read(aws_client)
+        if lb is None:
+            return None
+        lb_arn = lb.get("LoadBalancerArn", None)
+        return lb_arn

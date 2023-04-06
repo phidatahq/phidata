@@ -14,7 +14,7 @@ class LoadBalancer(AwsResource):
     resource_type = "LoadBalancer"
     service_name = "elbv2"
 
-    # Name of the cluster.
+    # Name of the Load Balancer.
     name: str
     subnets: Optional[List[str]] = None
     subnet_mappings: Optional[List[Dict[str, str]]] = None
@@ -26,10 +26,10 @@ class LoadBalancer(AwsResource):
     customer_owned_ipv_4_pool: Optional[str] = None
 
     def _create(self, aws_client: AwsApiClient) -> bool:
-        """Creates the LoadBalancer
+        """Creates the Load Balancer
 
         Args:
-            aws_client: The AwsApiClient for the current cluster
+            aws_client: The AwsApiClient for the current Load Balancer
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
@@ -76,7 +76,7 @@ class LoadBalancer(AwsResource):
         """Returns the LoadBalancer
 
         Args:
-            aws_client: The AwsApiClient for the current cluster
+            aws_client: The AwsApiClient for the current LoadBalancer
         """
         logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
 
@@ -84,9 +84,8 @@ class LoadBalancer(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            cluster_name = self.get_ecs_cluster_name()
-            describe_response = service_client.describe_clusters(
-                clusters=[cluster_name]
+            describe_response = service_client.describe_load_balancers(
+                LoadBalancerArns=[self.name]
             )
             logger.debug(f"LoadBalancer: {describe_response}")
             resource_list = describe_response.get("clusters", None)
@@ -110,7 +109,7 @@ class LoadBalancer(AwsResource):
         """Deletes the LoadBalancer
 
         Args:
-            aws_client: The AwsApiClient for the current cluster
+            aws_client: The AwsApiClient for the current LoadBalancer
         """
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
@@ -118,8 +117,8 @@ class LoadBalancer(AwsResource):
         self.active_resource = None
 
         try:
-            delete_response = service_client.delete_cluster(
-                cluster=self.get_ecs_cluster_name()
+            delete_response = service_client.delete_load_balancer(
+                LoadBalancerArn=self.name
             )
             logger.debug(f"LoadBalancer: {delete_response}")
             print_info(

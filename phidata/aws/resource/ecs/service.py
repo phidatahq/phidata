@@ -182,6 +182,31 @@ class EcsService(AwsResource):
             print_error(e)
         return False
 
+    def post_create(self, aws_client: AwsApiClient) -> bool:
+        # Wait for EcsService to be created
+        if self.wait_for_creation:
+            try:
+                cluster_name = self.get_ecs_cluster_name()
+                if cluster_name is not None:
+                    print_info(f"Waiting for {self.get_resource_type()} to be stable.")
+                    waiter = self.get_service_client(aws_client).get_waiter(
+                        "services_stable"
+                    )
+                    waiter.wait(
+                        cluster=cluster_name,
+                        services=[self.get_ecs_service_name()],
+                        WaiterConfig={
+                            "Delay": self.waiter_delay,
+                            "MaxAttempts": self.waiter_max_attempts,
+                        },
+                    )
+                else:
+                    logger.warning("Skipping waiter, no cluster found")
+            except Exception as e:
+                print_error("Waiter failed.")
+                print_error(e)
+        return True
+
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
         """Read EcsService"""
         from botocore.exceptions import ClientError
@@ -249,6 +274,27 @@ class EcsService(AwsResource):
             print_error("Please try again or delete resources manually.")
             print_error(e)
         return False
+
+    def post_delete(self, aws_client: AwsApiClient) -> bool:
+        # Wait for Stack to be deleted
+        if self.wait_for_deletion:
+            try:
+                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
+                waiter = self.get_service_client(aws_client).get_waiter(
+                    "stack_delete_complete"
+                )
+                waiter.wait(
+                    StackName=self.name,
+                    WaiterConfig={
+                        "Delay": self.waiter_delay,
+                        "MaxAttempts": self.waiter_max_attempts,
+                    },
+                )
+                return True
+            except Exception as e:
+                print_error("Waiter failed.")
+                print_error(e)
+        return True
 
     def _update(self, aws_client: AwsApiClient) -> bool:
         """Update EcsService"""

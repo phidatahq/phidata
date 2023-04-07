@@ -201,7 +201,7 @@ class EcsService(AwsResource):
                         },
                     )
                 else:
-                    logger.warning("Skipping waiter, no cluster found")
+                    logger.warning("Skipping waiter, no Service found")
             except Exception as e:
                 print_error("Waiter failed.")
                 print_error(e)
@@ -276,15 +276,17 @@ class EcsService(AwsResource):
         return False
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
-        # Wait for Stack to be deleted
+        # Wait for EcsService to be deleted
         if self.wait_for_deletion:
             try:
+                cluster_name = self.get_ecs_cluster_name()
                 print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
                 waiter = self.get_service_client(aws_client).get_waiter(
-                    "stack_delete_complete"
+                    "services_inactive"
                 )
                 waiter.wait(
-                    StackName=self.name,
+                    cluster=self.name,
+                    services=[self.get_ecs_service_name()],
                     WaiterConfig={
                         "Delay": self.waiter_delay,
                         "MaxAttempts": self.waiter_max_attempts,

@@ -72,6 +72,31 @@ class LoadBalancer(AwsResource):
             print_error(e)
         return False
 
+    def post_create(self, aws_client: AwsApiClient) -> bool:
+        # Wait for LoadBalancer to be created
+        if self.wait_for_creation:
+            try:
+                lb_arn = self.get_arn(aws_client)
+                if lb_arn is not None:
+                    print_info(f"Waiting for {self.get_resource_type()} to be stable.")
+                    waiter = self.get_service_client(aws_client).get_waiter(
+                        "load_balancer_exists"
+                    )
+                    waiter.wait(
+                        LoadBalancerArns=lb_arn,
+                        Names=[self.get_resource_name],
+                        WaiterConfig={
+                            "Delay": self.waiter_delay,
+                            "MaxAttempts": self.waiter_max_attempts,
+                        },
+                    )
+                else:
+                    logger.warning("Skipping waiter, no Load Balancer found")
+            except Exception as e:
+                print_error("Waiter failed.")
+                print_error(e)
+        return True
+
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
         """Returns the LoadBalancer
 
@@ -128,6 +153,29 @@ class LoadBalancer(AwsResource):
             print_error("Please try again or delete resources manually.")
             print_error(e)
         return False
+
+    def post_delete(self, aws_client: AwsApiClient) -> bool:
+        # Wait for LoadBalancer to be deleted
+        if self.wait_for_deletion:
+            try:
+                lb_name = self.get_arn_name(self.get_arn(aws_client))
+                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
+                waiter = self.get_service_client(aws_client).get_waiter(
+                    "load_balancers_deleted"
+                )
+                waiter.wait(
+                    LoadBalancerArns=lb_name,
+                    Names=[self.get_resource_name],
+                    WaiterConfig={
+                        "Delay": self.waiter_delay,
+                        "MaxAttempts": self.waiter_max_attempts,
+                    },
+                )
+                return True
+            except Exception as e:
+                print_error("Waiter failed.")
+                print_error(e)
+        return True
 
     def get_arn(self, aws_client: AwsApiClient) -> Optional[str]:
         lb = self._read(aws_client)

@@ -5,6 +5,7 @@ from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.acm.certificate import AcmCertificate
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.aws.resource.ec2.volume import EbsVolume
+from phidata.aws.resource.ec2.subnet import Subnet
 from phidata.aws.resource.ecs.cluster import EcsCluster
 from phidata.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phidata.aws.resource.eks.cluster import EksCluster
@@ -12,6 +13,9 @@ from phidata.aws.resource.ecs.service import EcsService
 from phidata.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.aws.resource.eks.node_group import EksNodeGroup
 from phidata.aws.resource.eks.kubeconfig import EksKubeconfig
+from phidata.aws.resource.elb.load_balancer import LoadBalancer
+from phidata.aws.resource.elb.target_group import TargetGroup
+from phidata.aws.resource.elb.listener import Listener
 from phidata.aws.resource.iam.role import IamRole
 from phidata.aws.resource.iam.policy import IamPolicy
 from phidata.aws.resource.glue.crawler import GlueCrawler
@@ -36,6 +40,7 @@ AwsResourceType = Union[
     IamPolicy,
     GlueCrawler,
     S3Bucket,
+    Subnet,
     DbSubnetGroup,
     DbCluster,
     DbInstance,
@@ -45,11 +50,15 @@ AwsResourceType = Union[
     EcsCluster,
     EcsTaskDefinition,
     EcsService,
+    LoadBalancer,
+    TargetGroup,
+    Listener,
 ]
 
 # Use this as an ordered list to iterate over all Aws Resource Classes
 # This list is the order in which resources should be installed as well.
 AwsResourceTypeList: List[Type[AwsResource]] = [
+    Subnet,
     IamRole,
     IamPolicy,
     S3Bucket,
@@ -62,6 +71,9 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     DbInstance,
     CacheSubnetGroup,
     CacheCluster,
+    LoadBalancer,
+    TargetGroup,
+    Listener,
     EcsCluster,
     EcsTaskDefinition,
     EcsService,

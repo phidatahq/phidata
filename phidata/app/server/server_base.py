@@ -26,6 +26,7 @@ class ServerBaseArgs(PhidataAppArgs):
     ecs_task_memory: str = "512"
     ecs_service_count: int = 1
     assign_public_ip: bool = True
+    elb: Optional[Any] = None
 
 
 class ServerBase(PhidataApp):
@@ -252,6 +253,7 @@ class ServerBase(PhidataApp):
         ecs_task_memory: str = "512",
         ecs_service_count: int = 1,
         assign_public_ip: bool = True,
+        elb: Optional[Any] = None,
         aws_subnets: Optional[List[str]] = None,
         aws_security_groups: Optional[List[str]] = None,
         # Other args,
@@ -378,6 +380,7 @@ class ServerBase(PhidataApp):
                 ecs_task_memory=ecs_task_memory,
                 ecs_service_count=ecs_service_count,
                 assign_public_ip=assign_public_ip,
+                elb=elb,
                 aws_subnets=aws_subnets,
                 aws_security_groups=aws_security_groups,
                 print_env_on_load=print_env_on_load,
@@ -1080,6 +1083,10 @@ class ServerBase(PhidataApp):
             EcsContainer,
             EcsTaskDefinition,
             EcsService,
+            LoadBalancer,
+            TargetGroup,
+            Listener,
+            Subnet,
         )
         from phidata.types.context import ContainerPathContext
 
@@ -1144,9 +1151,54 @@ class ServerBase(PhidataApp):
                 wait_for_creation=self.args.wait_for_creation,
                 wait_for_deletion=self.args.wait_for_deletion,
             )
-        elif not isinstance(ecs_cluster, EcsCluster):
-            logger.error("Invalid EcsCluster")
-            return None
+
+        # -*- Create Load Balancer
+        load_balancer = self.args.elb
+        if load_balancer is None:
+            load_balancer = LoadBalancer(
+                name=f"{app_name}-lb",
+                subnets=self.args.aws_subnets,
+                security_groups=self.args.aws_security_groups,
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
+
+        # Get VPC ID from subnets
+        vpc_ids = set()
+        for subnet in self.args.aws_subnets:
+            _vpc = Subnet(id=subnet).get_vpc_id()
+            vpc_ids.add(_vpc)
+            if len(vpc_ids) != 1:
+                raise ValueError("Subnets must be in the same VPC")
+        vpc_id = vpc_ids.pop()
+
+        # -*- Create Target Group
+        target_group = TargetGroup(
+                name=f"{app_name}-tg",
+                port=self.get_container_port(),
+                protocol="HTTP",
+                vpc_id=vpc_id,
+                target_type="ip",
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
+
+        # -*- Create Listener
+        listener = Listener(
+            name=f"{app_name}-listener",
+            protocol="HTTP",
+            port=80,
+            load_balancer=load_balancer,
+            target_group=target_group,
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
 
         # -*- Create ECS Container
         ecs_container = EcsContainer(
@@ -1200,13 +1252,9 @@ class ServerBase(PhidataApp):
             launch_type=self.args.ecs_launch_type,
             cluster=ecs_cluster,
             task_definition=ecs_task_definition,
-            # load_balancers=[
-            #     {
-            #         "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:386435111151:targetgroup/backend-prd-api-tg/f43488b11bcb886f",  # noqa: E501
-            #         "containerName": ecs_container.name,
-            #         "containerPort": app_container_port,
-            #     }
-            # ],
+            target_group=target_group,
+            target_container_name=ecs_container.name,
+            target_container_port=self.get_container_port(),
             network_configuration={"awsvpcConfiguration": aws_vpc_config},
             # Force delete the service.
             force_delete=True,
@@ -1225,6 +1273,9 @@ class ServerBase(PhidataApp):
             ecs_clusters=[ecs_cluster],
             ecs_task_definitions=[ecs_task_definition],
             ecs_services=[ecs_service],
+            load_balancers=[load_balancer],
+            target_groups=[target_group],
+            listeners=[listener],
         )
 
     def init_aws_resource_groups(self, aws_build_context: Any) -> None:

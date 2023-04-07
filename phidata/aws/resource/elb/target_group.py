@@ -60,9 +60,13 @@ class TargetGroup(AwsResource):
         if self.health_check_path is not None:
             not_null_args["HealthCheckPath"] = self.health_check_path
         if self.health_check_interval_seconds is not None:
-            not_null_args["HealthCheckIntervalSeconds"] = self.health_check_interval_seconds
+            not_null_args[
+                "HealthCheckIntervalSeconds"
+            ] = self.health_check_interval_seconds
         if self.health_check_timeout_seconds is not None:
-            not_null_args["HealthCheckTimeoutSeconds"] = self.health_check_timeout_seconds
+            not_null_args[
+                "HealthCheckTimeoutSeconds"
+            ] = self.health_check_timeout_seconds
         if self.healthy_threshold_count is not None:
             not_null_args["HealthyThresholdCount"] = self.healthy_threshold_count
         if self.unhealthy_threshold_count is not None:
@@ -108,9 +112,7 @@ class TargetGroup(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            describe_response = service_client.describe_target_groups(
-                Names=[self.name]
-            )
+            describe_response = service_client.describe_target_groups(Names=[self.name])
             logger.debug(f"Describe Response: {describe_response}")
             resource_list = describe_response.get("TargetGroups", None)
 
@@ -135,12 +137,12 @@ class TargetGroup(AwsResource):
         self.active_resource = None
 
         try:
-            tg_arn = self.get_arn
+            tg_arn = self.get_arn(aws_client)
             if tg_arn is None:
                 print_error(f"TargetGroup {self.get_resource_name()} not found.")
                 return True
             delete_response = service_client.delete_target_group(
-                TargetGroupArn=self.get_arn
+                TargetGroupArn=tg_arn
             )
             logger.debug(f"Delete Response: {delete_response}")
             print_info(
@@ -173,9 +175,13 @@ class TargetGroup(AwsResource):
         if self.health_check_path is not None:
             not_null_args["HealthCheckPath"] = self.health_check_path
         if self.health_check_interval_seconds is not None:
-            not_null_args["HealthCheckIntervalSeconds"] = self.health_check_interval_seconds
+            not_null_args[
+                "HealthCheckIntervalSeconds"
+            ] = self.health_check_interval_seconds
         if self.health_check_timeout_seconds is not None:
-            not_null_args["HealthCheckTimeoutSeconds"] = self.health_check_timeout_seconds
+            not_null_args[
+                "HealthCheckTimeoutSeconds"
+            ] = self.health_check_timeout_seconds
         if self.healthy_threshold_count is not None:
             not_null_args["HealthyThresholdCount"] = self.healthy_threshold_count
         if self.unhealthy_threshold_count is not None:

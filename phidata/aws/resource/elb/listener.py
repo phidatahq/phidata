@@ -3,6 +3,7 @@ from typing import Optional, Any, Dict, List
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.elb.load_balancer import LoadBalancer
+from phidata.aws.resource.elb.target_group import TargetGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -16,15 +17,17 @@ class Listener(AwsResource):
     service_name = "elbv2"
 
     # Name of the Listener
+    name: str
     load_balancer: Optional[LoadBalancer] = None
+    target_group: Optional[TargetGroup] = None
     load_balancer_arn: Optional[str] = None
     protocol: Optional[str] = None
     port: Optional[int] = None
     ssl_policy: Optional[str] = None
-    certificates: Optional[List[Dict[str,bool]]]
-    defaultactions:Optional[List[Dict]]
-    alpn_policy:Optional[List[str]]
-    tags:Optional[List[Dict[str,str]]]
+    certificates: Optional[List[Dict[str, bool]]]
+    default_actions: Optional[List[Dict]]
+    alpn_policy: Optional[List[str]]
+    tags: Optional[List[Dict[str, str]]]
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the Listener
@@ -34,7 +37,7 @@ class Listener(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        load_balancer_arn = self.get_load_balancer_arn()
+        load_balancer_arn = self.get_load_balancer_arn(aws_client)
         if load_balancer_arn is None:
             logger.error(f"Load balancer ARN not available")
             return True
@@ -49,18 +52,32 @@ class Listener(AwsResource):
             not_null_args["SslPolicy"] = self.ssl_policy
         if self.certificates is not None:
             not_null_args["Certificates"] = self.certificates
-        if self.defaultactions is not None:
-            not_null_args["DefaultActions"] = self.defaultactions
         if self.alpn_policy is not None:
             not_null_args["AlpnPolicy"] = self.alpn_policy
         if self.tags is not None:
             not_null_args["Tags"] = self.tags
 
+        if self.default_actions is not None:
+            not_null_args["DefaultActions"] = self.default_actions
+        elif self.target_group is not None:
+            target_group_arn = self.target_group.get_arn(aws_client)
+            if target_group_arn is None:
+                logger.error(f"Target group ARN not available")
+                return False
+            not_null_args["DefaultActions"] = [
+                {"Type": "forward", "TargetGroupArn": target_group_arn}
+            ]
+        else:
+            print_warning(
+                f"Neither target group nor default actions provided for {self.get_resource_name()}"
+            )
+            return True
+
         # Create Listener
         service_client = self.get_service_client(aws_client)
         try:
             create_response = service_client.create_listener(
-                Name=self.name,
+                LoadBalancerArn=load_balancer_arn,
                 **not_null_args,
             )
             logger.debug(f"Create Response: {create_response}")
@@ -88,10 +105,11 @@ class Listener(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            load_balancer_arn = self.get_load_balancer_arn()
+            load_balancer_arn = self.get_load_balancer_arn(aws_client)
             if load_balancer_arn is None:
-                logger.error(f"Load balancer ARN not available")
-                return True
+                # logger.error(f"Load balancer ARN not available")
+                return None
+
             describe_response = service_client.describe_listeners(
                 LoadBalancerArn=load_balancer_arn
             )
@@ -99,7 +117,7 @@ class Listener(AwsResource):
             resource_list = describe_response.get("Listeners", None)
 
             if resource_list is not None and isinstance(resource_list, list):
-                self.active_resource = resource_list[0]
+                self.active_resource = resource_list[0] if len(resource_list) > 0 else None
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -119,13 +137,12 @@ class Listener(AwsResource):
         self.active_resource = None
 
         try:
-            listener_arn = self.get_arn
+            listener_arn = self.get_arn(aws_client)
             if listener_arn is None:
                 print_error(f"Listener {self.get_resource_name()} not found.")
                 return True
-            delete_response = service_client.delete_listener(
-                ListenerArn=self.get_arn
-            )
+
+            delete_response = service_client.delete_listener(ListenerArn=listener_arn)
             logger.debug(f"Delete Response: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
@@ -156,8 +173,8 @@ class Listener(AwsResource):
             not_null_args["SslPolicy"] = self.ssl_policy
         if self.certificates is not None:
             not_null_args["Certificates"] = self.certificates
-        if self.defaultactions is not None:
-            not_null_args["DefaultActions"] = self.defaultactions
+        if self.default_actions is not None:
+            not_null_args["DefaultActions"] = self.default_actions
         if self.alpn_policy is not None:
             not_null_args["AlpnPolicy"] = self.alpn_policy
 
@@ -184,10 +201,11 @@ class Listener(AwsResource):
         listener = self._read(aws_client)
         if listener is None:
             return None
+
         listener_arn = listener.get("ListenerArn", None)
         return listener_arn
 
-    def get_load_balancer_arn(self,aws_client: AwsApiClient):
+    def get_load_balancer_arn(self, aws_client: AwsApiClient):
 
         load_balancer_arn = self.load_balancer_arn
         if load_balancer_arn is None and self.load_balancer:

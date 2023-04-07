@@ -39,3 +39,23 @@ class Subnet(AwsResource):
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}: {e}")
         return None
+
+    def get_vpc_id(
+        self, aws_client: Optional[AwsApiClient] = None
+    ) -> Optional[str]:
+        # logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
+
+        from botocore.exceptions import ClientError
+
+        client: AwsApiClient = aws_client or self.get_aws_client()
+        service_resource = self.get_service_resource(client)
+        try:
+            subnet = service_resource.Subnet(self.id)
+            vpc_id = subnet.vpc_id
+            logger.debug(f"VPC ID for {self.id}: {vpc_id}")
+            return vpc_id
+        except ClientError as ce:
+            logger.debug(f"ClientError: {ce}")
+        except Exception as e:
+            print_error(f"Error reading {self.get_resource_type()}: {e}")
+        return None

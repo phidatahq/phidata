@@ -4,6 +4,7 @@ from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.ecs.cluster import EcsCluster
 from phidata.aws.resource.ecs.task_definition import EcsTaskDefinition
+from phidata.aws.resource.elb.target_group import TargetGroup
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
@@ -38,6 +39,16 @@ class EcsService(AwsResource):
 
     # A load balancer object representing the load balancers to use with your service.
     load_balancers: Optional[List[Dict[str, Any]]] = None
+
+    # We can generate the load_balancers dict using
+    # the target_group, target_container_name and target_container_port
+    # Target group to attach to a service.
+    target_group: Optional[TargetGroup] = None
+    # Target container name for the service.
+    target_container_name: Optional[str] = None
+    target_container_port: Optional[int] = None
+
+    # The details of the service discovery registries to assign to this service.
     service_registries: Optional[List[Dict[str, Any]]] = None
     # The number of instantiations of the specified task definition to place and keep running on your cluster.
     # This is required if schedulingStrategy is REPLICA or isn't specified.
@@ -100,8 +111,6 @@ class EcsService(AwsResource):
         cluster_name = self.get_ecs_cluster_name()
         if cluster_name is not None:
             not_null_args["cluster"] = cluster_name
-        if self.load_balancers is not None:
-            not_null_args["loadBalancers"] = self.load_balancers
         if self.service_registries is not None:
             not_null_args["serviceRegistries"] = self.service_registries
         if self.desired_count is not None:
@@ -140,6 +149,17 @@ class EcsService(AwsResource):
             not_null_args["propagateTags"] = self.propagate_tags
         if self.enable_execute_command is not None:
             not_null_args["enableExecuteCommand"] = self.enable_execute_command
+
+        if self.load_balancers is not None:
+            not_null_args["loadBalancers"] = self.load_balancers
+        elif self.target_group is not None and self.target_container_name is not None:
+            not_null_args["loadBalancers"] = [
+                {
+                    "targetGroupArn": self.target_group.get_arn(aws_client),
+                    "containerName": self.target_container_name,
+                    "containerPort": self.target_container_port,
+                }
+            ]
 
         # Register EcsService
         service_client = self.get_service_client(aws_client)

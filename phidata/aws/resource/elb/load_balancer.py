@@ -115,7 +115,9 @@ class LoadBalancer(AwsResource):
             if lb_arn is None:
                 print_warning(f"{self.get_resource_type()} not found.")
                 return True
-            delete_response = service_client.delete_load_balancer(LoadBalancerArn=lb_arn)
+            delete_response = service_client.delete_load_balancer(
+                LoadBalancerArn=lb_arn
+            )
             logger.debug(f"Delete Response: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"

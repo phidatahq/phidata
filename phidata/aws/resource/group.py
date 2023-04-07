@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from phidata.aws.resource.acm.certificate import AcmCertificate
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.aws.resource.ec2.volume import EbsVolume
+from phidata.aws.resource.ec2.subnet import Subnet
 from phidata.aws.resource.ecs.cluster import EcsCluster
 from phidata.aws.resource.ecs.container import EcsContainer
 from phidata.aws.resource.ecs.task_definition import EcsTaskDefinition
@@ -14,6 +15,9 @@ from phidata.aws.resource.eks.cluster import EksCluster
 from phidata.aws.resource.eks.fargate_profile import EksFargateProfile
 from phidata.aws.resource.eks.node_group import EksNodeGroup
 from phidata.aws.resource.eks.kubeconfig import EksKubeconfig
+from phidata.aws.resource.elb.load_balancer import LoadBalancer
+from phidata.aws.resource.elb.target_group import TargetGroup
+from phidata.aws.resource.elb.listener import Listener
 from phidata.aws.resource.iam.role import IamRole
 from phidata.aws.resource.iam.policy import IamPolicy
 from phidata.aws.resource.glue.crawler import GlueCrawler
@@ -33,6 +37,7 @@ class AwsResourceGroup(BaseModel):
     enabled: bool = True
     weight: int = 100
 
+    subnets: Optional[List[Subnet]] = None
     iam_roles: Optional[List[IamRole]] = None
     iam_policies: Optional[List[IamPolicy]] = None
     acm_certificates: Optional[List[AcmCertificate]] = None
@@ -53,3 +58,6 @@ class AwsResourceGroup(BaseModel):
     eks_nodegroups: Optional[List[EksNodeGroup]] = None
     crawlers: Optional[List[GlueCrawler]] = None
     emr: Optional[List[EmrCluster]] = None
+    load_balancers: Optional[List[LoadBalancer]] = None
+    target_groups: Optional[List[TargetGroup]] = None
+    listeners: Optional[List[Listener]] = None

@@ -11,11 +11,11 @@ from phidata.app.server.server_base import (
 )
 
 
-class StreamlitAppArgs(ServerBaseArgs):
+class StreamlitArgs(ServerBaseArgs):
     pass
 
 
-class StreamlitApp(ServerBase):
+class Streamlit(ServerBase):
     def __init__(
         self,
         name: str = "streamlit-app",

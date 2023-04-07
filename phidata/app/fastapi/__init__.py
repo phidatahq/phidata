@@ -1,1 +1,8 @@
-from phidata.app.fastapi.fastapi import FastApiServer, FastApiServerArgs, WorkspaceVolumeType, ImagePullPolicy, RestartPolicy, ServiceType
+from phidata.app.fastapi.fastapi import (
+    FastApiServer,
+    FastApiServerArgs,
+    WorkspaceVolumeType,
+    ImagePullPolicy,
+    RestartPolicy,
+    ServiceType,
+)

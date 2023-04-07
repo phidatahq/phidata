@@ -11,11 +11,11 @@ from phidata.app.server.server_base import (
 )
 
 
-class FastApiArgs(ServerBaseArgs):
+class FastApiServerArgs(ServerBaseArgs):
     pass
 
 
-class FastApi(ServerBase):
+class FastApiServer(ServerBase):
     def __init__(
         self,
         name: str = "fast-api",

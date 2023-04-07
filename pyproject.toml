@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "1.5.3"
+version = "1.5.4"
 description = "Building blocks for Data Engineering"
 requires-python = ">=3.7"
 readme = "README.md"

@@ -1172,7 +1172,7 @@ class ServerBase(PhidataApp):
             vpc_ids.add(_vpc)
             if len(vpc_ids) != 1:
                 raise ValueError("Subnets must be in the same VPC")
-        vpc_id = vpc_ids.pop()
+        vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
 
         # -*- Create Target Group
         target_group = TargetGroup(

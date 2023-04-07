@@ -5,39 +5,40 @@
 #    ./scripts/upgrade.sh
 #
 anyio==3.6.2
-boto3==1.26.50
-botocore==1.29.50
-cachetools==5.2.1
+boto3==1.26.108
+botocore==1.29.108
+cachetools==5.3.0
 certifi==2022.12.7
-charset-normalizer==3.0.1
+charset-normalizer==3.1.0
 click==8.1.3
-commonmark==0.9.1
 docker==6.0.1
 gitdb==4.0.10
-gitpython==3.1.30
-google-auth==2.16.0
+gitpython==3.1.31
+google-auth==2.17.2
 h11==0.14.0
 httpcore==0.16.3
 httpx==0.23.3
 idna==3.4
 jmespath==1.0.1
-kubernetes==25.3.0
-numpy==1.24.1
+kubernetes==26.1.0
+markdown-it-py==2.2.0
+mdurl==0.1.2
+numpy==1.24.2
 oauthlib==3.2.2
 packaging==23.0
-phiterm==1.4.3
-pyarrow==10.0.1
+phiterm==1.5.0
+pyarrow==11.0.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
-pydantic==1.10.4
+pydantic==1.10.7
 pygments==2.14.0
 python-dateutil==2.8.2
-python-dotenv==0.21.0
+python-dotenv==1.0.0
 pyyaml==6.0
 requests==2.28.2
 requests-oauthlib==1.3.1
 rfc3986[idna2008]==1.5.0
-rich==13.1.0
+rich==13.3.3
 rsa==4.9
 s3transfer==0.6.0
 six==1.16.0
@@ -45,9 +46,9 @@ smmap==5.0.0
 sniffio==1.3.0
 tomli==2.0.1
 typer==0.7.0
-typing-extensions==4.4.0
-urllib3==1.26.14
-websocket-client==1.4.2
+typing-extensions==4.5.0
+urllib3==1.26.15
+websocket-client==1.5.1
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

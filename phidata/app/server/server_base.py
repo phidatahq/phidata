@@ -1176,16 +1176,16 @@ class ServerBase(PhidataApp):
 
         # -*- Create Target Group
         target_group = TargetGroup(
-                name=f"{app_name}-tg",
-                port=self.get_container_port(),
-                protocol="HTTP",
-                vpc_id=vpc_id,
-                target_type="ip",
-                skip_create=self.args.skip_create,
-                skip_delete=self.args.skip_delete,
-                wait_for_creation=self.args.wait_for_creation,
-                wait_for_deletion=self.args.wait_for_deletion,
-            )
+            name=f"{app_name}-tg",
+            port=self.get_container_port(),
+            protocol="HTTP",
+            vpc_id=vpc_id,
+            target_type="ip",
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
 
         # -*- Create Listener
         listener = Listener(

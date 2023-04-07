@@ -117,7 +117,9 @@ class Listener(AwsResource):
             resource_list = describe_response.get("Listeners", None)
 
             if resource_list is not None and isinstance(resource_list, list):
-                self.active_resource = resource_list[0] if len(resource_list) > 0 else None
+                self.active_resource = (
+                    resource_list[0] if len(resource_list) > 0 else None
+                )
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:

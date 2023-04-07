@@ -141,9 +141,7 @@ class TargetGroup(AwsResource):
             if tg_arn is None:
                 print_error(f"TargetGroup {self.get_resource_name()} not found.")
                 return True
-            delete_response = service_client.delete_target_group(
-                TargetGroupArn=tg_arn
-            )
+            delete_response = service_client.delete_target_group(TargetGroupArn=tg_arn)
             logger.debug(f"Delete Response: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"

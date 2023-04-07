@@ -208,7 +208,6 @@ class Listener(AwsResource):
         return listener_arn
 
     def get_load_balancer_arn(self, aws_client: AwsApiClient):
-
         load_balancer_arn = self.load_balancer_arn
         if load_balancer_arn is None and self.load_balancer:
             load_balancer_arn = self.load_balancer.get_arn(aws_client)

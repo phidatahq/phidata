@@ -280,19 +280,21 @@ class EcsService(AwsResource):
         if self.wait_for_deletion:
             try:
                 cluster_name = self.get_ecs_cluster_name()
-                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
-                waiter = self.get_service_client(aws_client).get_waiter(
-                    "services_inactive"
-                )
-                waiter.wait(
-                    cluster=self.name,
-                    services=[self.get_ecs_service_name()],
-                    WaiterConfig={
-                        "Delay": self.waiter_delay,
-                        "MaxAttempts": self.waiter_max_attempts,
-                    },
-                )
-                return True
+                if cluster_name is not None:
+                    print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
+                    waiter = self.get_service_client(aws_client).get_waiter(
+                        "services_inactive"
+                    )
+                    waiter.wait(
+                        cluster=cluster_name,
+                        services=[self.get_ecs_service_name()],
+                        WaiterConfig={
+                            "Delay": self.waiter_delay,
+                            "MaxAttempts": self.waiter_max_attempts,
+                        },
+                    )
+                else:
+                    logger.warning("Skipping waiter, no Service found")
             except Exception as e:
                 print_error("Waiter failed.")
                 print_error(e)

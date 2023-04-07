@@ -78,13 +78,13 @@ class LoadBalancer(AwsResource):
             try:
                 lb_arn = self.get_arn(aws_client)
                 if lb_arn is not None:
-                    print_info(f"Waiting for {self.get_resource_type()} to be stable.")
+                    print_info(f"Waiting for {self.get_resource_type()} to be exist.")
                     waiter = self.get_service_client(aws_client).get_waiter(
                         "load_balancer_exists"
                     )
                     waiter.wait(
                         LoadBalancerArns=lb_arn,
-                        Names=[self.get_resource_name],
+                        Names=[self.get_resource_name()],
                         WaiterConfig={
                             "Delay": self.waiter_delay,
                             "MaxAttempts": self.waiter_max_attempts,
@@ -158,20 +158,22 @@ class LoadBalancer(AwsResource):
         # Wait for LoadBalancer to be deleted
         if self.wait_for_deletion:
             try:
-                lb_name = self.get_arn_name(self.get_arn(aws_client))
-                print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
-                waiter = self.get_service_client(aws_client).get_waiter(
-                    "load_balancers_deleted"
-                )
-                waiter.wait(
-                    LoadBalancerArns=lb_name,
-                    Names=[self.get_resource_name],
-                    WaiterConfig={
-                        "Delay": self.waiter_delay,
-                        "MaxAttempts": self.waiter_max_attempts,
-                    },
-                )
-                return True
+                lb_arn = self.get_arn(aws_client)
+                if lb_arn is not None:
+                    print_info(f"Waiting for {self.get_resource_type()} to be deleted.")
+                    waiter = self.get_service_client(aws_client).get_waiter(
+                        "load_balancers_deleted"
+                    )
+                    waiter.wait(
+                        LoadBalancerArns=lb_arn,
+                        Names=[self.get_resource_name()],
+                        WaiterConfig={
+                            "Delay": self.waiter_delay,
+                            "MaxAttempts": self.waiter_max_attempts,
+                        },
+                    )
+                else:
+                    logger.warning("Skipping waiter, no Load Balancer found")
             except Exception as e:
                 print_error("Waiter failed.")
                 print_error(e)

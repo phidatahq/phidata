@@ -98,7 +98,7 @@ class LoadBalancer(AwsResource):
             )
         else:
             dns_name = elb.get("DNSName", None)
-            print_info(f"LoadBalancer DNS: {dns_name}")
+            print_info(f"LoadBalancer DNS: http://{dns_name}")
         return True
 
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:

@@ -937,13 +937,12 @@ class NodeExporter(PhidataApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, node - exporter_container)
+        containers.insert(0, nodeexporter_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": node
-            - exporter_container.container_name,
+            "kubectl.kubernetes.io/default-container": nodeexporter_container.container_name,
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -976,7 +975,7 @@ class NodeExporter(PhidataApp):
             topology_spread_max_skew=self.args.topology_spread_max_skew,
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
         )
-        deployments.append(node - exporter_deployment)
+        deployments.append(nodeexporter_deployment)
 
         # Create the services
         if self.args.create_service:
@@ -992,7 +991,7 @@ class NodeExporter(PhidataApp):
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=node - exporter_deployment,
+                deployment=nodeexporter_deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )

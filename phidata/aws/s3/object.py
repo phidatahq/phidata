@@ -10,7 +10,7 @@ from phidata.utils.log import logger
 
 class S3ObjectArgs(AwsAssetArgs):
     key: str
-    bucket: Optional[S3Bucket] = None
+    bucket: S3Bucket
     bucket_name: Optional[str] = None
 
 

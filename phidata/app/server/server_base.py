@@ -1167,12 +1167,14 @@ class ServerBase(PhidataApp):
 
         # Get VPC ID from subnets
         vpc_ids = set()
-        for subnet in self.args.aws_subnets:
-            _vpc = Subnet(id=subnet).get_vpc_id()
-            vpc_ids.add(_vpc)
-            if len(vpc_ids) != 1:
-                raise ValueError("Subnets must be in the same VPC")
-        vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
+        vpc_id = None
+        if self.args.aws_subnets is not None:
+            for subnet in self.args.aws_subnets:
+                _vpc = Subnet(id=subnet).get_vpc_id()
+                vpc_ids.add(_vpc)
+                if len(vpc_ids) != 1:
+                    raise ValueError("Subnets must be in the same VPC")
+            vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
 
         # -*- Create Target Group
         target_group = TargetGroup(
@@ -1237,7 +1239,7 @@ class ServerBase(PhidataApp):
             wait_for_deletion=self.args.wait_for_deletion,
         )
 
-        aws_vpc_config = {}
+        aws_vpc_config: Dict[str, Any] = {}
         if self.args.aws_subnets is not None:
             aws_vpc_config["subnets"] = self.args.aws_subnets
         if self.args.aws_security_groups is not None:

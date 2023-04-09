@@ -40,7 +40,7 @@ class RunSqlQuery(PythonTask):
         index: Optional[bool] = None,
         index_label: Optional[Union[str, List[str]]] = None,
         chunksize: Optional[int] = None,
-        name: str = "run_sql_query",
+        name: str = "run_duckdb_query",
         task_id: Optional[str] = None,
         dag_id: Optional[str] = None,
         version: Optional[str] = None,

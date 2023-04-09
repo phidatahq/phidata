@@ -14,8 +14,8 @@ class AthenaQueryExecution(AwsResource):
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/athena.html#client
     """
 
-    resource_type = "AthenaQueryExecution"
-    service_name = "athena"
+    resource_type: str = "AthenaQueryExecution"
+    service_name: str = "athena"
 
     # The SQL query statements to be executed.
     query_string: str

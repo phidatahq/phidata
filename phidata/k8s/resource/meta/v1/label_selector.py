@@ -19,7 +19,7 @@ class LabelSelector(K8sObject):
     resource_type: str = "LabelSelector"
 
     # matchLabels is a map of {key,value} pairs.
-    match_labels: Dict[str, str] = Field(None, alias="matchLabels")
+    match_labels: Optional[Dict[str, str]] = Field(None, alias="matchLabels")
 
     def get_k8s_object(self) -> V1LabelSelector:
         # Return a V1LabelSelector object

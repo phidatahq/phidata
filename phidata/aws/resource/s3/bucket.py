@@ -12,8 +12,8 @@ class S3Bucket(AwsResource):
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#service-resource
     """
 
-    resource_type = "s3"
-    service_name = "s3"
+    resource_type: str = "s3"
+    service_name: str = "s3"
 
     # name of bucket
     name: str

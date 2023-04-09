@@ -37,7 +37,9 @@ class DeploymentStrategy(K8sObject):
 
     resource_type: str = "DeploymentStrategy"
 
-    rolling_update: RollingUpdateDeployment = Field(None, alias="rollingUpdate")
+    rolling_update: RollingUpdateDeployment = Field(
+        RollingUpdateDeployment(), alias="rollingUpdate"
+    )
     type: Literal["Recreate", "RollingUpdate"] = "RollingUpdate"
 
     def get_k8s_object(self) -> V1DeploymentStrategy:

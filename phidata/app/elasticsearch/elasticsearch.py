@@ -528,11 +528,11 @@ class ElasticSearch(PhidataApp):
                 str(self.args.container_port)
             ] = self.args.container_host_port
 
-        container_cmd: List[str]
+        container_cmd: List[str] = []
         if isinstance(self.args.command, str):
-            container_cmd = self.args.command.split(" ")
-        else:
-            container_cmd = self.args.command
+            container_cmd.extend(self.args.command.split(" "))
+        elif isinstance(self.args.command, list):
+            container_cmd.extend(self.args.command)
 
         # if self.args.discovery is not None:
         #     container_cmd.append(f"--discovery{str(self.args.discovery)}")

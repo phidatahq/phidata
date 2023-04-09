@@ -3,29 +3,40 @@ from typing import Optional
 from typing_extensions import Literal
 
 from phidata.asset.local.file import LocalFile
-from phidata.asset.data_asset import DataAsset, DataAssetArgs
+from phidata.asset.aws.aws_asset import AwsAsset, AwsAssetArgs
 from phidata.aws.resource.s3.bucket import S3Bucket
 from phidata.utils.log import logger
 
 
-class S3ObjectArgs(DataAssetArgs):
+class S3ObjectArgs(AwsAssetArgs):
     key: str
-    bucket: S3Bucket
+    bucket: Optional[S3Bucket] = None
+    bucket_name: Optional[str] = None
 
 
-class S3Object(DataAsset):
+class S3Object(AwsAsset):
     def __init__(
         self,
         key: str,
-        bucket: S3Bucket,
+        bucket: Optional[S3Bucket] = None,
+        bucket_name: Optional[str] = None,
         version: Optional[str] = None,
         enabled: bool = True,
     ) -> None:
         super().__init__()
         try:
+            _bucket = bucket
+            if _bucket is None and bucket_name is not None:
+                _bucket = S3Bucket(name=bucket_name)
+
+            if _bucket is None:
+                logger.error(f"Bucket for {key} unavailable")
+                return
+
             self.args: S3ObjectArgs = S3ObjectArgs(
                 key=key,
-                bucket=bucket,
+                bucket=_bucket,
+                bucket_name=bucket_name,
                 name=key,
                 version=version,
                 enabled=enabled,

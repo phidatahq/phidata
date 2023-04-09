@@ -29,19 +29,17 @@
 
 ---
 
-### **A framework for building data applications**
-
 Phidata is a framework for building Data Applications using open source software (OSS). We believe that large Data, ML and AI products can easily be built using OSS.
 
 ### How it works
 
 - Phidata converts infrastructure and tools into python objects (building blocks).
 - These objects are put together to build Data Applications.
-- Download a codebase for a Data App with infra and tools pre-configured.
-- Start the dev environment using phi ws up dev:docker
+- Download a codebase for a pre-built Data App using `phi ws init`
+- Start the dev environment using `phi ws up dev:docker`
 - Customize the app to your use case and make it your own.
-- Deploy to production using phi ws up prd:aws
-- Stop workspace using phi ws down
+- Deploy to production using `phi ws up prd:aws`
+- Stop workspace using `phi ws down`
 
 ### More Information:
 

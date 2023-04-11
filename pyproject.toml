@@ -10,7 +10,7 @@ authors = [
 
 dependencies = [
   "boto3",
-  "phiterm==1.5.7",
+  "phiterm==1.5.8",
   "pyarrow",
   "pydantic",
 ]

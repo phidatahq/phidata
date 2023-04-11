@@ -26,7 +26,7 @@ mdurl==0.1.2
 numpy==1.24.2
 oauthlib==3.2.2
 packaging==23.0
-phiterm==1.5.8
+phiterm==1.5.9
 pyarrow==11.0.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8

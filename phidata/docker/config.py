@@ -20,7 +20,7 @@ class DockerConfig(InfraConfig):
         env: Optional[str] = "dev",
         version: Optional[str] = None,
         enabled: bool = True,
-        network: str = "phi",
+        network: str = "bridge",
         base_url: Optional[str] = None,
         apps: Optional[List[PhidataApp]] = None,
         app_groups: Optional[List[AppGroup]] = None,

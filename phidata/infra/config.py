@@ -19,6 +19,11 @@ class InfraConfig(PhidataBase):
     def env(self) -> Optional[str]:
         return self.args.env if self.args else None
 
+    @env.setter
+    def env(self, env: str) -> None:
+        if self.args is not None and env is not None:
+            self.args.env = env
+
     @property
     def workspace_root_path(self) -> Optional[Path]:
         return self.args.workspace_root_path if self.args else None

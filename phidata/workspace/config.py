@@ -136,21 +136,46 @@ class WorkspaceConfig(InfraConfig):
     def default_env(self) -> Optional[str]:
         return self.args.default_env if self.args else None
 
+    @default_env.setter
+    def default_env(self, default_env: str) -> None:
+        if self.args is not None and default_env is not None:
+            self.args.default_env = default_env
+
     @property
     def default_config(self) -> Optional[str]:
         return self.args.default_config if self.args else None
+
+    @default_config.setter
+    def default_config(self, default_config: str) -> None:
+        if self.args is not None and default_config is not None:
+            self.args.default_config = default_config
 
     @property
     def docker(self) -> Optional[List[Any]]:
         return self.args.docker if self.args else None
 
+    @docker.setter
+    def docker(self, docker: Any) -> None:
+        if self.args is not None and docker is not None:
+            self.args.docker = docker
+
     @property
     def k8s(self) -> Optional[List[Any]]:
         return self.args.k8s if self.args else None
 
+    @k8s.setter
+    def k8s(self, k8s: Any) -> None:
+        if self.args is not None and k8s is not None:
+            self.args.k8s = k8s
+
     @property
     def aws(self) -> Optional[List[Any]]:
         return self.args.aws if self.args else None
+
+    @aws.setter
+    def aws(self, aws: Any) -> None:
+        if self.args is not None and aws is not None:
+            self.args.aws = aws
 
     def is_valid(self) -> bool:
         if self.docker is not None:

@@ -57,6 +57,7 @@ module = [
   "boto3.*",
   "botocore",
   "botocore.*",
+  "duckdb.*",
   "typer",
   "tiingo",
   "docker.*",
@@ -64,6 +65,7 @@ module = [
   "pandas.*",
   "pyarrow.*",
   "kubernetes.*",
+  "langchain.*",
   "sqlalchemy.*",
   "matplotlib.*",
 ]

@@ -12,7 +12,7 @@ from phidata.docker.resource.group import DockerResourceGroup
 
 
 class DockerArgs(InfraArgs):
-    network: str = "phi"
+    network: str = "bridge"
     # configure the DockerClient
     # URL to the Docker server. For example, unix:///var/run/docker.sock or tcp://127.0.0.1:1234.
     # when None, phidata use DockerClient.from_env()

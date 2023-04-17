@@ -22,25 +22,30 @@ class RedisStackArgs(DbAppArgs):
 
     # -*- Image Configuration
     image_name: str = "redis-stack"
-    image_tag: str = "latest"
+    image_tag: str = "6.2.6-v6"
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
     # -*- RedisStack Configuration
-    # Provide REDIS_USER as redis_user or REDIS_USER in secrets_file
-    redis_user: Optional[str] = None
-    # Provide REDIS_PASSWORD as redis_password or REDIS_PASSWORD in secrets_file
-    redis_password: Optional[str] = None
-    # Provide REDIS_SCHEMA as redis_schema or REDIS_SCHEMA in secrets_file
-    redis_schema: Optional[str] = None
     redis_driver: str = "redis"
     logging_level: str = "debug"
-
-    # -*- Container Configuration
-    container_name: Optional[str] = None
+    # Provide REDIS_SCHEMA as redis_schema or REDIS_SCHEMA in secrets_file
+    redis_schema: Optional[str] = None
+    # Provide REDIS_PASSWORD as redis_password or REDIS_PASSWORD in secrets_file
+    redis_password: Optional[str] = None
+    # Provide REDIS_ARGS as redis_schema or REDIS_ARGS in secrets_file
+    redis_args: Optional[str] = None
+    # Provide REDISEARCH_ARGS as redis_schema or REDISEARCH_ARGS in secrets_file
+    redisearch_args: Optional[str] = None
+    # Provide REDISJSON_ARGS as redis_schema or REDISJSON_ARGS in secrets_file
+    redisjson_args: Optional[str] = None
+    # Provide REDISTIMESERIES_ARGS as redis_schema or REDISTIMESERIES_ARGS in secrets_file
+    redistimeseries_args: Optional[str] = None
+    # Provide REDISBLOOM_ARGS as redis_schema or REDISBLOOM_ARGS in secrets_file
+    redisbloom_args: Optional[str] = None
 
     # Container ports
-    # Open a container port if open_container_port=True
+    # Open the container port if open_container_port=True
     open_container_port: bool = True
     # Port number on the container
     container_port: int = 6379
@@ -48,15 +53,23 @@ class RedisStackArgs(DbAppArgs):
     container_port_name: str = "redis"
     # Host port: Only used by the DockerContainer
     container_host_port: int = 6379
+    # Open the RedisInsight port if open_redis_insight_port=True
+    open_redis_insight_port: bool = True
+    # Port number on the container
+    redis_insight_port: int = 8001
+    # Port name: Only used by the K8sContainer
+    redis_insight_port_name: str = "redis-insight"
+    # Host port: Only used by the DockerContainer
+    redis_insight_host_port: int = 8001
 
     # Container volumes
     create_volume: bool = True
     volume_name: Optional[str] = None
     volume_type: RedisStackVolumeType = RedisStackVolumeType.EmptyDir
-    # Container path to mount the postgres volume
+    # Container path to mount the volume
     # should be the parent directory for redis data
     volume_container_path: str = "/data"
-    # Host path to mount the postgres volume
+    # Host path to mount the volume
     # If volume_type = RedisStackVolumeType.HOST_PATH
     volume_host_path: Optional[str] = None
 
@@ -78,30 +91,40 @@ class RedisStackArgs(DbAppArgs):
     create_service: bool = True
     # The port exposed by the service.
     service_port: int = 6379
+    # K8s Service for RedisInsight
+    create_redis_insight_service: bool = True
+    # The port exposed by the service.
+    redis_insight_service_port: int = 8001
 
 
 class RedisStack(DbApp):
     def __init__(
         self,
-        name: str = "redis",
+        name: str = "redis-stack",
         version: str = "1",
         enabled: bool = True,
         # -*- Image Configuration,
-        # Image can be provided as a DockerImage object or as image_name:image_tag
-        image: Optional[Any] = None,
-        image_name: str = "redis",
-        image_tag: str = "6.2.6",
+        image_name: str = "redis/redis-stack",
+        image_tag: str = "6.2.6-v6",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # -*- RedisStack Configuration,
-        # Provide REDIS_USER as redis_user or REDIS_USER in secrets_file,
-        redis_user: Optional[str] = None,
-        # Provide REDIS_PASSWORD as redis_password or REDIS_PASSWORD in secrets_file,
-        redis_password: Optional[str] = None,
-        # Provide REDIS_SCHEMA as redis_schema or REDIS_SCHEMA in secrets_file,
-        redis_schema: Optional[str] = None,
         redis_driver: str = "redis",
         logging_level: str = "debug",
+        # Provide REDIS_SCHEMA as redis_schema or REDIS_SCHEMA in secrets_file,
+        redis_schema: Optional[str] = None,
+        # Provide REDIS_PASSWORD as redis_password or REDIS_PASSWORD in secrets_file,
+        redis_password: Optional[str] = None,
+        # Provide REDIS_ARGS as redis_schema or REDIS_ARGS in secrets_file,
+        redis_args: Optional[str] = None,
+        # Provide REDISEARCH_ARGS as redis_schema or REDISEARCH_ARGS in secrets_file,
+        redisearch_args: Optional[str] = None,
+        # Provide REDISJSON_ARGS as redis_schema or REDISJSON_ARGS in secrets_file,
+        redisjson_args: Optional[str] = None,
+        # Provide REDISTIMESERIES_ARGS as redis_schema or REDISTIMESERIES_ARGS in secrets_file,
+        redistimeseries_args: Optional[str] = None,
+        # Provide REDISBLOOM_ARGS as redis_schema or REDISBLOOM_ARGS in secrets_file,
+        redisbloom_args: Optional[str] = None,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Add labels to the container,
@@ -119,7 +142,7 @@ class RedisStack(DbApp):
         # Read secret variables from AWS Secrets,
         aws_secrets: Optional[Any] = None,
         # Container ports,
-        # Open a container port if open_container_port=True,
+        # Open the container port if open_container_port=True,
         open_container_port: bool = True,
         # Port number on the container,
         container_port: int = 6379,
@@ -127,14 +150,22 @@ class RedisStack(DbApp):
         container_port_name: str = "redis",
         # Host port: Only used by the DockerContainer,
         container_host_port: int = 6379,
+        # Open the RedisInsight port if open_redis_insight_port=True,
+        open_redis_insight_port: bool = True,
+        # Port number on the container,
+        redis_insight_port: int = 8001,
+        # Port name: Only used by the K8sContainer,
+        redis_insight_port_name: str = "redis-insight",
+        # Host port: Only used by the DockerContainer,
+        redis_insight_host_port: int = 8001,
         # Container volumes,
         create_volume: bool = True,
         volume_name: Optional[str] = None,
         volume_type: RedisStackVolumeType = RedisStackVolumeType.EmptyDir,
-        # Container path to mount the postgres volume,
+        # Container path to mount the volume,
         # should be the parent directory for redis data,
         volume_container_path: str = "/data",
-        # Host path to mount the postgres volume,
+        # Host path to mount the volume,
         # If volume_type = RedisStackVolumeType.HOST_PATH,
         volume_host_path: Optional[str] = None,
         # Use Aws Ebs as Volume,
@@ -233,7 +264,7 @@ class RedisStack(DbApp):
         # The target_port is the port to access on the pods targeted by the service.,
         # It can be the port number or port name on the pod.,
         service_target_port: Optional[Union[str, int]] = None,
-        # Extra ports exposed by the webserver service. Type: List[CreatePort],
+        # Extra ports exposed by the service. Type: List[CreatePort],
         service_ports: Optional[List[Any]] = None,
         # Service labels,
         service_labels: Optional[Dict[str, Any]] = None,
@@ -246,6 +277,10 @@ class RedisStack(DbApp):
         service_load_balancer_ip: Optional[str] = None,
         service_load_balancer_source_ranges: Optional[List[str]] = None,
         service_allocate_load_balancer_node_ports: Optional[bool] = None,
+        # K8s Service for RedisInsight,
+        create_redis_insight_service: bool = True,
+        # The port exposed by the service,
+        redis_insight_service_port: int = 8001,
         # K8s RBAC Configuration,
         use_rbac: bool = False,
         # Create a Namespace with name ns_name & default values,
@@ -306,16 +341,19 @@ class RedisStack(DbApp):
                 name=name,
                 version=version,
                 enabled=enabled,
-                image=image,
                 image_name=image_name,
                 image_tag=image_tag,
                 entrypoint=entrypoint,
                 command=command,
-                redis_user=redis_user,
-                redis_password=redis_password,
-                redis_schema=redis_schema,
                 redis_driver=redis_driver,
                 logging_level=logging_level,
+                redis_schema=redis_schema,
+                redis_password=redis_password,
+                redis_args=redis_args,
+                redisearch_args=redisearch_args,
+                redisjson_args=redisjson_args,
+                redistimeseries_args=redistimeseries_args,
+                redisbloom_args=redisbloom_args,
                 container_name=container_name,
                 container_labels=container_labels,
                 env=env,
@@ -327,6 +365,10 @@ class RedisStack(DbApp):
                 container_port=container_port,
                 container_port_name=container_port_name,
                 container_host_port=container_host_port,
+                open_redis_insight_port=open_redis_insight_port,
+                redis_insight_port=redis_insight_port,
+                redis_insight_port_name=redis_insight_port_name,
+                redis_insight_host_port=redis_insight_host_port,
                 create_volume=create_volume,
                 volume_name=volume_name,
                 volume_type=volume_type,
@@ -379,6 +421,8 @@ class RedisStack(DbApp):
                 service_load_balancer_ip=service_load_balancer_ip,
                 service_load_balancer_source_ranges=service_load_balancer_source_ranges,
                 service_allocate_load_balancer_node_ports=service_allocate_load_balancer_node_ports,
+                create_redis_insight_service=create_redis_insight_service,
+                redis_insight_service_port=redis_insight_service_port,
                 use_rbac=use_rbac,
                 ns_name=ns_name,
                 namespace=namespace,
@@ -408,18 +452,10 @@ class RedisStack(DbApp):
             logger.error(f"Args for {self.name} are not valid")
             raise
 
-    def get_db_user(self) -> Optional[str]:
-        db_user_var: Optional[str] = self.args.db_user if self.args else None
-        if db_user_var is None and self.args.secrets_file is not None:
-            # read from secrets_file
-            # logger.debug(f"Reading REDIS_USER from secrets_file")
-            secret_data_from_file = self.get_secret_data()
-            if secret_data_from_file is not None:
-                db_user_var = secret_data_from_file.get("REDIS_USER", db_user_var)
-        return db_user_var
-
     def get_db_password(self) -> Optional[str]:
-        redis_password_var: Optional[str] = self.args.db_password if self.args else None
+        redis_password_var: Optional[str] = (
+            self.args.redis_password if self.args else None
+        )
         if redis_password_var is None and self.args.secrets_file is not None:
             # read from secrets_file
             # logger.debug(f"Reading REDIS_PASSWORD from secrets_file")
@@ -431,9 +467,9 @@ class RedisStack(DbApp):
         return redis_password_var
 
     def get_db_schema(self) -> Optional[str]:
-        redis_schema_var: Optional[str] = self.args.db_schema if self.args else None
+        redis_schema_var: Optional[str] = self.args.redis_schema if self.args else None
         if redis_schema_var is None and self.args.secrets_file is not None:
-            # read from env_file
+            # read from secrets_file
             # logger.debug(f"Reading REDIS_SCHEMA from secrets_file")
             secret_data_from_file = self.get_secret_data()
             if secret_data_from_file is not None:
@@ -498,6 +534,7 @@ class RedisStack(DbApp):
         app_name = self.args.name
         logger.debug(f"Building {app_name} DockerResourceGroup")
 
+        from phidata.constants import PHIDATA_RUNTIME_ENV_VAR
         from phidata.docker.resource.group import (
             DockerNetwork,
             DockerContainer,
@@ -513,7 +550,9 @@ class RedisStack(DbApp):
             return None
 
         # Container Environment
-        container_env: Dict[str, str] = {}
+        container_env: Dict[str, str] = {
+            PHIDATA_RUNTIME_ENV_VAR: "docker",
+        }
 
         # Set airflow env vars
         self.set_aws_env_vars(env_dict=container_env)
@@ -531,6 +570,18 @@ class RedisStack(DbApp):
         # Update the container env with user provided env
         if self.args.env is not None and isinstance(self.args.env, dict):
             container_env.update(self.args.env)
+
+        # Add redis-stack env vars
+        if self.args.redis_args is not None:
+            container_env["REDIS_ARGS"] = self.args.redis_args
+        if self.args.redisearch_args is not None:
+            container_env["REDISEARCH_ARGS"] = self.args.redisearch_args
+        if self.args.redisjson_args is not None:
+            container_env["REDISJSON_ARGS"] = self.args.redisjson_args
+        if self.args.redistimeseries_args is not None:
+            container_env["REDISTIMESERIES_ARGS"] = self.args.redistimeseries_args
+        if self.args.redisbloom_args is not None:
+            container_env["REDISBLOOM_ARGS"] = self.args.redisbloom_args
 
         # Container Volumes
         container_volumes: Dict[str, dict] = self.args.container_volumes_docker or {}
@@ -562,12 +613,16 @@ class RedisStack(DbApp):
 
         # Container Ports
         container_ports: Dict[str, int] = self.args.container_ports_docker or {}
-
-        # if open_container_port = True
+        # Open the container port
         if self.args.open_container_port:
             container_ports[
                 str(self.args.container_port)
             ] = self.args.container_host_port
+        # Open the RedisInsight port
+        if self.args.open_redis_insight_port:
+            container_ports[
+                str(self.args.redis_insight_port)
+            ] = self.args.redis_insight_host_port
 
         # Create the container
         docker_container = DockerContainer(
@@ -620,6 +675,7 @@ class RedisStack(DbApp):
         app_name = self.args.name
         logger.debug(f"Building {app_name} K8sResourceGroup")
 
+        from phidata.constants import PHIDATA_RUNTIME_ENV_VAR
         from phidata.k8s.create.common.port import CreatePort
         from phidata.k8s.create.core.v1.container import CreateContainer
         from phidata.k8s.create.core.v1.volume import (
@@ -748,7 +804,9 @@ class RedisStack(DbApp):
                 )
 
         # Container Environment
-        container_env: Dict[str, str] = {}
+        container_env: Dict[str, str] = {
+            PHIDATA_RUNTIME_ENV_VAR: "kubernetes",
+        }
 
         # Set airflow env vars
         self.set_aws_env_vars(env_dict=container_env)
@@ -761,6 +819,18 @@ class RedisStack(DbApp):
         # Update the container env with user provided env
         if self.args.env is not None and isinstance(self.args.env, dict):
             container_env.update(self.args.env)
+
+        # Add redis-stack env vars
+        if self.args.redis_args is not None:
+            container_env["REDIS_ARGS"] = self.args.redis_args
+        if self.args.redisearch_args is not None:
+            container_env["REDISEARCH_ARGS"] = self.args.redisearch_args
+        if self.args.redisjson_args is not None:
+            container_env["REDISJSON_ARGS"] = self.args.redisjson_args
+        if self.args.redistimeseries_args is not None:
+            container_env["REDISTIMESERIES_ARGS"] = self.args.redistimeseries_args
+        if self.args.redisbloom_args is not None:
+            container_env["REDISBLOOM_ARGS"] = self.args.redisbloom_args
 
         # Create a ConfigMap to set the container env variables which are not Secret
         container_env_cm = CreateConfigMap(
@@ -813,10 +883,7 @@ class RedisStack(DbApp):
                 else:
                     logger.error("RedisStack: volume_host_path not provided")
                     return None
-            elif self.args.volume_type in (
-                RedisStackVolumeType.AwsEbs,
-                RedisStackVolumeType.AWS_EBS,
-            ):
+            elif self.args.volume_type == RedisStackVolumeType.AwsEbs:
                 if (
                     self.args.ebs_volume_id is not None
                     or self.args.ebs_volume is not None
@@ -950,6 +1017,17 @@ class RedisStack(DbApp):
                 logger.warning("NodePort value will be ignored")
                 self.args.service_node_port = None
 
+        redis_insight_port: Optional[CreatePort] = None
+        if self.args.open_redis_insight_port:
+            # Open the port
+            redis_insight_port = CreatePort(
+                name=self.args.redis_insight_port_name,
+                container_port=self.args.redis_insight_port,
+                service_port=self.args.redis_insight_service_port,
+                target_port=self.args.redis_insight_port_name,
+            )
+            ports.append(redis_insight_port)
+
         container_labels: Dict[str, Any] = common_labels or {}
         if self.args.container_labels is not None and isinstance(
             self.args.container_labels, dict
@@ -1006,8 +1084,7 @@ class RedisStack(DbApp):
             True
             if (
                 self.args.create_volume
-                and self.args.volume_type
-                in (RedisStackVolumeType.AwsEbs, RedisStackVolumeType.AWS_EBS)
+                and self.args.volume_type == RedisStackVolumeType.AwsEbs
             )
             else False
         )

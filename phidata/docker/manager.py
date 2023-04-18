@@ -18,10 +18,6 @@ class DockerManager:
             docker_args.workspace_root_path, Path
         ):
             raise DockerArgsException("workspace_root_path invalid")
-        if docker_args.workspace_config_file_path is None or not isinstance(
-            docker_args.workspace_config_file_path, Path
-        ):
-            raise DockerArgsException("workspace_config_file_path invalid")
 
         self.docker_args: DockerArgs = docker_args
         self.docker_worker: DockerWorker = DockerWorker(self.docker_args)

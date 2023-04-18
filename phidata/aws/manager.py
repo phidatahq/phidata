@@ -18,10 +18,6 @@ class AwsManager:
             aws_args.workspace_root_path, Path
         ):
             raise AwsArgsException("workspace_root_path invalid")
-        if aws_args.workspace_config_file_path is None or not isinstance(
-            aws_args.workspace_config_file_path, Path
-        ):
-            raise AwsArgsException("workspace_config_file_path invalid")
 
         self.aws_args: AwsArgs = aws_args
         self.aws_worker: AwsWorker = AwsWorker(self.aws_args)

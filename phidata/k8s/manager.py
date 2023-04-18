@@ -18,10 +18,6 @@ class K8sManager:
             k8s_args.workspace_root_path, Path
         ):
             raise K8sArgsException("workspace_root_path invalid")
-        if k8s_args.workspace_config_file_path is None or not isinstance(
-            k8s_args.workspace_config_file_path, Path
-        ):
-            raise K8sArgsException("workspace_config_file_path invalid")
 
         self.k8s_args: K8sArgs = k8s_args
         self.k8s_worker: K8sWorker = K8sWorker(self.k8s_args)

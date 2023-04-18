@@ -74,7 +74,7 @@ def create_duckdb_agent(
     agent = initialize_agent(
         tools,
         llm,
-        agent="zero-shot-react-description",
+        agent="zero-shot-react-description",  # type: ignore
         agent_kwargs={
             "input_variables": ["input", "agent_scratchpad", "table_names"],
             "prefix": prompt_prefix,

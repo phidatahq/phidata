@@ -25,7 +25,7 @@ class StreamlitApp(ServerBase):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "phidata/streamlit-app",
-        image_tag: str = "1.5.0",
+        image_tag: str = "1.6.0",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "app start",
         # Install python dependencies using a requirements.txt file,

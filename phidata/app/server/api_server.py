@@ -25,7 +25,7 @@ class ApiServer(ServerBase):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "phidata/server",
-        image_tag: str = "1.4.1",
+        image_tag: str = "latest",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "api start",
         # Install python dependencies using a requirements.txt file,

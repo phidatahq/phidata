@@ -39,7 +39,7 @@ class ServerBase(PhidataApp):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "phidata/server",
-        image_tag: str = "1.5.0",
+        image_tag: str = "latest",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
         # Install python dependencies using a requirements.txt file,

@@ -35,7 +35,7 @@ class DockerApiClient(InfraApiClient):
         api_client = None
         try:
             if self.base_url is None:
-                api_client = docker.from_env(timeout=10)
+                api_client = docker.from_env(timeout=30)
             else:
                 api_client = docker.DockerClient(base_url=self.base_url)
         except Exception as e:

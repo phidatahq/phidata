@@ -24,7 +24,7 @@ class StreamlitApp(ServerBase):
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
-        image_name: str = "phidata/streamlit-app",
+        image_name: str = "phidata/streamlit",
         image_tag: str = "latest",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = "app start",
@@ -32,6 +32,8 @@ class StreamlitApp(ServerBase):
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
+        # -*- Debug Mode
+        debug_mode: bool = False,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -269,6 +271,7 @@ class StreamlitApp(ServerBase):
             command=command,
             install_requirements=install_requirements,
             requirements_file=requirements_file,
+            debug_mode=debug_mode,
             container_name=container_name,
             python_path=python_path,
             add_python_path=add_python_path,

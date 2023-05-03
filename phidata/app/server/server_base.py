@@ -15,9 +15,7 @@ class ServerBaseArgs(PhidataAppArgs):
 
     # -*- Image Configuration
     image_name: str = "phidata/server"
-    image_tag: str = "1.5.0"
-    entrypoint: Optional[Union[str, List]] = None
-    command: Optional[Union[str, List]] = None
+    image_tag: str = "latest"
 
     # -*- AWS Configuration
     ecs_cluster: Optional[Any] = None
@@ -46,6 +44,8 @@ class ServerBase(PhidataApp):
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
+        # -*- Debug Mode
+        debug_mode: bool = False,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Overwrite the PYTHONPATH env var,
@@ -285,6 +285,7 @@ class ServerBase(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
+                debug_mode=debug_mode,
                 container_name=container_name,
                 python_path=python_path,
                 add_python_path=add_python_path,
@@ -453,7 +454,9 @@ class ServerBase(PhidataApp):
         python_path = self.args.python_path
         if python_path is None:
             python_path = "{}{}".format(
-                container_paths.workspace_root,
+                # TODO: use container_paths.workspace_root
+                # container_paths.workspace_root,
+                self.args.workspace_volume_container_path,
                 f":{self.args.add_python_path}" if self.args.add_python_path else "",
             )
 
@@ -481,7 +484,7 @@ class ServerBase(PhidataApp):
         # Set aws env vars
         self.set_aws_env_vars(env_dict=container_env)
 
-        # Set container env using env_dict, env_file or secrets_file
+        # Set container env using env_file, secrets_file or args.env
         self.set_container_env(container_env=container_env)
 
         # Container Volumes
@@ -498,8 +501,11 @@ class ServerBase(PhidataApp):
         container_volumes = self.args.container_volumes_docker or {}
         # Create a volume for the workspace dir
         if self.args.mount_workspace:
-            workspace_volume_container_path_str = container_paths.workspace_root
-
+            # TODO: use container_paths.workspace_root
+            # workspace_volume_container_path_str = container_paths.workspace_root
+            workspace_volume_container_path_str = (
+                self.args.workspace_volume_container_path
+            )
             if (
                 self.args.workspace_volume_type is None
                 or self.args.workspace_volume_type == WorkspaceVolumeType.HostPath
@@ -554,8 +560,11 @@ class ServerBase(PhidataApp):
             image=self.get_image_str(),
             entrypoint=self.args.entrypoint,
             command=self.args.command,
-            detach=self.args.container_detach,
-            auto_remove=self.args.container_auto_remove,
+            detach=self.args.container_detach if not self.args.debug_mode else False,
+            auto_remove=self.args.container_auto_remove
+            if not self.args.debug_mode
+            else False,
+            remove=self.args.container_remove if not self.args.debug_mode else False,
             healthcheck=self.args.container_healthcheck,
             hostname=self.args.container_hostname,
             labels=self.args.container_labels,
@@ -563,9 +572,10 @@ class ServerBase(PhidataApp):
             network=docker_build_context.network,
             platform=self.args.container_platform,
             ports=container_ports if len(container_ports) > 0 else None,
-            remove=self.args.container_remove,
             restart_policy=self.get_container_restart_policy_docker(),
             stdin_open=self.args.container_stdin_open,
+            stderr=self.args.container_stderr,
+            stdout=self.args.container_stdout,
             tty=self.args.container_tty,
             user=self.args.container_user,
             volumes=container_volumes if len(container_volumes) > 0 else None,

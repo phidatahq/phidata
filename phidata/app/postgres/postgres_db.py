@@ -568,7 +568,7 @@ class PostgresDb(DbApp):
                 "POSTGRES_INITDB_ARGS_FILE"
             ] = self.args.postgres_initdb_args_file
 
-        # Set airflow env vars
+        # Set aws env vars
         self.set_aws_env_vars(env_dict=container_env)
 
         # Update the container env using env_file

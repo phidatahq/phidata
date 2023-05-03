@@ -9,15 +9,13 @@ from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
-class MysqlVolumeType(ExtendedEnum):
+class MySQLVolumeType(ExtendedEnum):
     HostPath = "HostPath"
     EmptyDir = "EmptyDir"
     AwsEbs = "AwsEbs"
-    # For backwards compatibility
-    AWS_EBS = "AWS_EBS"
 
 
-class MysqlDbArgs(DbAppArgs):
+class MySQLDbArgs(DbAppArgs):
     name: str = "mysql"
     version: str = "1"
     enabled: bool = True
@@ -28,27 +26,12 @@ class MysqlDbArgs(DbAppArgs):
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
-    # -*- mysql Configuration
-    # Provide mysql_USER as db_user or mysql_USER in secrets_file
-    db_user: Optional[str] = None
-    # Provide mysql_PASSWORD as db_password or mysql_PASSWORD in secrets_file
-    db_password: Optional[str] = None
-    # Provide mysql_DB as db_schema or mysql_DB in secrets_file
-    db_schema: Optional[str] = None
-    db_driver: str = "mysqlql"
-    pgdata: Optional[str] = "/var/lib/mysqlql/data/pgdata"
-    mysql_initdb_args: Optional[str] = None
-    mysql_initdb_waldir: Optional[str] = None
-    mysql_host_auth_method: Optional[str] = None
-    mysql_password_file: Optional[str] = None
-    mysql_user_file: Optional[str] = None
-    mysql_db_file: Optional[str] = None
-    mysql_initdb_args_file: Optional[str] = None
-
-    mysql_root_password: Optional[str] = None
+    # -*- MySQL Configuration
     mysql_user: Optional[str] = None
     mysql_password: Optional[str] = None
-    mysql_root_host: Optional[str] = None
+    mysql_database: Optional[str] = None
+    mysql_root_password: Optional[str] = None
+    mysql_driver: str = "mysql"
 
     # -*- Container Configuration
     container_name: Optional[str] = None
@@ -59,23 +42,23 @@ class MysqlDbArgs(DbAppArgs):
     # Port number on the container
     container_port: int = 3306
     # Port name: Only used by the K8sContainer
-    container_port_name: str = "pg"
+    container_port_name: str = "mysql"
     # Host port: Only used by the DockerContainer
     container_host_port: int = 3306
 
     # Container volumes
     create_volume: bool = True
     volume_name: Optional[str] = None
-    volume_type: MysqlVolumeType = MysqlVolumeType.EmptyDir
+    volume_type: MySQLVolumeType = MySQLVolumeType.EmptyDir
     # Container path to mount the mysql volume
     # should be the parent directory of pgdata
-    volume_container_path: str = "/var/lib/mysqlql/data"
+    volume_container_path: str = "/var/lib/mysql"
     # Host path to mount the mysql volume
-    # If volume_type = mysqlVolumeType.HOST_PATH
+    # If volume_type = MySQLVolumeType.HOST_PATH
     volume_host_path: Optional[str] = None
 
     # Use Aws Ebs as Volume
-    # EbsVolume if volume_type = mysqlVolumeType.AWS_EBS
+    # EbsVolume if volume_type = MySQLVolumeType.AwsEbs
     ebs_volume: Optional[Any] = None
     # EbsVolume region is used to determine the ebs_volume_id
     # and add topology region selectors
@@ -91,10 +74,10 @@ class MysqlDbArgs(DbAppArgs):
     # K8s Service Configuration
     create_service: bool = True
     # The port exposed by the service.
-    service_port: int = 5432
+    service_port: int = 3306
 
 
-class MysqlDb(DbApp):
+class MySQLDb(DbApp):
     def __init__(
         self,
         name: str = "mysql",
@@ -107,40 +90,24 @@ class MysqlDb(DbApp):
         image_tag: str = "8.0.33",
         entrypoint: Optional[Union[str, List]] = None,
         command: Optional[Union[str, List]] = None,
-        # -*- mysql Configuration,
-        # Provide mysql_USER as db_user or mysql_USER in secrets_file,
-        db_user: Optional[str] = None,
-        # Provide mysql_PASSWORD as db_password or mysql_PASSWORD in secrets_file,
-        db_password: Optional[str] = None,
-        # Provide mysql_DB as db_schema or mysql_DB in secrets_file,
-        db_schema: Optional[str] = None,
-        db_driver: str = "mysqlql",
-        pgdata: Optional[str] = "/var/lib/mysqlql/data/pgdata",
-        mysql_initdb_args: Optional[str] = None,
-        mysql_initdb_waldir: Optional[str] = None,
-        mysql_host_auth_method: Optional[str] = None,
-        mysql_password_file: Optional[str] = None,
-        mysql_user_file: Optional[str] = None,
-        mysql_db_file: Optional[str] = None,
-        mysql_initdb_args_file: Optional[str] = None,
-
-        mysql_root_password: Optional[str] = None,
+        # -*- MySQL Configuration,
         mysql_user: Optional[str] = None,
         mysql_password: Optional[str] = None,
-        mysql_root_host: Optional[str] = None,
-
+        mysql_database: Optional[str] = None,
+        mysql_root_password: Optional[str] = None,
+        mysql_driver: str = "mysql",
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Add labels to the container,
         container_labels: Optional[Dict[str, Any]] = None,
         # Container env passed to the PhidataApp,
         # Add env variables to container env,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[Dict[str, Any]] = None,
         # Read env variables from a file in yaml format,
         env_file: Optional[Path] = None,
         # Container secrets,
         # Add secret variables to container env,
-        secrets: Optional[Dict[str, str]] = None,
+        secrets: Optional[Dict[str, Any]] = None,
         # Read secret variables from a file in yaml format,
         secrets_file: Optional[Path] = None,
         # Read secret variables from AWS Secrets,
@@ -151,21 +118,21 @@ class MysqlDb(DbApp):
         # Port number on the container,
         container_port: int = 3306,
         # Port name: Only used by the K8sContainer,
-        container_port_name: str = "pg",
+        container_port_name: str = "mysql",
         # Host port: Only used by the DockerContainer,
         container_host_port: int = 3306,
         # Container volumes,
         create_volume: bool = True,
         volume_name: Optional[str] = None,
-        volume_type: MysqlVolumeType = MysqlVolumeType.EmptyDir,
+        volume_type: MySQLVolumeType = MySQLVolumeType.EmptyDir,
         # Container path to mount the mysql volume,
         # should be the parent directory of pgdata,
-        volume_container_path: str = "/var/lib/mysqlql/data",
+        volume_container_path: str = "/var/lib/mysql",
         # Host path to mount the mysql volume,
-        # If volume_type = mysqlVolumeType.HostPath,
+        # If volume_type = MySQLVolumeType.HostPath,
         volume_host_path: Optional[str] = None,
         # Use Aws Ebs as Volume,
-        # EbsVolume if volume_type = mysqlVolumeType.AwsEbs,
+        # EbsVolume if volume_type = MySQLVolumeType.AwsEbs,
         ebs_volume: Optional[Any] = None,
         # EbsVolume region is used to determine the ebs_volume_id,
         # and add topology region selectors,
@@ -254,7 +221,7 @@ class MysqlDb(DbApp):
         # Type: ServiceType,
         service_type: Optional[ServiceType] = None,
         # The port exposed by the service.,
-        service_port: int = 5432,
+        service_port: int = 3306,
         # The node_port exposed by the service if service_type = ServiceType.NODE_PORT,
         service_node_port: Optional[int] = None,
         # The target_port is the port to access on the pods targeted by the service.,
@@ -329,7 +296,7 @@ class MysqlDb(DbApp):
     ):
         super().__init__()
         try:
-            self.args: MysqlDbArgs = MysqlDbArgs(
+            self.args: MySQLDbArgs = MySQLDbArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -338,24 +305,11 @@ class MysqlDb(DbApp):
                 image_tag=image_tag,
                 entrypoint=entrypoint,
                 command=command,
-                db_user=db_user,
-                db_password=db_password,
-                db_schema=db_schema,
-                db_driver=db_driver,
-                pgdata=pgdata,
-                mysql_initdb_args=mysql_initdb_args,
-                mysql_initdb_waldir=mysql_initdb_waldir,
-                mysql_host_auth_method=mysql_host_auth_method,
-                mysql_password_file=mysql_password_file,
-                mysql_user_file=mysql_user_file,
-                mysql_db_file=mysql_db_file,
-                mysql_initdb_args_file=mysql_initdb_args_file,
-
-                mysql_root_password=mysql_root_password,
                 mysql_user=mysql_user,
                 mysql_password=mysql_password,
-                mysql_root_host=mysql_root_host,
-
+                mysql_database=mysql_database,
+                mysql_root_password=mysql_root_password,
+                mysql_driver=mysql_driver,
                 container_name=container_name,
                 container_labels=container_labels,
                 env=env,
@@ -449,39 +403,45 @@ class MysqlDb(DbApp):
             raise
 
     def get_db_user(self) -> Optional[str]:
-        db_user_var: Optional[str] = self.args.db_user if self.args else None
+        db_user_var: Optional[str] = self.args.mysql_user if self.args else None
         if db_user_var is None and self.args.secrets_file is not None:
             # read from secrets_file
-            # logger.debug(f"Reading mysql_USER from secrets_file")
+            # logger.debug(f"Reading MYSQL_USER from secrets_file")
             secret_data_from_file = self.get_secret_data()
             if secret_data_from_file is not None:
-                db_user_var = secret_data_from_file.get("mysql_USER", db_user_var)
+                db_user_var = secret_data_from_file.get("MYSQL_USER", db_user_var)
+        if db_user_var is None:
+            db_user_var = "root"
         return db_user_var
 
     def get_db_password(self) -> Optional[str]:
-        db_password_var: Optional[str] = self.args.db_password if self.args else None
+        db_password_var: Optional[str] = self.args.mysql_password if self.args else None
         if db_password_var is None and self.args.secrets_file is not None:
             # read from secrets_file
-            # logger.debug(f"Reading mysql_PASSWORD from secrets_file")
+            # logger.debug(f"Reading MYSQL_USER_PASSWORD from secrets_file")
             secret_data_from_file = self.get_secret_data()
             if secret_data_from_file is not None:
                 db_password_var = secret_data_from_file.get(
-                    "mysql_PASSWORD", db_password_var
+                    "MYSQL_PASSWORD", db_password_var
                 )
+        if db_password_var is None:
+            db_password_var = self.args.mysql_root_password if self.args else None
         return db_password_var
 
     def get_db_schema(self) -> Optional[str]:
-        db_schema_var: Optional[str] = self.args.db_schema if self.args else None
+        db_schema_var: Optional[str] = self.args.mysql_database if self.args else None
         if db_schema_var is None and self.args.secrets_file is not None:
             # read from secrets_file
-            # logger.debug(f"Reading mysql_DB from secrets_file")
+            # logger.debug(f"Reading MYSQL_DATABASE from secrets_file")
             secret_data_from_file = self.get_secret_data()
             if secret_data_from_file is not None:
-                db_schema_var = secret_data_from_file.get("mysql_DB", db_schema_var)
+                db_schema_var = secret_data_from_file.get(
+                    "MYSQL_DATABASE", db_schema_var
+                )
         return db_schema_var
 
     def get_db_driver(self) -> Optional[str]:
-        return self.args.db_driver if self.args else "mysqlql"
+        return self.args.mysql_driver if self.args else "mysql"
 
     def get_db_host_local(self) -> Optional[str]:
         return "localhost"
@@ -553,80 +513,31 @@ class MysqlDb(DbApp):
         # Container Environment
         container_env: Dict[str, str] = {}
 
-        # Set mysql env vars
-        # Check: https://hub.docker.com/_/mysql
-
-        # MYSQL_ROOT_PASSWORD: 123456
-        # MYSQL_USER: techteam
-        # MYSQL_PASSWORD: 123456Aa@
-        # MYSQL_ROOT_HOST: '%'
-
-        # mysql_root_password: Optional[str] = None
-        # mysql_user: Optional[str] = None
-        # mysql_password: Optional[str] = None
-        # mysql_root_host: Optional[str] = None
-
-        if self.args.mysql_root_password:
-            container_env["MYSQL_ROOT_PASSWORD"] = self.args.mysql_root_password
-        if self.args.mysql_user:
-            container_env["MYSQL_USER"] = self.args.mysql_user
-        if self.args.mysql_password:
-            container_env["MYSQL_PASSWORD"] = self.args.mysql_password
-        if self.args.mysql_root_host:
-            container_env["MYSQL_ROOT_HOST"] = self.args.mysql_root_host
-
-        # db_user = self.get_db_user()
-        # if db_user:
-        #     container_env["MYSQL_USER"] = db_user
-        # db_password = self.get_db_password()
-        # if db_password:
-        #     container_env["MYSQL_PASSWORD"] = db_password
-        # db_schema = self.get_db_schema()
-        # if db_schema:
-        #     container_env["mysql_DB"] = db_schema
-        # if self.args.pgdata:
-        #     container_env["PGDATA"] = self.args.pgdata
-        # if self.args.mysql_initdb_args:
-        #     container_env["mysql_INITDB_ARGS"] = self.args.mysql_initdb_args
-        # if self.args.mysql_initdb_waldir:
-        #     container_env["mysql_INITDB_WALDIR"] = self.args.mysql_initdb_waldir
-        # if self.args.mysql_host_auth_method:
-        #     container_env[
-        #         "mysql_HOST_AUTH_METHOD"
-        #     ] = self.args.mysql_host_auth_method
-        # if self.args.mysql_password_file:
-        #     container_env["mysql_PASSWORD_FILE"] = self.args.mysql_password_file
-        # if self.args.mysql_user_file:
-        #     container_env["mysql_USER_FILE"] = self.args.mysql_user_file
-        # if self.args.mysql_db_file:
-        #     container_env["mysql_DB_FILE"] = self.args.mysql_db_file
-        # if self.args.mysql_initdb_args_file:
-        #     container_env[
-        #         "mysql_INITDB_ARGS_FILE"
-        #     ] = self.args.mysql_initdb_args_file
-
-        # Set airflow env vars
+        # Set aws env vars
         self.set_aws_env_vars(env_dict=container_env)
 
-        # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
-        if env_data_from_file is not None:
-            container_env.update(env_data_from_file)
+        # Set container env using env_file, secrets_file or args.env
+        self.set_container_env(container_env=container_env)
 
-        # Update the container env using secrets_file
-        secret_data_from_file = self.get_secret_data()
-        if secret_data_from_file is not None:
-            container_env.update(secret_data_from_file)
-
-        # Update the container env with user provided env
-        if self.args.env is not None and isinstance(self.args.env, dict):
-            container_env.update(self.args.env)
+        # Set mysql env vars
+        # Check: https://hub.docker.com/_/mysql
+        db_user = self.get_db_user()
+        if db_user is not None and db_user != "root":
+            container_env["MYSQL_USER"] = db_user
+            db_password = self.get_db_password()
+            if db_password is not None:
+                container_env["MYSQL_PASSWORD"] = db_password
+        db_schema = self.get_db_schema()
+        if db_schema is not None:
+            container_env["MYSQL_DATABASE"] = db_schema
+        if self.args.mysql_root_password is not None:
+            container_env["MYSQL_ROOT_PASSWORD"] = self.args.mysql_root_password
 
         # Container Volumes
         container_volumes: Dict[str, dict] = self.args.container_volumes_docker or {}
         # Create a volume for the mysql data
         if self.args.create_volume:
-            if self.args.volume_type == MysqlVolumeType.EmptyDir:
+            if self.args.volume_type == MySQLVolumeType.EmptyDir:
                 volume_name = self.args.volume_name or get_default_volume_name(app_name)
                 logger.debug(f"Mounting: {volume_name}")
                 logger.debug(f"\tto: {self.args.volume_container_path}")
@@ -634,7 +545,7 @@ class MysqlDb(DbApp):
                     "bind": self.args.volume_container_path,
                     "mode": "rw",
                 }
-            elif self.args.volume_type == MysqlVolumeType.HostPath:
+            elif self.args.volume_type == MySQLVolumeType.HostPath:
                 if self.args.volume_host_path is not None:
                     volume_host_path_str = str(self.args.volume_host_path)
                     logger.debug(f"Mounting: {volume_host_path_str}")
@@ -644,7 +555,7 @@ class MysqlDb(DbApp):
                         "mode": "rw",
                     }
                 else:
-                    logger.error("mysqlDb: volume_host_path not provided")
+                    logger.error("MySQLDb: volume_host_path not provided")
                     return None
             else:
                 logger.error(f"{self.args.volume_type.value} not supported")
@@ -840,49 +751,25 @@ class MysqlDb(DbApp):
         # Container Environment
         container_env: Dict[str, str] = {}
 
+        # Set aws env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
+        # Set container env using env_file, secrets_file or args.env
+        self.set_container_env(container_env=container_env)
+
         # Set mysql env vars
         # Check: https://hub.docker.com/_/mysql
         db_user = self.get_db_user()
-        if db_user:
-            container_env["mysql_USER"] = db_user
-        db_password = self.get_db_password()
-        if db_password:
-            container_env["mysql_PASSWORD"] = db_password
+        if db_user is not None and db_user != "root":
+            container_env["MYSQL_USER"] = db_user
+            db_password = self.get_db_password()
+            if db_password is not None:
+                container_env["MYSQL_PASSWORD"] = db_password
         db_schema = self.get_db_schema()
-        if db_schema:
-            container_env["mysql_DB"] = db_schema
-        if self.args.pgdata:
-            container_env["PGDATA"] = self.args.pgdata
-        if self.args.mysql_initdb_args:
-            container_env["mysql_INITDB_ARGS"] = self.args.mysql_initdb_args
-        if self.args.mysql_initdb_waldir:
-            container_env["mysql_INITDB_WALDIR"] = self.args.mysql_initdb_waldir
-        if self.args.mysql_host_auth_method:
-            container_env[
-                "mysql_HOST_AUTH_METHOD"
-            ] = self.args.mysql_host_auth_method
-        if self.args.mysql_password_file:
-            container_env["mysql_PASSWORD_FILE"] = self.args.mysql_password_file
-        if self.args.mysql_user_file:
-            container_env["mysql_USER_FILE"] = self.args.mysql_user_file
-        if self.args.mysql_db_file:
-            container_env["mysql_DB_FILE"] = self.args.mysql_db_file
-        if self.args.mysql_initdb_args_file:
-            container_env[
-                "mysql_INITDB_ARGS_FILE"
-            ] = self.args.mysql_initdb_args_file
-
-        # Set airflow env vars
-        self.set_aws_env_vars(env_dict=container_env)
-
-        # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
-        if env_data_from_file is not None:
-            container_env.update(env_data_from_file)
-
-        # Update the container env with user provided env
-        if self.args.env is not None and isinstance(self.args.env, dict):
-            container_env.update(self.args.env)
+        if db_schema is not None:
+            container_env["MYSQL_DATABASE"] = db_schema
+        if self.args.mysql_root_password is not None:
+            container_env["MYSQL_ROOT_PASSWORD"] = self.args.mysql_root_password
 
         # Create a ConfigMap to set the container env variables which are not Secret
         container_env_cm = CreateConfigMap(
@@ -911,18 +798,18 @@ class MysqlDb(DbApp):
         pod_node_selector: Optional[Dict[str, str]] = self.args.pod_node_selector
         if self.args.create_volume:
             volume_name = self.args.volume_name or get_default_volume_name(app_name)
-            if self.args.volume_type == MysqlVolumeType.EmptyDir:
-                pg_volume = CreateVolume(
+            if self.args.volume_type == MySQLVolumeType.EmptyDir:
+                mysql_volume = CreateVolume(
                     volume_name=volume_name,
                     app_name=app_name,
                     mount_path=self.args.volume_container_path,
                     volume_type=VolumeType.EMPTY_DIR,
                 )
-                volumes.append(pg_volume)
-            elif self.args.volume_type == MysqlVolumeType.HostPath:
+                volumes.append(mysql_volume)
+            elif self.args.volume_type == MySQLVolumeType.HostPath:
                 if self.args.volume_host_path is not None:
                     volume_host_path_str = str(self.args.volume_host_path)
-                    pg_volume = CreateVolume(
+                    mysql_volume = CreateVolume(
                         volume_name=volume_name,
                         app_name=app_name,
                         mount_path=self.args.volume_container_path,
@@ -931,14 +818,11 @@ class MysqlDb(DbApp):
                             path=volume_host_path_str,
                         ),
                     )
-                    volumes.append(pg_volume)
+                    volumes.append(mysql_volume)
                 else:
-                    logger.error("mysqlDb: volume_host_path not provided")
+                    logger.error("MySQLDb: volume_host_path not provided")
                     return None
-            elif self.args.volume_type in (
-                MysqlVolumeType.AwsEbs,
-                MysqlVolumeType.AWS_EBS,
-            ):
+            elif self.args.volume_type == MySQLVolumeType.AwsEbs:
                 if (
                     self.args.ebs_volume_id is not None
                     or self.args.ebs_volume is not None
@@ -992,7 +876,7 @@ class MysqlDb(DbApp):
                         logger.error("Could not find volume_id for EbsVolume")
                         return None
 
-                    pg_volume = CreateVolume(
+                    mysql_volume = CreateVolume(
                         volume_name=volume_name,
                         app_name=app_name,
                         mount_path=self.args.volume_container_path,
@@ -1001,7 +885,7 @@ class MysqlDb(DbApp):
                             volume_id=ebs_volume_id,
                         ),
                     )
-                    volumes.append(pg_volume)
+                    volumes.append(mysql_volume)
 
                     # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
                     # To do this, we add NodeSelectors to Pods
@@ -1022,7 +906,7 @@ class MysqlDb(DbApp):
                                 "topology.kubernetes.io/zone"
                             ] = ebs_volume_az
                 else:
-                    logger.error("mysqlDb: ebs_volume not provided")
+                    logger.error("MySQLDb: ebs_volume not provided")
                     return None
             else:
                 logger.error(f"{self.args.volume_type.value} not supported")
@@ -1079,7 +963,7 @@ class MysqlDb(DbApp):
             container_labels.update(self.args.container_labels)
 
         # Create the mysql container
-        pg_container = CreateContainer(
+        mysql_container = CreateContainer(
             container_name=self.get_container_name(),
             app_name=app_name,
             image_name=self.args.image_name,
@@ -1105,12 +989,12 @@ class MysqlDb(DbApp):
             labels=container_labels,
         )
         # Add mysql container to the front of the containers list
-        containers.insert(0, pg_container)
+        containers.insert(0, mysql_container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": pg_container.container_name,
+            "kubectl.kubernetes.io/default-container": mysql_container.container_name,
         }
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
@@ -1126,16 +1010,13 @@ class MysqlDb(DbApp):
         # If using EbsVolume, restart the deployment on update
         recreate_deployment_on_update = (
             True
-            if (
-                self.args.create_volume
-                and self.args.volume_type
-                in (MysqlVolumeType.AwsEbs, MysqlVolumeType.AWS_EBS)
-            )
+            if self.args.create_volume
+            and self.args.volume_type == MySQLVolumeType.AwsEbs
             else False
         )
 
         # Create the mysql deployment
-        pg_deployment = CreateDeployment(
+        mysql_deployment = CreateDeployment(
             deploy_name=self.get_deploy_name(),
             pod_name=self.get_pod_name(),
             app_name=app_name,
@@ -1155,7 +1036,7 @@ class MysqlDb(DbApp):
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
             recreate_on_update=recreate_deployment_on_update,
         )
-        deployments.append(pg_deployment)
+        deployments.append(mysql_deployment)
 
         # Create the mysql service
         if self.args.create_service:
@@ -1165,17 +1046,17 @@ class MysqlDb(DbApp):
             ):
                 service_labels.update(self.args.service_labels)
 
-            pg_service = CreateService(
+            mysql_service = CreateService(
                 service_name=self.get_service_name(),
                 app_name=app_name,
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=pg_deployment,
+                deployment=mysql_deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )
-            services.append(pg_service)
+            services.append(mysql_service)
 
         # Create the K8sResourceGroup
         k8s_resource_group = CreateK8sResourceGroup(

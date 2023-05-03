@@ -59,6 +59,9 @@ class PhidataAppArgs(PhidataBaseArgs):
     # Path to the requirements.txt file relative to the workspace_root
     requirements_file: str = "requirements.txt"
 
+    # -*- Debug Mode
+    debug_mode: bool = False
+
     # -*- Container Configuration
     # Each PhidataApp has 1 main container and multiple sidecar containers
     # The main container name
@@ -135,6 +138,10 @@ class PhidataAppArgs(PhidataBaseArgs):
     container_user: Optional[Union[str, int]] = None
     # Keep STDIN open even if not attached.
     container_stdin_open: bool = True
+    # Return logs from STDOUT when container_detach=False.
+    container_stdout: Optional[bool] = True
+    # Return logs from STDERR when container_detach=False.
+    container_stderr: Optional[bool] = True
     container_tty: bool = True
     # Specify a test to perform to check that the container is healthy.
     container_healthcheck: Optional[Dict[str, Any]] = None
@@ -542,13 +549,6 @@ class PhidataApp(PhidataBase):
         return self.secret_data
 
     def set_container_env(self, container_env: Dict[str, Any]) -> None:
-        # Update the container env with user provided env
-        # this overwrites any existing variables
-        if self.args.env is not None and isinstance(self.args.env, dict):
-            container_env.update(
-                {k: str(v) for k, v in self.args.env.items() if v is not None}
-            )
-
         # Update the container env using env_file
         env_data_from_file = self.get_env_data()
         if env_data_from_file is not None:
@@ -559,7 +559,13 @@ class PhidataApp(PhidataBase):
         if secret_data_from_file is not None:
             container_env.update(secret_data_from_file)
 
-        logger.debug(f"Container env: {container_env}")
+        # Update the container env with user provided env
+        # this overwrites any existing variables
+        if self.args.env is not None and isinstance(self.args.env, dict):
+            container_env.update(
+                {k: str(v) for k, v in self.args.env.items() if v is not None}
+            )
+        # logger.debug(f"Container env: {container_env}")
 
     ######################################################
     ## Docker functions

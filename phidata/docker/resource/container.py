@@ -263,7 +263,7 @@ class DockerContainer(DockerResource):
         try:
             _api_client: DockerClient = docker_client.api_client
             container_list: Optional[List[Container]] = _api_client.containers.list(
-                all=True
+                all=True, filters={"name": container_name}
             )
             if container_list is not None:
                 for container in container_list:

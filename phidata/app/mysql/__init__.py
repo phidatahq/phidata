@@ -1,8 +1,8 @@
 from phidata.app.mysql.mysql_db import (
-    MysqlDb,
-    MysqlDbArgs,
+    MySQLDb,
+    MySQLDbArgs,
     ServiceType,
-    MysqlVolumeType,
+    MySQLVolumeType,
     ImagePullPolicy,
     RestartPolicy,
 )

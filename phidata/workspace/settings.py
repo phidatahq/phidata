@@ -42,6 +42,7 @@ class WorkspaceSettings(BaseSettings):
     dev_databox_enabled: bool = False
     dev_grafana_enabled: bool = False
     dev_jupyter_enabled: bool = False
+    dev_mysql_enabled: bool = False
     dev_postgres_enabled: bool = False
     dev_prometheus_enabled: bool = False
     dev_redis_enabled: bool = False
@@ -71,6 +72,7 @@ class WorkspaceSettings(BaseSettings):
     stg_databox_enabled: bool = False
     stg_grafana_enabled: bool = False
     stg_jupyter_enabled: bool = False
+    stg_mysql_enabled: bool = False
     stg_postgres_enabled: bool = False
     stg_prometheus_enabled: bool = False
     stg_redis_enabled: bool = False
@@ -101,6 +103,7 @@ class WorkspaceSettings(BaseSettings):
     prd_databox_enabled: bool = False
     prd_grafana_enabled: bool = False
     prd_jupyter_enabled: bool = False
+    prd_mysql_enabled: bool = False
     prd_postgres_enabled: bool = False
     prd_prometheus_enabled: bool = False
     prd_redis_enabled: bool = False

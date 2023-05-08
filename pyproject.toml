@@ -58,8 +58,6 @@ module = [
   "botocore",
   "botocore.*",
   "duckdb.*",
-  "typer",
-  "tiingo",
   "docker.*",
   "airflow.*",
   "pandas.*",

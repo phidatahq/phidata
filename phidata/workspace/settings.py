@@ -40,6 +40,7 @@ class WorkspaceSettings(BaseSettings):
     dev_app_enabled: bool = False
     dev_assistant_enabled: bool = False
     dev_databox_enabled: bool = False
+    dev_db_enabled: bool = False
     dev_grafana_enabled: bool = False
     dev_jupyter_enabled: bool = False
     dev_mysql_enabled: bool = False
@@ -70,6 +71,7 @@ class WorkspaceSettings(BaseSettings):
     stg_app_enabled: bool = False
     stg_assistant_enabled: bool = False
     stg_databox_enabled: bool = False
+    stg_db_enabled: bool = False
     stg_grafana_enabled: bool = False
     stg_jupyter_enabled: bool = False
     stg_mysql_enabled: bool = False
@@ -101,6 +103,7 @@ class WorkspaceSettings(BaseSettings):
     prd_app_enabled: bool = False
     prd_assistant_enabled: bool = False
     prd_databox_enabled: bool = False
+    prd_db_enabled: bool = False
     prd_grafana_enabled: bool = False
     prd_jupyter_enabled: bool = False
     prd_mysql_enabled: bool = False

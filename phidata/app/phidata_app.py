@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union, List
 
 from phidata.base import PhidataBase, PhidataBaseArgs
+from phidata.types.context import ContainerPathContext
 from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
@@ -66,11 +67,11 @@ class PhidataAppArgs(PhidataBaseArgs):
     # Each PhidataApp has 1 main container and multiple sidecar containers
     # The main container name
     container_name: Optional[str] = None
-    # Overwrite the PYTHONPATH env var
-    # which is usually set to the workspace_root_container_path
+    # Overwrite the PYTHONPATH env var, default: False
+    set_python_path: bool = False
+    # Set the python_path, default: workspace_volume_container_path,
     python_path: Optional[str] = None
     # Add to the PYTHONPATH env var. If python_path is set, this is ignored
-    # Does not overwrite the PYTHONPATH env var - adds to it.
     add_python_path: Optional[str] = None
     # Add labels to the container
     container_labels: Optional[Dict[str, Any]] = None
@@ -565,11 +566,136 @@ class PhidataApp(PhidataBase):
             container_env.update(
                 {k: str(v) for k, v in self.args.env.items() if v is not None}
             )
-        # logger.debug(f"Container env: {container_env}")
 
     ######################################################
     ## Docker functions
     ######################################################
+
+    def get_docker_container_env(
+        self,
+        container_paths: ContainerPathContext,
+        initial_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        from phidata.constants import (
+            PYTHONPATH_ENV_VAR,
+            PHIDATA_RUNTIME_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+        )
+
+        # Container Environment
+        container_env: Dict[str, str] = initial_env or {}
+        container_env.update(
+            {
+                PHIDATA_RUNTIME_ENV_VAR: "docker",
+                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir or "",
+                STORAGE_DIR_ENV_VAR: container_paths.storage_dir or "",
+                META_DIR_ENV_VAR: container_paths.meta_dir or "",
+                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir or "",
+                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir or "",
+                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir or "",
+                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root or "",
+                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir
+                or "",
+                "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
+                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file or "",
+                "MOUNT_WORKSPACE": str(self.args.mount_workspace),
+                "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+            }
+        )
+
+        if self.args.set_python_path:
+            python_path = self.args.python_path
+            if python_path is None:
+                python_path = "{}{}".format(
+                    container_paths.workspace_root,
+                    f":{self.args.add_python_path}"
+                    if self.args.add_python_path
+                    else "",
+                )
+            container_env[PYTHONPATH_ENV_VAR] = python_path
+
+        # Set aws env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
+        # Set container env using env_file, secrets_file or args.env
+        self.set_container_env(container_env=container_env)
+        # logger.debug(f"Container env: {container_env}")
+
+        return container_env
+
+    def get_docker_container_volumes(
+        self, container_paths: ContainerPathContext
+    ) -> Dict[str, dict]:
+        from phidata.utils.common import get_default_volume_name
+
+        # container_volumes is a dictionary which configures the volumes to mount
+        # inside the container. The key is either the host path or a volume name,
+        # and the value is a dictionary with 2 keys:
+        #   bind - The path to mount the volume inside the container
+        #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
+        # For example:
+        # {
+        #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
+        #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
+        # }
+        container_volumes = self.args.container_volumes_docker or {}
+
+        # Create a volume for the workspace dir
+        if self.args.mount_workspace:
+            workspace_volume_container_path_str = container_paths.workspace_root
+            if (
+                self.args.workspace_volume_type is None
+                or self.args.workspace_volume_type == WorkspaceVolumeType.HostPath
+            ):
+                workspace_volume_host_path = (
+                    self.args.workspace_volume_host_path
+                    or str(self.workspace_root_path)
+                )
+                logger.debug(f"Mounting: {workspace_volume_host_path}")
+                logger.debug(f"\tto: {workspace_volume_container_path_str}")
+                container_volumes[workspace_volume_host_path] = {
+                    "bind": workspace_volume_container_path_str,
+                    "mode": "rw",
+                }
+            elif self.args.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
+                workspace_volume_name = self.args.workspace_volume_name
+                if workspace_volume_name is None:
+                    workspace_volume_name = get_default_volume_name(
+                        container_paths.workspace_name or "ws"
+                    )
+                logger.debug(f"Mounting: {workspace_volume_name}")
+                logger.debug(f"\tto: {workspace_volume_container_path_str}")
+                container_volumes[workspace_volume_name] = {
+                    "bind": workspace_volume_container_path_str,
+                    "mode": "rw",
+                }
+            else:
+                logger.error(f"{self.args.workspace_volume_type.value} not supported")
+
+        return container_volumes
+
+    def get_docker_container_ports(self) -> Dict[str, int]:
+        # container_ports is a dictionary which configures the ports to bind
+        # inside the container. The key is the port to bind inside the container
+        #   either as an integer or a string in the form port/protocol
+        # and the value is the corresponding port to open on the host.
+        # For example:
+        #   {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
+        container_ports: Dict[str, int] = self.args.container_ports_docker or {}
+
+        if self.args.open_container_port:
+            container_ports[
+                str(self.args.container_port)
+            ] = self.args.container_host_port
+
+        return container_ports
 
     def get_container_restart_policy_docker(self) -> Optional[Dict[str, Any]]:
         return self.args.container_restart_policy_docker if self.args else None
@@ -616,6 +742,65 @@ class PhidataApp(PhidataBase):
     ## AWS functions
     ######################################################
 
+    def get_ecs_container_env(
+        self,
+        container_paths: ContainerPathContext,
+        initial_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        from phidata.constants import (
+            PYTHONPATH_ENV_VAR,
+            PHIDATA_RUNTIME_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+        )
+
+        # Container Environment
+        container_env: Dict[str, str] = initial_env or {}
+        container_env.update(
+            {
+                PHIDATA_RUNTIME_ENV_VAR: "ecs",
+                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir or "",
+                STORAGE_DIR_ENV_VAR: container_paths.storage_dir or "",
+                META_DIR_ENV_VAR: container_paths.meta_dir or "",
+                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir or "",
+                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir or "",
+                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir or "",
+                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root or "",
+                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir
+                or "",
+                "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
+                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file or "",
+                "MOUNT_WORKSPACE": str(self.args.mount_workspace),
+                "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+            }
+        )
+
+        if self.args.set_python_path:
+            python_path = self.args.python_path
+            if python_path is None:
+                python_path = "{}{}".format(
+                    container_paths.workspace_root or "",
+                    f":{self.args.add_python_path}"
+                    if self.args.add_python_path
+                    else "",
+                )
+            container_env[PYTHONPATH_ENV_VAR] = python_path
+
+        # Set aws env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
+        # Set container env using env_file, secrets_file or args.env
+        self.set_container_env(container_env=container_env)
+        # logger.debug(f"Container env: {container_env}")
+
+        return container_env
+
     def init_aws_resource_groups(self, aws_build_context: Any) -> None:
         logger.debug(f"@init_aws_resource_groups not defined for {self.name}")
 
@@ -638,9 +823,7 @@ class PhidataApp(PhidataBase):
     ## Helpers
     ######################################################
 
-    def get_container_paths(
-        self, add_ws_name_to_container_path: bool = True
-    ) -> Optional[Any]:
+    def get_container_paths(self, add_ws_name_to_ws_root: bool = True) -> Optional[Any]:
         if self.workspace_root_path is None:
             return None
 
@@ -656,7 +839,7 @@ class PhidataApp(PhidataBase):
 
         workspace_root_container_path = (
             f"{workspace_volume_container_path}/{workspace_name}"
-            if add_ws_name_to_container_path
+            if add_ws_name_to_ws_root
             else workspace_volume_container_path
         )
         container_paths = ContainerPathContext(

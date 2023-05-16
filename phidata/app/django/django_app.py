@@ -340,6 +340,7 @@ class DjangoApp(PhidataApp):
     ######################################################
 
     def get_aws_rg(self, aws_build_context: Any) -> Optional[Any]:
+        from phidata.docker.resource.image import DockerImage
         from phidata.aws.resource.group import (
             AwsResourceGroup,
             EcsCluster,
@@ -444,6 +445,7 @@ class DjangoApp(PhidataApp):
         django_container = EcsContainer(
             name=app_name,
             image=self.get_image_str(),
+            essential=True,
             port_mappings=[{"containerPort": self.get_container_port()}],
             command=self.args.command,
             environment=[{"name": k, "value": v} for k, v in container_env.items()],
@@ -469,12 +471,15 @@ class DjangoApp(PhidataApp):
                 name=get_default_volume_name(app_name),
                 host={"sourcePath": container_paths.workspace_root},
             )
+            nginx_image_str = f"{self.args.nginx_image_name}:{self.args.nginx_image_tag}"
+            if self.args.nginx_image and isinstance(self.args.nginx_image, DockerImage):
+                nginx_image_str = self.args.nginx_image.get_image_str()
             nginx_container = EcsContainer(
                 name=nginx_container_name,
-                image=self.get_image_str(),
+                image=nginx_image_str,
+                essential=True,
                 port_mappings=[{"containerPort": self.args.nginx_container_port}],
                 links=[django_container.name],
-                command=self.args.command,
                 environment=[{"name": k, "value": v} for k, v in container_env.items()],
                 log_configuration={
                     "logDriver": "awslogs",

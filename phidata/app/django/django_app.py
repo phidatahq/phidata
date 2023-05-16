@@ -346,12 +346,14 @@ class DjangoApp(PhidataApp):
             EcsContainer,
             EcsTaskDefinition,
             EcsService,
+            EcsVolume,
             LoadBalancer,
             TargetGroup,
             Listener,
             Subnet,
         )
         from phidata.types.context import ContainerPathContext
+        from phidata.utils.common import get_default_volume_name
 
         app_name = self.args.name
 
@@ -439,7 +441,7 @@ class DjangoApp(PhidataApp):
         )
 
         # -*- Create ECS Containers
-        ecs_container = EcsContainer(
+        django_container = EcsContainer(
             name=app_name,
             image=self.get_image_str(),
             port_mappings=[{"containerPort": self.get_container_port()}],
@@ -460,13 +462,18 @@ class DjangoApp(PhidataApp):
             wait_for_deletion=self.args.wait_for_deletion,
         )
         nginx_container = None
+        nginx_shared_volume = None
         if self.args.enable_nginx:
             nginx_container_name = f"{app_name}-nginx"
+            nginx_shared_volume = EcsVolume(
+                name=get_default_volume_name(app_name),
+                host={"sourcePath": container_paths.workspace_root},
+            )
             nginx_container = EcsContainer(
                 name=nginx_container_name,
                 image=self.get_image_str(),
                 port_mappings=[{"containerPort": self.args.nginx_container_port}],
-                links=[ecs_container.name],
+                links=[django_container.name],
                 command=self.args.command,
                 environment=[{"name": k, "value": v} for k, v in container_env.items()],
                 log_configuration={
@@ -478,11 +485,26 @@ class DjangoApp(PhidataApp):
                         "awslogs-stream-prefix": nginx_container_name,
                     },
                 },
+                mount_points=[
+                    {
+                        "sourceVolume": nginx_shared_volume.name,
+                        "containerPath": container_paths.workspace_root,
+                    }
+                ],
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
                 wait_for_deletion=self.args.wait_for_deletion,
             )
+            if django_container:
+                django_container.mount_points = [
+                    {
+                        "sourceVolume": nginx_shared_volume.name,
+                        "containerPath": container_paths.workspace_root,
+                    }
+                ]
+            else:
+                logger.error("Could not add volume to django_container")
 
         # -*- Create ECS Task Definition
         ecs_task_definition = EcsTaskDefinition(
@@ -491,7 +513,7 @@ class DjangoApp(PhidataApp):
             network_mode="awsvpc",
             cpu=self.args.ecs_task_cpu,
             memory=self.args.ecs_task_memory,
-            containers=[ecs_container],
+            containers=[django_container],
             requires_compatibilities=[self.args.ecs_launch_type],
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
@@ -499,13 +521,15 @@ class DjangoApp(PhidataApp):
             wait_for_deletion=self.args.wait_for_deletion,
         )
         if self.args.enable_nginx:
-            if ecs_task_definition.containers:
-                if nginx_container:
+            if nginx_container:
+                if ecs_task_definition.containers:
                     ecs_task_definition.containers.append(nginx_container)
                 else:
-                    logger.error("nginx_container None")
+                    logger.error("ecs_task_definition.containers None")
             else:
-                logger.error("ecs_task_definition.containers None")
+                logger.error("nginx_container None")
+            if nginx_shared_volume:
+                ecs_task_definition.volumes = [nginx_shared_volume]
 
         aws_vpc_config: Dict[str, Any] = {}
         if self.args.aws_subnets is not None:
@@ -523,8 +547,12 @@ class DjangoApp(PhidataApp):
             cluster=ecs_cluster,
             task_definition=ecs_task_definition,
             target_group=target_group,
-            target_container_name=ecs_container.name,
-            target_container_port=self.get_container_port(),
+            target_container_name=nginx_container.name
+            if self.args.enable_nginx and nginx_container
+            else django_container.name,
+            target_container_port=self.args.nginx_container_port
+            if self.args.enable_nginx
+            else self.get_container_port(),
             network_configuration={"awsvpcConfiguration": aws_vpc_config},
             # Force delete the service.
             force_delete=True,

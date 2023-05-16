@@ -499,7 +499,13 @@ class DjangoApp(PhidataApp):
             wait_for_deletion=self.args.wait_for_deletion,
         )
         if self.args.enable_nginx:
-            ecs_task_definition.containers.append(nginx_container)
+            if ecs_task_definition.containers:
+                if nginx_container:
+                    ecs_task_definition.containers.append(nginx_container)
+                else:
+                    logger.error("nginx_container None")
+            else:
+                logger.error("ecs_task_definition.containers None")
 
         aws_vpc_config: Dict[str, Any] = {}
         if self.args.aws_subnets is not None:

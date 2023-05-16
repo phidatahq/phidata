@@ -1107,7 +1107,7 @@ class ServerBase(PhidataApp):
 
         workspace_name = self.workspace_root_path.stem
         container_paths: Optional[ContainerPathContext] = self.get_container_paths(
-            add_ws_name_to_container_path=False
+            add_ws_name_to_ws_root=False
         )
         if container_paths is None:
             logger.error("Could not build container paths")

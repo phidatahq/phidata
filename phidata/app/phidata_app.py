@@ -594,16 +594,17 @@ class PhidataApp(PhidataBase):
         container_env.update(
             {
                 PHIDATA_RUNTIME_ENV_VAR: "docker",
-                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
-                STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
-                META_DIR_ENV_VAR: container_paths.meta_dir,
-                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir,
-                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir,
-                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir,
-                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root,
-                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir,
+                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir or "",
+                STORAGE_DIR_ENV_VAR: container_paths.storage_dir or "",
+                META_DIR_ENV_VAR: container_paths.meta_dir or "",
+                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir or "",
+                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir or "",
+                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir or "",
+                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root or "",
+                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir
+                or "",
                 "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
-                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file,
+                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file or "",
                 "MOUNT_WORKSPACE": str(self.args.mount_workspace),
                 "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
             }
@@ -667,7 +668,7 @@ class PhidataApp(PhidataBase):
                 workspace_volume_name = self.args.workspace_volume_name
                 if workspace_volume_name is None:
                     workspace_volume_name = get_default_volume_name(
-                        container_paths.workspace_name
+                        container_paths.workspace_name or "ws"
                     )
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
@@ -764,16 +765,17 @@ class PhidataApp(PhidataBase):
         container_env.update(
             {
                 PHIDATA_RUNTIME_ENV_VAR: "ecs",
-                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
-                STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
-                META_DIR_ENV_VAR: container_paths.meta_dir,
-                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir,
-                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir,
-                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir,
-                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root,
-                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir,
+                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir or "",
+                STORAGE_DIR_ENV_VAR: container_paths.storage_dir or "",
+                META_DIR_ENV_VAR: container_paths.meta_dir or "",
+                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir or "",
+                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir or "",
+                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir or "",
+                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root or "",
+                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir
+                or "",
                 "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
-                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file,
+                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file or "",
                 "MOUNT_WORKSPACE": str(self.args.mount_workspace),
                 "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
             }
@@ -783,7 +785,7 @@ class PhidataApp(PhidataBase):
             python_path = self.args.python_path
             if python_path is None:
                 python_path = "{}{}".format(
-                    container_paths.workspace_root,
+                    container_paths.workspace_root or "",
                     f":{self.args.add_python_path}"
                     if self.args.add_python_path
                     else "",

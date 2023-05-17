@@ -24,7 +24,7 @@ class Listener(AwsResource):
     protocol: Optional[str] = None
     port: Optional[int] = None
     ssl_policy: Optional[str] = None
-    certificates: Optional[List[Dict[str, bool]]]
+    certificates: Optional[List[Dict[str, Any]]]
     default_actions: Optional[List[Dict]]
     alpn_policy: Optional[List[str]]
     tags: Optional[List[Dict[str, str]]]

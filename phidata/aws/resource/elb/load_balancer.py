@@ -25,6 +25,9 @@ class LoadBalancer(AwsResource):
     ip_address_type: Optional[str] = None
     customer_owned_ipv_4_pool: Optional[str] = None
 
+    # Protocol for load_balancer: HTTP or HTTPS
+    protocol: str = "HTTP"
+
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the Load Balancer
 
@@ -98,7 +101,7 @@ class LoadBalancer(AwsResource):
             )
         else:
             dns_name = elb.get("DNSName", None)
-            print_info(f"LoadBalancer DNS: http://{dns_name}")
+            print_info(f"LoadBalancer DNS: {self.protocol.lower()}://{dns_name}")
         return True
 
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:

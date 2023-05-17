@@ -6,6 +6,7 @@ from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.ecs.container import EcsContainer
 from phidata.aws.resource.ecs.volume import EcsVolume
 from phidata.aws.resource.iam.role import IamRole
+from phidata.aws.resource.iam.policy import IamPolicy
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
@@ -49,11 +50,13 @@ class EcsTaskDefinition(AwsResource):
     # The short name or full Amazon Resource Name (ARN) of the IAM role that containers in this task can assume.
     task_role_arn: Optional[str] = None
     # If task_role_arn is None, a default role is created if create_task_role is True
-    create_task_role: bool = False
+    create_task_role: bool = True
     # Name for the default role when task_role_arn is None, use "name-task-role" if not provided
     task_role_name: Optional[str] = None
     # Provide a list of policy ARNs to attach to the role
     add_task_role_policy_arns: Optional[List[str]] = None
+    # Add ecs_exec_policy to task role
+    add_ecs_exec_policy: bool = False
 
     # The Amazon Resource Name (ARN) of the task execution role that grants the Amazon ECS container agent permission
     # to make Amazon Web Services API calls on your behalf. The task execution IAM role is required depending on the
@@ -250,6 +253,29 @@ class EcsTaskDefinition(AwsResource):
         ):
             policy_arns.extend(self.add_task_role_policy_arns)
 
+        ecs_exec_policy = IamPolicy(
+            name=f"{self.name}-ecs-exec-policy",
+            policy_document=dedent(
+                """\
+            {
+               "Version": "2012-10-17",
+               "Statement": [
+                   {
+                   "Effect": "Allow",
+                   "Action": [
+                        "ssmmessages:CreateControlChannel",
+                        "ssmmessages:CreateDataChannel",
+                        "ssmmessages:OpenControlChannel",
+                        "ssmmessages:OpenDataChannel"
+                   ],
+                  "Resource": "*"
+                  }
+               ]
+            }
+            """
+            ),
+        )
+
         return IamRole(
             name=self.task_role_name or f"{self.name}-task-role",
             assume_role_policy_document=dedent(
@@ -268,6 +294,7 @@ class EcsTaskDefinition(AwsResource):
             }
             """
             ),
+            policies=[ecs_exec_policy] if self.add_ecs_exec_policy else [],
             policy_arns=policy_arns,
         )
 

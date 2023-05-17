@@ -13,7 +13,31 @@ class DjangoAppArgs(PhidataAppArgs):
     ecs_task_memory: str = "512"
     ecs_service_count: int = 1
     assign_public_ip: bool = True
+    ecs_enable_exec: bool = True
+
+    # -*- LoadBalancer configuration
+    enable_load_balancer: bool = True
+    # Change to load_balancer
     elb: Optional[Any] = None
+    # Default 80 for HTTP and 443 for HTTPS
+    lb_port: Optional[int] = None
+    # HTTP or HTTPS
+    lb_protocol: str = "HTTP"
+    lb_certificate_arn: Optional[str] = None
+
+    # -*- TargetGroup configuration
+    # Default 80 for HTTP and 443 for HTTPS
+    target_group_port: Optional[int] = None
+    # HTTP or HTTPS
+    target_group_protocol: str = "HTTP"
+    health_check_protocol: Optional[str] = None
+    health_check_port: Optional[str] = None
+    health_check_enabled: Optional[bool] = None
+    health_check_path: Optional[str] = None
+    health_check_interval_seconds: Optional[int] = None
+    health_check_timeout_seconds: Optional[int] = None
+    healthy_threshold_count: Optional[int] = None
+    unhealthy_threshold_count: Optional[int] = None
 
     # Add NGINX to serve static file
     enable_nginx: bool = False
@@ -138,7 +162,29 @@ class DjangoApp(PhidataApp):
         ecs_task_memory: str = "512",
         ecs_service_count: int = 1,
         assign_public_ip: bool = True,
+        ecs_enable_exec: bool = True,
+        # -*- LoadBalancer configuration,
+        enable_load_balancer: bool = True,
+        # Change to load_balancer,
         elb: Optional[Any] = None,
+        # Default 80 for HTTP and 443 for HTTPS,
+        lb_port: Optional[int] = None,
+        # HTTP or HTTPS,
+        lb_protocol: str = "HTTP",
+        lb_certificate_arn: Optional[str] = None,
+        # -*- TargetGroup configuration,
+        # Default 80 for HTTP and 443 for HTTPS,
+        target_group_port: Optional[str] = None,
+        # HTTP or HTTPS,
+        target_group_protocol: str = "HTTP",
+        health_check_protocol: Optional[str] = None,
+        health_check_port: Optional[str] = None,
+        health_check_enabled: Optional[bool] = None,
+        health_check_path: Optional[str] = None,
+        health_check_interval_seconds: Optional[int] = None,
+        health_check_timeout_seconds: Optional[int] = None,
+        healthy_threshold_count: Optional[int] = None,
+        unhealthy_threshold_count: Optional[int] = None,
         # Add NGINX to serve static file
         enable_nginx: bool = False,
         nginx_image: Optional[Any] = None,
@@ -217,7 +263,22 @@ class DjangoApp(PhidataApp):
                 ecs_task_memory=ecs_task_memory,
                 ecs_service_count=ecs_service_count,
                 assign_public_ip=assign_public_ip,
+                ecs_enable_exec=ecs_enable_exec,
+                enable_load_balancer=enable_load_balancer,
                 elb=elb,
+                lb_port=lb_port,
+                lb_protocol=lb_protocol,
+                lb_certificate_arn=lb_certificate_arn,
+                target_group_port=target_group_port,
+                target_group_protocol=target_group_protocol,
+                health_check_protocol=health_check_protocol,
+                health_check_port=health_check_port,
+                health_check_enabled=health_check_enabled,
+                health_check_path=health_check_path,
+                health_check_interval_seconds=health_check_interval_seconds,
+                health_check_timeout_seconds=health_check_timeout_seconds,
+                healthy_threshold_count=healthy_threshold_count,
+                unhealthy_threshold_count=unhealthy_threshold_count,
                 enable_nginx=enable_nginx,
                 nginx_image=nginx_image,
                 nginx_image_name=nginx_image_name,
@@ -396,6 +457,7 @@ class DjangoApp(PhidataApp):
                 name=f"{app_name}-lb",
                 subnets=self.args.aws_subnets,
                 security_groups=self.args.aws_security_groups,
+                protocol=self.args.lb_protocol,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
@@ -414,13 +476,26 @@ class DjangoApp(PhidataApp):
             vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
 
         # -*- Create Target Group
+        tg_port = self.args.target_group_port
+        if tg_port is None:
+            tg_port = (
+                self.args.nginx_container_port
+                if self.args.enable_nginx
+                else self.get_container_port()
+            )
         target_group = TargetGroup(
             name=f"{app_name}-tg",
-            port=self.args.nginx_container_port
-            if self.args.enable_nginx
-            else self.get_container_port(),
-            protocol="HTTP",
+            port=tg_port,
+            protocol=self.args.target_group_protocol,
             vpc_id=vpc_id,
+            health_check_protocol=self.args.health_check_protocol,
+            health_check_port=self.args.health_check_port,
+            health_check_enabled=self.args.health_check_enabled,
+            health_check_path=self.args.health_check_path,
+            health_check_interval_seconds=self.args.health_check_interval_seconds,
+            health_check_timeout_seconds=self.args.health_check_timeout_seconds,
+            healthy_threshold_count=self.args.healthy_threshold_count,
+            unhealthy_threshold_count=self.args.unhealthy_threshold_count,
             target_type="ip",
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
@@ -429,10 +504,13 @@ class DjangoApp(PhidataApp):
         )
 
         # -*- Create Listener
+        lb_port = self.args.lb_port
+        if lb_port is None:
+            lb_port = 443 if self.args.lb_protocol == "HTTPS" else 80
         listener = Listener(
             name=f"{app_name}-listener",
-            protocol="HTTP",
-            port=80,
+            protocol=self.args.lb_protocol,
+            port=lb_port,
             load_balancer=load_balancer,
             target_group=target_group,
             skip_create=self.args.skip_create,
@@ -440,14 +518,23 @@ class DjangoApp(PhidataApp):
             wait_for_creation=self.args.wait_for_creation,
             wait_for_deletion=self.args.wait_for_deletion,
         )
+        if self.args.lb_certificate_arn is not None:
+            listener.certificates = [{"CertificateArn": self.args.lb_certificate_arn}]
 
         # -*- Create ECS Containers
+        container_command: List = []
+        if isinstance(self.args.command, list):
+            container_command = self.args.command
+        elif isinstance(self.args.command, str):
+            container_command = self.args.command.strip().split()
+        else:
+            logger.error(f"Invalid command: {self.args.command}")
         django_container = EcsContainer(
             name=app_name,
             image=self.get_image_str(),
             essential=True,
             port_mappings=[{"containerPort": self.get_container_port()}],
-            command=self.args.command,
+            command=container_command,
             environment=[{"name": k, "value": v} for k, v in container_env.items()],
             log_configuration={
                 "logDriver": "awslogs",
@@ -458,6 +545,7 @@ class DjangoApp(PhidataApp):
                     "awslogs-stream-prefix": app_name,
                 },
             },
+            linux_parameters={"initProcessEnabled": True},
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
@@ -467,11 +555,10 @@ class DjangoApp(PhidataApp):
         nginx_shared_volume = None
         if self.args.enable_nginx:
             nginx_container_name = f"{app_name}-nginx"
-            nginx_shared_volume = EcsVolume(
-                name=get_default_volume_name(app_name),
-                host={"sourcePath": container_paths.workspace_root},
+            nginx_shared_volume = EcsVolume(name=get_default_volume_name(app_name))
+            nginx_image_str = (
+                f"{self.args.nginx_image_name}:{self.args.nginx_image_tag}"
             )
-            nginx_image_str = f"{self.args.nginx_image_name}:{self.args.nginx_image_tag}"
             if self.args.nginx_image and isinstance(self.args.nginx_image, DockerImage):
                 nginx_image_str = self.args.nginx_image.get_image_str()
             nginx_container = EcsContainer(
@@ -479,7 +566,6 @@ class DjangoApp(PhidataApp):
                 image=nginx_image_str,
                 essential=True,
                 port_mappings=[{"containerPort": self.args.nginx_container_port}],
-                links=[django_container.name],
                 environment=[{"name": k, "value": v} for k, v in container_env.items()],
                 log_configuration={
                     "logDriver": "awslogs",
@@ -496,6 +582,7 @@ class DjangoApp(PhidataApp):
                         "containerPath": container_paths.workspace_root,
                     }
                 ],
+                linux_parameters={"initProcessEnabled": True},
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
@@ -520,6 +607,7 @@ class DjangoApp(PhidataApp):
             memory=self.args.ecs_task_memory,
             containers=[django_container],
             requires_compatibilities=[self.args.ecs_launch_type],
+            add_ecs_exec_policy=self.args.ecs_enable_exec,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
@@ -563,6 +651,7 @@ class DjangoApp(PhidataApp):
             force_delete=True,
             # Force a new deployment of the service on update.
             force_new_deployment=True,
+            enable_execute_command=self.args.ecs_enable_exec,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,

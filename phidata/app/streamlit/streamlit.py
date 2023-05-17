@@ -1,21 +1,15 @@
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
-from phidata.app.server.server_base import (
-    ServerBase,
-    ServerBaseArgs,
-    ServiceType,
-    WorkspaceVolumeType,
-    ImagePullPolicy,
-    RestartPolicy,
-)
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType
+from phidata.utils.log import logger
 
 
-class StreamlitAppArgs(ServerBaseArgs):
+class StreamlitAppArgs(PhidataAppArgs):
     pass
 
 
-class StreamlitApp(ServerBase):
+class StreamlitApp(PhidataApp):
     def __init__(
         self,
         name: str = "streamlit-app",
@@ -138,112 +132,6 @@ class StreamlitApp(ServerBase):
         #   - A list of integers, if you want to bind multiple host ports to a single container port.,
         #       For example, {'1111/tcp': [1234, 4567]}.,
         container_ports_docker: Optional[Dict[str, Any]] = None,
-        # -*- K8s configuration,
-        # K8s Deployment configuration,
-        replicas: int = 1,
-        pod_name: Optional[str] = None,
-        deploy_name: Optional[str] = None,
-        secret_name: Optional[str] = None,
-        configmap_name: Optional[str] = None,
-        # Type: ImagePullPolicy,
-        image_pull_policy: Optional[ImagePullPolicy] = None,
-        pod_annotations: Optional[Dict[str, str]] = None,
-        pod_node_selector: Optional[Dict[str, str]] = None,
-        # Type: RestartPolicy,
-        deploy_restart_policy: Optional[RestartPolicy] = None,
-        deploy_labels: Optional[Dict[str, Any]] = None,
-        termination_grace_period_seconds: Optional[int] = None,
-        # How to spread the deployment across a topology,
-        # Key to spread the pods across,
-        topology_spread_key: Optional[str] = None,
-        # The degree to which pods may be unevenly distributed,
-        topology_spread_max_skew: Optional[int] = None,
-        # How to deal with a pod if it doesn't satisfy the spread constraint.,
-        topology_spread_when_unsatisfiable: Optional[str] = None,
-        # K8s Service Configuration,
-        create_service: bool = False,
-        service_name: Optional[str] = None,
-        # Type: ServiceType,
-        service_type: Optional[ServiceType] = None,
-        # The port exposed by the service.,
-        service_port: int = 9095,
-        # The node_port exposed by the service if service_type = ServiceType.NODE_PORT,
-        service_node_port: Optional[int] = None,
-        # The target_port is the port to access on the pods targeted by the service.,
-        # It can be the port number or port name on the pod.,
-        service_target_port: Optional[Union[str, int]] = None,
-        # Extra ports exposed by the webserver service. Type: List[CreatePort],
-        service_ports: Optional[List[Any]] = None,
-        # Service labels,
-        service_labels: Optional[Dict[str, Any]] = None,
-        # Service annotations,
-        service_annotations: Optional[Dict[str, str]] = None,
-        # If ServiceType == ServiceType.LoadBalancer,
-        service_health_check_node_port: Optional[int] = None,
-        service_internal_traffic_policy: Optional[str] = None,
-        service_load_balancer_class: Optional[str] = None,
-        service_load_balancer_ip: Optional[str] = None,
-        service_load_balancer_source_ranges: Optional[List[str]] = None,
-        service_allocate_load_balancer_node_ports: Optional[bool] = None,
-        # K8s RBAC Configuration,
-        use_rbac: bool = False,
-        # Create a Namespace with name ns_name & default values,
-        ns_name: Optional[str] = None,
-        # or Provide the full Namespace definition,
-        # Type: CreateNamespace,
-        namespace: Optional[Any] = None,
-        # Create a ServiceAccount with name sa_name & default values,
-        sa_name: Optional[str] = None,
-        # or Provide the full ServiceAccount definition,
-        # Type: CreateServiceAccount,
-        service_account: Optional[Any] = None,
-        # Create a ClusterRole with name cr_name & default values,
-        cr_name: Optional[str] = None,
-        # or Provide the full ClusterRole definition,
-        # Type: CreateClusterRole,
-        cluster_role: Optional[Any] = None,
-        # Create a ClusterRoleBinding with name crb_name & default values,
-        crb_name: Optional[str] = None,
-        # or Provide the full ClusterRoleBinding definition,
-        # Type: CreateClusterRoleBinding,
-        cluster_role_binding: Optional[Any] = None,
-        # Add additional Kubernetes resources to the App,
-        # Type: CreateSecret,
-        extra_secrets: Optional[List[Any]] = None,
-        # Type: CreateConfigMap,
-        extra_configmaps: Optional[List[Any]] = None,
-        # Type: CreateService,
-        extra_services: Optional[List[Any]] = None,
-        # Type: CreateDeployment,
-        extra_deployments: Optional[List[Any]] = None,
-        # Type: CreatePersistentVolume,
-        extra_pvs: Optional[List[Any]] = None,
-        # Type: CreatePVC,
-        extra_pvcs: Optional[List[Any]] = None,
-        # Type: CreateContainer,
-        extra_containers: Optional[List[Any]] = None,
-        # Type: CreateContainer,
-        extra_init_containers: Optional[List[Any]] = None,
-        # Type: CreatePort,
-        extra_ports: Optional[List[Any]] = None,
-        # Type: CreateVolume,
-        extra_volumes: Optional[List[Any]] = None,
-        # Type: CreateStorageClass,
-        extra_storage_classes: Optional[List[Any]] = None,
-        # Type: CreateCustomObject,
-        extra_custom_objects: Optional[List[Any]] = None,
-        # Type: CreateCustomResourceDefinition,
-        extra_crds: Optional[List[Any]] = None,
-        # -*- AWS configuration,
-        ecs_cluster: Optional[Any] = None,
-        ecs_launch_type: str = "FARGATE",
-        ecs_task_cpu: str = "256",
-        ecs_task_memory: str = "512",
-        ecs_service_count: int = 1,
-        assign_public_ip: bool = True,
-        elb: Optional[Any] = None,
-        aws_subnets: Optional[List[str]] = None,
-        aws_security_groups: Optional[List[str]] = None,
         # Other args,
         print_env_on_load: bool = False,
         skip_create: bool = False,
@@ -260,7 +148,9 @@ class StreamlitApp(ServerBase):
         use_cache: bool = True,
         **kwargs,
     ):
-        super().__init__(
+        super().__init__()
+        try:
+            self.args: StreamlitAppArgs = StreamlitAppArgs(
             name=name,
             version=version,
             enabled=enabled,
@@ -310,66 +200,6 @@ class StreamlitApp(ServerBase):
             container_restart_policy_docker=container_restart_policy_docker,
             container_volumes_docker=container_volumes_docker,
             container_ports_docker=container_ports_docker,
-            replicas=replicas,
-            pod_name=pod_name,
-            deploy_name=deploy_name,
-            secret_name=secret_name,
-            configmap_name=configmap_name,
-            image_pull_policy=image_pull_policy,
-            pod_annotations=pod_annotations,
-            pod_node_selector=pod_node_selector,
-            deploy_restart_policy=deploy_restart_policy,
-            deploy_labels=deploy_labels,
-            termination_grace_period_seconds=termination_grace_period_seconds,
-            topology_spread_key=topology_spread_key,
-            topology_spread_max_skew=topology_spread_max_skew,
-            topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
-            create_service=create_service,
-            service_name=service_name,
-            service_type=service_type,
-            service_port=service_port,
-            service_node_port=service_node_port,
-            service_target_port=service_target_port,
-            service_ports=service_ports,
-            service_labels=service_labels,
-            service_annotations=service_annotations,
-            service_health_check_node_port=service_health_check_node_port,
-            service_internal_traffic_policy=service_internal_traffic_policy,
-            service_load_balancer_class=service_load_balancer_class,
-            service_load_balancer_ip=service_load_balancer_ip,
-            service_load_balancer_source_ranges=service_load_balancer_source_ranges,
-            service_allocate_load_balancer_node_ports=service_allocate_load_balancer_node_ports,
-            use_rbac=use_rbac,
-            ns_name=ns_name,
-            namespace=namespace,
-            sa_name=sa_name,
-            service_account=service_account,
-            cr_name=cr_name,
-            cluster_role=cluster_role,
-            crb_name=crb_name,
-            cluster_role_binding=cluster_role_binding,
-            extra_secrets=extra_secrets,
-            extra_configmaps=extra_configmaps,
-            extra_services=extra_services,
-            extra_deployments=extra_deployments,
-            extra_pvs=extra_pvs,
-            extra_pvcs=extra_pvcs,
-            extra_containers=extra_containers,
-            extra_init_containers=extra_init_containers,
-            extra_ports=extra_ports,
-            extra_volumes=extra_volumes,
-            extra_storage_classes=extra_storage_classes,
-            extra_custom_objects=extra_custom_objects,
-            extra_crds=extra_crds,
-            ecs_cluster=ecs_cluster,
-            ecs_launch_type=ecs_launch_type,
-            ecs_task_cpu=ecs_task_cpu,
-            ecs_task_memory=ecs_task_memory,
-            ecs_service_count=ecs_service_count,
-            assign_public_ip=assign_public_ip,
-            elb=elb,
-            aws_subnets=aws_subnets,
-            aws_security_groups=aws_security_groups,
             print_env_on_load=print_env_on_load,
             skip_create=skip_create,
             skip_read=skip_read,
@@ -384,3 +214,100 @@ class StreamlitApp(ServerBase):
             use_cache=use_cache,
             **kwargs,
         )
+        except Exception as e:
+            logger.error(f"Args for {self.name} are not valid")
+            raise
+
+    ######################################################
+    ## Docker Resources
+    ######################################################
+
+    def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
+        from phidata.docker.resource.group import (
+            DockerNetwork,
+            DockerContainer,
+            DockerResourceGroup,
+            DockerBuildContext,
+        )
+        from phidata.types.context import ContainerPathContext
+
+        app_name = self.args.name
+
+        if self.workspace_root_path is None:
+            raise Exception("Invalid workspace_root_path")
+        workspace_name = self.workspace_root_path.stem
+
+        logger.debug(f"Building DockerResourceGroup: {app_name} for {workspace_name}")
+
+        if docker_build_context is None or not isinstance(
+            docker_build_context, DockerBuildContext
+        ):
+            raise Exception(f"Invalid DockerBuildContext: {type(docker_build_context)}")
+
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths(
+            add_ws_name_to_ws_root=False
+        )
+        if container_paths is None:
+            raise Exception("Invalid ContainerPathContext")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+
+        # Get Container Environment
+        container_env: Dict[str, str] = self.get_docker_container_env(
+            container_paths=container_paths
+        )
+
+        # Get Container Volumes
+        container_volumes = self.get_docker_container_volumes(
+            container_paths=container_paths
+        )
+
+        # Get Container Ports
+        container_ports: Dict[str, int] = self.get_docker_container_ports()
+
+        # -*- Create Docker Container
+        docker_container = DockerContainer(
+            name=self.get_container_name(),
+            image=self.get_image_str(),
+            entrypoint=self.args.entrypoint,
+            command=self.args.command,
+            detach=self.args.container_detach,
+            auto_remove=self.args.container_auto_remove
+            if not self.args.debug_mode
+            else False,
+            remove=self.args.container_remove if not self.args.debug_mode else False,
+            healthcheck=self.args.container_healthcheck,
+            hostname=self.args.container_hostname,
+            labels=self.args.container_labels,
+            environment=container_env,
+            network=docker_build_context.network,
+            platform=self.args.container_platform,
+            ports=container_ports if len(container_ports) > 0 else None,
+            restart_policy=self.get_container_restart_policy_docker(),
+            stdin_open=self.args.container_stdin_open,
+            stderr=self.args.container_stderr,
+            stdout=self.args.container_stdout,
+            tty=self.args.container_tty,
+            user=self.args.container_user,
+            volumes=container_volumes if len(container_volumes) > 0 else None,
+            working_dir=self.args.container_working_dir,
+            use_cache=self.args.use_cache,
+        )
+
+        docker_rg = DockerResourceGroup(
+            name=app_name,
+            enabled=self.args.enabled,
+            network=DockerNetwork(name=docker_build_context.network),
+            containers=[docker_container],
+            images=[self.args.image] if self.args.image else None,
+        )
+        return docker_rg
+
+    def init_docker_resource_groups(self, docker_build_context: Any) -> None:
+        docker_rg = self.get_docker_rg(docker_build_context)
+        if docker_rg is not None:
+            from collections import OrderedDict
+
+            if self.docker_resource_groups is None:
+                self.docker_resource_groups = OrderedDict()
+            self.docker_resource_groups[docker_rg.name] = docker_rg
+

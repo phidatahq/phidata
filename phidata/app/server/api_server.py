@@ -71,7 +71,7 @@ class ApiServer(ServerBase):
         workspace_volume_name: Optional[str] = None,
         workspace_volume_type: Optional[WorkspaceVolumeType] = None,
         # Path to mount the workspace volume inside the container,
-        workspace_volume_container_path: str = "/usr/local/server",
+        workspace_volume_container_path: str = "/usr/local/app",
         # How to mount the workspace volume,
         # Option 1: Mount the workspace from the host machine,
         # If None, use the workspace_root_path,

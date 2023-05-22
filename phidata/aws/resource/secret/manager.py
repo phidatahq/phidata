@@ -35,8 +35,12 @@ class SecretsManager(AwsResource):
     # Specifies whether to overwrite a secret with the same name in the destination Region.
     force_overwrite_replica_secret: Optional[str] = None
 
-    # Read secret key/value pairs from yaml file
-    read_from_yaml: Optional[Path] = None
+    # Read secret key/value pairs from yaml files
+    secret_files: Optional[List[Path]] = None
+    # Read secret key/value pairs from yaml files in a directory
+    secrets_dir: Optional[Path] = None
+    # Force delete the secret without recovery
+    force_delete: Optional[bool] = True
 
     # provided by api on create
     secret_arn: Optional[str] = None
@@ -51,7 +55,28 @@ class SecretsManager(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        # Step 1: Build SecretsManager configuration
+        # Step 1: Read secrets from files
+        secret_dict: Dict[str, str] = {}
+        if self.secret_files:
+            for secret_file in self.secret_files:
+                secret_dict.update(self.read_yaml_file(secret_file))
+        if self.secrets_dir:
+            for secret_file in self.secrets_dir.glob("*.yaml"):
+                secret_dict.update(self.read_yaml_file(secret_file))
+            for secret_file in self.secrets_dir.glob("*.yml"):
+                secret_dict.update(self.read_yaml_file(secret_file))
+
+        secret_string = self.secret_string
+        if secret_dict:
+            import json
+
+            if secret_string:
+                secret_dict.update(json.loads(secret_string))
+
+            secret_string = json.dumps(secret_dict)
+            logger.debug(f"secret_string: {secret_string}")
+
+        # Step 2: Build SecretsManager configuration
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.client_request_token:
@@ -62,8 +87,8 @@ class SecretsManager(AwsResource):
             not_null_args["KmsKeyId"] = self.kms_key_id
         if self.secret_binary:
             not_null_args["SecretBinary"] = self.secret_binary
-        if self.secret_string:
-            not_null_args["SecretString"] = self.secret_string
+        if secret_string:
+            not_null_args["SecretString"] = secret_string
         if self.tags:
             not_null_args["Tags"] = self.tags
         if self.add_replica_regions:
@@ -73,7 +98,7 @@ class SecretsManager(AwsResource):
                 "ForceOverwriteReplicaSecret"
             ] = self.force_overwrite_replica_secret
 
-        # Step 2: Create SecretsManager
+        # Step 3: Create SecretsManager
         service_client = self.get_service_client(aws_client)
         try:
             created_resource = service_client.create_secret(
@@ -114,10 +139,12 @@ class SecretsManager(AwsResource):
 
             self.secret_arn = describe_response.get("ARN", None)
             self.secret_resource_name = describe_response.get("Name", None)
+            secret_deleted_date = describe_response.get("DeletedDate", None)
             logger.debug(f"secret_arn: {self.secret_arn}")
             logger.debug(f"secret_resource_name: {self.secret_resource_name}")
+            logger.debug(f"secret_deleted_date: {secret_deleted_date}")
             if self.secret_arn is not None:
-                print_info(f"SecretsManager created: {self.name}")
+                print_info(f"SecretsManager available: {self.name}")
                 self.active_resource = describe_response
                 self.save_resource_file()
         except ClientError as ce:
@@ -139,7 +166,7 @@ class SecretsManager(AwsResource):
         self.active_resource = None
         self.secret_value = None
         try:
-            delete_response = service_client.delete_secret(SecretId=self.name)
+            delete_response = service_client.delete_secret(SecretId=self.name, ForceDeleteWithoutRecovery=self.force_delete)
             logger.debug(f"SecretsManager: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"

@@ -7,12 +7,12 @@ from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
 
-class Secret(AwsResource):
+class SecretsManager(AwsResource):
     """
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/secretsmanager.html
     """
 
-    resource_type = "Secret"
+    resource_type = "SecretsManager"
     service_name = "secretsmanager"
 
     # The name of the new secret.
@@ -44,14 +44,14 @@ class Secret(AwsResource):
     secret_value: Optional[dict] = None
 
     def _create(self, aws_client: AwsApiClient) -> bool:
-        """Creates the Secret
+        """Creates the SecretsManager
 
         Args:
             aws_client: The AwsApiClient for the current secret
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        # Step 1: Build Secret configuration
+        # Step 1: Build SecretsManager configuration
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.client_request_token:
@@ -73,22 +73,22 @@ class Secret(AwsResource):
                 "ForceOverwriteReplicaSecret"
             ] = self.force_overwrite_replica_secret
 
-        # Step 2: Create Secret
+        # Step 2: Create SecretsManager
         service_client = self.get_service_client(aws_client)
         try:
             created_resource = service_client.create_secret(
                 Name=self.name,
                 **not_null_args,
             )
-            logger.debug(f"Secret: {created_resource}")
+            logger.debug(f"SecretsManager: {created_resource}")
 
-            # Validate Secret creation
+            # Validate SecretsManager creation
             self.secret_arn = created_resource.get("ARN", None)
             self.secret_resource_name = created_resource.get("Name", None)
             logger.debug(f"secret_arn: {self.secret_arn}")
             logger.debug(f"secret_resource_name: {self.secret_resource_name}")
             if self.secret_arn is not None:
-                print_info(f"Secret created: {self.name}")
+                print_info(f"SecretsManager created: {self.name}")
                 self.active_resource = created_resource
                 self.save_resource_file()
                 return True
@@ -98,7 +98,7 @@ class Secret(AwsResource):
         return False
 
     def _read(self, aws_client: AwsApiClient) -> Optional[Any]:
-        """Returns the Secret
+        """Returns the SecretsManager
 
         Args:
             aws_client: The AwsApiClient for the current secret
@@ -110,14 +110,14 @@ class Secret(AwsResource):
         service_client = self.get_service_client(aws_client)
         try:
             describe_response = service_client.describe_secret(SecretId=self.name)
-            logger.debug(f"Secret: {describe_response}")
+            logger.debug(f"SecretsManager: {describe_response}")
 
             self.secret_arn = describe_response.get("ARN", None)
             self.secret_resource_name = describe_response.get("Name", None)
             logger.debug(f"secret_arn: {self.secret_arn}")
             logger.debug(f"secret_resource_name: {self.secret_resource_name}")
             if self.secret_arn is not None:
-                print_info(f"Secret created: {self.name}")
+                print_info(f"SecretsManager created: {self.name}")
                 self.active_resource = describe_response
                 self.save_resource_file()
         except ClientError as ce:
@@ -128,7 +128,7 @@ class Secret(AwsResource):
         return self.active_resource
 
     def _delete(self, aws_client: AwsApiClient) -> bool:
-        """Deletes the Secret
+        """Deletes the SecretsManager
 
         Args:
             aws_client: The AwsApiClient for the current secret
@@ -140,7 +140,7 @@ class Secret(AwsResource):
         self.secret_value = None
         try:
             delete_response = service_client.delete_secret(SecretId=self.name)
-            logger.debug(f"Secret: {delete_response}")
+            logger.debug(f"SecretsManager: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
             )
@@ -165,10 +165,10 @@ class Secret(AwsResource):
         service_client = self.get_service_client(aws_client)
         try:
             secret_value = service_client.get_secret_value(SecretId=self.name)
-            logger.debug(f"Secret: {secret_value}")
+            logger.debug(f"SecretsManager: {secret_value}")
 
             if secret_value is None:
-                logger.warning(f"Secret is None: {self.name}")
+                logger.warning(f"SecretsManager is None: {self.name}")
                 return None
 
             self.secret_value = secret_value

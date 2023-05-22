@@ -547,6 +547,7 @@ class PhidataApp(PhidataBase):
     def get_secret_data(self) -> Optional[Dict[str, str]]:
         if self.secret_data is None:
             self.secret_data = self.read_yaml_file(file_path=self.args.secrets_file)
+        # Read from aws_secrets
         return self.secret_data
 
     def set_container_env(self, container_env: Dict[str, Any]) -> None:

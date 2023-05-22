@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
@@ -179,7 +179,7 @@ class SecretsManager(AwsResource):
             print_error(e)
         return False
 
-    def get_secret_value(self, aws_client: AwsApiClient) -> Any:
+    def get_secret_dict(self, aws_client: Optional[AwsApiClient] = None) -> Optional[Union[Dict[str, Any]], str]:
         """Get secret value
 
         Args:
@@ -189,7 +189,8 @@ class SecretsManager(AwsResource):
 
         from botocore.exceptions import ClientError
 
-        service_client = self.get_service_client(aws_client)
+        client: AwsApiClient = aws_client or self.get_aws_client()
+        service_client = self.get_service_client(client)
         try:
             secret_value = service_client.get_secret_value(SecretId=self.name)
             logger.debug(f"SecretsManager: {secret_value}")
@@ -205,7 +206,9 @@ class SecretsManager(AwsResource):
 
             secret_string = secret_value.get("SecretString", None)
             if secret_string is not None:
-                return secret_string
+                import json
+
+                return json.loads(secret_string)
 
             secret_binary = secret_value.get("SecretBinary", None)
             if secret_binary is not None:

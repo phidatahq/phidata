@@ -56,15 +56,21 @@ class SecretsManager(AwsResource):
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
         # Step 1: Read secrets from files
-        secret_dict: Dict[str, str] = {}
+        secret_dict: Dict[str, Any] = {}
         if self.secret_files:
-            for secret_file in self.secret_files:
-                secret_dict.update(self.read_yaml_file(secret_file))
+            for f in self.secret_files:
+                _s = self.read_yaml_file(f)
+                if _s:
+                    secret_dict.update(_s)
         if self.secrets_dir:
-            for secret_file in self.secrets_dir.glob("*.yaml"):
-                secret_dict.update(self.read_yaml_file(secret_file))
-            for secret_file in self.secrets_dir.glob("*.yml"):
-                secret_dict.update(self.read_yaml_file(secret_file))
+            for f in self.secrets_dir.glob("*.yaml"):
+                _s = self.read_yaml_file(f)
+                if _s:
+                    secret_dict.update(_s)
+            for f in self.secrets_dir.glob("*.yml"):
+                _s = self.read_yaml_file(f)
+                if _s:
+                    secret_dict.update(_s)
 
         secret_string = self.secret_string
         if secret_dict:
@@ -166,7 +172,9 @@ class SecretsManager(AwsResource):
         self.active_resource = None
         self.secret_value = None
         try:
-            delete_response = service_client.delete_secret(SecretId=self.name, ForceDeleteWithoutRecovery=self.force_delete)
+            delete_response = service_client.delete_secret(
+                SecretId=self.name, ForceDeleteWithoutRecovery=self.force_delete
+            )
             logger.debug(f"SecretsManager: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
@@ -179,7 +187,7 @@ class SecretsManager(AwsResource):
             print_error(e)
         return False
 
-    def get_secret_dict(self, aws_client: Optional[AwsApiClient] = None) -> Optional[Union[Dict[str, Any]], str]:
+    def get_secret_dict(self, aws_client: Optional[AwsApiClient] = None) -> Any:
         """Get secret value
 
         Args:

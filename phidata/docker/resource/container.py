@@ -111,8 +111,9 @@ class DockerContainer(DockerResource):
     def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
         from docker.errors import NotFound, ImageNotFound, APIError
+        from rich.progress import Progress
 
-        print_info("Running container: {}".format(self.name))
+        print_info("Starting container: {}".format(self.name))
         # logger.debug()(
         #     "Args: {}".format(
         #         self.json(indent=2, exclude_unset=True, exclude_none=True)
@@ -120,36 +121,38 @@ class DockerContainer(DockerResource):
         # )
         try:
             _api_client: DockerClient = docker_client.api_client
-            container = _api_client.containers.run(
-                name=self.name,
-                image=self.image,
-                command=self.command,
-                auto_remove=self.auto_remove,
-                detach=self.detach,
-                entrypoint=self.entrypoint,
-                environment=self.environment,
-                group_add=self.group_add,
-                healthcheck=self.healthcheck,
-                hostname=self.hostname,
-                labels=self.labels,
-                mounts=self.mounts,
-                network=self.network,
-                network_disabled=self.network_disabled,
-                network_mode=self.network_mode,
-                platform=self.platform,
-                ports=self.ports,
-                remove=self.remove,
-                restart_policy=self.restart_policy,
-                stdin_open=self.stdin_open,
-                stdout=self.stdout,
-                stderr=self.stderr,
-                tty=self.tty,
-                user=self.user,
-                volumes=self.volumes,
-                working_dir=self.working_dir,
-                devices=self.devices,
-            )
-            return container
+            with Progress(transient=True) as progress:
+                task = progress.add_task("Downloading Image", total=None)
+                container = _api_client.containers.run(
+                    name=self.name,
+                    image=self.image,
+                    command=self.command,
+                    auto_remove=self.auto_remove,
+                    detach=self.detach,
+                    entrypoint=self.entrypoint,
+                    environment=self.environment,
+                    group_add=self.group_add,
+                    healthcheck=self.healthcheck,
+                    hostname=self.hostname,
+                    labels=self.labels,
+                    mounts=self.mounts,
+                    network=self.network,
+                    network_disabled=self.network_disabled,
+                    network_mode=self.network_mode,
+                    platform=self.platform,
+                    ports=self.ports,
+                    remove=self.remove,
+                    restart_policy=self.restart_policy,
+                    stdin_open=self.stdin_open,
+                    stdout=self.stdout,
+                    stderr=self.stderr,
+                    tty=self.tty,
+                    user=self.user,
+                    volumes=self.volumes,
+                    working_dir=self.working_dir,
+                    devices=self.devices,
+                )
+                return container
         except AttributeError as attr_error:
             logger.error("AttributeError")
             raise DockerResourceCreationFailedException(attr_error)

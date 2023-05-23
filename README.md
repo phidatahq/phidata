@@ -2,7 +2,7 @@
   phidata
 </h1>
 <p align="center">
-    <em>Building Blocks for Data Engineering</em>
+    <em>Toolkit for building AI Applications</em>
 </p>
 
 <p align="center">
@@ -29,17 +29,16 @@
 
 ---
 
-Phidata is a framework for building Data Applications using open source software (OSS). We believe that large Data, ML and AI products can easily be built using OSS.
+
+Phidata is a toolkit for building AI Applications using open source tools.
 
 ### How it works
 
-- Phidata converts infrastructure and tools into python objects (building blocks).
-- These objects are put together to build Data Applications as Code.
-- Download a pre-built Data App using `phi ws create`
-- Run a local dev environment using `phi ws up dev:docker`
-- Customize the app to your use case and make it your own.
-- Deploy to production using `phi ws up prd:aws`
-- Stop workspace using `phi ws down`
+- Phidata provides pre-configured tech stacks for AI apps.
+- **Create your codebase** from a template using `phi ws create`
+- **Run your app locally** using `phi ws up dev:docker`
+- **Run your app on AWS** using `phi ws up prd:aws`
+- **Integrate** with your front-end or product using APIs.
 
 ### More Information:
 

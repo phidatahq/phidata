@@ -6,6 +6,7 @@ from phidata.aws.resource.base import AwsResource
 from phidata.utils.cli_console import print_info, print_error
 from phidata.utils.log import logger
 
+import json
 
 class SecretsManager(AwsResource):
     """
@@ -74,7 +75,6 @@ class SecretsManager(AwsResource):
 
         secret_string = self.secret_string
         if secret_dict:
-            import json
 
             if secret_string:
                 secret_dict.update(json.loads(secret_string))
@@ -214,8 +214,6 @@ class SecretsManager(AwsResource):
 
             secret_string = secret_value.get("SecretString", None)
             if secret_string is not None:
-                import json
-
                 return json.loads(secret_string)
 
             secret_binary = secret_value.get("SecretBinary", None)
@@ -227,3 +225,65 @@ class SecretsManager(AwsResource):
             print_error(f"Error reading {self.get_resource_type()}.")
             print_error(e)
         return None
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Update SecretsManager"""
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # Step 1: Read secrets from files
+        local_secrets: Dict[str, Any] = {}
+        if self.secret_files:
+            for f in self.secret_files:
+                _s = self.read_yaml_file(f)
+                if _s:
+                    local_secrets.update(_s)
+        if self.secrets_dir:
+            for f in self.secrets_dir.glob("*.yaml"):
+                _s = self.read_yaml_file(f)
+                if _s:
+                    local_secrets.update(_s)
+            for f in self.secrets_dir.glob("*.yml"):
+                _s = self.read_yaml_file(f)
+                if _s:
+                    local_secrets.update(_s)
+
+        secret_string = self.secret_string
+        if local_secrets:
+            if secret_string:
+                local_secrets.update(json.loads(secret_string))
+
+            secret_string = json.dumps(local_secrets)
+            logger.debug(f"Local secrets: {secret_string}")
+
+        # Step 2: Read secrets from AWS SecretsManager
+        aws_secrets = self.get_secret_dict()
+        logger.debug(f"AWS secrets: {aws_secrets}")
+
+        if local_secrets and aws_secrets:
+            all_secrets = json.dumps(local_secrets|aws_secrets)
+        elif local_secrets:
+            all_secrets = json.dumps(secret_string)
+        elif aws_secrets:
+            all_secrets = json.dumps(aws_secrets)
+
+        logger.debug(f"All secrets: {all_secrets}")
+
+        # Step 3: Update AWS SecretsManager
+        service_client = self.get_service_client(aws_client)
+        self.active_resource = None
+        self.secret_value = None
+        try:
+            create_response = service_client.update_secret(
+                SecretId=self.name,
+                SecretString=all_secrets,
+            )
+            logger.debug(f"SecretsManager: {create_response}")
+            print_info(
+                f"{self.get_resource_type()}: {self.get_resource_name()} Updated"
+            )
+            self.save_resource_file()
+            return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be Updated.")
+            print_error(e)
+        return False

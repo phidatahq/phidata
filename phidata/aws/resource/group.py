@@ -22,7 +22,7 @@ from phidata.aws.resource.iam.role import IamRole
 from phidata.aws.resource.iam.policy import IamPolicy
 from phidata.aws.resource.glue.crawler import GlueCrawler
 from phidata.aws.resource.s3.bucket import S3Bucket
-from phidata.aws.resource.secret.manager import SecretsManager
+# from phidata.aws.resource.secret.manager import SecretsManager
 from phidata.aws.resource.emr.cluster import EmrCluster
 from phidata.aws.resource.rds.db_cluster import DbCluster
 from phidata.aws.resource.rds.db_instance import DbInstance
@@ -42,7 +42,7 @@ class AwsResourceGroup(BaseModel):
     iam_roles: Optional[List[IamRole]] = None
     iam_policies: Optional[List[IamPolicy]] = None
     acm_certificates: Optional[List[AcmCertificate]] = None
-    secrets: Optional[List[SecretsManager]] = None
+    # secrets: Optional[List[SecretsManager]] = None
     s3_buckets: Optional[List[S3Bucket]] = None
     cache_clusters: Optional[List[CacheCluster]] = None
     cache_subnet_groups: Optional[List[CacheSubnetGroup]] = None

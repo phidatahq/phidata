@@ -30,16 +30,17 @@ class AwsConfig(InfraConfig):
     ):
         super().__init__()
         _resources: Optional[List[AwsResourceGroup]] = None
-        if isinstance(resources, AwsResourceGroup):
-            _resources = [resources]
-        elif isinstance(resources, list):
-            for _r in resources:
-                if isinstance(_r, AwsResourceGroup):
-                    if _resources is None:
-                        _resources = []
-                    _resources.append(_r)
-                else:
-                    logger.error(f"Invalid resource group: {_r}")
+        if resources is not None:
+            if isinstance(resources, list):
+                for _r in resources:
+                    if isinstance(_r, AwsResourceGroup):
+                        if _resources is None:
+                            _resources = []
+                        _resources.append(_r)
+                    else:
+                        logger.error(f"Invalid resource group: {_r}")
+            elif isinstance(resources, AwsResourceGroup):
+                _resources = [resources]
 
         _apps = apps if apps is not None else []
         if app_groups is not None:

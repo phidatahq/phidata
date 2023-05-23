@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "1.6.11"
-description = "Building blocks for Data Engineering"
+version = "1.6.12"
+description = "Toolkit for building AI Applications"
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [
@@ -10,7 +10,7 @@ authors = [
 
 dependencies = [
   "boto3",
-  "phiterm==1.6.11",
+  "phiterm==1.6.12",
   "pyarrow",
   "pydantic",
 ]
@@ -27,8 +27,8 @@ aws = [
 ]
 
 [project.urls]
-homepage = "https://www.phidata.com"
-documentation = "https://www.docs.phidata.com"
+homepage = "https://phidata.com"
+documentation = "https://docs.phidata.com"
 
 [build-system]
 requires = ["setuptools"]

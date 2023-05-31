@@ -1,5 +1,8 @@
+from typing import Optional
+
 from phidata.infra.config import InfraConfig
-from phidata.workspace import WorkspaceConfig
+from phidata.workspace.config import WorkspaceConfig
+from phidata.workspace.settings import WorkspaceSettings
 
 from phidata.utils.log import logger
 
@@ -47,38 +50,40 @@ def prep_infra_config(
     if infra_config.k8s_env_file is None and ws_config.k8s_env_file is not None:
         infra_config.k8s_env_file = ws_config.k8s_env_file
 
-    # -*- AWS parameters
-    # only update the param if they are available.
-    # i.e. prefer the configs param if provided
-    if infra_config.aws_region is None and ws_config.aws_region is not None:
-        infra_config.aws_region = ws_config.aws_region
-    if infra_config.aws_profile is None and ws_config.aws_profile is not None:
-        infra_config.aws_profile = ws_config.aws_profile
-    if infra_config.aws_config_file is None and ws_config.aws_config_file is not None:
-        infra_config.aws_config_file = ws_config.aws_config_file
-    if (
-        infra_config.aws_shared_credentials_file is None
-        and ws_config.aws_shared_credentials_file is not None
-    ):
-        infra_config.aws_shared_credentials_file = ws_config.aws_shared_credentials_file
+    ws_settings: Optional[WorkspaceSettings] = ws_config.ws_settings
+    if ws_settings is not None:
+        # -*- AWS parameters
+        # only update the param if they are available.
+        # i.e. prefer the configs param if provided
+        if infra_config.aws_region is None and ws_settings.aws_region is not None:
+            infra_config.aws_region = ws_settings.aws_region
+        if infra_config.aws_profile is None and ws_settings.aws_profile is not None:
+            infra_config.aws_profile = ws_settings.aws_profile
+        if infra_config.aws_config_file is None and ws_settings.aws_config_file is not None:
+            infra_config.aws_config_file = ws_settings.aws_config_file
+        if (
+            infra_config.aws_shared_credentials_file is None
+            and ws_settings.aws_shared_credentials_file is not None
+        ):
+            infra_config.aws_shared_credentials_file = ws_settings.aws_shared_credentials_file
 
-    # -*- `phi` cli parameters
-    # only update the param if they are available.
-    # i.e. prefer the configs param if provided
-    if (
-        infra_config.continue_on_create_failure is None
-        and ws_config.continue_on_create_failure is not None
-    ):
-        infra_config.continue_on_create_failure = ws_config.continue_on_create_failure
-    if (
-        infra_config.continue_on_delete_failure is None
-        and ws_config.continue_on_delete_failure is not None
-    ):
-        infra_config.continue_on_delete_failure = ws_config.continue_on_delete_failure
-    if (
-        infra_config.continue_on_patch_failure is None
-        and ws_config.continue_on_patch_failure is not None
-    ):
-        infra_config.continue_on_patch_failure = ws_config.continue_on_patch_failure
+        # -*- `phi` cli parameters
+        # only update the param if they are available.
+        # i.e. prefer the configs param if provided
+        if (
+            infra_config.continue_on_create_failure is None
+            and ws_settings.continue_on_create_failure is not None
+        ):
+            infra_config.continue_on_create_failure = ws_settings.continue_on_create_failure
+        if (
+            infra_config.continue_on_delete_failure is None
+            and ws_settings.continue_on_delete_failure is not None
+        ):
+            infra_config.continue_on_delete_failure = ws_settings.continue_on_delete_failure
+        if (
+            infra_config.continue_on_patch_failure is None
+            and ws_settings.continue_on_patch_failure is not None
+        ):
+            infra_config.continue_on_patch_failure = ws_settings.continue_on_patch_failure
 
     return infra_config

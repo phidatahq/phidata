@@ -17,7 +17,7 @@ class EcsTaskDefinition(AwsResource):
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
-    resource_type = "EcsTaskDefinition"
+    resource_type = "taskdefinition"
     service_name = "ecs"
 
     # Name of the task definition.

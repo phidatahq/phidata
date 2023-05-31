@@ -8,6 +8,7 @@ from phidata.utils.log import logger
 
 import json
 
+
 class SecretsManager(AwsResource):
     """
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/secretsmanager.html
@@ -75,7 +76,6 @@ class SecretsManager(AwsResource):
 
         secret_string = self.secret_string
         if secret_dict:
-
             if secret_string:
                 secret_dict.update(json.loads(secret_string))
 
@@ -260,7 +260,7 @@ class SecretsManager(AwsResource):
         logger.debug(f"AWS secrets: {aws_secrets}")
 
         if local_secrets and aws_secrets:
-            all_secrets = json.dumps(local_secrets|aws_secrets)
+            all_secrets = json.dumps(local_secrets | aws_secrets)
         elif local_secrets:
             all_secrets = json.dumps(secret_string)
         elif aws_secrets:

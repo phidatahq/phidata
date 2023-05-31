@@ -19,6 +19,10 @@ class WorkspaceSettings(BaseSettings):
     ws_repo: Optional[str] = None
     # Path to the workspace root
     ws_root: Path
+    # default env for phi ws commands
+    default_env: Optional[str] = None
+    # default config for phi ws commands
+    default_config: Optional[str] = None
     #
     # -*- Dev settings
     #
@@ -134,6 +138,20 @@ class WorkspaceSettings(BaseSettings):
     subnet_ids: Optional[List[str]] = None
     # Security Groups
     security_groups: Optional[List[str]] = None
+    aws_profile: Optional[str] = None
+    aws_config_file: Optional[str] = None
+    aws_shared_credentials_file: Optional[str] = None
+    # -*- Cli settings
+    # Set to True if `phi` should continue creating
+    # resources after a resource creation has failed
+    continue_on_create_failure: Optional[bool] = None
+    # Set to True if `phi` should continue deleting
+    # resources after a resource deleting has failed
+    # Defaults to True because we normally want to continue deleting
+    continue_on_delete_failure: Optional[bool] = None
+    # Set to True if `phi` should continue patching
+    # resources after a resource patch has failed
+    continue_on_patch_failure: Optional[bool] = None
     #
     # -*- Image Settings
     #

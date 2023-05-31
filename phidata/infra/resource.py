@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, Type, Union, Dict
+from typing import Any, Optional, Type, Union, Dict, List
 
 from pydantic import BaseModel, validator
 
@@ -56,6 +56,8 @@ class InfraResource(BaseModel):
     active_resource_class: Optional[Type] = None
 
     resource_file: Optional[Union[str, Path]] = None
+
+    depends_on: Optional[List[Any]] = None
 
     def get_resource_name(self) -> Optional[str]:
         return self.name

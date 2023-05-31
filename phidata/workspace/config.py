@@ -151,6 +151,15 @@ class WorkspaceConfig(InfraConfig):
             self.args.default_config = default_config
 
     @property
+    def ws_settings(self) -> Optional[WorkspaceSettings]:
+        return self.args.ws_settings if self.args else None
+
+    @ws_settings.setter
+    def ws_settings(self, ws_settings: WorkspaceSettings) -> None:
+        if self.args is not None and ws_settings is not None:
+            self.args.ws_settings = ws_settings
+
+    @property
     def docker(self) -> Optional[List[Any]]:
         return self.args.docker if self.args else None
 

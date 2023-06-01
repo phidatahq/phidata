@@ -167,6 +167,26 @@ class DbInstance(AwsResource):
     # Cache secret_data
     cached_secret_data: Optional[Dict[str, Any]] = None
 
+    # Variables needed for update function
+    apply_immediately: Optional[bool] = True
+    allow_major_version_upgrade: Optional[bool] = None
+    new_db_instance_identifier: Optional[str] = None
+    ca_certificate_identifier: Optional[str] = None
+    db_port_number: Optional[int] = None
+    domain_iam_role_name: Optional[str] = None
+    enable_iam_database_authentication: Optional[bool] = None
+    performance_insights_kms_key_id: Optional[str] = None
+    cloudwatch_logs_export_configuration: Optional[Dict[str, Any]] = None
+    use_default_processor_features: Optional[bool] = None
+    certificate_rotation_restart: Optional[bool] = None
+    replica_mode: Optional[str] = None
+    aws_backup_recovery_point_arn: Optional[str] = None
+    automation_mode: Optional[str] = None
+    resume_full_automation_mode_minutes: Optional[int] = None
+    manage_master_user_password: Optional[bool] = None
+    rotate_master_user_password: Optional[bool] = None
+    master_iser_secter_kms_key_id: Optional[str] = None
+
     def get_db_instance_identifier(self):
         return self.db_instance_identifier or self.name
 
@@ -485,3 +505,161 @@ class DbInstance(AwsResource):
                 print_error("Waiter failed.")
                 print_error(e)
         return True
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Update DbCluster"""
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # Step 1: Get the VpcSecurityGroupIds
+        vpc_security_group_ids = self.vpc_security_group_ids
+        if vpc_security_group_ids is None and self.vpc_stack is not None:
+            vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
+            if vpc_stack_sg is not None:
+                logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
+                vpc_security_group_ids = [vpc_stack_sg]
+
+        service_client = self.get_service_client(aws_client)
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if self.db_instance_identifier:
+            not_null_args["DBInstanceIdentifier"]= self.db_instance_identifier
+        if self.allocated_storage:
+            not_null_args["AllocatedStorage"] = self.allocated_storage
+        if self.db_instance_class:
+            not_null_args["DBInstanceClass"] = self.db_instance_class
+        if self.db_subnet_group_name:
+            not_null_args["DBSubnetGroupName"] = self.db_subnet_group_name
+        if self.db_security_groups:
+            not_null_args["DBSecurityGroups"] = self.db_security_groups
+        if self.vpc_security_group_ids:
+            not_null_args["VpcSecurityGroupIds"] = self.vpc_security_group_ids
+        if self.apply_immediately is not None:
+            not_null_args["ApplyImmediately"] = self.apply_immediately
+        if self.master_user_password:
+            not_null_args["MasterUserPassword"] = self.master_user_password
+        if self.db_parameter_group_name:
+            not_null_args[
+                "DBParameterGroupName"
+            ] = self.db_parameter_group_name
+        if self.backup_retention_period:
+            not_null_args["BackupRetentionPeriod"] = self.backup_retention_period
+        if self.preferred_backup_window:
+            not_null_args["PreferredBackupWindow"] = self.preferred_backup_window
+        if self.preferred_maintenance_window:
+            not_null_args[
+                "PreferredMaintenanceWindow"
+            ] = self.preferred_maintenance_window
+        if self.multi_az:
+            not_null_args["MultiAZ"] = self.multi_az
+        if self.engine_version:
+            not_null_args["EngineVersion"] = self.engine_version
+        if self.allow_major_version_upgrade:
+            not_null_args["AllowMajorVersionUpgrade"] = self.allow_major_version_upgrade
+        if self.auto_minor_version_upgrade:
+            not_null_args["AutoMinorVersionUpgrade"] = self.auto_minor_version_upgrade
+        if self.license_model:
+            not_null_args["LicenseModel"] = self.license_model
+        if self.iops:
+            not_null_args["Iops"] = self.iops
+        if self.option_group_name:
+            not_null_args["OptionGroupName"] = self.option_group_name
+        if self.new_db_instance_identifier:
+            not_null_args["NewDBInstanceIdentifier"] = self.new_db_instance_identifier
+        if self.storage_type:
+            not_null_args["StorageType"] = self.storage_type
+        if self.tde_credential_arn:
+            not_null_args["TdeCredentialArn"] = self.tde_credential_arn
+        if self.tde_credential_password:
+            not_null_args["TdeCredentialPassword"] = self.tde_credential_password
+        if self.ca_certificate_identifier:
+            not_null_args[
+                "CACertificateIdentifier"
+            ] = self.ca_certificate_identifier
+        if self.domain:
+            not_null_args["Domain"] = self.domain
+        if self.copy_tags_to_snapshot:
+            not_null_args["CopyTagsToSnapshot"] = self.copy_tags_to_snapshot
+        if self.monitoring_interval:
+            not_null_args["MonitoringInterval"] = self.monitoring_interval
+        if self.db_port_number:
+            not_null_args["DBPortNumber"] = self.db_port_number
+        if self.publicly_accessible:
+            not_null_args["PubliclyAccessible"] = self.publicly_accessible
+        if self.monitoring_role_arn:
+            not_null_args["MonitoringRoleArn"] = self.monitoring_role_arn
+        if self.domain_iam_role_name:
+            not_null_args["DomainIAMRoleName"] = self.domain_iam_role_name
+        if self.promotion_tier:
+            not_null_args["PromotionTier"] = self.promotion_tier
+        if self.enable_iam_database_authentication:
+            not_null_args[
+                "EnableIAMDatabaseAuthentication"
+            ] = self.enable_iam_database_authentication
+        if self.enable_performance_insights:
+            not_null_args[
+                "EnablePerformanceInsights"
+            ] = self.enable_performance_insights
+        if self.performance_insights_kms_key_id:
+            not_null_args[
+                "PerformanceInsightsKMSKeyId"
+            ] = self.performance_insights_kms_key_id
+        if self.performance_insights_retention_period:
+            not_null_args[
+                "PerformanceInsightsRetentionPeriod"
+            ] = self.performance_insights_retention_period
+        if self.cloudwatch_logs_export_configuration:
+            not_null_args[
+                "CloudwatchLogsExportConfiguration"
+            ] = self.cloudwatch_logs_export_configuration
+        if self.processor_features:
+            not_null_args["ProcessorFeatures"] = self.processor_features
+        if self.use_default_processor_features:
+            not_null_args[
+                "UseDefaultProcessorFeatures"
+            ] = self.use_default_processor_features
+        if self.deletion_protection:
+            not_null_args["DeletionProtection"] = self.deletion_protection
+        if self.max_allocated_storage:
+            not_null_args["MaxAllocatedStorage"] = self.max_allocated_storage
+        if self.certificate_rotation_restart:
+            not_null_args["CertificateRotationRestart"] = self.certificate_rotation_restart
+        if self.replica_mode:
+            not_null_args["ReplicaMode"] = self.replica_mode
+        if self.enable_customer_owned_ip:
+            not_null_args["EnableCustomerOwnedIp"] = self.enable_customer_owned_ip
+        if self.aws_backup_recovery_point_arn:
+            not_null_args["AwsBackupRecoveryPointArn"] = self.aws_backup_recovery_point_arn
+        if self.automation_mode:
+            not_null_args["AutomationMode"] = self.automation_mode
+        if self.resume_full_automation_mode_minutes:
+            not_null_args["ResumeFullAutomationModeMinutes"] = self.resume_full_automation_mode_minutes
+        if self.network_type:
+            not_null_args["NetworkType"] = self.network_type
+        if self.storage_throughput:
+            not_null_args["StorageThroughput"] = self.storage_throughput
+        if self.manage_master_user_password:
+            not_null_args["ManageMasterUserPassword"] = self.manage_master_user_password
+        if self.rotate_master_user_password:
+            not_null_args["RotateMasterUserPassword"] = self.rotate_master_user_password
+        if self.master_iser_secter_kms_key_id:
+            not_null_args["MasterUserSecretKmsKeyId"] = self.master_iser_secter_kms_key_id
+
+        service_client = self.get_service_client(aws_client)
+        try:
+            create_response = service_client.modify_db_instance(
+                DBInstanceIdentifier=self.get_db_instance_identifier(),
+                **not_null_args,
+            )
+            logger.debug(f"Update Response: {create_response}")
+            resource_dict = create_response.get("Db Instance", {})
+
+            # Validate resource creation
+            if resource_dict is not None:
+                print_info(f"Db Instance updated: {self.get_resource_name()}")
+                self.active_resource = create_response
+                return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be created.")
+            print_error(e)
+        return False

@@ -59,13 +59,18 @@ def prep_infra_config(
             infra_config.aws_region = ws_settings.aws_region
         if infra_config.aws_profile is None and ws_settings.aws_profile is not None:
             infra_config.aws_profile = ws_settings.aws_profile
-        if infra_config.aws_config_file is None and ws_settings.aws_config_file is not None:
+        if (
+            infra_config.aws_config_file is None
+            and ws_settings.aws_config_file is not None
+        ):
             infra_config.aws_config_file = ws_settings.aws_config_file
         if (
             infra_config.aws_shared_credentials_file is None
             and ws_settings.aws_shared_credentials_file is not None
         ):
-            infra_config.aws_shared_credentials_file = ws_settings.aws_shared_credentials_file
+            infra_config.aws_shared_credentials_file = (
+                ws_settings.aws_shared_credentials_file
+            )
 
         # -*- `phi` cli parameters
         # only update the param if they are available.
@@ -74,16 +79,22 @@ def prep_infra_config(
             infra_config.continue_on_create_failure is None
             and ws_settings.continue_on_create_failure is not None
         ):
-            infra_config.continue_on_create_failure = ws_settings.continue_on_create_failure
+            infra_config.continue_on_create_failure = (
+                ws_settings.continue_on_create_failure
+            )
         if (
             infra_config.continue_on_delete_failure is None
             and ws_settings.continue_on_delete_failure is not None
         ):
-            infra_config.continue_on_delete_failure = ws_settings.continue_on_delete_failure
+            infra_config.continue_on_delete_failure = (
+                ws_settings.continue_on_delete_failure
+            )
         if (
             infra_config.continue_on_patch_failure is None
             and ws_settings.continue_on_patch_failure is not None
         ):
-            infra_config.continue_on_patch_failure = ws_settings.continue_on_patch_failure
+            infra_config.continue_on_patch_failure = (
+                ws_settings.continue_on_patch_failure
+            )
 
     return infra_config

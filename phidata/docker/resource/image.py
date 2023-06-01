@@ -228,7 +228,7 @@ class DockerImage(DockerResource):
 
                         # Render table
                         table = Table(box=box.ASCII2)
-                        table.add_column("Id", justify="center")
+                        table.add_column("Layer", justify="center")
                         table.add_column("Status", justify="center")
                         table.add_column("Progress", justify="center")
                         for layer, layer_status in push_status.items():

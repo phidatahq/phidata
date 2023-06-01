@@ -7,24 +7,108 @@ from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeT
 from phidata.k8s.enums.service_type import ServiceType
 from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
 from phidata.k8s.enums.restart_policy import RestartPolicy
+from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
 
 
-class JupyterVolumeType(WorkspaceVolumeType):
-    pass
+class JupyterVolumeType(ExtendedEnum):
+    HostPath = "HostPath"
+    EmptyDir = "EmptyDir"
+    # PersistentVolume = "PersistentVolume"
+    AwsEbs = "AwsEbs"
+    # AwsEfs = "AwsEfs"
 
 
 class JupyterLabArgs(PhidataAppArgs):
+    name: str = "jupyter"
+    version: str = "1"
+    enabled: bool = True
+
+    # -*- Image Configuration
+    image_name: str = "phidata/jupyterlab"
+    image_tag: str = "3.5.2"
+    entrypoint: Optional[Union[str, List]] = None
+    command: Union[str, List] = "jupyter lab"
+
     # -*- Jupyter Configuration
     # Absolute path to JUPYTER_CONFIG_FILE
-    # Also sets the JUPYTER_CONFIG_FILE env var
+    # Also used to set the JUPYTER_CONFIG_FILE env var
     # This value if provided is appended to the command using `--config`
     jupyter_config_file: Optional[str] = None
     # Absolute path to the notebook directory
     # Sets the `--notebook-dir` parameter
     notebook_dir: Optional[str] = None
 
+    # -*- Airflow Configuration
+    # sets the env var INIT_AIRFLOW = True
+    # INIT_AIRFLOW = True is required by phidata to build dags
+    init_airflow: bool = False
+    # The AIRFLOW_ENV defines the current airflow runtime and can be used by
+    # DAGs to separate dev/stg/prd code
+    airflow_env: Optional[str] = None
+    # If use_workspace_for_airflow_dags = True
+    # set the AIRFLOW__CORE__DAGS_FOLDER to the workspace_root_container_path
+    use_workspace_for_airflow_dags: bool = True
+    # Airflow Executor
+    airflow_executor: Union[
+        str,
+        Literal[
+            "DebugExecutor",
+            "LocalExecutor",
+            "SequentialExecutor",
+            "CeleryExecutor",
+            "CeleryKubernetesExecutor",
+            "DaskExecutor",
+            "KubernetesExecutor",
+        ],
+    ] = "SequentialExecutor"
+
+    # Configure airflow db
+    # Connect to database using DbApp
+    airflow_db_app: Optional[DbApp] = None
+    # Provide database connection details manually
+    # db_user can be provided here or as the
+    # AIRFLOW_DATABASE_USER env var in the secrets_file
+    airflow_db_user: Optional[str] = None
+    # db_password can be provided here or as the
+    # AIRFLOW_DATABASE_PASSWORD env var in the secrets_file
+    airflow_db_password: Optional[str] = None
+    # db_schema can be provided here or as the
+    # AIRFLOW_DATABASE_DB env var in the secrets_file
+    airflow_db_schema: Optional[str] = None
+    # db_host can be provided here or as the
+    # AIRFLOW_DATABASE_HOST env var in the secrets_file
+    airflow_db_host: Optional[str] = None
+    # db_port can be provided here or as the
+    # AIRFLOW_DATABASE_PORT env var in the secrets_file
+    airflow_db_port: Optional[int] = None
+    # db_driver can be provided here or as the
+    # AIRFLOW_DATABASE_DRIVER env var in the secrets_file
+    airflow_db_driver: str = "postgresql+psycopg2"
+    airflow_db_result_backend_driver: str = "db+postgresql"
+
+    # Configure airflow redis
+    # Connect to redis using a PhidataApp
+    airflow_redis_app: Optional[DbApp] = None
+    # Provide redis connection details manually
+    # redis_password can be provided here or as the
+    # AIRFLOW_REDIS_PASSWORD env var in the secrets_file
+    airflow_redis_password: Optional[str] = None
+    # redis_schema can be provided here or as the
+    # AIRFLOW_REDIS_SCHEMA env var in the secrets_file
+    airflow_redis_schema: Optional[str] = None
+    # redis_host can be provided here or as the
+    # AIRFLOW_REDIS_HOST env var in the secrets_file
+    airflow_redis_host: Optional[str] = None
+    # redis_port can be provided here or as the
+    # AIRFLOW_REDIS_PORT env var in the secrets_file
+    airflow_redis_port: Optional[int] = None
+    # redis_driver can be provided here or as the
+    # AIRFLOW_REDIS_DRIVER env var in the secrets_file
+    airflow_redis_driver: Optional[str] = None
+
     # -*- Container Configuration
+
     # Container ports
     # Open the app port if open_app_port=True
     open_app_port: bool = True
@@ -36,39 +120,24 @@ class JupyterLabArgs(PhidataAppArgs):
     app_host_port: int = 8888
 
     # Container volumes
-    # Mount resources volume - only on docker.
-    mount_resources: bool = False
+    # Configure resources volume. Only on docker
     # Jupyter resources directory relative to the workspace_root
+    # This dir is mounted to the `/usr/local/jupyter` directory on the container
+    mount_resources: bool = False
     resources_dir: str = "workspace/jupyter"
-    # resources_dir is mounted to the resources_dir_container_path directory on the container
     resources_dir_container_path: str = "/usr/local/jupyter"
     resources_volume_name: Optional[str] = None
 
-    # Create a volume for mounting notebooks, workspaces, etc.
-    # With jupyter, we cannot use git-sync as git-sync cannot upload changes to git
-    # So we mount a volume that provides persistent storage
     create_volume: bool = True
     volume_name: Optional[str] = None
     volume_type: JupyterVolumeType = JupyterVolumeType.EmptyDir
     # Container path to mount the jupyter volume
     volume_container_path: str = "/mnt"
-    # Host path to mount if volume_type = JupyterVolumeType.HostPath
+    # Host path to mount the jupyter volume
+    # If volume_type = JupyterVolumeType.HostPath
     volume_host_path: Optional[str] = None
 
-    # EBS configuration if volume_type = JupyterVolumeType.AwsEbs
-    # EbsVolume to use to derive the volume_id, region, and az
-    ebs_volume: Optional[Any] = None
-    # EbsVolume region is used to get the volume_id
-    ebs_volume_region: Optional[str] = None
-    # Provide Ebs Volume-id manually
-    ebs_volume_id: Optional[str] = None
-    # Add topology az selectors
-    ebs_volume_az: Optional[str] = None
-    # Add NodeSelectors to Pods, so they are scheduled in the same
-    # region and zone as the ebs_volume
-    schedule_pods_in_ebs_topology: bool = True
-
-    # PersistentVolume configuration if volume_type = JupyterVolumeType.PersistentVolume
+    # PersistentVolume configuration
     pv_labels: Optional[Dict[str, str]] = None
     # AccessModes is a list of ways the volume can be mounted.
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
@@ -83,9 +152,25 @@ class JupyterLabArgs(PhidataAppArgs):
     pv_reclaim_policy: Optional[Literal["Delete", "Recycle", "Retain"]] = None
     pv_storage_class: str = ""
 
-    # EFS configuration if volume_type = JupyterVolumeType.AwsEfs
+    # EFS configuration
     # EFS volume_id
     efs_volume_id: Optional[str] = None
+
+    # EBS configuration
+    # mount_ebs_volume exists only for backward compatibility
+    mount_ebs_volume: bool = False
+    # EbsVolume if volume_type = PostgresVolumeType.AwsEbs or mount_ebs_volume = True
+    ebs_volume: Optional[Any] = None
+    # EbsVolume region is used to determine the ebs_volume_id
+    # and add topology region selectors
+    ebs_volume_region: Optional[str] = None
+    # Provide Ebs Volume-id manually
+    ebs_volume_id: Optional[str] = None
+    # Add topology az selectors
+    ebs_volume_az: Optional[str] = None
+    # Add NodeSelectors to Pods, so they are scheduled in the same
+    # region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
 
     # K8s Service Configuration
     create_app_service: bool = False
@@ -113,6 +198,9 @@ class JupyterLabArgs(PhidataAppArgs):
     app_svc_load_balancer_source_ranges: Optional[List[str]] = None
     app_svc_allocate_load_balancer_node_ports: Optional[bool] = None
 
+    # Other args
+    print_env_on_load: bool = True
+
 
 class JupyterLab(PhidataApp):
     def __init__(
@@ -131,26 +219,84 @@ class JupyterLab(PhidataApp):
         install_requirements: bool = False,
         # Path to the requirements.txt file relative to the workspace_root,
         requirements_file: str = "requirements.txt",
-        # -*- Debug Mode
-        debug_mode: bool = False,
         # -*- Jupyter Configuration,
-        # Absolute path to JUPYTER_CONFIG_FILE
-        # Also sets the JUPYTER_CONFIG_FILE env var
+        # Absolute path to JUPYTER_CONFIG_FILE,
+        # Also used to set the JUPYTER_CONFIG_FILE env var,
         # This value if provided is appended to the command using `--config`,
         jupyter_config_file: Optional[str] = None,
         # Absolute path to the notebook directory,
         # Sets the `--notebook-dir` parameter,
         notebook_dir: Optional[str] = None,
+        # -*- Airflow Configuration,
+        # sets the env var INIT_AIRFLOW = True,
+        # INIT_AIRFLOW = True is required by phidata to build dags,
+        init_airflow: bool = False,
+        # The AIRFLOW_ENV defines the current airflow runtime and can be used by,
+        # DAGs to separate dev/stg/prd code,
+        airflow_env: Optional[str] = None,
+        # If use_workspace_for_airflow_dags = True,
+        # set the AIRFLOW__CORE__DAGS_FOLDER to the workspace_root_container_path,
+        use_workspace_for_airflow_dags: bool = True,
+        # Airflow Executor,
+        airflow_executor: Union[
+            str,
+            Literal[
+                "DebugExecutor",
+                "LocalExecutor",
+                "SequentialExecutor",
+                "CeleryExecutor",
+                "CeleryKubernetesExecutor",
+                "DaskExecutor",
+                "KubernetesExecutor",
+            ],
+        ] = "SequentialExecutor",
+        # Configure airflow db,
+        # Connect to database using DbApp,
+        airflow_db_app: Optional[DbApp] = None,
+        # Provide database connection details manually,
+        # db_user can be provided here or as the,
+        # AIRFLOW_DATABASE_USER env var in the secrets_file,
+        airflow_db_user: Optional[str] = None,
+        # db_password can be provided here or as the,
+        # AIRFLOW_DATABASE_PASSWORD env var in the secrets_file,
+        airflow_db_password: Optional[str] = None,
+        # db_schema can be provided here or as the,
+        # AIRFLOW_DATABASE_DB env var in the secrets_file,
+        airflow_db_schema: Optional[str] = None,
+        # db_host can be provided here or as the,
+        # AIRFLOW_DATABASE_HOST env var in the secrets_file,
+        airflow_db_host: Optional[str] = None,
+        # db_port can be provided here or as the,
+        # AIRFLOW_DATABASE_PORT env var in the secrets_file,
+        airflow_db_port: Optional[int] = None,
+        # db_driver can be provided here or as the,
+        # AIRFLOW_DATABASE_DRIVER env var in the secrets_file,
+        airflow_db_driver: str = "postgresql+psycopg2",
+        airflow_db_result_backend_driver: str = "db+postgresql",
+        # Configure airflow redis,
+        # Connect to redis using a PhidataApp,
+        airflow_redis_app: Optional[DbApp] = None,
+        # Provide redis connection details manually,
+        # redis_password can be provided here or as the,
+        # AIRFLOW_REDIS_PASSWORD env var in the secrets_file,
+        airflow_redis_password: Optional[str] = None,
+        # redis_schema can be provided here or as the,
+        # AIRFLOW_REDIS_SCHEMA env var in the secrets_file,
+        airflow_redis_schema: Optional[str] = None,
+        # redis_host can be provided here or as the,
+        # AIRFLOW_REDIS_HOST env var in the secrets_file,
+        airflow_redis_host: Optional[str] = None,
+        # redis_port can be provided here or as the,
+        # AIRFLOW_REDIS_PORT env var in the secrets_file,
+        airflow_redis_port: Optional[int] = None,
+        # redis_driver can be provided here or as the,
+        # AIRFLOW_REDIS_DRIVER env var in the secrets_file,
+        airflow_redis_driver: Optional[str] = None,
         # -*- Container Configuration,
-        # Each PhidataApp has 1 main container and multiple sidecar containers
-        # The main container name
         container_name: Optional[str] = None,
-        # Overwrite the PYTHONPATH env var, default: False
-        set_python_path: bool = False,
-        # Set the python_path, default: workspace_volume_container_path,
+        # Overwrite the PYTHONPATH env var,
+        # which is usually set to the workspace_root_container_path,
         python_path: Optional[str] = None,
-        # Add to the PYTHONPATH env var. If python_path is set, this is ignored
-        add_python_path: Optional[str] = None,
         # Add labels to the container,
         container_labels: Optional[Dict[str, Any]] = None,
         # Container env passed to the PhidataApp,
@@ -209,36 +355,22 @@ class JupyterLab(PhidataApp):
         git_sync_repo: Optional[str] = None,
         git_sync_branch: Optional[str] = None,
         git_sync_wait: int = 1,
-        # Mount resources volume - only on docker.,
-        mount_resources: bool = False,
+        # Configure resources volume. Only on docker,
         # Jupyter resources directory relative to the workspace_root,
+        # This dir is mounted to the `/usr/local/jupyter` directory on the container,
+        mount_resources: bool = False,
         resources_dir: str = "workspace/jupyter",
-        # resources_dir is mounted to the resources_dir_container_path directory on the container,
         resources_dir_container_path: str = "/usr/local/jupyter",
         resources_volume_name: Optional[str] = None,
-        # Create a volume for mounting notebooks, workspaces, etc.
-        # With jupyter, we cannot use git-sync as git-sync cannot upload changes to git
-        # So we mount a volume that provides persistent storage
         create_volume: bool = True,
         volume_name: Optional[str] = None,
         volume_type: JupyterVolumeType = JupyterVolumeType.EmptyDir,
         # Container path to mount the jupyter volume,
         volume_container_path: str = "/mnt",
-        # Host path to mount if volume_type = JupyterVolumeType.HostPath
+        # Host path to mount the jupyter volume,
+        # If volume_type = JupyterVolumeType.HostPath,
         volume_host_path: Optional[str] = None,
-        # EBS configuration if volume_type = JupyterVolumeType.AwsEbs,
-        # EbsVolume to use to derive the volume_id, region, and az,
-        ebs_volume: Optional[Any] = None,
-        # EbsVolume region is used to get the volume_id,
-        ebs_volume_region: Optional[str] = None,
-        # Provide Ebs Volume-id manually,
-        ebs_volume_id: Optional[str] = None,
-        # Add topology az selectors,
-        ebs_volume_az: Optional[str] = None,
-        # Add NodeSelectors to Pods, so they are scheduled in the same,
-        # region and zone as the ebs_volume,
-        schedule_pods_in_ebs_topology: bool = True,
-        # PersistentVolume configuration if volume_type = JupyterVolumeType.PersistentVolume
+        # PersistentVolume configuration,
         pv_labels: Optional[Dict[str, str]] = None,
         # AccessModes is a list of ways the volume can be mounted.,
         # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes,
@@ -252,9 +384,24 @@ class JupyterLab(PhidataApp):
         #   The default policy is Retain.,
         pv_reclaim_policy: Optional[Literal["Delete", "Recycle", "Retain"]] = None,
         pv_storage_class: str = "",
-        # EFS configuration if volume_type = JupyterVolumeType.AwsEfs
+        # EFS configuration,
         # EFS volume_id,
         efs_volume_id: Optional[str] = None,
+        # EBS configuration,
+        # mount_ebs_volume exists only for backward compatibility,
+        mount_ebs_volume: bool = False,
+        # EbsVolume if volume_type = PostgresVolumeType.AwsEbs or mount_ebs_volume = True,
+        ebs_volume: Optional[Any] = None,
+        # EbsVolume region is used to determine the ebs_volume_id,
+        # and add topology region selectors,
+        ebs_volume_region: Optional[str] = None,
+        # Provide Ebs Volume-id manually,
+        ebs_volume_id: Optional[str] = None,
+        # Add topology az selectors,
+        ebs_volume_az: Optional[str] = None,
+        # Add NodeSelectors to Pods, so they are scheduled in the same,
+        # region and zone as the ebs_volume,
+        schedule_pods_in_ebs_topology: bool = True,
         # -*- Docker configuration,
         # Run container in the background and return a Container object.,
         container_detach: bool = True,
@@ -445,13 +592,28 @@ class JupyterLab(PhidataApp):
                 command=command,
                 install_requirements=install_requirements,
                 requirements_file=requirements_file,
-                debug_mode=debug_mode,
                 jupyter_config_file=jupyter_config_file,
                 notebook_dir=notebook_dir,
+                init_airflow=init_airflow,
+                airflow_env=airflow_env,
+                use_workspace_for_airflow_dags=use_workspace_for_airflow_dags,
+                airflow_executor=airflow_executor,
+                airflow_db_app=airflow_db_app,
+                airflow_db_user=airflow_db_user,
+                airflow_db_password=airflow_db_password,
+                airflow_db_schema=airflow_db_schema,
+                airflow_db_host=airflow_db_host,
+                airflow_db_port=airflow_db_port,
+                airflow_db_driver=airflow_db_driver,
+                airflow_db_result_backend_driver=airflow_db_result_backend_driver,
+                airflow_redis_app=airflow_redis_app,
+                airflow_redis_password=airflow_redis_password,
+                airflow_redis_schema=airflow_redis_schema,
+                airflow_redis_host=airflow_redis_host,
+                airflow_redis_port=airflow_redis_port,
+                airflow_redis_driver=airflow_redis_driver,
                 container_name=container_name,
-                set_python_path=set_python_path,
                 python_path=python_path,
-                add_python_path=add_python_path,
                 container_labels=container_labels,
                 env=env,
                 env_file=env_file,
@@ -487,11 +649,6 @@ class JupyterLab(PhidataApp):
                 volume_type=volume_type,
                 volume_container_path=volume_container_path,
                 volume_host_path=volume_host_path,
-                ebs_volume=ebs_volume,
-                ebs_volume_region=ebs_volume_region,
-                ebs_volume_id=ebs_volume_id,
-                ebs_volume_az=ebs_volume_az,
-                schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
                 pv_labels=pv_labels,
                 pv_access_modes=pv_access_modes,
                 pv_requests_storage=pv_requests_storage,
@@ -499,6 +656,12 @@ class JupyterLab(PhidataApp):
                 pv_reclaim_policy=pv_reclaim_policy,
                 pv_storage_class=pv_storage_class,
                 efs_volume_id=efs_volume_id,
+                mount_ebs_volume=mount_ebs_volume,
+                ebs_volume=ebs_volume,
+                ebs_volume_region=ebs_volume_region,
+                ebs_volume_id=ebs_volume_id,
+                ebs_volume_az=ebs_volume_az,
+                schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
                 container_remove=container_remove,
@@ -593,6 +756,144 @@ class JupyterLab(PhidataApp):
 
     def get_app_service_port(self) -> int:
         return self.args.app_svc_port
+
+    def get_airflow_db_user(self) -> Optional[str]:
+        db_user_var: Optional[str] = self.args.airflow_db_user if self.args else None
+        if db_user_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_USER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_user_var = secret_data.get("AIRFLOW_DATABASE_USER", db_user_var)
+        return db_user_var
+
+    def get_airflow_db_password(self) -> Optional[str]:
+        db_password_var: Optional[str] = (
+            self.args.airflow_db_password if self.args else None
+        )
+        if db_password_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_PASSWORD from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_password_var = secret_data.get(
+                    "AIRFLOW_DATABASE_PASSWORD", db_password_var
+                )
+        return db_password_var
+
+    def get_airflow_db_schema(self) -> Optional[str]:
+        db_schema_var: Optional[str] = (
+            self.args.airflow_db_schema if self.args else None
+        )
+        if db_schema_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_DB from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_schema_var = secret_data.get("AIRFLOW_DATABASE_DB", db_schema_var)
+        return db_schema_var
+
+    def get_airflow_db_host(self) -> Optional[str]:
+        db_host_var: Optional[str] = self.args.airflow_db_host if self.args else None
+        if db_host_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_HOST from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_host_var = secret_data.get("AIRFLOW_DATABASE_HOST", db_host_var)
+        return db_host_var
+
+    def get_airflow_db_port(self) -> Optional[str]:
+        db_port_var: Optional[Union[int, str]] = (
+            self.args.airflow_db_port if self.args else None
+        )
+        if db_port_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_PORT from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_port_var = secret_data.get("AIRFLOW_DATABASE_PORT", db_port_var)
+        return str(db_port_var) if db_port_var is not None else db_port_var
+
+    def get_airflow_db_driver(self) -> Optional[str]:
+        db_driver_var: Optional[str] = (
+            self.args.airflow_db_driver if self.args else None
+        )
+        if db_driver_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_DATABASE_DRIVER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                db_driver_var = secret_data.get(
+                    "AIRFLOW_DATABASE_DRIVER", db_driver_var
+                )
+        return db_driver_var
+
+    def get_airflow_redis_password(self) -> Optional[str]:
+        redis_password_var: Optional[str] = (
+            self.args.airflow_redis_password if self.args else None
+        )
+        if redis_password_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_PASSWORD from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_password_var = secret_data.get(
+                    "AIRFLOW_REDIS_PASSWORD", redis_password_var
+                )
+        return redis_password_var
+
+    def get_airflow_redis_schema(self) -> Optional[str]:
+        redis_schema_var: Optional[str] = (
+            self.args.airflow_redis_schema if self.args else None
+        )
+        if redis_schema_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_SCHEMA from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_schema_var = secret_data.get(
+                    "AIRFLOW_REDIS_SCHEMA", redis_schema_var
+                )
+        return redis_schema_var
+
+    def get_airflow_redis_host(self) -> Optional[str]:
+        redis_host_var: Optional[str] = (
+            self.args.airflow_redis_host if self.args else None
+        )
+        if redis_host_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_HOST from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_host_var = secret_data.get("AIRFLOW_REDIS_HOST", redis_host_var)
+        return redis_host_var
+
+    def get_airflow_redis_port(self) -> Optional[str]:
+        redis_port_var: Optional[Union[int, str]] = (
+            self.args.airflow_redis_port if self.args else None
+        )
+        if redis_port_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_PORT from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_port_var = secret_data.get("AIRFLOW_REDIS_PORT", redis_port_var)
+        return str(redis_port_var) if redis_port_var is not None else redis_port_var
+
+    def get_airflow_redis_driver(self) -> Optional[str]:
+        redis_driver_var: Optional[str] = (
+            self.args.airflow_redis_driver if self.args else None
+        )
+        if redis_driver_var is None:
+            # read from secrets_file
+            logger.debug(f"Reading AIRFLOW_REDIS_DRIVER from secrets")
+            secret_data = self.get_secret_data()
+            if secret_data is not None:
+                redis_driver_var = secret_data.get(
+                    "AIRFLOW_REDIS_DRIVER", redis_driver_var
+                )
+        return redis_driver_var
 
     ######################################################
     ## Docker Resources
@@ -1305,7 +1606,10 @@ class JupyterLab(PhidataApp):
                 else:
                     volume_name = get_default_volume_name(app_name)
 
-            if self.args.volume_type == JupyterVolumeType.AwsEbs:
+            if (
+                self.args.volume_type == JupyterVolumeType.AwsEbs
+                or self.args.mount_ebs_volume
+            ):
                 if (
                     self.args.ebs_volume_id is not None
                     or self.args.ebs_volume is not None

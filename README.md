@@ -30,15 +30,16 @@
 ---
 
 
-Phidata is a framework for building applications using open source tools.
+Phidata is a toolkit for building applications using open source tools.
 
 ## 🤔 What does that mean?
 
 Open source tools can be used to build powerful software, but can be difficult to run and require a lot of configuration.
 Phidata is a library that converts tools like FastApi, Jupyter, Redis into python classes that can be put together to build applications.
+These applications are then managed as 1 unit using phidata.
 
-If your goal is to use open source tools for building applications, Phidata is for you.
-It also provides a library of pre-configured tech stacks which makes it easy to get started with common use cases.
+If your goal is to use open source tools for building applications, phidata is for you.
+It also comes with a library of pre-configured tech stacks that makes it easy to get started with common use cases.
 
 ## 🚀 How it works
 

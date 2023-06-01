@@ -10,9 +10,9 @@ from phidata.utils.log import logger
 class WorkspaceVolumeType(ExtendedEnum):
     HostPath = "HostPath"
     EmptyDir = "EmptyDir"
-    # PersistentVolume = "PersistentVolume"
     AwsEbs = "AwsEbs"
-    # AwsEfs = "AwsEfs"
+    AwsEfs = "AwsEfs"
+    PersistentVolume = "PersistentVolume"
 
 
 class PhidataAppArgs(PhidataBaseArgs):

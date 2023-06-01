@@ -603,7 +603,7 @@ class DbCluster(AwsResource):
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.new_db_cluster_identifier:
-            not_null_args["NewDBClusterIdentifier"]= self.new_db_cluster_identifier
+            not_null_args["NewDBClusterIdentifier"] = self.new_db_cluster_identifier
         if self.apply_immediately:
             not_null_args["ApplyImmediately"] = self.apply_immediately
         if self.backup_retention_period:
@@ -698,7 +698,9 @@ class DbCluster(AwsResource):
         if self.rotate_master_user_password:
             not_null_args["RotateMasterUserPassword"] = self.rotate_master_user_password
         if self.master_iser_secter_kms_key_id:
-            not_null_args["MasterUserSecretKmsKeyId"] = self.master_iser_secter_kms_key_id
+            not_null_args[
+                "MasterUserSecretKmsKeyId"
+            ] = self.master_iser_secter_kms_key_id
         if self.engine_mode:
             not_null_args["EngineMode"] = self.engine_mode
         if self.allow_engine_mode_change:

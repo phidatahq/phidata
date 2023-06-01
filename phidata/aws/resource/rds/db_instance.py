@@ -523,7 +523,7 @@ class DbInstance(AwsResource):
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
         if self.db_instance_identifier:
-            not_null_args["DBInstanceIdentifier"]= self.db_instance_identifier
+            not_null_args["DBInstanceIdentifier"] = self.db_instance_identifier
         if self.allocated_storage:
             not_null_args["AllocatedStorage"] = self.allocated_storage
         if self.db_instance_class:
@@ -539,9 +539,7 @@ class DbInstance(AwsResource):
         if self.master_user_password:
             not_null_args["MasterUserPassword"] = self.master_user_password
         if self.db_parameter_group_name:
-            not_null_args[
-                "DBParameterGroupName"
-            ] = self.db_parameter_group_name
+            not_null_args["DBParameterGroupName"] = self.db_parameter_group_name
         if self.backup_retention_period:
             not_null_args["BackupRetentionPeriod"] = self.backup_retention_period
         if self.preferred_backup_window:
@@ -573,9 +571,7 @@ class DbInstance(AwsResource):
         if self.tde_credential_password:
             not_null_args["TdeCredentialPassword"] = self.tde_credential_password
         if self.ca_certificate_identifier:
-            not_null_args[
-                "CACertificateIdentifier"
-            ] = self.ca_certificate_identifier
+            not_null_args["CACertificateIdentifier"] = self.ca_certificate_identifier
         if self.domain:
             not_null_args["Domain"] = self.domain
         if self.copy_tags_to_snapshot:
@@ -623,17 +619,23 @@ class DbInstance(AwsResource):
         if self.max_allocated_storage:
             not_null_args["MaxAllocatedStorage"] = self.max_allocated_storage
         if self.certificate_rotation_restart:
-            not_null_args["CertificateRotationRestart"] = self.certificate_rotation_restart
+            not_null_args[
+                "CertificateRotationRestart"
+            ] = self.certificate_rotation_restart
         if self.replica_mode:
             not_null_args["ReplicaMode"] = self.replica_mode
         if self.enable_customer_owned_ip:
             not_null_args["EnableCustomerOwnedIp"] = self.enable_customer_owned_ip
         if self.aws_backup_recovery_point_arn:
-            not_null_args["AwsBackupRecoveryPointArn"] = self.aws_backup_recovery_point_arn
+            not_null_args[
+                "AwsBackupRecoveryPointArn"
+            ] = self.aws_backup_recovery_point_arn
         if self.automation_mode:
             not_null_args["AutomationMode"] = self.automation_mode
         if self.resume_full_automation_mode_minutes:
-            not_null_args["ResumeFullAutomationModeMinutes"] = self.resume_full_automation_mode_minutes
+            not_null_args[
+                "ResumeFullAutomationModeMinutes"
+            ] = self.resume_full_automation_mode_minutes
         if self.network_type:
             not_null_args["NetworkType"] = self.network_type
         if self.storage_throughput:
@@ -643,7 +645,9 @@ class DbInstance(AwsResource):
         if self.rotate_master_user_password:
             not_null_args["RotateMasterUserPassword"] = self.rotate_master_user_password
         if self.master_iser_secter_kms_key_id:
-            not_null_args["MasterUserSecretKmsKeyId"] = self.master_iser_secter_kms_key_id
+            not_null_args[
+                "MasterUserSecretKmsKeyId"
+            ] = self.master_iser_secter_kms_key_id
 
         service_client = self.get_service_client(aws_client)
         try:

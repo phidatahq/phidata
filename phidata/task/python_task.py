@@ -43,22 +43,20 @@ class PythonTask(Task):
         enabled: bool = True,
     ) -> None:
         super().__init__()
-        self.args: Optional[PythonTaskArgs] = None
-        if name is not None and entrypoint is not None:
-            try:
-                self.args = PythonTaskArgs(
-                    name=name,
-                    entrypoint=entrypoint,
-                    task_id=task_id,
-                    dag_id=dag_id,
-                    entrypoint_args=entrypoint_args,
-                    entrypoint_kwargs=entrypoint_kwargs,
-                    version=version,
-                    enabled=enabled,
-                )
-            except Exception as e:
-                logger.error(f"Args for {self.__class__.__name__} are not valid")
-                raise
+        try:
+            self.args: PythonTaskArgs = PythonTaskArgs(
+                name=name,
+                entrypoint=entrypoint,
+                task_id=task_id,
+                dag_id=dag_id,
+                entrypoint_args=entrypoint_args,
+                entrypoint_kwargs=entrypoint_kwargs,
+                version=version,
+                enabled=enabled,
+            )
+        except Exception as e:
+            logger.error(f"Args for {self.name} are not valid {e}")
+            raise
 
     @property
     def entrypoint(self) -> Optional[Callable[..., bool]]:

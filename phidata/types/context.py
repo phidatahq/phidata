@@ -21,7 +21,6 @@ class PathContext(BaseModel):
     # local, docker or cloud environments.
     # These are updated by `phi wf run` for local runs
     # And are provided as Environment variables on containers
-
     scripts_dir: Optional[Path] = None
     storage_dir: Optional[Path] = None
     meta_dir: Optional[Path] = None

@@ -1,6 +1,7 @@
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.app.group import AppGroup, get_apps_from_app_groups
 from phidata.app.databox import default_databox_name
@@ -27,7 +28,7 @@ class K8sConfig(InfraConfig):
         # Common K8s labels to add to all resources
         common_labels: Optional[Dict[str, str]] = None,
         # PhidataApp to deploy
-        apps: Optional[List[PhidataApp]] = None,
+        apps: Optional[List[Union[BaseApp, PhidataApp]]] = None,
         # AppGroups to deploy
         app_groups: Optional[List[AppGroup]] = None,
         # K8sResourceGroup to deploy
@@ -126,7 +127,7 @@ class K8sConfig(InfraConfig):
             self.args.common_labels = common_labels
 
     @property
-    def apps(self) -> Optional[List[PhidataApp]]:
+    def apps(self) -> Optional[List[Union[BaseApp, PhidataApp]]]:
         if self.args and self.args.apps:
             return self.args.apps
         return None
@@ -171,7 +172,7 @@ class K8sConfig(InfraConfig):
         if self.apps is None:
             return True
         for _app in self.apps:
-            if not isinstance(_app, PhidataApp):
+            if not (isinstance(_app, PhidataApp) or isinstance(_app, BaseApp)):
                 raise TypeError("Invalid App: {}".format(_app))
         return True
 
@@ -201,7 +202,7 @@ class K8sConfig(InfraConfig):
     def get_k8s_manager(self) -> Optional[K8sManager]:
         return K8sManager(k8s_args=self.args)
 
-    def get_app_by_name(self, app_name: str) -> Optional[PhidataApp]:
+    def get_app_by_name(self, app_name: str) -> Optional[Union[BaseApp, PhidataApp]]:
         if self.apps is None:
             return None
 

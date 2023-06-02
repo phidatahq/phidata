@@ -90,8 +90,8 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
         image: Optional[Any] = None,
         image_name: str = "phidata/jupyter",
         image_tag: str = "3.6.3",
-        entrypoint: Optional[Union[str, List]] = None,
-        command: Union[str, List] = "jupyter lab",
+        entrypoint: Optional[Union[str, List[str]]] = None,
+        command: Union[str, List[str]] = "jupyter lab",
         # -*- Debug Mode
         debug_mode: bool = False,
         # -*- Python Configuration,
@@ -494,8 +494,10 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
         container_cmd: List[str]
         if isinstance(self.args.command, str):
             container_cmd = self.args.command.split(" ")
-        else:
+        elif isinstance(self.args.command, list):
             container_cmd = self.args.command
+        else:
+            container_cmd = []
 
         if self.args.jupyter_config_file is not None:
             container_cmd.append(f"--config={str(self.args.jupyter_config_file)}")

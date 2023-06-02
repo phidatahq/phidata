@@ -30,8 +30,8 @@ class BaseAppArgs(PhidataBaseArgs):
     # OR as image_name:image_tag
     image_name: Optional[str] = None
     image_tag: Optional[str] = None
-    entrypoint: Optional[Union[str, List]] = None
-    command: Optional[Union[str, List]] = None
+    entrypoint: Optional[Union[str, List[str]]] = None
+    command: Optional[Union[str, List[str]]] = None
 
     # -*- Debug Mode
     debug_mode: bool = False

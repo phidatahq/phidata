@@ -112,30 +112,28 @@ class BaseAppArgs(PhidataBaseArgs):
     git_sync_wait: int = 1
     # -*- If workspace_volume_type=WorkspaceVolumeType.AwsEbs
     # EbsVolume: used to derive the volume_id, region, and az
-    ebs_volume: Optional[Any] = None
-    ebs_volume_region: Optional[str] = None
-    ebs_volume_az: Optional[str] = None
+    ws_ebs_volume: Optional[Any] = None
+    ws_ebs_volume_region: Optional[str] = None
+    ws_ebs_volume_az: Optional[str] = None
     # Provide Ebs Volume-id manually
-    ebs_volume_id: Optional[str] = None
-    # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
-    schedule_pods_in_ebs_topology: bool = True
+    ws_ebs_volume_id: Optional[str] = None
     # -*- If workspace_volume_type=WorkspaceVolumeType.PersistentVolume
     # AccessModes is a list of ways the volume can be mounted.
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
     # Type: phidata.infra.k8s.enums.pv.PVAccessMode
-    pv_access_modes: Optional[List[Any]] = None
-    pv_requests_storage: Optional[str] = None
+    ws_pv_access_modes: Optional[List[Any]] = None
+    ws_pv_requests_storage: Optional[str] = None
     # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options
-    pv_mount_options: Optional[List[str]] = None
+    ws_pv_mount_options: Optional[List[str]] = None
     # What happens to a persistent volume when released from its claim.
     #   The default policy is Retain.
     # Literal["Delete", "Recycle", "Retain"]
-    pv_reclaim_policy: Optional[str] = None
-    pv_storage_class: str = ""
-    pv_labels: Optional[Dict[str, str]] = None
+    ws_pv_reclaim_policy: Optional[str] = None
+    ws_pv_storage_class: str = ""
+    ws_pv_labels: Optional[Dict[str, str]] = None
     # -*- If workspace_volume_type=WorkspaceVolumeType.AwsEfs
-    efs_volume_id: Optional[str] = None
+    ws_efs_volume_id: Optional[str] = None
 
     # -*- App Volume
     # Create a volume for mounting app data like notebooks, models, etc.
@@ -170,6 +168,9 @@ class BaseAppArgs(PhidataBaseArgs):
     app_pv_labels: Optional[Dict[str, str]] = None
     # -*- If volume_type=AppVolumeType.AwsEfs
     app_efs_volume_id: Optional[str] = None
+
+    # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
 
     # -*- AWS Configuration
     aws_region: Optional[str] = None

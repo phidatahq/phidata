@@ -7,6 +7,9 @@ from phidata.app.base_app import (
     WorkspaceVolumeType,
     AppVolumeType,
 )
+from phidata.k8s.enums.restart_policy import RestartPolicy
+from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
+from phidata.k8s.enums.service_type import ServiceType
 from phidata.types.context import ContainerPathContext
 from phidata.utils.log import logger
 
@@ -14,6 +17,7 @@ from phidata.utils.log import logger
 class K8sAppArgs(BaseAppArgs):
     # -*- Container Configuration
     container_name: Optional[str] = None
+    container_labels: Optional[Dict[str, str]] = None
 
     # -*- Pod Configuration
     pod_name: Optional[str] = None
@@ -29,10 +33,8 @@ class K8sAppArgs(BaseAppArgs):
     # -*- Deployment Configuration
     replicas: int = 1
     deploy_name: Optional[str] = None
-    # Type: ImagePullPolicy
-    image_pull_policy: Optional[Any] = None
-    # Type: RestartPolicy
-    deploy_restart_policy: Optional[Any] = None
+    image_pull_policy: Optional[ImagePullPolicy] = None
+    deploy_restart_policy: Optional[RestartPolicy] = None
     deploy_labels: Optional[Dict[str, Any]] = None
     termination_grace_period_seconds: Optional[int] = None
     # Key to spread the pods across a topology
@@ -45,8 +47,7 @@ class K8sAppArgs(BaseAppArgs):
     # -*- Service Configuration
     create_service: bool = False
     service_name: Optional[str] = None
-    # Type: ServiceType
-    service_type: Optional[Any] = None
+    service_type: Optional[ServiceType] = None
     # The port exposed by the service.
     service_port: int = 8000
     # The node_port exposed by the service if service_type = ServiceType.NODE_PORT
@@ -336,6 +337,41 @@ class K8sApp(BaseApp):
 
         return container_env
 
+    def get_container_labels_k8s(
+        self, common_labels: Optional[Dict[str, str]]
+    ) -> Dict[str, str]:
+        labels: Dict[str, str] = common_labels or {}
+        if self.args.container_labels is not None and isinstance(
+            self.args.container_labels, dict
+        ):
+            labels.update(self.args.container_labels)
+        return labels
+
+    def get_deployment_labels_k8s(
+        self, common_labels: Optional[Dict[str, str]]
+    ) -> Dict[str, str]:
+        labels: Dict[str, str] = common_labels or {}
+        if self.args.container_labels is not None and isinstance(
+            self.args.container_labels, dict
+        ):
+            labels.update(self.args.container_labels)
+        return labels
+
+    def get_service_labels_k8s(
+        self, common_labels: Optional[Dict[str, str]]
+    ) -> Dict[str, str]:
+        labels: Dict[str, str] = common_labels or {}
+        if self.args.container_labels is not None and isinstance(
+            self.args.container_labels, dict
+        ):
+            labels.update(self.args.container_labels)
+        return labels
+
+    def get_container_args_k8s(self) -> Optional[List[str]]:
+        if isinstance(self.args.command, str):
+            return self.args.command.split(" ")
+        return self.args.command
+
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
         from phidata.k8s.create.common.port import CreatePort
         from phidata.k8s.create.core.v1.container import CreateContainer
@@ -491,7 +527,6 @@ class K8sApp(BaseApp):
                     )
                 else:
                     workspace_volume_name = get_default_volume_name(f"{app_name}-ws")
-
             # If workspace_volume_type is None or EmptyDir
             if (
                 self.args.workspace_volume_type is None
@@ -553,6 +588,7 @@ class K8sApp(BaseApp):
                             init_containers.append(_git_sync_init_container)
                     else:
                         logger.error("GIT_SYNC_REPO invalid")
+            # Use HostPath as WorkspaceVolumeType
             elif self.args.workspace_volume_type == WorkspaceVolumeType.HostPath:
                 workspace_root_path_str = str(self.workspace_root_path)
                 workspace_root_container_path_str = container_paths.workspace_root
@@ -578,71 +614,80 @@ class K8sApp(BaseApp):
                     )
                 else:
                     volume_name = get_default_volume_name(app_name)
-
+            # Use AwsEbs as AppVolumeType
             if self.args.app_volume_type == AppVolumeType.AwsEbs:
                 if (
-                    self.args.ebs_volume_id is not None
-                    or self.args.ebs_volume is not None
+                    self.args.app_ebs_volume_id is not None
+                    or self.args.app_ebs_volume is not None
                 ):
-                    # To use an EbsVolume as the volume_type we:
+                    # To use EbsVolume as the volume_type we:
                     # 1. Need the volume_id
                     # 2. Need to make sure pods are scheduled in the
                     #       same region/az as the volume
 
                     # For the volume_id we can either:
-                    # 1. Use self.args.ebs_volume_id
-                    # 2. Derive it from the self.args.ebs_volume
-                    ebs_volume_id = self.args.ebs_volume_id
+                    # 1. Use self.args.app_ebs_volume_id
+                    # 2. OR get it from the self.args.app_ebs_volume
+                    app_ebs_volume_id = self.args.app_ebs_volume_id
 
-                    # For the aws_region/az:
-                    # 1. Use self.args.ebs_volume_region
-                    # 2. Derive it from self.args.ebs_volume
-                    # 3. Derive it from the PhidataAppArgs
-                    ebs_volume_region = self.args.ebs_volume_region
-                    ebs_volume_az = self.args.ebs_volume_az
+                    # For the aws_region/az we can either:
+                    # 1. Use self.args.app_ebs_volume_region
+                    # 2. OR get it from self.args.app_ebs_volume
+                    # 3. OR get it from the BaseAppArgs
+                    app_ebs_volume_region = self.args.app_ebs_volume_region
+                    app_ebs_volume_az = self.args.app_ebs_volume_az
 
-                    # Derive the aws_region from self.args.ebs_volume if needed
-                    if ebs_volume_region is None and self.args.ebs_volume is not None:
+                    # Derive the aws_region from self.args.app_ebs_volume if needed
+                    if (
+                        app_ebs_volume_region is None
+                        and self.args.app_ebs_volume is not None
+                    ):
                         # Note: this will use the `$AWS_REGION` env var if set
                         _aws_region_from_ebs_volume = (
-                            self.args.ebs_volume.get_aws_region()
+                            self.args.app_ebs_volume.get_aws_region()
                         )
                         if _aws_region_from_ebs_volume is not None:
-                            ebs_volume_region = _aws_region_from_ebs_volume
+                            app_ebs_volume_region = _aws_region_from_ebs_volume
 
-                    # Derive the aws_region from the PhidataAppArgs if needed
-                    if ebs_volume_region is None:
-                        ebs_volume_region = self.aws_region
+                    # Get the aws_region from the BaseAppArgs
+                    if app_ebs_volume_region is None:
+                        app_ebs_volume_region = self.aws_region
 
-                    # Derive the availability_zone from self.args.ebs_volume if needed
-                    if ebs_volume_az is None and self.args.ebs_volume is not None:
-                        ebs_volume_az = self.args.ebs_volume.availability_zone
+                    # Derive the availability_zone from self.args.app_ebs_volume if needed
+                    if (
+                        app_ebs_volume_az is None
+                        and self.args.app_ebs_volume is not None
+                    ):
+                        app_ebs_volume_az = self.args.app_ebs_volume.availability_zone
 
-                    logger.debug(f"ebs_volume_region: {ebs_volume_region}")
-                    logger.debug(f"ebs_volume_az: {ebs_volume_az}")
+                    logger.debug(f"app_ebs_volume_region: {app_ebs_volume_region}")
+                    logger.debug(f"app_ebs_volume_az: {app_ebs_volume_az}")
 
-                    # Derive ebs_volume_id from self.args.ebs_volume if needed
-                    if ebs_volume_id is None and self.args.ebs_volume is not None:
-                        ebs_volume_id = self.args.ebs_volume.get_volume_id(
-                            aws_region=ebs_volume_region,
+                    # Derive ebs_volume_id from self.args.app_ebs_volume if needed
+                    if (
+                        app_ebs_volume_id is None
+                        and self.args.app_ebs_volume is not None
+                    ):
+                        app_ebs_volume_id = self.args.app_ebs_volume.get_volume_id(
+                            aws_region=app_ebs_volume_region,
                             aws_profile=self.aws_profile,
                         )
 
-                    logger.debug(f"ebs_volume_id: {ebs_volume_id}")
-                    if ebs_volume_id is None:
-                        logger.error("Could not find volume_id for EbsVolume")
+                    logger.debug(f"app_ebs_volume_id: {app_ebs_volume_id}")
+                    if app_ebs_volume_id is None:
+                        logger.error("Could not find volume_id for AppEbsVolume")
                         return None
 
-                    ebs_volume = CreateVolume(
-                        volume_name=volume_name,
+                    app_ebs_volume = CreateVolume(
+                        volume_name=app_volume_name,
                         app_name=app_name,
-                        mount_path=self.args.volume_container_path,
+                        mount_path=self.args.app_volume_container_path,
                         volume_type=VolumeType.AWS_EBS,
                         aws_ebs=AwsElasticBlockStoreVolumeSource(
-                            volume_id=ebs_volume_id,
+                            volume_id=app_ebs_volume_id,
                         ),
                     )
-                    volumes.append(ebs_volume)
+                    volumes.append(app_ebs_volume)
 
                     # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
                     # To do this, we add NodeSelectors to Pods
@@ -653,35 +698,35 @@ class K8sApp(BaseApp):
                         # Add NodeSelectors to Pods, so they are scheduled in the same
                         # region and zone as the ebs_volume
                         # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
-                        if ebs_volume_region is not None:
+                        if app_ebs_volume_region is not None:
                             pod_node_selector[
                                 "topology.kubernetes.io/region"
-                            ] = ebs_volume_region
+                            ] = app_ebs_volume_region
 
-                        if ebs_volume_az is not None:
+                        if app_ebs_volume_az is not None:
                             pod_node_selector[
                                 "topology.kubernetes.io/zone"
-                            ] = ebs_volume_az
+                            ] = app_ebs_volume_az
                 else:
-                    logger.error("JupyterLab: ebs_volume not provided")
+                    logger.error(f"{app_name}: app_ebs_volume not provided")
                     return None
-
-            elif self.args.volume_type == JupyterVolumeType.EmptyDir:
+            # Use EmptyDir as AppVolumeType
+            elif self.args.app_volume_type == AppVolumeType.EmptyDir:
                 empty_dir_volume = CreateVolume(
-                    volume_name=volume_name,
+                    volume_name=app_volume_name,
                     app_name=app_name,
-                    mount_path=self.args.volume_container_path,
+                    mount_path=self.args.app_volume_container_path,
                     volume_type=VolumeType.EMPTY_DIR,
                 )
                 volumes.append(empty_dir_volume)
-
-            elif self.args.volume_type == JupyterVolumeType.HostPath:
-                if self.args.volume_host_path is not None:
-                    volume_host_path_str = str(self.args.volume_host_path)
+            # Use HostPath as AppVolumeType
+            elif self.args.app_volume_type == AppVolumeType.HostPath:
+                if self.args.app_volume_host_path is not None:
+                    volume_host_path_str = str(self.args.app_volume_host_path)
                     host_path_volume = CreateVolume(
-                        volume_name=volume_name,
+                        volume_name=app_volume_name,
                         app_name=app_name,
-                        mount_path=self.args.volume_container_path,
+                        mount_path=self.args.app_volume_container_path,
                         volume_type=VolumeType.HOST_PATH,
                         host_path=HostPathVolumeSource(
                             path=volume_host_path_str,
@@ -689,10 +734,10 @@ class K8sApp(BaseApp):
                     )
                     volumes.append(host_path_volume)
                 else:
-                    logger.error("PostgresDb: volume_host_path not provided")
+                    logger.error(f"{app_name}: app_volume_host_path not provided")
                     return None
 
-        # Create the ports to open
+        # -*- Build Container Ports
         if self.args.open_container_port:
             container_port = CreatePort(
                 name=self.args.container_port_name,
@@ -703,43 +748,15 @@ class K8sApp(BaseApp):
             )
             ports.append(container_port)
 
-        # if open_app_port = True
-        if self.args.open_app_port:
-            app_port = CreatePort(
-                name=self.args.app_port_name,
-                container_port=self.args.app_port,
-                service_port=self.get_app_service_port(),
-                node_port=self.args.app_node_port,
-                target_port=self.args.app_target_port or self.args.app_port_name,
-            )
-            ports.append(app_port)
+        # -*- Build Container Labels
+        container_labels: Dict[str, str] = self.get_container_labels_k8s(common_labels)
 
-        container_labels: Dict[str, Any] = common_labels or {}
-        if self.args.container_labels is not None and isinstance(
-            self.args.container_labels, dict
-        ):
-            container_labels.update(self.args.container_labels)
+        # -*- Build Container Args: Equivalent to docker CMD
+        container_args: Optional[List[str]] = self.get_container_args_k8s()
 
-        # Equivalent to docker images CMD
-        container_args: List[str]
-        if isinstance(self.args.command, str):
-            container_args = self.args.command.split(" ")
-        else:
-            container_args = self.args.command
-
-        if self.args.jupyter_config_file is not None:
-            container_args.append(f"--config={str(self.args.jupyter_config_file)}")
-
-        if self.args.notebook_dir is None:
-            container_args.append("--notebook-dir=/mnt")
-        else:
-            container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
-
-        # container_args.append("--ip=0.0.0.0")
-
-        # Create the JupyterLab container
-        jupyterlab_container = CreateContainer(
-            container_name=self.get_container_name(),
+        # -*- Create the Container
+        container = CreateContainer(
+            container_name=self.container_name,
             app_name=app_name,
             image_name=self.args.image_name,
             image_tag=self.args.image_tag,
@@ -761,38 +778,37 @@ class K8sApp(BaseApp):
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
         )
-        containers.insert(0, jupyterlab_container)
+        containers.insert(0, container)
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
         pod_annotations = {
-            "kubectl.kubernetes.io/default-container": jupyterlab_container.container_name
+            "kubectl.kubernetes.io/default-container": container.container_name
         }
+
+        # -*- Add pod annotations
         if self.args.pod_annotations is not None and isinstance(
             self.args.pod_annotations, dict
         ):
             pod_annotations.update(self.args.pod_annotations)
 
-        deploy_labels: Dict[str, Any] = common_labels or {}
-        if self.args.deploy_labels is not None and isinstance(
-            self.args.deploy_labels, dict
-        ):
-            deploy_labels.update(self.args.deploy_labels)
+        # -*- Build Deployment Labels
+        deploy_labels: Dict[str, str] = self.get_deployment_labels_k8s(common_labels)
 
         # If using EbsVolume, restart the deployment on update
         recreate_deployment_on_update = (
             True
             if (
-                self.args.create_volume
-                and self.args.volume_type == JupyterVolumeType.AwsEbs
+                self.args.create_app_volume
+                and self.args.app_volume_type == AppVolumeType.AwsEbs
             )
             else False
         )
 
-        # Create the deployment
-        jupyterlab_deployment = CreateDeployment(
-            deploy_name=self.get_deploy_name(),
-            pod_name=self.get_pod_name(),
+        # -*- Create the Deployment
+        deployment = CreateDeployment(
+            deploy_name=self.deploy_name,
+            pod_name=self.pod_name,
             app_name=app_name,
             namespace=ns_name,
             service_account_name=sa_name,
@@ -810,48 +826,24 @@ class K8sApp(BaseApp):
             topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
             recreate_on_update=recreate_deployment_on_update,
         )
-        deployments.append(jupyterlab_deployment)
+        deployments.append(deployment)
 
-        # Create the services
+        # -*- Create the Service
         if self.args.create_service:
-            service_labels: Dict[str, Any] = common_labels or {}
-            if self.args.service_labels is not None and isinstance(
-                self.args.service_labels, dict
-            ):
-                service_labels.update(self.args.service_labels)
-
+            service_labels: Dict[str, str] = self.get_service_labels_k8s(common_labels)
             _service = CreateService(
-                service_name=self.get_service_name(),
+                service_name=self.service_name,
                 app_name=app_name,
                 namespace=ns_name,
                 service_account_name=sa_name,
                 service_type=self.args.service_type,
-                deployment=jupyterlab_deployment,
+                deployment=deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )
             services.append(_service)
 
-        if self.args.create_app_service:
-            app_svc_labels: Dict[str, Any] = common_labels or {}
-            if self.args.app_svc_labels is not None and isinstance(
-                self.args.app_svc_labels, dict
-            ):
-                app_svc_labels.update(self.args.app_svc_labels)
-
-            app_service = CreateService(
-                service_name=self.get_app_service_name(),
-                app_name=app_name,
-                namespace=ns_name,
-                service_account_name=sa_name,
-                service_type=self.args.app_svc_type,
-                deployment=jupyterlab_deployment,
-                ports=ports if len(ports) > 0 else None,
-                labels=app_svc_labels,
-            )
-            services.append(app_service)
-
-        # Create the K8sResourceGroup
+        # -*- Create the K8sResourceGroup
         k8s_resource_group = CreateK8sResourceGroup(
             name=app_name,
             enabled=self.args.enabled,

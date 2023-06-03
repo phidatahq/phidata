@@ -17,6 +17,7 @@ class DockerAppArgs(BaseAppArgs):
 
     # -*- Container Configuration
     container_name: Optional[str] = None
+    container_labels: Optional[Dict[str, str]] = None
     # Run container in the background and return a Container object
     container_detach: bool = True
     # Enable auto-removal of the container on daemon side when the container’s process exits
@@ -40,8 +41,6 @@ class DockerAppArgs(BaseAppArgs):
     container_platform: Optional[str] = None
     # Path to the working directory
     container_working_dir: Optional[str] = None
-    # Add labels to the container
-    container_labels: Optional[Dict[str, Any]] = None
     # Restart the container when it exits. Configured as a dictionary with keys:
     # Name: One of on-failure, or always.
     # MaximumRetryCount: Number of times to restart the container on failure.
@@ -326,7 +325,7 @@ class DockerApp(BaseApp):
         # -*- Build Container Command
         container_cmd: Optional[List[str]] = self.get_container_command_docker()
 
-        # Create DockerContainer
+        # -*- Create DockerContainer
         docker_container = DockerContainer(
             name=self.container_name,
             image=self.get_image_str(),

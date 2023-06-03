@@ -1,38 +1,31 @@
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
-from phidata.app.db import DbApp
 from phidata.app.aws_app import AwsApp, AwsAppArgs
+from phidata.app.base_app import WorkspaceVolumeType, AppVolumeType
 from phidata.app.docker_app import DockerApp, DockerAppArgs
-from phidata.app.k8s_app import K8sApp, K8sAppArgs
-from phidata.k8s.enums.image_pull_policy import ImagePullPolicy
-from phidata.k8s.enums.restart_policy import RestartPolicy
-from phidata.k8s.enums.service_type import ServiceType
-from phidata.workspace.volume import WorkspaceVolumeType
-from phidata.utils.enums import ExtendedEnum
+from phidata.app.k8s_app import (
+    K8sApp,
+    K8sAppArgs,
+    ImagePullPolicy,
+    RestartPolicy,
+    ServiceType,
+)
 from phidata.utils.log import logger
 
 
-class JupyterVolumeType(ExtendedEnum):
-    HostPath = "HostPath"
-    EmptyDir = "EmptyDir"
-    AwsEbs = "AwsEbs"
-    AwsEfs = "AwsEfs"
-    PersistentVolume = "PersistentVolume"
-
-
-class JupyterLabArgs(AwsAppArgs, DockerAppArgs, K8sAppArgs):
+class JupyterArgs(AwsAppArgs, DockerAppArgs, K8sAppArgs):
     # -*- Jupyter Configuration
     # Absolute path to JUPYTER_CONFIG_FILE,
     # Also used to set the JUPYTER_CONFIG_FILE env var,
     # This value is appended to the command using `--config`,
     jupyter_config_file: Optional[str] = None
     # Absolute path to the notebook directory,
-    # Defaults to the workspace_root if mount_workspace = True else "/",
+    # Defaults to the workspace_root if mount_workspace = True else "/mnt",
     notebook_dir: Optional[str] = None
 
 
-class JupyterLab(AwsApp, DockerApp, K8sApp):
+class Jupyter(AwsApp, DockerApp, K8sApp):
     def __init__(
         self,
         name: str = "jupyter",
@@ -43,7 +36,7 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
         # Also used to set the JUPYTER_CONFIG_FILE env var,
         jupyter_config_file: str = "/resources/jupyter_lab_config.py",
         # Absolute path to the notebook directory,
-        # Defaults to the workspace_root if mount_workspace = True else "/",
+        # Defaults to the workspace_root if mount_workspace = True else "/mnt",
         notebook_dir: Optional[str] = None,
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
@@ -106,46 +99,41 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
         resources_dir: str = "workspace/jupyter/resources",
         # Path to mount the resources_dir,
         resources_dir_container_path: str = "/mnt/resources",
-        # -*- Jupyter Volume,
-        # Create a volume for mounting notebooks, workspaces, etc.,
-        # With jupyter, we cannot use git-sync as git-sync cannot upload changes to git,
-        # So we mount a separate volume that provides persistent storage,
-        create_volume: bool = True,
-        volume_name: Optional[str] = None,
-        volume_type: JupyterVolumeType = JupyterVolumeType.EmptyDir,
-        # Path to mount the volume inside the container,
-        volume_container_path: str = "/mnt",
-        # -*- If volume_type=JupyterVolumeType.HostPath,
-        volume_host_path: Optional[str] = None,
-        # -*- If volume_type=JupyterVolumeType.AwsEbs,
+        # -*- App Volume,
+        # Create a volume for mounting app data like notebooks, models, etc.,
+        create_app_volume: bool = True,
+        app_volume_name: Optional[str] = None,
+        app_volume_type: AppVolumeType = AppVolumeType.EmptyDir,
+        # Path to mount the app volume inside the container,
+        app_volume_container_path: str = "/mnt/app",
+        # -*- If volume_type=AppVolumeType.HostPath,
+        app_volume_host_path: Optional[str] = None,
+        # -*- If volume_type=AppVolumeType.AwsEbs,
         # EbsVolume: used to derive the volume_id, region, and az,
-        ebs_volume: Optional[Any] = None,
-        ebs_volume_region: Optional[str] = None,
-        ebs_volume_az: Optional[str] = None,
+        app_ebs_volume: Optional[Any] = None,
+        app_ebs_volume_region: Optional[str] = None,
+        app_ebs_volume_az: Optional[str] = None,
         # Provide Ebs Volume-id manually,
-        ebs_volume_id: Optional[str] = None,
-        # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume,
-        schedule_pods_in_ebs_topology: bool = True,
-        # -*- If volume_type=JupyterVolumeType.PersistentVolume,
+        app_ebs_volume_id: Optional[str] = None,
+        # -*- If volume_type=AppVolumeType.PersistentVolume,
         # AccessModes is a list of ways the volume can be mounted.,
         # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes,
         # Type: phidata.infra.k8s.enums.pv.PVAccessMode,
-        pv_access_modes: Optional[List[Any]] = None,
-        pv_requests_storage: Optional[str] = None,
+        app_pv_access_modes: Optional[List[Any]] = None,
+        app_pv_requests_storage: Optional[str] = None,
         # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.,
         # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options,
-        pv_mount_options: Optional[List[str]] = None,
+        app_pv_mount_options: Optional[List[str]] = None,
         # What happens to a persistent volume when released from its claim.,
         #   The default policy is Retain.,
         # Literal["Delete", "Recycle", "Retain"],
-        pv_reclaim_policy: Optional[str] = None,
-        pv_storage_class: str = "",
-        pv_labels: Optional[Dict[str, str]] = None,
-        # -*- If volume_type=JupyterVolumeType.AwsEfs,
-        efs_volume_id: Optional[str] = None,
-        # Create a volume for mounting notebooks, workspaces, etc.,
-        # With jupyter, we cannot use git-sync as git-sync cannot upload changes to git,
-        # So we mount a volume that provides persistent storage,
+        app_pv_reclaim_policy: Optional[str] = None,
+        app_pv_storage_class: str = "",
+        app_pv_labels: Optional[Dict[str, str]] = None,
+        # -*- If volume_type=AppVolumeType.AwsEfs,
+        app_efs_volume_id: Optional[str] = None,
+        # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume,
+        schedule_pods_in_ebs_topology: bool = True,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Run container in the background and return a Container object.,
@@ -172,7 +160,7 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
         # Path to the working directory.,
         container_working_dir: Optional[str] = None,
         # Add labels to the container,
-        container_labels: Optional[Dict[str, Any]] = None,
+        container_labels: Optional[Dict[str, str]] = None,
         # Restart the container when it exits. Configured as a dictionary with keys:,
         # Name: One of on-failure, or always.,
         # MaximumRetryCount: Number of times to restart the container on failure.,
@@ -317,7 +305,7 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
             self.container_env = {"JUPYTER_CONFIG_FILE": jupyter_config_file}
 
         try:
-            self.args: JupyterLabArgs = JupyterLabArgs(
+            self.args: JupyterArgs = JupyterArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
@@ -352,23 +340,23 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
                 mount_resources=mount_resources,
                 resources_dir=resources_dir,
                 resources_dir_container_path=resources_dir_container_path,
-                create_volume=create_volume,
-                volume_name=volume_name,
-                volume_type=volume_type,
-                volume_container_path=volume_container_path,
-                volume_host_path=volume_host_path,
-                ebs_volume=ebs_volume,
-                ebs_volume_region=ebs_volume_region,
-                ebs_volume_az=ebs_volume_az,
-                ebs_volume_id=ebs_volume_id,
+                create_app_volume=create_app_volume,
+                app_volume_name=app_volume_name,
+                app_volume_type=app_volume_type,
+                app_volume_container_path=app_volume_container_path,
+                app_volume_host_path=app_volume_host_path,
+                app_ebs_volume=app_ebs_volume,
+                app_ebs_volume_region=app_ebs_volume_region,
+                app_ebs_volume_az=app_ebs_volume_az,
+                app_ebs_volume_id=app_ebs_volume_id,
+                app_pv_access_modes=app_pv_access_modes,
+                app_pv_requests_storage=app_pv_requests_storage,
+                app_pv_mount_options=app_pv_mount_options,
+                app_pv_reclaim_policy=app_pv_reclaim_policy,
+                app_pv_storage_class=app_pv_storage_class,
+                app_pv_labels=app_pv_labels,
+                app_efs_volume_id=app_efs_volume_id,
                 schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
-                pv_access_modes=pv_access_modes,
-                pv_requests_storage=pv_requests_storage,
-                pv_mount_options=pv_mount_options,
-                pv_reclaim_policy=pv_reclaim_policy,
-                pv_storage_class=pv_storage_class,
-                pv_labels=pv_labels,
-                efs_volume_id=efs_volume_id,
                 container_name=container_name,
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
@@ -466,7 +454,7 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
         elif isinstance(self.args.command, list):
             container_cmd = self.args.command
         else:
-            container_cmd = []
+            container_cmd = ["jupyter", "lab"]
 
         if self.args.jupyter_config_file is not None:
             container_cmd.append(f"--config={str(self.args.jupyter_config_file)}")
@@ -481,763 +469,34 @@ class JupyterLab(AwsApp, DockerApp, K8sApp):
                         f"--notebook-dir={str(self.container_paths.workspace_root)}"
                     )
             else:
-                container_cmd.append("--notebook-dir=/")
+                container_cmd.append("--notebook-dir=/mnt/")
         else:
             container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
         return container_cmd
 
-    ######################################################
-    ## K8s Resources
-    ######################################################
-
-    def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
-        app_name = self.args.name
-        logger.debug(f"Building {app_name} K8sResourceGroup")
-
-        from phidata.constants import (
-            PYTHONPATH_ENV_VAR,
-            PHIDATA_RUNTIME_ENV_VAR,
-            SCRIPTS_DIR_ENV_VAR,
-            STORAGE_DIR_ENV_VAR,
-            META_DIR_ENV_VAR,
-            PRODUCTS_DIR_ENV_VAR,
-            NOTEBOOKS_DIR_ENV_VAR,
-            WORKFLOWS_DIR_ENV_VAR,
-            WORKSPACE_ROOT_ENV_VAR,
-            WORKSPACES_MOUNT_ENV_VAR,
-            WORKSPACE_CONFIG_DIR_ENV_VAR,
-            INIT_AIRFLOW_ENV_VAR,
-            AIRFLOW_ENV_ENV_VAR,
-            AIRFLOW_DAGS_FOLDER_ENV_VAR,
-            AIRFLOW_EXECUTOR_ENV_VAR,
-            AIRFLOW_DB_CONN_URL_ENV_VAR,
-        )
-        from phidata.k8s.create.common.port import CreatePort
-        from phidata.k8s.create.core.v1.container import CreateContainer
-        from phidata.k8s.create.core.v1.volume import (
-            CreateVolume,
-            HostPathVolumeSource,
-            AwsElasticBlockStoreVolumeSource,
-            VolumeType,
-        )
-        from phidata.k8s.create.group import (
-            CreateK8sResourceGroup,
-            CreateNamespace,
-            CreateServiceAccount,
-            CreateClusterRole,
-            CreateClusterRoleBinding,
-            CreateSecret,
-            CreateConfigMap,
-            CreateStorageClass,
-            CreateService,
-            CreateDeployment,
-            CreateCustomObject,
-            CreateCustomResourceDefinition,
-            CreatePersistentVolume,
-            CreatePVC,
-        )
-        from phidata.k8s.resource.group import K8sBuildContext
-        from phidata.types.context import ContainerPathContext
-        from phidata.utils.common import get_default_volume_name
-
-        if k8s_build_context is None or not isinstance(
-            k8s_build_context, K8sBuildContext
-        ):
-            logger.error("k8s_build_context must be a K8sBuildContext")
-            return None
-
-        # Workspace paths
-        if self.workspace_root_path is None:
-            logger.error("Invalid workspace_root_path")
-            return None
-
-        workspace_name = self.workspace_root_path.stem
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
-        if container_paths is None:
-            logger.error("Could not build container paths")
-            return None
-        logger.debug(f"Container Paths: {container_paths.json(indent=2)}")
-
-        # Init K8s resources for the CreateK8sResourceGroup
-        ns: Optional[CreateNamespace] = self.args.namespace
-        sa: Optional[CreateServiceAccount] = self.args.service_account
-        cr: Optional[CreateClusterRole] = self.args.cluster_role
-        crb: Optional[CreateClusterRoleBinding] = self.args.cluster_role_binding
-        secrets: List[CreateSecret] = self.args.extra_secrets or []
-        config_maps: List[CreateConfigMap] = self.args.extra_configmaps or []
-        services: List[CreateService] = self.args.extra_services or []
-        deployments: List[CreateDeployment] = self.args.extra_deployments or []
-        pvs: List[CreatePersistentVolume] = self.args.extra_pvs or []
-        pvcs: List[CreatePVC] = self.args.extra_pvcs or []
-        containers: List[CreateContainer] = self.args.extra_containers or []
-        init_containers: List[CreateContainer] = self.args.extra_init_containers or []
-        ports: List[CreatePort] = self.args.extra_ports or []
-        volumes: List[CreateVolume] = self.args.extra_volumes or []
-        storage_classes: List[CreateStorageClass] = (
-            self.args.extra_storage_classes or []
-        )
-        custom_objects: List[CreateCustomObject] = self.args.extra_custom_objects or []
-        crds: List[CreateCustomResourceDefinition] = self.args.extra_crds or []
-
-        # Common variables used by all resources
-        # Use the Namespace provided with the App or
-        # use the default Namespace from the k8s_build_context
-        ns_name: str = self.args.ns_name or k8s_build_context.namespace
-        sa_name: Optional[str] = (
-            self.args.sa_name or k8s_build_context.service_account_name
-        )
-        common_labels: Optional[Dict[str, str]] = k8s_build_context.labels
-
-        # -*- Use K8s RBAC
-        # If use_rbac is True, use separate RBAC for this App
-        # Create a namespace, service account, cluster role and cluster role binding
-        if self.args.use_rbac:
-            # Create Namespace for this App
-            if ns is None:
-                ns = CreateNamespace(
-                    ns=ns_name,
-                    app_name=app_name,
-                    labels=common_labels,
-                )
-            ns_name = ns.ns
-
-            # Create Service Account for this App
-            if sa is None:
-                sa = CreateServiceAccount(
-                    sa_name=sa_name or self.get_sa_name(),
-                    app_name=app_name,
-                    namespace=ns_name,
-                )
-            sa_name = sa.sa_name
-
-            # Create Cluster Role for this App
-            from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
-                PolicyRule,
-            )
-
-            if cr is None:
-                cr = CreateClusterRole(
-                    cr_name=self.args.cr_name or self.get_cr_name(),
-                    rules=[
-                        PolicyRule(
-                            api_groups=[""],
-                            resources=[
-                                "pods",
-                                "secrets",
-                                "configmaps",
-                            ],
-                            verbs=[
-                                "get",
-                                "list",
-                                "watch",
-                                "create",
-                                "update",
-                                "patch",
-                                "delete",
-                            ],
-                        ),
-                        PolicyRule(
-                            api_groups=[""],
-                            resources=[
-                                "pods/logs",
-                            ],
-                            verbs=[
-                                "get",
-                                "list",
-                            ],
-                        ),
-                        # PolicyRule(
-                        #     api_groups=[""],
-                        #     resources=[
-                        #         "pods/exec",
-                        #     ],
-                        #     verbs=[
-                        #         "get",
-                        #         "create",
-                        #     ],
-                        # ),
-                    ],
-                    app_name=app_name,
-                    labels=common_labels,
-                )
-
-            # Create ClusterRoleBinding for this App
-            if crb is None:
-                crb = CreateClusterRoleBinding(
-                    crb_name=self.args.crb_name or self.get_crb_name(),
-                    cr_name=cr.cr_name,
-                    service_account_name=sa.sa_name,
-                    app_name=app_name,
-                    namespace=ns_name,
-                    labels=common_labels,
-                )
-
-        # Container pythonpath
-        python_path = (
-            self.args.python_path
-            or f"{str(container_paths.workspace_root)}:{self.args.resources_dir_container_path}"
-        )
-
-        # Container Environment
-        container_env: Dict[str, Any] = {
-            # Env variables used by data workflows and data assets
-            PYTHONPATH_ENV_VAR: python_path,
-            PHIDATA_RUNTIME_ENV_VAR: "kubernetes",
-            SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir,
-            STORAGE_DIR_ENV_VAR: container_paths.storage_dir,
-            META_DIR_ENV_VAR: container_paths.meta_dir,
-            PRODUCTS_DIR_ENV_VAR: container_paths.products_dir,
-            NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir,
-            WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir,
-            WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root,
-            WORKSPACES_MOUNT_ENV_VAR: container_paths.workspace_parent,
-            WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir,
-            "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
-            "REQUIREMENTS_FILE_PATH": container_paths.requirements_file,
-            "MOUNT_EBS_VOLUME": str(self.args.mount_ebs_volume),
-            "MOUNT_WORKSPACE": str(self.args.mount_workspace),
-            "MOUNT_RESOURCES": str(self.args.mount_resources),
-            # Print env when the container starts
-            "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
-        }
-
-        # Set airflow env vars
-        self.set_aws_env_vars(env_dict=container_env)
-
-        # Set JUPYTER_CONFIG_FILE
-        if self.args.jupyter_config_file is not None:
-            container_env["JUPYTER_CONFIG_FILE"] = self.args.jupyter_config_file
-
-        # Init Airflow
-        if self.args.init_airflow:
-            container_env[INIT_AIRFLOW_ENV_VAR] = str(self.args.init_airflow)
-
-        # Set the AIRFLOW_ENV
-        if self.args.airflow_env is not None:
-            container_env[AIRFLOW_ENV_ENV_VAR] = self.args.airflow_env
-
-        # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if self.args.mount_workspace and self.args.use_workspace_for_airflow_dags:
-            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = container_paths.workspace_root
-
-        # Set the Airflow Executor
-        container_env[AIRFLOW_EXECUTOR_ENV_VAR] = str(self.args.airflow_executor)
-
-        # Airflow db connection
-        airflow_db_user = self.get_airflow_db_user()
-        airflow_db_password = self.get_airflow_db_password()
-        airflow_db_schema = self.get_airflow_db_schema()
-        airflow_db_host = self.get_airflow_db_host()
-        airflow_db_port = self.get_airflow_db_port()
-        airflow_db_driver = self.get_airflow_db_driver()
-        if self.args.airflow_db_app is not None and isinstance(
-            self.args.airflow_db_app, DbApp
-        ):
-            logger.debug(
-                f"Reading db connection details from: {self.args.airflow_db_app.name}"
-            )
-            if airflow_db_user is None:
-                airflow_db_user = self.args.airflow_db_app.get_db_user()
-            if airflow_db_password is None:
-                airflow_db_password = self.args.airflow_db_app.get_db_password()
-            if airflow_db_schema is None:
-                airflow_db_schema = self.args.airflow_db_app.get_db_schema()
-            if airflow_db_host is None:
-                airflow_db_host = self.args.airflow_db_app.get_db_host_docker()
-            if airflow_db_port is None:
-                airflow_db_port = str(self.args.airflow_db_app.get_db_port_docker())
-            if airflow_db_driver is None:
-                airflow_db_driver = self.args.airflow_db_app.get_db_driver()
-        airflow_db_connection_url = f"{airflow_db_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
-
-        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-        if "None" not in airflow_db_connection_url:
-            # logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
-            container_env[AIRFLOW_DB_CONN_URL_ENV_VAR] = airflow_db_connection_url
-
-        # Airflow redis connection
-        if self.args.airflow_executor == "CeleryExecutor":
-            # Airflow celery result backend
-            celery_result_backend_driver = (
-                self.args.airflow_db_result_backend_driver or airflow_db_driver
-            )
-            celery_result_backend_url = f"{celery_result_backend_driver}://{airflow_db_user}:{airflow_db_password}@{airflow_db_host}:{airflow_db_port}/{airflow_db_schema}"
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            if "None" not in celery_result_backend_url:
-                container_env[
-                    "AIRFLOW__CELERY__RESULT_BACKEND"
-                ] = celery_result_backend_url
-
-            # Airflow celery broker url
-            _airflow_redis_pass = self.get_airflow_redis_password()
-            airflow_redis_password = (
-                f"{_airflow_redis_pass}@" if _airflow_redis_pass else ""
-            )
-            airflow_redis_schema = self.get_airflow_redis_schema()
-            airflow_redis_host = self.get_airflow_redis_host()
-            airflow_redis_port = self.get_airflow_redis_port()
-            airflow_redis_driver = self.get_airflow_redis_driver()
-            if self.args.airflow_redis_app is not None and isinstance(
-                self.args.airflow_redis_app, DbApp
-            ):
-                logger.debug(
-                    f"Reading redis connection details from: {self.args.airflow_redis_app.name}"
-                )
-                if airflow_redis_password is None:
-                    airflow_redis_password = (
-                        self.args.airflow_redis_app.get_db_password()
-                    )
-                if airflow_redis_schema is None:
-                    airflow_redis_schema = (
-                        self.args.airflow_redis_app.get_db_schema() or "0"
-                    )
-                if airflow_redis_host is None:
-                    airflow_redis_host = (
-                        self.args.airflow_redis_app.get_db_host_docker()
-                    )
-                if airflow_redis_port is None:
-                    airflow_redis_port = str(
-                        self.args.airflow_redis_app.get_db_port_docker()
-                    )
-                if airflow_redis_driver is None:
-                    airflow_redis_driver = self.args.airflow_redis_app.get_db_driver()
-
-            # Set the AIRFLOW__CELERY__RESULT_BACKEND
-            celery_broker_url = f"{airflow_redis_driver}://{airflow_redis_password}{airflow_redis_host}:{airflow_redis_port}/{airflow_redis_schema}"
-            if "None" not in celery_broker_url:
-                # logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
-                container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
-
-        # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
-        if env_data_from_file is not None:
-            container_env.update(env_data_from_file)
-
-        # Update the container env with user provided env, this overwrites any existing variables
-        if self.args.env is not None and isinstance(self.args.env, dict):
-            container_env.update(self.args.env)
-
-        # Create a ConfigMap to set the container env variables which are not Secret
-        container_env_cm = CreateConfigMap(
-            cm_name=self.args.configmap_name or self.get_configmap_name(),
-            app_name=app_name,
-            namespace=ns_name,
-            data=container_env,
-            labels=common_labels,
-        )
-        config_maps.append(container_env_cm)
-
-        # Create a Secret to set the container env variables which are Secret
-        _secret_data = self.get_secret_data()
-        if _secret_data is not None:
-            container_env_secret = CreateSecret(
-                secret_name=self.args.secret_name or self.get_secret_name(),
-                app_name=app_name,
-                string_data=_secret_data,
-                namespace=ns_name,
-                labels=common_labels,
-            )
-            secrets.append(container_env_secret)
-
-        # Container Volumes
-        # Add NodeSelectors to Pods in case we create az sensitive volumes
-        pod_node_selector: Optional[Dict[str, str]] = self.args.pod_node_selector
-        if self.args.create_volume:
-            volume_name = self.args.volume_name
-            if volume_name is None:
-                if workspace_name is not None:
-                    volume_name = get_default_volume_name(
-                        f"{app_name}-{workspace_name}"
-                    )
-                else:
-                    volume_name = get_default_volume_name(app_name)
-
-            if self.args.volume_type == JupyterVolumeType.AwsEbs:
-                if (
-                    self.args.ebs_volume_id is not None
-                    or self.args.ebs_volume is not None
-                ):
-                    # To use an EbsVolume as the volume_type we:
-                    # 1. Need the volume_id
-                    # 2. Need to make sure pods are scheduled in the
-                    #       same region/az as the volume
-
-                    # For the volume_id we can either:
-                    # 1. Use self.args.ebs_volume_id
-                    # 2. Derive it from the self.args.ebs_volume
-                    ebs_volume_id = self.args.ebs_volume_id
-
-                    # For the aws_region/az:
-                    # 1. Use self.args.ebs_volume_region
-                    # 2. Derive it from self.args.ebs_volume
-                    # 3. Derive it from the PhidataAppArgs
-                    ebs_volume_region = self.args.ebs_volume_region
-                    ebs_volume_az = self.args.ebs_volume_az
-
-                    # Derive the aws_region from self.args.ebs_volume if needed
-                    if ebs_volume_region is None and self.args.ebs_volume is not None:
-                        # Note: this will use the `$AWS_REGION` env var if set
-                        _aws_region_from_ebs_volume = (
-                            self.args.ebs_volume.get_aws_region()
-                        )
-                        if _aws_region_from_ebs_volume is not None:
-                            ebs_volume_region = _aws_region_from_ebs_volume
-
-                    # Derive the aws_region from the PhidataAppArgs if needed
-                    if ebs_volume_region is None:
-                        ebs_volume_region = self.aws_region
-
-                    # Derive the availability_zone from self.args.ebs_volume if needed
-                    if ebs_volume_az is None and self.args.ebs_volume is not None:
-                        ebs_volume_az = self.args.ebs_volume.availability_zone
-
-                    logger.debug(f"ebs_volume_region: {ebs_volume_region}")
-                    logger.debug(f"ebs_volume_az: {ebs_volume_az}")
-
-                    # Derive ebs_volume_id from self.args.ebs_volume if needed
-                    if ebs_volume_id is None and self.args.ebs_volume is not None:
-                        ebs_volume_id = self.args.ebs_volume.get_volume_id(
-                            aws_region=ebs_volume_region,
-                            aws_profile=self.aws_profile,
-                        )
-
-                    logger.debug(f"ebs_volume_id: {ebs_volume_id}")
-                    if ebs_volume_id is None:
-                        logger.error("Could not find volume_id for EbsVolume")
-                        return None
-
-                    ebs_volume = CreateVolume(
-                        volume_name=volume_name,
-                        app_name=app_name,
-                        mount_path=self.args.volume_container_path,
-                        volume_type=VolumeType.AWS_EBS,
-                        aws_ebs=AwsElasticBlockStoreVolumeSource(
-                            volume_id=ebs_volume_id,
-                        ),
-                    )
-                    volumes.append(ebs_volume)
-
-                    # VERY IMPORTANT: pods should be scheduled in the same region/az as the volume
-                    # To do this, we add NodeSelectors to Pods
-                    if self.args.schedule_pods_in_ebs_topology:
-                        if pod_node_selector is None:
-                            pod_node_selector = {}
-
-                        # Add NodeSelectors to Pods, so they are scheduled in the same
-                        # region and zone as the ebs_volume
-                        # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
-                        if ebs_volume_region is not None:
-                            pod_node_selector[
-                                "topology.kubernetes.io/region"
-                            ] = ebs_volume_region
-
-                        if ebs_volume_az is not None:
-                            pod_node_selector[
-                                "topology.kubernetes.io/zone"
-                            ] = ebs_volume_az
-                else:
-                    logger.error("JupyterLab: ebs_volume not provided")
-                    return None
-
-            elif self.args.volume_type == JupyterVolumeType.EmptyDir:
-                empty_dir_volume = CreateVolume(
-                    volume_name=volume_name,
-                    app_name=app_name,
-                    mount_path=self.args.volume_container_path,
-                    volume_type=VolumeType.EMPTY_DIR,
-                )
-                volumes.append(empty_dir_volume)
-
-            elif self.args.volume_type == JupyterVolumeType.HostPath:
-                if self.args.volume_host_path is not None:
-                    volume_host_path_str = str(self.args.volume_host_path)
-                    host_path_volume = CreateVolume(
-                        volume_name=volume_name,
-                        app_name=app_name,
-                        mount_path=self.args.volume_container_path,
-                        volume_type=VolumeType.HOST_PATH,
-                        host_path=HostPathVolumeSource(
-                            path=volume_host_path_str,
-                        ),
-                    )
-                    volumes.append(host_path_volume)
-                else:
-                    logger.error("PostgresDb: volume_host_path not provided")
-                    return None
-
-        if self.args.mount_workspace:
-            workspace_volume_name = self.args.workspace_volume_name
-            if workspace_volume_name is None:
-                if workspace_name is not None:
-                    workspace_volume_name = get_default_volume_name(
-                        f"jupyter-{workspace_name}-ws"
-                    )
-                else:
-                    workspace_volume_name = get_default_volume_name("jupyter-ws")
-
-            # Mount workspace volume as EmptyDir then use git-sync to sync the workspace from github
-            if (
-                self.args.workspace_volume_type is None
-                or self.args.workspace_volume_type == WorkspaceVolumeType.EmptyDir
-            ):
-                workspace_parent_container_path_str = container_paths.workspace_parent
-                logger.debug(f"Creating EmptyDir")
-                logger.debug(f"\tat: {workspace_parent_container_path_str}")
-                workspace_volume = CreateVolume(
-                    volume_name=workspace_volume_name,
-                    app_name=app_name,
-                    mount_path=workspace_parent_container_path_str,
-                    volume_type=VolumeType.EMPTY_DIR,
-                )
-                volumes.append(workspace_volume)
-
-                if self.args.create_git_sync_sidecar:
-                    if self.args.git_sync_repo is not None:
-                        git_sync_env = {
-                            "GIT_SYNC_REPO": self.args.git_sync_repo,
-                            "GIT_SYNC_ROOT": workspace_parent_container_path_str,
-                            "GIT_SYNC_DEST": workspace_name,
-                        }
-                        if self.args.git_sync_branch is not None:
-                            git_sync_env["GIT_SYNC_BRANCH"] = self.args.git_sync_branch
-                        if self.args.git_sync_wait is not None:
-                            git_sync_env["GIT_SYNC_WAIT"] = str(self.args.git_sync_wait)
-                        git_sync_container = CreateContainer(
-                            container_name="git-sync",
-                            app_name=app_name,
-                            image_name=self.args.git_sync_image_name,
-                            image_tag=self.args.git_sync_image_tag,
-                            env=git_sync_env,
-                            envs_from_configmap=[cm.cm_name for cm in config_maps]
-                            if len(config_maps) > 0
-                            else None,
-                            envs_from_secret=[secret.secret_name for secret in secrets]
-                            if len(secrets) > 0
-                            else None,
-                            volumes=[workspace_volume],
-                        )
-                        containers.append(git_sync_container)
-
-                        if self.args.create_git_sync_init_container:
-                            git_sync_init_env: Dict[str, Any] = {
-                                "GIT_SYNC_ONE_TIME": True
-                            }
-                            git_sync_init_env.update(git_sync_env)
-                            _git_sync_init_container = CreateContainer(
-                                container_name="git-sync-init",
-                                app_name=git_sync_container.app_name,
-                                image_name=git_sync_container.image_name,
-                                image_tag=git_sync_container.image_tag,
-                                env=git_sync_init_env,
-                                envs_from_configmap=git_sync_container.envs_from_configmap,
-                                envs_from_secret=git_sync_container.envs_from_secret,
-                                volumes=git_sync_container.volumes,
-                            )
-                            init_containers.append(_git_sync_init_container)
-                    else:
-                        logger.error("GIT_SYNC_REPO invalid")
-
-            elif self.args.workspace_volume_type == WorkspaceVolumeType.HostPath:
-                workspace_root_path_str = str(self.workspace_root_path)
-                workspace_root_container_path_str = container_paths.workspace_root
-                logger.debug(f"Mounting: {workspace_root_path_str}")
-                logger.debug(f"\tto: {workspace_root_container_path_str}")
-                workspace_volume = CreateVolume(
-                    volume_name=workspace_volume_name,
-                    app_name=app_name,
-                    mount_path=workspace_root_container_path_str,
-                    volume_type=VolumeType.HOST_PATH,
-                    host_path=HostPathVolumeSource(
-                        path=workspace_root_path_str,
-                    ),
-                )
-                volumes.append(workspace_volume)
-
-        # Create the ports to open
-        if self.args.open_container_port:
-            container_port = CreatePort(
-                name=self.args.container_port_name,
-                container_port=self.args.container_port,
-                service_port=self.args.service_port,
-                target_port=self.args.service_target_port
-                or self.args.container_port_name,
-            )
-            ports.append(container_port)
-
-        # if open_app_port = True
-        if self.args.open_app_port:
-            app_port = CreatePort(
-                name=self.args.app_port_name,
-                container_port=self.args.app_port,
-                service_port=self.get_app_service_port(),
-                node_port=self.args.app_node_port,
-                target_port=self.args.app_target_port or self.args.app_port_name,
-            )
-            ports.append(app_port)
-
-        container_labels: Dict[str, Any] = common_labels or {}
-        if self.args.container_labels is not None and isinstance(
-            self.args.container_labels, dict
-        ):
-            container_labels.update(self.args.container_labels)
-
-        # Equivalent to docker images CMD
+    def get_container_args_k8s(self) -> Optional[List[str]]:
         container_args: List[str]
         if isinstance(self.args.command, str):
             container_args = self.args.command.split(" ")
-        else:
+        elif isinstance(self.args.command, list):
             container_args = self.args.command
+        else:
+            container_args = ["jupyter", "lab"]
 
         if self.args.jupyter_config_file is not None:
             container_args.append(f"--config={str(self.args.jupyter_config_file)}")
 
         if self.args.notebook_dir is None:
-            container_args.append("--notebook-dir=/mnt")
+            if self.args.mount_workspace:
+                if (
+                    self.container_paths is not None
+                    and self.container_paths.workspace_root is not None
+                ):
+                    container_args.append(
+                        f"--notebook-dir={str(self.container_paths.workspace_root)}"
+                    )
+            else:
+                container_args.append("--notebook-dir=/mnt/")
         else:
             container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
-
-        # container_args.append("--ip=0.0.0.0")
-
-        # Create the JupyterLab container
-        jupyterlab_container = CreateContainer(
-            container_name=self.get_container_name(),
-            app_name=app_name,
-            image_name=self.args.image_name,
-            image_tag=self.args.image_tag,
-            # Equivalent to docker images CMD
-            args=container_args,
-            # Equivalent to docker images ENTRYPOINT
-            command=[self.args.entrypoint]
-            if isinstance(self.args.entrypoint, str)
-            else self.args.entrypoint,
-            image_pull_policy=self.args.image_pull_policy
-            or ImagePullPolicy.IF_NOT_PRESENT,
-            envs_from_configmap=[cm.cm_name for cm in config_maps]
-            if len(config_maps) > 0
-            else None,
-            envs_from_secret=[secret.secret_name for secret in secrets]
-            if len(secrets) > 0
-            else None,
-            ports=ports if len(ports) > 0 else None,
-            volumes=volumes if len(volumes) > 0 else None,
-            labels=container_labels,
-        )
-        containers.insert(0, jupyterlab_container)
-
-        # Set default container for kubectl commands
-        # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
-        pod_annotations = {
-            "kubectl.kubernetes.io/default-container": jupyterlab_container.container_name
-        }
-        if self.args.pod_annotations is not None and isinstance(
-            self.args.pod_annotations, dict
-        ):
-            pod_annotations.update(self.args.pod_annotations)
-
-        deploy_labels: Dict[str, Any] = common_labels or {}
-        if self.args.deploy_labels is not None and isinstance(
-            self.args.deploy_labels, dict
-        ):
-            deploy_labels.update(self.args.deploy_labels)
-
-        # If using EbsVolume, restart the deployment on update
-        recreate_deployment_on_update = (
-            True
-            if (
-                self.args.create_volume
-                and self.args.volume_type == JupyterVolumeType.AwsEbs
-            )
-            else False
-        )
-
-        # Create the deployment
-        jupyterlab_deployment = CreateDeployment(
-            deploy_name=self.get_deploy_name(),
-            pod_name=self.get_pod_name(),
-            app_name=app_name,
-            namespace=ns_name,
-            service_account_name=sa_name,
-            replicas=self.args.replicas,
-            containers=containers,
-            init_containers=init_containers if len(init_containers) > 0 else None,
-            pod_node_selector=pod_node_selector,
-            restart_policy=self.args.deploy_restart_policy or RestartPolicy.ALWAYS,
-            termination_grace_period_seconds=self.args.termination_grace_period_seconds,
-            volumes=volumes if len(volumes) > 0 else None,
-            labels=deploy_labels,
-            pod_annotations=pod_annotations,
-            topology_spread_key=self.args.topology_spread_key,
-            topology_spread_max_skew=self.args.topology_spread_max_skew,
-            topology_spread_when_unsatisfiable=self.args.topology_spread_when_unsatisfiable,
-            recreate_on_update=recreate_deployment_on_update,
-        )
-        deployments.append(jupyterlab_deployment)
-
-        # Create the services
-        if self.args.create_service:
-            service_labels: Dict[str, Any] = common_labels or {}
-            if self.args.service_labels is not None and isinstance(
-                self.args.service_labels, dict
-            ):
-                service_labels.update(self.args.service_labels)
-
-            _service = CreateService(
-                service_name=self.get_service_name(),
-                app_name=app_name,
-                namespace=ns_name,
-                service_account_name=sa_name,
-                service_type=self.args.service_type,
-                deployment=jupyterlab_deployment,
-                ports=ports if len(ports) > 0 else None,
-                labels=service_labels,
-            )
-            services.append(_service)
-
-        if self.args.create_app_service:
-            app_svc_labels: Dict[str, Any] = common_labels or {}
-            if self.args.app_svc_labels is not None and isinstance(
-                self.args.app_svc_labels, dict
-            ):
-                app_svc_labels.update(self.args.app_svc_labels)
-
-            app_service = CreateService(
-                service_name=self.get_app_service_name(),
-                app_name=app_name,
-                namespace=ns_name,
-                service_account_name=sa_name,
-                service_type=self.args.app_svc_type,
-                deployment=jupyterlab_deployment,
-                ports=ports if len(ports) > 0 else None,
-                labels=app_svc_labels,
-            )
-            services.append(app_service)
-
-        # Create the K8sResourceGroup
-        k8s_resource_group = CreateK8sResourceGroup(
-            name=app_name,
-            enabled=self.args.enabled,
-            ns=ns,
-            sa=sa,
-            cr=cr,
-            crb=crb,
-            secrets=secrets if len(secrets) > 0 else None,
-            config_maps=config_maps if len(config_maps) > 0 else None,
-            storage_classes=storage_classes if len(storage_classes) > 0 else None,
-            services=services if len(services) > 0 else None,
-            deployments=deployments if len(deployments) > 0 else None,
-            custom_objects=custom_objects if len(custom_objects) > 0 else None,
-            crds=crds if len(crds) > 0 else None,
-            pvs=pvs if len(pvs) > 0 else None,
-            pvcs=pvcs if len(pvcs) > 0 else None,
-        )
-
-        return k8s_resource_group.create()
-
-    def init_k8s_resource_groups(self, k8s_build_context: Any) -> None:
-        k8s_rg = self.get_k8s_rg(k8s_build_context)
-        if k8s_rg is not None:
-            from collections import OrderedDict
-
-            if self.k8s_resource_groups is None:
-                self.k8s_resource_groups = OrderedDict()
-            self.k8s_resource_groups[k8s_rg.name] = k8s_rg
+        return container_args

@@ -1,3 +1,4 @@
+from phidata.app.jupyter.jupyter import Jupyter, JupyterArgs
 from phidata.app.jupyter.jupyter_lab import (
     JupyterLab,
     JupyterLabArgs,

@@ -3,8 +3,24 @@ from typing import Optional, Dict, Any, Union, List
 
 from phidata.base import PhidataBase, PhidataBaseArgs
 from phidata.types.context import ContainerPathContext
-from phidata.workspace.volume import WorkspaceVolumeType
+from phidata.utils.enums import ExtendedEnum
 from phidata.utils.log import logger
+
+
+class WorkspaceVolumeType(ExtendedEnum):
+    HostPath = "HostPath"
+    EmptyDir = "EmptyDir"
+    AwsEbs = "AwsEbs"
+    AwsEfs = "AwsEfs"
+    PersistentVolume = "PersistentVolume"
+
+
+class AppVolumeType(ExtendedEnum):
+    HostPath = "HostPath"
+    EmptyDir = "EmptyDir"
+    AwsEbs = "AwsEbs"
+    AwsEfs = "AwsEfs"
+    PersistentVolume = "PersistentVolume"
 
 
 class BaseAppArgs(PhidataBaseArgs):
@@ -71,20 +87,91 @@ class BaseAppArgs(PhidataBaseArgs):
     # Host port to map to the container port
     container_host_port: int = 80
 
-    # -*- Container Volumes
+    # -*- Workspace Volume
     # Mount the workspace directory on the container
     mount_workspace: bool = False
     workspace_volume_name: Optional[str] = None
     workspace_volume_type: Optional[WorkspaceVolumeType] = None
-    # If workspace_volume_type=WorkspaceVolumeType.HostPath
+    # Path to mount the workspace volume inside the container
+    workspace_dir_container_path: str = "/mnt/workspaces"
+    # Add the workspace name to the container path
+    add_workspace_name_to_container_path: bool = True
+    # -*- If workspace_volume_type=WorkspaceVolumeType.HostPath
     # Mount workspace_dir to workspace_dir_container_path
     # If None, use the workspace_root
     workspace_dir: Optional[str] = None
-    # Path to mount the workspace volume inside the container
-    workspace_dir_container_path: str = "/mnt/workspaces"
-    add_workspace_name_to_container_path: bool = True
+    # -*- If workspace_volume_type=WorkspaceVolumeType.EmptyDir
+    # Then we can load the workspace from git using a git-sync sidecar
+    create_git_sync_sidecar: bool = False
+    # Required to create an initial copy of the workspace
+    create_git_sync_init_container: bool = True
+    git_sync_image_name: str = "k8s.gcr.io/git-sync"
+    git_sync_image_tag: str = "v3.1.1"
+    git_sync_repo: Optional[str] = None
+    git_sync_branch: Optional[str] = None
+    git_sync_wait: int = 1
+    # -*- If workspace_volume_type=WorkspaceVolumeType.AwsEbs
+    # EbsVolume: used to derive the volume_id, region, and az
+    ebs_volume: Optional[Any] = None
+    ebs_volume_region: Optional[str] = None
+    ebs_volume_az: Optional[str] = None
+    # Provide Ebs Volume-id manually
+    ebs_volume_id: Optional[str] = None
+    # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
+    # -*- If workspace_volume_type=WorkspaceVolumeType.PersistentVolume
+    # AccessModes is a list of ways the volume can be mounted.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
+    # Type: phidata.infra.k8s.enums.pv.PVAccessMode
+    pv_access_modes: Optional[List[Any]] = None
+    pv_requests_storage: Optional[str] = None
+    # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options
+    pv_mount_options: Optional[List[str]] = None
+    # What happens to a persistent volume when released from its claim.
+    #   The default policy is Retain.
+    # Literal["Delete", "Recycle", "Retain"]
+    pv_reclaim_policy: Optional[str] = None
+    pv_storage_class: str = ""
+    pv_labels: Optional[Dict[str, str]] = None
+    # -*- If workspace_volume_type=WorkspaceVolumeType.AwsEfs
+    efs_volume_id: Optional[str] = None
 
-    # -*- AWS Parameters provided by the AWSConfig
+    # -*- App Volume
+    # Create a volume for mounting app data like notebooks, models, etc.
+    create_app_volume: bool = False
+    app_volume_name: Optional[str] = None
+    app_volume_type: AppVolumeType = AppVolumeType.EmptyDir
+    # Path to mount the app volume inside the container
+    app_volume_container_path: str = "/mnt/app"
+    # -*- If volume_type=AppVolumeType.HostPath
+    app_volume_host_path: Optional[str] = None
+    # -*- If volume_type=AppVolumeType.AwsEbs
+    # EbsVolume: used to derive the volume_id, region, and az
+    app_ebs_volume: Optional[Any] = None
+    app_ebs_volume_region: Optional[str] = None
+    app_ebs_volume_az: Optional[str] = None
+    # Provide Ebs Volume-id manually
+    app_ebs_volume_id: Optional[str] = None
+    # -*- If volume_type=AppVolumeType.PersistentVolume
+    # AccessModes is a list of ways the volume can be mounted.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
+    # Type: phidata.infra.k8s.enums.pv.PVAccessMode
+    app_pv_access_modes: Optional[List[Any]] = None
+    app_pv_requests_storage: Optional[str] = None
+    # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.
+    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options
+    app_pv_mount_options: Optional[List[str]] = None
+    # What happens to a persistent volume when released from its claim.
+    #   The default policy is Retain.
+    # Literal["Delete", "Recycle", "Retain"]
+    app_pv_reclaim_policy: Optional[str] = None
+    app_pv_storage_class: str = ""
+    app_pv_labels: Optional[Dict[str, str]] = None
+    # -*- If volume_type=AppVolumeType.AwsEfs
+    app_efs_volume_id: Optional[str] = None
+
+    # -*- AWS Configuration
     aws_region: Optional[str] = None
     aws_profile: Optional[str] = None
     aws_config_file: Optional[str] = None
@@ -116,7 +203,7 @@ class BaseApp(PhidataBase):
         self.secret_data: Optional[Dict[str, Any]] = None
 
         # Env variables used by the app
-        self.app_env: Optional[Dict[str, str]] = None
+        self.container_env: Optional[Dict[str, str]] = None
         # Container paths used by the app
         self.container_paths: Optional[ContainerPathContext] = None
 
@@ -305,6 +392,7 @@ class BaseApp(PhidataBase):
             return self.container_paths
 
         if self.workspace_root_path is None:
+            logger.error("Invalid workspace_root_path")
             return None
 
         workspace_name = self.workspace_root_path.stem
@@ -323,6 +411,7 @@ class BaseApp(PhidataBase):
         container_paths = ContainerPathContext(
             workspace_name=workspace_name,
             workspace_root=workspace_root_container_path,
+            # Required for git-sync and K8s volume mounts
             workspace_parent=workspace_volume_container_path,
         )
 

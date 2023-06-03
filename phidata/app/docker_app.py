@@ -1,14 +1,13 @@
 from typing import Optional, Dict, Any, Union, List
 from collections import OrderedDict
 
-from phidata.app.base_app import BaseApp, BaseAppArgs
+from phidata.app.base_app import BaseApp, BaseAppArgs, WorkspaceVolumeType
 from phidata.types.context import ContainerPathContext
-from phidata.workspace.volume import WorkspaceVolumeType
 from phidata.utils.log import logger
 
 
 class DockerAppArgs(BaseAppArgs):
-    # -*- Container Volumes
+    # -*- Resources Volume
     # Mount a resources directory on the container
     mount_resources: bool = False
     # Resources directory relative to the workspace_root
@@ -129,7 +128,7 @@ class DockerApp(BaseApp):
         from phidata.utils.common import is_empty
 
         # Container Environment
-        container_env: Dict[str, str] = self.app_env or {}
+        container_env: Dict[str, str] = self.container_env or {}
         container_env.update(
             {
                 PHIDATA_RUNTIME_ENV_VAR: "docker",
@@ -294,15 +293,15 @@ class DockerApp(BaseApp):
             DockerResourceGroup,
             DockerBuildContext,
         )
-        from phidata.types.context import ContainerPathContext
 
-        app_name = self.args.name
+        # -*- Build Container Paths
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        if container_paths is None:
+            raise Exception("Could not build Container Paths")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
 
-        if self.workspace_root_path is None:
-            logger.error("Invalid workspace_root_path")
-            return None
-        workspace_name = self.workspace_root_path.stem
-
+        app_name = self.name
+        workspace_name = container_paths.workspace_name
         logger.debug(f"Building DockerResourceGroup: {app_name} for {workspace_name}")
 
         if docker_build_context is None or not isinstance(
@@ -311,25 +310,20 @@ class DockerApp(BaseApp):
             logger.error("docker_build_context must be a DockerBuildContext")
             return None
 
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
-        if container_paths is None:
-            raise Exception("Invalid ContainerPathContext")
-        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
-
-        # Get Container Environment
+        # -*- Build Container Environment
         container_env: Dict[str, str] = self.get_container_env_docker(
             container_paths=container_paths
         )
 
-        # Get Container Volumes
+        # -*- Build Container Volumes
         container_volumes = self.get_container_volumes_docker(
             container_paths=container_paths
         )
 
-        # Get Container Ports
+        # -*- Build Container Ports
         container_ports: Dict[str, int] = self.get_container_ports_docker()
 
-        # Get Container Command
+        # -*- Build Container Command
         container_cmd: Optional[List[str]] = self.get_container_command_docker()
 
         # Create DockerContainer

@@ -171,9 +171,9 @@ class DockerImage(DockerResource):
                             progress.pop(0)
 
                     if "ERROR" in stream or "error" in stream:
-                        logger.debug(build_log)
+                        print(stream)
+                        live_log.stop()
                         print_error(f"Image build failed: {self.get_name_tag()}")
-                        print_error(stream)
                         return None
                     if build_log.get("aux", None) is not None:
                         logger.debug("build_log['aux'] :{}".format(build_log["aux"]))
@@ -267,8 +267,6 @@ class DockerImage(DockerResource):
                 self.active_resource = image_object
                 self.active_resource_class = Image
                 return True
-            else:
-                logger.error("Image {} could not be built".format(self.tag))
         except Exception as e:
             logger.exception(e)
             logger.error("Error while creating image: {}".format(e))

@@ -34,12 +34,12 @@ class PhidataBase:
 
     @property
     def name(self) -> str:
-        return self.args.name if self.args.name else self.__class__.__name__
+        return self.args.name or self.__class__.__name__
 
     @property
     def version(self) -> Optional[str]:
-        return self.args.version if self.args else None
+        return self.args.version
 
     @property
     def enabled(self) -> bool:
-        return self.args.enabled if self.args else False
+        return self.args.enabled

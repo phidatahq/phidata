@@ -325,14 +325,14 @@ class K8sApp(BaseApp):
         env_data_from_file = self.get_env_data()
         if env_data_from_file is not None:
             container_env.update(
-                {k: str(v) for k, v in env_data_from_file.items() if not is_empty(v)}
+                {k: str(v) for k, v in env_data_from_file.items() if v is not None}
             )
 
         # Update the container env with user provided env
         # this overwrites any existing variables with the same key
         if self.args.env is not None and isinstance(self.args.env, dict):
             container_env.update(
-                {k: str(v) for k, v in self.args.env.items() if not is_empty(v)}
+                {k: str(v) for k, v in self.args.env.items() if v is not None}
             )
 
         return container_env
@@ -405,7 +405,7 @@ class K8sApp(BaseApp):
         container_paths: Optional[ContainerPathContext] = self.get_container_paths()
         if container_paths is None:
             raise Exception("Could not build Container Paths")
-        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+        # logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
 
         app_name = self.name
         workspace_name = container_paths.workspace_name
@@ -753,6 +753,7 @@ class K8sApp(BaseApp):
 
         # -*- Build Container Args: Equivalent to docker CMD
         container_args: Optional[List[str]] = self.get_container_args_k8s()
+        logger.debug(f"Command: {container_args}")
 
         # -*- Create the Container
         container = CreateContainer(

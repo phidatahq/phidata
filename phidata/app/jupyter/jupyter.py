@@ -21,7 +21,7 @@ class JupyterArgs(AwsAppArgs, DockerAppArgs, K8sAppArgs):
     # This value is appended to the command using `--config`,
     jupyter_config_file: Optional[str] = None
     # Absolute path to the notebook directory,
-    # Defaults to the workspace_root if mount_workspace = True else "/mnt",
+    # Defaults to the workspace_root if mount_workspace = True else "/",
     notebook_dir: Optional[str] = None
 
 
@@ -461,15 +461,13 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
 
         if self.args.notebook_dir is None:
             if self.args.mount_workspace:
-                if (
-                    self.container_paths is not None
-                    and self.container_paths.workspace_root is not None
-                ):
+                container_paths = self.get_container_paths()
+                if container_paths is not None and container_paths.workspace_root is not None:
                     container_cmd.append(
-                        f"--notebook-dir={str(self.container_paths.workspace_root)}"
+                        f"--notebook-dir={str(container_paths.workspace_root)}"
                     )
             else:
-                container_cmd.append("--notebook-dir=/mnt/")
+                container_cmd.append("--notebook-dir=/")
         else:
             container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
         return container_cmd
@@ -496,7 +494,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
                         f"--notebook-dir={str(self.container_paths.workspace_root)}"
                     )
             else:
-                container_args.append("--notebook-dir=/mnt/")
+                container_args.append("--notebook-dir=/")
         else:
             container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
         return container_args

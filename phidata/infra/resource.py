@@ -213,8 +213,11 @@ class InfraResource(BaseModel):
 
     def get_resource_file_path(self) -> Optional[Path]:
         if self.resource_file is None:
-            logger.info(self.get_workspace_config_dir())
-            logger.info(self.name)
+            workspace_config_dir = self.get_workspace_config_dir()
+            if workspace_config_dir is not None:
+                if self.name is not None and self.resource_type is not None:
+                    file_name = f"{self.name}.yaml"
+                    return workspace_config_dir.joinpath(self.resource_type, file_name)
         if isinstance(self.resource_file, str):
             return Path(self.resource_file)
         elif isinstance(self.resource_file, Path):
@@ -225,11 +228,13 @@ class InfraResource(BaseModel):
         resource_file_path: Optional[Path] = self.get_resource_file_path()
         if resource_file_path is not None:
             try:
+                from phidata.utils.yaml_io import write_yaml_file
+
                 if not resource_file_path.exists():
                     resource_file_path.parent.mkdir(parents=True, exist_ok=True)
                     resource_file_path.touch(exist_ok=True)
-                resource_file_path.write_text(self.json(indent=2))
-                logger.debug(f"Resource stored at: {str(resource_file_path)}")
+                write_yaml_file(resource_file_path, self.active_resource)
+                logger.debug(f"Resource saved to: {str(resource_file_path)}")
                 return True
             except Exception as e:
                 logger.error(f"Could not write resource to file {e}")
@@ -238,14 +243,13 @@ class InfraResource(BaseModel):
     def get_resource_from_file(self) -> Optional[Dict[str, Any]]:
         resource_file_path: Optional[Path] = self.get_resource_file_path()
         if resource_file_path is not None:
-            import json
-
             try:
+                from phidata.utils.yaml_io import read_yaml_file
+
                 if resource_file_path.exists() and resource_file_path.is_file():
-                    logger.debug(f"Reading {resource_file_path}")
-                    data_from_file = resource_file_path.read_text()
-                    if data_from_file is not None and isinstance(data_from_file, str):
-                        return json.loads(data_from_file)
+                    data_from_file = read_yaml_file(resource_file_path)
+                    if data_from_file is not None and isinstance(data_from_file, dict):
+                        return data_from_file
                     else:
                         logger.error(f"Invalid file: {resource_file_path}")
             except Exception as e:

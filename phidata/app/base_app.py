@@ -376,7 +376,7 @@ class BaseApp(PhidataBase):
 
     def get_env_data(self) -> Optional[Dict[str, str]]:
         if self.env_data is None:
-            from phidata.utils.read_yaml import read_yaml_file
+            from phidata.utils.yaml_io import read_yaml_file
 
             self.env_data = read_yaml_file(file_path=self.args.env_file)
         return self.env_data
@@ -384,7 +384,7 @@ class BaseApp(PhidataBase):
     def get_secret_data(self) -> Optional[Dict[str, str]]:
         if self.secret_data is None:
             # Read from secrets_file
-            from phidata.utils.read_yaml import read_yaml_file
+            from phidata.utils.yaml_io import read_yaml_file
 
             self.secret_data = read_yaml_file(file_path=self.args.secrets_file)
 

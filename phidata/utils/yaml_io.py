@@ -15,3 +15,11 @@ def read_yaml_file(file_path: Optional[Path]) -> Optional[Dict[str, Any]]:
         else:
             logger.error(f"Invalid file: {file_path}")
     return None
+
+
+def write_yaml_file(file_path: Optional[Path], data: Optional[Dict[str, Any]]) -> None:
+    if file_path is not None and data is not None:
+        import yaml
+
+        logger.debug(f"Writing {file_path}")
+        file_path.write_text(yaml.dump(data))

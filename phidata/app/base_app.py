@@ -383,9 +383,32 @@ class BaseApp(PhidataBase):
 
     def get_secret_data(self) -> Optional[Dict[str, str]]:
         if self.secret_data is None:
+            # Read from secrets_file
             from phidata.utils.read_yaml import read_yaml_file
 
             self.secret_data = read_yaml_file(file_path=self.args.secrets_file)
+
+            # Read from aws_secrets
+            if self.args.aws_secrets is not None:
+                from phidata.aws.resource.secret.manager import SecretsManager
+
+                aws_secrets: Dict[str, Any] = {}
+                if isinstance(self.args.aws_secrets, SecretsManager):
+                    _secret_dict = self.args.aws_secrets.get_secret_dict()
+                    if _secret_dict is not None and isinstance(_secret_dict, dict):
+                        aws_secrets.update(_secret_dict)
+                elif isinstance(self.args.aws_secrets, list):
+                    for _aws_secret in self.args.aws_secrets:
+                        if isinstance(_aws_secret, SecretsManager):
+                            _secret_dict = _aws_secret.get_secret_dict()
+                            if _secret_dict is not None and isinstance(_secret_dict, dict):
+                                aws_secrets.update(_secret_dict)
+
+                if len(aws_secrets) > 0:
+                    if self.secret_data is None:
+                        self.secret_data = aws_secrets
+                    else:
+                        self.secret_data.update(aws_secrets)
         return self.secret_data
 
     def get_container_paths(self) -> Optional[ContainerPathContext]:

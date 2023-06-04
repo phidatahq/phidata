@@ -72,6 +72,8 @@ class DbInstance(AwsResource):
     master_user_password: Optional[str] = None
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secrets
+    aws_secrets: Optional[Any] = None
 
     # A list of DB security groups to associate with this DB instance.
     # This setting applies to the legacy EC2-Classic platform, which no longer creates new DB instances.
@@ -175,7 +177,31 @@ class DbInstance(AwsResource):
             return self.cached_secret_data
 
         if self.secrets_file is not None:
+            # Read from secrets_file
             self.cached_secret_data = self.read_yaml_file(self.secrets_file)
+
+            # Read from aws_secrets
+            if self.aws_secrets is not None:
+                from phidata.aws.resource.secret.manager import SecretsManager
+
+                aws_secrets: Dict[str, Any] = {}
+                if isinstance(self.aws_secrets, SecretsManager):
+                    _secret_dict = self.aws_secrets.get_secret_dict()
+                    if _secret_dict is not None and isinstance(_secret_dict, dict):
+                        aws_secrets.update(_secret_dict)
+                elif isinstance(self.aws_secrets, list):
+                    for _aws_secret in self.aws_secrets:
+                        if isinstance(_aws_secret, SecretsManager):
+                            _secret_dict = _aws_secret.get_secret_dict()
+                            if _secret_dict is not None and isinstance(_secret_dict, dict):
+                                aws_secrets.update(_secret_dict)
+
+                if len(aws_secrets) > 0:
+                    if self.cached_secret_data is None:
+                        self.cached_secret_data = aws_secrets
+                    else:
+                        self.cached_secret_data.update(aws_secrets)
+        # logger.debug(f"DB Secrets: {self.cached_secret_data}")
         return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:

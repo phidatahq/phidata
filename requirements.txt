@@ -5,8 +5,8 @@
 #    ./scripts/upgrade.sh
 #
 anyio==3.7.0
-boto3==1.26.146
-botocore==1.29.146
+boto3==1.26.76
+botocore==1.29.76
 cachetools==5.3.1
 certifi==2023.5.7
 charset-normalizer==3.1.0

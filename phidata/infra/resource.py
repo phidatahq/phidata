@@ -205,7 +205,7 @@ class InfraResource(BaseModel):
                 logger.error(f"Invalid file: {file_path}")
         return None
 
-    def save_resource_file(self) -> bool:
+    def save_resource_to_file(self) -> bool:
         if self.resource_file is not None:
             resource_file_path: Optional[Path] = None
             if isinstance(self.resource_file, str):

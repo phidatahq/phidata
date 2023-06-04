@@ -121,7 +121,7 @@ class SecretsManager(AwsResource):
             if self.secret_arn is not None:
                 print_info(f"SecretsManager created: {self.name}")
                 self.active_resource = created_resource
-                self.save_resource_file()
+                self.save_resource_to_file()
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -152,7 +152,7 @@ class SecretsManager(AwsResource):
             if self.secret_arn is not None:
                 print_info(f"SecretsManager available: {self.name}")
                 self.active_resource = describe_response
-                self.save_resource_file()
+                self.save_resource_to_file()
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -179,7 +179,7 @@ class SecretsManager(AwsResource):
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
             )
-            self.save_resource_file()
+            self.save_resource_to_file()
             return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be deleted.")
@@ -210,7 +210,7 @@ class SecretsManager(AwsResource):
             self.secret_value = secret_value
             self.secret_arn = secret_value.get("ARN", None)
             self.secret_resource_name = secret_value.get("Name", None)
-            self.save_resource_file()
+            self.save_resource_to_file()
 
             secret_string = secret_value.get("SecretString", None)
             if secret_string is not None:
@@ -281,7 +281,7 @@ class SecretsManager(AwsResource):
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} Updated"
             )
-            self.save_resource_file()
+            self.save_resource_to_file()
             return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be Updated.")

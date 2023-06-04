@@ -125,6 +125,11 @@ class AwsResource(AwsObject):
                 f"Running post-create steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_create(client)
+
+        # Step 6: Save resource to file
+        if self.save_resource:
+            self.save_resource_file()
+
         return self.resource_available
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
@@ -193,6 +198,11 @@ class AwsResource(AwsObject):
                 f"Running post-update steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_update(client)
+
+        # Step 5: Save resource to file
+        if self.save_resource:
+            self.save_resource_file()
+
         return self.resource_updated
 
     def post_update(self, aws_client: AwsApiClient) -> bool:
@@ -234,6 +244,11 @@ class AwsResource(AwsObject):
                 f"Running post-delete steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_delete(client)
+
+        # Step 5: Delete resource file
+        if self.save_resource:
+            self.delete_resource_file()
+
         return self.resource_deleted
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:

@@ -55,9 +55,15 @@ class InfraResource(BaseModel):
     active_resource: Optional[Any] = None
     active_resource_class: Optional[Type] = None
 
+    # If True, save the resource to a file
+    save_resource: bool = False
     resource_file: Optional[Union[str, Path]] = None
 
     depends_on: Optional[List[Any]] = None
+
+    @property
+    def output(self) -> Optional[Dict[str, Any]]:
+        return self.get_resource_from_file()
 
     def get_resource_name(self) -> Optional[str]:
         return self.name
@@ -205,17 +211,19 @@ class InfraResource(BaseModel):
                 logger.error(f"Invalid file: {file_path}")
         return None
 
-    def save_resource_to_file(self) -> bool:
-        if self.resource_file is not None:
-            resource_file_path: Optional[Path] = None
-            if isinstance(self.resource_file, str):
-                resource_file_path = Path(self.resource_file)
-            elif isinstance(self.resource_file, Path):
-                resource_file_path = self.resource_file
+    def get_resource_file_path(self) -> Optional[Path]:
+        if self.resource_file is None:
+            logger.info(self.get_workspace_config_dir())
+            logger.info(self.name)
+        if isinstance(self.resource_file, str):
+            return Path(self.resource_file)
+        elif isinstance(self.resource_file, Path):
+            return self.resource_file
+        return None
 
-            if resource_file_path is None or not isinstance(resource_file_path, Path):
-                logger.error(f"Invalid resource_file: {resource_file_path}")
-
+    def save_resource_file(self) -> bool:
+        resource_file_path: Optional[Path] = self.get_resource_file_path()
+        if resource_file_path is not None:
             try:
                 if not resource_file_path.exists():
                     resource_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -224,6 +232,34 @@ class InfraResource(BaseModel):
                 logger.debug(f"Resource stored at: {str(resource_file_path)}")
                 return True
             except Exception as e:
-                logger.error("Could not write resource to file")
-                logger.error(e)
+                logger.error(f"Could not write resource to file {e}")
+        return False
+
+    def get_resource_from_file(self) -> Optional[Dict[str, Any]]:
+        resource_file_path: Optional[Path] = self.get_resource_file_path()
+        if resource_file_path is not None:
+            import json
+
+            try:
+                if resource_file_path.exists() and resource_file_path.is_file():
+                    logger.debug(f"Reading {resource_file_path}")
+                    data_from_file = resource_file_path.read_text()
+                    if data_from_file is not None and isinstance(data_from_file, str):
+                        return json.loads(data_from_file)
+                    else:
+                        logger.error(f"Invalid file: {resource_file_path}")
+            except Exception as e:
+                logger.error(f"Could not read resource from file {e}")
+        return None
+
+    def delete_resource_file(self) -> bool:
+        resource_file_path: Optional[Path] = self.get_resource_file_path()
+        if resource_file_path is not None:
+            try:
+                if resource_file_path.exists() and resource_file_path.is_file():
+                    resource_file_path.unlink()
+                    logger.debug(f"Resource file deleted: {str(resource_file_path)}")
+                    return True
+            except Exception as e:
+                logger.error(f"Could not delete resource file {e}")
         return False

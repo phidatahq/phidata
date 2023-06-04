@@ -401,7 +401,9 @@ class BaseApp(PhidataBase):
                     for _aws_secret in self.args.aws_secrets:
                         if isinstance(_aws_secret, SecretsManager):
                             _secret_dict = _aws_secret.get_secret_dict()
-                            if _secret_dict is not None and isinstance(_secret_dict, dict):
+                            if _secret_dict is not None and isinstance(
+                                _secret_dict, dict
+                            ):
                                 aws_secrets.update(_secret_dict)
 
                 if len(aws_secrets) > 0:

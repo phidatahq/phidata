@@ -462,7 +462,10 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
         if self.args.notebook_dir is None:
             if self.args.mount_workspace:
                 container_paths = self.get_container_paths()
-                if container_paths is not None and container_paths.workspace_root is not None:
+                if (
+                    container_paths is not None
+                    and container_paths.workspace_root is not None
+                ):
                     container_cmd.append(
                         f"--notebook-dir={str(container_paths.workspace_root)}"
                     )

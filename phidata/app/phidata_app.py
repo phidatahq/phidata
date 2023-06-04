@@ -472,7 +472,7 @@ class PhidataApp(PhidataBase):
     def get_container_name(self) -> str:
         from phidata.utils.common import get_default_container_name
 
-        return self.args.container_name or get_default_container_name(self.args.name)
+        return self.args.container_name or get_default_container_name(self.name)
 
     def get_container_port(self) -> int:
         return self.args.container_port
@@ -483,27 +483,27 @@ class PhidataApp(PhidataBase):
     def get_pod_name(self) -> str:
         from phidata.utils.common import get_default_pod_name
 
-        return self.args.pod_name or get_default_pod_name(self.args.name)
+        return self.args.pod_name or get_default_pod_name(self.name)
 
     def get_deploy_name(self) -> str:
         from phidata.utils.common import get_default_deploy_name
 
-        return self.args.deploy_name or get_default_deploy_name(self.args.name)
+        return self.args.deploy_name or get_default_deploy_name(self.name)
 
     def get_secret_name(self) -> str:
         from phidata.utils.common import get_default_secret_name
 
-        return self.args.secret_name or get_default_secret_name(self.args.name)
+        return self.args.secret_name or get_default_secret_name(self.name)
 
     def get_configmap_name(self) -> str:
         from phidata.utils.common import get_default_configmap_name
 
-        return self.args.configmap_name or get_default_configmap_name(self.args.name)
+        return self.args.configmap_name or get_default_configmap_name(self.name)
 
     def get_service_name(self) -> str:
         from phidata.utils.common import get_default_service_name
 
-        return self.args.service_name or get_default_service_name(self.args.name)
+        return self.args.service_name or get_default_service_name(self.name)
 
     def get_service_port(self) -> int:
         return self.args.service_port
@@ -511,17 +511,17 @@ class PhidataApp(PhidataBase):
     def get_sa_name(self) -> str:
         from phidata.utils.common import get_default_sa_name
 
-        return self.args.sa_name or get_default_sa_name(self.args.name)
+        return self.args.sa_name or get_default_sa_name(self.name)
 
     def get_cr_name(self) -> str:
         from phidata.utils.common import get_default_cr_name
 
-        return self.args.cr_name or get_default_cr_name(self.args.name)
+        return self.args.cr_name or get_default_cr_name(self.name)
 
     def get_crb_name(self) -> str:
         from phidata.utils.common import get_default_crb_name
 
-        return self.args.crb_name or get_default_crb_name(self.args.name)
+        return self.args.crb_name or get_default_crb_name(self.name)
 
     def get_env_data(self) -> Optional[Dict[str, str]]:
         if self.env_data is None:
@@ -546,7 +546,9 @@ class PhidataApp(PhidataBase):
                     for _aws_secret in self.args.aws_secrets:
                         if isinstance(_aws_secret, SecretsManager):
                             _secret_dict = _aws_secret.get_secret_dict()
-                            if _secret_dict is not None and isinstance(_secret_dict, dict):
+                            if _secret_dict is not None and isinstance(
+                                _secret_dict, dict
+                            ):
                                 aws_secrets.update(_secret_dict)
 
                 if len(aws_secrets) > 0:

@@ -56,7 +56,7 @@ class InfraResource(BaseModel):
     active_resource_class: Optional[Type] = None
 
     # If True, save the resource to a file
-    save_resource: bool = False
+    save_output: bool = False
     resource_file: Optional[Union[str, Path]] = None
 
     depends_on: Optional[List[Any]] = None

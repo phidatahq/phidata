@@ -127,7 +127,7 @@ class AwsResource(AwsObject):
             return self.post_create(client)
 
         # Step 6: Save resource to file
-        if self.save_resource:
+        if self.save_output:
             self.save_resource_file()
 
         return self.resource_available
@@ -200,7 +200,7 @@ class AwsResource(AwsObject):
             return self.post_update(client)
 
         # Step 5: Save resource to file
-        if self.save_resource:
+        if self.save_output:
             self.save_resource_file()
 
         return self.resource_updated
@@ -246,7 +246,7 @@ class AwsResource(AwsObject):
             return self.post_delete(client)
 
         # Step 5: Delete resource file
-        if self.save_resource:
+        if self.save_output:
             self.delete_resource_file()
 
         return self.resource_deleted

@@ -29,6 +29,7 @@ from phidata.aws.resource.rds.db_instance import DbInstance
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
 from phidata.aws.resource.elasticache.cluster import CacheCluster
 from phidata.aws.resource.elasticache.subnet_group import CacheSubnetGroup
+from phidata.aws.resource.lambdafunction.function import LambdaFunction
 
 
 class AwsResourceGroup(BaseModel):
@@ -63,3 +64,4 @@ class AwsResourceGroup(BaseModel):
     load_balancers: Optional[List[LoadBalancer]] = None
     target_groups: Optional[List[TargetGroup]] = None
     listeners: Optional[List[Listener]] = None
+    lambda_functions: Optional[List[LambdaFunction]] = None

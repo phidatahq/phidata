@@ -124,7 +124,6 @@ class DockerApp(BaseApp):
             WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_CONFIG_DIR_ENV_VAR,
         )
-        from phidata.utils.common import is_empty
 
         # Container Environment
         container_env: Dict[str, str] = self.container_env or {}
@@ -373,7 +372,7 @@ class DockerApp(BaseApp):
             self.docker_resource_groups[docker_rg.name] = docker_rg
 
     def get_docker_resource_groups(
-        self, docker_build_context: Any
+        self, docker_build_context: Any, defer_api_calls: bool = False
     ) -> Optional[Dict[str, Any]]:
         if self.docker_resource_groups is None:
             self.build_docker_resource_groups(docker_build_context)

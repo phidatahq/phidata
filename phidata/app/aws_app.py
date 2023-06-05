@@ -1,7 +1,9 @@
-from typing import Optional, Any, List, Dict, Literal
+from typing import Optional, Any, List, Dict
 from collections import OrderedDict
 
 from phidata.app.base_app import BaseApp, BaseAppArgs
+from phidata.types.context import ContainerPathContext
+from phidata.utils.log import logger
 
 
 class AwsAppArgs(BaseAppArgs):
@@ -12,14 +14,14 @@ class AwsAppArgs(BaseAppArgs):
     # -*- ECS Configuration
     ecs_cluster: Optional[Any] = None
     ecs_launch_type: str = "FARGATE"
-    ecs_task_cpu: str = "512"
-    ecs_task_memory: str = "1024"
+    ecs_task_cpu: str = "1024"
+    ecs_task_memory: str = "2048"
     ecs_service_count: int = 1
     assign_public_ip: bool = True
     ecs_enable_exec: bool = True
 
     # -*- LoadBalancer Configuration
-    enable_load_balancer: bool = True
+    enable_load_balancer: bool = False
     load_balancer: Optional[Any] = None
     # HTTP or HTTPS
     load_balancer_protocol: str = "HTTP"
@@ -179,10 +181,249 @@ class AwsApp(BaseApp):
         if self.args is not None and load_balancer_certificate_arn is not None:
             self.args.load_balancer_certificate_arn = load_balancer_certificate_arn
 
-    def get_aws_rg(self, aws_build_context: Any) -> Optional[Any]:
-        return None
+    def get_container_env_ecs(
+        self, container_paths: ContainerPathContext
+    ) -> Dict[str, str]:
+        from phidata.constants import (
+            PYTHONPATH_ENV_VAR,
+            PHIDATA_RUNTIME_ENV_VAR,
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            META_DIR_ENV_VAR,
+            PRODUCTS_DIR_ENV_VAR,
+            NOTEBOOKS_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACE_CONFIG_DIR_ENV_VAR,
+        )
 
-    def build_aws_resource_groups(self, aws_build_context: Any) -> None:
+        # Container Environment
+        container_env: Dict[str, str] = self.container_env or {}
+        container_env.update(
+            {
+                PHIDATA_RUNTIME_ENV_VAR: "ecs",
+                SCRIPTS_DIR_ENV_VAR: container_paths.scripts_dir or "",
+                STORAGE_DIR_ENV_VAR: container_paths.storage_dir or "",
+                META_DIR_ENV_VAR: container_paths.meta_dir or "",
+                PRODUCTS_DIR_ENV_VAR: container_paths.products_dir or "",
+                NOTEBOOKS_DIR_ENV_VAR: container_paths.notebooks_dir or "",
+                WORKFLOWS_DIR_ENV_VAR: container_paths.workflows_dir or "",
+                WORKSPACE_ROOT_ENV_VAR: container_paths.workspace_root or "",
+                WORKSPACE_CONFIG_DIR_ENV_VAR: container_paths.workspace_config_dir
+                or "",
+                "INSTALL_REQUIREMENTS": str(self.args.install_requirements),
+                "REQUIREMENTS_FILE_PATH": container_paths.requirements_file or "",
+                "MOUNT_WORKSPACE": str(self.args.mount_workspace),
+                "WORKSPACE_DIR_CONTAINER_PATH": str(
+                    self.args.workspace_dir_container_path
+                ),
+                "PRINT_ENV_ON_LOAD": str(self.args.print_env_on_load),
+            }
+        )
+
+        if self.args.set_python_path:
+            python_path = self.args.python_path
+            if python_path is None:
+                python_path = container_paths.workspace_root
+                if self.args.add_python_paths is not None:
+                    python_path = "{}:{}".format(
+                        python_path, ":".join(self.args.add_python_paths)
+                    )
+            if python_path is not None:
+                container_env[PYTHONPATH_ENV_VAR] = python_path
+
+        # Set aws env vars
+        self.set_aws_env_vars(env_dict=container_env)
+
+        # Update the container env using env_file
+        env_data_from_file = self.get_env_data()
+        if env_data_from_file is not None:
+            container_env.update(
+                {k: str(v) for k, v in env_data_from_file.items() if v is not None}
+            )
+
+        # Update the container env using secrets_file
+        secret_data_from_file = self.get_secret_data()
+        if secret_data_from_file is not None:
+            container_env.update(
+                {k: str(v) for k, v in secret_data_from_file.items() if v is not None}
+            )
+
+        # Update the container env with user provided env
+        # this overwrites any existing variables with the same key
+        if self.args.env is not None and isinstance(self.args.env, dict):
+            container_env.update(
+                {k: str(v) for k, v in self.args.env.items() if v is not None}
+            )
+
+        # logger.debug("Container Environment: {}".format(container_env))
+        return container_env
+
+    def get_aws_rg(
+        self, aws_build_context: Any, defer_api_calls: bool = False
+    ) -> Optional[Any]:
+        from phidata.aws.resource.group import (
+            AwsResourceGroup,
+            EcsCluster,
+            EcsContainer,
+            EcsTaskDefinition,
+            EcsService,
+            LoadBalancer,
+            TargetGroup,
+            Listener,
+        )
+
+        # -*- Build Container Paths
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        if container_paths is None:
+            raise Exception("Could not build Container Paths")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+
+        app_name = self.name
+        workspace_name = container_paths.workspace_name
+        logger.debug(f"Building AwsResourceGroup: {app_name} for {workspace_name}")
+
+        # -*- Build Container Environment
+        container_env: Dict[str, str] = self.get_container_env_ecs(
+            container_paths=container_paths
+        )
+
+        # -*- Create ECS cluster
+        ecs_cluster = self.args.ecs_cluster
+        if ecs_cluster is None:
+            ecs_cluster = EcsCluster(
+                name=f"{app_name}-cluster",
+                ecs_cluster_name=app_name,
+                capacity_providers=[self.args.ecs_launch_type],
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
+
+        # -*- Create Load Balancer
+        load_balancer = self.args.load_balancer
+        if load_balancer is None and self.args.enable_load_balancer:
+            load_balancer = LoadBalancer(
+                name=f"{app_name}-lb",
+                subnets=self.args.aws_subnets,
+                security_groups=self.args.aws_security_groups,
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
+
+        # -*- Create Target Group
+        target_group = TargetGroup(
+            name=f"{app_name}-tg",
+            port=self.container_port,
+            protocol="HTTP",
+            aws_subnets=self.args.aws_subnets,
+            target_type="ip",
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create Listener
+        listener = Listener(
+            name=f"{app_name}-listener",
+            protocol="HTTP",
+            port=80,
+            load_balancer=load_balancer,
+            target_group=target_group,
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create ECS Container
+        ecs_container = EcsContainer(
+            name=app_name,
+            image=self.get_image_str(),
+            port_mappings=[{"containerPort": self.container_port}],
+            command=self.args.command,
+            environment=[{"name": k, "value": v} for k, v in container_env.items()],
+            log_configuration={
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": app_name,
+                    "awslogs-region": self.aws_region,
+                    "awslogs-create-group": "true",
+                    "awslogs-stream-prefix": app_name,
+                },
+            },
+            env_from_secrets=self.args.aws_secrets,
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create ECS Task Definition
+        ecs_task_definition = EcsTaskDefinition(
+            name=f"{app_name}-td",
+            family=app_name,
+            network_mode="awsvpc",
+            cpu=self.args.ecs_task_cpu,
+            memory=self.args.ecs_task_memory,
+            containers=[ecs_container],
+            requires_compatibilities=[self.args.ecs_launch_type],
+            add_ecs_exec_policy=True,
+            add_ecs_secret_policy=True,
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        aws_vpc_config: Dict[str, Any] = {}
+        if self.args.aws_subnets is not None:
+            aws_vpc_config["subnets"] = self.args.aws_subnets
+        if self.args.aws_security_groups is not None:
+            aws_vpc_config["securityGroups"] = self.args.aws_security_groups
+        if self.args.assign_public_ip:
+            aws_vpc_config["assignPublicIp"] = "ENABLED"
+
+        # -*- Create ECS Service
+        ecs_service = EcsService(
+            name=f"{app_name}-service",
+            desired_count=self.args.ecs_service_count,
+            launch_type=self.args.ecs_launch_type,
+            cluster=ecs_cluster,
+            task_definition=ecs_task_definition,
+            target_group=target_group,
+            target_container_name=ecs_container.name,
+            target_container_port=self.container_port,
+            network_configuration={"awsvpcConfiguration": aws_vpc_config},
+            # Force delete the service.
+            force_delete=True,
+            # Force a new deployment of the service on update.
+            force_new_deployment=True,
+            skip_create=self.args.skip_create,
+            skip_delete=self.args.skip_delete,
+            wait_for_creation=self.args.wait_for_creation,
+            wait_for_deletion=self.args.wait_for_deletion,
+        )
+
+        # -*- Create AwsResourceGroup
+        return AwsResourceGroup(
+            name=app_name,
+            enabled=self.enabled,
+            ecs_clusters=[ecs_cluster],
+            ecs_task_definitions=[ecs_task_definition],
+            ecs_services=[ecs_service],
+            load_balancers=[load_balancer],
+            target_groups=[target_group],
+            listeners=[listener],
+        )
+
+    def build_aws_resource_groups(
+        self, aws_build_context: Any, defer_api_calls: bool = False
+    ) -> None:
         aws_rg = self.get_aws_rg(aws_build_context)
         if aws_rg is not None:
             if self.aws_resource_groups is None:
@@ -190,7 +431,7 @@ class AwsApp(BaseApp):
             self.aws_resource_groups[aws_rg.name] = aws_rg
 
     def get_aws_resource_groups(
-        self, aws_build_context: Any
+        self, aws_build_context: Any, defer_api_calls: bool = False
     ) -> Optional[Dict[str, Any]]:
         if self.aws_resource_groups is None:
             self.build_aws_resource_groups(aws_build_context)

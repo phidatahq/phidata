@@ -14,7 +14,7 @@ from phidata.utils.log import logger
 
 class EcsTaskDefinition(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
+    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs/client/register_task_definition.html
     """
 
     resource_type = "taskdefinition"
@@ -55,7 +55,9 @@ class EcsTaskDefinition(AwsResource):
     # Name for the default role when task_role_arn is None, use "name-task-role" if not provided
     task_role_name: Optional[str] = None
     # Provide a list of policy ARNs to attach to the role
-    add_task_role_policy_arns: Optional[List[str]] = None
+    add_policy_arns_to_task_role: Optional[List[str]] = None
+    # Provide a list of IamPolicy to attach to the task role
+    add_policies_to_task_role: Optional[List[IamPolicy]] = None
     # Add ecs_exec_policy to task role
     add_ecs_exec_policy: bool = False
 
@@ -68,7 +70,11 @@ class EcsTaskDefinition(AwsResource):
     # Name for the default role when execution_role_arn is None, use "name-execution-role" if not provided
     execution_role_name: Optional[str] = None
     # Provide a list of policy ARNs to attach to the role
-    add_execution_role_policy_arns: Optional[List[str]] = None
+    add_policy_arns_to_execution_role: Optional[List[str]] = None
+    # Provide a list of IamPolicy to attach to the execution role
+    add_policies_to_execution_role: Optional[List[IamPolicy]] = None
+    # Add policy to read secrets to execution role
+    add_ecs_secret_policy: bool = False
 
     def get_task_family(self):
         return self.family or self.name
@@ -249,10 +255,10 @@ class EcsTaskDefinition(AwsResource):
             "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
             "arn:aws:iam::aws:policy/CloudWatchFullAccess",
         ]
-        if self.add_task_role_policy_arns is not None and isinstance(
-            self.add_task_role_policy_arns, list
+        if self.add_policy_arns_to_task_role is not None and isinstance(
+            self.add_policy_arns_to_task_role, list
         ):
-            policy_arns.extend(self.add_task_role_policy_arns)
+            policy_arns.extend(self.add_policy_arns_to_task_role)
 
         ecs_exec_policy = IamPolicy(
             name=f"{self.name}-ecs-exec-policy",
@@ -276,6 +282,11 @@ class EcsTaskDefinition(AwsResource):
             """
             ),
         )
+        policies = []
+        if self.add_ecs_exec_policy:
+            policies.append(ecs_exec_policy)
+        if self.add_policies_to_task_role:
+            policies.extend(self.add_policies_to_task_role)
 
         return IamRole(
             name=self.task_role_name or f"{self.name}-task-role",
@@ -295,7 +306,7 @@ class EcsTaskDefinition(AwsResource):
             }
             """
             ),
-            policies=[ecs_exec_policy] if self.add_ecs_exec_policy else [],
+            policies=policies,
             policy_arns=policy_arns,
         )
 
@@ -304,10 +315,37 @@ class EcsTaskDefinition(AwsResource):
             "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
             "arn:aws:iam::aws:policy/CloudWatchFullAccess",
         ]
-        if self.add_execution_role_policy_arns is not None and isinstance(
-            self.add_execution_role_policy_arns, list
+        if self.add_policy_arns_to_execution_role is not None and isinstance(
+            self.add_policy_arns_to_execution_role, list
         ):
-            policy_arns.extend(self.add_execution_role_policy_arns)
+            policy_arns.extend(self.add_policy_arns_to_execution_role)
+
+        ecs_secret_policy = IamPolicy(
+            name=f"{self.name}-ecs-secret-policy",
+            policy_document=dedent(
+                """\
+            {
+               "Version": "2012-10-17",
+               "Statement": [
+                   {
+                   "Effect": "Allow",
+                   "Action": [
+                        "secretsmanager:GetSecretValue",
+                        "secretsmanager:DescribeSecret",
+                        "secretsmanager:ListSecretVersionIds"
+                   ],
+                  "Resource": "*"
+                  }
+               ]
+            }
+            """
+            ),
+        )
+        policies = []
+        if self.add_ecs_secret_policy:
+            policies.append(ecs_secret_policy)
+        if self.add_policies_to_execution_role:
+            policies.extend(self.add_policies_to_execution_role)
 
         return IamRole(
             name=self.execution_role_name or f"{self.name}-execution-role",
@@ -327,6 +365,7 @@ class EcsTaskDefinition(AwsResource):
             }
             """
             ),
+            policies=policies,
             policy_arns=policy_arns,
         )
 

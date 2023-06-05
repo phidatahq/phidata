@@ -281,7 +281,6 @@ class K8sApp(BaseApp):
             WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_CONFIG_DIR_ENV_VAR,
         )
-        from phidata.utils.common import is_empty
 
         # Container Environment
         container_env: Dict[str, str] = self.container_env or {}
@@ -873,7 +872,7 @@ class K8sApp(BaseApp):
             self.k8s_resource_groups[k8s_rg.name] = k8s_rg
 
     def get_k8s_resource_groups(
-        self, k8s_build_context: Any
+        self, k8s_build_context: Any, defer_api_calls: bool = False
     ) -> Optional[Dict[str, Any]]:
         if self.k8s_resource_groups is None:
             self.build_k8s_resource_groups(k8s_build_context)

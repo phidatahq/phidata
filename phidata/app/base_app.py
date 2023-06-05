@@ -10,9 +10,6 @@ from phidata.utils.log import logger
 class WorkspaceVolumeType(ExtendedEnum):
     HostPath = "HostPath"
     EmptyDir = "EmptyDir"
-    AwsEbs = "AwsEbs"
-    AwsEfs = "AwsEfs"
-    PersistentVolume = "PersistentVolume"
 
 
 class AppVolumeType(ExtendedEnum):
@@ -110,30 +107,6 @@ class BaseAppArgs(PhidataBaseArgs):
     git_sync_repo: Optional[str] = None
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
-    # -*- If workspace_volume_type=WorkspaceVolumeType.AwsEbs
-    # EbsVolume: used to derive the volume_id, region, and az
-    ws_ebs_volume: Optional[Any] = None
-    ws_ebs_volume_region: Optional[str] = None
-    ws_ebs_volume_az: Optional[str] = None
-    # Provide Ebs Volume-id manually
-    ws_ebs_volume_id: Optional[str] = None
-    # -*- If workspace_volume_type=WorkspaceVolumeType.PersistentVolume
-    # AccessModes is a list of ways the volume can be mounted.
-    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
-    # Type: phidata.infra.k8s.enums.pv.PVAccessMode
-    ws_pv_access_modes: Optional[List[Any]] = None
-    ws_pv_requests_storage: Optional[str] = None
-    # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.
-    # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options
-    ws_pv_mount_options: Optional[List[str]] = None
-    # What happens to a persistent volume when released from its claim.
-    #   The default policy is Retain.
-    # Literal["Delete", "Recycle", "Retain"]
-    ws_pv_reclaim_policy: Optional[str] = None
-    ws_pv_storage_class: str = ""
-    ws_pv_labels: Optional[Dict[str, str]] = None
-    # -*- If workspace_volume_type=WorkspaceVolumeType.AwsEfs
-    ws_efs_volume_id: Optional[str] = None
 
     # -*- App Volume
     # Create a volume for mounting app data like notebooks, models, etc.
@@ -180,9 +153,6 @@ class BaseAppArgs(PhidataBaseArgs):
 
     #  -*- Other args
     print_env_on_load: bool = False
-
-    # Extra kwargs used to capture additional args
-    extra_kwargs: Optional[Dict[str, Any]] = None
 
     # -*- Deprecated
     # Env vars added to docker env when building PhidataApps
@@ -383,34 +353,9 @@ class BaseApp(PhidataBase):
 
     def get_secret_data(self) -> Optional[Dict[str, str]]:
         if self.secret_data is None:
-            # Read from secrets_file
             from phidata.utils.yaml_io import read_yaml_file
 
             self.secret_data = read_yaml_file(file_path=self.args.secrets_file)
-
-            # Read from aws_secrets
-            if self.args.aws_secrets is not None:
-                from phidata.aws.resource.secret.manager import SecretsManager
-
-                aws_secrets: Dict[str, Any] = {}
-                if isinstance(self.args.aws_secrets, SecretsManager):
-                    _secret_dict = self.args.aws_secrets.get_secret_dict()
-                    if _secret_dict is not None and isinstance(_secret_dict, dict):
-                        aws_secrets.update(_secret_dict)
-                elif isinstance(self.args.aws_secrets, list):
-                    for _aws_secret in self.args.aws_secrets:
-                        if isinstance(_aws_secret, SecretsManager):
-                            _secret_dict = _aws_secret.get_secret_dict()
-                            if _secret_dict is not None and isinstance(
-                                _secret_dict, dict
-                            ):
-                                aws_secrets.update(_secret_dict)
-
-                if len(aws_secrets) > 0:
-                    if self.secret_data is None:
-                        self.secret_data = aws_secrets
-                    else:
-                        self.secret_data.update(aws_secrets)
         return self.secret_data
 
     def get_container_paths(self) -> Optional[ContainerPathContext]:
@@ -494,19 +439,19 @@ class BaseApp(PhidataBase):
             env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.aws_region
 
     def get_docker_resource_groups(
-        self, docker_build_context: Any
+        self, docker_build_context: Any, defer_api_calls: bool = False
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"@get_docker_resource_groups not defined for {self.name}")
         return None
 
     def get_k8s_resource_groups(
-        self, k8s_build_context: Any
+        self, k8s_build_context: Any, defer_api_calls: bool = False
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"@get_k8s_resource_groups not defined for {self.name}")
         return None
 
     def get_aws_resource_groups(
-        self, aws_build_context: Any
+        self, aws_build_context: Any, defer_api_calls: bool = False
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"@get_aws_resource_groups not defined for {self.name}")
         return None

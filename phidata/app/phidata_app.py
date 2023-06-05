@@ -539,13 +539,13 @@ class PhidataApp(PhidataBase):
 
                 aws_secrets: Dict[str, Any] = {}
                 if isinstance(self.args.aws_secrets, SecretsManager):
-                    _secret_dict = self.args.aws_secrets.get_secret_dict()
+                    _secret_dict = self.args.aws_secrets.get_secrets_as_dict()
                     if _secret_dict is not None and isinstance(_secret_dict, dict):
                         aws_secrets.update(_secret_dict)
                 elif isinstance(self.args.aws_secrets, list):
                     for _aws_secret in self.args.aws_secrets:
                         if isinstance(_aws_secret, SecretsManager):
-                            _secret_dict = _aws_secret.get_secret_dict()
+                            _secret_dict = _aws_secret.get_secrets_as_dict()
                             if _secret_dict is not None and isinstance(
                                 _secret_dict, dict
                             ):

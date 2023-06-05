@@ -6,6 +6,7 @@ from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phidata.aws.resource.secret.manager import SecretsManager
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -72,8 +73,8 @@ class DbInstance(AwsResource):
     master_user_password: Optional[str] = None
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
-    # Read secret variables from AWS Secrets
-    aws_secrets: Optional[Any] = None
+    # Read secret variables from AWS Secret
+    aws_secret: Optional[SecretsManager] = None
 
     # A list of DB security groups to associate with this DB instance.
     # This setting applies to the legacy EC2-Classic platform, which no longer creates new DB instances.
@@ -166,45 +167,8 @@ class DbInstance(AwsResource):
     skip_final_snapshot: Optional[bool] = True
     final_db_snapshot_identifier: Optional[str] = None
 
-    # Cache secret_data
-    cached_secret_data: Optional[Dict[str, Any]] = None
-
     def get_db_instance_identifier(self):
         return self.db_instance_identifier or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            # Read from secrets_file
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-
-            # Read from aws_secrets
-            if self.aws_secrets is not None:
-                from phidata.aws.resource.secret.manager import SecretsManager
-
-                aws_secrets: Dict[str, Any] = {}
-                if isinstance(self.aws_secrets, SecretsManager):
-                    _secret_dict = self.aws_secrets.get_secret_dict()
-                    if _secret_dict is not None and isinstance(_secret_dict, dict):
-                        aws_secrets.update(_secret_dict)
-                elif isinstance(self.aws_secrets, list):
-                    for _aws_secret in self.aws_secrets:
-                        if isinstance(_aws_secret, SecretsManager):
-                            _secret_dict = _aws_secret.get_secret_dict()
-                            if _secret_dict is not None and isinstance(
-                                _secret_dict, dict
-                            ):
-                                aws_secrets.update(_secret_dict)
-
-                if len(aws_secrets) > 0:
-                    if self.cached_secret_data is None:
-                        self.cached_secret_data = aws_secrets
-                    else:
-                        self.cached_secret_data.update(aws_secrets)
-        # logger.debug(f"DB Secrets: {self.cached_secret_data}")
-        return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:
         master_username = self.master_username
@@ -213,6 +177,10 @@ class DbInstance(AwsResource):
             secret_data = self.get_secret_data()
             if secret_data is not None:
                 master_username = secret_data.get("MASTER_USERNAME", master_username)
+        if master_username is None and self.aws_secret is not None:
+            # read from aws_secret
+            master_username = self.aws_secret.get_secret_value("MASTER_USERNAME")
+
         return master_username
 
     def get_master_user_password(self) -> Optional[str]:
@@ -224,6 +192,12 @@ class DbInstance(AwsResource):
                 master_user_password = secret_data.get(
                     "MASTER_USER_PASSWORD", master_user_password
                 )
+        if master_user_password is None and self.aws_secret is not None:
+            # read from aws_secret
+            master_user_password = self.aws_secret.get_secret_value(
+                "MASTER_USER_PASSWORD"
+            )
+
         return master_user_password
 
     def get_db_name(self) -> Optional[str]:
@@ -235,6 +209,11 @@ class DbInstance(AwsResource):
                 db_name = secret_data.get("DB_NAME", db_name)
                 if db_name is None:
                     db_name = secret_data.get("DATABASE_NAME", db_name)
+        if db_name is None and self.aws_secret is not None:
+            # read from aws_secret
+            db_name = self.aws_secret.get_secret_value("DB_NAME")
+            if db_name is None:
+                db_name = self.aws_secret.get_secret_value("DATABASE_NAME")
         return db_name
 
     def get_database_name(self) -> Optional[str]:

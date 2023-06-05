@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
 from phidata.app.aws_app import AwsApp, AwsAppArgs
-from phidata.app.base_app import WorkspaceVolumeType, AppVolumeType
+from phidata.app.base_app import WorkspaceVolumeType
 from phidata.app.docker_app import DockerApp, DockerAppArgs
 from phidata.app.k8s_app import (
     K8sApp,
@@ -14,37 +14,25 @@ from phidata.app.k8s_app import (
 from phidata.utils.log import logger
 
 
-class JupyterArgs(AwsAppArgs, DockerAppArgs, K8sAppArgs):
-    # -*- Jupyter Configuration
-    # Absolute path to JUPYTER_CONFIG_FILE,
-    # Also used to set the JUPYTER_CONFIG_FILE env var,
-    # This value is appended to the command using `--config`,
-    jupyter_config_file: Optional[str] = None
-    # Absolute path to the notebook directory,
-    # Defaults to the workspace_root if mount_workspace = True else "/",
-    notebook_dir: Optional[str] = None
+class FastApiServerArgs(AwsAppArgs, DockerAppArgs, K8sAppArgs):
+    pass
 
 
-class Jupyter(AwsApp, DockerApp, K8sApp):
+class FastApiServer(AwsApp, DockerApp, K8sApp):
     def __init__(
         self,
-        name: str = "jupyter",
+        name: str = "fastapi",
         version: str = "1",
         enabled: bool = True,
-        # -*- Jupyter Configuration,
-        # Absolute path to JUPYTER_CONFIG_FILE,
-        # Also used to set the JUPYTER_CONFIG_FILE env var,
-        jupyter_config_file: str = "/resources/jupyter_lab_config.py",
-        # Absolute path to the notebook directory,
-        # Defaults to the workspace_root if mount_workspace = True else "/mnt",
-        notebook_dir: Optional[str] = None,
         # -*- Image Configuration,
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
-        image_name: str = "phidata/jupyter",
-        image_tag: str = "3.6.3",
+        image_name: str = "phidata/fastapi",
+        image_tag: str = "0.96",
         entrypoint: Optional[Union[str, List[str]]] = None,
-        command: Union[str, List[str]] = "jupyter lab",
+        command: Union[
+            str, List[str]
+        ] = "uvicorn main:app --reload --host 0.0.0.0 --port 9090",
         # -*- Debug Mode
         debug_mode: bool = False,
         # -*- Python Configuration,
@@ -74,66 +62,24 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
         # Open a container port if open_container_port=True,
         open_container_port: bool = True,
         # Port number on the container,
-        container_port: int = 8888,
+        container_port: int = 9090,
         # Port name (only used by the K8sContainer),
         container_port_name: str = "http",
         # Host port to map to the container port,
-        container_host_port: int = 8888,
+        container_host_port: int = 9090,
         # -*- Workspace Volume,
         # Mount the workspace directory on the container,
         mount_workspace: bool = False,
         workspace_volume_name: Optional[str] = None,
         workspace_volume_type: Optional[WorkspaceVolumeType] = None,
         # Path to mount the workspace volume inside the container,
-        workspace_dir_container_path: str = "/mnt/workspaces",
+        workspace_dir_container_path: str = "/usr/local/app",
         # Add the workspace name to the container path,
-        add_workspace_name_to_container_path: bool = True,
+        add_workspace_name_to_container_path: bool = False,
         # -*- If workspace_volume_type=WorkspaceVolumeType.HostPath,
         # Mount workspace_dir to workspace_dir_container_path,
         # If None, use the workspace_root,
         workspace_dir: Optional[str] = None,
-        # -*- Resources Volume,
-        # Mount a resources directory on the container,
-        mount_resources: bool = False,
-        # Resources directory relative to the workspace_root,
-        resources_dir: str = "workspace/jupyter/resources",
-        # Path to mount the resources_dir,
-        resources_dir_container_path: str = "/mnt/resources",
-        # -*- App Volume,
-        # Create a volume for mounting app data like notebooks, models, etc.,
-        create_app_volume: bool = True,
-        app_volume_name: Optional[str] = None,
-        app_volume_type: AppVolumeType = AppVolumeType.EmptyDir,
-        # Path to mount the app volume inside the container,
-        app_volume_container_path: str = "/mnt/app",
-        # -*- If volume_type=AppVolumeType.HostPath,
-        app_volume_host_path: Optional[str] = None,
-        # -*- If volume_type=AppVolumeType.AwsEbs,
-        # EbsVolume: used to derive the volume_id, region, and az,
-        app_ebs_volume: Optional[Any] = None,
-        app_ebs_volume_region: Optional[str] = None,
-        app_ebs_volume_az: Optional[str] = None,
-        # Provide Ebs Volume-id manually,
-        app_ebs_volume_id: Optional[str] = None,
-        # -*- If volume_type=AppVolumeType.PersistentVolume,
-        # AccessModes is a list of ways the volume can be mounted.,
-        # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes,
-        # Type: phidata.infra.k8s.enums.pv.PVAccessMode,
-        app_pv_access_modes: Optional[List[Any]] = None,
-        app_pv_requests_storage: Optional[str] = None,
-        # A list of mount options, e.g. ["ro", "soft"]. Not validated - mount will simply fail if one is invalid.,
-        # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#mount-options,
-        app_pv_mount_options: Optional[List[str]] = None,
-        # What happens to a persistent volume when released from its claim.,
-        #   The default policy is Retain.,
-        # Literal["Delete", "Recycle", "Retain"],
-        app_pv_reclaim_policy: Optional[str] = None,
-        app_pv_storage_class: str = "",
-        app_pv_labels: Optional[Dict[str, str]] = None,
-        # -*- If volume_type=AppVolumeType.AwsEfs,
-        app_efs_volume_id: Optional[str] = None,
-        # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume,
-        schedule_pods_in_ebs_topology: bool = True,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Run container in the background and return a Container object.,
@@ -219,7 +165,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
         # Type: ServiceType,
         service_type: Optional[Any] = None,
         # The port exposed by the service.,
-        service_port: int = 8000,
+        service_port: int = 9090,
         # The node_port exposed by the service if service_type = ServiceType.NODE_PORT,
         service_node_port: Optional[int] = None,
         # The target_port is the port to access on the pods targeted by the service.,
@@ -274,7 +220,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
         assign_public_ip: bool = True,
         ecs_enable_exec: bool = True,
         # -*- LoadBalancer Configuration,
-        enable_load_balancer: bool = False,
+        enable_load_balancer: bool = True,
         load_balancer: Optional[Any] = None,
         # HTTP or HTTPS,
         load_balancer_protocol: str = "HTTP",
@@ -301,16 +247,11 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
     ):
         super().__init__()
 
-        if jupyter_config_file is not None:
-            self.container_env = {"JUPYTER_CONFIG_FILE": jupyter_config_file}
-
         try:
-            self.args: JupyterArgs = JupyterArgs(
+            self.args: FastApiServerArgs = FastApiServerArgs(
                 name=name,
                 version=version,
                 enabled=enabled,
-                jupyter_config_file=jupyter_config_file,
-                notebook_dir=notebook_dir,
                 image=image,
                 image_name=image_name,
                 image_tag=image_tag,
@@ -337,26 +278,6 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
                 workspace_dir_container_path=workspace_dir_container_path,
                 add_workspace_name_to_container_path=add_workspace_name_to_container_path,
                 workspace_dir=workspace_dir,
-                mount_resources=mount_resources,
-                resources_dir=resources_dir,
-                resources_dir_container_path=resources_dir_container_path,
-                create_app_volume=create_app_volume,
-                app_volume_name=app_volume_name,
-                app_volume_type=app_volume_type,
-                app_volume_container_path=app_volume_container_path,
-                app_volume_host_path=app_volume_host_path,
-                app_ebs_volume=app_ebs_volume,
-                app_ebs_volume_region=app_ebs_volume_region,
-                app_ebs_volume_az=app_ebs_volume_az,
-                app_ebs_volume_id=app_ebs_volume_id,
-                app_pv_access_modes=app_pv_access_modes,
-                app_pv_requests_storage=app_pv_requests_storage,
-                app_pv_mount_options=app_pv_mount_options,
-                app_pv_reclaim_policy=app_pv_reclaim_policy,
-                app_pv_storage_class=app_pv_storage_class,
-                app_pv_labels=app_pv_labels,
-                app_efs_volume_id=app_efs_volume_id,
-                schedule_pods_in_ebs_topology=schedule_pods_in_ebs_topology,
                 container_name=container_name,
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
@@ -446,58 +367,3 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
         except Exception as e:
             logger.error(f"Args for {self.name} are not valid: {e}")
             raise
-
-    def get_container_command_docker(self) -> Optional[List[str]]:
-        container_cmd: List[str]
-        if isinstance(self.args.command, str):
-            container_cmd = self.args.command.split(" ")
-        elif isinstance(self.args.command, list):
-            container_cmd = self.args.command
-        else:
-            container_cmd = ["jupyter", "lab"]
-
-        if self.args.jupyter_config_file is not None:
-            container_cmd.append(f"--config={str(self.args.jupyter_config_file)}")
-
-        if self.args.notebook_dir is None:
-            if self.args.mount_workspace:
-                container_paths = self.get_container_paths()
-                if (
-                    container_paths is not None
-                    and container_paths.workspace_root is not None
-                ):
-                    container_cmd.append(
-                        f"--notebook-dir={str(container_paths.workspace_root)}"
-                    )
-            else:
-                container_cmd.append("--notebook-dir=/")
-        else:
-            container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
-        return container_cmd
-
-    def get_container_args_k8s(self) -> Optional[List[str]]:
-        container_args: List[str]
-        if isinstance(self.args.command, str):
-            container_args = self.args.command.split(" ")
-        elif isinstance(self.args.command, list):
-            container_args = self.args.command
-        else:
-            container_args = ["jupyter", "lab"]
-
-        if self.args.jupyter_config_file is not None:
-            container_args.append(f"--config={str(self.args.jupyter_config_file)}")
-
-        if self.args.notebook_dir is None:
-            if self.args.mount_workspace:
-                if (
-                    self.container_paths is not None
-                    and self.container_paths.workspace_root is not None
-                ):
-                    container_args.append(
-                        f"--notebook-dir={str(self.container_paths.workspace_root)}"
-                    )
-            else:
-                container_args.append("--notebook-dir=/")
-        else:
-            container_args.append(f"--notebook-dir={str(self.args.notebook_dir)}")
-        return container_args

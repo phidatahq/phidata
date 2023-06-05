@@ -20,6 +20,7 @@ class TargetGroup(AwsResource):
     protocol_version: Optional[str] = None
     port: Optional[int] = None
     vpc_id: Optional[str] = None
+    aws_subnets: Optional[List[str]] = None
     health_check_protocol: Optional[str] = None
     health_check_port: Optional[str] = None
     health_check_enabled: Optional[bool] = None
@@ -43,14 +44,29 @@ class TargetGroup(AwsResource):
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
+
+        # Get VPC ID
+        vpc_id = self.vpc_id
+        if vpc_id is None and self.aws_subnets is not None:
+            from phidata.aws.resource.ec2.subnet import Subnet
+
+            # Get VPC ID from subnets
+            vpc_ids = set()
+            for subnet in self.aws_subnets:
+                _vpc = Subnet(id=subnet).get_vpc_id()
+                vpc_ids.add(_vpc)
+            if len(vpc_ids) != 1:
+                raise ValueError("Subnets must be in the same VPC")
+            vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
+        if vpc_id is not None:
+            not_null_args["VpcId"] = self.vpc_id
+
         if self.protocol is not None:
             not_null_args["Protocol"] = self.protocol
         if self.protocol_version is not None:
             not_null_args["ProtocolVersion"] = self.protocol_version
         if self.port is not None:
             not_null_args["Port"] = self.port
-        if self.vpc_id is not None:
-            not_null_args["VpcId"] = self.vpc_id
         if self.health_check_protocol is not None:
             not_null_args["HealthCheckProtocol"] = self.health_check_protocol
         if self.health_check_port is not None:

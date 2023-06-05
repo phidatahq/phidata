@@ -52,18 +52,27 @@ class InfraResource(BaseModel):
     # The maximum number of attempts to be made.
     waiter_max_attempts: int = 50
 
+    # Active resource object
     active_resource: Optional[Any] = None
+    # Deprecated: the class of the active resource
     active_resource_class: Optional[Type] = None
 
     # If True, save the resource to a file
     save_output: bool = False
     resource_file: Optional[Union[str, Path]] = None
 
+    # Other resources this resource depends on
+    # Dependencies are always created if this resource is created
     depends_on: Optional[List[Any]] = None
 
-    @property
-    def output(self) -> Optional[Dict[str, Any]]:
-        return self.get_resource_from_file()
+    # Add secret variables to resource where applicable
+    secret_data: Optional[Dict[str, Any]] = None
+    # Read secrets from a file in yaml format
+    secrets_file: Optional[Path] = None
+    # Add env variables to resource where applicable
+    env_data: Optional[Dict[str, Any]] = None
+    # Read env from a file in yaml format
+    env_file: Optional[Path] = None
 
     def get_resource_name(self) -> Optional[str]:
         return self.name
@@ -217,7 +226,9 @@ class InfraResource(BaseModel):
             if workspace_config_dir is not None:
                 if self.name is not None and self.resource_type is not None:
                     file_name = f"{self.name}.yaml"
-                    return workspace_config_dir.joinpath("output", self.resource_type, file_name)
+                    return workspace_config_dir.joinpath(
+                        "output", self.resource_type, file_name
+                    )
         if isinstance(self.resource_file, str):
             return Path(self.resource_file)
         elif isinstance(self.resource_file, Path):
@@ -267,3 +278,28 @@ class InfraResource(BaseModel):
             except Exception as e:
                 logger.error(f"Could not delete resource file {e}")
         return False
+
+    def attribute(self, name: str) -> Optional[Any]:
+        resource_attributes = self.get_resource_from_file()
+        if resource_attributes is not None:
+            if name in resource_attributes:
+                return resource_attributes[name]
+            else:
+                logger.warning(f"Resource attribute not found: {name}")
+        return None
+
+    def get_secret_data(self) -> Optional[Dict[str, str]]:
+        if self.secret_data is not None:
+            return self.secret_data
+
+        if self.secrets_file is not None:
+            self.secret_data = self.read_yaml_file(self.secrets_file)
+        return self.secret_data
+
+    def get_env_data(self) -> Optional[Dict[str, str]]:
+        if self.env_data is not None:
+            return self.env_data
+
+        if self.env_file is not None:
+            self.env_data = self.read_yaml_file(self.env_file)
+        return self.env_data

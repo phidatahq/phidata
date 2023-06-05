@@ -235,19 +235,8 @@ class DbCluster(AwsResource):
     skip_final_snapshot: Optional[bool] = True
     final_db_snapshot_identifier: Optional[str] = None
 
-    # Cache secret_data
-    cached_secret_data: Optional[Dict[str, Any]] = None
-
     def get_db_cluster_identifier(self):
         return self.db_cluster_identifier or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:
         master_username = self.master_username

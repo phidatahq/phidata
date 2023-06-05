@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from phidata.constants import AWS_REGION_ENV_VAR, AWS_PROFILE_ENV_VAR
 from phidata.infra.resource import InfraResource

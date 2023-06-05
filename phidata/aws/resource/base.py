@@ -103,9 +103,6 @@ class AwsResource(AwsObject):
         if not self.is_valid():
             return False
 
-        self.get_resource_file_path()
-        return False
-
         # Step 2: Skip resource creation if skip_create = True
         if self.skip_create:
             print_info(f"Skipping create: {self.get_resource_name()}")

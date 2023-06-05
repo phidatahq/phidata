@@ -217,7 +217,7 @@ class InfraResource(BaseModel):
             if workspace_config_dir is not None:
                 if self.name is not None and self.resource_type is not None:
                     file_name = f"{self.name}.yaml"
-                    return workspace_config_dir.joinpath(self.resource_type, file_name)
+                    return workspace_config_dir.joinpath("output", self.resource_type, file_name)
         if isinstance(self.resource_file, str):
             return Path(self.resource_file)
         elif isinstance(self.resource_file, Path):

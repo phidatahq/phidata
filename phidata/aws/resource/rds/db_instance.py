@@ -13,9 +13,9 @@ from phidata.utils.log import logger
 
 class DbInstance(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
-
     The DBInstance can be an RDS DB instance, or it can be a DB instance in an Aurora DB cluster.
+
+    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
     """
 
     resource_type = "DbInstance"
@@ -378,7 +378,7 @@ class DbInstance(AwsResource):
             # Validate resource creation
             if resource_dict is not None:
                 print_info(f"DbInstance created: {self.get_db_instance_identifier()}")
-                self.active_resource = create_response
+                self.active_resource = resource_dict
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -492,3 +492,45 @@ class DbInstance(AwsResource):
                 print_error("Waiter failed.")
                 print_error(e)
         return True
+
+    def get_db_endpoint(self) -> Optional[str]:
+        """Returns the DbInstance endpoint
+
+        Returns:
+            The DbInstance endpoint
+        """
+        __db_endpoint: Optional[str] = None
+        if self.active_resource:
+            __db_endpoint = self.active_resource.get("Endpoint", {}).get(
+                "Address", None
+            )
+        if __db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        if __db_endpoint is None:
+            logger.info("Reading DbInstance from AWS")
+            resource = self.read()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        return __db_endpoint
+
+    def get_db_port(self) -> Optional[str]:
+        """Returns the DbInstance port
+
+        Returns:
+            The DbInstance endpoint
+        """
+        __db_endpoint: Optional[str] = None
+        if self.active_resource:
+            __db_endpoint = self.active_resource.get("Endpoint", {}).get("Port", None)
+        if __db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
+        if __db_endpoint is None:
+            logger.info("Reading DbInstance from AWS")
+            resource = self.read()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
+        return __db_endpoint

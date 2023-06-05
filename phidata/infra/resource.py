@@ -251,7 +251,7 @@ class InfraResource(BaseModel):
                 logger.error(f"Could not write resource to file {e}")
         return False
 
-    def get_resource_from_file(self) -> Optional[Dict[str, Any]]:
+    def read_resource_from_file(self) -> Optional[Dict[str, Any]]:
         resource_file_path: Optional[Path] = self.get_resource_file_path()
         if resource_file_path is not None:
             try:
@@ -280,7 +280,7 @@ class InfraResource(BaseModel):
         return False
 
     def attribute(self, name: str) -> Optional[Any]:
-        resource_attributes = self.get_resource_from_file()
+        resource_attributes = self.read_resource_from_file()
         if resource_attributes is not None:
             if name in resource_attributes:
                 return resource_attributes[name]

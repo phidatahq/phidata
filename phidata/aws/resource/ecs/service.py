@@ -15,7 +15,7 @@ class EcsService(AwsResource):
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
-    resource_type = "service"
+    resource_type = "Service"
     service_name = "ecs"
 
     # Name for the service.

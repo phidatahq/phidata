@@ -21,19 +21,25 @@ class AwsAppArgs(BaseAppArgs):
     ecs_enable_exec: bool = True
 
     # -*- LoadBalancer Configuration
-    enable_load_balancer: bool = False
     load_balancer: Optional[Any] = None
+    listener: Optional[Any] = None
+    # Create a load balancer if load_balancer is None
+    create_load_balancer: bool = False
     # HTTP or HTTPS
     load_balancer_protocol: str = "HTTP"
+    load_balancer_security_groups: Optional[List[str]] = None
     # Default 80 for HTTP and 443 for HTTPS
     load_balancer_port: Optional[int] = None
+    load_balancer_certificate: Optional[Any] = None
     load_balancer_certificate_arn: Optional[str] = None
 
     # -*- TargetGroup Configuration
+    target_group: Optional[Any] = None
     # HTTP or HTTPS
     target_group_protocol: str = "HTTP"
     # Default 80 for HTTP and 443 for HTTPS
     target_group_port: Optional[int] = None
+    target_group_type: str = "ip"
     health_check_protocol: Optional[str] = None
     health_check_port: Optional[str] = None
     health_check_enabled: Optional[bool] = None
@@ -137,13 +143,13 @@ class AwsApp(BaseApp):
             self.args.ecs_enable_exec = ecs_enable_exec
 
     @property
-    def enable_load_balancer(self) -> Optional[bool]:
-        return self.args.enable_load_balancer
+    def create_load_balancer(self) -> Optional[bool]:
+        return self.args.create_load_balancer
 
-    @enable_load_balancer.setter
-    def enable_load_balancer(self, enable_load_balancer: bool) -> None:
-        if self.args is not None and enable_load_balancer is not None:
-            self.args.enable_load_balancer = enable_load_balancer
+    @create_load_balancer.setter
+    def create_load_balancer(self, create_load_balancer: bool) -> None:
+        if self.args is not None and create_load_balancer is not None:
+            self.args.create_load_balancer = create_load_balancer
 
     @property
     def load_balancer(self) -> Optional[Any]:
@@ -253,11 +259,16 @@ class AwsApp(BaseApp):
         # this overwrites any existing variables with the same key
         if self.args.env is not None and isinstance(self.args.env, dict):
             container_env.update(
-                {k: str(v) for k, v in self.args.env.items() if v is not None}
+                {k: v for k, v in self.args.env.items() if v is not None}
             )
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
+
+    def get_container_command_aws(self) -> Optional[List[str]]:
+        if isinstance(self.args.command, str):
+            return self.args.command.split(" ")
+        return self.args.command
 
     def get_aws_rg(
         self, aws_build_context: Any, defer_api_calls: bool = False
@@ -271,6 +282,7 @@ class AwsApp(BaseApp):
             LoadBalancer,
             TargetGroup,
             Listener,
+            AcmCertificate,
         )
 
         # -*- Build Container Paths
@@ -295,6 +307,8 @@ class AwsApp(BaseApp):
                 name=f"{app_name}-cluster",
                 ecs_cluster_name=app_name,
                 capacity_providers=[self.args.ecs_launch_type],
+                save_output=self.args.save_output,
+                resource_dir=self.args.resource_dir or app_name,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
@@ -303,11 +317,22 @@ class AwsApp(BaseApp):
 
         # -*- Create Load Balancer
         load_balancer = self.args.load_balancer
-        if load_balancer is None and self.args.enable_load_balancer:
+        if load_balancer is None and self.args.create_load_balancer:
+            if self.args.load_balancer_protocol not in ["HTTP", "HTTPS"]:
+                raise Exception(
+                    "Load Balancer Protocol must be one of: HTTP, HTTPS. "
+                    f"Got: {self.args.load_balancer_protocol}"
+                )
+            load_balancer_sgs = (
+                self.args.load_balancer_security_groups or self.args.aws_security_groups
+            )
             load_balancer = LoadBalancer(
                 name=f"{app_name}-lb",
                 subnets=self.args.aws_subnets,
-                security_groups=self.args.aws_security_groups,
+                security_groups=load_balancer_sgs,
+                protocol=self.args.load_balancer_protocol,
+                save_output=self.args.save_output,
+                resource_dir=self.args.resource_dir or app_name,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
@@ -315,37 +340,67 @@ class AwsApp(BaseApp):
             )
 
         # -*- Create Target Group
-        target_group = TargetGroup(
-            name=f"{app_name}-tg",
-            port=self.container_port,
-            protocol="HTTP",
-            aws_subnets=self.args.aws_subnets,
-            target_type="ip",
-            skip_create=self.args.skip_create,
-            skip_delete=self.args.skip_delete,
-            wait_for_creation=self.args.wait_for_creation,
-            wait_for_deletion=self.args.wait_for_deletion,
-        )
+        target_group = self.args.target_group
+        if target_group is None and self.args.create_load_balancer:
+            if self.args.target_group_protocol not in ["HTTP", "HTTPS"]:
+                raise Exception(
+                    "Target Group Protocol must be one of: HTTP, HTTPS. "
+                    f"Got: {self.args.target_group_protocol}"
+                )
+            target_group = TargetGroup(
+                name=f"{app_name}-tg",
+                port=self.container_port,
+                protocol=self.args.target_group_protocol,
+                aws_subnets=self.args.aws_subnets,
+                target_type=self.args.target_group_type,
+                health_check_protocol=self.args.health_check_protocol,
+                health_check_port=self.args.health_check_port,
+                health_check_enabled=self.args.health_check_enabled,
+                health_check_path=self.args.health_check_path,
+                health_check_interval_seconds=self.args.health_check_interval_seconds,
+                health_check_timeout_seconds=self.args.health_check_timeout_seconds,
+                healthy_threshold_count=self.args.healthy_threshold_count,
+                unhealthy_threshold_count=self.args.unhealthy_threshold_count,
+                save_output=self.args.save_output,
+                resource_dir=self.args.resource_dir or app_name,
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
 
         # -*- Create Listener
-        listener = Listener(
-            name=f"{app_name}-listener",
-            protocol="HTTP",
-            port=80,
-            load_balancer=load_balancer,
-            target_group=target_group,
-            skip_create=self.args.skip_create,
-            skip_delete=self.args.skip_delete,
-            wait_for_creation=self.args.wait_for_creation,
-            wait_for_deletion=self.args.wait_for_deletion,
-        )
+        listener = self.args.listener
+        if listener is None and self.args.create_load_balancer:
+            listener = Listener(
+                name=f"{app_name}-listener",
+                load_balancer=load_balancer,
+                target_group=target_group,
+                save_output=self.args.save_output,
+                resource_dir=self.args.resource_dir or app_name,
+                skip_create=self.args.skip_create,
+                skip_delete=self.args.skip_delete,
+                wait_for_creation=self.args.wait_for_creation,
+                wait_for_deletion=self.args.wait_for_deletion,
+            )
+            if self.args.load_balancer_certificate_arn is not None:
+                listener.certificates = [
+                    {"CertificateArn": self.args.load_balancer_certificate_arn}
+                ]
+            if self.args.load_balancer_certificate is not None:
+                listener.acm_certificates = [self.args.load_balancer_certificate]
+
+        # -*- Build Container Command
+        container_cmd: Optional[List[str]] = self.get_container_command_aws()
+        if container_cmd:
+            logger.debug("Command: {}".format(" ".join(container_cmd)))
 
         # -*- Create ECS Container
         ecs_container = EcsContainer(
             name=app_name,
             image=self.get_image_str(),
             port_mappings=[{"containerPort": self.container_port}],
-            command=self.args.command,
+            command=container_cmd,
             environment=[{"name": k, "value": v} for k, v in container_env.items()],
             log_configuration={
                 "logDriver": "awslogs",
@@ -357,6 +412,8 @@ class AwsApp(BaseApp):
                 },
             },
             env_from_secrets=self.args.aws_secrets,
+            save_output=self.args.save_output,
+            resource_dir=self.args.resource_dir or app_name,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
@@ -374,6 +431,8 @@ class AwsApp(BaseApp):
             requires_compatibilities=[self.args.ecs_launch_type],
             add_ecs_exec_policy=True,
             add_ecs_secret_policy=True,
+            save_output=self.args.save_output,
+            resource_dir=self.args.resource_dir or app_name,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
@@ -403,6 +462,8 @@ class AwsApp(BaseApp):
             force_delete=True,
             # Force a new deployment of the service on update.
             force_new_deployment=True,
+            save_output=self.args.save_output,
+            resource_dir=self.args.resource_dir or app_name,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,

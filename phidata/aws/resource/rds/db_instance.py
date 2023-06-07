@@ -179,6 +179,7 @@ class DbInstance(AwsResource):
                 master_username = secret_data.get("MASTER_USERNAME", master_username)
         if master_username is None and self.aws_secret is not None:
             # read from aws_secret
+            logger.debug(f"Reading MASTER_USERNAME from secret: {self.aws_secret.name}")
             master_username = self.aws_secret.get_secret_value("MASTER_USERNAME")
 
         return master_username
@@ -194,6 +195,9 @@ class DbInstance(AwsResource):
                 )
         if master_user_password is None and self.aws_secret is not None:
             # read from aws_secret
+            logger.debug(
+                f"Reading MASTER_USER_PASSWORD from secret: {self.aws_secret.name}"
+            )
             master_user_password = self.aws_secret.get_secret_value(
                 "MASTER_USER_PASSWORD"
             )
@@ -211,8 +215,12 @@ class DbInstance(AwsResource):
                     db_name = secret_data.get("DATABASE_NAME", db_name)
         if db_name is None and self.aws_secret is not None:
             # read from aws_secret
+            logger.debug(f"Reading DB_NAME from secret: {self.aws_secret.name}")
             db_name = self.aws_secret.get_secret_value("DB_NAME")
             if db_name is None:
+                logger.debug(
+                    f"Reading DATABASE_NAME from secret: {self.aws_secret.name}"
+                )
                 db_name = self.aws_secret.get_secret_value("DATABASE_NAME")
         return db_name
 
@@ -509,7 +517,6 @@ class DbInstance(AwsResource):
             if resource is not None:
                 __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
         if __db_endpoint is None:
-            logger.info("Reading DbInstance from AWS")
             resource = self.read()
             if resource is not None:
                 __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
@@ -529,7 +536,6 @@ class DbInstance(AwsResource):
             if resource is not None:
                 __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
         if __db_endpoint is None:
-            logger.info("Reading DbInstance from AWS")
             resource = self.read()
             if resource is not None:
                 __db_endpoint = resource.get("Endpoint", {}).get("Port", None)

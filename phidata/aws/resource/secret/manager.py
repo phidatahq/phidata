@@ -88,7 +88,7 @@ class SecretsManager(AwsResource):
         secret_string: Optional[str] = (
             json.dumps(secret_dict) if len(secret_dict) > 0 else None
         )
-        logger.debug(f"secret_string: {secret_string}")
+        # logger.debug(f"secret_string: {secret_string}")
 
         # Step 4: Build SecretsManager configuration
         # create a dict of args which are not null, otherwise aws type validation fails
@@ -128,6 +128,7 @@ class SecretsManager(AwsResource):
             logger.debug(f"secret_name: {self.secret_name}")
             if self.secret_arn is not None:
                 print_info(f"SecretsManager created: {self.name}")
+                self.cached_secret = secret_dict
                 self.active_resource = created_resource
                 return True
         except Exception as e:
@@ -155,7 +156,7 @@ class SecretsManager(AwsResource):
             secret_deleted_date = describe_response.get("DeletedDate", None)
             logger.debug(f"secret_arn: {self.secret_arn}")
             logger.debug(f"secret_name: {self.secret_name}")
-            logger.debug(f"secret_deleted_date: {secret_deleted_date}")
+            # logger.debug(f"secret_deleted_date: {secret_deleted_date}")
             if self.secret_arn is not None:
                 print_info(f"SecretsManager available: {self.name}")
                 self.active_resource = describe_response
@@ -246,7 +247,7 @@ class SecretsManager(AwsResource):
         service_client = self.get_service_client(client)
         try:
             secret_value = service_client.get_secret_value(SecretId=self.name)
-            logger.debug(f"SecretsManager: {secret_value}")
+            # logger.debug(f"SecretsManager: {secret_value}")
 
             if secret_value is None:
                 logger.warning(f"Secret Empty: {self.name}")

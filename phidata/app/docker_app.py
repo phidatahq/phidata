@@ -324,7 +324,8 @@ class DockerApp(BaseApp):
 
         # -*- Build Container Command
         container_cmd: Optional[List[str]] = self.get_container_command_docker()
-        logger.debug(f"Command: {container_cmd}")
+        if container_cmd:
+            logger.info("Command: {}".format(" ".join(container_cmd)))
 
         # -*- Create DockerContainer
         docker_container = DockerContainer(

@@ -60,6 +60,8 @@ class InfraResource(BaseModel):
     # If True, save the resource to a file
     save_output: bool = False
     resource_file: Optional[Union[str, Path]] = None
+    # Add a resource directory to the resource file path
+    resource_dir: Optional[str] = None
 
     # Other resources this resource depends on
     # Dependencies are always created if this resource is created
@@ -225,9 +227,10 @@ class InfraResource(BaseModel):
             workspace_config_dir = self.get_workspace_config_dir()
             if workspace_config_dir is not None:
                 if self.name is not None and self.resource_type is not None:
-                    file_name = f"{self.name}.yaml"
+                    file_name = f"{self.name}.json"
+                    resource_dir = self.resource_dir or self.resource_type
                     return workspace_config_dir.joinpath(
-                        "output", self.resource_type, file_name
+                        "output", resource_dir, file_name
                     )
         if isinstance(self.resource_file, str):
             return Path(self.resource_file)
@@ -239,13 +242,13 @@ class InfraResource(BaseModel):
         resource_file_path: Optional[Path] = self.get_resource_file_path()
         if resource_file_path is not None:
             try:
-                from phidata.utils.yaml_io import write_yaml_file
+                from phidata.utils.json_io import write_json_file
 
                 if not resource_file_path.exists():
                     resource_file_path.parent.mkdir(parents=True, exist_ok=True)
                     resource_file_path.touch(exist_ok=True)
-                write_yaml_file(resource_file_path, self.active_resource)
-                logger.debug(f"Resource saved to: {str(resource_file_path)}")
+                write_json_file(resource_file_path, self.active_resource)
+                logger.info(f"Resource saved to: {str(resource_file_path)}")
                 return True
             except Exception as e:
                 logger.error(f"Could not write resource to file {e}")
@@ -255,14 +258,16 @@ class InfraResource(BaseModel):
         resource_file_path: Optional[Path] = self.get_resource_file_path()
         if resource_file_path is not None:
             try:
-                from phidata.utils.yaml_io import read_yaml_file
+                from phidata.utils.json_io import read_json_file
 
                 if resource_file_path.exists() and resource_file_path.is_file():
-                    data_from_file = read_yaml_file(resource_file_path)
+                    data_from_file = read_json_file(resource_file_path)
                     if data_from_file is not None and isinstance(data_from_file, dict):
                         return data_from_file
                     else:
-                        logger.error(f"Invalid file: {resource_file_path}")
+                        logger.warning(
+                            f"Could not read {self.name} from {resource_file_path}"
+                        )
             except Exception as e:
                 logger.error(f"Could not read resource from file {e}")
         return None

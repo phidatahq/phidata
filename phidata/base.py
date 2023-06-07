@@ -19,6 +19,13 @@ class PhidataBaseArgs(BaseModel):
     wait_for_deletion: bool = True
     waiter_delay: int = 30
     waiter_max_attempts: int = 50
+
+    #  -*- Save Resources to output directory
+    # If True, save the resources to files
+    save_output: bool = False
+    # The resource directory for the output files
+    resource_dir: Optional[str] = None
+
     # Skip creation if resource with the same name is active
     use_cache: bool = True
 

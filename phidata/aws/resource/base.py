@@ -119,16 +119,16 @@ class AwsResource(AwsObject):
         else:
             self.resource_available = self._create(client)
 
-        # Step 5: Run post create steps
+        # Step 5: Save resource to file
+        if self.save_output:
+            self.save_resource_file()
+
+        # Step 6: Run post create steps
         if self.resource_available:
             logger.debug(
                 f"Running post-create steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_create(client)
-
-        # Step 6: Save resource to file
-        if self.save_output:
-            self.save_resource_file()
 
         return self.resource_available
 
@@ -150,7 +150,7 @@ class AwsResource(AwsObject):
         if not self.is_valid():
             return None
 
-        # Step 2: Use cached value is availabe
+        # Step 2: Use cached value is available
         if self.use_cache and self.active_resource is not None:
             return self.active_resource
 
@@ -192,16 +192,16 @@ class AwsResource(AwsObject):
             )
             return True
 
-        # Step 4: Run post update steps
+        # Step 5: Save resource to file
+        if self.save_output:
+            self.save_resource_file()
+
+        # Step 5: Run post update steps
         if self.resource_updated:
             logger.debug(
                 f"Running post-update steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_update(client)
-
-        # Step 5: Save resource to file
-        if self.save_output:
-            self.save_resource_file()
 
         return self.resource_updated
 
@@ -238,16 +238,16 @@ class AwsResource(AwsObject):
             )
             return True
 
-        # Step 4: Run post delete steps
+        # Step 4: Delete resource file
+        if self.save_output:
+            self.delete_resource_file()
+
+        # Step 5: Run post delete steps
         if self.resource_deleted:
             logger.debug(
                 f"Running post-delete steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_delete(client)
-
-        # Step 5: Delete resource file
-        if self.save_output:
-            self.delete_resource_file()
 
         return self.resource_deleted
 

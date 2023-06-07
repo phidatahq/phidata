@@ -8,7 +8,7 @@ from phidata.utils.log import logger
 
 class EcsContainer(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
+    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
     resource_type = "EcsContainer"
@@ -178,18 +178,27 @@ class EcsContainer(AwsResource):
         return container_definition
 
     def build_container_environment(self) -> List[Dict[str, Any]]:
+        logger.debug("Building container environment")
         container_environment: List[Dict[str, Any]] = []
         if self.environment is not None:
+            from phidata.resource.reference import Reference
+
             for env in self.environment:
                 env_value = env.get("value", None)
-                if callable(env_value):
+                if isinstance(env_value, Reference):
                     env_name = env.get("name", None)
-                    logger.info(f"{env_name} is callable")
+                    logger.debug(f"{env_name} is a Reference")
                     try:
-                        env_val = env_value()
-                        container_environment.append(
-                            {"name": env_name, "value": env_val}
-                        )
+                        env_val = env_value.get_reference()
+                        try:
+                            env_val_str = str(env_val)
+                            container_environment.append(
+                                {"name": env_name, "value": env_val_str}
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Error while converting {env_val} to str: {e}"
+                            )
                     except Exception as e:
                         logger.error(f"Error while getting {env_name}: {e}")
                 else:

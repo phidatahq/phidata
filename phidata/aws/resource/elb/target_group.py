@@ -59,7 +59,7 @@ class TargetGroup(AwsResource):
                 raise ValueError("Subnets must be in the same VPC")
             vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
         if vpc_id is not None:
-            not_null_args["VpcId"] = self.vpc_id
+            not_null_args["VpcId"] = vpc_id
 
         if self.protocol is not None:
             not_null_args["Protocol"] = self.protocol

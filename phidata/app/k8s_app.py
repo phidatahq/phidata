@@ -752,7 +752,7 @@ class K8sApp(BaseApp):
 
         # -*- Build Container Args: Equivalent to docker CMD
         container_args: Optional[List[str]] = self.get_container_args_k8s()
-        logger.debug(f"Command: {container_args}")
+        logger.debug("Command: {}".format(" ".join(container_args)))
 
         # -*- Create the Container
         container = CreateContainer(

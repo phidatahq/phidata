@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "1.6.21"
+version = "1.6.22"
 description = "Toolkit for building AI Applications"
 requires-python = ">=3.7"
 readme = "README.md"

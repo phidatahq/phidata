@@ -12,10 +12,10 @@ from phidata.utils.log import logger
 
 class EcsService(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
+    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
-    resource_type = "EcsService"
+    resource_type = "Service"
     service_name = "ecs"
 
     # Name for the service.

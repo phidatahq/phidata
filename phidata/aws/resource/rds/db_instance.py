@@ -6,15 +6,16 @@ from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phidata.aws.resource.secret.manager import SecretsManager
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
 
 class DbInstance(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
-
     The DBInstance can be an RDS DB instance, or it can be a DB instance in an Aurora DB cluster.
+
+    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
     """
 
     resource_type = "DbInstance"
@@ -72,6 +73,8 @@ class DbInstance(AwsResource):
     master_user_password: Optional[str] = None
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secret
+    aws_secret: Optional[SecretsManager] = None
 
     # A list of DB security groups to associate with this DB instance.
     # This setting applies to the legacy EC2-Classic platform, which no longer creates new DB instances.
@@ -164,10 +167,7 @@ class DbInstance(AwsResource):
     skip_final_snapshot: Optional[bool] = True
     final_db_snapshot_identifier: Optional[str] = None
 
-    # Cache secret_data
-    cached_secret_data: Optional[Dict[str, Any]] = None
-
-    # Variables needed for update function
+    # Parameters for update function
     apply_immediately: Optional[bool] = True
     allow_major_version_upgrade: Optional[bool] = None
     new_db_instance_identifier: Optional[str] = None
@@ -187,16 +187,11 @@ class DbInstance(AwsResource):
     rotate_master_user_password: Optional[bool] = None
     master_iser_secter_kms_key_id: Optional[str] = None
 
+    # Cache secret_data
+    cached_secret_data: Optional[Dict[str, Any]] = None
+
     def get_db_instance_identifier(self):
         return self.db_instance_identifier or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:
         master_username = self.master_username
@@ -205,6 +200,11 @@ class DbInstance(AwsResource):
             secret_data = self.get_secret_data()
             if secret_data is not None:
                 master_username = secret_data.get("MASTER_USERNAME", master_username)
+        if master_username is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading MASTER_USERNAME from secret: {self.aws_secret.name}")
+            master_username = self.aws_secret.get_secret_value("MASTER_USERNAME")
+
         return master_username
 
     def get_master_user_password(self) -> Optional[str]:
@@ -216,6 +216,15 @@ class DbInstance(AwsResource):
                 master_user_password = secret_data.get(
                     "MASTER_USER_PASSWORD", master_user_password
                 )
+        if master_user_password is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(
+                f"Reading MASTER_USER_PASSWORD from secret: {self.aws_secret.name}"
+            )
+            master_user_password = self.aws_secret.get_secret_value(
+                "MASTER_USER_PASSWORD"
+            )
+
         return master_user_password
 
     def get_db_name(self) -> Optional[str]:
@@ -227,6 +236,15 @@ class DbInstance(AwsResource):
                 db_name = secret_data.get("DB_NAME", db_name)
                 if db_name is None:
                     db_name = secret_data.get("DATABASE_NAME", db_name)
+        if db_name is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading DB_NAME from secret: {self.aws_secret.name}")
+            db_name = self.aws_secret.get_secret_value("DB_NAME")
+            if db_name is None:
+                logger.debug(
+                    f"Reading DATABASE_NAME from secret: {self.aws_secret.name}"
+                )
+                db_name = self.aws_secret.get_secret_value("DATABASE_NAME")
         return db_name
 
     def get_database_name(self) -> Optional[str]:
@@ -377,7 +395,7 @@ class DbInstance(AwsResource):
         if self.storage_throughput:
             not_null_args["StorageThroughput"] = self.storage_throughput
 
-        # Step 3: Create DbInstance
+        # Step 3: Create DBInstance
         service_client = self.get_service_client(aws_client)
         try:
             create_response = service_client.create_db_instance(
@@ -385,13 +403,13 @@ class DbInstance(AwsResource):
                 Engine=self.engine,
                 **not_null_args,
             )
-            logger.debug(f"DbInstance: {create_response}")
+            logger.debug(f"DBInstance: {create_response}")
             resource_dict = create_response.get("DBInstance", {})
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"DbInstance created: {self.get_db_instance_identifier()}")
-                self.active_resource = create_response
+                print_info(f"DBInstance created: {self.get_db_instance_identifier()}")
+                self.active_resource = resource_dict
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -507,7 +525,8 @@ class DbInstance(AwsResource):
         return True
 
     def _update(self, aws_client: AwsApiClient) -> bool:
-        """Update DbCluster"""
+        """Updates the DbInstance"""
+
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
         # Step 1: Get the VpcSecurityGroupIds
@@ -517,8 +536,6 @@ class DbInstance(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
-
-        service_client = self.get_service_client(aws_client)
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
@@ -649,21 +666,62 @@ class DbInstance(AwsResource):
                 "MasterUserSecretKmsKeyId"
             ] = self.master_iser_secter_kms_key_id
 
+        # Step 2: Update DBInstance
         service_client = self.get_service_client(aws_client)
         try:
-            create_response = service_client.modify_db_instance(
+            update_response = service_client.modify_db_instance(
                 DBInstanceIdentifier=self.get_db_instance_identifier(),
                 **not_null_args,
             )
-            logger.debug(f"Update Response: {create_response}")
-            resource_dict = create_response.get("Db Instance", {})
+            logger.debug(f"DBInstance: {update_response}")
+            resource_dict = update_response.get("DBInstance", {})
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"Db Instance updated: {self.get_resource_name()}")
-                self.active_resource = create_response
+                print_info(f"DBInstance updated: {self.get_resource_name()}")
+                self.active_resource = update_response
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
             print_error(e)
         return False
+
+    def get_db_endpoint(self) -> Optional[str]:
+        """Returns the DbInstance endpoint
+
+        Returns:
+            The DbInstance endpoint
+        """
+        __db_endpoint: Optional[str] = None
+        if self.active_resource:
+            __db_endpoint = self.active_resource.get("Endpoint", {}).get(
+                "Address", None
+            )
+        if __db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        if __db_endpoint is None:
+            resource = self.read()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        return __db_endpoint
+
+    def get_db_port(self) -> Optional[str]:
+        """Returns the DbInstance port
+
+        Returns:
+            The DbInstance endpoint
+        """
+        __db_endpoint: Optional[str] = None
+        if self.active_resource:
+            __db_endpoint = self.active_resource.get("Endpoint", {}).get("Port", None)
+        if __db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
+        if __db_endpoint is None:
+            resource = self.read()
+            if resource is not None:
+                __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
+        return __db_endpoint

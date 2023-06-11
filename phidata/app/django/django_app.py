@@ -417,7 +417,7 @@ class DjangoApp(PhidataApp):
         from phidata.types.context import ContainerPathContext
         from phidata.utils.common import get_default_volume_name
 
-        app_name = self.args.name
+        app_name = self.name
 
         if self.workspace_root_path is None:
             raise Exception("Invalid workspace_root_path")

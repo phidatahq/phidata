@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 from pydantic import validator
 
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.app.databox import default_databox_name
 from phidata.infra.args import InfraArgs
@@ -20,7 +21,7 @@ class K8sArgs(InfraArgs):
     # Common K8s labels to add to all resources
     common_labels: Optional[Dict[str, str]] = None
     # PhidataApp to deploy
-    apps: Optional[List[PhidataApp]] = None
+    apps: Optional[List[Union[BaseApp, PhidataApp]]] = None
     # K8sResourceGroup to deploy
     resources: Optional[List[K8sResourceGroup]] = None
     # CreateK8sResourceGroup to deploy
@@ -38,8 +39,8 @@ class K8sArgs(InfraArgs):
     def apps_are_valid(cls, apps):
         if apps is not None:
             for _app in apps:
-                if not isinstance(_app, PhidataApp):
-                    raise TypeError(f"App not of type PhidataApp: {_app}")
+                if not (isinstance(_app, PhidataApp) or isinstance(_app, BaseApp)):
+                    raise TypeError(f"App not of type PhidataApp or BaseApp: {_app}")
             return apps
 
     @validator("eks_cluster")

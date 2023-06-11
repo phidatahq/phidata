@@ -16,7 +16,7 @@ class AwsAssetArgs(DataAssetArgs):
 class AwsAsset(DataAsset):
     def __init__(self) -> None:
         super().__init__()
-        self.args: Optional[AwsAssetArgs] = None
+        self.args: AwsAssetArgs = AwsAssetArgs()
 
     @property
     def aws_region(self) -> Optional[str]:

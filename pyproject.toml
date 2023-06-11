@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "1.6.14"
+version = "1.6.22"
 description = "Toolkit for building AI Applications"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -9,8 +9,9 @@ authors = [
 ]
 
 dependencies = [
-  "boto3",
-  "phiterm==1.6.14",
+  "boto3>=1.26.76,<1.26.77",
+  "botocore>=1.29.76,<1.29.77",
+  "phiterm==1.6.21",
   "pyarrow",
   "pydantic",
 ]

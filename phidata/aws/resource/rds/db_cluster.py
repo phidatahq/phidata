@@ -235,10 +235,7 @@ class DbCluster(AwsResource):
     skip_final_snapshot: Optional[bool] = True
     final_db_snapshot_identifier: Optional[str] = None
 
-    # Cache secret_data
-    cached_secret_data: Optional[Dict[str, Any]] = None
-
-    # Variables needed for update function
+    # Parameters for update function
     new_db_cluster_identifier: Optional[str] = None
     apply_immediately: Optional[bool] = None
     cloudwatch_logs_exports: Optional[List[str]] = None
@@ -249,16 +246,11 @@ class DbCluster(AwsResource):
     master_iser_secter_kms_key_id: Optional[str] = None
     allow_engine_mode_change: Optional[bool] = None
 
+    # Cache secret_data
+    cached_secret_data: Optional[Dict[str, Any]] = None
+
     def get_db_cluster_identifier(self):
         return self.db_cluster_identifier or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:
         master_username = self.master_username
@@ -439,7 +431,7 @@ class DbCluster(AwsResource):
         if self.source_region:
             not_null_args["SourceRegion"] = self.source_region
 
-        # Step 3: Create DbCluster
+        # Step 3: Create DBCluster
         service_client = self.get_service_client(aws_client)
         try:
             create_response = service_client.create_db_cluster(
@@ -452,7 +444,7 @@ class DbCluster(AwsResource):
 
             # Validate database creation
             if database_dict is not None:
-                print_info(f"DbCluster created: {self.get_db_cluster_identifier()}")
+                print_info(f"DBCluster created: {self.get_db_cluster_identifier()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -468,7 +460,7 @@ class DbCluster(AwsResource):
                 if db_instance._create(aws_client):  # type: ignore
                     db_instances_created.append(db_instance)
 
-        # Wait for DbCluster to be created
+        # Wait for DBCluster to be created
         if self.wait_for_creation:
             try:
                 print_info(f"Waiting for {self.get_resource_type()} to be active.")
@@ -587,7 +579,8 @@ class DbCluster(AwsResource):
         return True
 
     def _update(self, aws_client: AwsApiClient) -> bool:
-        """Update DbCluster"""
+        """Updates the DbCluster"""
+
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
         # Step 1: Get the VpcSecurityGroupIds
@@ -597,8 +590,6 @@ class DbCluster(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
-
-        service_client = self.get_service_client(aws_client)
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
@@ -706,22 +697,23 @@ class DbCluster(AwsResource):
         if self.allow_engine_mode_change:
             not_null_args["AllowEngineModeChange"] = self.allow_engine_mode_change
 
+        # Step 2: Update DBCluster
         service_client = self.get_service_client(aws_client)
         try:
             db_cluster_identifier = self.get_db_cluster_identifier()
-            create_response = service_client.modify_db_cluster(
+            update_response = service_client.modify_db_cluster(
                 DBClusterIdentifier=db_cluster_identifier,
                 **not_null_args,
             )
-            logger.debug(f"Update Response: {create_response}")
-            resource_dict = create_response.get("Db Cluster", {})
+            logger.debug(f"DBCluster: {update_response}")
+            resource_dict = update_response.get("DBCluster", {})
 
-            # Validate resource creation
+            # Validate resource update
             if resource_dict is not None:
-                print_info(f"Db Cluster updated: {self.get_resource_name()}")
-                self.active_resource = create_response
+                print_info(f"DBCluster updated: {self.get_resource_name()}")
+                self.active_resource = update_response
                 return True
         except Exception as e:
-            print_error(f"{self.get_resource_type()} could not be created.")
+            print_error(f"{self.get_resource_type()} could not be updated.")
             print_error(e)
         return False

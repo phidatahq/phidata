@@ -94,19 +94,8 @@ class CacheCluster(AwsResource):
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
 
-    # Cache secret_data
-    cached_secret_data: Optional[Dict[str, Any]] = None
-
     def get_cache_cluster_id(self):
         return self.cache_cluster_id or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_auth_token(self) -> Optional[str]:
         auth_token = self.auth_token

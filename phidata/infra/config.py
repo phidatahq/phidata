@@ -13,7 +13,7 @@ class InfraConfig(PhidataBase):
 
     def __init__(self) -> None:
         super().__init__()
-        self.args: Optional[InfraArgs] = None
+        self.args: InfraArgs = InfraArgs()
 
     @property
     def env(self) -> Optional[str]:

@@ -1,4 +1,4 @@
-from phidata.app.fastapi.fastapi import (
+from phidata.app.fastapi.fastapi_server import (
     FastApiServer,
     FastApiServerArgs,
     WorkspaceVolumeType,

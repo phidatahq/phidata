@@ -20,6 +20,7 @@ from phidata.aws.resource.iam.role import IamRole
 from phidata.aws.resource.iam.policy import IamPolicy
 from phidata.aws.resource.glue.crawler import GlueCrawler
 from phidata.aws.resource.s3.bucket import S3Bucket
+from phidata.aws.resource.secret.manager import SecretsManager
 from phidata.aws.resource.emr.cluster import EmrCluster
 from phidata.aws.resource.rds.db_cluster import DbCluster
 from phidata.aws.resource.rds.db_instance import DbInstance
@@ -40,6 +41,7 @@ AwsResourceType = Union[
     IamPolicy,
     GlueCrawler,
     S3Bucket,
+    SecretsManager,
     Subnet,
     DbSubnetGroup,
     DbCluster,
@@ -62,6 +64,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     IamRole,
     IamPolicy,
     S3Bucket,
+    SecretsManager,
     EbsVolume,
     AcmCertificate,
     CloudFormationStack,

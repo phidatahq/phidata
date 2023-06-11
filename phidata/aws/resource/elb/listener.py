@@ -2,6 +2,7 @@ from typing import Optional, Any, Dict, List
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.acm.certificate import AcmCertificate
 from phidata.aws.resource.elb.load_balancer import LoadBalancer
 from phidata.aws.resource.elb.target_group import TargetGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
@@ -25,6 +26,7 @@ class Listener(AwsResource):
     port: Optional[int] = None
     ssl_policy: Optional[str] = None
     certificates: Optional[List[Dict[str, Any]]]
+    acm_certificates: Optional[List[AcmCertificate]] = None
     default_actions: Optional[List[Dict]]
     alpn_policy: Optional[List[str]]
     tags: Optional[List[Dict[str, str]]]
@@ -40,18 +42,22 @@ class Listener(AwsResource):
         load_balancer_arn = self.get_load_balancer_arn(aws_client)
         if load_balancer_arn is None:
             logger.error(f"Load balancer ARN not available")
-            return True
+            return False
+
+        listener_port = self.get_listener_port()
+        listener_protocol = self.get_listener_protocol()
+        listener_certificates = self.get_listener_certificates(aws_client)
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
-        if self.protocol is not None:
-            not_null_args["Protocol"] = self.protocol
-        if self.port is not None:
-            not_null_args["Port"] = self.port
+        if listener_port is not None:
+            not_null_args["Port"] = listener_port
+        if listener_protocol is not None:
+            not_null_args["Protocol"] = listener_protocol
+        if listener_certificates is not None:
+            not_null_args["Certificates"] = listener_certificates
         if self.ssl_policy is not None:
             not_null_args["SslPolicy"] = self.ssl_policy
-        if self.certificates is not None:
-            not_null_args["Certificates"] = self.certificates
         if self.alpn_policy is not None:
             not_null_args["AlpnPolicy"] = self.alpn_policy
         if self.tags is not None:
@@ -165,20 +171,38 @@ class Listener(AwsResource):
             print_error(f"Listener {self.get_resource_name()} not found.")
             return True
 
+        listener_port = self.get_listener_port()
+        listener_protocol = self.get_listener_protocol()
+        listener_certificates = self.get_listener_certificates(aws_client)
+
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
-        if self.protocol is not None:
-            not_null_args["Protocol"] = self.protocol
-        if self.port is not None:
-            not_null_args["Port"] = self.port
+        if listener_port is not None:
+            not_null_args["Port"] = listener_port
+        if listener_protocol is not None:
+            not_null_args["Protocol"] = listener_protocol
+        if listener_certificates is not None:
+            not_null_args["Certificates"] = listener_certificates
         if self.ssl_policy is not None:
             not_null_args["SslPolicy"] = self.ssl_policy
-        if self.certificates is not None:
-            not_null_args["Certificates"] = self.certificates
-        if self.default_actions is not None:
-            not_null_args["DefaultActions"] = self.default_actions
         if self.alpn_policy is not None:
             not_null_args["AlpnPolicy"] = self.alpn_policy
+
+        if self.default_actions is not None:
+            not_null_args["DefaultActions"] = self.default_actions
+        elif self.target_group is not None:
+            target_group_arn = self.target_group.get_arn(aws_client)
+            if target_group_arn is None:
+                logger.error(f"Target group ARN not available")
+                return False
+            not_null_args["DefaultActions"] = [
+                {"Type": "forward", "TargetGroupArn": target_group_arn}
+            ]
+        else:
+            print_warning(
+                f"Neither target group nor default actions provided for {self.get_resource_name()}"
+            )
+            return True
 
         service_client = self.get_service_client(aws_client)
         try:
@@ -213,3 +237,37 @@ class Listener(AwsResource):
             load_balancer_arn = self.load_balancer.get_arn(aws_client)
 
         return load_balancer_arn
+
+    def get_listener_port(self):
+        listener_port = self.port
+        if listener_port is None and self.load_balancer:
+            lb_protocol = self.load_balancer.protocol
+            listener_port = 443 if lb_protocol == "HTTPS" else 80
+
+        return listener_port
+
+    def get_listener_protocol(self):
+        listener_protocol = self.protocol
+        if listener_protocol is None and self.load_balancer:
+            listener_protocol = self.load_balancer.protocol
+
+        return listener_protocol
+
+    def get_listener_certificates(self, aws_client: AwsApiClient):
+        listener_protocol = self.protocol
+        if listener_protocol is None and self.load_balancer:
+            listener_protocol = self.load_balancer.protocol
+
+        certificates = self.certificates
+        if (
+            certificates is None
+            and self.acm_certificates is not None
+            and len(self.acm_certificates) > 0
+        ):
+            certificates = []
+            for cert in self.acm_certificates:
+                certificates.append(
+                    {"CertificateArn": cert.get_certificate_arn(aws_client)}
+                )
+
+        return certificates

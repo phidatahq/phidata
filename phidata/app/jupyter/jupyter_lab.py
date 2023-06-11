@@ -26,7 +26,7 @@ class JupyterLabArgs(PhidataAppArgs):
 
     # -*- Image Configuration
     image_name: str = "phidata/jupyterlab"
-    image_tag: str = "3.4.8"
+    image_tag: str = "3.5.2"
     entrypoint: Optional[Union[str, List]] = None
     command: Union[str, List] = "jupyter lab"
 
@@ -212,7 +212,7 @@ class JupyterLab(PhidataApp):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "phidata/jupyterlab",
-        image_tag: str = "3.4.8",
+        image_tag: str = "3.5.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Union[str, List] = "jupyter lab",
         # Install python dependencies using a requirements.txt file,

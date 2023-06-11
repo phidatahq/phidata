@@ -10,13 +10,13 @@ from phidata.utils.log import logger
 class WorkspaceVolumeType(ExtendedEnum):
     HostPath = "HostPath"
     EmptyDir = "EmptyDir"
-    # PersistentVolume = "PersistentVolume"
     AwsEbs = "AwsEbs"
-    # AwsEfs = "AwsEfs"
+    AwsEfs = "AwsEfs"
+    PersistentVolume = "PersistentVolume"
 
 
 class PhidataAppArgs(PhidataBaseArgs):
-    name: str
+    name: Optional[str]
 
     # -*- Path parameters
     # The following args are populated by the K8sWorker and DockerWorker classes.
@@ -55,26 +55,20 @@ class PhidataAppArgs(PhidataBaseArgs):
     entrypoint: Optional[Union[str, List]] = None
     command: Optional[Union[str, List]] = None
 
+    # -*- Debug Mode
+    debug_mode: bool = False
+
+    # -*- Python Configuration
     # Install python dependencies using a requirements.txt file
     install_requirements: bool = False
     # Path to the requirements.txt file relative to the workspace_root
     requirements_file: str = "requirements.txt"
-
-    # -*- Debug Mode
-    debug_mode: bool = False
-
-    # -*- Container Configuration
-    # Each PhidataApp has 1 main container and multiple sidecar containers
-    # The main container name
-    container_name: Optional[str] = None
-    # Overwrite the PYTHONPATH env var, default: False
+    # Set the container PYTHONPATH
     set_python_path: bool = False
-    # Set the python_path, default: workspace_volume_container_path,
+    # Manually provide the PYTHONPATH. If None, defaults to the workspace_root
     python_path: Optional[str] = None
-    # Add to the PYTHONPATH env var. If python_path is set, this is ignored
+    # Add to the PYTHONPATH env var. If python_path is provided, this value is ignored
     add_python_path: Optional[str] = None
-    # Add labels to the container
-    container_labels: Optional[Dict[str, Any]] = None
 
     # Container env passed to the PhidataApp
     # Add env variables to container env
@@ -90,35 +84,27 @@ class PhidataAppArgs(PhidataBaseArgs):
     # Read secret variables from AWS Secrets
     aws_secrets: Optional[Any] = None
 
-    # Container ports
+    # -*- Container Ports
     # Open a container port if open_container_port=True
     open_container_port: bool = False
     # Port number on the container
     container_port: int = 8000
-    # Port name: Only used by the K8sContainer
+    # Port name
     container_port_name: str = "http"
-    # Host port: Only used by the DockerContainer
+    # Host port to map to the container port
     container_host_port: int = 8000
 
-    # Container volumes
+    # -*- Container Volumes
     # Mount the workspace directory on the container
     mount_workspace: bool = False
     workspace_volume_name: Optional[str] = None
     workspace_volume_type: Optional[WorkspaceVolumeType] = None
-    # Path to mount the workspace volume
-    # This is the parent directory for the workspace on the container
-    # i.e. the ws is mounted as a subdir in this dir
-    # eg: if ws name is: idata, workspace_root would be: /mnt/workspaces/idata
+    # Path to mount the workspace volume inside the container
     workspace_volume_container_path: str = "/mnt/workspaces"
-    # How to mount the workspace volume
-    # Option 1: Mount the workspace from the host machine
+    # Mount the workspace from the host machine
     # If None, use the workspace_root_path
-    # Note: This is the default on DockerContainers. We assume that DockerContainers
-    # are running locally on the user's machine so the local workspace_root_path
-    # is mounted to the workspace_volume_container_path
     workspace_volume_host_path: Optional[str] = None
-    # Option 2: Load the workspace from git using a git-sync sidecar container
-    # This the default on K8sContainers.
+    # Load the workspace from git using a git-sync sidecar container
     create_git_sync_sidecar: bool = False
     # Required to create an initial copy of the workspace
     create_git_sync_init_container: bool = True
@@ -128,7 +114,8 @@ class PhidataAppArgs(PhidataBaseArgs):
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
 
-    # -*- Docker configuration
+    # -*- Docker Configuration
+    container_name: Optional[str] = None
     # Run container in the background and return a Container object.
     container_detach: bool = True
     # Enable auto-removal of the container on daemon side when the container’s process exits.
@@ -181,9 +168,10 @@ class PhidataAppArgs(PhidataBaseArgs):
     #   - A list of integers, if you want to bind multiple host ports to a single container port.
     #       For example, {'1111/tcp': [1234, 4567]}.
     container_ports_docker: Optional[Dict[str, Any]] = None
+    # Add labels to the container
+    container_labels: Optional[Dict[str, Any]] = None
 
-    # -*- K8s configuration
-    # K8s Deployment configuration
+    # -*- K8s Deployment Configuration
     replicas: int = 1
     pod_name: Optional[str] = None
     deploy_name: Optional[str] = None
@@ -197,15 +185,14 @@ class PhidataAppArgs(PhidataBaseArgs):
     deploy_restart_policy: Optional[Any] = None
     deploy_labels: Optional[Dict[str, Any]] = None
     termination_grace_period_seconds: Optional[int] = None
-    # How to spread the deployment across a topology
-    # Key to spread the pods across
+    # Key to spread the pods across a topology
     topology_spread_key: Optional[str] = None
     # The degree to which pods may be unevenly distributed
     topology_spread_max_skew: Optional[int] = None
     # How to deal with a pod if it doesn't satisfy the spread constraint.
     topology_spread_when_unsatisfiable: Optional[str] = None
 
-    # K8s Service Configuration
+    # -*- K8s Service Configuration
     create_service: bool = False
     service_name: Optional[str] = None
     # Type: ServiceType
@@ -219,9 +206,7 @@ class PhidataAppArgs(PhidataBaseArgs):
     service_target_port: Optional[Union[str, int]] = None
     # Extra ports exposed by the webserver service. Type: List[CreatePort]
     service_ports: Optional[List[Any]] = None
-    # Service labels
     service_labels: Optional[Dict[str, Any]] = None
-    # Service annotations
     service_annotations: Optional[Dict[str, str]] = None
     # If ServiceType == ServiceType.LoadBalancer
     service_health_check_node_port: Optional[int] = None
@@ -231,13 +216,12 @@ class PhidataAppArgs(PhidataBaseArgs):
     service_load_balancer_source_ranges: Optional[List[str]] = None
     service_allocate_load_balancer_node_ports: Optional[bool] = None
 
-    # K8s Ingress Configuration
+    # -*- K8s Ingress Configuration
     create_ingress: bool = False
     ingress_name: Optional[str] = None
-    # Ingress annotations
     ingress_annotations: Optional[Dict[str, str]] = None
 
-    # K8s RBAC Configuration
+    # -*- K8s RBAC Configuration
     use_rbac: bool = False
     # Create a Namespace with name ns_name & default values
     ns_name: Optional[str] = None
@@ -321,8 +305,8 @@ class PhidataApp(PhidataBase):
         self.env_data: Optional[Dict[str, Any]] = None
         self.secret_data: Optional[Dict[str, Any]] = None
 
-        # Args for the PhidataApp, provided by the subclass
-        self.args: PhidataAppArgs
+        # Args for the PhidataApp, set by the subclass
+        self.args: PhidataAppArgs = PhidataAppArgs()
 
         # Dict of DockerResourceGroups
         # Type: Optional[Dict[str, DockerResourceGroup]]
@@ -488,7 +472,7 @@ class PhidataApp(PhidataBase):
     def get_container_name(self) -> str:
         from phidata.utils.common import get_default_container_name
 
-        return self.args.container_name or get_default_container_name(self.args.name)
+        return self.args.container_name or get_default_container_name(self.name)
 
     def get_container_port(self) -> int:
         return self.args.container_port
@@ -499,27 +483,27 @@ class PhidataApp(PhidataBase):
     def get_pod_name(self) -> str:
         from phidata.utils.common import get_default_pod_name
 
-        return self.args.pod_name or get_default_pod_name(self.args.name)
+        return self.args.pod_name or get_default_pod_name(self.name)
 
     def get_deploy_name(self) -> str:
         from phidata.utils.common import get_default_deploy_name
 
-        return self.args.deploy_name or get_default_deploy_name(self.args.name)
+        return self.args.deploy_name or get_default_deploy_name(self.name)
 
     def get_secret_name(self) -> str:
         from phidata.utils.common import get_default_secret_name
 
-        return self.args.secret_name or get_default_secret_name(self.args.name)
+        return self.args.secret_name or get_default_secret_name(self.name)
 
     def get_configmap_name(self) -> str:
         from phidata.utils.common import get_default_configmap_name
 
-        return self.args.configmap_name or get_default_configmap_name(self.args.name)
+        return self.args.configmap_name or get_default_configmap_name(self.name)
 
     def get_service_name(self) -> str:
         from phidata.utils.common import get_default_service_name
 
-        return self.args.service_name or get_default_service_name(self.args.name)
+        return self.args.service_name or get_default_service_name(self.name)
 
     def get_service_port(self) -> int:
         return self.args.service_port
@@ -527,17 +511,17 @@ class PhidataApp(PhidataBase):
     def get_sa_name(self) -> str:
         from phidata.utils.common import get_default_sa_name
 
-        return self.args.sa_name or get_default_sa_name(self.args.name)
+        return self.args.sa_name or get_default_sa_name(self.name)
 
     def get_cr_name(self) -> str:
         from phidata.utils.common import get_default_cr_name
 
-        return self.args.cr_name or get_default_cr_name(self.args.name)
+        return self.args.cr_name or get_default_cr_name(self.name)
 
     def get_crb_name(self) -> str:
         from phidata.utils.common import get_default_crb_name
 
-        return self.args.crb_name or get_default_crb_name(self.args.name)
+        return self.args.crb_name or get_default_crb_name(self.name)
 
     def get_env_data(self) -> Optional[Dict[str, str]]:
         if self.env_data is None:
@@ -546,8 +530,33 @@ class PhidataApp(PhidataBase):
 
     def get_secret_data(self) -> Optional[Dict[str, str]]:
         if self.secret_data is None:
+            # Read from secrets_file
             self.secret_data = self.read_yaml_file(file_path=self.args.secrets_file)
-        # Read from aws_secrets
+
+            # Read from aws_secrets
+            if self.args.aws_secrets is not None:
+                from phidata.aws.resource.secret.manager import SecretsManager
+
+                aws_secrets: Dict[str, Any] = {}
+                if isinstance(self.args.aws_secrets, SecretsManager):
+                    _secret_dict = self.args.aws_secrets.get_secrets_as_dict()
+                    if _secret_dict is not None and isinstance(_secret_dict, dict):
+                        aws_secrets.update(_secret_dict)
+                elif isinstance(self.args.aws_secrets, list):
+                    for _aws_secret in self.args.aws_secrets:
+                        if isinstance(_aws_secret, SecretsManager):
+                            _secret_dict = _aws_secret.get_secrets_as_dict()
+                            if _secret_dict is not None and isinstance(
+                                _secret_dict, dict
+                            ):
+                                aws_secrets.update(_secret_dict)
+
+                if len(aws_secrets) > 0:
+                    if self.secret_data is None:
+                        self.secret_data = aws_secrets
+                    else:
+                        self.secret_data.update(aws_secrets)
+        # logger.debug(f"{self.name} secrets: {self.secret_data}")
         return self.secret_data
 
     def set_container_env(self, container_env: Dict[str, Any]) -> None:
@@ -811,13 +820,13 @@ class PhidataApp(PhidataBase):
         if self.aws_resource_groups is None:
             self.init_aws_resource_groups(aws_build_context)
         # Comment out in production
-        if self.aws_resource_groups:
-            logger.debug("AwsResourceGroups:")
-            for rg_name, rg in self.aws_resource_groups.items():
-                try:
-                    logger.debug("{}\n{}".format(rg_name, rg.json(indent=2)))
-                except Exception:
-                    pass
+        # if self.aws_resource_groups:
+        #     logger.debug("qAwsResourceGroups:")
+        #     for rg_name, rg in self.aws_resource_groups.items():
+        #         try:
+        #             logger.debug("{}\n{}".format(rg_name, rg.json(indent=2)))
+        #         except Exception:
+        #             pass
         return self.aws_resource_groups
 
     ######################################################

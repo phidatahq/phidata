@@ -151,6 +151,15 @@ class WorkspaceConfig(InfraConfig):
             self.args.default_config = default_config
 
     @property
+    def ws_settings(self) -> Optional[WorkspaceSettings]:
+        return self.args.ws_settings if self.args else None
+
+    @ws_settings.setter
+    def ws_settings(self, ws_settings: WorkspaceSettings) -> None:
+        if self.args is not None and ws_settings is not None:
+            self.args.ws_settings = ws_settings
+
+    @property
     def docker(self) -> Optional[List[Any]]:
         return self.args.docker if self.args else None
 
@@ -205,3 +214,80 @@ class WorkspaceConfig(InfraConfig):
                 if not isinstance(awsc, AwsConfig):
                     raise ValueError(f"Invalid AwsConfig: {awsc}")
         return True
+
+    @classmethod
+    def from_file(cls, path: Path) -> "WorkspaceConfig":
+        if not path.exists():
+            raise FileNotFoundError(f"File {path} does not exist")
+        if not path.is_file():
+            raise ValueError(f"Path {path} is not a file")
+        if not path.suffix == ".py":
+            raise ValueError(f"File {path} is not a python file")
+
+        ws_config = cls()
+        logger.debug(f"--^^-- Building WorkspaceConfig from: {path}")
+        ws_config.workspace_root_path = path.parent.resolve()
+        workspace_config_objects = {}
+        try:
+            from phidata.utils.get_python_objects_from_module import (
+                get_python_objects_from_module,
+            )
+
+            python_objects = get_python_objects_from_module(path)
+            for obj_name, obj in python_objects.items():
+                _type_name = obj.__class__.__name__
+                if _type_name in [
+                    "WorkspaceSettings",
+                    "DockerConfig",
+                    "K8sConfig",
+                    "AwsConfig",
+                ]:
+                    workspace_config_objects[obj_name] = obj
+        except Exception as e:
+            parent_dir = path.parent.name
+            parent_parent_dir = path.parent.parent.name
+            if parent_dir in ("resources", "tests") or parent_parent_dir in (
+                "resources",
+                "tests",
+            ):
+                pass
+            else:
+                logger.warning(f"Error in {path}: {e}")
+            pass
+
+        # logger.debug(f"workspace_config_objects: {workspace_config_objects}")
+        for obj_name, obj in workspace_config_objects.items():
+            _obj_type = obj.__class__.__name__
+            logger.debug(f"Adding {obj_name} | Type: {_obj_type}")
+            if _obj_type == "WorkspaceSettings":
+                ws_config.ws_settings = obj
+                try:
+                    ws_config.default_env = obj.default_env or obj.dev_env
+                    ws_config.default_config = obj.default_config
+                except Exception as e:
+                    logger.debug(f"Error loading default settings: {e}")
+                    pass
+
+                try:
+                    ws_config.aws_region = obj.aws_region
+                    ws_config.aws_profile = obj.aws_profile
+                    ws_config.aws_config_file = obj.aws_config_file
+                    ws_config.aws_shared_credentials_file = (
+                        obj.aws_shared_credentials_file
+                    )
+                except Exception as e:
+                    logger.debug(f"Error loading aws settings: {e}")
+                    pass
+            elif _obj_type == "DockerConfig":
+                if ws_config.docker is None:
+                    ws_config.docker = []
+                ws_config.docker.append(obj)
+            elif _obj_type == "K8sConfig":
+                if ws_config.k8s is None:
+                    ws_config.k8s = []
+                ws_config.k8s.append(obj)
+            elif _obj_type == "AwsConfig":
+                if ws_config.aws is None:
+                    ws_config.aws = []
+                ws_config.aws.append(obj)
+        return ws_config

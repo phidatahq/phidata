@@ -1,7 +1,9 @@
+from pathlib import Path
 from collections import OrderedDict
-from typing import Dict, List, Optional, Union
+from typing import Optional, List, Dict, Union
 
 from phidata.aws.args import AwsArgs
+from phidata.aws.exceptions import AwsArgsException
 from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.aws.api_client import AwsApiClient
@@ -18,35 +20,30 @@ from phidata.utils.cli_console import (
 from phidata.utils.log import logger
 
 
-class AwsWorker:
-    """This class interacts with the Aws API."""
+class AwsDriver:
+    def __init__(self, aws_args: AwsArgs):
+        if aws_args is None or not isinstance(aws_args, AwsArgs):
+            raise AwsArgsException("Invalid AwsArgs")
+        if aws_args.workspace_root_path is None or not isinstance(
+            aws_args.workspace_root_path, Path
+        ):
+            raise AwsArgsException("workspace_root_path invalid")
 
-    def __init__(self, aws_args: AwsArgs) -> None:
         self.aws_args: AwsArgs = aws_args
         self.aws_api_client: AwsApiClient = AwsApiClient(
             aws_region=self.aws_args.aws_region,
             aws_profile=self.aws_args.aws_profile,
         )
-        logger.debug(f"**-+-** AwsWorker created")
-
-    def is_client_initialized(self) -> bool:
-        return self.aws_api_client.is_initialized()
-
-    def are_resources_active(self) -> bool:
-        # TODO: fix this
-        return False
+        logger.debug("**-+-** AwsDriver created")
 
     ######################################################
-    ## Build Resources
+    ## Get Resources
     ######################################################
 
-    def build_aws_resource_groups(
+    def build_resource_groups(
         self,
         app_filter: Optional[str] = None,
     ) -> Optional[Dict[str, AwsResourceGroup]]:
-        """
-        Build the AwsResourceGroups for the requested apps
-        """
         logger.debug("-*- Initializing AwsResourceGroups")
 
         aws_resource_groups: Optional[Dict[str, AwsResourceGroup]] = None
@@ -83,10 +80,10 @@ class AwsWorker:
 
                 ######################################################################
                 # NOTE: VERY IMPORTANT TO GET RIGHT
-                # Pass down parameters from K8sArgs -> PhidataApp
-                # The K8sConfig inherits these params from the WorkspaceConfig
+                # Pass down parameters from AwsArgs -> PhidataApp
+                # The AwsConfig inherits these params from the WorkspaceConfig
                 # 1. Pass down the paths from the WorkspaceConfig
-                # 2. Pass down k8s_env
+                # 2. Pass down aws_env
                 # 3. Pass down common cloud configuration. eg: aws_region, aws_profile
                 # This should match phidata.infra.prep_infra_config.prep_infra_config()
                 ######################################################################
@@ -158,9 +155,72 @@ class AwsWorker:
         logger.debug(f"# AwsResourceGroups built: {num_rgs_built}/{num_rgs_to_build}")
         return aws_resource_groups
 
+    def get_resources(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+    ) -> Optional[List[AwsResource]]:
+        logger.debug("-*- Getting AwsResources")
+
+        aws_resource_groups: Optional[
+            Dict[str, AwsResourceGroup]
+        ] = self.build_resource_groups(app_filter=app_filter)
+
+        if aws_resource_groups is None:
+            print_info("No resources available")
+            return None
+
+        aws_resources: List[AwsResource] = filter_and_flatten_aws_resource_groups(
+            aws_resource_groups=aws_resource_groups,
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+        )
+
+        return aws_resources
+
     ######################################################
     ## Create Resources
     ######################################################
+
+    def create_resources_dry_run(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+        auto_confirm: Optional[bool] = False,
+    ) -> None:
+        logger.debug("-*- Creating AwsResources")
+
+        aws_resource_groups: Optional[
+            Dict[str, AwsResourceGroup]
+        ] = self.build_resource_groups(app_filter=app_filter)
+
+        if aws_resource_groups is None:
+            print_info("No resources available")
+            return
+
+        aws_resources_to_create: List[
+            AwsResource
+        ] = filter_and_flatten_aws_resource_groups(
+            aws_resource_groups=aws_resource_groups,
+            name_filter=name_filter,
+            type_filter=type_filter,
+            app_filter=app_filter,
+        )
+
+        num_resources_to_create: int = len(aws_resources_to_create)
+        print_heading("--**-- Aws resources:")
+        for resource in aws_resources_to_create:
+            print_info(
+                f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
+            )
+        if self.aws_args.aws_region:
+            print_info(f"\nRegion: {self.aws_args.aws_region}")
+        if self.aws_args.aws_profile:
+            print_info(f"Profile: {self.aws_args.aws_profile}")
+        print_info(f"\nTotal {num_resources_to_create} resources")
 
     def create_resources(
         self,
@@ -173,7 +233,7 @@ class AwsWorker:
 
         aws_resource_groups: Optional[
             Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
+        ] = self.build_resource_groups(app_filter=app_filter)
 
         if aws_resource_groups is None:
             print_info("No resources available")
@@ -245,35 +305,49 @@ class AwsWorker:
         )
         return False
 
-    def create_resources_dry_run(
+    def validate_resources_are_created(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+    ) -> bool:
+        logger.debug("Validating resources are created...")
+        return True
+
+    ######################################################
+    ## Delete Resources
+    ######################################################
+
+    def delete_resources_dry_run(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-        logger.debug("-*- Creating AwsResources")
+        logger.debug("-*- Deleting AwsResources")
 
         aws_resource_groups: Optional[
             Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
+        ] = self.build_resource_groups(app_filter=app_filter)
 
         if aws_resource_groups is None:
             print_info("No resources available")
             return
 
-        aws_resources_to_create: List[
+        aws_resources_to_delete: List[
             AwsResource
         ] = filter_and_flatten_aws_resource_groups(
             aws_resource_groups=aws_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
+            sort_order="delete",
         )
 
-        num_resources_to_create: int = len(aws_resources_to_create)
+        num_resources_to_delete: int = len(aws_resources_to_delete)
         print_heading("--**-- Aws resources:")
-        for resource in aws_resources_to_create:
+        for resource in aws_resources_to_delete:
             print_info(
                 f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
             )
@@ -281,40 +355,7 @@ class AwsWorker:
             print_info(f"\nRegion: {self.aws_args.aws_region}")
         if self.aws_args.aws_profile:
             print_info(f"Profile: {self.aws_args.aws_profile}")
-        print_info(f"\nTotal {num_resources_to_create} resources")
-
-    ######################################################
-    ## Get Resources
-    ######################################################
-
-    def get_resources(
-        self,
-        name_filter: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        app_filter: Optional[str] = None,
-    ) -> Optional[List[AwsResource]]:
-        logger.debug("-*- Getting AwsResources")
-
-        aws_resource_groups: Optional[
-            Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
-
-        if aws_resource_groups is None:
-            print_info("No resources available")
-            return None
-
-        aws_resources: List[AwsResource] = filter_and_flatten_aws_resource_groups(
-            aws_resource_groups=aws_resource_groups,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            app_filter=app_filter,
-        )
-
-        return aws_resources
-
-    ######################################################
-    ## Delete Resources
-    ######################################################
+        print_info(f"\nTotal {num_resources_to_delete} resources")
 
     def delete_resources(
         self,
@@ -327,7 +368,7 @@ class AwsWorker:
 
         aws_resource_groups: Optional[
             Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
+        ] = self.build_resource_groups(app_filter=app_filter)
 
         if aws_resource_groups is None:
             print_info("No resources available")
@@ -400,36 +441,48 @@ class AwsWorker:
         )
         return False
 
-    def delete_resources_dry_run(
+    def validate_resources_are_deleted(
+        self,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        app_filter: Optional[str] = None,
+    ) -> bool:
+        logger.debug("Validating resources are deleted...")
+        return True
+
+    ######################################################
+    ## Patch Resources
+    ######################################################
+
+    def patch_resources_dry_run(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
         auto_confirm: Optional[bool] = False,
     ) -> None:
-        logger.debug("-*- Deleting AwsResources")
+        logger.debug("-*- Patching AwsResources")
 
         aws_resource_groups: Optional[
             Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
+        ] = self.build_resource_groups(app_filter=app_filter)
 
         if aws_resource_groups is None:
             print_info("No resources available")
             return
 
-        aws_resources_to_delete: List[
+        aws_resources_to_patch: List[
             AwsResource
         ] = filter_and_flatten_aws_resource_groups(
             aws_resource_groups=aws_resource_groups,
             name_filter=name_filter,
             type_filter=type_filter,
             app_filter=app_filter,
-            sort_order="delete",
         )
 
-        num_resources_to_delete: int = len(aws_resources_to_delete)
+        num_resources_to_patch: int = len(aws_resources_to_patch)
         print_heading("--**-- Aws resources:")
-        for resource in aws_resources_to_delete:
+        for resource in aws_resources_to_patch:
             print_info(
                 f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
             )
@@ -437,11 +490,7 @@ class AwsWorker:
             print_info(f"\nRegion: {self.aws_args.aws_region}")
         if self.aws_args.aws_profile:
             print_info(f"Profile: {self.aws_args.aws_profile}")
-        print_info(f"\nTotal {num_resources_to_delete} resources")
-
-    ######################################################
-    ## Patch Resources
-    ######################################################
+        print_info(f"\nTotal {num_resources_to_patch} resources")
 
     def patch_resources(
         self,
@@ -454,7 +503,7 @@ class AwsWorker:
 
         aws_resource_groups: Optional[
             Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
+        ] = self.build_resource_groups(app_filter=app_filter)
 
         if aws_resource_groups is None:
             print_info("No resources available")
@@ -526,44 +575,11 @@ class AwsWorker:
         )
         return False
 
-    def patch_resources_dry_run(
+    def validate_resources_are_patched(
         self,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
         app_filter: Optional[str] = None,
-        auto_confirm: Optional[bool] = False,
-    ) -> None:
-        logger.debug("-*- Patching AwsResources")
-
-        aws_resource_groups: Optional[
-            Dict[str, AwsResourceGroup]
-        ] = self.build_aws_resource_groups(app_filter=app_filter)
-
-        if aws_resource_groups is None:
-            print_info("No resources available")
-            return
-
-        aws_resources_to_patch: List[
-            AwsResource
-        ] = filter_and_flatten_aws_resource_groups(
-            aws_resource_groups=aws_resource_groups,
-            name_filter=name_filter,
-            type_filter=type_filter,
-            app_filter=app_filter,
-        )
-
-        num_resources_to_patch: int = len(aws_resources_to_patch)
-        print_heading("--**-- Aws resources:")
-        for resource in aws_resources_to_patch:
-            print_info(
-                f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}"
-            )
-        if self.aws_args.aws_region:
-            print_info(f"\nRegion: {self.aws_args.aws_region}")
-        if self.aws_args.aws_profile:
-            print_info(f"Profile: {self.aws_args.aws_profile}")
-        print_info(f"\nTotal {num_resources_to_patch} resources")
-
-    ######################################################
-    ## End
-    ######################################################
+    ) -> bool:
+        logger.debug("Validating resources are patched...")
+        return True

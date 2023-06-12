@@ -2,7 +2,7 @@
   phidata
 </h1>
 <p align="center">
-    <em>Build applications using open-source tools</em>
+    <em>A toolkit for building applications using open source tools</em>
 </p>
 
 <p align="center">
@@ -29,28 +29,21 @@
 
 ---
 
-<p align="center">Phidata is a toolkit for building applications using open source tools</p>
-
-## 🤔 What does that mean?
+## Motivation
 
 Open source tools can be used to build powerful software, but are difficult to run in production settings.
-Phidata is a library that converts OSS like FastApi, Jupyter, Airflow, Superset into python classes that can be put together to
-build applications like AI Apps, RestAPIs, Django Apps and even full-scale Data Platforms.
 
-With everything in pure python, these applications can then be managed as 1 unit using software engineering best practices.
-
-If you like using open source tools, phidata is for you.
-It also comes with a library of pre-configured tech stacks that makes it easy to get started with common use cases.
+- Phidata makes it easy to run tools like FastApi, Django, Jupyter, Airflow and Superset.
+- Phidata packages these tools into LLM Apps, Web Apps and Data Platforms.
+- Phidata runs your application locally for development and production on AWS, using 1 command.
 
 ## 🚀 How it works
 
-- Phidata provides pre-configured templates for common use cases.
 - **Create your codebase** from a template using `phi ws create`
 - **Run your app locally** using `phi ws up dev:docker`
 - **Run your app on AWS** using `phi ws up prd:aws`
-- **Integrate** with your front-end or product using APIs.
 
-## Example: Run a Jupyter Notebook
+## Basic Example: Run a Jupyter Notebook
 
 ### Requirements
 

@@ -29,8 +29,6 @@
 
 ---
 
-## Motivation
-
 Open source tools can be used to build powerful software, but are difficult to run in production settings.
 
 - Phidata makes it easy to run tools like FastApi, Django, Jupyter, Airflow and Superset.

@@ -1,21 +1,15 @@
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
-from phidata.app.server.server_base import (
-    ServerBase,
-    ServerBaseArgs,
-    ServiceType,
-    WorkspaceVolumeType,
-    ImagePullPolicy,
-    RestartPolicy,
-)
+from phidata.app.phidata_app import PhidataApp, PhidataAppArgs, WorkspaceVolumeType
+from phidata.utils.log import logger
 
 
-class StreamlitAppArgs(ServerBaseArgs):
+class StreamlitAppArgs(PhidataAppArgs):
     pass
 
 
-class StreamlitApp(ServerBase):
+class StreamlitApp(PhidataApp):
     def __init__(
         self,
         name: str = "streamlit-app",
@@ -75,21 +69,7 @@ class StreamlitApp(ServerBase):
         # How to mount the workspace volume,
         # Option 1: Mount the workspace from the host machine,
         # If None, use the workspace_root_path,
-        # Note: This is the default on DockerContainers. We assume that DockerContainers,
-        # are running locally on the user's machine so the local workspace_root_path,
-        # is mounted to the workspace_volume_container_path,
         workspace_volume_host_path: Optional[str] = None,
-        # Option 2: Load the workspace from git using a git-sync sidecar container,
-        # This the default on K8sContainers.,
-        create_git_sync_sidecar: bool = False,
-        # Required to create an initial copy of the workspace,
-        create_git_sync_init_container: bool = True,
-        git_sync_image_name: str = "k8s.gcr.io/git-sync",
-        git_sync_image_tag: str = "v3.1.1",
-        git_sync_repo: Optional[str] = None,
-        git_sync_branch: Optional[str] = None,
-        git_sync_wait: int = 1,
-        # -*- Docker configuration,
         # Run container in the background and return a Container object.,
         container_detach: bool = True,
         # Enable auto-removal of the container on daemon side when the container’s process exits.,
@@ -260,7 +240,9 @@ class StreamlitApp(ServerBase):
         use_cache: bool = True,
         **kwargs,
     ):
-        super().__init__(
+        super().__init__()
+        try:
+            self.args: StreamlitAppArgs = StreamlitAppArgs(
             name=name,
             version=version,
             enabled=enabled,
@@ -290,13 +272,6 @@ class StreamlitApp(ServerBase):
             workspace_volume_type=workspace_volume_type,
             workspace_volume_container_path=workspace_volume_container_path,
             workspace_volume_host_path=workspace_volume_host_path,
-            create_git_sync_sidecar=create_git_sync_sidecar,
-            create_git_sync_init_container=create_git_sync_init_container,
-            git_sync_image_name=git_sync_image_name,
-            git_sync_image_tag=git_sync_image_tag,
-            git_sync_repo=git_sync_repo,
-            git_sync_branch=git_sync_branch,
-            git_sync_wait=git_sync_wait,
             container_detach=container_detach,
             container_auto_remove=container_auto_remove,
             container_remove=container_remove,
@@ -310,66 +285,6 @@ class StreamlitApp(ServerBase):
             container_restart_policy_docker=container_restart_policy_docker,
             container_volumes_docker=container_volumes_docker,
             container_ports_docker=container_ports_docker,
-            replicas=replicas,
-            pod_name=pod_name,
-            deploy_name=deploy_name,
-            secret_name=secret_name,
-            configmap_name=configmap_name,
-            image_pull_policy=image_pull_policy,
-            pod_annotations=pod_annotations,
-            pod_node_selector=pod_node_selector,
-            deploy_restart_policy=deploy_restart_policy,
-            deploy_labels=deploy_labels,
-            termination_grace_period_seconds=termination_grace_period_seconds,
-            topology_spread_key=topology_spread_key,
-            topology_spread_max_skew=topology_spread_max_skew,
-            topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
-            create_service=create_service,
-            service_name=service_name,
-            service_type=service_type,
-            service_port=service_port,
-            service_node_port=service_node_port,
-            service_target_port=service_target_port,
-            service_ports=service_ports,
-            service_labels=service_labels,
-            service_annotations=service_annotations,
-            service_health_check_node_port=service_health_check_node_port,
-            service_internal_traffic_policy=service_internal_traffic_policy,
-            service_load_balancer_class=service_load_balancer_class,
-            service_load_balancer_ip=service_load_balancer_ip,
-            service_load_balancer_source_ranges=service_load_balancer_source_ranges,
-            service_allocate_load_balancer_node_ports=service_allocate_load_balancer_node_ports,
-            use_rbac=use_rbac,
-            ns_name=ns_name,
-            namespace=namespace,
-            sa_name=sa_name,
-            service_account=service_account,
-            cr_name=cr_name,
-            cluster_role=cluster_role,
-            crb_name=crb_name,
-            cluster_role_binding=cluster_role_binding,
-            extra_secrets=extra_secrets,
-            extra_configmaps=extra_configmaps,
-            extra_services=extra_services,
-            extra_deployments=extra_deployments,
-            extra_pvs=extra_pvs,
-            extra_pvcs=extra_pvcs,
-            extra_containers=extra_containers,
-            extra_init_containers=extra_init_containers,
-            extra_ports=extra_ports,
-            extra_volumes=extra_volumes,
-            extra_storage_classes=extra_storage_classes,
-            extra_custom_objects=extra_custom_objects,
-            extra_crds=extra_crds,
-            ecs_cluster=ecs_cluster,
-            ecs_launch_type=ecs_launch_type,
-            ecs_task_cpu=ecs_task_cpu,
-            ecs_task_memory=ecs_task_memory,
-            ecs_service_count=ecs_service_count,
-            assign_public_ip=assign_public_ip,
-            elb=elb,
-            aws_subnets=aws_subnets,
-            aws_security_groups=aws_security_groups,
             print_env_on_load=print_env_on_load,
             skip_create=skip_create,
             skip_read=skip_read,
@@ -384,3 +299,100 @@ class StreamlitApp(ServerBase):
             use_cache=use_cache,
             **kwargs,
         )
+        except Exception as e:
+            logger.error(f"Args for {self.name} are not valid")
+            raise
+
+    ######################################################
+    ## Docker Resources
+    ######################################################
+
+    def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
+        from phidata.docker.resource.group import (
+            DockerNetwork,
+            DockerContainer,
+            DockerResourceGroup,
+            DockerBuildContext,
+        )
+        from phidata.types.context import ContainerPathContext
+
+        app_name = self.args.name
+
+        if self.workspace_root_path is None:
+            raise Exception("Invalid workspace_root_path")
+        workspace_name = self.workspace_root_path.stem
+
+        logger.debug(f"Building DockerResourceGroup: {app_name} for {workspace_name}")
+
+        if docker_build_context is None or not isinstance(
+            docker_build_context, DockerBuildContext
+        ):
+            raise Exception(f"Invalid DockerBuildContext: {type(docker_build_context)}")
+
+        container_paths: Optional[ContainerPathContext] = self.get_container_paths(
+            add_ws_name_to_ws_root=False
+        )
+        if container_paths is None:
+            raise Exception("Invalid ContainerPathContext")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+
+        # Get Container Environment
+        container_env: Dict[str, str] = self.get_docker_container_env(
+            container_paths=container_paths
+        )
+
+        # Get Container Volumes
+        container_volumes = self.get_docker_container_volumes(
+            container_paths=container_paths
+        )
+
+        # Get Container Ports
+        container_ports: Dict[str, int] = self.get_docker_container_ports()
+
+        # -*- Create Docker Container
+        docker_container = DockerContainer(
+            name=self.get_container_name(),
+            image=self.get_image_str(),
+            entrypoint=self.args.entrypoint,
+            command=self.args.command,
+            detach=self.args.container_detach,
+            auto_remove=self.args.container_auto_remove
+            if not self.args.debug_mode
+            else False,
+            remove=self.args.container_remove if not self.args.debug_mode else False,
+            healthcheck=self.args.container_healthcheck,
+            hostname=self.args.container_hostname,
+            labels=self.args.container_labels,
+            environment=container_env,
+            network=docker_build_context.network,
+            platform=self.args.container_platform,
+            ports=container_ports if len(container_ports) > 0 else None,
+            restart_policy=self.get_container_restart_policy_docker(),
+            stdin_open=self.args.container_stdin_open,
+            stderr=self.args.container_stderr,
+            stdout=self.args.container_stdout,
+            tty=self.args.container_tty,
+            user=self.args.container_user,
+            volumes=container_volumes if len(container_volumes) > 0 else None,
+            working_dir=self.args.container_working_dir,
+            use_cache=self.args.use_cache,
+        )
+
+        docker_rg = DockerResourceGroup(
+            name=app_name,
+            enabled=self.args.enabled,
+            network=DockerNetwork(name=docker_build_context.network),
+            containers=[docker_container],
+            images=[self.args.image] if self.args.image else None,
+        )
+        return docker_rg
+
+    def init_docker_resource_groups(self, docker_build_context: Any) -> None:
+        docker_rg = self.get_docker_rg(docker_build_context)
+        if docker_rg is not None:
+            from collections import OrderedDict
+
+            if self.docker_resource_groups is None:
+                self.docker_resource_groups = OrderedDict()
+            self.docker_resource_groups[docker_rg.name] = docker_rg
+

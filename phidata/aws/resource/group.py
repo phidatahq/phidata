@@ -5,7 +5,11 @@ from pydantic import BaseModel
 from phidata.aws.resource.acm.certificate import AcmCertificate
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.aws.resource.ec2.volume import EbsVolume
-from phidata.aws.resource.ec2.securitygroup import SecurityGroup
+from phidata.aws.resource.ec2.security_group import (
+    SecurityGroup,
+    InboundRule,
+    OutboundRule,
+)
 from phidata.aws.resource.ec2.subnet import Subnet
 from phidata.aws.resource.ecs.cluster import EcsCluster
 from phidata.aws.resource.ecs.container import EcsContainer

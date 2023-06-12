@@ -274,7 +274,7 @@ class PhidataAppArgs(PhidataBaseArgs):
 
     # -*- AWS configuration
     aws_subnets: Optional[List[str]] = None
-    aws_security_groups: Optional[List[str]] = None
+    aws_security_groups: Optional[List[Any]] = None
 
     # Other args
     print_env_on_load: bool = False

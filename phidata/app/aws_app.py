@@ -8,8 +8,10 @@ from phidata.utils.log import logger
 
 class AwsAppArgs(BaseAppArgs):
     # -*- AWS Configuration
-    aws_subnets: Optional[List[str]] = None
-    aws_security_groups: Optional[List[str]] = None
+    # List of subnets: str or Subnet
+    aws_subnets: Optional[List[Any]] = None
+    # List of security groups: str or SecurityGroup
+    aws_security_groups: Optional[List[Any]] = None
 
     # -*- ECS Configuration
     ecs_cluster: Optional[Any] = None
@@ -17,7 +19,7 @@ class AwsAppArgs(BaseAppArgs):
     ecs_task_cpu: str = "1024"
     ecs_task_memory: str = "2048"
     ecs_service_count: int = 1
-    assign_public_ip: bool = True
+    assign_public_ip: Optional[bool] = None
     ecs_enable_exec: bool = True
 
     # -*- LoadBalancer Configuration
@@ -27,7 +29,7 @@ class AwsAppArgs(BaseAppArgs):
     create_load_balancer: bool = False
     # HTTP or HTTPS
     load_balancer_protocol: str = "HTTP"
-    load_balancer_security_groups: Optional[List[str]] = None
+    load_balancer_security_groups: Optional[List[Any]] = None
     # Default 80 for HTTP and 443 for HTTPS
     load_balancer_port: Optional[int] = None
     load_balancer_certificate: Optional[Any] = None
@@ -62,20 +64,20 @@ class AwsApp(BaseApp):
         self.aws_resource_groups: Optional[Dict[str, Any]] = None
 
     @property
-    def aws_subnets(self) -> Optional[List[str]]:
+    def aws_subnets(self) -> Optional[List[Any]]:
         return self.args.aws_subnets
 
     @aws_subnets.setter
-    def aws_subnets(self, aws_subnets: List[str]) -> None:
+    def aws_subnets(self, aws_subnets: List[Any]) -> None:
         if self.args is not None and aws_subnets is not None:
             self.args.aws_subnets = aws_subnets
 
     @property
-    def aws_security_groups(self) -> Optional[List[str]]:
+    def aws_security_groups(self) -> Optional[List[Any]]:
         return self.args.aws_security_groups
 
     @aws_security_groups.setter
-    def aws_security_groups(self, aws_security_groups: List[str]) -> None:
+    def aws_security_groups(self, aws_security_groups: List[Any]) -> None:
         if self.args is not None and aws_security_groups is not None:
             self.args.aws_security_groups = aws_security_groups
 
@@ -351,7 +353,7 @@ class AwsApp(BaseApp):
                 name=f"{app_name}-tg",
                 port=self.container_port,
                 protocol=self.args.target_group_protocol,
-                aws_subnets=self.args.aws_subnets,
+                subnets=self.args.aws_subnets,
                 target_type=self.args.target_group_type,
                 health_check_protocol=self.args.health_check_protocol,
                 health_check_port=self.args.health_check_port,
@@ -439,14 +441,6 @@ class AwsApp(BaseApp):
             wait_for_deletion=self.args.wait_for_deletion,
         )
 
-        aws_vpc_config: Dict[str, Any] = {}
-        if self.args.aws_subnets is not None:
-            aws_vpc_config["subnets"] = self.args.aws_subnets
-        if self.args.aws_security_groups is not None:
-            aws_vpc_config["securityGroups"] = self.args.aws_security_groups
-        if self.args.assign_public_ip:
-            aws_vpc_config["assignPublicIp"] = "ENABLED"
-
         # -*- Create ECS Service
         ecs_service = EcsService(
             name=f"{app_name}-service",
@@ -457,7 +451,9 @@ class AwsApp(BaseApp):
             target_group=target_group,
             target_container_name=ecs_container.name,
             target_container_port=self.container_port,
-            network_configuration={"awsvpcConfiguration": aws_vpc_config},
+            subnets=self.args.aws_subnets,
+            security_groups=self.args.aws_security_groups,
+            assign_public_ip=self.args.assign_public_ip,
             # Force delete the service.
             force_delete=True,
             # Force a new deployment of the service on update.

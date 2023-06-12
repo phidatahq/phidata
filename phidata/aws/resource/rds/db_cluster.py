@@ -5,6 +5,7 @@ from typing_extensions import Literal
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.rds.db_instance import DbInstance
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
@@ -86,12 +87,14 @@ class DbCluster(AwsResource):
     # Constraints: If supplied, must match the name of an existing DB cluster parameter group.
     db_cluster_parameter_group_name: Optional[str] = None
 
-    ## Networking
     # A list of EC2 VPC security groups to associate with this DB cluster.
     vpc_security_group_ids: Optional[List[str]] = None
     # If vpc_security_group_ids is None,
     # Read the security_group_id from vpc_stack
     vpc_stack: Optional[CloudFormationStack] = None
+    # If vpc_security_group_ids is None and vpc_stack is None
+    # Read the security_group_id from db_security_groups
+    db_security_groups: Optional[List[SecurityGroup]] = None
 
     # A DB subnet group to associate with this DB cluster.
     # This setting is required to create a Multi-AZ DB cluster.
@@ -295,6 +298,9 @@ class DbCluster(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Step 1: Get the VpcSecurityGroupIds
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
@@ -302,15 +308,30 @@ class DbCluster(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
         # Step 2: Get the DbSubnetGroupName
         db_subnet_group_name = self.db_subnet_group_name
         if db_subnet_group_name is None and self.db_subnet_group is not None:
             db_subnet_group_name = self.db_subnet_group.name
             logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        if db_subnet_group_name is not None:
+            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
+        database_name = self.get_database_name()
+        if database_name:
+            not_null_args["DatabaseName"] = database_name
+
         if self.availability_zones:
             not_null_args["AvailabilityZones"] = self.availability_zones
         if self.backup_retention_period:
@@ -318,19 +339,10 @@ class DbCluster(AwsResource):
         if self.character_set_name:
             not_null_args["CharacterSetName"] = self.character_set_name
 
-        database_name = self.get_database_name()
-        if database_name:
-            not_null_args["DatabaseName"] = database_name
-
         if self.db_cluster_parameter_group_name:
             not_null_args[
                 "DBClusterParameterGroupName"
             ] = self.db_cluster_parameter_group_name
-
-        if vpc_security_group_ids is not None:
-            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
-        if db_subnet_group_name is not None:
-            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
         if self.engine_version:
             not_null_args["EngineVersion"] = self.engine_version
@@ -583,6 +595,9 @@ class DbCluster(AwsResource):
 
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Step 1: Get the VpcSecurityGroupIds
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
@@ -590,9 +605,18 @@ class DbCluster(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
         if self.new_db_cluster_identifier:
             not_null_args["NewDBClusterIdentifier"] = self.new_db_cluster_identifier
         if self.apply_immediately:
@@ -603,13 +627,13 @@ class DbCluster(AwsResource):
             not_null_args[
                 "DBClusterParameterGroupName"
             ] = self.db_cluster_parameter_group_name
-        if vpc_security_group_ids is not None:
-            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
         if self.port:
             not_null_args["Port"] = self.port
+
         master_user_password = self.get_master_user_password()
         if master_user_password:
             not_null_args["MasterUserPassword"] = master_user_password
+
         if self.option_group_name:
             not_null_args["OptionGroupName"] = self.option_group_name
         if self.preferred_backup_window:
@@ -700,9 +724,8 @@ class DbCluster(AwsResource):
         # Step 2: Update DBCluster
         service_client = self.get_service_client(aws_client)
         try:
-            db_cluster_identifier = self.get_db_cluster_identifier()
             update_response = service_client.modify_db_cluster(
-                DBClusterIdentifier=db_cluster_identifier,
+                DBClusterIdentifier=self.get_db_cluster_identifier(),
                 **not_null_args,
             )
             logger.debug(f"DBCluster: {update_response}")

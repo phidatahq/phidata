@@ -1,7 +1,9 @@
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.ec2.subnet import Subnet
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -16,9 +18,9 @@ class LoadBalancer(AwsResource):
 
     # Name of the Load Balancer.
     name: str
-    subnets: Optional[List[str]] = None
+    subnets: Optional[List[Union[str, Subnet]]] = None
     subnet_mappings: Optional[List[Dict[str, str]]] = None
-    security_groups: Optional[List[str]] = None
+    security_groups: Optional[List[Union[str, SecurityGroup]]] = None
     scheme: Optional[str] = None
     tags: Optional[List[Dict[str, str]]] = None
     type: Optional[str] = None
@@ -38,12 +40,28 @@ class LoadBalancer(AwsResource):
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
+
         if self.subnets is not None:
-            not_null_args["Subnets"] = self.subnets
+            subnet_ids = []
+            for subnet in self.subnets:
+                if isinstance(subnet, Subnet):
+                    subnet_ids.append(subnet.id)
+                elif isinstance(subnet, str):
+                    subnet_ids.append(subnet)
+            not_null_args["Subnets"] = subnet_ids
+
         if self.subnet_mappings is not None:
             not_null_args["SubnetMappings"] = self.subnet_mappings
+
         if self.security_groups is not None:
-            not_null_args["SecurityGroups"] = self.security_groups
+            security_group_ids = []
+            for sg in self.security_groups:
+                if isinstance(sg, SecurityGroup):
+                    security_group_ids.append(sg.get_security_group_id(aws_client))
+                else:
+                    security_group_ids.append(sg)
+            not_null_args["SecurityGroups"] = security_group_ids
+
         if self.scheme is not None:
             not_null_args["Scheme"] = self.scheme
         if self.tags is not None:

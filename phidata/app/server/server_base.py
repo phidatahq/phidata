@@ -255,7 +255,7 @@ class ServerBase(PhidataApp):
         assign_public_ip: bool = True,
         elb: Optional[Any] = None,
         aws_subnets: Optional[List[str]] = None,
-        aws_security_groups: Optional[List[str]] = None,
+        aws_security_groups: Optional[List[Any]] = None,
         # Other args,
         print_env_on_load: bool = False,
         skip_create: bool = False,

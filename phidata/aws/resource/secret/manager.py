@@ -158,7 +158,7 @@ class SecretsManager(AwsResource):
             logger.debug(f"secret_name: {self.secret_name}")
             # logger.debug(f"secret_deleted_date: {secret_deleted_date}")
             if self.secret_arn is not None:
-                print_info(f"SecretsManager available: {self.name}")
+                # print_info(f"SecretsManager available: {self.name}")
                 self.active_resource = describe_response
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")

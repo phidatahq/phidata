@@ -3,6 +3,8 @@ from typing_extensions import Literal
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.ec2.subnet import Subnet
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.ecs.cluster import EcsCluster
 from phidata.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phidata.aws.resource.elb.target_group import TargetGroup
@@ -12,7 +14,8 @@ from phidata.utils.log import logger
 
 class EcsService(AwsResource):
     """
-    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
+    Reference:
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
     resource_type = "Service"
@@ -49,6 +52,13 @@ class EcsService(AwsResource):
     target_container_name: Optional[str] = None
     target_container_port: Optional[int] = None
 
+    # The network configuration for the service. This parameter is required for task definitions that
+    # use the awsvpc network mode to receive their own elastic network interface
+    network_configuration: Optional[Dict[str, Any]] = None
+    subnets: Optional[List[str]] = None
+    security_groups: Optional[List[Union[str, SecurityGroup]]] = None
+    assign_public_ip: Optional[bool] = None
+
     # The details of the service discovery registries to assign to this service.
     service_registries: Optional[List[Dict[str, Any]]] = None
     # The number of instantiations of the specified task definition to place and keep running on your cluster.
@@ -66,7 +76,6 @@ class EcsService(AwsResource):
     deployment_configuration: Optional[Dict[str, Any]] = None
     placement_constraints: Optional[List[Dict[str, Any]]] = None
     placement_strategy: Optional[List[Dict[str, Any]]] = None
-    network_configuration: Optional[Dict[str, Any]] = None
     health_check_grace_period_seconds: Optional[int] = None
     scheduling_strategy: Optional[Literal["REPLICA", "DAEMON"]] = None
     deployment_controller: Optional[Dict[str, Any]] = None
@@ -112,6 +121,34 @@ class EcsService(AwsResource):
         cluster_name = self.get_ecs_cluster_name()
         if cluster_name is not None:
             not_null_args["cluster"] = cluster_name
+
+        network_configuration = self.network_configuration
+        if network_configuration is None and (
+            self.subnets is not None or self.security_groups is not None
+        ):
+            aws_vpc_config: Dict[str, Any] = {}
+            if self.subnets is not None:
+                subnet_ids = []
+                for subnet in self.subnets:
+                    if isinstance(subnet, Subnet):
+                        subnet_ids.append(subnet.id)
+                    elif isinstance(subnet, str):
+                        subnet_ids.append(subnet)
+                aws_vpc_config["subnets"] = subnet_ids
+            if self.security_groups is not None:
+                security_group_ids = []
+                for sg in self.security_groups:
+                    if isinstance(sg, SecurityGroup):
+                        security_group_ids.append(sg.get_security_group_id(aws_client))
+                    else:
+                        security_group_ids.append(sg)
+                aws_vpc_config["securityGroups"] = security_group_ids
+            if self.assign_public_ip:
+                aws_vpc_config["assignPublicIp"] = "ENABLED"
+            network_configuration = {"awsvpcConfiguration": aws_vpc_config}
+        if network_configuration is not None:
+            not_null_args["networkConfiguration"] = network_configuration
+
         if self.service_registries is not None:
             not_null_args["serviceRegistries"] = self.service_registries
         if self.desired_count is not None:
@@ -132,8 +169,6 @@ class EcsService(AwsResource):
             not_null_args["placementConstraints"] = self.placement_constraints
         if self.placement_strategy is not None:
             not_null_args["placementStrategy"] = self.placement_strategy
-        if self.network_configuration is not None:
-            not_null_args["networkConfiguration"] = self.network_configuration
         if self.health_check_grace_period_seconds is not None:
             not_null_args[
                 "healthCheckGracePeriodSeconds"
@@ -311,14 +346,40 @@ class EcsService(AwsResource):
         cluster_name = self.get_ecs_cluster_name()
         if cluster_name is not None:
             not_null_args["cluster"] = cluster_name
+
+        network_configuration = self.network_configuration
+        if network_configuration is None and (
+            self.subnets is not None or self.security_groups is not None
+        ):
+            aws_vpc_config: Dict[str, Any] = {}
+            if self.subnets is not None:
+                subnet_ids = []
+                for subnet in self.subnets:
+                    if isinstance(subnet, Subnet):
+                        subnet_ids.append(subnet.id)
+                    elif isinstance(subnet, str):
+                        subnet_ids.append(subnet)
+                aws_vpc_config["subnets"] = subnet_ids
+            if self.security_groups is not None:
+                security_group_ids = []
+                for sg in self.security_groups:
+                    if isinstance(sg, SecurityGroup):
+                        security_group_ids.append(sg.get_security_group_id(aws_client))
+                    else:
+                        security_group_ids.append(sg)
+                aws_vpc_config["securityGroups"] = security_group_ids
+            if self.assign_public_ip:
+                aws_vpc_config["assignPublicIp"] = "ENABLED"
+            network_configuration = {"awsvpcConfiguration": aws_vpc_config}
+        if self.network_configuration is not None:
+            not_null_args["networkConfiguration"] = network_configuration
+
         if self.desired_count is not None:
             not_null_args["desiredCount"] = self.desired_count
         if self.capacity_provider_strategy is not None:
             not_null_args["capacityProviderStrategy"] = self.capacity_provider_strategy
         if self.deployment_configuration is not None:
             not_null_args["deploymentConfiguration"] = self.deployment_configuration
-        if self.network_configuration is not None:
-            not_null_args["networkConfiguration"] = self.network_configuration
         if self.placement_constraints is not None:
             not_null_args["placementConstraints"] = self.placement_constraints
         if self.placement_strategy is not None:

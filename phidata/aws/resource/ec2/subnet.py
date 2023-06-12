@@ -8,7 +8,8 @@ from phidata.utils.log import logger
 
 class Subnet(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#subnet
+    Reference:
+        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#subnet
     """
 
     resource_type = "Subnet"
@@ -57,3 +58,20 @@ class Subnet(AwsResource):
         except Exception as e:
             print_error(f"Error reading {self.get_resource_type()}: {e}")
         return None
+
+
+def get_vpc_id_from_subnet_ids(
+    subnet_ids: Optional[list[str]], aws_client: Optional[AwsApiClient] = None
+) -> Optional[str]:
+    if subnet_ids is None:
+        return None
+
+    # Get VPC ID from subnets
+    vpc_ids = set()
+    for subnet in subnet_ids:
+        _vpc = Subnet(id=subnet).get_vpc_id(aws_client)
+        vpc_ids.add(_vpc)
+    if len(vpc_ids) > 1:
+        raise ValueError("Subnets must be in the same VPC")
+    vpc_id = vpc_ids.pop() if len(vpc_ids) == 1 else None
+    return vpc_id

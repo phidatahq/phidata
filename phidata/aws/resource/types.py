@@ -6,6 +6,7 @@ from phidata.aws.resource.acm.certificate import AcmCertificate
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
 from phidata.aws.resource.ec2.volume import EbsVolume
 from phidata.aws.resource.ec2.subnet import Subnet
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.ecs.cluster import EcsCluster
 from phidata.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phidata.aws.resource.eks.cluster import EksCluster
@@ -43,6 +44,7 @@ AwsResourceType = Union[
     S3Bucket,
     SecretsManager,
     Subnet,
+    SecurityGroup,
     DbSubnetGroup,
     DbCluster,
     DbInstance,
@@ -61,6 +63,7 @@ AwsResourceType = Union[
 # This list is the order in which resources should be installed as well.
 AwsResourceTypeList: List[Type[AwsResource]] = [
     Subnet,
+    SecurityGroup,
     IamRole,
     IamPolicy,
     S3Bucket,

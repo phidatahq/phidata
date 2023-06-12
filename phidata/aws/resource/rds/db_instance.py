@@ -5,6 +5,7 @@ from typing_extensions import Literal
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
 from phidata.aws.resource.secret.manager import SecretsManager
 from phidata.utils.cli_console import print_info, print_error, print_warning
@@ -15,7 +16,8 @@ class DbInstance(AwsResource):
     """
     The DBInstance can be an RDS DB instance, or it can be a DB instance in an Aurora DB cluster.
 
-    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
+    Reference:
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
     """
 
     resource_type = "DbInstance"
@@ -76,15 +78,14 @@ class DbInstance(AwsResource):
     # Read secret variables from AWS Secret
     aws_secret: Optional[SecretsManager] = None
 
-    # A list of DB security groups to associate with this DB instance.
-    # This setting applies to the legacy EC2-Classic platform, which no longer creates new DB instances.
-    # Use the VpcSecurityGroupIds setting instead.
-    db_security_groups: Optional[List[str]] = None
-    # A list of Amazon EC2 VPC security groups to associate with this DB instance.
+    # A list of VPC security groups to associate with this DB instance.
     vpc_security_group_ids: Optional[List[str]] = None
     # If vpc_security_group_ids is None,
     # Read the security_group_id from vpc_stack
     vpc_stack: Optional[CloudFormationStack] = None
+    # If vpc_security_group_ids is None and vpc_stack is None
+    # Read the security_group_id from db_security_groups
+    db_security_groups: Optional[List[SecurityGroup]] = None
 
     # The Availability Zone (AZ) where the database will be created.
     availability_zone: Optional[str] = None
@@ -259,6 +260,9 @@ class DbInstance(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Step 1: Get the VpcSecurityGroupIds
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
@@ -266,15 +270,26 @@ class DbInstance(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
         # Step 2: Get the DbSubnetGroupName
         db_subnet_group_name = self.db_subnet_group_name
         if db_subnet_group_name is None and self.db_subnet_group is not None:
             db_subnet_group_name = self.db_subnet_group.name
             logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        if db_subnet_group_name is not None:
+            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
         db_name = self.get_db_name()
         if db_name:
             not_null_args["DBName"] = db_name
@@ -291,14 +306,8 @@ class DbInstance(AwsResource):
         if master_user_password:
             not_null_args["MasterUserPassword"] = master_user_password
 
-        if self.db_security_groups is not None:
-            not_null_args["DBSecurityGroups"] = self.db_security_groups
-        if vpc_security_group_ids is not None:
-            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
         if self.availability_zone is not None:
             not_null_args["AvailabilityZone"] = self.availability_zone
-        if db_subnet_group_name is not None:
-            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
         if self.preferred_maintenance_window:
             not_null_args[
@@ -529,6 +538,9 @@ class DbInstance(AwsResource):
 
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Step 1: Get the VpcSecurityGroupIds
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
@@ -536,23 +548,33 @@ class DbInstance(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
-        if self.db_instance_identifier:
-            not_null_args["DBInstanceIdentifier"] = self.db_instance_identifier
+        # Step 2: Get the DbSubnetGroupName
+        db_subnet_group_name = self.db_subnet_group_name
+        if db_subnet_group_name is None and self.db_subnet_group is not None:
+            db_subnet_group_name = self.db_subnet_group.name
+            logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        if db_subnet_group_name is not None:
+            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
+
+        apply_immediately = self.apply_immediately or True
+        not_null_args["ApplyImmediately"] = apply_immediately
+
         if self.allocated_storage:
             not_null_args["AllocatedStorage"] = self.allocated_storage
         if self.db_instance_class:
             not_null_args["DBInstanceClass"] = self.db_instance_class
-        if self.db_subnet_group_name:
-            not_null_args["DBSubnetGroupName"] = self.db_subnet_group_name
-        if self.db_security_groups:
-            not_null_args["DBSecurityGroups"] = self.db_security_groups
-        if self.vpc_security_group_ids:
-            not_null_args["VpcSecurityGroupIds"] = self.vpc_security_group_ids
-        if self.apply_immediately is not None:
-            not_null_args["ApplyImmediately"] = self.apply_immediately
         if self.master_user_password:
             not_null_args["MasterUserPassword"] = self.master_user_password
         if self.db_parameter_group_name:
@@ -692,20 +714,18 @@ class DbInstance(AwsResource):
         Returns:
             The DbInstance endpoint
         """
-        __db_endpoint: Optional[str] = None
+        _db_endpoint: Optional[str] = None
         if self.active_resource:
-            __db_endpoint = self.active_resource.get("Endpoint", {}).get(
-                "Address", None
-            )
-        if __db_endpoint is None:
+            _db_endpoint = self.active_resource.get("Endpoint", {}).get("Address", None)
+        if _db_endpoint is None:
             resource = self.read_resource_from_file()
             if resource is not None:
-                __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
-        if __db_endpoint is None:
+                _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        if _db_endpoint is None:
             resource = self.read()
             if resource is not None:
-                __db_endpoint = resource.get("Endpoint", {}).get("Address", None)
-        return __db_endpoint
+                _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        return _db_endpoint
 
     def get_db_port(self) -> Optional[str]:
         """Returns the DbInstance port
@@ -713,15 +733,15 @@ class DbInstance(AwsResource):
         Returns:
             The DbInstance endpoint
         """
-        __db_endpoint: Optional[str] = None
+        _db_port: Optional[str] = None
         if self.active_resource:
-            __db_endpoint = self.active_resource.get("Endpoint", {}).get("Port", None)
-        if __db_endpoint is None:
+            _db_port = self.active_resource.get("Endpoint", {}).get("Port", None)
+        if _db_port is None:
             resource = self.read_resource_from_file()
             if resource is not None:
-                __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
-        if __db_endpoint is None:
+                _db_port = resource.get("Endpoint", {}).get("Port", None)
+        if _db_port is None:
             resource = self.read()
             if resource is not None:
-                __db_endpoint = resource.get("Endpoint", {}).get("Port", None)
-        return __db_endpoint
+                _db_port = resource.get("Endpoint", {}).get("Port", None)
+        return _db_port

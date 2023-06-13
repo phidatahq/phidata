@@ -243,6 +243,8 @@ class SecurityGroup(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current session
         """
+        from botocore.exceptions import ClientError
+
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
         service_client = self.get_service_client(aws_client)
@@ -262,6 +264,18 @@ class SecurityGroup(AwsResource):
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"
             )
             return True
+        except ClientError as ce:
+            ce_resp = ce.response
+            if ce_resp is not None:
+                if ce_resp.get("Error", {}).get("Code", "") == "DependencyViolation":
+                    logger.warning(
+                        f"SecurityGroup {self.get_resource_name()} could not be deleted as it is being used by another resource."
+                    )
+                    logger.warning(
+                        "Please try again later or delete resources manually."
+                    )
+                    logger.warning(f"Error: {ce_resp}")
+                    return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be deleted.")
             print_error("Please try again or delete resources manually.")

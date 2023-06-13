@@ -285,6 +285,7 @@ class AwsApp(BaseApp):
             TargetGroup,
             Listener,
             AcmCertificate,
+            SecurityGroup,
         )
 
         # -*- Build Container Paths
@@ -301,6 +302,17 @@ class AwsApp(BaseApp):
         container_env: Dict[str, str] = self.get_container_env_ecs(
             container_paths=container_paths
         )
+
+        # -*- Create Security Groups
+        security_groups: List[SecurityGroup] = []
+        if self.args.aws_security_groups is not None:
+            for sg in self.args.aws_security_groups:
+                if isinstance(sg, SecurityGroup):
+                    security_groups.append(sg)
+        if self.args.load_balancer_security_groups is not None:
+            for lb_sg in self.args.load_balancer_security_groups:
+                if isinstance(lb_sg, SecurityGroup):
+                    security_groups.append(lb_sg)
 
         # -*- Create ECS cluster
         ecs_cluster = self.args.ecs_cluster
@@ -476,6 +488,7 @@ class AwsApp(BaseApp):
             load_balancers=[load_balancer],
             target_groups=[target_group],
             listeners=[listener],
+            security_groups=security_groups if len(security_groups) > 0 else None,
         )
 
     def build_aws_resource_groups(
@@ -494,7 +507,7 @@ class AwsApp(BaseApp):
             self.build_aws_resource_groups(aws_build_context)
         # # Comment out in production
         # if self.aws_resource_groups:
-        #     logger.debug("K8sResourceGroups:")
+        #     logger.debug("AwsResourceGroups:")
         #     for rg_name, rg in self.aws_resource_groups.items():
         #         logger.debug(
         #             "{}:{}\n{}".format(rg_name, type(rg), rg)

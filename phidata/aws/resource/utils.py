@@ -1,13 +1,10 @@
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Set
 
 from typing_extensions import Literal
 
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.group import AwsResourceGroup
-from phidata.aws.resource.types import (
-    AwsResourceInstallOrder,
-    AwsResourceType,
-)
+from phidata.aws.resource.types import AwsResourceInstallOrder
 from phidata.utils.log import logger
 
 
@@ -86,12 +83,6 @@ def get_aws_resources_from_group(
                             logger.debug(f"  -*- skipping {rt}:{rn}")
                             continue
                     aws_resources.append(_r)  # type: ignore
-
-                    # Add the resource dependencies to the aws_resources list
-                    if _r.depends_on is not None:
-                        for dep in _r.depends_on:
-                            if isinstance(dep, AwsResource):
-                                aws_resources.append(dep)
 
         # If its a single resource, verify that the resource is a subclass of
         # AwsResource and add it to the aws_resources list
@@ -234,29 +225,65 @@ def filter_and_flatten_aws_resource_groups(
     # Sort the resources in install order
     if sort_order == "create":
         aws_resource_list_with_weight.sort(
-            key=lambda x: get_install_weight_for_aws_resource(x[0], x[1])
+            key=lambda x: (get_install_weight_for_aws_resource(x[0], x[1]), x[0].name)
         )
     elif sort_order == "delete":
         aws_resource_list_with_weight.sort(
-            key=lambda x: get_install_weight_for_aws_resource(x[0], x[1]), reverse=True
+            key=lambda x: (get_install_weight_for_aws_resource(x[0], x[1]), x[0].name),
+            reverse=True,
         )
 
     # De-duplicate AwsResources
     deduped_aws_resources: List[Tuple[AwsResource, int]] = dedup_aws_resources(
         aws_resource_list_with_weight
     )
-    # deduped_aws_resources = aws_resource_list_with_weight
-    # logger.debug("AwsResource list")
-    # logger.debug(
-    #     "\n".join(
-    #         "Name: {}, Type: {}, Weight: {}".format(
-    #             rsrc.name, rsrc.resource_type, weight
-    #         )
-    #         for rsrc, weight in deduped_aws_resources
-    #     )
-    # )
 
-    # drop the weight from the deduped_aws_resources tuple
-    filtered_aws_resources: List[AwsResource] = [x[0] for x in deduped_aws_resources]
-    # logger.debug("filtered_aws_resources: {}".format(filtered_aws_resources))
-    return filtered_aws_resources
+    # Implement dependency sorting and drop the weight
+    final_aws_resources: List[AwsResource] = []
+    for aws_resource, weight in deduped_aws_resources:
+        # Logic to follow if resource has dependencies
+        if aws_resource.depends_on is not None:
+            # If the sort_order is delete
+            # 1. Reverse the order of dependencies
+            # 2. Remove the dependencies if they are already added to the final_aws_resources
+            # 3. Add the resource to be deleted before its dependencies
+            # 4. Add the dependencies back in reverse order
+            if sort_order == "delete":
+                # 1. Reverse the order of dependencies
+                aws_resource.depends_on.reverse()
+                # 2. Remove the dependencies if they are already added to the final_aws_resources
+                for dep in aws_resource.depends_on:
+                    if dep in final_aws_resources:
+                        logger.debug(
+                            f"  -*- Removing {dep.name}, dependency of {aws_resource.name}"
+                        )
+                        final_aws_resources.remove(dep)
+                # 3. Add the resource to be deleted before its dependencies
+                if aws_resource not in final_aws_resources:
+                    logger.debug(f"  -*- Adding {aws_resource.name}")
+                    final_aws_resources.append(aws_resource)
+
+            # Common logic for create and delete
+            # When the sort_order is create, the dependencies are added before the resource
+            # When the sort_order is delete, the dependencies are added after the resource
+            for dep in aws_resource.depends_on:
+                if isinstance(dep, AwsResource):
+                    if dep not in final_aws_resources:
+                        logger.debug(
+                            f"  -*- Adding {dep.name}, dependency of {aws_resource.name}"
+                        )
+                        final_aws_resources.append(dep)
+
+            # If the sort_order is create,
+            # add the resource to be created after its dependencies
+            if sort_order == "create":
+                if aws_resource not in final_aws_resources:
+                    logger.debug(f"  -*- Adding {aws_resource.name}")
+                    final_aws_resources.append(aws_resource)
+        else:
+            # Add the resource to be created/deleted
+            if aws_resource not in final_aws_resources:
+                logger.debug(f"  -*- Adding {aws_resource.name}")
+                final_aws_resources.append(aws_resource)
+
+    return final_aws_resources

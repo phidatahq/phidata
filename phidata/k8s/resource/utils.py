@@ -104,12 +104,6 @@ def get_k8s_resources_from_group(
                             continue
                     k8s_resources.append(_r)  # type: ignore
 
-                    # Add the resource dependencies to the aws_resources list
-                    if _r.depends_on is not None:
-                        for dep in _r.depends_on:
-                            if isinstance(dep, K8sResource):
-                                k8s_resources.append(dep)
-
         # If its a single resource, verify that the resource is a subclass of
         # K8sResource and add it to the k8s_resources list
         elif isinstance(resource_data, K8sResource):
@@ -152,24 +146,24 @@ def get_k8s_resources_from_group(
     return k8s_resources
 
 
-def dedup_resource_types(
-    k8s_resources: Optional[List[K8sResource]] = None,
-) -> Optional[Set[Type[K8sResource]]]:
-    """Takes a list of K8sResources and returns a Set of K8sResource classes.
-    Each K8sResource classes is represented by the Type[resources.K8sResource] type.
-    From python docs:
-        A variable annotated with Type[K8sResource] may accept values that are classes.
-        Acceptable classes are the K8sResource class + subclasses.
-    """
-    if k8s_resources:
-        active_resource_types: Set[Type[K8sResource]] = set()
-        for resource in k8s_resources:
-            active_resource_types.add(resource.__class__)
-            # logger.debug(f"Gathering: {resource.get_resource_name()}")
-            # logger.debug(f"Resource Type: {resource_type}")
-        logger.debug("Active Resource Types: {}".format(active_resource_types))
-        return active_resource_types
-    return None
+# def dedup_resource_types(
+#     k8s_resources: Optional[List[K8sResource]] = None,
+# ) -> Optional[Set[Type[K8sResource]]]:
+#     """Takes a list of K8sResources and returns a Set of K8sResource classes.
+#     Each K8sResource classes is represented by the Type[resources.K8sResource] type.
+#     From python docs:
+#         A variable annotated with Type[K8sResource] may accept values that are classes.
+#         Acceptable classes are the K8sResource class + subclasses.
+#     """
+#     if k8s_resources:
+#         active_resource_types: Set[Type[K8sResource]] = set()
+#         for resource in k8s_resources:
+#             active_resource_types.add(resource.__class__)
+#             # logger.debug(f"Gathering: {resource.get_resource_name()}")
+#             # logger.debug(f"Resource Type: {resource_type}")
+#         logger.debug("Active Resource Types: {}".format(active_resource_types))
+#         return active_resource_types
+#     return None
 
 
 def dedup_k8s_resources(
@@ -270,30 +264,65 @@ def filter_and_flatten_k8s_resource_groups(
     # Sort the resources in install order
     if sort_order == "create":
         k8s_resource_list_with_weight.sort(
-            key=lambda x: get_install_weight_for_k8s_resource(x[0], x[1])
+            key=lambda x: (get_install_weight_for_k8s_resource(x[0], x[1]), x[0].name)
         )
     elif sort_order == "delete":
         k8s_resource_list_with_weight.sort(
-            key=lambda x: get_install_weight_for_k8s_resource(x[0], x[1]), reverse=True
+            key=lambda x: (get_install_weight_for_k8s_resource(x[0], x[1]), x[0].name),
+            reverse=True,
         )
 
     # De-duplicate K8sResources
-    # Mainly used to remove the extra Namespace and ServiceAccount resources
     deduped_k8s_resources: List[Tuple[K8sResource, int]] = dedup_k8s_resources(
         k8s_resource_list_with_weight
     )
-    # deduped_k8s_resources = k8s_resource_list_with_weight
-    # logger.debug("K8sResource list")
-    # logger.debug(
-    #     "\n".join(
-    #         "Name: {}, Type: {}, Weight: {}".format(
-    #             rsrc.name, rsrc.resource_type, weight
-    #         )
-    #         for rsrc, weight in deduped_k8s_resources
-    #     )
-    # )
 
-    # drop the weight from the deduped_k8s_resources tuple
-    filtered_k8s_resources: List[K8sResource] = [x[0] for x in deduped_k8s_resources]
-    # logger.debug("filtered_k8s_resources: {}".format(filtered_k8s_resources))
-    return filtered_k8s_resources
+    # Implement dependency sorting and drop the weight
+    final_k8s_resources: List[K8sResource] = []
+    for k8s_resource, weight in deduped_k8s_resources:
+        # Logic to follow if resource has dependencies
+        if k8s_resource.depends_on is not None:
+            # If the sort_order is delete
+            # 1. Reverse the order of dependencies
+            # 2. Remove the dependencies if they are already added to the final_k8s_resources
+            # 3. Add the resource to be deleted before its dependencies
+            # 4. Add the dependencies back in reverse order
+            if sort_order == "delete":
+                # 1. Reverse the order of dependencies
+                k8s_resource.depends_on.reverse()
+                # 2. Remove the dependencies if they are already added to the final_k8s_resources
+                for dep in k8s_resource.depends_on:
+                    if dep in final_k8s_resources:
+                        logger.debug(
+                            f"  -*- Removing {dep.name}, dependency of {k8s_resource.name}"
+                        )
+                        final_k8s_resources.remove(dep)
+                # 3. Add the resource to be deleted before its dependencies
+                if k8s_resource not in final_k8s_resources:
+                    logger.debug(f"  -*- Adding {k8s_resource.name}")
+                    final_k8s_resources.append(k8s_resource)
+
+            # Common logic for create and delete
+            # When the sort_order is create, the dependencies are added before the resource
+            # When the sort_order is delete, the dependencies are added after the resource
+            for dep in k8s_resource.depends_on:
+                if isinstance(dep, K8sResource):
+                    if dep not in final_k8s_resources:
+                        logger.debug(
+                            f"  -*- Adding {dep.name}, dependency of {k8s_resource.name}"
+                        )
+                        final_k8s_resources.append(dep)
+
+            # If the sort_order is create,
+            # add the resource to be created after its dependencies
+            if sort_order == "create":
+                if k8s_resource not in final_k8s_resources:
+                    logger.debug(f"  -*- Adding {k8s_resource.name}")
+                    final_k8s_resources.append(k8s_resource)
+        else:
+            # Add the resource to be created/deleted
+            if k8s_resource not in final_k8s_resources:
+                logger.debug(f"  -*- Adding {k8s_resource.name}")
+                final_k8s_resources.append(k8s_resource)
+
+    return final_k8s_resources

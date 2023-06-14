@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "1.7.3"
+version = "1.7.4"
 description = "Phidata is a toolkit for building applications using OSS"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -11,7 +11,7 @@ authors = [
 dependencies = [
   "boto3>=1.26.76,<1.26.77",
   "botocore>=1.29.76,<1.29.77",
-  "phiterm==1.7.3",
+  "phiterm==1.7.4",
   "pyarrow",
   "pydantic",
 ]

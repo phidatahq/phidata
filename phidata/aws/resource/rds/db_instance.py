@@ -708,7 +708,9 @@ class DbInstance(AwsResource):
             print_error(e)
         return False
 
-    def get_db_endpoint(self) -> Optional[str]:
+    def get_db_endpoint(
+        self, aws_client: Optional[AwsApiClient] = None
+    ) -> Optional[str]:
         """Returns the DbInstance endpoint
 
         Returns:
@@ -722,12 +724,12 @@ class DbInstance(AwsResource):
             if resource is not None:
                 _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
         if _db_endpoint is None:
-            resource = self.read()
+            resource = self.read(aws_client)
             if resource is not None:
                 _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
         return _db_endpoint
 
-    def get_db_port(self) -> Optional[str]:
+    def get_db_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         """Returns the DbInstance port
 
         Returns:
@@ -741,7 +743,7 @@ class DbInstance(AwsResource):
             if resource is not None:
                 _db_port = resource.get("Endpoint", {}).get("Port", None)
         if _db_port is None:
-            resource = self.read()
+            resource = self.read(aws_client)
             if resource is not None:
                 _db_port = resource.get("Endpoint", {}).get("Port", None)
         return _db_port

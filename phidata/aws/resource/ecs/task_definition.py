@@ -121,7 +121,8 @@ class EcsTaskDefinition(AwsResource):
             not_null_args["networkMode"] = self.network_mode
         if self.containers is not None:
             container_definitions = [
-                c.get_container_definition() for c in self.containers
+                c.get_container_definition(aws_client=aws_client)
+                for c in self.containers
             ]
             not_null_args["containerDefinitions"] = container_definitions
         if self.volumes is not None:

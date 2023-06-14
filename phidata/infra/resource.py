@@ -308,3 +308,11 @@ class InfraResource(BaseModel):
         if self.env_file is not None:
             self.env_data = self.read_yaml_file(self.env_file)
         return self.env_data
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        if other.resource_type == self.resource_type:
+            return self.name == other.name
+        return False

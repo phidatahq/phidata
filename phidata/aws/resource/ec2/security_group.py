@@ -3,7 +3,7 @@ from typing import Optional, Any, Dict, List, Union
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource, AwsObject
 from phidata.aws.resource.ec2.subnet import Subnet
-from phidata.resource.reference import Reference
+from phidata.resource.reference import AwsReference
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -22,7 +22,7 @@ class InboundRule(AwsObject):
     # To specify a single IPv6 address, use the /128 prefix length.
     cidr_ipv6: Optional[str] = None
     # The security group id to allow access from.
-    source_security_group_id: Optional[Union[str, Reference]] = None
+    source_security_group_id: Optional[Union[str, AwsReference]] = None
     # The security group name to allow access from.
     # For a security group in a nondefault VPC, use the security group ID.
     source_security_group_name: Optional[str] = None
@@ -54,7 +54,7 @@ class OutboundRule(AwsObject):
     # To specify a single IPv6 address, use the /128 prefix length.
     cidr_ipv6: Optional[str] = None
     # The security group id to allow access from.
-    source_security_group_id: Optional[Union[str, Reference]] = None
+    source_security_group_id: Optional[Union[str, AwsReference]] = None
     # The security group name to allow access from.
     # For a security group in a nondefault VPC, use the security group ID.
     source_security_group_name: Optional[str] = None
@@ -283,7 +283,7 @@ class SecurityGroup(AwsResource):
         return False
 
     def get_security_group_id(
-        self, aws_client: Optional[AwsApiClient]
+        self, aws_client: Optional[AwsApiClient] = None
     ) -> Optional[str]:
         """Returns the security group id"""
 
@@ -347,8 +347,10 @@ class SecurityGroup(AwsResource):
                     source_sg_id: Optional[str] = None
                     if isinstance(rule.source_security_group_id, str):
                         source_sg_id = rule.source_security_group_id
-                    elif isinstance(rule.source_security_group_id, Reference):
-                        source_sg_id = rule.source_security_group_id.get_reference()
+                    elif isinstance(rule.source_security_group_id, AwsReference):
+                        source_sg_id = rule.source_security_group_id.get_reference(
+                            aws_client=aws_client
+                        )
 
                     user_id_group_pair = {}
                     if source_sg_id is not None:
@@ -453,8 +455,10 @@ class SecurityGroup(AwsResource):
                     source_sg_id: Optional[str] = None
                     if isinstance(rule.source_security_group_id, str):
                         source_sg_id = rule.source_security_group_id
-                    elif isinstance(rule.source_security_group_id, Reference):
-                        source_sg_id = rule.source_security_group_id.get_reference()
+                    elif isinstance(rule.source_security_group_id, AwsReference):
+                        source_sg_id = rule.source_security_group_id.get_reference(
+                            aws_client=aws_client
+                        )
 
                     user_id_group_pair = {}
                     if source_sg_id is not None:

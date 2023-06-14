@@ -153,3 +153,40 @@ class DbSubnetGroup(AwsResource):
             print_error("Please try again or delete resources manually.")
             print_error(e)
         return False
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        subnet_ids = self.subnet_ids
+        if subnet_ids is None and self.vpc_stack is not None:
+            subnet_ids = []
+            logger.debug("Getting public subnet_ids from vpc stack")
+            public_subnet_ids = self.vpc_stack.get_private_subnets(
+                aws_client=aws_client
+            )
+            if public_subnet_ids is not None:
+                subnet_ids.extend(public_subnet_ids)
+            logger.debug("Getting private subnet_ids from vpc stack")
+            private_subnet_ids = self.vpc_stack.get_private_subnets(
+                aws_client=aws_client
+            )
+            if private_subnet_ids is not None:
+                subnet_ids.extend(private_subnet_ids)
+
+        service_client = self.get_service_client(aws_client)
+        try:
+            update_response = service_client.modify_db_subnet_group(
+                DBSubnetGroupName=self.name,
+                DBSubnetGroupDescription=self.description or f"Created for {self.name}",
+                SubnetIds=self.subnet_ids,
+            )
+            logger.debug(f"Response: {update_response}")
+            resource_dict = update_response.get("DBSubnetGroup", {})
+
+            # Validate resource update
+            if resource_dict is not None:
+                print_info(f"DBSubnetGroup updated: {self.get_resource_name()}")
+                self.active_resource = resource_dict
+                return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be updated.")
+            print_error(e)
+        return False

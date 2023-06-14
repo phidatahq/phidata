@@ -87,6 +87,12 @@ def get_aws_resources_from_group(
                             continue
                     aws_resources.append(_r)  # type: ignore
 
+                    # Add the resource dependencies to the aws_resources list
+                    if _r.depends_on is not None:
+                        for dep in _r.depends_on:
+                            if isinstance(dep, AwsResource):
+                                aws_resources.append(dep)
+
         # If its a single resource, verify that the resource is a subclass of
         # AwsResource and add it to the aws_resources list
         elif isinstance(resource_data, AwsResource):

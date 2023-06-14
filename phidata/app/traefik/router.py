@@ -182,7 +182,7 @@ class TraefikRouterArgs(PhidataAppArgs):
 
     # Container env
     # Add env variables to container env
-    env: Optional[Dict[str, str]] = None
+    env: Optional[Dict[str, Any]] = None
     # Read env variables from a file in yaml format
     env_file: Optional[Path] = None
     # Configure the ConfigMap name used for env variables that are not Secret
@@ -190,7 +190,7 @@ class TraefikRouterArgs(PhidataAppArgs):
 
     # Container secrets
     # Add secret variables to container env
-    secrets: Optional[Dict[str, str]] = None
+    secrets: Optional[Dict[str, Any]] = None
     # Read secret variables from a file in yaml format
     secrets_file: Optional[Path] = None
     # Read secret variables from AWS Secrets Manager

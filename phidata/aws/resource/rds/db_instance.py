@@ -5,16 +5,19 @@ from typing_extensions import Literal
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phidata.aws.resource.secret.manager import SecretsManager
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
 
 class DbInstance(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
-
     The DBInstance can be an RDS DB instance, or it can be a DB instance in an Aurora DB cluster.
+
+    Reference:
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html
     """
 
     resource_type = "DbInstance"
@@ -72,16 +75,17 @@ class DbInstance(AwsResource):
     master_user_password: Optional[str] = None
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secret
+    aws_secret: Optional[SecretsManager] = None
 
-    # A list of DB security groups to associate with this DB instance.
-    # This setting applies to the legacy EC2-Classic platform, which no longer creates new DB instances.
-    # Use the VpcSecurityGroupIds setting instead.
-    db_security_groups: Optional[List[str]] = None
-    # A list of Amazon EC2 VPC security groups to associate with this DB instance.
+    # A list of VPC security groups to associate with this DB instance.
     vpc_security_group_ids: Optional[List[str]] = None
     # If vpc_security_group_ids is None,
     # Read the security_group_id from vpc_stack
     vpc_stack: Optional[CloudFormationStack] = None
+    # If vpc_security_group_ids is None and vpc_stack is None
+    # Read the security_group_id from db_security_groups
+    db_security_groups: Optional[List[SecurityGroup]] = None
 
     # The Availability Zone (AZ) where the database will be created.
     availability_zone: Optional[str] = None
@@ -164,19 +168,31 @@ class DbInstance(AwsResource):
     skip_final_snapshot: Optional[bool] = True
     final_db_snapshot_identifier: Optional[str] = None
 
+    # Parameters for update function
+    apply_immediately: Optional[bool] = True
+    allow_major_version_upgrade: Optional[bool] = None
+    new_db_instance_identifier: Optional[str] = None
+    ca_certificate_identifier: Optional[str] = None
+    db_port_number: Optional[int] = None
+    domain_iam_role_name: Optional[str] = None
+    enable_iam_database_authentication: Optional[bool] = None
+    performance_insights_kms_key_id: Optional[str] = None
+    cloudwatch_logs_export_configuration: Optional[Dict[str, Any]] = None
+    use_default_processor_features: Optional[bool] = None
+    certificate_rotation_restart: Optional[bool] = None
+    replica_mode: Optional[str] = None
+    aws_backup_recovery_point_arn: Optional[str] = None
+    automation_mode: Optional[str] = None
+    resume_full_automation_mode_minutes: Optional[int] = None
+    manage_master_user_password: Optional[bool] = None
+    rotate_master_user_password: Optional[bool] = None
+    master_iser_secter_kms_key_id: Optional[str] = None
+
     # Cache secret_data
     cached_secret_data: Optional[Dict[str, Any]] = None
 
     def get_db_instance_identifier(self):
         return self.db_instance_identifier or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:
         master_username = self.master_username
@@ -185,6 +201,11 @@ class DbInstance(AwsResource):
             secret_data = self.get_secret_data()
             if secret_data is not None:
                 master_username = secret_data.get("MASTER_USERNAME", master_username)
+        if master_username is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading MASTER_USERNAME from secret: {self.aws_secret.name}")
+            master_username = self.aws_secret.get_secret_value("MASTER_USERNAME")
+
         return master_username
 
     def get_master_user_password(self) -> Optional[str]:
@@ -196,6 +217,15 @@ class DbInstance(AwsResource):
                 master_user_password = secret_data.get(
                     "MASTER_USER_PASSWORD", master_user_password
                 )
+        if master_user_password is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(
+                f"Reading MASTER_USER_PASSWORD from secret: {self.aws_secret.name}"
+            )
+            master_user_password = self.aws_secret.get_secret_value(
+                "MASTER_USER_PASSWORD"
+            )
+
         return master_user_password
 
     def get_db_name(self) -> Optional[str]:
@@ -207,6 +237,15 @@ class DbInstance(AwsResource):
                 db_name = secret_data.get("DB_NAME", db_name)
                 if db_name is None:
                     db_name = secret_data.get("DATABASE_NAME", db_name)
+        if db_name is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading DB_NAME from secret: {self.aws_secret.name}")
+            db_name = self.aws_secret.get_secret_value("DB_NAME")
+            if db_name is None:
+                logger.debug(
+                    f"Reading DATABASE_NAME from secret: {self.aws_secret.name}"
+                )
+                db_name = self.aws_secret.get_secret_value("DATABASE_NAME")
         return db_name
 
     def get_database_name(self) -> Optional[str]:
@@ -221,6 +260,9 @@ class DbInstance(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Step 1: Get the VpcSecurityGroupIds
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
@@ -228,15 +270,26 @@ class DbInstance(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
         # Step 2: Get the DbSubnetGroupName
         db_subnet_group_name = self.db_subnet_group_name
         if db_subnet_group_name is None and self.db_subnet_group is not None:
             db_subnet_group_name = self.db_subnet_group.name
             logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        if db_subnet_group_name is not None:
+            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
         db_name = self.get_db_name()
         if db_name:
             not_null_args["DBName"] = db_name
@@ -253,14 +306,8 @@ class DbInstance(AwsResource):
         if master_user_password:
             not_null_args["MasterUserPassword"] = master_user_password
 
-        if self.db_security_groups is not None:
-            not_null_args["DBSecurityGroups"] = self.db_security_groups
-        if vpc_security_group_ids is not None:
-            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
         if self.availability_zone is not None:
             not_null_args["AvailabilityZone"] = self.availability_zone
-        if db_subnet_group_name is not None:
-            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
         if self.preferred_maintenance_window:
             not_null_args[
@@ -357,7 +404,7 @@ class DbInstance(AwsResource):
         if self.storage_throughput:
             not_null_args["StorageThroughput"] = self.storage_throughput
 
-        # Step 3: Create DbInstance
+        # Step 3: Create DBInstance
         service_client = self.get_service_client(aws_client)
         try:
             create_response = service_client.create_db_instance(
@@ -365,13 +412,13 @@ class DbInstance(AwsResource):
                 Engine=self.engine,
                 **not_null_args,
             )
-            logger.debug(f"DbInstance: {create_response}")
+            logger.debug(f"DBInstance: {create_response}")
             resource_dict = create_response.get("DBInstance", {})
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"DbInstance created: {self.get_db_instance_identifier()}")
-                self.active_resource = create_response
+                print_info(f"DBInstance created: {self.get_db_instance_identifier()}")
+                self.active_resource = resource_dict
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -485,3 +532,216 @@ class DbInstance(AwsResource):
                 print_error("Waiter failed.")
                 print_error(e)
         return True
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Updates the DbInstance"""
+
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
+        # Step 1: Get the VpcSecurityGroupIds
+        vpc_security_group_ids = self.vpc_security_group_ids
+        if vpc_security_group_ids is None and self.vpc_stack is not None:
+            vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
+            if vpc_stack_sg is not None:
+                logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
+                vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
+
+        # Step 2: Get the DbSubnetGroupName
+        db_subnet_group_name = self.db_subnet_group_name
+        if db_subnet_group_name is None and self.db_subnet_group is not None:
+            db_subnet_group_name = self.db_subnet_group.name
+            logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        if db_subnet_group_name is not None:
+            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
+
+        apply_immediately = self.apply_immediately or True
+        not_null_args["ApplyImmediately"] = apply_immediately
+
+        if self.allocated_storage:
+            not_null_args["AllocatedStorage"] = self.allocated_storage
+        if self.db_instance_class:
+            not_null_args["DBInstanceClass"] = self.db_instance_class
+        if self.master_user_password:
+            not_null_args["MasterUserPassword"] = self.master_user_password
+        if self.db_parameter_group_name:
+            not_null_args["DBParameterGroupName"] = self.db_parameter_group_name
+        if self.backup_retention_period:
+            not_null_args["BackupRetentionPeriod"] = self.backup_retention_period
+        if self.preferred_backup_window:
+            not_null_args["PreferredBackupWindow"] = self.preferred_backup_window
+        if self.preferred_maintenance_window:
+            not_null_args[
+                "PreferredMaintenanceWindow"
+            ] = self.preferred_maintenance_window
+        if self.multi_az:
+            not_null_args["MultiAZ"] = self.multi_az
+        if self.engine_version:
+            not_null_args["EngineVersion"] = self.engine_version
+        if self.allow_major_version_upgrade:
+            not_null_args["AllowMajorVersionUpgrade"] = self.allow_major_version_upgrade
+        if self.auto_minor_version_upgrade:
+            not_null_args["AutoMinorVersionUpgrade"] = self.auto_minor_version_upgrade
+        if self.license_model:
+            not_null_args["LicenseModel"] = self.license_model
+        if self.iops:
+            not_null_args["Iops"] = self.iops
+        if self.option_group_name:
+            not_null_args["OptionGroupName"] = self.option_group_name
+        if self.new_db_instance_identifier:
+            not_null_args["NewDBInstanceIdentifier"] = self.new_db_instance_identifier
+        if self.storage_type:
+            not_null_args["StorageType"] = self.storage_type
+        if self.tde_credential_arn:
+            not_null_args["TdeCredentialArn"] = self.tde_credential_arn
+        if self.tde_credential_password:
+            not_null_args["TdeCredentialPassword"] = self.tde_credential_password
+        if self.ca_certificate_identifier:
+            not_null_args["CACertificateIdentifier"] = self.ca_certificate_identifier
+        if self.domain:
+            not_null_args["Domain"] = self.domain
+        if self.copy_tags_to_snapshot:
+            not_null_args["CopyTagsToSnapshot"] = self.copy_tags_to_snapshot
+        if self.monitoring_interval:
+            not_null_args["MonitoringInterval"] = self.monitoring_interval
+        if self.db_port_number:
+            not_null_args["DBPortNumber"] = self.db_port_number
+        if self.publicly_accessible:
+            not_null_args["PubliclyAccessible"] = self.publicly_accessible
+        if self.monitoring_role_arn:
+            not_null_args["MonitoringRoleArn"] = self.monitoring_role_arn
+        if self.domain_iam_role_name:
+            not_null_args["DomainIAMRoleName"] = self.domain_iam_role_name
+        if self.promotion_tier:
+            not_null_args["PromotionTier"] = self.promotion_tier
+        if self.enable_iam_database_authentication:
+            not_null_args[
+                "EnableIAMDatabaseAuthentication"
+            ] = self.enable_iam_database_authentication
+        if self.enable_performance_insights:
+            not_null_args[
+                "EnablePerformanceInsights"
+            ] = self.enable_performance_insights
+        if self.performance_insights_kms_key_id:
+            not_null_args[
+                "PerformanceInsightsKMSKeyId"
+            ] = self.performance_insights_kms_key_id
+        if self.performance_insights_retention_period:
+            not_null_args[
+                "PerformanceInsightsRetentionPeriod"
+            ] = self.performance_insights_retention_period
+        if self.cloudwatch_logs_export_configuration:
+            not_null_args[
+                "CloudwatchLogsExportConfiguration"
+            ] = self.cloudwatch_logs_export_configuration
+        if self.processor_features:
+            not_null_args["ProcessorFeatures"] = self.processor_features
+        if self.use_default_processor_features:
+            not_null_args[
+                "UseDefaultProcessorFeatures"
+            ] = self.use_default_processor_features
+        if self.deletion_protection:
+            not_null_args["DeletionProtection"] = self.deletion_protection
+        if self.max_allocated_storage:
+            not_null_args["MaxAllocatedStorage"] = self.max_allocated_storage
+        if self.certificate_rotation_restart:
+            not_null_args[
+                "CertificateRotationRestart"
+            ] = self.certificate_rotation_restart
+        if self.replica_mode:
+            not_null_args["ReplicaMode"] = self.replica_mode
+        if self.enable_customer_owned_ip:
+            not_null_args["EnableCustomerOwnedIp"] = self.enable_customer_owned_ip
+        if self.aws_backup_recovery_point_arn:
+            not_null_args[
+                "AwsBackupRecoveryPointArn"
+            ] = self.aws_backup_recovery_point_arn
+        if self.automation_mode:
+            not_null_args["AutomationMode"] = self.automation_mode
+        if self.resume_full_automation_mode_minutes:
+            not_null_args[
+                "ResumeFullAutomationModeMinutes"
+            ] = self.resume_full_automation_mode_minutes
+        if self.network_type:
+            not_null_args["NetworkType"] = self.network_type
+        if self.storage_throughput:
+            not_null_args["StorageThroughput"] = self.storage_throughput
+        if self.manage_master_user_password:
+            not_null_args["ManageMasterUserPassword"] = self.manage_master_user_password
+        if self.rotate_master_user_password:
+            not_null_args["RotateMasterUserPassword"] = self.rotate_master_user_password
+        if self.master_iser_secter_kms_key_id:
+            not_null_args[
+                "MasterUserSecretKmsKeyId"
+            ] = self.master_iser_secter_kms_key_id
+
+        # Step 2: Update DBInstance
+        service_client = self.get_service_client(aws_client)
+        try:
+            update_response = service_client.modify_db_instance(
+                DBInstanceIdentifier=self.get_db_instance_identifier(),
+                **not_null_args,
+            )
+            logger.debug(f"DBInstance: {update_response}")
+            resource_dict = update_response.get("DBInstance", {})
+
+            # Validate resource creation
+            if resource_dict is not None:
+                print_info(f"DBInstance updated: {self.get_resource_name()}")
+                self.active_resource = update_response
+                return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be created.")
+            print_error(e)
+        return False
+
+    def get_db_endpoint(self) -> Optional[str]:
+        """Returns the DbInstance endpoint
+
+        Returns:
+            The DbInstance endpoint
+        """
+        _db_endpoint: Optional[str] = None
+        if self.active_resource:
+            _db_endpoint = self.active_resource.get("Endpoint", {}).get("Address", None)
+        if _db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        if _db_endpoint is None:
+            resource = self.read()
+            if resource is not None:
+                _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        return _db_endpoint
+
+    def get_db_port(self) -> Optional[str]:
+        """Returns the DbInstance port
+
+        Returns:
+            The DbInstance endpoint
+        """
+        _db_port: Optional[str] = None
+        if self.active_resource:
+            _db_port = self.active_resource.get("Endpoint", {}).get("Port", None)
+        if _db_port is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                _db_port = resource.get("Endpoint", {}).get("Port", None)
+        if _db_port is None:
+            resource = self.read()
+            if resource is not None:
+                _db_port = resource.get("Endpoint", {}).get("Port", None)
+        return _db_port

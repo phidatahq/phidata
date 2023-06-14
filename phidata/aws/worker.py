@@ -1,7 +1,8 @@
 from collections import OrderedDict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from phidata.aws.args import AwsArgs
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
@@ -50,7 +51,7 @@ class AwsWorker:
 
         aws_resource_groups: Optional[Dict[str, AwsResourceGroup]] = None
 
-        aws_apps: Optional[List[PhidataApp]] = self.aws_args.apps
+        aws_apps: Optional[List[Union[BaseApp, PhidataApp]]] = self.aws_args.apps
         aws_rgs: Optional[List[AwsResourceGroup]] = self.aws_args.resources
 
         num_apps = len(aws_apps) if aws_apps is not None else 0

@@ -104,6 +104,12 @@ def get_k8s_resources_from_group(
                             continue
                     k8s_resources.append(_r)  # type: ignore
 
+                    # Add the resource dependencies to the aws_resources list
+                    if _r.depends_on is not None:
+                        for dep in _r.depends_on:
+                            if isinstance(dep, K8sResource):
+                                k8s_resources.append(dep)
+
         # If its a single resource, verify that the resource is a subclass of
         # K8sResource and add it to the k8s_resources list
         elif isinstance(resource_data, K8sResource):

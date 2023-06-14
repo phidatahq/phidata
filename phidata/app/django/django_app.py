@@ -192,7 +192,7 @@ class DjangoApp(PhidataApp):
         nginx_image_tag: str = "latest",
         # -*- AWS configuration
         aws_subnets: Optional[List[str]] = None,
-        aws_security_groups: Optional[List[str]] = None,
+        aws_security_groups: Optional[List[Any]] = None,
         # Other args,
         print_env_on_load: bool = False,
         skip_create: bool = False,
@@ -417,7 +417,7 @@ class DjangoApp(PhidataApp):
         from phidata.types.context import ContainerPathContext
         from phidata.utils.common import get_default_volume_name
 
-        app_name = self.args.name
+        app_name = self.name
 
         if self.workspace_root_path is None:
             raise Exception("Invalid workspace_root_path")

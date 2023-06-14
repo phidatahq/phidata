@@ -61,7 +61,7 @@ class Task(PhidataBase):
         airflow_context: Optional[AirflowContext] = None,
     ) -> None:
         super().__init__()
-        self.args: Optional[TaskArgs] = None
+        self.args: TaskArgs = TaskArgs()
         if name is not None and task_id is not None:
             self.args = TaskArgs(
                 name=name,

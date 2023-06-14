@@ -1,5 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.app.group import AppGroup, get_apps_from_app_groups
 from phidata.app.databox import default_databox_name
@@ -22,7 +23,7 @@ class DockerConfig(InfraConfig):
         enabled: bool = True,
         network: str = "bridge",
         base_url: Optional[str] = None,
-        apps: Optional[List[PhidataApp]] = None,
+        apps: Optional[List[Union[BaseApp, PhidataApp]]] = None,
         app_groups: Optional[List[AppGroup]] = None,
         images: Optional[List[DockerImage]] = None,
         containers: Optional[List[DockerContainer]] = None,
@@ -62,7 +63,7 @@ class DockerConfig(InfraConfig):
         return self.args.base_url if self.args else None
 
     @property
-    def apps(self) -> Optional[List[PhidataApp]]:
+    def apps(self) -> Optional[List[Union[BaseApp, PhidataApp]]]:
         return self.args.apps if self.args else None
 
     @property
@@ -89,7 +90,7 @@ class DockerConfig(InfraConfig):
         if self.apps is None:
             return False
         for _app in self.apps:
-            if not isinstance(_app, PhidataApp):
+            if not (isinstance(_app, PhidataApp) or isinstance(_app, BaseApp)):
                 raise TypeError("Invalid App: {}".format(_app))
         return True
 
@@ -116,7 +117,7 @@ class DockerConfig(InfraConfig):
     def get_docker_manager(self) -> DockerManager:
         return DockerManager(docker_args=self.args)
 
-    def get_app_by_name(self, app_name: str) -> Optional[PhidataApp]:
+    def get_app_by_name(self, app_name: str) -> Optional[Union[BaseApp, PhidataApp]]:
         if self.apps is None:
             return None
 

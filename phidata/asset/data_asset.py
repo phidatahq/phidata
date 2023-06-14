@@ -89,7 +89,7 @@ class DataAsset(PhidataBase):
         self.resource_created: bool = False
         self.resource_updated: bool = False
         self.resource_deleted: bool = False
-        self.args: Optional[DataAssetArgs] = None
+        self.args: DataAssetArgs = DataAssetArgs()
 
     @property
     def phidata_runtime(self) -> Optional[PhidataRuntimeType]:

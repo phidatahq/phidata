@@ -21,6 +21,10 @@ class QdrantArgs(PhidataAppArgs):
 
     # -*- Qdrant Configuration
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4b23f444d3cbdad6b33ae2b9071fd553d1afcfb5
 class Qdrant(PhidataApp):
     def __init__(
         self,

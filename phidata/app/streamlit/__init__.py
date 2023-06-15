@@ -1,4 +1,4 @@
-from phidata.app.streamlit.streamlit import (
+from phidata.app.streamlit.streamlit_app import (
     StreamlitApp,
     StreamlitAppArgs,
     WorkspaceVolumeType,

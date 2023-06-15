@@ -1,12 +1,13 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 
-from phidata.infra.args import InfraArgs
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.aws.resource.group import AwsResourceGroup
+from phidata.infra.args import InfraArgs
 
 
 class AwsArgs(InfraArgs):
-    apps: Optional[List[PhidataApp]] = None
+    apps: Optional[List[Union[BaseApp, PhidataApp]]] = None
 
     # AwsResourceGroups to deploy
     resources: Optional[List[AwsResourceGroup]] = None

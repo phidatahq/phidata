@@ -2,7 +2,7 @@
   phidata
 </h1>
 <p align="center">
-    <em>Toolkit for building AI Applications</em>
+    <em>A toolkit for building applications using open source tools</em>
 </p>
 
 <p align="center">
@@ -29,19 +29,80 @@
 
 ---
 
+Open source tools can be used to build powerful software, but are difficult to run in production settings.
 
-Phidata is a toolkit for building AI Applications using open source tools.
+- Phidata makes it easy to run tools like FastApi, Django, Jupyter, Airflow and Superset.
+- Phidata packages these tools into LLM Apps, Web Apps and Data Platforms.
+- Phidata runs your application locally for development and production on AWS, using 1 command.
 
-### How it works
+## 🚀 How it works
 
-- Phidata provides pre-configured tech stacks for AI apps.
 - **Create your codebase** from a template using `phi ws create`
 - **Run your app locally** using `phi ws up dev:docker`
 - **Run your app on AWS** using `phi ws up prd:aws`
-- **Integrate** with your front-end or product using APIs.
 
-### More Information:
+## Basic Example: Run a Jupyter Notebook
+
+### Requirements
+
+- python 3.7+
+- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/)
+
+### Setup
+
+Open the `terminal` and create a python virtual environment
+
+```shell
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
+```
+
+Install `phidata`
+
+```shell
+pip install phidata
+```
+
+### Define `DockerConfig` that runs a `Jupyter` app
+
+Create a file `resources.py`
+
+```shell
+touch resources.py
+```
+
+Add the following code to `resources.py`
+
+```python
+from phidata.app.jupyter import Jupyter
+from phidata.docker.config import DockerConfig
+
+
+dev_docker_config = DockerConfig(
+    apps=[
+        # -*- Run Jupyter on port 8888
+        Jupyter(mount_workspace=True)
+    ],
+)
+```
+
+### Start the app
+
+```shell
+phi start resources.py
+```
+
+- Open the browser and go to `http://localhost:8888`
+- Password is `admin`
+
+### Stop the app
+
+```shell
+phi stop resources.py
+```
+
+## More Information:
 
 - **Documentation**: <a href="https://docs.phidata.com" target="_blank">https://docs.phidata.com</a>
-- **Questions:** Come chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
+- **Questions:** Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
 - **Email**: <a href="mailto:help@phidata.com" target="_blank">help@phidata.com</a>

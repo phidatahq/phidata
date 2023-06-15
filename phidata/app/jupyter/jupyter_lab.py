@@ -26,7 +26,7 @@ class JupyterLabArgs(PhidataAppArgs):
 
     # -*- Image Configuration
     image_name: str = "phidata/jupyterlab"
-    image_tag: str = "3.4.8"
+    image_tag: str = "3.5.2"
     entrypoint: Optional[Union[str, List]] = None
     command: Union[str, List] = "jupyter lab"
 
@@ -212,7 +212,7 @@ class JupyterLab(PhidataApp):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "phidata/jupyterlab",
-        image_tag: str = "3.4.8",
+        image_tag: str = "3.5.2",
         entrypoint: Optional[Union[str, List]] = None,
         command: Union[str, List] = "jupyter lab",
         # Install python dependencies using a requirements.txt file,
@@ -301,12 +301,12 @@ class JupyterLab(PhidataApp):
         container_labels: Optional[Dict[str, Any]] = None,
         # Container env passed to the PhidataApp,
         # Add env variables to container env,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[Dict[str, Any]] = None,
         # Read env variables from a file in yaml format,
         env_file: Optional[Path] = None,
         # Container secrets,
         # Add secret variables to container env,
-        secrets: Optional[Dict[str, str]] = None,
+        secrets: Optional[Dict[str, Any]] = None,
         # Read secret variables from a file in yaml format,
         secrets_file: Optional[Path] = None,
         # Read secret variables from AWS Secrets,

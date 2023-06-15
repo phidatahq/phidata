@@ -101,6 +101,12 @@ def get_docker_resources_from_group(
                             continue
                     docker_resources.append(_r)  # type: ignore
 
+                    # Add the resource dependencies to the aws_resources list
+                    if _r.depends_on is not None:
+                        for dep in _r.depends_on:
+                            if isinstance(dep, DockerResource):
+                                docker_resources.append(dep)
+
         # If its a single resource, verify that the resource is a subclass of
         # DockerResource and add it to the docker_resources list
         elif isinstance(resource_data, DockerResource):
@@ -229,33 +235,71 @@ def filter_and_flatten_docker_resource_groups(
     # Sort the resources in install order
     if sort_order == "create":
         docker_resource_list_with_weight.sort(
-            key=lambda x: get_install_weight_for_docker_resource(x[0], x[1])
+            key=lambda x: (
+                get_install_weight_for_docker_resource(x[0], x[1]),
+                x[0].name,
+            )
         )
     elif sort_order == "delete":
         docker_resource_list_with_weight.sort(
-            key=lambda x: get_install_weight_for_docker_resource(x[0], x[1]),
+            key=lambda x: (
+                get_install_weight_for_docker_resource(x[0], x[1]),
+                x[0].name,
+            ),
             reverse=True,
         )
 
     # De-duplicate DockerResources
-    # Mainly used to remove the extra Network resources
     deduped_docker_resources: List[Tuple[DockerResource, int]] = dedup_docker_resources(
         docker_resource_list_with_weight
     )
-    # deduped_docker_resources = docker_resource_list_with_weight
-    # logger.debug("DockerResource list")
-    # logger.debug(
-    #     "\n".join(
-    #         "Name: {}, Type: {}, Weight: {}".format(
-    #             rsrc.name, rsrc.resource_type, weight
-    #         )
-    #         for rsrc, weight in deduped_docker_resources
-    #     )
-    # )
 
-    # drop the weight from the deduped_docker_resources tuple
-    filtered_docker_resources: List[DockerResource] = [
-        x[0] for x in deduped_docker_resources
-    ]
-    # logger.debug("filtered_docker_resources: {}".format(filtered_docker_resources))
-    return filtered_docker_resources
+    # Implement dependency sorting and drop the weight
+    final_docker_resources: List[DockerResource] = []
+    for docker_resource, weight in deduped_docker_resources:
+        # Logic to follow if resource has dependencies
+        if docker_resource.depends_on is not None:
+            # If the sort_order is delete
+            # 1. Reverse the order of dependencies
+            # 2. Remove the dependencies if they are already added to the final_docker_resources
+            # 3. Add the resource to be deleted before its dependencies
+            # 4. Add the dependencies back in reverse order
+            if sort_order == "delete":
+                # 1. Reverse the order of dependencies
+                docker_resource.depends_on.reverse()
+                # 2. Remove the dependencies if they are already added to the final_docker_resources
+                for dep in docker_resource.depends_on:
+                    if dep in final_docker_resources:
+                        logger.debug(
+                            f"  -*- Removing {dep.name}, dependency of {docker_resource.name}"
+                        )
+                        final_docker_resources.remove(dep)
+                # 3. Add the resource to be deleted before its dependencies
+                if docker_resource not in final_docker_resources:
+                    logger.debug(f"  -*- Adding {docker_resource.name}")
+                    final_docker_resources.append(docker_resource)
+
+            # Common logic for create and delete
+            # When the sort_order is create, the dependencies are added before the resource
+            # When the sort_order is delete, the dependencies are added after the resource
+            for dep in docker_resource.depends_on:
+                if isinstance(dep, DockerResource):
+                    if dep not in final_docker_resources:
+                        logger.debug(
+                            f"  -*- Adding {dep.name}, dependency of {docker_resource.name}"
+                        )
+                        final_docker_resources.append(dep)
+
+            # If the sort_order is create,
+            # add the resource to be created after its dependencies
+            if sort_order == "create":
+                if docker_resource not in final_docker_resources:
+                    logger.debug(f"  -*- Adding {docker_resource.name}")
+                    final_docker_resources.append(docker_resource)
+        else:
+            # Add the resource to be created/deleted
+            if docker_resource not in final_docker_resources:
+                logger.debug(f"  -*- Adding {docker_resource.name}")
+                final_docker_resources.append(docker_resource)
+
+    return final_docker_resources

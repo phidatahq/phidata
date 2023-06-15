@@ -1,7 +1,8 @@
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.ec2.subnet import Subnet
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
 
@@ -20,6 +21,7 @@ class TargetGroup(AwsResource):
     protocol_version: Optional[str] = None
     port: Optional[int] = None
     vpc_id: Optional[str] = None
+    subnets: Optional[List[Union[str, Subnet]]] = None
     health_check_protocol: Optional[str] = None
     health_check_port: Optional[str] = None
     health_check_enabled: Optional[bool] = None
@@ -43,14 +45,28 @@ class TargetGroup(AwsResource):
 
         # create a dict of args which are not null, otherwise aws type validation fails
         not_null_args: Dict[str, Any] = {}
+
+        # Get vpc_id
+        vpc_id = self.vpc_id
+        if vpc_id is None and self.subnets is not None:
+            from phidata.aws.resource.ec2.subnet import get_vpc_id_from_subnet_ids
+
+            subnet_ids = []
+            for subnet in self.subnets:
+                if isinstance(subnet, Subnet):
+                    subnet_ids.append(subnet.id)
+                elif isinstance(subnet, str):
+                    subnet_ids.append(subnet)
+            vpc_id = get_vpc_id_from_subnet_ids(subnet_ids, aws_client)
+        if vpc_id is not None:
+            not_null_args["VpcId"] = vpc_id
+
         if self.protocol is not None:
             not_null_args["Protocol"] = self.protocol
         if self.protocol_version is not None:
             not_null_args["ProtocolVersion"] = self.protocol_version
         if self.port is not None:
             not_null_args["Port"] = self.port
-        if self.vpc_id is not None:
-            not_null_args["VpcId"] = self.vpc_id
         if self.health_check_protocol is not None:
             not_null_args["HealthCheckProtocol"] = self.health_check_protocol
         if self.health_check_port is not None:
@@ -87,7 +103,7 @@ class TargetGroup(AwsResource):
                 Name=self.name,
                 **not_null_args,
             )
-            logger.debug(f"Create Response: {create_response}")
+            logger.debug(f"Response: {create_response}")
             resource_dict = create_response.get("TargetGroups", {})
 
             # Validate resource creation
@@ -106,10 +122,9 @@ class TargetGroup(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current TargetGroup
         """
-        logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
-
         from botocore.exceptions import ClientError
 
+        logger.debug(f"Reading {self.get_resource_type()}: {self.get_resource_name()}")
         service_client = self.get_service_client(aws_client)
         try:
             describe_response = service_client.describe_target_groups(Names=[self.name])
@@ -117,7 +132,9 @@ class TargetGroup(AwsResource):
             resource_list = describe_response.get("TargetGroups", None)
 
             if resource_list is not None and isinstance(resource_list, list):
-                self.active_resource = resource_list[0]
+                for resource in resource_list:
+                    if resource.get("TargetGroupName") == self.name:
+                        self.active_resource = resource
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:

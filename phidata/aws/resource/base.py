@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from phidata.constants import AWS_REGION_ENV_VAR, AWS_PROFILE_ENV_VAR
 from phidata.infra.resource import InfraResource
@@ -119,12 +119,17 @@ class AwsResource(AwsObject):
         else:
             self.resource_available = self._create(client)
 
-        # Step 5: Run post create steps
+        # Step 5: Save resource to file
+        if self.save_output:
+            self.save_resource_file()
+
+        # Step 6: Run post create steps
         if self.resource_available:
             logger.debug(
                 f"Running post-create steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_create(client)
+
         return self.resource_available
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
@@ -145,7 +150,7 @@ class AwsResource(AwsObject):
         if not self.is_valid():
             return None
 
-        # Step 2: Use cached value is availabe
+        # Step 2: Use cached value is available
         if self.use_cache and self.active_resource is not None:
             return self.active_resource
 
@@ -187,12 +192,17 @@ class AwsResource(AwsObject):
             )
             return True
 
-        # Step 4: Run post update steps
+        # Step 5: Save resource to file
+        if self.save_output:
+            self.save_resource_file()
+
+        # Step 5: Run post update steps
         if self.resource_updated:
             logger.debug(
                 f"Running post-update steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_update(client)
+
         return self.resource_updated
 
     def post_update(self, aws_client: AwsApiClient) -> bool:
@@ -228,12 +238,17 @@ class AwsResource(AwsObject):
             )
             return True
 
-        # Step 4: Run post delete steps
+        # Step 4: Delete resource file
+        if self.save_output:
+            self.delete_resource_file()
+
+        # Step 5: Run post delete steps
         if self.resource_deleted:
             logger.debug(
                 f"Running post-delete steps for {self.get_resource_type()}: {self.get_resource_name()}."
             )
             return self.post_delete(client)
+
         return self.resource_deleted
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:

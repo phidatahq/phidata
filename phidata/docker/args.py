@@ -1,7 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import validator
 
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.app.databox import default_databox_name
 from phidata.infra.args import InfraArgs
@@ -17,7 +18,7 @@ class DockerArgs(InfraArgs):
     # URL to the Docker server. For example, unix:///var/run/docker.sock or tcp://127.0.0.1:1234.
     # when None, phidata use DockerClient.from_env()
     base_url: Optional[str] = None
-    apps: Optional[List[PhidataApp]] = None
+    apps: Optional[List[Union[BaseApp, PhidataApp]]] = None
     # default resources
     images: Optional[List[DockerImage]] = None
     containers: Optional[List[DockerContainer]] = None
@@ -30,8 +31,8 @@ class DockerArgs(InfraArgs):
     def apps_are_valid(cls, apps):
         if apps is not None:
             for _app in apps:
-                if not isinstance(_app, PhidataApp):
-                    raise TypeError("App not of type PhidataApp: {}".format(_app))
+                if not (isinstance(_app, PhidataApp) or isinstance(_app, BaseApp)):
+                    raise TypeError(f"App not of type PhidataApp or BaseApp: {_app}")
         return apps
 
     def default_resources_available(self) -> bool:

@@ -1,12 +1,15 @@
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
+from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.secret.manager import SecretsManager
+from phidata.aws.resource.secret.reader import read_secrets
 from phidata.utils.log import logger
 
 
 class EcsContainer(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
+    Reference: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ecs.html
     """
 
     resource_type = "EcsContainer"
@@ -42,8 +45,10 @@ class EcsContainer(AwsResource):
     command: Optional[List[str]] = None
     # The environment variables to pass to a container.
     environment: Optional[List[Dict[str, Any]]] = None
-    # The entry point that's passed to the container.
+    # A list of files containing the environment variables to pass to a container.
     environment_files: Optional[List[Dict[str, Any]]] = None
+    # Read environment variables from AWS Secrets.
+    env_from_secrets: Optional[Union[SecretsManager, List[SecretsManager]]] = None
     # The mount points for data volumes in your container.
     mount_points: Optional[List[Dict[str, Any]]] = None
     # Data volumes to mount from another container.
@@ -84,8 +89,18 @@ class EcsContainer(AwsResource):
     resource_requirements: Optional[List[Dict[str, Any]]] = None
     firelens_configuration: Optional[Dict[str, Any]] = None
 
-    def get_container_definition(self) -> Dict[str, Any]:
+    def get_container_definition(
+        self, aws_client: Optional[AwsApiClient] = None
+    ) -> Dict[str, Any]:
         container_definition: Dict[str, Any] = {}
+
+        # Build container environment
+        container_environment: List[Dict[str, Any]] = self.build_container_environment(
+            aws_client=aws_client
+        )
+        if container_environment is not None:
+            container_definition["environment"] = container_environment
+
         if self.name is not None:
             container_definition["name"] = self.name
         if self.image is not None:
@@ -108,8 +123,6 @@ class EcsContainer(AwsResource):
             container_definition["entryPoint"] = self.entry_point
         if self.command is not None:
             container_definition["command"] = self.command
-        if self.environment is not None:
-            container_definition["environment"] = self.environment
         if self.environment_files is not None:
             container_definition["environmentFiles"] = self.environment_files
         if self.mount_points is not None:
@@ -168,6 +181,58 @@ class EcsContainer(AwsResource):
             container_definition["firelensConfiguration"] = self.firelens_configuration
 
         return container_definition
+
+    def build_container_environment(
+        self, aws_client: Optional[AwsApiClient] = None
+    ) -> List[Dict[str, Any]]:
+        logger.debug("Building container environment")
+        container_environment: List[Dict[str, Any]] = []
+        if self.environment is not None:
+            from phidata.resource.reference import Reference, AwsReference
+
+            for env in self.environment:
+                env_value = env.get("value", None)
+                if isinstance(env_value, Reference):
+                    env_name = env.get("name", None)
+                    logger.debug(f"{env_name} is a Reference")
+                    try:
+                        env_val = env_value.get_reference()
+                        try:
+                            env_val_str = str(env_val)
+                            container_environment.append(
+                                {"name": env_name, "value": env_val_str}
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Error while converting {env_val} to str: {e}"
+                            )
+                    except Exception as e:
+                        logger.error(f"Error while getting {env_name}: {e}")
+                elif isinstance(env_value, AwsReference):
+                    env_name = env.get("name", None)
+                    logger.debug(f"{env_name} is a AwsReference")
+                    try:
+                        env_val = env_value.get_reference(aws_client=aws_client)
+                        try:
+                            env_val_str = str(env_val)
+                            container_environment.append(
+                                {"name": env_name, "value": env_val_str}
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Error while converting {env_val} to str: {e}"
+                            )
+                    except Exception as e:
+                        logger.error(f"Error while getting {env_name}: {e}")
+                else:
+                    container_environment.append(env)
+        if self.env_from_secrets is not None:
+            secrets: Dict[str, Any] = read_secrets(self.env_from_secrets)
+            for secret_name, secret_value in secrets.items():
+                container_environment.append(
+                    {"name": secret_name, "value": secret_value}
+                )
+        return container_environment
 
     def container_definition_up_to_date(
         self, container_definition: Dict[str, Any]

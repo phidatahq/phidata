@@ -5,6 +5,7 @@ from typing_extensions import Literal
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
 from phidata.aws.resource.cloudformation.stack import CloudFormationStack
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.rds.db_instance import DbInstance
 from phidata.aws.resource.rds.db_subnet_group import DbSubnetGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
@@ -86,12 +87,14 @@ class DbCluster(AwsResource):
     # Constraints: If supplied, must match the name of an existing DB cluster parameter group.
     db_cluster_parameter_group_name: Optional[str] = None
 
-    ## Networking
     # A list of EC2 VPC security groups to associate with this DB cluster.
     vpc_security_group_ids: Optional[List[str]] = None
     # If vpc_security_group_ids is None,
     # Read the security_group_id from vpc_stack
     vpc_stack: Optional[CloudFormationStack] = None
+    # If vpc_security_group_ids is None and vpc_stack is None
+    # Read the security_group_id from db_security_groups
+    db_security_groups: Optional[List[SecurityGroup]] = None
 
     # A DB subnet group to associate with this DB cluster.
     # This setting is required to create a Multi-AZ DB cluster.
@@ -235,19 +238,22 @@ class DbCluster(AwsResource):
     skip_final_snapshot: Optional[bool] = True
     final_db_snapshot_identifier: Optional[str] = None
 
+    # Parameters for update function
+    new_db_cluster_identifier: Optional[str] = None
+    apply_immediately: Optional[bool] = None
+    cloudwatch_logs_exports: Optional[List[str]] = None
+    allow_major_version_upgrade: Optional[bool] = None
+    db_instance_parameter_group_name: Optional[str] = None
+    manage_master_user_password: Optional[bool] = None
+    rotate_master_user_password: Optional[bool] = None
+    master_iser_secter_kms_key_id: Optional[str] = None
+    allow_engine_mode_change: Optional[bool] = None
+
     # Cache secret_data
     cached_secret_data: Optional[Dict[str, Any]] = None
 
     def get_db_cluster_identifier(self):
         return self.db_cluster_identifier or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_master_username(self) -> Optional[str]:
         master_username = self.master_username
@@ -292,6 +298,9 @@ class DbCluster(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Step 1: Get the VpcSecurityGroupIds
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
@@ -299,15 +308,30 @@ class DbCluster(AwsResource):
             if vpc_stack_sg is not None:
                 logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
         # Step 2: Get the DbSubnetGroupName
         db_subnet_group_name = self.db_subnet_group_name
         if db_subnet_group_name is None and self.db_subnet_group is not None:
             db_subnet_group_name = self.db_subnet_group.name
             logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        if db_subnet_group_name is not None:
+            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
+        database_name = self.get_database_name()
+        if database_name:
+            not_null_args["DatabaseName"] = database_name
+
         if self.availability_zones:
             not_null_args["AvailabilityZones"] = self.availability_zones
         if self.backup_retention_period:
@@ -315,19 +339,10 @@ class DbCluster(AwsResource):
         if self.character_set_name:
             not_null_args["CharacterSetName"] = self.character_set_name
 
-        database_name = self.get_database_name()
-        if database_name:
-            not_null_args["DatabaseName"] = database_name
-
         if self.db_cluster_parameter_group_name:
             not_null_args[
                 "DBClusterParameterGroupName"
             ] = self.db_cluster_parameter_group_name
-
-        if vpc_security_group_ids is not None:
-            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
-        if db_subnet_group_name is not None:
-            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
         if self.engine_version:
             not_null_args["EngineVersion"] = self.engine_version
@@ -428,7 +443,7 @@ class DbCluster(AwsResource):
         if self.source_region:
             not_null_args["SourceRegion"] = self.source_region
 
-        # Step 3: Create DbCluster
+        # Step 3: Create DBCluster
         service_client = self.get_service_client(aws_client)
         try:
             create_response = service_client.create_db_cluster(
@@ -441,7 +456,7 @@ class DbCluster(AwsResource):
 
             # Validate database creation
             if database_dict is not None:
-                print_info(f"DbCluster created: {self.get_db_cluster_identifier()}")
+                print_info(f"DBCluster created: {self.get_db_cluster_identifier()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -457,7 +472,7 @@ class DbCluster(AwsResource):
                 if db_instance._create(aws_client):  # type: ignore
                     db_instances_created.append(db_instance)
 
-        # Wait for DbCluster to be created
+        # Wait for DBCluster to be created
         if self.wait_for_creation:
             try:
                 print_info(f"Waiting for {self.get_resource_type()} to be active.")
@@ -574,3 +589,154 @@ class DbCluster(AwsResource):
                 print_error("Waiter failed.")
                 print_error(e)
         return True
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Updates the DbCluster"""
+
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
+        # Step 1: Get the VpcSecurityGroupIds
+        vpc_security_group_ids = self.vpc_security_group_ids
+        if vpc_security_group_ids is None and self.vpc_stack is not None:
+            vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
+            if vpc_stack_sg is not None:
+                logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
+                vpc_security_group_ids = [vpc_stack_sg]
+        if vpc_security_group_ids is None and self.db_security_groups is not None:
+            sg_ids = []
+            for sg in self.db_security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                vpc_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        if vpc_security_group_ids is not None:
+            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
+
+        if self.new_db_cluster_identifier:
+            not_null_args["NewDBClusterIdentifier"] = self.new_db_cluster_identifier
+        if self.apply_immediately:
+            not_null_args["ApplyImmediately"] = self.apply_immediately
+        if self.backup_retention_period:
+            not_null_args["BackupRetentionPeriod"] = self.backup_retention_period
+        if self.db_cluster_parameter_group_name:
+            not_null_args[
+                "DBClusterParameterGroupName"
+            ] = self.db_cluster_parameter_group_name
+        if self.port:
+            not_null_args["Port"] = self.port
+
+        master_user_password = self.get_master_user_password()
+        if master_user_password:
+            not_null_args["MasterUserPassword"] = master_user_password
+
+        if self.option_group_name:
+            not_null_args["OptionGroupName"] = self.option_group_name
+        if self.preferred_backup_window:
+            not_null_args["PreferredBackupWindow"] = self.preferred_backup_window
+        if self.preferred_maintenance_window:
+            not_null_args[
+                "PreferredMaintenanceWindow"
+            ] = self.preferred_maintenance_window
+        if self.enable_iam_database_authentication:
+            not_null_args[
+                "EnableIAMDbClusterAuthentication"
+            ] = self.enable_iam_database_authentication
+        if self.backtrack_window:
+            not_null_args["BacktrackWindow"] = self.backtrack_window
+        if self.cloudwatch_logs_exports:
+            not_null_args[
+                "CloudwatchLogsExportConfiguration"
+            ] = self.cloudwatch_logs_exports
+        if self.engine_version:
+            not_null_args["EngineVersion"] = self.engine_version
+        if self.allow_major_version_upgrade:
+            not_null_args["AllowMajorVersionUpgrade"] = self.allow_major_version_upgrade
+        if self.db_instance_parameter_group_name:
+            not_null_args[
+                "DBInstanceParameterGroupName"
+            ] = self.db_instance_parameter_group_name
+        if self.domain:
+            not_null_args["Domain"] = self.domain
+        if self.domain_iam_role_name:
+            not_null_args["DomainIAMRoleName"] = self.domain_iam_role_name
+        if self.scaling_configuration:
+            not_null_args["ScalingConfiguration"] = self.scaling_configuration
+        if self.deletion_protection:
+            not_null_args["DeletionProtection"] = self.deletion_protection
+        if self.enable_http_endpoint:
+            not_null_args["EnableHttpEndpoint"] = self.enable_http_endpoint
+        if self.copy_tags_to_snapshot:
+            not_null_args["CopyTagsToSnapshot"] = self.copy_tags_to_snapshot
+        if self.enable_global_write_forwarding:
+            not_null_args[
+                "EnableGlobalWriteForwarding"
+            ] = self.enable_global_write_forwarding
+        if self.db_instance_class:
+            not_null_args["DBClusterInstanceClass"] = self.db_instance_class
+        if self.allocated_storage:
+            not_null_args["AllocatedStorage"] = self.allocated_storage
+        if self.storage_type:
+            not_null_args["StorageType"] = self.storage_type
+        if self.iops:
+            not_null_args["Iops"] = self.iops
+        if self.auto_minor_version_upgrade:
+            not_null_args["AutoMinorVersionUpgrade"] = self.auto_minor_version_upgrade
+        if self.monitoring_interval:
+            not_null_args["MonitoringInterval"] = self.monitoring_interval
+        if self.monitoring_role_arn:
+            not_null_args["MonitoringRoleArn"] = self.monitoring_role_arn
+        if self.enable_performance_insights:
+            not_null_args[
+                "EnablePerformanceInsights"
+            ] = self.enable_performance_insights
+        if self.performance_insights_kms_key_id:
+            not_null_args[
+                "PerformanceInsightsKMSKeyId"
+            ] = self.performance_insights_kms_key_id
+        if self.performance_insights_retention_period:
+            not_null_args[
+                "PerformanceInsightsRetentionPeriod"
+            ] = self.performance_insights_retention_period
+        if self.serverless_v2_scaling_configuration:
+            not_null_args[
+                "ServerlessV2ScalingConfiguration"
+            ] = self.serverless_v2_scaling_configuration
+        if self.network_type:
+            not_null_args["NetworkType"] = self.network_type
+        if self.manage_master_user_password:
+            not_null_args["ManageMasterUserPassword"] = self.manage_master_user_password
+        if self.rotate_master_user_password:
+            not_null_args["RotateMasterUserPassword"] = self.rotate_master_user_password
+        if self.master_iser_secter_kms_key_id:
+            not_null_args[
+                "MasterUserSecretKmsKeyId"
+            ] = self.master_iser_secter_kms_key_id
+        if self.engine_mode:
+            not_null_args["EngineMode"] = self.engine_mode
+        if self.allow_engine_mode_change:
+            not_null_args["AllowEngineModeChange"] = self.allow_engine_mode_change
+
+        # Step 2: Update DBCluster
+        service_client = self.get_service_client(aws_client)
+        try:
+            update_response = service_client.modify_db_cluster(
+                DBClusterIdentifier=self.get_db_cluster_identifier(),
+                **not_null_args,
+            )
+            logger.debug(f"DBCluster: {update_response}")
+            resource_dict = update_response.get("DBCluster", {})
+
+            # Validate resource update
+            if resource_dict is not None:
+                print_info(f"DBCluster updated: {self.get_resource_name()}")
+                self.active_resource = update_response
+                return True
+        except Exception as e:
+            print_error(f"{self.get_resource_type()} could not be updated.")
+            print_error(e)
+        return False

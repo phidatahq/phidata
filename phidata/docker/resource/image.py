@@ -2,7 +2,7 @@ from typing import Optional, Any, Dict, List
 
 from phidata.docker.api_client import DockerApiClient
 from phidata.docker.resource.base import DockerResource
-from phidata.utils.cli_console import print_info, print_error
+from phidata.utils.cli_console import print_info, print_error, console
 from phidata.utils.log import logger
 
 
@@ -73,6 +73,9 @@ class DockerImage(DockerResource):
     skip_delete: bool = True
     image_build_id: Optional[str] = None
 
+    # Set use_cache to False so image is always built
+    use_cache: bool = False
+
     def get_resource_name(self) -> Optional[str]:
         return self.get_name_tag()
 
@@ -91,6 +94,9 @@ class DockerImage(DockerResource):
     def build_image(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
         from docker.errors import BuildError, APIError
+        from rich import box
+        from rich.live import Live
+        from rich.table import Table
 
         print_info(f"Building image: {self.get_name_tag()}")
         nocache = self.skip_docker_cache or self.force
@@ -131,67 +137,109 @@ class DockerImage(DockerResource):
                 decode=True,
             )
 
-            for build_log in build_stream:
-                if build_log != last_build_log:
-                    last_build_log = build_log
+            with Live(transient=True, console=console) as live_log:
+                progress: List[str] = []
+                for build_log in build_stream:
+                    if build_log != last_build_log:
+                        last_build_log = build_log
 
-                build_status: str = build_log.get("status")
-                if build_status is not None:
-                    _status = build_status.lower()
-                    if _status in (
-                        "waiting",
-                        "downloading",
-                        "extracting",
-                        "verifying checksum",
-                        "pulling fs layer",
-                    ):
+                    build_status: str = build_log.get("status")
+                    if build_status is not None:
+                        _status = build_status.lower()
+                        if _status in (
+                            "waiting",
+                            "downloading",
+                            "extracting",
+                            "verifying checksum",
+                            "pulling fs layer",
+                        ):
+                            continue
+                        if build_status != last_status:
+                            logger.debug(build_status)
+                            last_status = build_status
+                    stream = build_log.get("stream", None)
+                    if stream is None or stream == "\n":
                         continue
-                    if build_status != last_status:
-                        logger.debug(build_status)
-                        last_status = build_status
+                    stream = stream.strip()
 
-                stream = build_log.get("stream", None)
-                if stream is None or stream == "\n":
-                    continue
-                stream = stream.strip()
-                if "Step" in stream and self.print_build_log:
-                    print_info(stream)
-                else:
-                    logger.debug(stream)
-                if "ERROR" in stream or "error" in stream:
-                    logger.debug(build_log)
-                    print_error(f"Image build failed: {self.get_name_tag()}")
-                    print_error(stream)
-                    return None
-                if build_log.get("aux", None) is not None:
-                    logger.debug("build_log['aux'] :{}".format(build_log["aux"]))
-                    self.image_build_id = build_log.get("aux", {}).get("ID")
+                    if "Step" in stream and self.print_build_log:
+                        progress = []
+                        print_info(stream)
+                    else:
+                        progress.append(stream)
+                        if len(progress) > 10:
+                            progress.pop(0)
+
+                    if "ERROR" in stream or "error" in stream:
+                        print(stream)
+                        live_log.stop()
+                        print_error(f"Image build failed: {self.get_name_tag()}")
+                        return None
+                    if build_log.get("aux", None) is not None:
+                        logger.debug("build_log['aux'] :{}".format(build_log["aux"]))
+                        self.image_build_id = build_log.get("aux", {}).get("ID")
+
+                    # Render table
+                    table = Table(show_edge=False, show_header=False, show_lines=False)
+                    for line in progress:
+                        table.add_row(line, style="dim")
+                    live_log.update(table)
+
             if self.push_image:
                 print_info(f"Pushing {self.get_name_tag()}")
-                push_progress = None
-                prev_push_progress = None
-                for push_output in _api_client.images.push(
-                    repository=self.name,
-                    tag=self.tag,
-                    stream=True,
-                    decode=True,
-                ):
-                    if push_output.get("error", None) is not None:
-                        print_error(push_output["error"])
-                        print_error(f"Push failed for {self.get_name_tag()}")
-                        print_error(
-                            "If you are using a private registry, make sure you are logged in"
-                        )
-                    if self.print_push_output and push_output.get("status", None) in (
-                        "Pushing",
-                        "Pushed",
+                with Live(transient=True, console=console) as live_log:
+                    push_status = {}
+                    last_push_progress = None
+                    for push_output in _api_client.images.push(
+                        repository=self.name,
+                        tag=self.tag,
+                        stream=True,
+                        decode=True,
                     ):
-                        push_progress = push_output.get("progress", None)
-                        if push_progress != prev_push_progress:
-                            print_info(push_progress)
-                            prev_push_progress = push_progress
-                    if push_output.get("aux", {}).get("Size", 0) > 0:
-                        print_info(f"Push complete: {push_output.get('aux', {})}")
+                        # logger.info(push_output)
+                        _id = push_output.get("id", None)
+                        _status = push_output.get("status", None)
+                        _progress = push_output.get("progress", None)
+                        if _id is not None and _status is not None:
+                            push_status[_id] = {
+                                "status": _status,
+                                "progress": _progress,
+                            }
+
+                        if push_output.get("error", None) is not None:
+                            print_error(push_output["error"])
+                            print_error(f"Push failed for {self.get_name_tag()}")
+                            print_error(
+                                "If you are using a private registry, make sure you are logged in"
+                            )
+
+                        if self.print_push_output and push_output.get(
+                            "status", None
+                        ) in (
+                            "Pushing",
+                            "Pushed",
+                        ):
+                            current_progress = push_output.get("progress", None)
+                            if current_progress != last_push_progress:
+                                print_info(current_progress)
+                                last_push_progress = current_progress
+                        if push_output.get("aux", {}).get("Size", 0) > 0:
+                            print_info(f"Push complete: {push_output.get('aux', {})}")
+
+                        # Render table
+                        table = Table(box=box.ASCII2)
+                        table.add_column("Layer", justify="center")
+                        table.add_column("Status", justify="center")
+                        table.add_column("Progress", justify="center")
+                        for layer, layer_status in push_status.items():
+                            table.add_row(
+                                layer,
+                                layer_status["status"],
+                                layer_status["progress"],
+                                style="dim",
+                            )
+                        live_log.update(table)
+
             return self._read(docker_client)
         except TypeError as type_error:
             print_error(type_error)
@@ -219,8 +267,6 @@ class DockerImage(DockerResource):
                 self.active_resource = image_object
                 self.active_resource_class = Image
                 return True
-            else:
-                logger.error("Image {} could not be built".format(self.tag))
         except Exception as e:
             logger.exception(e)
             logger.error("Error while creating image: {}".format(e))

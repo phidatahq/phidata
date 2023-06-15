@@ -1,11 +1,12 @@
 from typing import Optional, List, Union
 
+from phidata.app.base_app import BaseApp
 from phidata.app.phidata_app import PhidataApp
 from phidata.app.group import AppGroup, get_apps_from_app_groups
-from phidata.infra.config import InfraConfig
 from phidata.aws.args import AwsArgs
 from phidata.aws.manager import AwsManager
 from phidata.aws.resource.group import AwsResourceGroup
+from phidata.infra.config import InfraConfig
 from phidata.utils.log import logger
 
 
@@ -15,7 +16,7 @@ class AwsConfig(InfraConfig):
         env: Optional[str] = "prd",
         version: Optional[str] = None,
         enabled: bool = True,
-        apps: Optional[List[PhidataApp]] = None,
+        apps: Optional[List[Union[BaseApp, PhidataApp]]] = None,
         app_groups: Optional[List[AppGroup]] = None,
         # AwsResourceGroups to deploy
         resources: Optional[Union[AwsResourceGroup, List[AwsResourceGroup]]] = None,

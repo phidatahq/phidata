@@ -176,7 +176,7 @@ class JupyterHubArgs(PhidataAppArgs):
     app_host_port: int = 8000
 
     # Add env variables to container env
-    env: Optional[Dict[str, str]] = None
+    env: Optional[Dict[str, Any]] = None
     # Read env variables from a file in yaml format
     env_file: Optional[Path] = None
     # Configure the ConfigMap used for env variables that are not Secret

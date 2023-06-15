@@ -4,6 +4,7 @@ from typing_extensions import Literal
 
 from phidata.aws.api_client import AwsApiClient
 from phidata.aws.resource.base import AwsResource
+from phidata.aws.resource.ec2.security_group import SecurityGroup
 from phidata.aws.resource.elasticache.subnet_group import CacheSubnetGroup
 from phidata.utils.cli_console import print_info, print_error, print_warning
 from phidata.utils.log import logger
@@ -11,7 +12,8 @@ from phidata.utils.log import logger
 
 class CacheCluster(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/elasticache.html
+    Reference:
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/elasticache.html
     """
 
     resource_type = "CacheCluster"
@@ -55,12 +57,23 @@ class CacheCluster(AwsResource):
     # The version number of the cache engine to be used for this cluster.
     engine_version: Optional[str] = None
     cache_parameter_group_name: Optional[str] = None
+
+    # The name of the subnet group to be used for the cluster.
     cache_subnet_group_name: Optional[str] = None
     # If cache_subnet_group_name is None,
     # Read the cache_subnet_group_name from cache_subnet_group
     cache_subnet_group: Optional[CacheSubnetGroup] = None
+
+    # A list of security group names to associate with this cluster.
+    # Use this parameter only when you are creating a cluster outside of an Amazon Virtual Private Cloud (Amazon VPC).
     cache_security_group_names: Optional[List[str]] = None
+    # One or more VPC security groups associated with the cluster.
+    # Use this parameter only when you are creating a cluster in an Amazon Virtual Private Cloud (Amazon VPC).
     security_group_ids: Optional[List[str]] = None
+    # If security_group_ids is None
+    # Read the security_group_id from security_groups
+    security_groups: Optional[List[SecurityGroup]] = None
+
     tags: Optional[List[Dict[str, str]]] = None
     snapshot_arns: Optional[List[str]] = None
     snapshot_name: Optional[str] = None
@@ -94,19 +107,8 @@ class CacheCluster(AwsResource):
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
 
-    # Cache secret_data
-    cached_secret_data: Optional[Dict[str, Any]] = None
-
     def get_cache_cluster_id(self):
         return self.cache_cluster_id or self.name
-
-    def get_secret_data(self) -> Optional[Dict[str, str]]:
-        if self.cached_secret_data is not None:
-            return self.cached_secret_data
-
-        if self.secrets_file is not None:
-            self.cached_secret_data = self.read_yaml_file(self.secrets_file)
-        return self.cached_secret_data
 
     def get_auth_token(self) -> Optional[str]:
         auth_token = self.auth_token
@@ -125,14 +127,30 @@ class CacheCluster(AwsResource):
         """
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
 
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+
         # Get the CacheSubnetGroupName
         cache_subnet_group_name = self.cache_subnet_group_name
         if cache_subnet_group_name is None and self.cache_subnet_group is not None:
             cache_subnet_group_name = self.cache_subnet_group.name
             logger.debug(f"Using CacheSubnetGroup: {cache_subnet_group_name}")
+        if cache_subnet_group_name is not None:
+            not_null_args["CacheSubnetGroupName"] = cache_subnet_group_name
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
+        security_group_ids = self.security_group_ids
+        if security_group_ids is None and self.security_groups is not None:
+            sg_ids = []
+            for sg in self.security_groups:
+                sg_id = sg.get_security_group_id(aws_client)
+                if sg_id is not None:
+                    sg_ids.append(sg_id)
+            if len(sg_ids) > 0:
+                security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {security_group_ids}")
+        if security_group_ids is not None:
+            not_null_args["SecurityGroupIds"] = security_group_ids
+
         if self.replication_group_id is not None:
             not_null_args["ReplicationGroupId"] = self.replication_group_id
         if self.az_mode is not None:
@@ -155,12 +173,8 @@ class CacheCluster(AwsResource):
             not_null_args["EngineVersion"] = self.engine_version
         if self.cache_parameter_group_name is not None:
             not_null_args["CacheParameterGroupName"] = self.cache_parameter_group_name
-        if cache_subnet_group_name is not None:
-            not_null_args["CacheSubnetGroupName"] = cache_subnet_group_name
         if self.cache_security_group_names is not None:
             not_null_args["CacheSecurityGroupNames"] = self.cache_security_group_names
-        if self.security_group_ids is not None:
-            not_null_args["SecurityGroupIds"] = self.security_group_ids
         if self.tags is not None:
             not_null_args["Tags"] = self.tags
         if self.snapshot_arns is not None:

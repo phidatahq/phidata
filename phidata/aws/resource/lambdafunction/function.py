@@ -42,7 +42,6 @@ class LambdaFunction(AwsResource):
     ephemeral_storage: Optional[Dict] = None
     snap_start: Optional[Dict] = None
 
-
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the LambdaFunction
 
@@ -209,9 +208,7 @@ class LambdaFunction(AwsResource):
             if lambda_name is None:
                 print_warning(f"{self.get_resource_type()} not found.")
                 return True
-            delete_response = service_client.delete_function(
-                FunctionName=lambda_name
-            )
+            delete_response = service_client.delete_function(FunctionName=lambda_name)
             logger.debug(f"Delete Response: {delete_response}")
             print_info(
                 f"{self.get_resource_type()}: {self.get_resource_name()} deleted"

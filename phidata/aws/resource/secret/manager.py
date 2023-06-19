@@ -273,8 +273,10 @@ class SecretsManager(AwsResource):
             print_error(e)
         return None
 
-    def get_secret_value(self, secret_name: str) -> Optional[Any]:
-        secret_dict = self.get_secrets_as_dict()
+    def get_secret_value(
+        self, secret_name: str, aws_client: Optional[AwsApiClient] = None
+    ) -> Optional[Any]:
+        secret_dict = self.get_secrets_as_dict(aws_client=aws_client)
         if secret_dict is not None:
             return secret_dict.get(secret_name, None)
         return None

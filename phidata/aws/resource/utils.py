@@ -8,26 +8,6 @@ from phidata.aws.resource.types import AwsResourceInstallOrder
 from phidata.utils.log import logger
 
 
-def get_install_weight_for_aws_resource(
-    aws_resource_type: AwsResource, resource_group_weight: int = 100
-) -> int:
-    """Function which returns the install weight for an AwsResource"""
-
-    resource_type_class_name = aws_resource_type.__class__.__name__
-    if resource_type_class_name in AwsResourceInstallOrder.keys():
-        install_weight = AwsResourceInstallOrder[resource_type_class_name]
-        final_weight = resource_group_weight * install_weight
-        # logger.debug(
-        #     "Resource type: {} | Install weight: {}".format(
-        #         resource_type_class_name,
-        #         install_weight,
-        #     )
-        # )
-        return final_weight
-
-    return 5000
-
-
 def get_aws_resources_from_group(
     aws_resource_group: AwsResourceGroup,
     name_filter: Optional[str] = None,
@@ -112,60 +92,22 @@ def get_aws_resources_from_group(
     return aws_resources
 
 
-# def dedup_resource_types(
-#     aws_resources: Optional[List[AwsResource]] = None,
-# ) -> Optional[Set[Type[AwsResource]]]:
-#     """Takes a list of AwsResources and returns a Set of AwsResource classes.
-#     Each AwsResource classes is represented by the Type[resources.AwsResource] type.
-#     From python docs:
-#         A variable annotated with Type[AwsResource] may accept values that are classes.
-#         Acceptable classes are the AwsResource class + subclasses.
-#     """
-#     if aws_resources:
-#         active_resource_types: Set[Type[AwsResource]] = set()
-#         for resource in aws_resources:
-#             active_resource_types.add(resource.__class__)
-#             # logger.debug(f"Gathering: {resource.get_resource_name()}")
-#             # logger.debug(f"Resource Type: {resource_type}")
-#         logger.debug("Active Resource Types: {}".format(active_resource_types))
-#         return active_resource_types
-#     return None
+def get_rank_for_aws_resource(aws_resource_type: AwsResource) -> int:
+    """Function which returns the install rank for an AwsResource"""
+
+    resource_type_class_name = aws_resource_type.__class__.__name__
+    if resource_type_class_name in AwsResourceInstallOrder.keys():
+        install_rank = AwsResourceInstallOrder[resource_type_class_name]
+        return install_rank
+
+    return 5000
 
 
-def dedup_aws_resources(
-    aws_resources_with_weight: List[Tuple[AwsResource, int]],
-) -> List[Tuple[AwsResource, int]]:
-    if aws_resources_with_weight is None:
-        raise ValueError
-
-    deduped_resources: List[Tuple[AwsResource, int]] = []
-    prev_rsrc: Optional[AwsResource] = None
-    prev_weight: Optional[int] = None
-    for rsrc, weight in aws_resources_with_weight:
-        # First item of loop
-        if prev_rsrc is None:
-            prev_rsrc = rsrc
-            prev_weight = weight
-            deduped_resources.append((rsrc, weight))
-            continue
-
-        # Compare resources with same weight only
-        if weight == prev_weight:
-            if (
-                rsrc.get_resource_type() == prev_rsrc.get_resource_type()
-                and rsrc.get_resource_name() == prev_rsrc.get_resource_name()
-                and rsrc.get_resource_name() is not None
-            ):
-                # If resource type and name are the same, skip the resource
-                # Note: resource.name cannot be None
-                continue
-
-        # If the loop hasn't been continued by the if blocks above,
-        # add the resource and weight to the deduped_resources list
-        deduped_resources.append((rsrc, weight))
-        # update the previous resource for comparison
-        prev_rsrc = rsrc
-        prev_weight = weight
+def dedup_aws_resources(aws_resource_list: List[AwsResource]) -> List[AwsResource]:
+    deduped_resources: List[AwsResource] = []
+    for rsrc in aws_resource_list:
+        if rsrc not in deduped_resources:
+            deduped_resources.append(rsrc)
     return deduped_resources
 
 
@@ -192,11 +134,8 @@ def filter_and_flatten_aws_resource_groups(
 
     logger.debug("Filtering & Flattening AwsResourceGroups")
 
-    # Step 1: Create aws_resource_list_with_weight
-    # A List of Tuples where each tuple is a (AwsResource, Resource Group Weight)
-    # The reason for creating this list is so that we can sort the AwsResources
-    # based on their resource group weight using get_install_weight_for_aws_resource
-    aws_resource_list_with_weight: List[Tuple[AwsResource, int]] = []
+    # Step 1: Create a lit of aws_resources
+    aws_resource_list: List[AwsResource] = []
     if aws_resource_groups:
         # Iterate through aws_resource_groups
         for aws_rg_name, aws_rg in aws_resource_groups.items():
@@ -215,32 +154,24 @@ def filter_and_flatten_aws_resource_groups(
                     logger.debug(f"  -*- skipping {aws_rg_name}")
                     continue
 
-            aws_resources = get_aws_resources_from_group(
+            _aws_resources = get_aws_resources_from_group(
                 aws_rg, name_filter, type_filter
             )
-            if aws_resources:
-                for _aws_rsrc in aws_resources:
-                    aws_resource_list_with_weight.append((_aws_rsrc, aws_rg.weight))
+            if _aws_resources:
+                aws_resource_list.extend(_aws_resources)
 
     # Sort the resources in install order
     if sort_order == "create":
-        aws_resource_list_with_weight.sort(
-            key=lambda x: (get_install_weight_for_aws_resource(x[0], x[1]), x[0].name)
-        )
+        aws_resource_list.sort(key=lambda x: get_rank_for_aws_resource(x))
     elif sort_order == "delete":
-        aws_resource_list_with_weight.sort(
-            key=lambda x: (get_install_weight_for_aws_resource(x[0], x[1]), x[0].name),
-            reverse=True,
-        )
+        aws_resource_list.sort(key=lambda x: get_rank_for_aws_resource(x), reverse=True)
 
     # De-duplicate AwsResources
-    deduped_aws_resources: List[Tuple[AwsResource, int]] = dedup_aws_resources(
-        aws_resource_list_with_weight
-    )
+    deduped_aws_resources: List[AwsResource] = dedup_aws_resources(aws_resource_list)
 
-    # Implement dependency sorting and drop the weight
+    # Implement dependency sorting
     final_aws_resources: List[AwsResource] = []
-    for aws_resource, weight in deduped_aws_resources:
+    for aws_resource in deduped_aws_resources:
         # Logic to follow if resource has dependencies
         if aws_resource.depends_on is not None:
             # If the sort_order is delete

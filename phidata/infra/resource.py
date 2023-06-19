@@ -313,6 +313,7 @@ class InfraResource(BaseModel):
         return hash(self.name)
 
     def __eq__(self, other):
-        if other.resource_type == self.resource_type:
-            return self.name == other.name
+        if isinstance(other, InfraResource):
+            if other.get_resource_type() == self.get_resource_type():
+                return self.get_resource_name() == other.get_resource_name()
         return False

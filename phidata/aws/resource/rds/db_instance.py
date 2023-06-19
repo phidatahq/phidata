@@ -194,7 +194,9 @@ class DbInstance(AwsResource):
     def get_db_instance_identifier(self):
         return self.db_instance_identifier or self.name
 
-    def get_master_username(self) -> Optional[str]:
+    def get_master_username(
+        self, aws_client: Optional[AwsApiClient] = None
+    ) -> Optional[str]:
         master_username = self.master_username
         if master_username is None and self.secrets_file is not None:
             # read from secrets_file
@@ -204,11 +206,15 @@ class DbInstance(AwsResource):
         if master_username is None and self.aws_secret is not None:
             # read from aws_secret
             logger.debug(f"Reading MASTER_USERNAME from secret: {self.aws_secret.name}")
-            master_username = self.aws_secret.get_secret_value("MASTER_USERNAME")
+            master_username = self.aws_secret.get_secret_value(
+                "MASTER_USERNAME", aws_client=aws_client
+            )
 
         return master_username
 
-    def get_master_user_password(self) -> Optional[str]:
+    def get_master_user_password(
+        self, aws_client: Optional[AwsApiClient] = None
+    ) -> Optional[str]:
         master_user_password = self.master_user_password
         if master_user_password is None and self.secrets_file is not None:
             # read from secrets_file
@@ -223,12 +229,12 @@ class DbInstance(AwsResource):
                 f"Reading MASTER_USER_PASSWORD from secret: {self.aws_secret.name}"
             )
             master_user_password = self.aws_secret.get_secret_value(
-                "MASTER_USER_PASSWORD"
+                "MASTER_USER_PASSWORD", aws_client=aws_client
             )
 
         return master_user_password
 
-    def get_db_name(self) -> Optional[str]:
+    def get_db_name(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         db_name = self.db_name
         if db_name is None and self.secrets_file is not None:
             # read from secrets_file
@@ -245,7 +251,9 @@ class DbInstance(AwsResource):
                 logger.debug(
                     f"Reading DATABASE_NAME from secret: {self.aws_secret.name}"
                 )
-                db_name = self.aws_secret.get_secret_value("DATABASE_NAME")
+                db_name = self.aws_secret.get_secret_value(
+                    "DATABASE_NAME", aws_client=aws_client
+                )
         return db_name
 
     def get_database_name(self) -> Optional[str]:
@@ -716,6 +724,7 @@ class DbInstance(AwsResource):
         Returns:
             The DbInstance endpoint
         """
+        logger.debug(f"Getting endpoint for {self.get_resource_name()}")
         _db_endpoint: Optional[str] = None
         if self.active_resource:
             _db_endpoint = self.active_resource.get("Endpoint", {}).get("Address", None)
@@ -727,6 +736,7 @@ class DbInstance(AwsResource):
             resource = self.read(aws_client)
             if resource is not None:
                 _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
+        logger.debug(f"DBInstance endpoint: {_db_endpoint}")
         return _db_endpoint
 
     def get_db_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
@@ -735,6 +745,7 @@ class DbInstance(AwsResource):
         Returns:
             The DbInstance endpoint
         """
+        logger.debug(f"Getting port for {self.get_resource_name()}")
         _db_port: Optional[str] = None
         if self.active_resource:
             _db_port = self.active_resource.get("Endpoint", {}).get("Port", None)
@@ -746,4 +757,5 @@ class DbInstance(AwsResource):
             resource = self.read(aws_client)
             if resource is not None:
                 _db_port = resource.get("Endpoint", {}).get("Port", None)
+        logger.debug(f"DBInstance port: {_db_port}")
         return _db_port

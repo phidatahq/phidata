@@ -191,47 +191,43 @@ class EcsContainer(AwsResource):
             from phidata.resource.reference import Reference, AwsReference
 
             for env in self.environment:
+                env_name = env.get("name", None)
                 env_value = env.get("value", None)
                 if isinstance(env_value, Reference):
-                    env_name = env.get("name", None)
                     logger.debug(f"{env_name} is a Reference")
                     try:
                         env_val = env_value.get_reference()
-                        try:
-                            env_val_str = str(env_val)
-                            container_environment.append(
-                                {"name": env_name, "value": env_val_str}
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Error while converting {env_val} to str: {e}"
-                            )
                     except Exception as e:
                         logger.error(f"Error while getting {env_name}: {e}")
+                        env_value = None
                 elif isinstance(env_value, AwsReference):
-                    env_name = env.get("name", None)
                     logger.debug(f"{env_name} is a AwsReference")
                     try:
                         env_val = env_value.get_reference(aws_client=aws_client)
-                        try:
-                            env_val_str = str(env_val)
-                            container_environment.append(
-                                {"name": env_name, "value": env_val_str}
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Error while converting {env_val} to str: {e}"
-                            )
                     except Exception as e:
                         logger.error(f"Error while getting {env_name}: {e}")
-                else:
-                    container_environment.append(env)
+                        env_value = None
+
+                try:
+                    env_val_str = str(env_value)
+                    container_environment.append(
+                        {"name": env_name, "value": env_val_str}
+                    )
+                except Exception as e:
+                    logger.error(f"Error while converting {env_value} to str: {e}")
+
         if self.env_from_secrets is not None:
-            secrets: Dict[str, Any] = read_secrets(self.env_from_secrets)
+            secrets: Dict[str, Any] = read_secrets(
+                self.env_from_secrets, aws_client=aws_client
+            )
             for secret_name, secret_value in secrets.items():
-                container_environment.append(
-                    {"name": secret_name, "value": secret_value}
-                )
+                try:
+                    secret_value = str(secret_value)
+                    container_environment.append(
+                        {"name": secret_name, "value": secret_value}
+                    )
+                except Exception as e:
+                    logger.error(f"Error while converting {secret_value} to str: {e}")
         return container_environment
 
     def container_definition_up_to_date(

@@ -41,6 +41,7 @@ class AwsResourceGroup(BaseModel):
 
     name: str = "default"
     enabled: bool = True
+    # Deprecated. DO NOT USE
     weight: int = 100
 
     subnets: Optional[List[Subnet]] = None

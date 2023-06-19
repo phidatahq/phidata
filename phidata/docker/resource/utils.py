@@ -8,43 +8,6 @@ from phidata.docker.resource.types import DockerResourceInstallOrder
 from phidata.utils.log import logger
 
 
-def get_install_weight_for_docker_resource(
-    docker_resource_type: DockerResource, resource_group_weight: int = 100
-) -> int:
-    """Function which takes a DockerResource and resource_group_weight and returns the install
-    weight for that resource.
-
-    Understanding install weights for DockerResources:
-
-    - Each DockerResource gets an install weight, which determines the order for installing that particular resource.
-    - By default, DockerResources are installed in the order determined by the DockerResourceInstallOrder dict.
-        The DockerResourceInstallOrder dict ensures volumes are created before containers
-    - We can also provide a weight to the DockerResourceGroup, that weight determines the install order for resources of
-        that resource group as compared to other resource groups.
-    - We achieve this by multiplying the DockerResourceGroup.weight with the value from DockerResourceInstallOrder
-        and by default using a weight of 100. So
-        * Weights 1-10 are reserved
-        * Choose weight 11-99 to deploy a resource group before all the "default" resources
-        * Choose weight 101+ to deploy a resource group after all the "default" resources
-        * Choosing weight 100 has no effect because that is the default install weight
-    """
-    resource_type_class_name = docker_resource_type.__class__.__name__
-    if resource_type_class_name in DockerResourceInstallOrder.keys():
-        install_weight = DockerResourceInstallOrder[resource_type_class_name]
-        final_weight = resource_group_weight * install_weight
-        # logger.debug(
-        #     "Resource type: {} | RG Weight: {} | Install weight: {} | Final weight: {}".format(
-        #         resource_type_class_name,
-        #         resource_group_weight,
-        #         install_weight,
-        #         final_weight,
-        #     )
-        # )
-        return final_weight
-
-    return 5000
-
-
 def get_docker_resources_from_group(
     docker_resource_group: DockerResourceGroup,
     name_filter: Optional[str] = None,
@@ -135,40 +98,24 @@ def get_docker_resources_from_group(
     return docker_resources
 
 
+def get_rank_for_docker_resource(docker_resource_type: DockerResource) -> int:
+    """Function which returns the install rank for a DockerResource"""
+
+    resource_type_class_name = docker_resource_type.__class__.__name__
+    if resource_type_class_name in DockerResourceInstallOrder.keys():
+        install_rank = DockerResourceInstallOrder[resource_type_class_name]
+        return install_rank
+
+    return 5000
+
+
 def dedup_docker_resources(
-    docker_resources_with_weight: List[Tuple[DockerResource, int]],
-) -> List[Tuple[DockerResource, int]]:
-    if docker_resources_with_weight is None:
-        raise ValueError
-
-    deduped_resources: List[Tuple[DockerResource, int]] = []
-    prev_rsrc: Optional[DockerResource] = None
-    prev_weight: Optional[int] = None
-    for rsrc, weight in docker_resources_with_weight:
-        # First item of loop
-        if prev_rsrc is None:
-            prev_rsrc = rsrc
-            prev_weight = weight
-            deduped_resources.append((rsrc, weight))
-            continue
-
-        # Compare resources with same weight only
-        if weight == prev_weight:
-            if (
-                rsrc.get_resource_type() == prev_rsrc.get_resource_type()
-                and rsrc.get_resource_name() == prev_rsrc.get_resource_name()
-                and rsrc.get_resource_name() is not None
-            ):
-                # If resource type and name are the same, skip the resource
-                # Note: resource.name cannot be None
-                continue
-
-        # If the loop hasn't been continued by the if blocks above,
-        # add the resource and weight to the deduped_resources list
-        deduped_resources.append((rsrc, weight))
-        # update the previous resource for comparison
-        prev_rsrc = rsrc
-        prev_weight = weight
+    docker_resource_list: List[DockerResource],
+) -> List[DockerResource]:
+    deduped_resources: List[DockerResource] = []
+    for rsrc in docker_resource_list:
+        if rsrc not in deduped_resources:
+            deduped_resources.append(rsrc)
     return deduped_resources
 
 
@@ -199,17 +146,13 @@ def filter_and_flatten_docker_resource_groups(
     """
 
     logger.debug("Filtering & Flattening DockerResourceGroups")
-    # Step 1: Create docker_resource_list_with_weight
-    # A List of Tuples where each tuple is a (DockerResource, Resource Group Weight)
-    # This list helps us sort the DockerResources
-    # based on their resource group weight using get_install_weight_for_docker_resource
-    docker_resource_list_with_weight: List[Tuple[DockerResource, int]] = []
+    # Step 1: Create a list of docker_resources
+    docker_resource_list: List[DockerResource] = []
     if docker_resource_groups:
         # Iterate through docker_resource_groups
         for docker_rg_name, docker_rg in docker_resource_groups.items():
-            # logger.debug("docker_rg: {}".format(docker_rg))
             # logger.debug("docker_rg_name: {}".format(docker_rg_name))
-            # logger.debug("docker_rg_type: {}".format(type(docker_rg)))
+            # logger.debug("docker_rg: {}".format(docker_rg))
 
             # skip disabled DockerResourceGroups
             if not docker_rg.enabled:
@@ -223,40 +166,28 @@ def filter_and_flatten_docker_resource_groups(
                     logger.debug(f"  -*- skipping {docker_rg_name}")
                     continue
 
-            docker_resources = get_docker_resources_from_group(
+            _docker_resources = get_docker_resources_from_group(
                 docker_rg, name_filter, type_filter
             )
-            if docker_resources:
-                for _docker_rsrc in docker_resources:
-                    docker_resource_list_with_weight.append(
-                        (_docker_rsrc, docker_rg.weight)
-                    )
+            if _docker_resources:
+                docker_resource_list.extend(_docker_resources)
 
     # Sort the resources in install order
     if sort_order == "create":
-        docker_resource_list_with_weight.sort(
-            key=lambda x: (
-                get_install_weight_for_docker_resource(x[0], x[1]),
-                x[0].name,
-            )
-        )
+        docker_resource_list.sort(key=lambda x: get_rank_for_docker_resource(x))
     elif sort_order == "delete":
-        docker_resource_list_with_weight.sort(
-            key=lambda x: (
-                get_install_weight_for_docker_resource(x[0], x[1]),
-                x[0].name,
-            ),
-            reverse=True,
+        docker_resource_list.sort(
+            key=lambda x: get_rank_for_docker_resource(x), reverse=True
         )
 
     # De-duplicate DockerResources
-    deduped_docker_resources: List[Tuple[DockerResource, int]] = dedup_docker_resources(
-        docker_resource_list_with_weight
+    deduped_docker_resources: List[DockerResource] = dedup_docker_resources(
+        docker_resource_list
     )
 
     # Implement dependency sorting and drop the weight
     final_docker_resources: List[DockerResource] = []
-    for docker_resource, weight in deduped_docker_resources:
+    for docker_resource in deduped_docker_resources:
         # Logic to follow if resource has dependencies
         if docker_resource.depends_on is not None:
             # If the sort_order is delete

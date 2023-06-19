@@ -8,43 +8,6 @@ from phidata.k8s.resource.types import K8sResourceInstallOrder
 from phidata.utils.log import logger
 
 
-def get_install_weight_for_k8s_resource(
-    k8s_resource_type: K8sResource, resource_group_weight: int = 100
-) -> int:
-    """Function which takes a K8sResource and resource_group_weight and returns the install
-    weight for that resource.
-
-    Understanding install weights for K8s Resources:
-
-    - Each K8sResource gets an install weight, which determines the order for installing that particular resource.
-    - By default, K8sResources are installed in the order determined by the K8sResourceInstallOrder dict.
-        The K8sResourceInstallOrder dict ensures namespaces/service accounts are applied before deployments
-    - We can also provide a weight to the K8sResourceGroup, that weight determines the install order for all resources within
-        that resource group as compared to other resource groups.
-    - We achieve this by multiplying the K8sResourceGroup.weight with the value from K8sResourceInstallOrder
-        and by default using a weight of 100. So
-        * Weights 1-10 are reserved
-        * Choose weight 11-99 to deploy a resource group before all the "default" resources
-        * Choose weight 101+ to deploy a resource group after all the "default" resources
-        * Choosing weight 100 has no effect because that is the default install weight
-    """
-    resource_type_class_name = k8s_resource_type.__class__.__name__
-    if resource_type_class_name in K8sResourceInstallOrder.keys():
-        install_weight = K8sResourceInstallOrder[resource_type_class_name]
-        final_weight = resource_group_weight * install_weight
-        # logger.debug(
-        #     "Resource type: {} | RG Weight: {} | Install weight: {} | Final weight: {}".format(
-        #         resource_type_class_name,
-        #         resource_group_weight,
-        #         install_weight,
-        #         final_weight,
-        #     )
-        # )
-        return final_weight
-
-    return 5000
-
-
 def get_k8s_resources_from_group(
     k8s_resource_group: K8sResourceGroup,
     name_filter: Optional[str] = None,
@@ -129,77 +92,25 @@ def get_k8s_resources_from_group(
                     continue
             k8s_resources.append(resource_data)  # type: ignore
 
-    # Sort the resources in install order
-    if sort_order == "create":
-        k8s_resources.sort(
-            key=lambda x: get_install_weight_for_k8s_resource(
-                x, k8s_resource_group.weight
-            )
-        )
-    elif sort_order == "delete":
-        k8s_resources.sort(
-            key=lambda x: get_install_weight_for_k8s_resource(
-                x, k8s_resource_group.weight
-            ),
-            reverse=True,
-        )
     return k8s_resources
 
 
-# def dedup_resource_types(
-#     k8s_resources: Optional[List[K8sResource]] = None,
-# ) -> Optional[Set[Type[K8sResource]]]:
-#     """Takes a list of K8sResources and returns a Set of K8sResource classes.
-#     Each K8sResource classes is represented by the Type[resources.K8sResource] type.
-#     From python docs:
-#         A variable annotated with Type[K8sResource] may accept values that are classes.
-#         Acceptable classes are the K8sResource class + subclasses.
-#     """
-#     if k8s_resources:
-#         active_resource_types: Set[Type[K8sResource]] = set()
-#         for resource in k8s_resources:
-#             active_resource_types.add(resource.__class__)
-#             # logger.debug(f"Gathering: {resource.get_resource_name()}")
-#             # logger.debug(f"Resource Type: {resource_type}")
-#         logger.debug("Active Resource Types: {}".format(active_resource_types))
-#         return active_resource_types
-#     return None
+def get_rank_for_k8s_resource(k8s_resource_type: K8sResource) -> int:
+    """Function which returns the install rank for a K8sResource"""
+
+    resource_type_class_name = k8s_resource_type.__class__.__name__
+    if resource_type_class_name in K8sResourceInstallOrder.keys():
+        install_rank = K8sResourceInstallOrder[resource_type_class_name]
+        return install_rank
+
+    return 5000
 
 
-def dedup_k8s_resources(
-    k8s_resources_with_weight: List[Tuple[K8sResource, int]],
-) -> List[Tuple[K8sResource, int]]:
-    if k8s_resources_with_weight is None:
-        raise ValueError
-
-    deduped_resources: List[Tuple[K8sResource, int]] = []
-    prev_rsrc: Optional[K8sResource] = None
-    prev_weight: Optional[int] = None
-    for rsrc, weight in k8s_resources_with_weight:
-        # First item of loop
-        if prev_rsrc is None:
-            prev_rsrc = rsrc
-            prev_weight = weight
-            deduped_resources.append((rsrc, weight))
-            continue
-
-        # Compare resources with same weight only
-        if weight == prev_weight:
-            if (
-                rsrc.get_resource_type() == prev_rsrc.get_resource_type()
-                and rsrc.get_resource_name() == prev_rsrc.get_resource_name()
-                and rsrc.get_resource_name() is not None
-            ):
-                # If resource type and name are the same, skip the resource
-                # Note: resource.name cannot be None
-                continue
-
-        # If the loop hasn't been continued by the if blocks above,
-        # add the resource and weight to the deduped_resources list
-        deduped_resources.append((rsrc, weight))
-        # update the previous resource for comparison
-        prev_rsrc = rsrc
-        prev_weight = weight
+def dedup_k8s_resources(k8s_resource_list: List[K8sResource]) -> List[K8sResource]:
+    deduped_resources: List[K8sResource] = []
+    for rsrc in k8s_resource_list:
+        if rsrc not in deduped_resources:
+            deduped_resources.append(rsrc)
     return deduped_resources
 
 
@@ -231,11 +142,8 @@ def filter_and_flatten_k8s_resource_groups(
 
     logger.debug("Filtering & Flattening K8sResourceGroups")
 
-    # Step 1: Create k8s_resource_list_with_weight
-    # A List of Tuples where each tuple is a (K8sResource, Resource Group Weight)
-    # The reason for creating this list is so that we can sort the K8sResources
-    # based on their resource group weight using get_install_weight_for_k8s_resource
-    k8s_resource_list_with_weight: List[Tuple[K8sResource, int]] = []
+    # Step 1: Create a list of k8s_resources
+    k8s_resource_list: List[K8sResource] = []
     if k8s_resource_groups:
         # Iterate through k8s_resource_groups
         for k8s_rg_name, k8s_rg in k8s_resource_groups.items():
@@ -254,32 +162,24 @@ def filter_and_flatten_k8s_resource_groups(
                     logger.debug(f"  -*- skipping {k8s_rg_name}")
                     continue
 
-            k8s_resources = get_k8s_resources_from_group(
+            _k8s_resources = get_k8s_resources_from_group(
                 k8s_rg, name_filter, type_filter
             )
-            if k8s_resources:
-                for _k8s_rsrc in k8s_resources:
-                    k8s_resource_list_with_weight.append((_k8s_rsrc, k8s_rg.weight))
+            if _k8s_resources:
+                k8s_resource_list.extend(_k8s_resources)
 
     # Sort the resources in install order
     if sort_order == "create":
-        k8s_resource_list_with_weight.sort(
-            key=lambda x: (get_install_weight_for_k8s_resource(x[0], x[1]), x[0].name)
-        )
+        k8s_resource_list.sort(key=lambda x: get_rank_for_k8s_resource(x))
     elif sort_order == "delete":
-        k8s_resource_list_with_weight.sort(
-            key=lambda x: (get_install_weight_for_k8s_resource(x[0], x[1]), x[0].name),
-            reverse=True,
-        )
+        k8s_resource_list.sort(key=lambda x: get_rank_for_k8s_resource(x), reverse=True)
 
     # De-duplicate K8sResources
-    deduped_k8s_resources: List[Tuple[K8sResource, int]] = dedup_k8s_resources(
-        k8s_resource_list_with_weight
-    )
+    deduped_k8s_resources: List[K8sResource] = dedup_k8s_resources(k8s_resource_list)
 
     # Implement dependency sorting and drop the weight
     final_k8s_resources: List[K8sResource] = []
-    for k8s_resource, weight in deduped_k8s_resources:
+    for k8s_resource in deduped_k8s_resources:
         # Logic to follow if resource has dependencies
         if k8s_resource.depends_on is not None:
             # If the sort_order is delete

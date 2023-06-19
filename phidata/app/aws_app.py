@@ -305,14 +305,14 @@ class AwsApp(BaseApp):
 
         # -*- Create Security Groups
         security_groups: List[SecurityGroup] = []
-        if self.args.aws_security_groups is not None:
-            for sg in self.args.aws_security_groups:
-                if isinstance(sg, SecurityGroup):
-                    security_groups.append(sg)
         if self.args.load_balancer_security_groups is not None:
             for lb_sg in self.args.load_balancer_security_groups:
                 if isinstance(lb_sg, SecurityGroup):
                     security_groups.append(lb_sg)
+        if self.args.aws_security_groups is not None:
+            for sg in self.args.aws_security_groups:
+                if isinstance(sg, SecurityGroup):
+                    security_groups.append(sg)
 
         # -*- Create ECS cluster
         ecs_cluster = self.args.ecs_cluster

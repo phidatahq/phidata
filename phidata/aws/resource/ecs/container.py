@@ -193,28 +193,30 @@ class EcsContainer(AwsResource):
             for env in self.environment:
                 env_name = env.get("name", None)
                 env_value = env.get("value", None)
+                env_value_parsed = None
                 if isinstance(env_value, Reference):
                     logger.debug(f"{env_name} is a Reference")
                     try:
-                        env_val = env_value.get_reference()
+                        env_value_parsed = env_value.get_reference()
                     except Exception as e:
-                        logger.error(f"Error while getting {env_name}: {e}")
-                        env_value = None
+                        logger.error(f"Error while parsing {env_name}: {e}")
                 elif isinstance(env_value, AwsReference):
                     logger.debug(f"{env_name} is a AwsReference")
                     try:
-                        env_val = env_value.get_reference(aws_client=aws_client)
+                        env_value_parsed = env_value.get_reference(aws_client=aws_client)
                     except Exception as e:
-                        logger.error(f"Error while getting {env_name}: {e}")
-                        env_value = None
+                        logger.error(f"Error while parsing {env_name}: {e}")
+                else:
+                    env_value_parsed = env_value
 
-                try:
-                    env_val_str = str(env_value)
-                    container_environment.append(
-                        {"name": env_name, "value": env_val_str}
-                    )
-                except Exception as e:
-                    logger.error(f"Error while converting {env_value} to str: {e}")
+                if env_value_parsed is not None:
+                    try:
+                        env_val_str = str(env_value_parsed)
+                        container_environment.append(
+                            {"name": env_name, "value": env_val_str}
+                        )
+                    except Exception as e:
+                        logger.error(f"Error while converting {env_value} to str: {e}")
 
         if self.env_from_secrets is not None:
             secrets: Dict[str, Any] = read_secrets(

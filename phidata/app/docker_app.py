@@ -109,7 +109,7 @@ class DockerApp(BaseApp):
         if self.args is not None and container_restart_policy is not None:
             self.args.container_restart_policy = container_restart_policy
 
-    def get_container_env_docker(
+    def build_container_env_docker(
         self, container_paths: ContainerPathContext
     ) -> Dict[str, str]:
         from phidata.constants import (
@@ -198,7 +198,7 @@ class DockerApp(BaseApp):
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
 
-    def get_container_volumes_docker(
+    def build_container_volumes_docker(
         self, container_paths: ContainerPathContext
     ) -> Dict[str, dict]:
         from phidata.utils.common import get_default_volume_name
@@ -264,7 +264,7 @@ class DockerApp(BaseApp):
 
         return container_volumes
 
-    def get_container_ports_docker(self) -> Dict[str, int]:
+    def build_container_ports_docker(self) -> Dict[str, int]:
         # container_ports is a dictionary which configures the ports to bind
         # inside the container. The key is the port to bind inside the container
         #   either as an integer or a string in the form port/protocol
@@ -280,9 +280,9 @@ class DockerApp(BaseApp):
 
         return container_ports
 
-    def get_container_command_docker(self) -> Optional[List[str]]:
+    def build_container_command_docker(self) -> Optional[List[str]]:
         if isinstance(self.args.command, str):
-            return self.args.command.split(" ")
+            return self.args.command.strip().split(" ")
         return self.args.command
 
     def get_docker_rg(self, docker_build_context: Any) -> Optional[Any]:
@@ -294,14 +294,15 @@ class DockerApp(BaseApp):
         )
 
         # -*- Build Container Paths
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        container_paths: Optional[ContainerPathContext] = self.build_container_paths()
         if container_paths is None:
             raise Exception("Could not build Container Paths")
-        # logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
 
-        app_name = self.name
         workspace_name = container_paths.workspace_name
-        logger.debug(f"Building DockerResourceGroup: {app_name} for {workspace_name}")
+        logger.debug(
+            f"Building DockerResourceGroup: {self.app_name} for {workspace_name}"
+        )
 
         if docker_build_context is None or not isinstance(
             docker_build_context, DockerBuildContext
@@ -310,20 +311,20 @@ class DockerApp(BaseApp):
             return None
 
         # -*- Build Container Environment
-        container_env: Dict[str, str] = self.get_container_env_docker(
+        container_env: Dict[str, str] = self.build_container_env_docker(
             container_paths=container_paths
         )
 
         # -*- Build Container Volumes
-        container_volumes = self.get_container_volumes_docker(
+        container_volumes = self.build_container_volumes_docker(
             container_paths=container_paths
         )
 
         # -*- Build Container Ports
-        container_ports: Dict[str, int] = self.get_container_ports_docker()
+        container_ports: Dict[str, int] = self.build_container_ports_docker()
 
         # -*- Build Container Command
-        container_cmd: Optional[List[str]] = self.get_container_command_docker()
+        container_cmd: Optional[List[str]] = self.build_container_command_docker()
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
@@ -357,7 +358,7 @@ class DockerApp(BaseApp):
         )
 
         docker_rg = DockerResourceGroup(
-            name=app_name,
+            name=self.app_name,
             enabled=self.args.enabled,
             network=DockerNetwork(name=docker_build_context.network),
             containers=[docker_container],
@@ -373,7 +374,7 @@ class DockerApp(BaseApp):
             self.docker_resource_groups[docker_rg.name] = docker_rg
 
     def get_docker_resource_groups(
-        self, docker_build_context: Any, defer_api_calls: bool = False
+        self, docker_build_context: Any
     ) -> Optional[Dict[str, Any]]:
         if self.docker_resource_groups is None:
             self.build_docker_resource_groups(docker_build_context)

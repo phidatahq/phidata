@@ -267,6 +267,8 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
         aws_security_groups: Optional[List[Any]] = None,
         # -*- ECS Configuration,
         ecs_cluster: Optional[Any] = None,
+        # If ecs_cluster is None, create a new cluster with ecs_cluster_name,
+        ecs_cluster_name: Optional[str] = None,
         ecs_launch_type: str = "FARGATE",
         ecs_task_cpu: str = "1024",
         ecs_task_memory: str = "2048",
@@ -442,6 +444,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
                 aws_subnets=aws_subnets,
                 aws_security_groups=aws_security_groups,
                 ecs_cluster=ecs_cluster,
+                ecs_cluster_name=ecs_cluster_name,
                 ecs_launch_type=ecs_launch_type,
                 ecs_task_cpu=ecs_task_cpu,
                 ecs_task_memory=ecs_task_memory,
@@ -488,7 +491,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
             logger.error(f"Args for {self.name} are not valid: {e}")
             raise
 
-    def get_container_command_docker(self) -> Optional[List[str]]:
+    def build_container_command_docker(self) -> Optional[List[str]]:
         container_cmd: List[str]
         if isinstance(self.args.command, str):
             container_cmd = self.args.command.split(" ")
@@ -502,7 +505,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
 
         if self.args.notebook_dir is None:
             if self.args.mount_workspace:
-                container_paths = self.get_container_paths()
+                container_paths = self.build_container_paths()
                 if (
                     container_paths is not None
                     and container_paths.workspace_root is not None
@@ -516,7 +519,7 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
             container_cmd.append(f"--notebook-dir={str(self.args.notebook_dir)}")
         return container_cmd
 
-    def get_container_args_k8s(self) -> Optional[List[str]]:
+    def build_container_args_k8s(self) -> Optional[List[str]]:
         container_args: List[str]
         if isinstance(self.args.command, str):
             container_args = self.args.command.split(" ")
@@ -530,12 +533,13 @@ class Jupyter(AwsApp, DockerApp, K8sApp):
 
         if self.args.notebook_dir is None:
             if self.args.mount_workspace:
+                container_paths = self.build_container_paths()
                 if (
-                    self.container_paths is not None
-                    and self.container_paths.workspace_root is not None
+                    container_paths is not None
+                    and container_paths.workspace_root is not None
                 ):
                     container_args.append(
-                        f"--notebook-dir={str(self.container_paths.workspace_root)}"
+                        f"--notebook-dir={str(container_paths.workspace_root)}"
                     )
             else:
                 container_args.append("--notebook-dir=/")

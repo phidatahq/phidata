@@ -243,7 +243,7 @@ class K8sApp(BaseApp):
         if self.args is not None and crb_name is not None:
             self.args.crb_name = crb_name
 
-    def get_cr_policy_rules(self) -> List[Any]:
+    def build_cr_policy_rules(self) -> List[Any]:
         from phidata.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
             PolicyRule,
         )
@@ -266,7 +266,7 @@ class K8sApp(BaseApp):
             ),
         ]
 
-    def get_container_env_k8s(
+    def build_container_env_k8s(
         self, container_paths: ContainerPathContext
     ) -> Dict[str, str]:
         from phidata.constants import (
@@ -336,7 +336,7 @@ class K8sApp(BaseApp):
 
         return container_env
 
-    def get_container_labels_k8s(
+    def build_container_labels_k8s(
         self, common_labels: Optional[Dict[str, str]]
     ) -> Dict[str, str]:
         labels: Dict[str, str] = common_labels or {}
@@ -346,7 +346,7 @@ class K8sApp(BaseApp):
             labels.update(self.args.container_labels)
         return labels
 
-    def get_deployment_labels_k8s(
+    def build_deployment_labels_k8s(
         self, common_labels: Optional[Dict[str, str]]
     ) -> Dict[str, str]:
         labels: Dict[str, str] = common_labels or {}
@@ -356,7 +356,7 @@ class K8sApp(BaseApp):
             labels.update(self.args.container_labels)
         return labels
 
-    def get_service_labels_k8s(
+    def build_service_labels_k8s(
         self, common_labels: Optional[Dict[str, str]]
     ) -> Dict[str, str]:
         labels: Dict[str, str] = common_labels or {}
@@ -366,9 +366,9 @@ class K8sApp(BaseApp):
             labels.update(self.args.container_labels)
         return labels
 
-    def get_container_args_k8s(self) -> Optional[List[str]]:
+    def build_container_args_k8s(self) -> Optional[List[str]]:
         if isinstance(self.args.command, str):
-            return self.args.command.split(" ")
+            return self.args.command.strip().split(" ")
         return self.args.command
 
     def get_k8s_rg(self, k8s_build_context: Any) -> Optional[Any]:
@@ -401,7 +401,7 @@ class K8sApp(BaseApp):
         from phidata.utils.common import get_default_volume_name
 
         # -*- Build Container Paths
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
+        container_paths: Optional[ContainerPathContext] = self.build_container_paths()
         if container_paths is None:
             raise Exception("Could not build Container Paths")
         # logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
@@ -471,7 +471,7 @@ class K8sApp(BaseApp):
             if cr is None:
                 cr = CreateClusterRole(
                     cr_name=self.cr_name,
-                    rules=self.get_cr_policy_rules(),
+                    rules=self.build_cr_policy_rules(),
                     app_name=app_name,
                     labels=common_labels,
                 )
@@ -488,7 +488,7 @@ class K8sApp(BaseApp):
                 )
 
         # -*- Build Container Environment
-        container_env: Dict[str, str] = self.get_container_env_k8s(
+        container_env: Dict[str, str] = self.build_container_env_k8s(
             container_paths=container_paths
         )
         # Create a ConfigMap to set the Container Environment
@@ -748,10 +748,12 @@ class K8sApp(BaseApp):
             ports.append(container_port)
 
         # -*- Build Container Labels
-        container_labels: Dict[str, str] = self.get_container_labels_k8s(common_labels)
+        container_labels: Dict[str, str] = self.build_container_labels_k8s(
+            common_labels
+        )
 
         # -*- Build Container Args: Equivalent to docker CMD
-        container_args: Optional[List[str]] = self.get_container_args_k8s()
+        container_args: Optional[List[str]] = self.build_container_args_k8s()
         if container_args:
             logger.debug("Command: {}".format(" ".join(container_args)))
 
@@ -794,7 +796,7 @@ class K8sApp(BaseApp):
             pod_annotations.update(self.args.pod_annotations)
 
         # -*- Build Deployment Labels
-        deploy_labels: Dict[str, str] = self.get_deployment_labels_k8s(common_labels)
+        deploy_labels: Dict[str, str] = self.build_deployment_labels_k8s(common_labels)
 
         # If using EbsVolume, restart the deployment on update
         recreate_deployment_on_update = (
@@ -831,7 +833,9 @@ class K8sApp(BaseApp):
 
         # -*- Create the Service
         if self.args.create_service:
-            service_labels: Dict[str, str] = self.get_service_labels_k8s(common_labels)
+            service_labels: Dict[str, str] = self.build_service_labels_k8s(
+                common_labels
+            )
             _service = CreateService(
                 service_name=self.service_name,
                 app_name=app_name,

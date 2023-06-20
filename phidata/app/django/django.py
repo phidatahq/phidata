@@ -11,6 +11,7 @@ from phidata.app.k8s_app import (
     RestartPolicy,
     ServiceType,
 )
+from phidata.types.context import ContainerPathContext
 from phidata.utils.log import logger
 
 
@@ -224,6 +225,8 @@ class Django(AwsApp, DockerApp, K8sApp):
         aws_security_groups: Optional[List[Any]] = None,
         # -*- ECS Configuration,
         ecs_cluster: Optional[Any] = None,
+        # If ecs_cluster is None, create a new cluster with ecs_cluster_name,
+        ecs_cluster_name: Optional[str] = None,
         ecs_launch_type: str = "FARGATE",
         ecs_task_cpu: str = "1024",
         ecs_task_memory: str = "2048",
@@ -379,6 +382,7 @@ class Django(AwsApp, DockerApp, K8sApp):
                 aws_subnets=aws_subnets,
                 aws_security_groups=aws_security_groups,
                 ecs_cluster=ecs_cluster,
+                ecs_cluster_name=ecs_cluster_name,
                 ecs_launch_type=ecs_launch_type,
                 ecs_task_cpu=ecs_task_cpu,
                 ecs_task_memory=ecs_task_memory,
@@ -424,3 +428,156 @@ class Django(AwsApp, DockerApp, K8sApp):
         except Exception as e:
             logger.error(f"Args for {self.name} are not valid: {e}")
             raise
+
+    def get_aws_rg(self, aws_build_context: Any) -> Optional[Any]:
+        from phidata.docker.resource.image import DockerImage
+        from phidata.aws.resource.group import (
+            AwsResourceGroup,
+            EcsCluster,
+            EcsContainer,
+            EcsTaskDefinition,
+            EcsService,
+            EcsVolume,
+            LoadBalancer,
+            TargetGroup,
+            Listener,
+            AcmCertificate,
+            SecurityGroup,
+        )
+        from phidata.utils.common import get_default_volume_name
+
+        # -*- Build Container Paths
+        container_paths: Optional[ContainerPathContext] = self.build_container_paths()
+        if container_paths is None:
+            raise Exception("Could not build Container Paths")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+
+        workspace_name = container_paths.workspace_name
+        logger.debug(f"Building AwsResourceGroup: {self.app_name} for {workspace_name}")
+
+        # -*- Build Security Groups
+        security_groups: Optional[List[SecurityGroup]] = self.build_security_groups()
+
+        # -*- Build ECS cluster
+        ecs_cluster: Optional[EcsCluster] = self.build_ecs_cluster()
+
+        # -*- Build Load Balancer
+        load_balancer: Optional[LoadBalancer] = self.build_load_balancer()
+
+        # -*- Build Target Group
+        target_group: Optional[TargetGroup] = self.build_target_group()
+        if (
+            self.args.enable_nginx
+            and self.args.target_group is None
+            and self.args.target_group_port is None
+        ):
+            if target_group is not None:
+                target_group.port = self.args.nginx_container_port
+            else:
+                logger.error(f"TargetGroup for {self.app_name} is None")
+
+        # -*- Build Listener
+        listener: Optional[Listener] = self.build_listener(
+            load_balancer=load_balancer, target_group=target_group
+        )
+
+        # -*- Build ECSContainer
+        ecs_container: Optional[EcsContainer] = self.build_ecs_container(
+            container_paths=container_paths
+        )
+
+        nginx_container: Optional[EcsContainer] = None
+        nginx_shared_volume: Optional[EcsVolume] = None
+        # -*- Add Nginx Container
+        if self.args.enable_nginx and ecs_container is not None:
+            nginx_container_name = f"{self.app_name}-nginx"
+            nginx_shared_volume = EcsVolume(name=get_default_volume_name(self.app_name))
+            nginx_image_str = (
+                f"{self.args.nginx_image_name}:{self.args.nginx_image_tag}"
+            )
+            if self.args.nginx_image and isinstance(self.args.nginx_image, DockerImage):
+                nginx_image_str = self.args.nginx_image.get_image_str()
+
+            nginx_container = EcsContainer(
+                name=nginx_container_name,
+                image=nginx_image_str,
+                essential=True,
+                port_mappings=[{"containerPort": self.args.nginx_container_port}],
+                environment=ecs_container.environment,
+                log_configuration={
+                    "logDriver": "awslogs",
+                    "options": {
+                        "awslogs-group": self.app_name,
+                        "awslogs-region": self.aws_region,
+                        "awslogs-create-group": "true",
+                        "awslogs-stream-prefix": nginx_container_name,
+                    },
+                },
+                mount_points=[
+                    {
+                        "sourceVolume": nginx_shared_volume.name,
+                        "containerPath": container_paths.workspace_root,
+                    }
+                ],
+                linux_parameters=ecs_container.linux_parameters,
+                env_from_secrets=ecs_container.env_from_secrets,
+                save_output=ecs_container.save_output,
+                resource_dir=ecs_container.resource_dir,
+                skip_create=ecs_container.skip_create,
+                skip_delete=ecs_container.skip_delete,
+                wait_for_creation=ecs_container.wait_for_creation,
+                wait_for_deletion=ecs_container.wait_for_deletion,
+            )
+
+            # Add shared volume to ecs_container
+            ecs_container.mount_points = nginx_container.mount_points
+
+        # -*- Build ECS Task Definition
+        ecs_task_definition: Optional[
+            EcsTaskDefinition
+        ] = self.build_ecs_task_definition(ecs_container=ecs_container)
+        # Add nginx_container to ecs_task_definition
+        if self.args.enable_nginx:
+            if ecs_task_definition is not None:
+                if nginx_container is not None:
+                    if ecs_task_definition.containers:
+                        ecs_task_definition.containers.append(nginx_container)
+                    else:
+                        logger.error("TaskDefinition.containers is None")
+                else:
+                    logger.error("nginx_container is None")
+                if nginx_shared_volume:
+                    ecs_task_definition.volumes = [nginx_shared_volume]
+            else:
+                logger.error(f"TaskDefinition for {self.app_name} is None")
+
+        # -*- Build ECS Service
+        ecs_service: Optional[EcsService] = self.build_ecs_service(
+            ecs_cluster=ecs_cluster,
+            ecs_task_definition=ecs_task_definition,
+            target_group=target_group,
+            ecs_container=ecs_container,
+        )
+        # Set nginx_container as target_container
+        if self.args.enable_nginx:
+            if ecs_service is not None:
+                if nginx_container is not None:
+                    ecs_service.target_container_name = nginx_container.name
+                    ecs_service.target_container_port = self.args.nginx_container_port
+                else:
+                    logger.error("nginx_container is None")
+            else:
+                logger.error(f"EcsService for {self.app_name} is None")
+
+        # -*- Create AwsResourceGroup
+        return AwsResourceGroup(
+            name=self.app_name,
+            enabled=self.enabled,
+            ecs_clusters=[ecs_cluster],
+            ecs_task_definitions=[ecs_task_definition],
+            ecs_services=[ecs_service],
+            load_balancers=[load_balancer],
+            target_groups=[target_group],
+            listeners=[listener],
+            security_groups=security_groups,
+        )

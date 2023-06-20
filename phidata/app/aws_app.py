@@ -15,6 +15,8 @@ class AwsAppArgs(BaseAppArgs):
 
     # -*- ECS Configuration
     ecs_cluster: Optional[Any] = None
+    # If ecs_cluster is None, create a new cluster with ecs_cluster_name
+    ecs_cluster_name: Optional[str] = None
     ecs_launch_type: str = "FARGATE"
     ecs_task_cpu: str = "1024"
     ecs_task_memory: str = "2048"
@@ -91,6 +93,15 @@ class AwsApp(BaseApp):
             self.args.ecs_cluster = ecs_cluster
 
     @property
+    def ecs_cluster_name(self) -> Optional[str]:
+        return self.args.ecs_cluster_name
+
+    @ecs_cluster_name.setter
+    def ecs_cluster_name(self, ecs_cluster_name: str) -> None:
+        if self.args is not None and ecs_cluster_name is not None:
+            self.args.ecs_cluster_name = ecs_cluster_name
+
+    @property
     def ecs_launch_type(self) -> Optional[str]:
         return self.args.ecs_launch_type
 
@@ -145,15 +156,6 @@ class AwsApp(BaseApp):
             self.args.ecs_enable_exec = ecs_enable_exec
 
     @property
-    def create_load_balancer(self) -> Optional[bool]:
-        return self.args.create_load_balancer
-
-    @create_load_balancer.setter
-    def create_load_balancer(self, create_load_balancer: bool) -> None:
-        if self.args is not None and create_load_balancer is not None:
-            self.args.create_load_balancer = create_load_balancer
-
-    @property
     def load_balancer(self) -> Optional[Any]:
         return self.args.load_balancer
 
@@ -161,6 +163,24 @@ class AwsApp(BaseApp):
     def load_balancer(self, load_balancer: Any) -> None:
         if self.args is not None and load_balancer is not None:
             self.args.load_balancer = load_balancer
+
+    @property
+    def listener(self) -> Optional[Any]:
+        return self.args.listener
+
+    @listener.setter
+    def listener(self, listener: Any) -> None:
+        if self.args is not None and listener is not None:
+            self.args.listener = listener
+
+    @property
+    def create_load_balancer(self) -> Optional[bool]:
+        return self.args.create_load_balancer
+
+    @create_load_balancer.setter
+    def create_load_balancer(self, create_load_balancer: bool) -> None:
+        if self.args is not None and create_load_balancer is not None:
+            self.args.create_load_balancer = create_load_balancer
 
     @property
     def load_balancer_protocol(self) -> Optional[str]:
@@ -172,6 +192,17 @@ class AwsApp(BaseApp):
             self.args.load_balancer_protocol = load_balancer_protocol
 
     @property
+    def load_balancer_security_groups(self) -> Optional[List[Any]]:
+        return self.args.load_balancer_security_groups
+
+    @load_balancer_security_groups.setter
+    def load_balancer_security_groups(
+        self, load_balancer_security_groups: List[Any]
+    ) -> None:
+        if self.args is not None and load_balancer_security_groups is not None:
+            self.args.load_balancer_security_groups = load_balancer_security_groups
+
+    @property
     def load_balancer_port(self) -> Optional[int]:
         return self.args.load_balancer_port
 
@@ -179,6 +210,15 @@ class AwsApp(BaseApp):
     def load_balancer_port(self, load_balancer_port: int) -> None:
         if self.args is not None and load_balancer_port is not None:
             self.args.load_balancer_port = load_balancer_port
+
+    @property
+    def load_balancer_certificate(self) -> Optional[Any]:
+        return self.args.load_balancer_certificate
+
+    @load_balancer_certificate.setter
+    def load_balancer_certificate(self, load_balancer_certificate: Any) -> None:
+        if self.args is not None and load_balancer_certificate is not None:
+            self.args.load_balancer_certificate = load_balancer_certificate
 
     @property
     def load_balancer_certificate_arn(self) -> Optional[str]:
@@ -189,7 +229,115 @@ class AwsApp(BaseApp):
         if self.args is not None and load_balancer_certificate_arn is not None:
             self.args.load_balancer_certificate_arn = load_balancer_certificate_arn
 
-    def get_container_env_ecs(
+    @property
+    def target_group(self) -> Optional[Any]:
+        return self.args.target_group
+
+    @target_group.setter
+    def target_group(self, target_group: Any) -> None:
+        if self.args is not None and target_group is not None:
+            self.args.target_group = target_group
+
+    @property
+    def target_group_protocol(self) -> Optional[str]:
+        return self.args.target_group_protocol
+
+    @target_group_protocol.setter
+    def target_group_protocol(self, target_group_protocol: str) -> None:
+        if self.args is not None and target_group_protocol is not None:
+            self.args.target_group_protocol = target_group_protocol
+
+    @property
+    def target_group_port(self) -> Optional[int]:
+        return self.args.target_group_port
+
+    @target_group_port.setter
+    def target_group_port(self, target_group_port: int) -> None:
+        if self.args is not None and target_group_port is not None:
+            self.args.target_group_port = target_group_port
+
+    @property
+    def target_group_type(self) -> Optional[str]:
+        return self.args.target_group_type
+
+    @target_group_type.setter
+    def target_group_type(self, target_group_type: str) -> None:
+        if self.args is not None and target_group_type is not None:
+            self.args.target_group_type = target_group_type
+
+    @property
+    def health_check_protocol(self) -> Optional[str]:
+        return self.args.health_check_protocol
+
+    @health_check_protocol.setter
+    def health_check_protocol(self, health_check_protocol: str) -> None:
+        if self.args is not None and health_check_protocol is not None:
+            self.args.health_check_protocol = health_check_protocol
+
+    @property
+    def health_check_port(self) -> Optional[str]:
+        return self.args.health_check_port
+
+    @health_check_port.setter
+    def health_check_port(self, health_check_port: str) -> None:
+        if self.args is not None and health_check_port is not None:
+            self.args.health_check_port = health_check_port
+
+    @property
+    def health_check_enabled(self) -> Optional[bool]:
+        return self.args.health_check_enabled
+
+    @health_check_enabled.setter
+    def health_check_enabled(self, health_check_enabled: bool) -> None:
+        if self.args is not None and health_check_enabled is not None:
+            self.args.health_check_enabled = health_check_enabled
+
+    @property
+    def health_check_path(self) -> Optional[str]:
+        return self.args.health_check_path
+
+    @health_check_path.setter
+    def health_check_path(self, health_check_path: str) -> None:
+        if self.args is not None and health_check_path is not None:
+            self.args.health_check_path = health_check_path
+
+    @property
+    def health_check_interval_seconds(self) -> Optional[int]:
+        return self.args.health_check_interval_seconds
+
+    @health_check_interval_seconds.setter
+    def health_check_interval_seconds(self, health_check_interval_seconds: int) -> None:
+        if self.args is not None and health_check_interval_seconds is not None:
+            self.args.health_check_interval_seconds = health_check_interval_seconds
+
+    @property
+    def health_check_timeout_seconds(self) -> Optional[int]:
+        return self.args.health_check_timeout_seconds
+
+    @health_check_timeout_seconds.setter
+    def health_check_timeout_seconds(self, health_check_timeout_seconds: int) -> None:
+        if self.args is not None and health_check_timeout_seconds is not None:
+            self.args.health_check_timeout_seconds = health_check_timeout_seconds
+
+    @property
+    def healthy_threshold_count(self) -> Optional[int]:
+        return self.args.healthy_threshold_count
+
+    @healthy_threshold_count.setter
+    def healthy_threshold_count(self, healthy_threshold_count: int) -> None:
+        if self.args is not None and healthy_threshold_count is not None:
+            self.args.healthy_threshold_count = healthy_threshold_count
+
+    @property
+    def unhealthy_threshold_count(self) -> Optional[int]:
+        return self.args.unhealthy_threshold_count
+
+    @unhealthy_threshold_count.setter
+    def unhealthy_threshold_count(self, unhealthy_threshold_count: int) -> None:
+        if self.args is not None and unhealthy_threshold_count is not None:
+            self.args.unhealthy_threshold_count = unhealthy_threshold_count
+
+    def build_container_env_ecs(
         self, container_paths: ContainerPathContext
     ) -> Dict[str, str]:
         from phidata.constants import (
@@ -267,43 +415,9 @@ class AwsApp(BaseApp):
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
 
-    def get_container_command_aws(self) -> Optional[List[str]]:
-        if isinstance(self.args.command, str):
-            return self.args.command.split(" ")
-        return self.args.command
+    def build_security_groups(self) -> Optional[List[Any]]:
+        from phidata.aws.resource.ec2.security_group import SecurityGroup
 
-    def get_aws_rg(
-        self, aws_build_context: Any, defer_api_calls: bool = False
-    ) -> Optional[Any]:
-        from phidata.aws.resource.group import (
-            AwsResourceGroup,
-            EcsCluster,
-            EcsContainer,
-            EcsTaskDefinition,
-            EcsService,
-            LoadBalancer,
-            TargetGroup,
-            Listener,
-            AcmCertificate,
-            SecurityGroup,
-        )
-
-        # -*- Build Container Paths
-        container_paths: Optional[ContainerPathContext] = self.get_container_paths()
-        if container_paths is None:
-            raise Exception("Could not build Container Paths")
-        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
-
-        app_name = self.name
-        workspace_name = container_paths.workspace_name
-        logger.debug(f"Building AwsResourceGroup: {app_name} for {workspace_name}")
-
-        # -*- Build Container Environment
-        container_env: Dict[str, str] = self.get_container_env_ecs(
-            container_paths=container_paths
-        )
-
-        # -*- Create Security Groups
         security_groups: List[SecurityGroup] = []
         if self.args.load_balancer_security_groups is not None:
             for lb_sg in self.args.load_balancer_security_groups:
@@ -314,56 +428,71 @@ class AwsApp(BaseApp):
                 if isinstance(sg, SecurityGroup):
                     security_groups.append(sg)
 
-        # -*- Create ECS cluster
-        ecs_cluster = self.args.ecs_cluster
-        if ecs_cluster is None:
-            ecs_cluster = EcsCluster(
-                name=f"{app_name}-cluster",
-                ecs_cluster_name=app_name,
+        return security_groups if len(security_groups) > 0 else None
+
+    def build_ecs_cluster(self) -> Optional[Any]:
+        from phidata.aws.resource.ecs.cluster import EcsCluster
+
+        if self.args.ecs_cluster is None:
+            return EcsCluster(
+                name=f"{self.app_name}-cluster",
+                ecs_cluster_name=self.args.ecs_cluster_name or self.app_name,
                 capacity_providers=[self.args.ecs_launch_type],
                 save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or app_name,
+                resource_dir=self.args.resource_dir or self.app_name,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
                 wait_for_deletion=self.args.wait_for_deletion,
             )
+        elif isinstance(self.args.ecs_cluster, EcsCluster):
+            return self.args.ecs_cluster
+        else:
+            raise Exception(
+                f"Invalid ECSCluster: {self.args.ecs_cluster} - Must be of type EcsCluster"
+            )
 
-        # -*- Create Load Balancer
-        load_balancer = self.args.load_balancer
-        if load_balancer is None and self.args.create_load_balancer:
+    def build_load_balancer(self) -> Optional[Any]:
+        from phidata.aws.resource.elb.load_balancer import LoadBalancer
+
+        if self.args.load_balancer is None and self.args.create_load_balancer:
             if self.args.load_balancer_protocol not in ["HTTP", "HTTPS"]:
                 raise Exception(
                     "Load Balancer Protocol must be one of: HTTP, HTTPS. "
                     f"Got: {self.args.load_balancer_protocol}"
                 )
-            load_balancer_sgs = (
-                self.args.load_balancer_security_groups or self.args.aws_security_groups
-            )
-            load_balancer = LoadBalancer(
-                name=f"{app_name}-lb",
+            return LoadBalancer(
+                name=f"{self.app_name}-lb",
                 subnets=self.args.aws_subnets,
-                security_groups=load_balancer_sgs,
+                security_groups=self.args.load_balancer_security_groups
+                or self.args.aws_security_groups,
                 protocol=self.args.load_balancer_protocol,
                 save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or app_name,
+                resource_dir=self.args.resource_dir or self.app_name,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
                 wait_for_deletion=self.args.wait_for_deletion,
             )
+        elif isinstance(self.args.load_balancer, LoadBalancer):
+            return self.args.load_balancer
+        else:
+            raise Exception(
+                f"Invalid LoadBalancer: {self.args.load_balancer} - Must be of type LoadBalancer"
+            )
 
-        # -*- Create Target Group
-        target_group = self.args.target_group
-        if target_group is None and self.args.create_load_balancer:
+    def build_target_group(self) -> Optional[Any]:
+        from phidata.aws.resource.elb.target_group import TargetGroup
+
+        if self.args.target_group is None and self.args.create_load_balancer:
             if self.args.target_group_protocol not in ["HTTP", "HTTPS"]:
                 raise Exception(
                     "Target Group Protocol must be one of: HTTP, HTTPS. "
                     f"Got: {self.args.target_group_protocol}"
                 )
-            target_group = TargetGroup(
-                name=f"{app_name}-tg",
-                port=self.container_port,
+            return TargetGroup(
+                name=f"{self.app_name}-tg",
+                port=self.args.target_group_port or self.container_port,
                 protocol=self.args.target_group_protocol,
                 subnets=self.args.aws_subnets,
                 target_type=self.args.target_group_type,
@@ -376,22 +505,29 @@ class AwsApp(BaseApp):
                 healthy_threshold_count=self.args.healthy_threshold_count,
                 unhealthy_threshold_count=self.args.unhealthy_threshold_count,
                 save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or app_name,
+                resource_dir=self.args.resource_dir or self.app_name,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
                 wait_for_deletion=self.args.wait_for_deletion,
             )
+        elif isinstance(self.args.target_group, TargetGroup):
+            return self.args.target_group
+        else:
+            raise Exception(
+                f"Invalid TargetGroup: {self.args.target_group} - Must be of type TargetGroup"
+            )
 
-        # -*- Create Listener
-        listener = self.args.listener
-        if listener is None and self.args.create_load_balancer:
+    def build_listener(self, load_balancer: Any, target_group: Any) -> Optional[Any]:
+        from phidata.aws.resource.elb.listener import Listener
+
+        if self.args.listener is None and self.args.create_load_balancer:
             listener = Listener(
-                name=f"{app_name}-listener",
+                name=f"{self.app_name}-listener",
                 load_balancer=load_balancer,
                 target_group=target_group,
                 save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or app_name,
+                resource_dir=self.args.resource_dir or self.app_name,
                 skip_create=self.args.skip_create,
                 skip_delete=self.args.skip_delete,
                 wait_for_creation=self.args.wait_for_creation,
@@ -403,59 +539,92 @@ class AwsApp(BaseApp):
                 ]
             if self.args.load_balancer_certificate is not None:
                 listener.acm_certificates = [self.args.load_balancer_certificate]
+            return listener
+        elif isinstance(self.args.listener, Listener):
+            return self.args.listener
+        else:
+            raise Exception(
+                f"Invalid Listener: {self.args.listener} - Must be of type Listener"
+            )
+
+    def build_container_command_aws(self) -> Optional[List[str]]:
+        if isinstance(self.args.command, str):
+            return self.args.command.strip().split(" ")
+        return self.args.command
+
+    def build_ecs_container(
+        self, container_paths: ContainerPathContext
+    ) -> Optional[Any]:
+        from phidata.aws.resource.ecs.container import EcsContainer
+
+        # -*- Build Container Environment
+        container_env: Dict[str, str] = self.build_container_env_ecs(
+            container_paths=container_paths
+        )
 
         # -*- Build Container Command
-        container_cmd: Optional[List[str]] = self.get_container_command_aws()
+        container_cmd: Optional[List[str]] = self.build_container_command_aws()
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
-        # -*- Create ECS Container
-        ecs_container = EcsContainer(
-            name=app_name,
+        return EcsContainer(
+            name=self.app_name,
             image=self.get_image_str(),
             port_mappings=[{"containerPort": self.container_port}],
             command=container_cmd,
+            essential=True,
             environment=[{"name": k, "value": v} for k, v in container_env.items()],
             log_configuration={
                 "logDriver": "awslogs",
                 "options": {
-                    "awslogs-group": app_name,
+                    "awslogs-group": self.app_name,
                     "awslogs-region": self.aws_region,
                     "awslogs-create-group": "true",
-                    "awslogs-stream-prefix": app_name,
+                    "awslogs-stream-prefix": self.app_name,
                 },
             },
+            linux_parameters={"initProcessEnabled": True},
             env_from_secrets=self.args.aws_secrets,
             save_output=self.args.save_output,
-            resource_dir=self.args.resource_dir or app_name,
+            resource_dir=self.args.resource_dir or self.app_name,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
             wait_for_deletion=self.args.wait_for_deletion,
         )
 
-        # -*- Create ECS Task Definition
-        ecs_task_definition = EcsTaskDefinition(
-            name=f"{app_name}-td",
-            family=app_name,
+    def build_ecs_task_definition(self, ecs_container: Any) -> Optional[Any]:
+        from phidata.aws.resource.ecs.task_definition import EcsTaskDefinition
+
+        return EcsTaskDefinition(
+            name=f"{self.app_name}-td",
+            family=self.app_name,
             network_mode="awsvpc",
             cpu=self.args.ecs_task_cpu,
             memory=self.args.ecs_task_memory,
             containers=[ecs_container],
             requires_compatibilities=[self.args.ecs_launch_type],
-            add_ecs_exec_policy=True,
+            add_ecs_exec_policy=self.args.ecs_enable_exec,
             add_ecs_secret_policy=True,
             save_output=self.args.save_output,
-            resource_dir=self.args.resource_dir or app_name,
+            resource_dir=self.args.resource_dir or self.app_name,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
             wait_for_deletion=self.args.wait_for_deletion,
         )
 
-        # -*- Create ECS Service
-        ecs_service = EcsService(
-            name=f"{app_name}-service",
+    def build_ecs_service(
+        self,
+        ecs_cluster: Any,
+        ecs_task_definition: Any,
+        target_group: Any,
+        ecs_container: Any,
+    ) -> Optional[Any]:
+        from phidata.aws.resource.ecs.service import EcsService
+
+        return EcsService(
+            name=f"{self.app_name}-service",
             desired_count=self.args.ecs_service_count,
             launch_type=self.args.ecs_launch_type,
             cluster=ecs_cluster,
@@ -470,17 +639,76 @@ class AwsApp(BaseApp):
             force_delete=True,
             # Force a new deployment of the service on update.
             force_new_deployment=True,
+            enable_execute_command=self.args.ecs_enable_exec,
             save_output=self.args.save_output,
-            resource_dir=self.args.resource_dir or app_name,
+            resource_dir=self.args.resource_dir or self.app_name,
             skip_create=self.args.skip_create,
             skip_delete=self.args.skip_delete,
             wait_for_creation=self.args.wait_for_creation,
             wait_for_deletion=self.args.wait_for_deletion,
         )
 
+    def get_aws_rg(self, aws_build_context: Any) -> Optional[Any]:
+        from phidata.aws.resource.group import (
+            AwsResourceGroup,
+            EcsCluster,
+            EcsContainer,
+            EcsTaskDefinition,
+            EcsService,
+            LoadBalancer,
+            TargetGroup,
+            Listener,
+            AcmCertificate,
+            SecurityGroup,
+        )
+
+        # -*- Build Container Paths
+        container_paths: Optional[ContainerPathContext] = self.build_container_paths()
+        if container_paths is None:
+            raise Exception("Could not build Container Paths")
+        logger.debug(f"ContainerPaths: {container_paths.json(indent=2)}")
+
+        workspace_name = container_paths.workspace_name
+        logger.debug(f"Building AwsResourceGroup: {self.app_name} for {workspace_name}")
+
+        # -*- Build Security Groups
+        security_groups: Optional[List[SecurityGroup]] = self.build_security_groups()
+
+        # -*- Build ECS cluster
+        ecs_cluster: Optional[EcsCluster] = self.build_ecs_cluster()
+
+        # -*- Build Load Balancer
+        load_balancer: Optional[LoadBalancer] = self.build_load_balancer()
+
+        # -*- Build Target Group
+        target_group: Optional[TargetGroup] = self.build_target_group()
+
+        # -*- Build Listener
+        listener: Optional[Listener] = self.build_listener(
+            load_balancer=load_balancer, target_group=target_group
+        )
+
+        # -*- Build ECSContainer
+        ecs_container: Optional[EcsContainer] = self.build_ecs_container(
+            container_paths=container_paths
+        )
+
+        # -*- Build ECS Task Definition
+        ecs_task_definition: Optional[
+            EcsTaskDefinition
+        ] = self.build_ecs_task_definition(ecs_container=ecs_container)
+
+        # -*- Build ECS Service
+        ecs_service: Optional[EcsService] = self.build_ecs_service(
+            ecs_cluster=ecs_cluster,
+            ecs_task_definition=ecs_task_definition,
+            target_group=target_group,
+            ecs_container=ecs_container,
+        )
+
         # -*- Create AwsResourceGroup
         return AwsResourceGroup(
-            name=app_name,
+            name=self.app_name,
             enabled=self.enabled,
             ecs_clusters=[ecs_cluster],
             ecs_task_definitions=[ecs_task_definition],
@@ -488,12 +716,10 @@ class AwsApp(BaseApp):
             load_balancers=[load_balancer],
             target_groups=[target_group],
             listeners=[listener],
-            security_groups=security_groups if len(security_groups) > 0 else None,
+            security_groups=security_groups,
         )
 
-    def build_aws_resource_groups(
-        self, aws_build_context: Any, defer_api_calls: bool = False
-    ) -> None:
+    def build_aws_resource_groups(self, aws_build_context: Any) -> None:
         aws_rg = self.get_aws_rg(aws_build_context)
         if aws_rg is not None:
             if self.aws_resource_groups is None:
@@ -501,7 +727,7 @@ class AwsApp(BaseApp):
             self.aws_resource_groups[aws_rg.name] = aws_rg
 
     def get_aws_resource_groups(
-        self, aws_build_context: Any, defer_api_calls: bool = False
+        self, aws_build_context: Any
     ) -> Optional[Dict[str, Any]]:
         if self.aws_resource_groups is None:
             self.build_aws_resource_groups(aws_build_context)

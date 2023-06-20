@@ -182,6 +182,10 @@ class BaseApp(PhidataBase):
         self.args: BaseAppArgs = BaseAppArgs()
 
     @property
+    def app_name(self) -> str:
+        return self.name
+
+    @property
     def workspace_root_path(self) -> Optional[Path]:
         return self.args.workspace_root_path
 
@@ -358,7 +362,9 @@ class BaseApp(PhidataBase):
             self.secret_data = read_yaml_file(file_path=self.args.secrets_file)
         return self.secret_data
 
-    def get_container_paths(self) -> Optional[ContainerPathContext]:
+    def build_container_paths(self) -> Optional[ContainerPathContext]:
+        logger.debug("Building ContainerPathContext")
+
         if self.container_paths is not None:
             return self.container_paths
 
@@ -426,7 +432,8 @@ class BaseApp(PhidataBase):
                 f"{workspace_root_container_path}/{self.args.requirements_file}"
             )
 
-        return container_paths
+        self.container_paths = container_paths
+        return self.container_paths
 
     def set_aws_env_vars(self, env_dict: Dict[str, str]) -> None:
         from phidata.constants import (
@@ -439,19 +446,19 @@ class BaseApp(PhidataBase):
             env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.aws_region
 
     def get_docker_resource_groups(
-        self, docker_build_context: Any, defer_api_calls: bool = False
+        self, docker_build_context: Any
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"@get_docker_resource_groups not defined for {self.name}")
         return None
 
     def get_k8s_resource_groups(
-        self, k8s_build_context: Any, defer_api_calls: bool = False
+        self, k8s_build_context: Any
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"@get_k8s_resource_groups not defined for {self.name}")
         return None
 
     def get_aws_resource_groups(
-        self, aws_build_context: Any, defer_api_calls: bool = False
+        self, aws_build_context: Any
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"@get_aws_resource_groups not defined for {self.name}")
         return None

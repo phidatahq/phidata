@@ -729,11 +729,12 @@ class DbInstance(AwsResource):
         if self.active_resource:
             _db_endpoint = self.active_resource.get("Endpoint", {}).get("Address", None)
         if _db_endpoint is None:
-            resource = self.read_resource_from_file()
+            client: AwsApiClient = aws_client or self.get_aws_client()
+            resource = self._read(aws_client=client)
             if resource is not None:
                 _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
         if _db_endpoint is None:
-            resource = self.read(aws_client)
+            resource = self.read_resource_from_file()
             if resource is not None:
                 _db_endpoint = resource.get("Endpoint", {}).get("Address", None)
         logger.debug(f"DBInstance endpoint: {_db_endpoint}")
@@ -750,11 +751,12 @@ class DbInstance(AwsResource):
         if self.active_resource:
             _db_port = self.active_resource.get("Endpoint", {}).get("Port", None)
         if _db_port is None:
-            resource = self.read_resource_from_file()
+            client: AwsApiClient = aws_client or self.get_aws_client()
+            resource = self._read(aws_client=client)
             if resource is not None:
                 _db_port = resource.get("Endpoint", {}).get("Port", None)
         if _db_port is None:
-            resource = self.read(aws_client)
+            resource = self.read_resource_from_file()
             if resource is not None:
                 _db_port = resource.get("Endpoint", {}).get("Port", None)
         logger.debug(f"DBInstance port: {_db_port}")

@@ -203,7 +203,9 @@ class EcsContainer(AwsResource):
                 elif isinstance(env_value, AwsReference):
                     logger.debug(f"{env_name} is a AwsReference")
                     try:
-                        env_value_parsed = env_value.get_reference(aws_client=aws_client)
+                        env_value_parsed = env_value.get_reference(
+                            aws_client=aws_client
+                        )
                     except Exception as e:
                         logger.error(f"Error while parsing {env_name}: {e}")
                 else:

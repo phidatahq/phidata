@@ -157,6 +157,13 @@ class DockerImage(DockerResource):
                         if build_status != last_status:
                             logger.debug(build_status)
                             last_status = build_status
+
+                    if build_log.get("error", None) is not None:
+                        live_log.stop()
+                        print_error(build_log["error"])
+                        print_error(f"Image build failed: {self.get_name_tag()}")
+                        return None
+
                     stream = build_log.get("stream", None)
                     if stream is None or stream == "\n":
                         continue
@@ -170,7 +177,7 @@ class DockerImage(DockerResource):
                         if len(progress) > 10:
                             progress.pop(0)
 
-                    if "ERROR" in stream or "error" in stream:
+                    if "error" in stream.lower():
                         print(stream)
                         live_log.stop()
                         print_error(f"Image build failed: {self.get_name_tag()}")
@@ -196,7 +203,6 @@ class DockerImage(DockerResource):
                         stream=True,
                         decode=True,
                     ):
-                        # logger.info(push_output)
                         _id = push_output.get("id", None)
                         _status = push_output.get("status", None)
                         _progress = push_output.get("progress", None)
@@ -212,6 +218,7 @@ class DockerImage(DockerResource):
                             print_error(
                                 "If you are using a private registry, make sure you are logged in"
                             )
+                            return None
 
                         if self.print_push_output and push_output.get(
                             "status", None
@@ -247,7 +254,8 @@ class DockerImage(DockerResource):
             print_error(build_error)
         except APIError as api_err:
             print_error(api_err)
-        logger.debug(last_build_log)
+        except Exception as e:
+            print_error(e)
         return None
 
     def _create(self, docker_client: DockerApiClient) -> bool:

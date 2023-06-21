@@ -2,7 +2,7 @@
   phidata
 </h1>
 <p align="center">
-    <em>A toolkit for building applications using open source tools</em>
+    <em>Run open source tools using python</em>
 </p>
 
 <p align="center">
@@ -29,11 +29,11 @@
 
 ---
 
-Open source tools can be used to build powerful software, but are difficult to run in production settings.
+### Phidata is a toolkit for building applications with open source tools.
 
-- Phidata makes it easy to run tools like FastApi, Django, Jupyter, Airflow and Superset.
-- Phidata packages these tools into LLM Apps, Web Apps and Data Platforms.
-- Phidata runs your application locally for development and production on AWS, using 1 command.
+- Phidata makes it easy to run tools like FastApi, Django, Jupyter, Streamlit, Airflow and Superset.
+- Use these tools to build LLM Apps, Web Apps and Data Platforms.
+- Run locally for development and production on AWS, with 1 command.
 
 ## 🚀 How it works
 
@@ -53,8 +53,8 @@ Open source tools can be used to build powerful software, but are difficult to r
 Open the `terminal` and create a python virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
+python3 -m venv ~/.venvs/labenv
+source ~/.venvs/labenv/bin/activate
 ```
 
 Install `phidata`
@@ -65,18 +65,11 @@ pip install phidata
 
 ### Define `DockerConfig` that runs a `Jupyter` app
 
-Create a file `resources.py`
-
-```shell
-touch resources.py
-```
-
-Add the following code to `resources.py`
+Create a file `resources.py` and add the following code to it
 
 ```python
 from phidata.app.jupyter import Jupyter
 from phidata.docker.config import DockerConfig
-
 
 dev_docker_config = DockerConfig(
     apps=[

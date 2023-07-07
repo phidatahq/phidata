@@ -1,16 +1,31 @@
-__pycache__
-.dockerignore
-.DS_Store
+docs
 .git
-build
-coverage
-Dockerfile
-Dockerfile.dev
-Dockerfile.prod
-Databox.dockerfile
-env
-htmlcov
-migrations
-node_modules
-package-lock.json
+config.json
+Pipfile
+Pipfile.lock
+
+# Cache
+.mypy_cache
+.ruff_cache
+.pytest_cache
+*__pycache__*
 *.egg-info
+*.pyc
+
+# Machine specific
+.idea
+.vscode
+cloud_sql_proxy
+
+# Ignore .env files
+.env
+.envrc
+
+# ignore virtualenv
+.venv
+venv*
+phienv*
+
+.ipynb_checkpoints
+
+.DS_Store

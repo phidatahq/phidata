@@ -1,35 +1,35 @@
 # See https://help.github.com/ignore-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-/cypress/screenshots
-
-# production
-/build
-dist
-
-/.cache
-
-# misc
-env
-htmlcov
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
+# Python cache
 .mypy_cache
-__pycache__
+*__pycache__*
 *.egg-info
 *.pyc
-.local
+*.pytest_cache
+*.ruff_cache
+*.cache*
+*.config*
+
+# Machine specific
+.idea
+.vscode
+
+# Ignore .env files
+.env
+.envrc
+
+# ignore storage dir
+storage
+.images
+
+# ignore dist dir
+dist
+
+# ignore virtualenvs
+.venv
+venv*
+phienv*
+
+.ipynb_checkpoints

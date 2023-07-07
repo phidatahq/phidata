@@ -1,4 +1,0 @@
-httpcore
-httpcore/_async
-httpcore/_backends
-httpcore/_sync

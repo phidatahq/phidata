@@ -36,8 +36,8 @@ aws = [
     "boto3",
 ]
 
-#[project.scripts]
-#phi = "phi.cli.cli_app:cli"
+[project.scripts]
+phi = "phi.cli.cli_app:cli"
 
 [project.urls]
 homepage = "https://phidata.com"

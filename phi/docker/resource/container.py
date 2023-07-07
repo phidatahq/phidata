@@ -24,7 +24,7 @@ class DockerContainer(DockerResource):
     image: Optional[str] = None
     # command (str or list) – The command to run in the container.
     command: Optional[Union[str, List]] = None
-    # auto_remove (bool) – enable auto-removal of the container on daemon side when the container’s process exits.
+    # auto_remove (bool) – enable auto-removal of the container when the container’s process exits.
     auto_remove: bool = True
     # detach (bool) – Run container in the background and return a Container object.
     detach: bool = True
@@ -44,7 +44,8 @@ class DockerContainer(DockerResource):
     labels: Optional[Dict[str, Any]] = None
     # mounts (list) – Specification for mounts to be added to the container.
     # More powerful alternative to volumes.
-    # Each item in the list is a DockerContainerMount object which is then converted to a docker.types.Mount object.
+    # Each item in the list is a DockerContainerMount object which is
+    # then converted to a docker.types.Mount object.
     mounts: Optional[List[DockerContainerMount]] = None
     # network (str) – Name of the network this container will be connected to at creation time
     network: Optional[str] = None
@@ -65,7 +66,8 @@ class DockerContainer(DockerResource):
     #
     # The values of the dictionary are the corresponding ports to open on the host, which can be either:
     #   - The port number, as an integer.
-    #       For example, {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
+    #       For example, {'2222/tcp': 3333} will expose port 2222 inside the container
+    #       as port 3333 on the host.
     #   - None, to assign a random host port. For example, {'2222/tcp': None}.
     #   - A tuple of (address, port) if you want to specify the host interface.
     #       For example, {'1111/tcp': ('127.0.0.1', 1111)}.
@@ -109,7 +111,7 @@ class DockerContainer(DockerResource):
 
     def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
-        from docker.errors import NotFound, ImageNotFound, APIError
+        from docker.errors import ImageNotFound, APIError
         from rich.progress import Progress
 
         print_info("Starting container: {}".format(self.name))
@@ -121,7 +123,7 @@ class DockerContainer(DockerResource):
         try:
             _api_client: DockerClient = docker_client.api_client
             with Progress(transient=True) as progress:
-                task = progress.add_task("Downloading Image", total=None)
+                task = progress.add_task("Downloading Image", total=None)  # noqa: F841
                 container_object = _api_client.containers.run(
                     name=self.name,
                     image=self.image,
@@ -188,7 +190,7 @@ class DockerContainer(DockerResource):
             else:
                 logger.debug("Container could not be created")
             # logger.debug()("Container {}".format(container_object.attrs))
-        except Exception as e:
+        except Exception:
             raise
 
         # By this step the container should be created
@@ -312,7 +314,7 @@ class DockerContainer(DockerResource):
                 container_object.reload()
                 logger.debug("Waiting for NotFound Exception...")
                 sleep(1)
-        except NotFound as e:
+        except NotFound:
             logger.debug("Got NotFound Exception, container is deleted")
 
         return True

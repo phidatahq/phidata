@@ -16,7 +16,7 @@ class DockerResource(ResourceBase):
 
     @staticmethod
     def get_from_cluster(docker_client: DockerApiClient) -> Any:
-        logger.warning(f"@get_from_cluster method not defined")
+        logger.warning("@get_from_cluster method not defined")
         return None
 
     def _read(self, docker_client: DockerApiClient) -> Any:

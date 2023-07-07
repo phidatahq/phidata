@@ -13,7 +13,8 @@ REPO_ROOT="$( dirname ${CURR_DIR} )"
 VENV_DIR="${REPO_ROOT}/phienv"
 source ${CURR_DIR}/_utils.sh
 
-create_venv() {
+main() {
+  print_info "phidata dev setup"
   print_info "Creating venv: ${VENV_DIR}"
 
   print_status "Removing existing venv: ${VENV_DIR}"
@@ -26,22 +27,10 @@ create_venv() {
   source ${VENV_DIR}/bin/activate
   source ${CURR_DIR}/install.sh
 
-  print_info "Activate using: source ${VENV_DIR}/bin/activate"
-
   print_info_2 "Installing base python packages"
   pip3 install --upgrade pip pip-tools twine build
-}
 
-main() {
-  print_info "phidata dev setup"
-  create_venv
-
-  print_info "Installing requirements.txt"
-  pip install --no-deps \
-    -r ${REPO_ROOT}/requirements.txt
-
-  print_info "Installing phidata with [dev] extras"
-  pip install --editable "${REPO_ROOT}[dev]"
+  print_info "Activate using: source ${VENV_DIR}/bin/activate"
 }
 
 main "$@"

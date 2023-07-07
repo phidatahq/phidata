@@ -52,7 +52,7 @@ class DockerNetwork(DockerResource):
             else:
                 logger.debug("Network could not be created")
             # logger.debug("Network {}".format(network_object.attrs))
-        except Exception as e:
+        except Exception:
             raise
 
         # By this step the network should be created
@@ -104,7 +104,6 @@ class DockerNetwork(DockerResource):
         from docker.errors import NotFound
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
-        network_name: Optional[str] = self.name
         network_object: Optional[Network] = self._read(docker_client)
         # Return True if there is no Network to delete
         if network_object is None:
@@ -122,7 +121,7 @@ class DockerNetwork(DockerResource):
         try:
             logger.debug("Reloading network_object: {}".format(network_object))
             network_object.reload()
-        except NotFound as e:
+        except NotFound:
             logger.debug("Got NotFound Exception, Network is deleted")
             return True
 

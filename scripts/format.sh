@@ -17,3 +17,7 @@ print_info "Running: black ${REPO_ROOT}"
 black ${REPO_ROOT}
 print_info "Running: mypy ${REPO_ROOT} --config-file ${REPO_ROOT}/pyproject.toml"
 mypy ${REPO_ROOT} --config-file ${REPO_ROOT}/pyproject.toml
+print_info "Running: pytest ${REPO_ROOT}"
+pytest ${REPO_ROOT}
+print_info "Running: ruff ${REPO_ROOT}"
+ruff ${REPO_ROOT}

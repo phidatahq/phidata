@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, Union, List
 
-from phi.app.base import AppBase, WorkspaceVolumeType, AppVolumeType
+from phi.app.base import AppBase, WorkspaceVolumeType, AppVolumeType # noqa: F401
 from phi.app.context import ContainerContext
 from phi.utils.log import logger
 
@@ -62,12 +62,12 @@ class DockerApp(AppBase):
     # either as an integer or a string in the form port/protocol, where the protocol is either tcp, udp.
     # The values of the dictionary are the corresponding ports to open on the host, which can be either:
     #   - The port number, as an integer.
-    #       For example, {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
+    #     For example, {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
     #   - None, to assign a random host port. For example, {'2222/tcp': None}.
     #   - A tuple of (address, port) if you want to specify the host interface.
-    #       For example, {'1111/tcp': ('127.0.0.1', 1111)}.
+    #     For example, {'1111/tcp': ('127.0.0.1', 1111)}.
     #   - A list of integers, if you want to bind multiple host ports to a single container port.
-    #       For example, {'1111/tcp': [1234, 4567]}.
+    #     For example, {'1111/tcp': [1234, 4567]}.
     container_ports: Optional[Dict[str, Any]] = None
 
     def get_container_name(self):
@@ -229,7 +229,7 @@ class DockerApp(AppBase):
         container_ports: Dict[str, int] = self.container_ports or {}
 
         if self.open_container_port:
-            container_ports[str(self.container_port)] = self.container_host_port
+            container_ports[str(self.container_port)] = self.host_port
 
         return container_ports
 
@@ -303,7 +303,7 @@ class DockerApp(AppBase):
         )
 
         resource_group = DockerResourceGroup(
-            name=self.app_name,
+            name=self.get_app_name(),
             enabled=self.enabled,
             network=DockerNetwork(name=build_context.network),
             containers=[docker_container],

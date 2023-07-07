@@ -1,0 +1,1175 @@
+{
+  "version":"2.0",
+  "metadata":{
+    "apiVersion":"2020-07-29",
+    "endpointPrefix":"app-integrations",
+    "jsonVersion":"1.1",
+    "protocol":"rest-json",
+    "serviceFullName":"Amazon AppIntegrations Service",
+    "serviceId":"AppIntegrations",
+    "signatureVersion":"v4",
+    "signingName":"app-integrations",
+    "uid":"appintegrations-2020-07-29"
+  },
+  "operations":{
+    "CreateDataIntegration":{
+      "name":"CreateDataIntegration",
+      "http":{
+        "method":"POST",
+        "requestUri":"/dataIntegrations"
+      },
+      "input":{"shape":"CreateDataIntegrationRequest"},
+      "output":{"shape":"CreateDataIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ResourceQuotaExceededException"},
+        {"shape":"DuplicateResourceException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Creates and persists a DataIntegration resource.</p> <note> <p>You cannot create a DataIntegration association for a DataIntegration that has been previously associated. Use a different DataIntegration, or recreate the DataIntegration using the <code>CreateDataIntegration</code> API.</p> </note>"
+    },
+    "CreateEventIntegration":{
+      "name":"CreateEventIntegration",
+      "http":{
+        "method":"POST",
+        "requestUri":"/eventIntegrations"
+      },
+      "input":{"shape":"CreateEventIntegrationRequest"},
+      "output":{"shape":"CreateEventIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ResourceQuotaExceededException"},
+        {"shape":"DuplicateResourceException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Creates an EventIntegration, given a specified name, description, and a reference to an Amazon EventBridge bus in your account and a partner event source that pushes events to that bus. No objects are created in the your account, only metadata that is persisted on the EventIntegration control plane.</p>"
+    },
+    "DeleteDataIntegration":{
+      "name":"DeleteDataIntegration",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/dataIntegrations/{Identifier}"
+      },
+      "input":{"shape":"DeleteDataIntegrationRequest"},
+      "output":{"shape":"DeleteDataIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Deletes the DataIntegration. Only DataIntegrations that don't have any DataIntegrationAssociations can be deleted. Deleting a DataIntegration also deletes the underlying Amazon AppFlow flow and service linked role. </p> <note> <p>You cannot create a DataIntegration association for a DataIntegration that has been previously associated. Use a different DataIntegration, or recreate the DataIntegration using the <a href=\"https://docs.aws.amazon.com/appintegrations/latest/APIReference/API_CreateDataIntegration.html\">CreateDataIntegration</a> API.</p> </note>"
+    },
+    "DeleteEventIntegration":{
+      "name":"DeleteEventIntegration",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/eventIntegrations/{Name}"
+      },
+      "input":{"shape":"DeleteEventIntegrationRequest"},
+      "output":{"shape":"DeleteEventIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Deletes the specified existing event integration. If the event integration is associated with clients, the request is rejected.</p>"
+    },
+    "GetDataIntegration":{
+      "name":"GetDataIntegration",
+      "http":{
+        "method":"GET",
+        "requestUri":"/dataIntegrations/{Identifier}"
+      },
+      "input":{"shape":"GetDataIntegrationRequest"},
+      "output":{"shape":"GetDataIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Returns information about the DataIntegration.</p> <note> <p>You cannot create a DataIntegration association for a DataIntegration that has been previously associated. Use a different DataIntegration, or recreate the DataIntegration using the <a href=\"https://docs.aws.amazon.com/appintegrations/latest/APIReference/API_CreateDataIntegration.html\">CreateDataIntegration</a> API.</p> </note>"
+    },
+    "GetEventIntegration":{
+      "name":"GetEventIntegration",
+      "http":{
+        "method":"GET",
+        "requestUri":"/eventIntegrations/{Name}"
+      },
+      "input":{"shape":"GetEventIntegrationRequest"},
+      "output":{"shape":"GetEventIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Returns information about the event integration.</p>"
+    },
+    "ListDataIntegrationAssociations":{
+      "name":"ListDataIntegrationAssociations",
+      "http":{
+        "method":"GET",
+        "requestUri":"/dataIntegrations/{Identifier}/associations"
+      },
+      "input":{"shape":"ListDataIntegrationAssociationsRequest"},
+      "output":{"shape":"ListDataIntegrationAssociationsResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Returns a paginated list of DataIntegration associations in the account.</p> <note> <p>You cannot create a DataIntegration association for a DataIntegration that has been previously associated. Use a different DataIntegration, or recreate the DataIntegration using the <a href=\"https://docs.aws.amazon.com/appintegrations/latest/APIReference/API_CreateDataIntegration.html\">CreateDataIntegration</a> API.</p> </note>"
+    },
+    "ListDataIntegrations":{
+      "name":"ListDataIntegrations",
+      "http":{
+        "method":"GET",
+        "requestUri":"/dataIntegrations"
+      },
+      "input":{"shape":"ListDataIntegrationsRequest"},
+      "output":{"shape":"ListDataIntegrationsResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Returns a paginated list of DataIntegrations in the account.</p> <note> <p>You cannot create a DataIntegration association for a DataIntegration that has been previously associated. Use a different DataIntegration, or recreate the DataIntegration using the <a href=\"https://docs.aws.amazon.com/appintegrations/latest/APIReference/API_CreateDataIntegration.html\">CreateDataIntegration</a> API.</p> </note>"
+    },
+    "ListEventIntegrationAssociations":{
+      "name":"ListEventIntegrationAssociations",
+      "http":{
+        "method":"GET",
+        "requestUri":"/eventIntegrations/{Name}/associations"
+      },
+      "input":{"shape":"ListEventIntegrationAssociationsRequest"},
+      "output":{"shape":"ListEventIntegrationAssociationsResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Returns a paginated list of event integration associations in the account. </p>"
+    },
+    "ListEventIntegrations":{
+      "name":"ListEventIntegrations",
+      "http":{
+        "method":"GET",
+        "requestUri":"/eventIntegrations"
+      },
+      "input":{"shape":"ListEventIntegrationsRequest"},
+      "output":{"shape":"ListEventIntegrationsResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Returns a paginated list of event integrations in the account.</p>"
+    },
+    "ListTagsForResource":{
+      "name":"ListTagsForResource",
+      "http":{
+        "method":"GET",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"ListTagsForResourceRequest"},
+      "output":{"shape":"ListTagsForResourceResponse"},
+      "errors":[
+        {"shape":"InvalidRequestException"},
+        {"shape":"InternalServiceError"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"}
+      ],
+      "documentation":"<p>Lists the tags for the specified resource.</p>"
+    },
+    "TagResource":{
+      "name":"TagResource",
+      "http":{
+        "method":"POST",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"TagResourceRequest"},
+      "output":{"shape":"TagResourceResponse"},
+      "errors":[
+        {"shape":"InvalidRequestException"},
+        {"shape":"InternalServiceError"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"}
+      ],
+      "documentation":"<p>Adds the specified tags to the specified resource.</p>"
+    },
+    "UntagResource":{
+      "name":"UntagResource",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"UntagResourceRequest"},
+      "output":{"shape":"UntagResourceResponse"},
+      "errors":[
+        {"shape":"InvalidRequestException"},
+        {"shape":"InternalServiceError"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"}
+      ],
+      "documentation":"<p>Removes the specified tags from the specified resource.</p>"
+    },
+    "UpdateDataIntegration":{
+      "name":"UpdateDataIntegration",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/dataIntegrations/{Identifier}"
+      },
+      "input":{"shape":"UpdateDataIntegrationRequest"},
+      "output":{"shape":"UpdateDataIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Updates the description of a DataIntegration.</p> <note> <p>You cannot create a DataIntegration association for a DataIntegration that has been previously associated. Use a different DataIntegration, or recreate the DataIntegration using the <a href=\"https://docs.aws.amazon.com/appintegrations/latest/APIReference/API_CreateDataIntegration.html\">CreateDataIntegration</a> API.</p> </note>"
+    },
+    "UpdateEventIntegration":{
+      "name":"UpdateEventIntegration",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/eventIntegrations/{Name}"
+      },
+      "input":{"shape":"UpdateEventIntegrationRequest"},
+      "output":{"shape":"UpdateEventIntegrationResponse"},
+      "errors":[
+        {"shape":"InternalServiceError"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidRequestException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"<p>Updates the description of an event integration.</p>"
+    }
+  },
+  "shapes":{
+    "AccessDeniedException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>You do not have sufficient access to perform this action.</p>",
+      "error":{"httpStatusCode":403},
+      "exception":true
+    },
+    "Arn":{
+      "type":"string",
+      "max":2048,
+      "min":1,
+      "pattern":"^arn:aws:[A-Za-z0-9][A-Za-z0-9_/.-]{0,62}:[A-Za-z0-9_/.-]{0,63}:[A-Za-z0-9_/.-]{0,63}:[A-Za-z0-9][A-Za-z0-9:_/+=,@.-]{0,1023}$"
+    },
+    "ClientAssociationMetadata":{
+      "type":"map",
+      "key":{"shape":"NonBlankString"},
+      "value":{"shape":"NonBlankString"}
+    },
+    "ClientId":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":".*"
+    },
+    "CreateDataIntegrationRequest":{
+      "type":"structure",
+      "required":[
+        "Name",
+        "KmsKey",
+        "SourceURI",
+        "ScheduleConfig"
+      ],
+      "members":{
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the DataIntegration.</p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>A description of the DataIntegration.</p>"
+        },
+        "KmsKey":{
+          "shape":"NonBlankString",
+          "documentation":"<p>The KMS key for the DataIntegration.</p>"
+        },
+        "SourceURI":{
+          "shape":"SourceURI",
+          "documentation":"<p>The URI of the data source.</p>"
+        },
+        "ScheduleConfig":{
+          "shape":"ScheduleConfiguration",
+          "documentation":"<p>The name of the data and how often it should be pulled from the source.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        },
+        "ClientToken":{
+          "shape":"IdempotencyToken",
+          "documentation":"<p>A unique, case-sensitive identifier that you provide to ensure the idempotency of the request. If not provided, the Amazon Web Services SDK populates this field. For more information about idempotency, see <a href=\"https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/\">Making retries safe with idempotent APIs</a>.</p>",
+          "idempotencyToken":true
+        },
+        "FileConfiguration":{
+          "shape":"FileConfiguration",
+          "documentation":"<p>The configuration for what files should be pulled from the source.</p>"
+        },
+        "ObjectConfiguration":{
+          "shape":"ObjectConfiguration",
+          "documentation":"<p>The configuration for what data should be pulled from the source.</p>"
+        }
+      }
+    },
+    "CreateDataIntegrationResponse":{
+      "type":"structure",
+      "members":{
+        "Arn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN)</p>"
+        },
+        "Id":{
+          "shape":"UUID",
+          "documentation":"<p>A unique identifier.</p>"
+        },
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the DataIntegration.</p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>A description of the DataIntegration.</p>"
+        },
+        "KmsKey":{
+          "shape":"NonBlankString",
+          "documentation":"<p>The KMS key for the DataIntegration.</p>"
+        },
+        "SourceURI":{
+          "shape":"SourceURI",
+          "documentation":"<p>The URI of the data source.</p>"
+        },
+        "ScheduleConfiguration":{
+          "shape":"ScheduleConfiguration",
+          "documentation":"<p>The name of the data and how often it should be pulled from the source.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        },
+        "ClientToken":{
+          "shape":"IdempotencyToken",
+          "documentation":"<p>A unique, case-sensitive identifier that you provide to ensure the idempotency of the request. If not provided, the Amazon Web Services SDK populates this field. For more information about idempotency, see <a href=\"https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/\">Making retries safe with idempotent APIs</a>.</p>"
+        },
+        "FileConfiguration":{
+          "shape":"FileConfiguration",
+          "documentation":"<p>The configuration for what files should be pulled from the source.</p>"
+        },
+        "ObjectConfiguration":{
+          "shape":"ObjectConfiguration",
+          "documentation":"<p>The configuration for what data should be pulled from the source.</p>"
+        }
+      }
+    },
+    "CreateEventIntegrationRequest":{
+      "type":"structure",
+      "required":[
+        "Name",
+        "EventFilter",
+        "EventBridgeBus"
+      ],
+      "members":{
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration.</p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>The description of the event integration.</p>"
+        },
+        "EventFilter":{
+          "shape":"EventFilter",
+          "documentation":"<p>The event filter.</p>"
+        },
+        "EventBridgeBus":{
+          "shape":"EventBridgeBus",
+          "documentation":"<p>The EventBridge bus.</p>"
+        },
+        "ClientToken":{
+          "shape":"IdempotencyToken",
+          "documentation":"<p>A unique, case-sensitive identifier that you provide to ensure the idempotency of the request. If not provided, the Amazon Web Services SDK populates this field. For more information about idempotency, see <a href=\"https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/\">Making retries safe with idempotent APIs</a>.</p>",
+          "idempotencyToken":true
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        }
+      }
+    },
+    "CreateEventIntegrationResponse":{
+      "type":"structure",
+      "members":{
+        "EventIntegrationArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the event integration. </p>"
+        }
+      }
+    },
+    "DataIntegrationAssociationSummary":{
+      "type":"structure",
+      "members":{
+        "DataIntegrationAssociationArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the DataIntegration association.</p>"
+        },
+        "DataIntegrationArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the DataIntegration.</p>"
+        },
+        "ClientId":{
+          "shape":"ClientId",
+          "documentation":"<p>The identifier for the client that is associated with the DataIntegration association.</p>"
+        }
+      },
+      "documentation":"<p>Summary information about the DataIntegration association.</p>"
+    },
+    "DataIntegrationAssociationsList":{
+      "type":"list",
+      "member":{"shape":"DataIntegrationAssociationSummary"},
+      "max":50,
+      "min":1
+    },
+    "DataIntegrationSummary":{
+      "type":"structure",
+      "members":{
+        "Arn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the DataIntegration.</p>"
+        },
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the DataIntegration.</p>"
+        },
+        "SourceURI":{
+          "shape":"SourceURI",
+          "documentation":"<p>The URI of the data source.</p>"
+        }
+      },
+      "documentation":"<p>Summary information about the DataIntegration.</p>"
+    },
+    "DataIntegrationsList":{
+      "type":"list",
+      "member":{"shape":"DataIntegrationSummary"},
+      "max":50,
+      "min":1
+    },
+    "DeleteDataIntegrationRequest":{
+      "type":"structure",
+      "required":["DataIntegrationIdentifier"],
+      "members":{
+        "DataIntegrationIdentifier":{
+          "shape":"Identifier",
+          "documentation":"<p>A unique identifier for the DataIntegration.</p>",
+          "location":"uri",
+          "locationName":"Identifier"
+        }
+      }
+    },
+    "DeleteDataIntegrationResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "DeleteEventIntegrationRequest":{
+      "type":"structure",
+      "required":["Name"],
+      "members":{
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration.</p>",
+          "location":"uri",
+          "locationName":"Name"
+        }
+      }
+    },
+    "DeleteEventIntegrationResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "Description":{
+      "type":"string",
+      "max":1000,
+      "min":1,
+      "pattern":".*"
+    },
+    "DuplicateResourceException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>A resource with the specified name already exists.</p>",
+      "error":{"httpStatusCode":409},
+      "exception":true
+    },
+    "EventBridgeBus":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9\\/\\._\\-]+$"
+    },
+    "EventBridgeRuleName":{
+      "type":"string",
+      "max":2048,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9\\/\\._\\-]+$"
+    },
+    "EventFilter":{
+      "type":"structure",
+      "required":["Source"],
+      "members":{
+        "Source":{
+          "shape":"Source",
+          "documentation":"<p>The source of the events.</p>"
+        }
+      },
+      "documentation":"<p>The event filter.</p>"
+    },
+    "EventIntegration":{
+      "type":"structure",
+      "members":{
+        "EventIntegrationArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the event integration.</p>"
+        },
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration.</p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>The event integration description.</p>"
+        },
+        "EventFilter":{
+          "shape":"EventFilter",
+          "documentation":"<p>The event integration filter.</p>"
+        },
+        "EventBridgeBus":{
+          "shape":"EventBridgeBus",
+          "documentation":"<p>The Amazon EventBridge bus for the event integration.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        }
+      },
+      "documentation":"<p>The event integration.</p>"
+    },
+    "EventIntegrationAssociation":{
+      "type":"structure",
+      "members":{
+        "EventIntegrationAssociationArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) for the event integration association.</p>"
+        },
+        "EventIntegrationAssociationId":{
+          "shape":"UUID",
+          "documentation":"<p>The identifier for the event integration association.</p>"
+        },
+        "EventIntegrationName":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration.</p>"
+        },
+        "ClientId":{
+          "shape":"ClientId",
+          "documentation":"<p>The identifier for the client that is associated with the event integration.</p>"
+        },
+        "EventBridgeRuleName":{
+          "shape":"EventBridgeRuleName",
+          "documentation":"<p>The name of the EventBridge rule.</p>"
+        },
+        "ClientAssociationMetadata":{
+          "shape":"ClientAssociationMetadata",
+          "documentation":"<p>The metadata associated with the client.</p>"
+        }
+      },
+      "documentation":"<p>The event integration association.</p>"
+    },
+    "EventIntegrationAssociationsList":{
+      "type":"list",
+      "member":{"shape":"EventIntegrationAssociation"},
+      "max":50,
+      "min":1
+    },
+    "EventIntegrationsList":{
+      "type":"list",
+      "member":{"shape":"EventIntegration"},
+      "max":50,
+      "min":1
+    },
+    "Fields":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9\\/\\._\\-]+$"
+    },
+    "FieldsList":{
+      "type":"list",
+      "member":{"shape":"Fields"},
+      "max":2048,
+      "min":1
+    },
+    "FieldsMap":{
+      "type":"map",
+      "key":{"shape":"NonBlankString"},
+      "value":{"shape":"FieldsList"}
+    },
+    "FileConfiguration":{
+      "type":"structure",
+      "required":["Folders"],
+      "members":{
+        "Folders":{
+          "shape":"FolderList",
+          "documentation":"<p>Identifiers for the source folders to pull all files from recursively.</p>"
+        },
+        "Filters":{
+          "shape":"FieldsMap",
+          "documentation":"<p>Restrictions for what files should be pulled from the source.</p>"
+        }
+      },
+      "documentation":"<p>The configuration for what files should be pulled from the source.</p>"
+    },
+    "FolderList":{
+      "type":"list",
+      "member":{"shape":"NonBlankLongString"},
+      "max":10,
+      "min":1
+    },
+    "GetDataIntegrationRequest":{
+      "type":"structure",
+      "required":["Identifier"],
+      "members":{
+        "Identifier":{
+          "shape":"Identifier",
+          "documentation":"<p>A unique identifier.</p>",
+          "location":"uri",
+          "locationName":"Identifier"
+        }
+      }
+    },
+    "GetDataIntegrationResponse":{
+      "type":"structure",
+      "members":{
+        "Arn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) for the DataIntegration.</p>"
+        },
+        "Id":{
+          "shape":"UUID",
+          "documentation":"<p>A unique identifier.</p>"
+        },
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the DataIntegration.</p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>The KMS key for the DataIntegration.</p>"
+        },
+        "KmsKey":{
+          "shape":"NonBlankString",
+          "documentation":"<p>The KMS key for the DataIntegration.</p>"
+        },
+        "SourceURI":{
+          "shape":"SourceURI",
+          "documentation":"<p>The URI of the data source.</p>"
+        },
+        "ScheduleConfiguration":{
+          "shape":"ScheduleConfiguration",
+          "documentation":"<p>The name of the data and how often it should be pulled from the source.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        },
+        "FileConfiguration":{
+          "shape":"FileConfiguration",
+          "documentation":"<p>The configuration for what files should be pulled from the source.</p>"
+        },
+        "ObjectConfiguration":{
+          "shape":"ObjectConfiguration",
+          "documentation":"<p>The configuration for what data should be pulled from the source.</p>"
+        }
+      }
+    },
+    "GetEventIntegrationRequest":{
+      "type":"structure",
+      "required":["Name"],
+      "members":{
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration. </p>",
+          "location":"uri",
+          "locationName":"Name"
+        }
+      }
+    },
+    "GetEventIntegrationResponse":{
+      "type":"structure",
+      "members":{
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration. </p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>The description of the event integration.</p>"
+        },
+        "EventIntegrationArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) for the event integration.</p>"
+        },
+        "EventBridgeBus":{
+          "shape":"EventBridgeBus",
+          "documentation":"<p>The EventBridge bus.</p>"
+        },
+        "EventFilter":{
+          "shape":"EventFilter",
+          "documentation":"<p>The event filter.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        }
+      }
+    },
+    "IdempotencyToken":{
+      "type":"string",
+      "max":2048,
+      "min":1,
+      "pattern":".*"
+    },
+    "Identifier":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":".*\\S.*"
+    },
+    "InternalServiceError":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>Request processing failed due to an error or failure with the service.</p>",
+      "error":{"httpStatusCode":500},
+      "exception":true,
+      "fault":true
+    },
+    "InvalidRequestException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>The request is not valid. </p>",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "ListDataIntegrationAssociationsRequest":{
+      "type":"structure",
+      "required":["DataIntegrationIdentifier"],
+      "members":{
+        "DataIntegrationIdentifier":{
+          "shape":"Identifier",
+          "documentation":"<p>A unique identifier for the DataIntegration.</p>",
+          "location":"uri",
+          "locationName":"Identifier"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token for the next set of results. Use the value returned in the previous response in the next request to retrieve the next set of results.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return per page.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        }
+      }
+    },
+    "ListDataIntegrationAssociationsResponse":{
+      "type":"structure",
+      "members":{
+        "DataIntegrationAssociations":{
+          "shape":"DataIntegrationAssociationsList",
+          "documentation":"<p>The Amazon Resource Name (ARN) and unique ID of the DataIntegration association.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>If there are additional results, this is the token for the next set of results.</p>"
+        }
+      }
+    },
+    "ListDataIntegrationsRequest":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token for the next set of results. Use the value returned in the previous response in the next request to retrieve the next set of results.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return per page.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        }
+      }
+    },
+    "ListDataIntegrationsResponse":{
+      "type":"structure",
+      "members":{
+        "DataIntegrations":{
+          "shape":"DataIntegrationsList",
+          "documentation":"<p>The DataIntegrations associated with this account.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>If there are additional results, this is the token for the next set of results.</p>"
+        }
+      }
+    },
+    "ListEventIntegrationAssociationsRequest":{
+      "type":"structure",
+      "required":["EventIntegrationName"],
+      "members":{
+        "EventIntegrationName":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration. </p>",
+          "location":"uri",
+          "locationName":"Name"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token for the next set of results. Use the value returned in the previous response in the next request to retrieve the next set of results.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return per page.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        }
+      }
+    },
+    "ListEventIntegrationAssociationsResponse":{
+      "type":"structure",
+      "members":{
+        "EventIntegrationAssociations":{
+          "shape":"EventIntegrationAssociationsList",
+          "documentation":"<p>The event integration associations.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>If there are additional results, this is the token for the next set of results.</p>"
+        }
+      }
+    },
+    "ListEventIntegrationsRequest":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token for the next set of results. Use the value returned in the previous response in the next request to retrieve the next set of results.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return per page.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        }
+      }
+    },
+    "ListEventIntegrationsResponse":{
+      "type":"structure",
+      "members":{
+        "EventIntegrations":{
+          "shape":"EventIntegrationsList",
+          "documentation":"<p>The event integrations.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>If there are additional results, this is the token for the next set of results.</p>"
+        }
+      }
+    },
+    "ListTagsForResourceRequest":{
+      "type":"structure",
+      "required":["resourceArn"],
+      "members":{
+        "resourceArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the resource. </p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        }
+      }
+    },
+    "ListTagsForResourceResponse":{
+      "type":"structure",
+      "members":{
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>Information about the tags.</p>"
+        }
+      }
+    },
+    "MaxResults":{
+      "type":"integer",
+      "max":50,
+      "min":1
+    },
+    "Message":{"type":"string"},
+    "Name":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9\\/\\._\\-]+$"
+    },
+    "NextToken":{
+      "type":"string",
+      "max":1000,
+      "min":1,
+      "pattern":".*"
+    },
+    "NonBlankLongString":{
+      "type":"string",
+      "max":200,
+      "min":1,
+      "pattern":".*\\S.*"
+    },
+    "NonBlankString":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":".*\\S.*"
+    },
+    "Object":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9\\/\\._\\-]+$"
+    },
+    "ObjectConfiguration":{
+      "type":"map",
+      "key":{"shape":"NonBlankString"},
+      "value":{"shape":"FieldsMap"},
+      "documentation":"<p>The configuration for what data should be pulled from the source.</p>"
+    },
+    "ResourceNotFoundException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>The specified resource was not found.</p>",
+      "error":{"httpStatusCode":404},
+      "exception":true
+    },
+    "ResourceQuotaExceededException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>The allowed quota for the resource has been exceeded.</p>",
+      "error":{"httpStatusCode":429},
+      "exception":true
+    },
+    "ScheduleConfiguration":{
+      "type":"structure",
+      "required":["ScheduleExpression"],
+      "members":{
+        "FirstExecutionFrom":{
+          "shape":"NonBlankString",
+          "documentation":"<p>The start date for objects to import in the first flow run as an Unix/epoch timestamp in milliseconds or in ISO-8601 format.</p>"
+        },
+        "Object":{
+          "shape":"Object",
+          "documentation":"<p>The name of the object to pull from the data source.</p>"
+        },
+        "ScheduleExpression":{
+          "shape":"NonBlankString",
+          "documentation":"<p>How often the data should be pulled from data source.</p>"
+        }
+      },
+      "documentation":"<p>The name of the data and how often it should be pulled from the source.</p>"
+    },
+    "Source":{
+      "type":"string",
+      "max":256,
+      "min":1,
+      "pattern":"^aws\\.partner\\/.*$"
+    },
+    "SourceURI":{
+      "type":"string",
+      "max":1000,
+      "min":1,
+      "pattern":"^(\\w+\\:\\/\\/[\\w.-]+[\\w/!@#+=.-]+$)|(\\w+\\:\\/\\/[\\w.-]+[\\w/!@#+=.-]+[\\w/!@#+=.-]+[\\w/!@#+=.,-]+$)"
+    },
+    "TagKey":{
+      "type":"string",
+      "max":128,
+      "min":1,
+      "pattern":"^(?!aws:)[a-zA-Z+-=._:/]+$"
+    },
+    "TagKeyList":{
+      "type":"list",
+      "member":{"shape":"TagKey"},
+      "max":200,
+      "min":1
+    },
+    "TagMap":{
+      "type":"map",
+      "key":{"shape":"TagKey"},
+      "value":{"shape":"TagValue"},
+      "max":200,
+      "min":1
+    },
+    "TagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "resourceArn",
+        "tags"
+      ],
+      "members":{
+        "resourceArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the resource.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource. For example, { \"tags\": {\"key1\":\"value1\", \"key2\":\"value2\"} }.</p>"
+        }
+      }
+    },
+    "TagResourceResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "TagValue":{
+      "type":"string",
+      "max":256
+    },
+    "ThrottlingException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"Message"}
+      },
+      "documentation":"<p>The throttling limit has been exceeded.</p>",
+      "error":{"httpStatusCode":429},
+      "exception":true
+    },
+    "UUID":{
+      "type":"string",
+      "pattern":"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
+    },
+    "UntagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "resourceArn",
+        "tagKeys"
+      ],
+      "members":{
+        "resourceArn":{
+          "shape":"Arn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the resource.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        },
+        "tagKeys":{
+          "shape":"TagKeyList",
+          "documentation":"<p>The tag keys.</p>",
+          "location":"querystring",
+          "locationName":"tagKeys"
+        }
+      }
+    },
+    "UntagResourceResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "UpdateDataIntegrationRequest":{
+      "type":"structure",
+      "required":["Identifier"],
+      "members":{
+        "Identifier":{
+          "shape":"Identifier",
+          "documentation":"<p>A unique identifier for the DataIntegration.</p>",
+          "location":"uri",
+          "locationName":"Identifier"
+        },
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the DataIntegration.</p>"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>A description of the DataIntegration.</p>"
+        }
+      }
+    },
+    "UpdateDataIntegrationResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "UpdateEventIntegrationRequest":{
+      "type":"structure",
+      "required":["Name"],
+      "members":{
+        "Name":{
+          "shape":"Name",
+          "documentation":"<p>The name of the event integration.</p>",
+          "location":"uri",
+          "locationName":"Name"
+        },
+        "Description":{
+          "shape":"Description",
+          "documentation":"<p>The description of the event inegration.</p>"
+        }
+      }
+    },
+    "UpdateEventIntegrationResponse":{
+      "type":"structure",
+      "members":{
+      }
+    }
+  },
+  "documentation":"<p>The Amazon AppIntegrations service enables you to configure and reuse connections to external applications.</p> <p>For information about how you can use external applications with Amazon Connect, see <a href=\"https://docs.aws.amazon.com/connect/latest/adminguide/crm.html\">Set up pre-built integrations</a> and <a href=\"https://docs.aws.amazon.com/connect/latest/adminguide/amazon-connect-wisdom.html\">Deliver information to agents using Amazon Connect Wisdom</a> in the <i>Amazon Connect Administrator Guide</i>.</p>"
+}

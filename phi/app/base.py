@@ -156,7 +156,7 @@ class AppBase(PhiBase):
     cached_secret_file_data: Optional[Dict[str, Any]] = None
 
     def get_app_name(self) -> str:
-        return self.app_name
+        return self.name
 
     def get_image_str(self) -> str:
         if self.image:

@@ -1,0 +1,924 @@
+{
+  "version":"2.0",
+  "metadata":{
+    "apiVersion":"2018-04-10",
+    "endpointPrefix":"backupstorage",
+    "jsonVersion":"1.1",
+    "protocol":"rest-json",
+    "serviceFullName":"AWS Backup Storage",
+    "serviceId":"BackupStorage",
+    "signatureVersion":"v4",
+    "signingName":"backup-storage",
+    "uid":"backupstorage-2018-04-10"
+  },
+  "operations":{
+    "DeleteObject":{
+      "name":"DeleteObject",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/backup-jobs/{jobId}/object/{objectName}"
+      },
+      "input":{"shape":"DeleteObjectInput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Delete Object from the incremental base Backup."
+    },
+    "GetChunk":{
+      "name":"GetChunk",
+      "http":{
+        "method":"GET",
+        "requestUri":"/restore-jobs/{jobId}/chunk/{chunkToken}"
+      },
+      "input":{"shape":"GetChunkInput"},
+      "output":{"shape":"GetChunkOutput"},
+      "errors":[
+        {"shape":"IllegalArgumentException"},
+        {"shape":"RetryableException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"KMSInvalidKeyUsageException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Gets the specified object's chunk."
+    },
+    "GetObjectMetadata":{
+      "name":"GetObjectMetadata",
+      "http":{
+        "method":"GET",
+        "requestUri":"/restore-jobs/{jobId}/object/{objectToken}/metadata"
+      },
+      "input":{"shape":"GetObjectMetadataInput"},
+      "output":{"shape":"GetObjectMetadataOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"KMSInvalidKeyUsageException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Get metadata associated with an Object."
+    },
+    "ListChunks":{
+      "name":"ListChunks",
+      "http":{
+        "method":"GET",
+        "requestUri":"/restore-jobs/{jobId}/chunks/{objectToken}/list"
+      },
+      "input":{"shape":"ListChunksInput"},
+      "output":{"shape":"ListChunksOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"List chunks in a given Object"
+    },
+    "ListObjects":{
+      "name":"ListObjects",
+      "http":{
+        "method":"GET",
+        "requestUri":"/restore-jobs/{jobId}/objects/list"
+      },
+      "input":{"shape":"ListObjectsInput"},
+      "output":{"shape":"ListObjectsOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"KMSInvalidKeyUsageException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"List all Objects in a given Backup."
+    },
+    "NotifyObjectComplete":{
+      "name":"NotifyObjectComplete",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/backup-jobs/{jobId}/object/{uploadId}/complete"
+      },
+      "input":{"shape":"NotifyObjectCompleteInput"},
+      "output":{"shape":"NotifyObjectCompleteOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"NotReadableInputStreamException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"KMSInvalidKeyUsageException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Complete upload",
+      "authtype":"v4-unsigned-body"
+    },
+    "PutChunk":{
+      "name":"PutChunk",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/backup-jobs/{jobId}/chunk/{uploadId}/{chunkIndex}"
+      },
+      "input":{"shape":"PutChunkInput"},
+      "output":{"shape":"PutChunkOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"NotReadableInputStreamException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"KMSInvalidKeyUsageException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Upload chunk.",
+      "authtype":"v4-unsigned-body"
+    },
+    "PutObject":{
+      "name":"PutObject",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/backup-jobs/{jobId}/object/{objectName}/put-object"
+      },
+      "input":{"shape":"PutObjectInput"},
+      "output":{"shape":"PutObjectOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"NotReadableInputStreamException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"KMSInvalidKeyUsageException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Upload object that can store object metadata String and data blob in single API call using inline chunk field.",
+      "authtype":"v4-unsigned-body"
+    },
+    "StartObject":{
+      "name":"StartObject",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/backup-jobs/{jobId}/object/{objectName}"
+      },
+      "input":{"shape":"StartObjectInput"},
+      "output":{"shape":"StartObjectOutput"},
+      "errors":[
+        {"shape":"ServiceUnavailableException"},
+        {"shape":"ServiceInternalException"},
+        {"shape":"RetryableException"},
+        {"shape":"IllegalArgumentException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"DataAlreadyExistsException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"AccessDeniedException"}
+      ],
+      "documentation":"Start upload containing one or many chunks."
+    }
+  },
+  "shapes":{
+    "AccessDeniedException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ServiceErrorMessage"}
+      },
+      "error":{"httpStatusCode":403},
+      "exception":true,
+      "synthetic":true
+    },
+    "BackupObject":{
+      "type":"structure",
+      "required":[
+        "Name",
+        "ObjectChecksum",
+        "ObjectChecksumAlgorithm",
+        "ObjectToken"
+      ],
+      "members":{
+        "Name":{
+          "shape":"string",
+          "documentation":"Object name"
+        },
+        "ChunksCount":{
+          "shape":"OptionalLong",
+          "documentation":"Number of chunks in object"
+        },
+        "MetadataString":{
+          "shape":"string",
+          "documentation":"Metadata string associated with the Object"
+        },
+        "ObjectChecksum":{
+          "shape":"string",
+          "documentation":"Object checksum"
+        },
+        "ObjectChecksumAlgorithm":{
+          "shape":"SummaryChecksumAlgorithm",
+          "documentation":"Checksum algorithm"
+        },
+        "ObjectToken":{
+          "shape":"string",
+          "documentation":"Object token"
+        }
+      },
+      "documentation":"Object"
+    },
+    "Chunk":{
+      "type":"structure",
+      "required":[
+        "Index",
+        "Length",
+        "Checksum",
+        "ChecksumAlgorithm",
+        "ChunkToken"
+      ],
+      "members":{
+        "Index":{
+          "shape":"long",
+          "documentation":"Chunk index"
+        },
+        "Length":{
+          "shape":"long",
+          "documentation":"Chunk length"
+        },
+        "Checksum":{
+          "shape":"string",
+          "documentation":"Chunk checksum"
+        },
+        "ChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Checksum algorithm"
+        },
+        "ChunkToken":{
+          "shape":"string",
+          "documentation":"Chunk token"
+        }
+      },
+      "documentation":"Chunk"
+    },
+    "ChunkList":{
+      "type":"list",
+      "member":{"shape":"Chunk"}
+    },
+    "DataAlreadyExistsException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"},
+        "Checksum":{
+          "shape":"string",
+          "documentation":"Data checksum used"
+        },
+        "ChecksumAlgorithm":{
+          "shape":"string",
+          "documentation":"Checksum algorithm used"
+        }
+      },
+      "documentation":"Non-retryable exception. Attempted to create already existing object or chunk. This message contains a checksum of already presented data.",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "DataChecksumAlgorithm":{
+      "type":"string",
+      "enum":["SHA256"]
+    },
+    "DeleteObjectInput":{
+      "type":"structure",
+      "required":[
+        "BackupJobId",
+        "ObjectName"
+      ],
+      "members":{
+        "BackupJobId":{
+          "shape":"string",
+          "documentation":"Backup job Id for the in-progress backup.",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "ObjectName":{
+          "shape":"string",
+          "documentation":"The name of the Object.",
+          "location":"uri",
+          "locationName":"objectName"
+        }
+      }
+    },
+    "GetChunkInput":{
+      "type":"structure",
+      "required":[
+        "StorageJobId",
+        "ChunkToken"
+      ],
+      "members":{
+        "StorageJobId":{
+          "shape":"string",
+          "documentation":"Storage job id",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "ChunkToken":{
+          "shape":"string",
+          "documentation":"Chunk token",
+          "location":"uri",
+          "locationName":"chunkToken"
+        }
+      }
+    },
+    "GetChunkOutput":{
+      "type":"structure",
+      "required":[
+        "Data",
+        "Length",
+        "Checksum",
+        "ChecksumAlgorithm"
+      ],
+      "members":{
+        "Data":{
+          "shape":"PayloadBlob",
+          "documentation":"Chunk data"
+        },
+        "Length":{
+          "shape":"long",
+          "documentation":"Data length",
+          "location":"header",
+          "locationName":"x-amz-data-length"
+        },
+        "Checksum":{
+          "shape":"string",
+          "documentation":"Data checksum",
+          "location":"header",
+          "locationName":"x-amz-checksum"
+        },
+        "ChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Checksum algorithm",
+          "location":"header",
+          "locationName":"x-amz-checksum-algorithm"
+        }
+      },
+      "payload":"Data"
+    },
+    "GetObjectMetadataInput":{
+      "type":"structure",
+      "required":[
+        "StorageJobId",
+        "ObjectToken"
+      ],
+      "members":{
+        "StorageJobId":{
+          "shape":"string",
+          "documentation":"Backup job id for the in-progress backup.",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "ObjectToken":{
+          "shape":"string",
+          "documentation":"Object token.",
+          "location":"uri",
+          "locationName":"objectToken"
+        }
+      }
+    },
+    "GetObjectMetadataOutput":{
+      "type":"structure",
+      "members":{
+        "MetadataString":{
+          "shape":"string",
+          "documentation":"Metadata string.",
+          "location":"header",
+          "locationName":"x-amz-metadata-string"
+        },
+        "MetadataBlob":{
+          "shape":"PayloadBlob",
+          "documentation":"Metadata blob."
+        },
+        "MetadataBlobLength":{
+          "shape":"long",
+          "documentation":"The size of MetadataBlob.",
+          "location":"header",
+          "locationName":"x-amz-data-length"
+        },
+        "MetadataBlobChecksum":{
+          "shape":"string",
+          "documentation":"MetadataBlob checksum.",
+          "location":"header",
+          "locationName":"x-amz-checksum"
+        },
+        "MetadataBlobChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Checksum algorithm.",
+          "location":"header",
+          "locationName":"x-amz-checksum-algorithm"
+        }
+      },
+      "payload":"MetadataBlob"
+    },
+    "IllegalArgumentException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Non-retryable exception, indicates client error (wrong argument passed to API). See exception message for details.",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "KMSInvalidKeyUsageException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Non-retryable exception. Indicates the KMS key usage is incorrect. See exception message for details.",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "ListChunksInput":{
+      "type":"structure",
+      "required":[
+        "StorageJobId",
+        "ObjectToken"
+      ],
+      "members":{
+        "StorageJobId":{
+          "shape":"string",
+          "documentation":"Storage job id",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "ObjectToken":{
+          "shape":"string",
+          "documentation":"Object token",
+          "location":"uri",
+          "locationName":"objectToken"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"Maximum number of chunks",
+          "location":"querystring",
+          "locationName":"max-results"
+        },
+        "NextToken":{
+          "shape":"string",
+          "documentation":"Pagination token",
+          "location":"querystring",
+          "locationName":"next-token"
+        }
+      }
+    },
+    "ListChunksOutput":{
+      "type":"structure",
+      "required":["ChunkList"],
+      "members":{
+        "ChunkList":{
+          "shape":"ChunkList",
+          "documentation":"List of chunks"
+        },
+        "NextToken":{
+          "shape":"string",
+          "documentation":"Pagination token"
+        }
+      }
+    },
+    "ListObjectsInput":{
+      "type":"structure",
+      "required":["StorageJobId"],
+      "members":{
+        "StorageJobId":{
+          "shape":"string",
+          "documentation":"Storage job id",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "StartingObjectName":{
+          "shape":"string",
+          "documentation":"Optional, specifies the starting Object name to list from. Ignored if NextToken is not NULL",
+          "location":"querystring",
+          "locationName":"starting-object-name"
+        },
+        "StartingObjectPrefix":{
+          "shape":"string",
+          "documentation":"Optional, specifies the starting Object prefix to list from. Ignored if NextToken is not NULL",
+          "location":"querystring",
+          "locationName":"starting-object-prefix"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"Maximum objects count",
+          "location":"querystring",
+          "locationName":"max-results"
+        },
+        "NextToken":{
+          "shape":"string",
+          "documentation":"Pagination token",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "CreatedBefore":{
+          "shape":"timestamp",
+          "documentation":"(Optional) Created before filter",
+          "location":"querystring",
+          "locationName":"created-before"
+        },
+        "CreatedAfter":{
+          "shape":"timestamp",
+          "documentation":"(Optional) Created after filter",
+          "location":"querystring",
+          "locationName":"created-after"
+        }
+      }
+    },
+    "ListObjectsOutput":{
+      "type":"structure",
+      "required":["ObjectList"],
+      "members":{
+        "ObjectList":{
+          "shape":"ObjectList",
+          "documentation":"Object list"
+        },
+        "NextToken":{
+          "shape":"string",
+          "documentation":"Pagination token"
+        }
+      }
+    },
+    "MaxResults":{
+      "type":"integer",
+      "max":100,
+      "min":1
+    },
+    "MetadataString":{
+      "type":"string",
+      "pattern":"^.{1,256}$"
+    },
+    "NotReadableInputStreamException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Retryalble exception. Indicated issues while reading an input stream due to the networking issues or connection drop on the client side.",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "NotifyObjectCompleteInput":{
+      "type":"structure",
+      "required":[
+        "BackupJobId",
+        "UploadId",
+        "ObjectChecksum",
+        "ObjectChecksumAlgorithm"
+      ],
+      "members":{
+        "BackupJobId":{
+          "shape":"string",
+          "documentation":"Backup job Id for the in-progress backup",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "UploadId":{
+          "shape":"string",
+          "documentation":"Upload Id for the in-progress upload",
+          "location":"uri",
+          "locationName":"uploadId"
+        },
+        "ObjectChecksum":{
+          "shape":"string",
+          "documentation":"Object checksum",
+          "location":"querystring",
+          "locationName":"checksum"
+        },
+        "ObjectChecksumAlgorithm":{
+          "shape":"SummaryChecksumAlgorithm",
+          "documentation":"Checksum algorithm",
+          "location":"querystring",
+          "locationName":"checksum-algorithm"
+        },
+        "MetadataString":{
+          "shape":"MetadataString",
+          "documentation":"Optional metadata associated with an Object. Maximum string length is 256 bytes.",
+          "location":"querystring",
+          "locationName":"metadata-string"
+        },
+        "MetadataBlob":{
+          "shape":"PayloadBlob",
+          "documentation":"Optional metadata associated with an Object. Maximum length is 4MB."
+        },
+        "MetadataBlobLength":{
+          "shape":"long",
+          "documentation":"The size of MetadataBlob.",
+          "location":"querystring",
+          "locationName":"metadata-blob-length"
+        },
+        "MetadataBlobChecksum":{
+          "shape":"string",
+          "documentation":"Checksum of MetadataBlob.",
+          "location":"querystring",
+          "locationName":"metadata-checksum"
+        },
+        "MetadataBlobChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Checksum algorithm.",
+          "location":"querystring",
+          "locationName":"metadata-checksum-algorithm"
+        }
+      },
+      "payload":"MetadataBlob"
+    },
+    "NotifyObjectCompleteOutput":{
+      "type":"structure",
+      "required":[
+        "ObjectChecksum",
+        "ObjectChecksumAlgorithm"
+      ],
+      "members":{
+        "ObjectChecksum":{
+          "shape":"string",
+          "documentation":"Object checksum"
+        },
+        "ObjectChecksumAlgorithm":{
+          "shape":"SummaryChecksumAlgorithm",
+          "documentation":"Checksum algorithm"
+        }
+      }
+    },
+    "ObjectList":{
+      "type":"list",
+      "member":{"shape":"BackupObject"}
+    },
+    "OptionalLong":{"type":"long"},
+    "PayloadBlob":{
+      "type":"blob",
+      "streaming":true
+    },
+    "PutChunkInput":{
+      "type":"structure",
+      "required":[
+        "BackupJobId",
+        "UploadId",
+        "ChunkIndex",
+        "Data",
+        "Length",
+        "Checksum",
+        "ChecksumAlgorithm"
+      ],
+      "members":{
+        "BackupJobId":{
+          "shape":"string",
+          "documentation":"Backup job Id for the in-progress backup.",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "UploadId":{
+          "shape":"string",
+          "documentation":"Upload Id for the in-progress upload.",
+          "location":"uri",
+          "locationName":"uploadId"
+        },
+        "ChunkIndex":{
+          "shape":"long",
+          "documentation":"Describes this chunk's position relative to the other chunks",
+          "location":"uri",
+          "locationName":"chunkIndex"
+        },
+        "Data":{
+          "shape":"PayloadBlob",
+          "documentation":"Data to be uploaded"
+        },
+        "Length":{
+          "shape":"long",
+          "documentation":"Data length",
+          "location":"querystring",
+          "locationName":"length"
+        },
+        "Checksum":{
+          "shape":"string",
+          "documentation":"Data checksum",
+          "location":"querystring",
+          "locationName":"checksum"
+        },
+        "ChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Checksum algorithm",
+          "location":"querystring",
+          "locationName":"checksum-algorithm"
+        }
+      },
+      "payload":"Data"
+    },
+    "PutChunkOutput":{
+      "type":"structure",
+      "required":[
+        "ChunkChecksum",
+        "ChunkChecksumAlgorithm"
+      ],
+      "members":{
+        "ChunkChecksum":{
+          "shape":"string",
+          "documentation":"Chunk checksum"
+        },
+        "ChunkChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Checksum algorithm"
+        }
+      }
+    },
+    "PutObjectInput":{
+      "type":"structure",
+      "required":[
+        "BackupJobId",
+        "ObjectName"
+      ],
+      "members":{
+        "BackupJobId":{
+          "shape":"string",
+          "documentation":"Backup job Id for the in-progress backup.",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "ObjectName":{
+          "shape":"string",
+          "documentation":"The name of the Object to be uploaded.",
+          "location":"uri",
+          "locationName":"objectName"
+        },
+        "MetadataString":{
+          "shape":"string",
+          "documentation":"Store user defined metadata like backup checksum, disk ids, restore metadata etc.",
+          "location":"querystring",
+          "locationName":"metadata-string"
+        },
+        "InlineChunk":{
+          "shape":"PayloadBlob",
+          "documentation":"Inline chunk data to be uploaded."
+        },
+        "InlineChunkLength":{
+          "shape":"long",
+          "documentation":"Length of the inline chunk data.",
+          "location":"querystring",
+          "locationName":"length"
+        },
+        "InlineChunkChecksum":{
+          "shape":"string",
+          "documentation":"Inline chunk checksum",
+          "location":"querystring",
+          "locationName":"checksum"
+        },
+        "InlineChunkChecksumAlgorithm":{
+          "shape":"string",
+          "documentation":"Inline chunk checksum algorithm",
+          "location":"querystring",
+          "locationName":"checksum-algorithm"
+        },
+        "ObjectChecksum":{
+          "shape":"string",
+          "documentation":"object checksum",
+          "location":"querystring",
+          "locationName":"object-checksum"
+        },
+        "ObjectChecksumAlgorithm":{
+          "shape":"SummaryChecksumAlgorithm",
+          "documentation":"object checksum algorithm",
+          "location":"querystring",
+          "locationName":"object-checksum-algorithm"
+        },
+        "ThrowOnDuplicate":{
+          "shape":"boolean",
+          "documentation":"Throw an exception if Object name is already exist.",
+          "location":"querystring",
+          "locationName":"throwOnDuplicate"
+        }
+      },
+      "payload":"InlineChunk"
+    },
+    "PutObjectOutput":{
+      "type":"structure",
+      "required":[
+        "InlineChunkChecksum",
+        "InlineChunkChecksumAlgorithm",
+        "ObjectChecksum",
+        "ObjectChecksumAlgorithm"
+      ],
+      "members":{
+        "InlineChunkChecksum":{
+          "shape":"string",
+          "documentation":"Inline chunk checksum"
+        },
+        "InlineChunkChecksumAlgorithm":{
+          "shape":"DataChecksumAlgorithm",
+          "documentation":"Inline chunk checksum algorithm"
+        },
+        "ObjectChecksum":{
+          "shape":"string",
+          "documentation":"object checksum"
+        },
+        "ObjectChecksumAlgorithm":{
+          "shape":"SummaryChecksumAlgorithm",
+          "documentation":"object checksum algorithm"
+        }
+      }
+    },
+    "ResourceNotFoundException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Non-retryable exception. Attempted to make an operation on non-existing or expired resource.",
+      "error":{"httpStatusCode":404},
+      "exception":true
+    },
+    "RetryableException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Retryable exception. In general indicates internal failure that can be fixed by retry.",
+      "error":{"httpStatusCode":500},
+      "exception":true
+    },
+    "ServiceErrorMessage":{"type":"string"},
+    "ServiceInternalException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Deprecated. To be removed from the model.",
+      "error":{"httpStatusCode":500},
+      "exception":true,
+      "fault":true
+    },
+    "ServiceUnavailableException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Retryable exception, indicates internal server error.",
+      "error":{"httpStatusCode":503},
+      "exception":true,
+      "fault":true
+    },
+    "StartObjectInput":{
+      "type":"structure",
+      "required":[
+        "BackupJobId",
+        "ObjectName"
+      ],
+      "members":{
+        "BackupJobId":{
+          "shape":"string",
+          "documentation":"Backup job Id for the in-progress backup",
+          "location":"uri",
+          "locationName":"jobId"
+        },
+        "ObjectName":{
+          "shape":"string",
+          "documentation":"Name for the object.",
+          "location":"uri",
+          "locationName":"objectName"
+        },
+        "ThrowOnDuplicate":{
+          "shape":"boolean",
+          "documentation":"Throw an exception if Object name is already exist."
+        }
+      }
+    },
+    "StartObjectOutput":{
+      "type":"structure",
+      "required":["UploadId"],
+      "members":{
+        "UploadId":{
+          "shape":"string",
+          "documentation":"Upload Id for a given upload."
+        }
+      }
+    },
+    "SummaryChecksumAlgorithm":{
+      "type":"string",
+      "enum":["SUMMARY"]
+    },
+    "ThrottlingException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"string"}
+      },
+      "documentation":"Increased rate over throttling limits. Can be retried with exponential backoff.",
+      "error":{"httpStatusCode":429},
+      "exception":true
+    },
+    "boolean":{"type":"boolean"},
+    "long":{"type":"long"},
+    "string":{"type":"string"},
+    "timestamp":{"type":"timestamp"}
+  },
+  "documentation":"The frontend service for Cryo Storage."
+}

@@ -10,7 +10,7 @@ class DockerApiClient:
 
         # Type: docker.DockerClient
         self._api_client: Optional[Any] = None
-        logger.debug(f"**-+-** DockerApiClient created")
+        logger.debug("**-+-** DockerApiClient created")
 
     def create_api_client(self) -> Optional[Any]:
         """Create a docker.DockerClient"""

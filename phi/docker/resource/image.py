@@ -81,7 +81,7 @@ class DockerImage(DockerResource):
             return f"{self.name}:{self.tag}"
         return f"{self.name}:latest"
 
-    def get_resource_name(self) -> Optional[str]:
+    def get_resource_name(self) -> str:
         return self.get_image_str()
 
     def build_image(self, docker_client: DockerApiClient) -> Optional[Any]:
@@ -297,7 +297,7 @@ class DockerImage(DockerResource):
                 logger.debug("Image found: {}".format(image_object))
                 self.active_resource = image_object
                 return image_object
-        except (NotFound, ImageNotFound) as not_found_err:
+        except (NotFound, ImageNotFound):
             logger.debug(f"Image {self.tag} not found")
 
         return None

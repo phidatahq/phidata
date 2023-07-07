@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import BaseSettings, validator
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 
 class WorkspaceSettings(BaseSettings):
@@ -47,8 +48,6 @@ class WorkspaceSettings(BaseSettings):
     dev_db_enabled: bool = False
     dev_grafana_enabled: bool = False
     dev_jupyter_enabled: bool = False
-    dev_mysql_enabled: bool = False
-    dev_postgres_enabled: bool = False
     dev_prometheus_enabled: bool = False
     dev_redis_enabled: bool = False
     dev_spark_enabled: bool = False
@@ -79,8 +78,6 @@ class WorkspaceSettings(BaseSettings):
     stg_db_enabled: bool = False
     stg_grafana_enabled: bool = False
     stg_jupyter_enabled: bool = False
-    stg_mysql_enabled: bool = False
-    stg_postgres_enabled: bool = False
     stg_prometheus_enabled: bool = False
     stg_redis_enabled: bool = False
     stg_spark_enabled: bool = False
@@ -112,8 +109,6 @@ class WorkspaceSettings(BaseSettings):
     prd_db_enabled: bool = False
     prd_grafana_enabled: bool = False
     prd_jupyter_enabled: bool = False
-    prd_mysql_enabled: bool = False
-    prd_postgres_enabled: bool = False
     prd_prometheus_enabled: bool = False
     prd_redis_enabled: bool = False
     prd_spark_enabled: bool = False
@@ -175,7 +170,7 @@ class WorkspaceSettings(BaseSettings):
     #
     use_cache: bool = True
 
-    @validator("dev_key", always=True)
+    @field_validator("dev_key", mode="before")
     def set_dev_key(cls, dev_key, values):
         if dev_key is not None:
             return dev_key
@@ -190,7 +185,7 @@ class WorkspaceSettings(BaseSettings):
 
         return f"{ws_name}-{dev_env}"
 
-    @validator("dev_tags", always=True)
+    @field_validator("dev_tags", mode="before")
     def set_dev_tags(cls, dev_tags, values):
         if dev_tags is not None:
             return dev_tags
@@ -208,7 +203,7 @@ class WorkspaceSettings(BaseSettings):
             "Project": ws_name,
         }
 
-    @validator("stg_key", always=True)
+    @field_validator("stg_key", mode="before")
     def set_stg_key(cls, stg_key, values):
         if stg_key is not None:
             return stg_key
@@ -223,7 +218,7 @@ class WorkspaceSettings(BaseSettings):
 
         return f"{ws_name}-{stg_env}"
 
-    @validator("stg_tags", always=True)
+    @field_validator("stg_tags", mode="before")
     def set_stg_tags(cls, stg_tags, values):
         if stg_tags is not None:
             return stg_tags
@@ -241,7 +236,7 @@ class WorkspaceSettings(BaseSettings):
             "Project": ws_name,
         }
 
-    @validator("prd_key", always=True)
+    @field_validator("prd_key", mode="before")
     def set_prd_key(cls, prd_key, values):
         if prd_key is not None:
             return prd_key
@@ -256,7 +251,7 @@ class WorkspaceSettings(BaseSettings):
 
         return f"{ws_name}-{prd_env}"
 
-    @validator("prd_tags", always=True)
+    @field_validator("prd_tags", mode="before")
     def set_prd_tags(cls, prd_tags, values):
         if prd_tags is not None:
             return prd_tags
@@ -274,7 +269,7 @@ class WorkspaceSettings(BaseSettings):
             "Project": ws_name,
         }
 
-    @validator("subnet_ids", always=True)
+    @field_validator("subnet_ids", mode="before")
     def set_subnet_ids(cls, subnet_ids, values):
         if subnet_ids is not None:
             return subnet_ids

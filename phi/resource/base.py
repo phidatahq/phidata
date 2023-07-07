@@ -56,15 +56,15 @@ class ResourceBase(PhiBase):
 
             workspace_dir = get_workspace_dir_from_env()
             if workspace_dir is not None:
-                if self.name is not None:
-                    _output_fn = f"{self.name}.json"
-                    resource_dir = self.resource_dir or self.resource_type
-                    return workspace_dir.joinpath("output", resource_dir, _output_fn)
+                if self.get_resource_name() is not None:
+                    _output_fn = f"{self.get_resource_name()}.json"
+                    output_dir = self.output_dir or self.get_resource_type()
+                    return workspace_dir.joinpath("output", output_dir, _output_fn)
 
-        if isinstance(self.self.output_file, str):
-            return Path(self.self.output_file)
-        elif isinstance(self.self.output_file, Path):
-            return self.resource_file
+        if isinstance(self.output_file, str):
+            return Path(self.output_file)
+        elif isinstance(self.output_file, Path):
+            return self.output_file
         return None
 
     def save_output_file(self) -> bool:
@@ -76,11 +76,11 @@ class ResourceBase(PhiBase):
                 if not output_file_path.exists():
                     output_file_path.parent.mkdir(parents=True, exist_ok=True)
                     output_file_path.touch(exist_ok=True)
-                write_json_file(output_file_path, self.active_resource)
+                write_json_file(output_file_path, self.cached_resource)
                 logger.info(f"Resource saved to: {str(output_file_path)}")
                 return True
             except Exception as e:
-                logger.error(f"Could not write {self.name} to file: {e}")
+                logger.error(f"Could not write {self.get_resource_name()} to file: {e}")
         return False
 
     def read_resource_from_file(self) -> Optional[Dict[str, Any]]:
@@ -95,13 +95,13 @@ class ResourceBase(PhiBase):
                         return data_from_file
                     else:
                         logger.warning(
-                            f"Could not read {self.name} from {output_file_path}"
+                            f"Could not read {self.get_resource_name()} from {output_file_path}"
                         )
             except Exception as e:
-                logger.error(f"Could not read {self.name} from file: {e}")
+                logger.error(f"Could not read {self.get_resource_name()} from file: {e}")
         return None
 
-    def delete_resource_file(self) -> bool:
+    def delete_output_file(self) -> bool:
         output_file_path: Optional[Path] = self.get_output_file_path()
         if output_file_path is not None:
             try:
@@ -128,7 +128,7 @@ class ResourceBase(PhiBase):
         return self.cached_secret_file_data
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self.get_resource_name())
 
     def __eq__(self, other):
         if isinstance(other, ResourceBase):

@@ -1,0 +1,2540 @@
+{
+  "version":"2.0",
+  "metadata":{
+    "apiVersion":"2021-08-17",
+    "endpointPrefix":"gamesparks",
+    "jsonVersion":"1.1",
+    "protocol":"rest-json",
+    "serviceFullName":"GameSparks",
+    "serviceId":"GameSparks",
+    "signatureVersion":"v4",
+    "signingName":"gamesparks",
+    "uid":"gamesparks-2021-08-17"
+  },
+  "operations":{
+    "CreateGame":{
+      "name":"CreateGame",
+      "http":{
+        "method":"POST",
+        "requestUri":"/game",
+        "responseCode":200
+      },
+      "input":{"shape":"CreateGameRequest"},
+      "output":{"shape":"CreateGameResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ServiceQuotaExceededException"}
+      ],
+      "documentation":"<p> Creates a new game with an empty configuration. After creating your game, you can update the configuration using <code>UpdateGameConfiguration</code> or <code>ImportGameConfiguration</code>. </p>",
+      "idempotent":true
+    },
+    "CreateSnapshot":{
+      "name":"CreateSnapshot",
+      "http":{
+        "method":"POST",
+        "requestUri":"/game/{GameName}/snapshot",
+        "responseCode":200
+      },
+      "input":{"shape":"CreateSnapshotRequest"},
+      "output":{"shape":"CreateSnapshotResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Creates a snapshot of the game configuration.</p>"
+    },
+    "CreateStage":{
+      "name":"CreateStage",
+      "http":{
+        "method":"POST",
+        "requestUri":"/game/{GameName}/stage",
+        "responseCode":200
+      },
+      "input":{"shape":"CreateStageRequest"},
+      "output":{"shape":"CreateStageResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Creates a new stage for stage-by-stage game development and deployment.</p>",
+      "idempotent":true
+    },
+    "DeleteGame":{
+      "name":"DeleteGame",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/game/{GameName}",
+        "responseCode":200
+      },
+      "input":{"shape":"DeleteGameRequest"},
+      "output":{"shape":"DeleteGameResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deletes a game.</p>",
+      "idempotent":true
+    },
+    "DeleteStage":{
+      "name":"DeleteStage",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/game/{GameName}/stage/{StageName}",
+        "responseCode":200
+      },
+      "input":{"shape":"DeleteStageRequest"},
+      "output":{"shape":"DeleteStageResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deletes a stage from a game, along with the associated game runtime.</p>",
+      "idempotent":true
+    },
+    "DisconnectPlayer":{
+      "name":"DisconnectPlayer",
+      "http":{
+        "method":"POST",
+        "requestUri":"/runtime/game/{GameName}/stage/{StageName}/player/{PlayerId}/disconnect",
+        "responseCode":200
+      },
+      "input":{"shape":"DisconnectPlayerRequest"},
+      "output":{"shape":"DisconnectPlayerResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Disconnects a player from the game runtime.</p> <p> If a player has multiple connections, this operation attempts to close all of them. </p>",
+      "idempotent":true
+    },
+    "ExportSnapshot":{
+      "name":"ExportSnapshot",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/snapshot/{SnapshotId}/export",
+        "responseCode":200
+      },
+      "input":{"shape":"ExportSnapshotRequest"},
+      "output":{"shape":"ExportSnapshotResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Exports a game configuration snapshot.</p>"
+    },
+    "GetExtension":{
+      "name":"GetExtension",
+      "http":{
+        "method":"GET",
+        "requestUri":"/extension/{Namespace}/{Name}",
+        "responseCode":200
+      },
+      "input":{"shape":"GetExtensionRequest"},
+      "output":{"shape":"GetExtensionResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets details about a specified extension.</p>"
+    },
+    "GetExtensionVersion":{
+      "name":"GetExtensionVersion",
+      "http":{
+        "method":"GET",
+        "requestUri":"/extension/{Namespace}/{Name}/version/{ExtensionVersion}",
+        "responseCode":200
+      },
+      "input":{"shape":"GetExtensionVersionRequest"},
+      "output":{"shape":"GetExtensionVersionResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets details about a specified extension version.</p>"
+    },
+    "GetGame":{
+      "name":"GetGame",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}",
+        "responseCode":200
+      },
+      "input":{"shape":"GetGameRequest"},
+      "output":{"shape":"GetGameResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets details about a game.</p>"
+    },
+    "GetGameConfiguration":{
+      "name":"GetGameConfiguration",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/configuration",
+        "responseCode":200
+      },
+      "input":{"shape":"GetGameConfigurationRequest"},
+      "output":{"shape":"GetGameConfigurationResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets the configuration of the game.</p>"
+    },
+    "GetGeneratedCodeJob":{
+      "name":"GetGeneratedCodeJob",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/snapshot/{SnapshotId}/generated-sdk-code-job/{JobId}",
+        "responseCode":200
+      },
+      "input":{"shape":"GetGeneratedCodeJobRequest"},
+      "output":{"shape":"GetGeneratedCodeJobResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets details about a job that is generating code for a snapshot.</p>"
+    },
+    "GetPlayerConnectionStatus":{
+      "name":"GetPlayerConnectionStatus",
+      "http":{
+        "method":"GET",
+        "requestUri":"/runtime/game/{GameName}/stage/{StageName}/player/{PlayerId}/connection",
+        "responseCode":200
+      },
+      "input":{"shape":"GetPlayerConnectionStatusRequest"},
+      "output":{"shape":"GetPlayerConnectionStatusResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets the status of a player's connection to the game runtime.</p> <p> It's possible for a single player to have multiple connections to the game runtime. If a player is not connected, this operation returns an empty list. </p>"
+    },
+    "GetSnapshot":{
+      "name":"GetSnapshot",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/snapshot/{SnapshotId}",
+        "responseCode":200
+      },
+      "input":{"shape":"GetSnapshotRequest"},
+      "output":{"shape":"GetSnapshotResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a copy of the game configuration in a snapshot.</p>"
+    },
+    "GetStage":{
+      "name":"GetStage",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/stage/{StageName}",
+        "responseCode":200
+      },
+      "input":{"shape":"GetStageRequest"},
+      "output":{"shape":"GetStageResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets information about a stage.</p>"
+    },
+    "GetStageDeployment":{
+      "name":"GetStageDeployment",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/stage/{StageName}/deployment",
+        "responseCode":200
+      },
+      "input":{"shape":"GetStageDeploymentRequest"},
+      "output":{"shape":"GetStageDeploymentResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets information about a stage deployment.</p>"
+    },
+    "ImportGameConfiguration":{
+      "name":"ImportGameConfiguration",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/game/{GameName}/configuration",
+        "responseCode":200
+      },
+      "input":{"shape":"ImportGameConfigurationRequest"},
+      "output":{"shape":"ImportGameConfigurationResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ServiceQuotaExceededException"}
+      ],
+      "documentation":"<p>Imports a game configuration.</p> <p> This operation replaces the current configuration of the game with the provided input. This is not a reversible operation. If you want to preserve the previous configuration, use <code>CreateSnapshot</code> to make a new snapshot before importing. </p>",
+      "idempotent":true
+    },
+    "ListExtensionVersions":{
+      "name":"ListExtensionVersions",
+      "http":{
+        "method":"GET",
+        "requestUri":"/extension/{Namespace}/{Name}/version",
+        "responseCode":200
+      },
+      "input":{"shape":"ListExtensionVersionsRequest"},
+      "output":{"shape":"ListExtensionVersionsResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of available versions for the extension.</p> <p> Each time an API change is made to an extension, the version is incremented. The list retrieved by this operation shows the versions that are currently available. </p>"
+    },
+    "ListExtensions":{
+      "name":"ListExtensions",
+      "http":{
+        "method":"GET",
+        "requestUri":"/extension",
+        "responseCode":200
+      },
+      "input":{"shape":"ListExtensionsRequest"},
+      "output":{"shape":"ListExtensionsResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of available extensions.</p> <p> Extensions provide features that games can use from scripts. </p>"
+    },
+    "ListGames":{
+      "name":"ListGames",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game",
+        "responseCode":200
+      },
+      "input":{"shape":"ListGamesRequest"},
+      "output":{"shape":"ListGamesResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of games.</p>"
+    },
+    "ListGeneratedCodeJobs":{
+      "name":"ListGeneratedCodeJobs",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/snapshot/{SnapshotId}/generated-sdk-code-jobs",
+        "responseCode":200
+      },
+      "input":{"shape":"ListGeneratedCodeJobsRequest"},
+      "output":{"shape":"ListGeneratedCodeJobsResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of code generation jobs for a snapshot.</p>"
+    },
+    "ListSnapshots":{
+      "name":"ListSnapshots",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/snapshot",
+        "responseCode":200
+      },
+      "input":{"shape":"ListSnapshotsRequest"},
+      "output":{"shape":"ListSnapshotsResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of snapshot summaries from the game.</p>"
+    },
+    "ListStageDeployments":{
+      "name":"ListStageDeployments",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/stage/{StageName}/deployments",
+        "responseCode":200
+      },
+      "input":{"shape":"ListStageDeploymentsRequest"},
+      "output":{"shape":"ListStageDeploymentsResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of stage deployment summaries from the game.</p>"
+    },
+    "ListStages":{
+      "name":"ListStages",
+      "http":{
+        "method":"GET",
+        "requestUri":"/game/{GameName}/stage",
+        "responseCode":200
+      },
+      "input":{"shape":"ListStagesRequest"},
+      "output":{"shape":"ListStagesResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Gets a paginated list of stage summaries from the game.</p>"
+    },
+    "ListTagsForResource":{
+      "name":"ListTagsForResource",
+      "http":{
+        "method":"GET",
+        "requestUri":"/tags/{ResourceArn}",
+        "responseCode":200
+      },
+      "input":{"shape":"ListTagsForResourceRequest"},
+      "output":{"shape":"ListTagsForResourceResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists the tags associated with a GameSparks resource.</p>"
+    },
+    "StartGeneratedCodeJob":{
+      "name":"StartGeneratedCodeJob",
+      "http":{
+        "method":"POST",
+        "requestUri":"/game/{GameName}/snapshot/{SnapshotId}/generated-sdk-code-job",
+        "responseCode":200
+      },
+      "input":{"shape":"StartGeneratedCodeJobRequest"},
+      "output":{"shape":"StartGeneratedCodeJobResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p> Starts an asynchronous process that generates client code for system-defined and custom messages. The resulting code is collected as a .zip file and uploaded to a pre-signed Amazon S3 URL. </p>"
+    },
+    "StartStageDeployment":{
+      "name":"StartStageDeployment",
+      "http":{
+        "method":"POST",
+        "requestUri":"/game/{GameName}/stage/{StageName}/deployment",
+        "responseCode":200
+      },
+      "input":{"shape":"StartStageDeploymentRequest"},
+      "output":{"shape":"StartStageDeploymentResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deploys a snapshot to the stage and creates a new game runtime.</p> <p> After you call this operation, you can check the deployment status by using <code>GetStageDeployment</code>. </p> <p> If there are any players connected to the previous game runtime, then both runtimes persist. Existing connections to the previous runtime are maintained. When players disconnect and reconnect, they connect to the new runtime. After there are no connections to the previous game runtime, it is deleted. </p>",
+      "idempotent":true
+    },
+    "TagResource":{
+      "name":"TagResource",
+      "http":{
+        "method":"POST",
+        "requestUri":"/tags/{ResourceArn}",
+        "responseCode":200
+      },
+      "input":{"shape":"TagResourceRequest"},
+      "output":{"shape":"TagResourceResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Adds tags to a GameSparks resource.</p>"
+    },
+    "UntagResource":{
+      "name":"UntagResource",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/tags/{ResourceArn}",
+        "responseCode":200
+      },
+      "input":{"shape":"UntagResourceRequest"},
+      "output":{"shape":"UntagResourceResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Removes tags from a GameSparks resource.</p>",
+      "idempotent":true
+    },
+    "UpdateGame":{
+      "name":"UpdateGame",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/game/{GameName}",
+        "responseCode":200
+      },
+      "input":{"shape":"UpdateGameRequest"},
+      "output":{"shape":"UpdateGameResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Updates details of the game.</p>",
+      "idempotent":true
+    },
+    "UpdateGameConfiguration":{
+      "name":"UpdateGameConfiguration",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/game/{GameName}/configuration",
+        "responseCode":200
+      },
+      "input":{"shape":"UpdateGameConfigurationRequest"},
+      "output":{"shape":"UpdateGameConfigurationResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ServiceQuotaExceededException"}
+      ],
+      "documentation":"<p>Updates one or more sections of the game configuration.</p>",
+      "idempotent":true
+    },
+    "UpdateSnapshot":{
+      "name":"UpdateSnapshot",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/game/{GameName}/snapshot/{SnapshotId}",
+        "responseCode":200
+      },
+      "input":{"shape":"UpdateSnapshotRequest"},
+      "output":{"shape":"UpdateSnapshotResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Updates the metadata of a GameSparks snapshot.</p>",
+      "idempotent":true
+    },
+    "UpdateStage":{
+      "name":"UpdateStage",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/game/{GameName}/stage/{StageName}",
+        "responseCode":200
+      },
+      "input":{"shape":"UpdateStageRequest"},
+      "output":{"shape":"UpdateStageResult"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Updates the metadata of a stage.</p>",
+      "idempotent":true
+    }
+  },
+  "shapes":{
+    "ARN":{
+      "type":"string",
+      "max":2048,
+      "min":20,
+      "pattern":"^[A-Za-z0-9:_/-]+$"
+    },
+    "AccessDeniedException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>You do not have sufficient access to perform this action.</p>",
+      "error":{
+        "httpStatusCode":403,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "ByteSize":{
+      "type":"integer",
+      "min":0
+    },
+    "ClientToken":{
+      "type":"string",
+      "max":126,
+      "min":33
+    },
+    "ConflictException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>The resource already exists, or another operation is in progress.</p>",
+      "error":{
+        "httpStatusCode":409,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "Connection":{
+      "type":"structure",
+      "members":{
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The date and time when the connection was created.</p>"
+        },
+        "Id":{
+          "shape":"ConnectionId",
+          "documentation":"<p>The identifier used to indicate a specific WebSocket connection.</p>"
+        }
+      },
+      "documentation":"<p>Details about a WebSocket connection.</p>"
+    },
+    "ConnectionId":{
+      "type":"string",
+      "max":36,
+      "min":1
+    },
+    "ConnectionIdList":{
+      "type":"list",
+      "member":{"shape":"ConnectionId"}
+    },
+    "ConnectionList":{
+      "type":"list",
+      "member":{"shape":"Connection"}
+    },
+    "CreateGameRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "ClientToken":{
+          "shape":"ClientToken",
+          "documentation":"<p> A client-defined token. With an active client token in the request, this action is idempotent. </p>"
+        },
+        "Description":{
+          "shape":"GameDescription",
+          "documentation":"<p>The description of the game.</p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The list of tags to apply to the game.</p>"
+        }
+      }
+    },
+    "CreateGameResult":{
+      "type":"structure",
+      "members":{
+        "Game":{
+          "shape":"GameDetails",
+          "documentation":"<p>Details about the game that was created.</p>"
+        }
+      }
+    },
+    "CreateSnapshotRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "Description":{
+          "shape":"SnapshotDescription",
+          "documentation":"<p>The description of the snapshot.</p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        }
+      }
+    },
+    "CreateSnapshotResult":{
+      "type":"structure",
+      "members":{
+        "Snapshot":{
+          "shape":"SnapshotDetails",
+          "documentation":"<p>Properties that provide details of the created snapshot.</p>"
+        }
+      }
+    },
+    "CreateStageRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "Role",
+        "StageName"
+      ],
+      "members":{
+        "ClientToken":{
+          "shape":"ClientToken",
+          "documentation":"<p> A client-defined token. With an active client token in the request, this action is idempotent. </p>"
+        },
+        "Description":{
+          "shape":"StageDescription",
+          "documentation":"<p>The description of the stage.</p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "Role":{
+          "shape":"RoleARN",
+          "documentation":"<p> The Amazon Resource Name (ARN) of the role to run the game with. This role can be a game-defined role or the default role that GameSparks created. </p>"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The list of tags to apply to the stage.</p>"
+        }
+      }
+    },
+    "CreateStageResult":{
+      "type":"structure",
+      "members":{
+        "Stage":{
+          "shape":"StageDetails",
+          "documentation":"<p>Properties that describe the stage.</p>"
+        }
+      }
+    },
+    "DateTime":{
+      "type":"timestamp",
+      "timestampFormat":"iso8601"
+    },
+    "DeleteGameRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game to delete.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        }
+      }
+    },
+    "DeleteGameResult":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "DeleteStageRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "StageName"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage to delete.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "DeleteStageResult":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "DeploymentAction":{
+      "type":"string",
+      "enum":[
+        "DEPLOY",
+        "UNDEPLOY"
+      ]
+    },
+    "DeploymentId":{
+      "type":"string",
+      "max":128,
+      "min":1,
+      "pattern":"^\\S(.*\\S)?$"
+    },
+    "DeploymentResult":{
+      "type":"structure",
+      "members":{
+        "Message":{
+          "shape":"Message",
+          "documentation":"<p>Details about the deployment result.</p>"
+        },
+        "ResultCode":{
+          "shape":"ResultCode",
+          "documentation":"<p>The type of deployment result.</p>"
+        }
+      },
+      "documentation":"<p>The result of the deployment.</p>"
+    },
+    "DeploymentState":{
+      "type":"string",
+      "enum":[
+        "PENDING",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED"
+      ]
+    },
+    "DisconnectPlayerRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "PlayerId",
+        "StageName"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "PlayerId":{
+          "shape":"PlayerId",
+          "documentation":"<p>The unique identifier representing a player.</p>",
+          "location":"uri",
+          "locationName":"PlayerId"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "DisconnectPlayerResult":{
+      "type":"structure",
+      "members":{
+        "DisconnectFailures":{
+          "shape":"ConnectionIdList",
+          "documentation":"<p>The list of the connection ids that could not be disconnected.</p>"
+        },
+        "DisconnectSuccesses":{
+          "shape":"ConnectionIdList",
+          "documentation":"<p>The list of the connection ids that were disconnected.</p>"
+        }
+      }
+    },
+    "Document":{
+      "type":"structure",
+      "members":{
+      },
+      "documentation":"<p/>",
+      "document":true
+    },
+    "ExceptionMessage":{"type":"string"},
+    "ExportSnapshotRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "SnapshotId"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot to export.</p>",
+          "location":"uri",
+          "locationName":"SnapshotId"
+        }
+      }
+    },
+    "ExportSnapshotResult":{
+      "type":"structure",
+      "members":{
+        "S3Url":{
+          "shape":"S3PresignedUrl",
+          "documentation":"<p>The presigned URL for the snapshot data.</p> <p> This URL will be available for 10 minutes, and can be used to download the snapshot content. If the URL expires, a new one can be requested using the same operation. </p>"
+        }
+      }
+    },
+    "ExtensionDescription":{
+      "type":"string",
+      "max":250,
+      "min":0,
+      "pattern":"^\\S(.*\\S)?$|^$"
+    },
+    "ExtensionDetails":{
+      "type":"structure",
+      "members":{
+        "Description":{
+          "shape":"ExtensionDescription",
+          "documentation":"<p>The description of the extension.</p>"
+        },
+        "Name":{
+          "shape":"ExtensionName",
+          "documentation":"<p>The name of the extension.</p>"
+        },
+        "Namespace":{
+          "shape":"ExtensionNamespace",
+          "documentation":"<p>The namespace (qualifier) of the extension.</p>"
+        }
+      },
+      "documentation":"<p>Details about the extension.</p>"
+    },
+    "ExtensionDetailsList":{
+      "type":"list",
+      "member":{"shape":"ExtensionDetails"}
+    },
+    "ExtensionName":{
+      "type":"string",
+      "max":36,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9_-]+$"
+    },
+    "ExtensionNamespace":{
+      "type":"string",
+      "max":36,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9_-]+$"
+    },
+    "ExtensionVersion":{
+      "type":"string",
+      "max":20,
+      "min":0
+    },
+    "ExtensionVersionDetails":{
+      "type":"structure",
+      "members":{
+        "Name":{
+          "shape":"ExtensionName",
+          "documentation":"<p>The name of the extension.</p>"
+        },
+        "Namespace":{
+          "shape":"ExtensionNamespace",
+          "documentation":"<p>The namespace (qualifier) of the extension.</p>"
+        },
+        "Schema":{
+          "shape":"ExtensionVersionSchema",
+          "documentation":"<p>The model that defines the interface for this extension version.</p>"
+        },
+        "Version":{
+          "shape":"ExtensionVersion",
+          "documentation":"<p>The version of the extension.</p>"
+        }
+      },
+      "documentation":"<p>Details about the extension version.</p>"
+    },
+    "ExtensionVersionDetailsList":{
+      "type":"list",
+      "member":{"shape":"ExtensionVersionDetails"}
+    },
+    "ExtensionVersionSchema":{
+      "type":"string",
+      "max":2048,
+      "min":0
+    },
+    "GameConfigurationDetails":{
+      "type":"structure",
+      "members":{
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The date when the game was created.</p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>The date when the game was last modified.</p>"
+        },
+        "Sections":{
+          "shape":"Sections",
+          "documentation":"<p>Configuration data, organized by section name.</p>"
+        }
+      },
+      "documentation":"<p>Details about the game configuration.</p> <p> The game configuration is organized into named sections, where the schema of each section is defined by an extension. The schema for these sections can be retrieved using the <code>GetExtensionVersion</code> operation. </p>"
+    },
+    "GameDescription":{
+      "type":"string",
+      "max":250,
+      "min":0,
+      "pattern":"^\\S(.*\\S)?$|^$"
+    },
+    "GameDetails":{
+      "type":"structure",
+      "members":{
+        "Arn":{
+          "shape":"ARN",
+          "documentation":"<p>The Amazon Resource Name (ARN) of this game.</p>"
+        },
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The date when the game was created.</p>"
+        },
+        "Description":{
+          "shape":"GameDescription",
+          "documentation":"<p>The description of the game.</p>"
+        },
+        "EnableTerminationProtection":{
+          "shape":"GameTerminationProtection",
+          "documentation":"<p>Determines if the game can be deleted.</p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>The date when the game was last modified.</p>"
+        },
+        "Name":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>"
+        },
+        "State":{
+          "shape":"GameState",
+          "documentation":"<p>The state of the game.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags associated with the game.</p>"
+        }
+      },
+      "documentation":"<p>Details about a game.</p>"
+    },
+    "GameKey":{
+      "type":"string",
+      "max":44,
+      "min":1
+    },
+    "GameName":{
+      "type":"string",
+      "max":36,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9_-]+$"
+    },
+    "GameSdkVersion":{
+      "type":"string",
+      "max":10,
+      "min":5,
+      "pattern":"^((\\d|[1-9]\\d*)\\.(\\d|[0-9]\\d*)\\.(\\d|[0-9]\\d*)|LATEST)$"
+    },
+    "GameState":{
+      "type":"string",
+      "enum":[
+        "ACTIVE",
+        "DELETING"
+      ]
+    },
+    "GameSummary":{
+      "type":"structure",
+      "members":{
+        "Description":{
+          "shape":"GameDescription",
+          "documentation":"<p>The description of the game.</p>"
+        },
+        "Name":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>"
+        },
+        "State":{
+          "shape":"GameState",
+          "documentation":"<p>The state of the game.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags associated with the game.</p>"
+        }
+      },
+      "documentation":"<p>The summary of the properties of a game.</p>"
+    },
+    "GameSummaryList":{
+      "type":"list",
+      "member":{"shape":"GameSummary"}
+    },
+    "GameTerminationProtection":{"type":"boolean"},
+    "GeneratedCodeJobDescription":{
+      "type":"string",
+      "max":250,
+      "min":0,
+      "pattern":"^\\S(.*\\S)?$|^$"
+    },
+    "GeneratedCodeJobDetails":{
+      "type":"structure",
+      "members":{
+        "Description":{
+          "shape":"GeneratedCodeJobDescription",
+          "documentation":"<p>The description of the generated code job.</p>"
+        },
+        "ExpirationTime":{
+          "shape":"DateTime",
+          "documentation":"<p>The expiration date and time for the download URL.</p> <p> The download URL us guaranteed to be available until at least this time. </p>"
+        },
+        "GeneratedCodeJobId":{
+          "shape":"GeneratedCodeJobId",
+          "documentation":"<p>The identifier for the generated code job.</p>"
+        },
+        "S3Url":{
+          "shape":"S3PresignedUrl",
+          "documentation":"<p>A presigned URL that can be used to download the generated code.</p>"
+        },
+        "Status":{
+          "shape":"GeneratedCodeJobState",
+          "documentation":"<p>The status of the generated code job</p>"
+        }
+      },
+      "documentation":"<p>Details about a generated code job.</p>"
+    },
+    "GeneratedCodeJobDetailsList":{
+      "type":"list",
+      "member":{"shape":"GeneratedCodeJobDetails"}
+    },
+    "GeneratedCodeJobId":{
+      "type":"string",
+      "pattern":"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+    },
+    "GeneratedCodeJobState":{
+      "type":"string",
+      "enum":[
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED",
+        "PENDING"
+      ]
+    },
+    "Generator":{
+      "type":"structure",
+      "members":{
+        "GameSdkVersion":{
+          "shape":"GameSdkVersion",
+          "documentation":"<p>The target version of the GameSparks Game SDK.</p>"
+        },
+        "Language":{
+          "shape":"Language",
+          "documentation":"<p>The programming language for the generated code.</p> <p> Not all languages are supported for each platform. For cases where multiple languages are supported, this parameter specifies the language to be used. If this value is omitted, the default language for the target platform will be used. </p>"
+        },
+        "TargetPlatform":{
+          "shape":"TargetPlatform",
+          "documentation":"<p>The platform that will be used to run the generated code.</p>"
+        }
+      },
+      "documentation":"<p>Properties that specify the code generator for a generated code job.</p>"
+    },
+    "GetExtensionRequest":{
+      "type":"structure",
+      "required":[
+        "Name",
+        "Namespace"
+      ],
+      "members":{
+        "Name":{
+          "shape":"ExtensionName",
+          "documentation":"<p>The name of the extension.</p>",
+          "location":"uri",
+          "locationName":"Name"
+        },
+        "Namespace":{
+          "shape":"ExtensionNamespace",
+          "documentation":"<p>The namespace (qualifier) of the extension.</p>",
+          "location":"uri",
+          "locationName":"Namespace"
+        }
+      }
+    },
+    "GetExtensionResult":{
+      "type":"structure",
+      "members":{
+        "Extension":{
+          "shape":"ExtensionDetails",
+          "documentation":"<p>Details about the extension.</p>"
+        }
+      }
+    },
+    "GetExtensionVersionRequest":{
+      "type":"structure",
+      "required":[
+        "ExtensionVersion",
+        "Name",
+        "Namespace"
+      ],
+      "members":{
+        "ExtensionVersion":{
+          "shape":"ExtensionVersion",
+          "documentation":"<p>The version of the extension.</p>",
+          "location":"uri",
+          "locationName":"ExtensionVersion"
+        },
+        "Name":{
+          "shape":"ExtensionName",
+          "documentation":"<p>The name of the extension.</p>",
+          "location":"uri",
+          "locationName":"Name"
+        },
+        "Namespace":{
+          "shape":"ExtensionNamespace",
+          "documentation":"<p>The namespace (qualifier) of the extension.</p>",
+          "location":"uri",
+          "locationName":"Namespace"
+        }
+      }
+    },
+    "GetExtensionVersionResult":{
+      "type":"structure",
+      "members":{
+        "ExtensionVersion":{
+          "shape":"ExtensionVersionDetails",
+          "documentation":"<p>The version of the extension.</p>"
+        }
+      }
+    },
+    "GetGameConfigurationRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "Sections":{
+          "shape":"SectionList",
+          "documentation":"<p>The list of sections to return.</p>",
+          "location":"querystring",
+          "locationName":"Sections"
+        }
+      }
+    },
+    "GetGameConfigurationResult":{
+      "type":"structure",
+      "members":{
+        "GameConfiguration":{
+          "shape":"GameConfigurationDetails",
+          "documentation":"<p>Details about the game configuration.</p>"
+        }
+      }
+    },
+    "GetGameRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        }
+      }
+    },
+    "GetGameResult":{
+      "type":"structure",
+      "members":{
+        "Game":{
+          "shape":"GameDetails",
+          "documentation":"<p>The details of the game.</p>"
+        }
+      }
+    },
+    "GetGeneratedCodeJobRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "JobId",
+        "SnapshotId"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "JobId":{
+          "shape":"GeneratedCodeJobId",
+          "documentation":"<p>The identifier of the code generation job.</p>",
+          "location":"uri",
+          "locationName":"JobId"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot for the code generation job.</p>",
+          "location":"uri",
+          "locationName":"SnapshotId"
+        }
+      }
+    },
+    "GetGeneratedCodeJobResult":{
+      "type":"structure",
+      "members":{
+        "GeneratedCodeJob":{
+          "shape":"GeneratedCodeJobDetails",
+          "documentation":"<p>Details about the generated code job.</p>"
+        }
+      }
+    },
+    "GetPlayerConnectionStatusRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "PlayerId",
+        "StageName"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "PlayerId":{
+          "shape":"PlayerId",
+          "documentation":"<p>The unique identifier representing a player.</p>",
+          "location":"uri",
+          "locationName":"PlayerId"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "GetPlayerConnectionStatusResult":{
+      "type":"structure",
+      "members":{
+        "Connections":{
+          "shape":"ConnectionList",
+          "documentation":"<p>The list of connection ids, one for each connection in use by the player.</p>"
+        }
+      }
+    },
+    "GetSnapshotRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "SnapshotId"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "Sections":{
+          "shape":"SectionList",
+          "documentation":"<p>The list of game configuration sections to be described.</p>",
+          "location":"querystring",
+          "locationName":"Sections"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot.</p>",
+          "location":"uri",
+          "locationName":"SnapshotId"
+        }
+      }
+    },
+    "GetSnapshotResult":{
+      "type":"structure",
+      "members":{
+        "Snapshot":{
+          "shape":"SnapshotDetails",
+          "documentation":"<p>Properties that provide details of the snapshot.</p>"
+        }
+      }
+    },
+    "GetStageDeploymentRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "StageName"
+      ],
+      "members":{
+        "DeploymentId":{
+          "shape":"DeploymentId",
+          "documentation":"<p> The identifier of the stage deployment. <code>StartStageDeployment</code> returns the identifier that you use here. </p>",
+          "location":"querystring",
+          "locationName":"DeploymentId"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "GetStageDeploymentResult":{
+      "type":"structure",
+      "members":{
+        "StageDeployment":{
+          "shape":"StageDeploymentDetails",
+          "documentation":"<p>Properties that provide details of the stage deployment.</p>"
+        }
+      }
+    },
+    "GetStageRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "StageName"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "GetStageResult":{
+      "type":"structure",
+      "members":{
+        "Stage":{
+          "shape":"StageDetails",
+          "documentation":"<p>Properties that provide details of the stage.</p>"
+        }
+      }
+    },
+    "ImportGameConfigurationRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "ImportSource"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "ImportSource":{
+          "shape":"ImportGameConfigurationSource",
+          "documentation":"<p>The source used to import configuration sections.</p>"
+        }
+      }
+    },
+    "ImportGameConfigurationResult":{
+      "type":"structure",
+      "members":{
+        "GameConfiguration":{
+          "shape":"GameConfigurationDetails",
+          "documentation":"<p>Details about the game configuration.</p>"
+        }
+      }
+    },
+    "ImportGameConfigurationSource":{
+      "type":"structure",
+      "required":["File"],
+      "members":{
+        "File":{
+          "shape":"RawGameConfigurationData",
+          "documentation":"<p>The JSON string containing the configuration sections.</p>"
+        }
+      },
+      "documentation":"<p>The source used to import configuration sections.</p>"
+    },
+    "InternalServerException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>The service encountered an internal error.</p>",
+      "error":{"httpStatusCode":500},
+      "exception":true,
+      "fault":true
+    },
+    "Language":{
+      "type":"string",
+      "max":16,
+      "min":1,
+      "pattern":"^[a-zA-Z_]+$"
+    },
+    "ListExtensionVersionsRequest":{
+      "type":"structure",
+      "required":[
+        "Name",
+        "Namespace"
+      ],
+      "members":{
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "Name":{
+          "shape":"ExtensionName",
+          "documentation":"<p>The name of the extension.</p>",
+          "location":"uri",
+          "locationName":"Name"
+        },
+        "Namespace":{
+          "shape":"ExtensionNamespace",
+          "documentation":"<p>The namespace (qualifier) of the extension.</p>",
+          "location":"uri",
+          "locationName":"Namespace"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        }
+      }
+    },
+    "ListExtensionVersionsResult":{
+      "type":"structure",
+      "members":{
+        "ExtensionVersions":{
+          "shape":"ExtensionVersionDetailsList",
+          "documentation":"<p>The list of extension versions.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        }
+      }
+    },
+    "ListExtensionsRequest":{
+      "type":"structure",
+      "members":{
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        }
+      }
+    },
+    "ListExtensionsResult":{
+      "type":"structure",
+      "members":{
+        "Extensions":{
+          "shape":"ExtensionDetailsList",
+          "documentation":"<p>The list of extensions.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        }
+      }
+    },
+    "ListGamesRequest":{
+      "type":"structure",
+      "members":{
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        }
+      }
+    },
+    "ListGamesResult":{
+      "type":"structure",
+      "members":{
+        "Games":{
+          "shape":"GameSummaryList",
+          "documentation":"<p>The list of games.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        }
+      }
+    },
+    "ListGeneratedCodeJobsRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "SnapshotId"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot.</p>",
+          "location":"uri",
+          "locationName":"SnapshotId"
+        }
+      }
+    },
+    "ListGeneratedCodeJobsResult":{
+      "type":"structure",
+      "members":{
+        "GeneratedCodeJobs":{
+          "shape":"GeneratedCodeJobDetailsList",
+          "documentation":"<p>The list of generated code jobs.</p>"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        }
+      }
+    },
+    "ListSnapshotsRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        }
+      }
+    },
+    "ListSnapshotsResult":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        },
+        "Snapshots":{
+          "shape":"SnapshotSummaryList",
+          "documentation":"<p> A list of snapshot summaries. You can use the returned snapshot IDs in the <code>UpdateSnapshot</code> and <code>GetSnapshot</code> operations. </p>"
+        }
+      }
+    },
+    "ListStageDeploymentsRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "StageName"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "ListStageDeploymentsResult":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        },
+        "StageDeployments":{
+          "shape":"StageDeploymentList",
+          "documentation":"<p> A list of stage deployment summaries. You can use the deployment IDs in the <code>UpdateStageDeployment</code> and <code>GetStageDeployment</code> actions. </p>"
+        }
+      }
+    },
+    "ListStagesRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "MaxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>The maximum number of results to return.</p> <p> Use this parameter with NextToken to get results as a set of sequential pages. </p>",
+          "location":"querystring",
+          "locationName":"MaxResults"
+        },
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use the token that is returned with a previous call to this operation. To start at the beginning of the result set, do not specify a value. </p>",
+          "location":"querystring",
+          "locationName":"NextToken"
+        }
+      }
+    },
+    "ListStagesResult":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"NextToken",
+          "documentation":"<p>The token that indicates the start of the next sequential page of results.</p> <p> Use this value when making the next call to this operation to continue where the last one finished. </p>"
+        },
+        "Stages":{
+          "shape":"StageSummaryList",
+          "documentation":"<p> A list of stage summaries. You can use the stage names in the <code>UpdateStage</code> and <code>GetStage</code> actions. </p>"
+        }
+      }
+    },
+    "ListTagsForResourceRequest":{
+      "type":"structure",
+      "required":["ResourceArn"],
+      "members":{
+        "ResourceArn":{
+          "shape":"ResourceArn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the GameSparks resource.</p>",
+          "location":"uri",
+          "locationName":"ResourceArn"
+        }
+      }
+    },
+    "ListTagsForResourceResult":{
+      "type":"structure",
+      "members":{
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags associated with the resource.</p>"
+        }
+      }
+    },
+    "LogGroupName":{
+      "type":"string",
+      "max":512,
+      "min":1
+    },
+    "MaxResults":{
+      "type":"integer",
+      "box":true,
+      "max":100,
+      "min":1
+    },
+    "Message":{"type":"string"},
+    "NextToken":{
+      "type":"string",
+      "max":1024,
+      "min":1,
+      "pattern":"^\\S(.*\\S)?$"
+    },
+    "Operation":{
+      "type":"string",
+      "enum":[
+        "ADD",
+        "REMOVE",
+        "REPLACE"
+      ]
+    },
+    "Path":{
+      "type":"string",
+      "max":500,
+      "min":1,
+      "pattern":"^\\/.*[^\\/]$"
+    },
+    "PlayerId":{
+      "type":"string",
+      "max":44,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9_-]+$"
+    },
+    "RawGameConfigurationData":{
+      "type":"blob",
+      "max":1024000,
+      "min":10
+    },
+    "ResourceArn":{
+      "type":"string",
+      "max":2048,
+      "min":20,
+      "pattern":"^arn:aws:gamesparks:"
+    },
+    "ResourceNotFoundException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>The resource specified in the request does not exist.</p>",
+      "error":{
+        "httpStatusCode":404,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "ResultCode":{
+      "type":"string",
+      "enum":[
+        "SUCCESS",
+        "INVALID_ROLE_FAILURE",
+        "UNSPECIFIED_FAILURE"
+      ]
+    },
+    "RoleARN":{
+      "type":"string",
+      "max":2048,
+      "min":20,
+      "pattern":"^arn:(aws[a-zA-Z-]*)?:iam::\\d{12}:role/.+$"
+    },
+    "S3PresignedUrl":{
+      "type":"string",
+      "max":2048,
+      "min":10,
+      "pattern":"^https:\\/\\/(.*)\\.s3(.*)\\.amazonaws\\.com\\/(.*)$"
+    },
+    "Section":{
+      "type":"structure",
+      "members":{
+        "Attributes":{
+          "shape":"Document",
+          "documentation":"<p>The content of a configuration section.</p>"
+        },
+        "Name":{
+          "shape":"SectionName",
+          "documentation":"<p>The name of the section.</p>"
+        },
+        "Size":{
+          "shape":"ByteSize",
+          "documentation":"<p>The size, in bytes, of the section contents.</p>"
+        }
+      },
+      "documentation":"<p>The configuration section.</p>"
+    },
+    "SectionList":{
+      "type":"list",
+      "member":{"shape":"SectionName"},
+      "max":100,
+      "min":1
+    },
+    "SectionModification":{
+      "type":"structure",
+      "required":[
+        "Operation",
+        "Path",
+        "Section"
+      ],
+      "members":{
+        "Operation":{
+          "shape":"Operation",
+          "documentation":"<p>The operation to be performed on a configuration section.</p> <p> Content can be added, deleted, or replaced within a section. </p>"
+        },
+        "Path":{
+          "shape":"Path",
+          "documentation":"<p>The path within the section content to be modified.</p>"
+        },
+        "Section":{
+          "shape":"SectionName",
+          "documentation":"<p>The name of the section to be modified.</p>"
+        },
+        "Value":{
+          "shape":"Document",
+          "documentation":"<p>For add and replace operations, this is the value that will be used.</p> <p> This field should be omitted for delete operations. </p>"
+        }
+      },
+      "documentation":"<p>A single modification to the configuration section.</p>"
+    },
+    "SectionModificationList":{
+      "type":"list",
+      "member":{"shape":"SectionModification"},
+      "max":100,
+      "min":1
+    },
+    "SectionName":{
+      "type":"string",
+      "max":36,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9.]+$"
+    },
+    "Sections":{
+      "type":"map",
+      "key":{"shape":"SectionName"},
+      "value":{"shape":"Section"}
+    },
+    "ServiceQuotaExceededException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>The request would result in exceeding service quota.</p>",
+      "error":{
+        "httpStatusCode":402,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "SnapshotDescription":{
+      "type":"string",
+      "max":250,
+      "min":0,
+      "pattern":"^\\S(.*\\S)?$|^$"
+    },
+    "SnapshotDetails":{
+      "type":"structure",
+      "members":{
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the snapshot was created.</p>"
+        },
+        "Description":{
+          "shape":"SnapshotDescription",
+          "documentation":"<p>The description of the snapshot.</p>"
+        },
+        "Id":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot.</p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the snapshot was last updated.</p>"
+        },
+        "Sections":{
+          "shape":"Sections",
+          "documentation":"<p>The sections in the snapshot.</p>"
+        }
+      },
+      "documentation":"<p>Properties that provide details of a snapshot.</p>"
+    },
+    "SnapshotId":{
+      "type":"string",
+      "max":36,
+      "min":33,
+      "pattern":"^Snapshot_\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3,6}Z$"
+    },
+    "SnapshotSummary":{
+      "type":"structure",
+      "members":{
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the snapshot was created.</p>"
+        },
+        "Description":{
+          "shape":"SnapshotDescription",
+          "documentation":"<p>The description of the snapshot.</p>"
+        },
+        "Id":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot.</p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>Then timestamp of when the snapshot was last updated.</p>"
+        }
+      },
+      "documentation":"<p>The summary of the properties of a snapshot.</p>"
+    },
+    "SnapshotSummaryList":{
+      "type":"list",
+      "member":{"shape":"SnapshotSummary"}
+    },
+    "StageDeploymentDetails":{
+      "type":"structure",
+      "members":{
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the stage deployment was created.</p>"
+        },
+        "DeploymentAction":{
+          "shape":"DeploymentAction",
+          "documentation":"<p>The type of action of the stage deployment.</p>"
+        },
+        "DeploymentId":{
+          "shape":"DeploymentId",
+          "documentation":"<p>The identifier of the deployment.</p>"
+        },
+        "DeploymentResult":{
+          "shape":"DeploymentResult",
+          "documentation":"<p>The result of the deployment.</p>"
+        },
+        "DeploymentState":{
+          "shape":"DeploymentState",
+          "documentation":"<p>The state of the deployment.</p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the deployment was last updated.</p>"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot associated with the stage deployment.</p>"
+        }
+      },
+      "documentation":"<p>Properties that provide details of a stage deployment.</p>"
+    },
+    "StageDeploymentList":{
+      "type":"list",
+      "member":{"shape":"StageDeploymentSummary"}
+    },
+    "StageDeploymentSummary":{
+      "type":"structure",
+      "members":{
+        "DeploymentAction":{
+          "shape":"DeploymentAction",
+          "documentation":"<p>The type of action of the deployment.</p>"
+        },
+        "DeploymentId":{
+          "shape":"DeploymentId",
+          "documentation":"<p>The identifier of the deployment.</p>"
+        },
+        "DeploymentResult":{
+          "shape":"DeploymentResult",
+          "documentation":"<p>The result of the deployment.</p>"
+        },
+        "DeploymentState":{
+          "shape":"DeploymentState",
+          "documentation":"<p>The state of the deployment.</p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the deployment was last updated.</p>"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot associated with the stage deployment.</p>"
+        }
+      },
+      "documentation":"<p>The summary of the properties of a stage deployment.</p>"
+    },
+    "StageDescription":{
+      "type":"string",
+      "max":250,
+      "min":0,
+      "pattern":"^\\S(.*\\S)?$|^$"
+    },
+    "StageDetails":{
+      "type":"structure",
+      "members":{
+        "Arn":{
+          "shape":"ARN",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the stage.</p>"
+        },
+        "Created":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the stage was created.</p>"
+        },
+        "Description":{
+          "shape":"StageDescription",
+          "documentation":"<p>The description of the stage.</p>"
+        },
+        "GameKey":{
+          "shape":"GameKey",
+          "documentation":"<p>The game key associated with the stage.</p> <p> The game key is a unique identifier that the game client uses to connect to the GameSparks backend. </p>"
+        },
+        "LastUpdated":{
+          "shape":"DateTime",
+          "documentation":"<p>The timestamp of when the stage was last updated.</p>"
+        },
+        "LogGroup":{
+          "shape":"LogGroupName",
+          "documentation":"<p>The Amazon CloudWatch log group for game runtimes deployed to the stage.</p>"
+        },
+        "Name":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>"
+        },
+        "Role":{
+          "shape":"RoleARN",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the role used to run the game runtimes deployed to the stage.</p>"
+        },
+        "State":{
+          "shape":"StageState",
+          "documentation":"<p>The state of the stage.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags associated with the stage.</p>"
+        }
+      },
+      "documentation":"<p>Properties that provide details of a stage.</p>"
+    },
+    "StageName":{
+      "type":"string",
+      "max":36,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9_-]+$"
+    },
+    "StageState":{
+      "type":"string",
+      "enum":[
+        "ACTIVE",
+        "DELETING"
+      ]
+    },
+    "StageSummary":{
+      "type":"structure",
+      "members":{
+        "Description":{
+          "shape":"StageDescription",
+          "documentation":"<p>The description of the stage.</p>"
+        },
+        "GameKey":{
+          "shape":"GameKey",
+          "documentation":"<p>The game key associated with the stage.</p> <p> The game key is a unique identifier that the game client uses to connect to the GameSparks backend. </p>"
+        },
+        "Name":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>"
+        },
+        "State":{
+          "shape":"StageState",
+          "documentation":"<p>The state of the stage.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags associated with the stage.</p>"
+        }
+      },
+      "documentation":"<p>The summary of the properties of a stage.</p>"
+    },
+    "StageSummaryList":{
+      "type":"list",
+      "member":{"shape":"StageSummary"}
+    },
+    "StartGeneratedCodeJobRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "Generator",
+        "SnapshotId"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "Generator":{
+          "shape":"Generator",
+          "documentation":"<p>Properties of the generator to use for the job.</p>"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot for which to generate code.</p>",
+          "location":"uri",
+          "locationName":"SnapshotId"
+        }
+      }
+    },
+    "StartGeneratedCodeJobResult":{
+      "type":"structure",
+      "members":{
+        "GeneratedCodeJobId":{
+          "shape":"GeneratedCodeJobId",
+          "documentation":"<p> The identifier of the code generation job. You can use this identifier in the <code>GetGeneratedCodeJob</code> operation. </p>"
+        }
+      }
+    },
+    "StartStageDeploymentRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "SnapshotId",
+        "StageName"
+      ],
+      "members":{
+        "ClientToken":{
+          "shape":"ClientToken",
+          "documentation":"<p> A client-defined token. With an active client token in the request, this action is idempotent. </p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot to deploy.</p>"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage to deploy the snapshot onto.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "StartStageDeploymentResult":{
+      "type":"structure",
+      "members":{
+        "StageDeployment":{
+          "shape":"StageDeploymentDetails",
+          "documentation":"<p>Properties that describe the stage deployment.</p>"
+        }
+      }
+    },
+    "TagKey":{
+      "type":"string",
+      "max":128,
+      "min":1,
+      "pattern":"^(?!aws:)[a-zA-Z+-=._:/]+$"
+    },
+    "TagKeyList":{
+      "type":"list",
+      "member":{"shape":"TagKey"},
+      "max":50,
+      "min":1
+    },
+    "TagMap":{
+      "type":"map",
+      "key":{"shape":"TagKey"},
+      "value":{"shape":"TagValue"},
+      "max":50,
+      "min":1
+    },
+    "TagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "ResourceArn",
+        "tags"
+      ],
+      "members":{
+        "ResourceArn":{
+          "shape":"ResourceArn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the resource to add the tags to.</p>",
+          "location":"uri",
+          "locationName":"ResourceArn"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags to add to the resource.</p>"
+        }
+      }
+    },
+    "TagResourceResult":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "TagValue":{
+      "type":"string",
+      "max":256,
+      "min":0,
+      "pattern":"^[\\s\\w+-=\\.:/@]*$"
+    },
+    "TargetPlatform":{
+      "type":"string",
+      "max":16,
+      "min":1,
+      "pattern":"^[a-zA-Z]+$"
+    },
+    "ThrottlingException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>The request throughput limit was exceeded.</p>",
+      "error":{
+        "httpStatusCode":429,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "UntagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "ResourceArn",
+        "tagKeys"
+      ],
+      "members":{
+        "ResourceArn":{
+          "shape":"ResourceArn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the resource to remove the tags from.</p>",
+          "location":"uri",
+          "locationName":"ResourceArn"
+        },
+        "tagKeys":{
+          "shape":"TagKeyList",
+          "documentation":"<p>The keys of the tags to remove.</p>",
+          "location":"querystring",
+          "locationName":"tagKeys"
+        }
+      }
+    },
+    "UntagResourceResult":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "UpdateGameConfigurationRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "Modifications"
+      ],
+      "members":{
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "Modifications":{
+          "shape":"SectionModificationList",
+          "documentation":"<p>The list of modifications to make.</p>"
+        }
+      }
+    },
+    "UpdateGameConfigurationResult":{
+      "type":"structure",
+      "members":{
+        "GameConfiguration":{
+          "shape":"GameConfigurationDetails",
+          "documentation":"<p>Details about the game configuration.</p>"
+        }
+      }
+    },
+    "UpdateGameRequest":{
+      "type":"structure",
+      "required":["GameName"],
+      "members":{
+        "Description":{
+          "shape":"GameDescription",
+          "documentation":"<p>The description of the game.</p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        }
+      }
+    },
+    "UpdateGameResult":{
+      "type":"structure",
+      "members":{
+        "Game":{
+          "shape":"GameDetails",
+          "documentation":"<p>The details of the game.</p>"
+        }
+      }
+    },
+    "UpdateSnapshotRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "SnapshotId"
+      ],
+      "members":{
+        "Description":{
+          "shape":"SnapshotDescription",
+          "documentation":"<p>The description of the snapshot.</p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "SnapshotId":{
+          "shape":"SnapshotId",
+          "documentation":"<p>The identifier of the snapshot.</p>",
+          "location":"uri",
+          "locationName":"SnapshotId"
+        }
+      }
+    },
+    "UpdateSnapshotResult":{
+      "type":"structure",
+      "members":{
+        "Snapshot":{
+          "shape":"SnapshotDetails",
+          "documentation":"<p>Properties that provide details of the updated snapshot.</p>"
+        }
+      }
+    },
+    "UpdateStageRequest":{
+      "type":"structure",
+      "required":[
+        "GameName",
+        "StageName"
+      ],
+      "members":{
+        "Description":{
+          "shape":"StageDescription",
+          "documentation":"<p>The description of the stage.</p>"
+        },
+        "GameName":{
+          "shape":"GameName",
+          "documentation":"<p>The name of the game.</p>",
+          "location":"uri",
+          "locationName":"GameName"
+        },
+        "Role":{
+          "shape":"RoleARN",
+          "documentation":"<p>The Amazon Resource Name (ARN) of the role to use for the game snapshots deployed to this stage.</p>"
+        },
+        "StageName":{
+          "shape":"StageName",
+          "documentation":"<p>The name of the stage.</p>",
+          "location":"uri",
+          "locationName":"StageName"
+        }
+      }
+    },
+    "UpdateStageResult":{
+      "type":"structure",
+      "members":{
+        "Stage":{
+          "shape":"StageDetails",
+          "documentation":"<p>Properties that provide details of the updated stage.</p>"
+        }
+      }
+    },
+    "ValidationException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"ExceptionMessage"}
+      },
+      "documentation":"<p>One of the parameters in the request is invalid.</p>",
+      "error":{
+        "httpStatusCode":400,
+        "senderFault":true
+      },
+      "exception":true
+    }
+  },
+  "documentation":"<p/>"
+}

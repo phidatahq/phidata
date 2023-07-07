@@ -1,5 +1,4 @@
 # Need to be sure that we don't import anything which may lead to circular imports
-from typing import Any, List, Optional, Type
 
 
 def get_default_ns_name(app_name: str) -> str:

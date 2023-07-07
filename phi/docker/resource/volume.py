@@ -41,7 +41,7 @@ class DockerVolume(DockerResource):
             else:
                 logger.debug("Volume could not be created")
             # logger.debug("Volume {}".format(volume_object.attrs))
-        except Exception as e:
+        except Exception:
             raise
 
         # By this step the volume should be created
@@ -105,7 +105,6 @@ class DockerVolume(DockerResource):
         from docker.errors import NotFound
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
-        volume_name: Optional[str] = self.name
         volume_object: Optional[Volume] = self._read(docker_client)
         # Return True if there is no Volume to delete
         if volume_object is None:
@@ -123,7 +122,7 @@ class DockerVolume(DockerResource):
         try:
             logger.debug("Reloading volume_object: {}".format(volume_object))
             volume_object.reload()
-        except NotFound as e:
+        except NotFound:
             logger.debug("Got NotFound Exception, Volume is deleted")
             return True
 

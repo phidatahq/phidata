@@ -1,11 +1,11 @@
-from typing import Optional, List
+from typing import Optional, List, Any
 from pathlib import Path
 
 from typer import launch as typer_launch
 
-from phi.conf.constants import PHI_CONF_DIR, PHI_SIGNIN_URL_WITHOUT_PARAMS
-from phi.conf.phi_conf import PhiConf
-from phi.cli.console import print_info, print_heading, print_subheading,
+from phi.cli.settings import phi_cli_settings, PHI_CLI_DIR
+from phi.cli.config import PhiCliConfig
+from phi.cli.console import print_info, print_heading, print_subheading
 from phi.utils.log import logger
 
 
@@ -13,7 +13,7 @@ def delete_phidata_conf() -> None:
     from phi.utils.filesystem import delete_from_fs
 
     logger.debug("Removing existing Phidata configuration")
-    delete_from_fs(PHI_CONF_DIR)
+    delete_from_fs(PHI_CLI_DIR)
 
 
 def authenticate_user() -> bool:
@@ -25,11 +25,11 @@ def authenticate_user() -> bool:
     2. Using the auth_token, authenticate the CLI with backend and
         save the auth_token to PHI_AUTH_TOKEN_PATH.
         This step is handled by authenticate_and_get_user()
-    5. After the user is authenticated create a PhiConf if needed.
+    5. After the user is authenticated create a PhiCliConfig if needed.
     """
     from phi.api.user import authenticate_and_get_user
     from phi.schemas.user import UserSchema
-    from phi.utils.cli_auth_server import (
+    from phi.cli.auth_server import (
         get_port_for_auth_server,
         get_auth_token_from_web_flow,
     )
@@ -38,32 +38,30 @@ def authenticate_user() -> bool:
 
     auth_server_port = get_port_for_auth_server()
     redirect_uri = "http%3A%2F%2Flocalhost%3A{}%2F".format(auth_server_port)
-    auth_url = "{}?source=cli&action=signin&redirecturi={}".format(
-        PHI_SIGNIN_URL_WITHOUT_PARAMS, redirect_uri
-    )
+    auth_url = "{}?source=cli&action=signin&redirecturi={}".format(phi_cli_settings.signin_url, redirect_uri)
     print_info("\nYour browser will be opened to visit:\n{}".format(auth_url))
     typer_launch(auth_url)
     print_info("\nWaiting for a response from browser...\n")
 
     tmp_auth_token = get_auth_token_from_web_flow(auth_server_port)
     if tmp_auth_token is None:
-        print_error(f"Could not authenticate, please run `phi auth` again")
+        logger.error(f"Could not authenticate, please run `phi auth` again")
         return False
 
     try:
         user: Optional[UserSchema] = authenticate_and_get_user(tmp_auth_token)
-    except CliAuthException as e:
+    except Exception as e:
         logger.exception(e)
-        print_error(f"Could not authenticate, please run `phi auth` again")
+        logger.error(f"Could not authenticate, please run `phi auth` again")
         return False
 
     if user is None:
-        print_error(f"Could not get user data, please run `phi auth` again")
+        logger.error(f"Could not get user data, please run `phi auth` again")
         return False
 
-    phi_conf: Optional[PhiConf] = PhiConf.get_saved_conf()
+    phi_conf: Optional[PhiCliConfig] = PhiCliConfig.get_saved_conf()
     if phi_conf is None:
-        phi_conf = PhiConf(user)
+        phi_conf = PhiCliConfig(user)
 
     phi_conf.user = user
     print_info("Welcome {}, you are now logged in\n".format(user.email))
@@ -75,10 +73,10 @@ def initialize_phidata(reset: bool = False, login: bool = False) -> bool:
     """Initialize phidata on the users' machine.
 
     Steps:
-    1. Check if PHI_CONF_DIR exists, if not, create it. If reset == True, recreate PHI_CONF_DIR.
-    2. Check if PhiConf exists, if it does, try and authenticate the user
+    1. Check if PHI_CLI_DIR exists, if not, create it. If reset == True, recreate PHI_CLI_DIR.
+    2. Check if PhiCliConfig exists, if it does, try and authenticate the user
         If the user is authenticated, phi is configured and authenticated. Return True.
-    3. If PhiConf does not exist, create a new PhiConf. Return True.
+    3. If PhiCliConfig does not exist, create a new PhiCliConfig. Return True.
     """
     from phi.utils.filesystem import delete_from_fs
 
@@ -89,31 +87,29 @@ def initialize_phidata(reset: bool = False, login: bool = False) -> bool:
     logger.debug("Initializing phidata")
 
     # Check if ~/.phi exists, if it is not a dir - delete it and create the dir
-    if PHI_CONF_DIR.exists():
-        logger.debug(f"{PHI_CONF_DIR} exists")
-        if not PHI_CONF_DIR.is_dir():
+    if PHI_CLI_DIR.exists():
+        logger.debug(f"{PHI_CLI_DIR} exists")
+        if not PHI_CLI_DIR.is_dir():
             try:
-                delete_from_fs(PHI_CONF_DIR)
+                delete_from_fs(PHI_CLI_DIR)
             except Exception as e:
                 logger.exception(e)
-                raise Exception(
-                    f"Something went wrong, please delete {PHI_CONF_DIR} and run again"
-                )
-            PHI_CONF_DIR.mkdir(parents=True)
+                raise Exception(f"Something went wrong, please delete {PHI_CLI_DIR} and run again")
+            PHI_CLI_DIR.mkdir(parents=True)
     else:
-        PHI_CONF_DIR.mkdir(parents=True)
-        logger.debug(f"created {PHI_CONF_DIR}")
+        PHI_CLI_DIR.mkdir(parents=True)
+        logger.debug(f"created {PHI_CLI_DIR}")
 
-    # Confirm PHI_CONF_DIR exists otherwise we should return
-    if PHI_CONF_DIR.exists():
-        logger.debug(f"Your phidata config is stored at: {PHI_CONF_DIR}")
+    # Confirm PHI_CLI_DIR exists otherwise we should return
+    if PHI_CLI_DIR.exists():
+        logger.debug(f"Your phidata config is stored at: {PHI_CLI_DIR}")
     else:
         raise Exception(f"Something went wrong, please run again")
 
-    phi_conf: Optional[PhiConf] = PhiConf.get_saved_conf()
+    phi_conf: Optional[PhiCliConfig] = PhiCliConfig.get_saved_conf()
     if phi_conf is None:
-        # Create a new PhiConf
-        phi_conf = PhiConf()
+        # Create a new PhiCliConfig
+        phi_conf = PhiCliConfig()
 
     # Authenticate user
     auth_success: bool = True
@@ -131,32 +127,32 @@ def initialize_phidata(reset: bool = False, login: bool = False) -> bool:
 def sign_in_using_cli() -> bool:
     from getpass import getpass
     from phi.api.user import sign_in_user
-    from phi.schemas.user import EmailPasswordSignInSchema
+    from phi.schemas.user import UserSchema, EmailPasswordSignInSchema
 
     print_heading("Log in")
     email_raw = input("email: ")
     pass_raw = getpass()
 
     if email_raw is None or pass_raw is None:
-        print_error("Incorrect email or password")
+        logger.error("Incorrect email or password")
 
     try:
         user: Optional[UserSchema] = sign_in_user(
             EmailPasswordSignInSchema(email=email_raw, password=pass_raw)
         )
-    except CliAuthException as e:
+    except Exception as e:
         logger.exception(e)
         return False
 
     if user is None:
-        print_error("Could not get user data, please log in again")
+        logger.error("Could not get user data, please log in again")
         return False
 
     print_info("Welcome {}, you are now authenticated\n".format(user.email))
 
-    phi_conf: Optional[PhiConf] = PhiConf.get_saved_conf()
+    phi_conf: Optional[PhiCliConfig] = PhiCliConfig.get_saved_conf()
     if phi_conf is None:
-        phi_conf = PhiConf()
+        phi_conf = PhiCliConfig()
 
     phi_conf.user = user
     return phi_conf.sync_workspaces_from_api()
@@ -165,7 +161,7 @@ def sign_in_using_cli() -> bool:
 def start_resources(
     resources_file_path: Path,
     target_env: Optional[str] = None,
-    target_config: Optional[WorkspaceConfigType] = None,
+    target_config: Optional[Any] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
     target_group: Optional[str] = None,
@@ -190,7 +186,7 @@ def start_resources(
     from phi.utils.prep_infra_config import filter_and_prep_configs
 
     if not resources_file_path.exists():
-        print_error(f"File does not exist: {resources_file_path}")
+        logger.error(f"File does not exist: {resources_file_path}")
         return
 
     ws_config: WorkspaceConfig = WorkspaceConfig.from_file(resources_file_path)
@@ -258,7 +254,7 @@ def start_resources(
 def stop_resources(
     resources_file_path: Path,
     target_env: Optional[str] = None,
-    target_config: Optional[WorkspaceConfigType] = None,
+    target_config: Optional[Any] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
     target_group: Optional[str] = None,
@@ -283,7 +279,7 @@ def stop_resources(
     from phi.utils.prep_infra_config import filter_and_prep_configs
 
     if not resources_file_path.exists():
-        print_error(f"File does not exist: {resources_file_path}")
+        logger.error(f"File does not exist: {resources_file_path}")
         return
 
     ws_config: WorkspaceConfig = WorkspaceConfig.from_file(resources_file_path)
@@ -340,9 +336,7 @@ def stop_resources(
         # white space between runs
         print_info("")
 
-    print_info(
-        f"# Configs shutdown: {num_configs_shutdown}/{num_configs_to_shutdown}\n"
-    )
+    print_info(f"# Configs shutdown: {num_configs_shutdown}/{num_configs_to_shutdown}\n")
     if num_configs_to_shutdown == num_configs_shutdown:
         if not dry_run:
             print_subheading("Workspace shutdown success")
@@ -353,7 +347,7 @@ def stop_resources(
 def patch_resources(
     resources_file_path: Path,
     target_env: Optional[str] = None,
-    target_config: Optional[WorkspaceConfigType] = None,
+    target_config: Optional[Any] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
     target_group: Optional[str] = None,
@@ -378,7 +372,7 @@ def patch_resources(
     from phi.utils.prep_infra_config import filter_and_prep_configs
 
     if not resources_file_path.exists():
-        print_error(f"File does not exist: {resources_file_path}")
+        logger.error(f"File does not exist: {resources_file_path}")
         return
 
     ws_config: WorkspaceConfig = WorkspaceConfig.from_file(resources_file_path)

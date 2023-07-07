@@ -7,16 +7,16 @@ from pydantic_core.core_schema import FieldValidationInfo
 
 from phi.utils.log import logger
 
-PHI_HOME_DIR: Path = Path.home().resolve().joinpath(".phi")
+PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
 
 
 class PhiCliSettings(BaseSettings):
     app_name: str = "phi"
     app_version: str = metadata.version("phi")
 
-    config_file_path: Path = PHI_HOME_DIR.joinpath("config")
-    auth_token_path: Path = PHI_HOME_DIR.joinpath("token")
-    credentials_path: Path = PHI_HOME_DIR.joinpath("credentials")
+    config_file_path: Path = PHI_CLI_DIR.joinpath("config")
+    auth_token_path: Path = PHI_CLI_DIR.joinpath("token")
+    credentials_path: Path = PHI_CLI_DIR.joinpath("credentials")
 
     runtime: str = "prd"
     auth_token_cookie: str = "__phi_session"

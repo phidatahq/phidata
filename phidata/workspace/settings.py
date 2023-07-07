@@ -54,6 +54,7 @@ class WorkspaceSettings(BaseSettings):
     dev_spark_enabled: bool = False
     dev_superset_enabled: bool = False
     dev_traefik_enabled: bool = False
+    dev_vectordb_enabled: bool = False
     #
     # -*- Staging settings
     #
@@ -86,6 +87,7 @@ class WorkspaceSettings(BaseSettings):
     stg_superset_enabled: bool = False
     stg_traefik_enabled: bool = False
     stg_whoami_enabled: bool = False
+    stg_vectordb_enabled: bool = False
     #
     # -*- Production settings
     #
@@ -118,6 +120,7 @@ class WorkspaceSettings(BaseSettings):
     prd_superset_enabled: bool = False
     prd_traefik_enabled: bool = False
     prd_whoami_enabled: bool = False
+    prd_vectordb_enabled: bool = False
     #
     # -*- AWS settings
     #

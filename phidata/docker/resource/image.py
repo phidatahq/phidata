@@ -111,6 +111,8 @@ class DockerImage(DockerResource):
 
         last_status = None
         last_build_log = None
+        build_log_output: List[Any] = []
+        build_step_progress: List[str] = []
         try:
             _api_client: DockerClient = docker_client.api_client
             build_stream = _api_client.api.build(
@@ -138,10 +140,10 @@ class DockerImage(DockerResource):
             )
 
             with Live(transient=True, console=console) as live_log:
-                progress: List[str] = []
                 for build_log in build_stream:
                     if build_log != last_build_log:
                         last_build_log = build_log
+                        build_log_output.append(build_log)
 
                     build_status: str = build_log.get("status")
                     if build_status is not None:
@@ -160,6 +162,7 @@ class DockerImage(DockerResource):
 
                     if build_log.get("error", None) is not None:
                         live_log.stop()
+                        # logger.error(build_log_output[-10:])
                         print_error(build_log["error"])
                         print_error(f"Image build failed: {self.get_name_tag()}")
                         return None
@@ -170,12 +173,12 @@ class DockerImage(DockerResource):
                     stream = stream.strip()
 
                     if "Step" in stream and self.print_build_log:
-                        progress = []
+                        build_step_progress = []
                         print_info(stream)
                     else:
-                        progress.append(stream)
-                        if len(progress) > 10:
-                            progress.pop(0)
+                        build_step_progress.append(stream)
+                        if len(build_step_progress) > 10:
+                            build_step_progress.pop(0)
 
                     if "error" in stream.lower():
                         print(stream)
@@ -188,7 +191,7 @@ class DockerImage(DockerResource):
 
                     # Render table
                     table = Table(show_edge=False, show_header=False, show_lines=False)
-                    for line in progress:
+                    for line in build_step_progress:
                         table.add_row(line, style="dim")
                     live_log.update(table)
 

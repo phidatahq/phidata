@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
 from phidata.app.aws_app import AwsApp, AwsAppArgs
-from phidata.app.base_app import WorkspaceVolumeType
 from phidata.app.docker_app import DockerApp, DockerAppArgs
 from phidata.app.k8s_app import (
     K8sApp,
@@ -11,11 +10,19 @@ from phidata.app.k8s_app import (
     RestartPolicy,
     ServiceType,
 )
+from phidata.types.context import ContainerPathContext
 from phidata.utils.log import logger
 
 
 class QdrantArgs(AwsAppArgs, DockerAppArgs, K8sAppArgs):
-    pass
+    # -*- Qdrant Volume
+    qdrant_volume_name: Optional[str] = None
+    # Path to mount the qdrant volume inside the container
+    qdrant_storage_container_path: str = "/qdrant/storage"
+    # Mount local qdrant storage directory to the container
+    mount_qdrant_storage: bool = False
+    # Path to the qdrant storage directory
+    qdrant_storage_dir: str = "storage/qdrant"
 
 
 class Qdrant(AwsApp, DockerApp, K8sApp):
@@ -28,23 +35,11 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
         # Image can be provided as a DockerImage object or as image_name:image_tag
         image: Optional[Any] = None,
         image_name: str = "qdrant/qdrant",
-        image_tag: str = "v1.2.2",
+        image_tag: str = "v1.3.1",
         entrypoint: Optional[Union[str, List[str]]] = None,
         command: Optional[Union[str, List]] = None,
         # -*- Debug Mode
         debug_mode: bool = False,
-        # -*- Python Configuration,
-        # Install python dependencies using a requirements.txt file,
-        install_requirements: bool = False,
-        # Path to the requirements.txt file relative to the workspace_root,
-        requirements_file: str = "requirements.txt",
-        # Set the PYTHONPATH env var,
-        set_python_path: bool = False,
-        # Manually provide the PYTHONPATH,
-        python_path: Optional[str] = None,
-        # Add paths to the PYTHONPATH env var,
-        # If python_path is provided, this value is ignored,
-        add_python_paths: Optional[List[str]] = None,
         # -*- Container Environment,
         # Add env variables to container,
         env: Optional[Dict[str, Any]] = None,
@@ -56,6 +51,14 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
         secrets_file: Optional[Path] = None,
         # Read secret variables from AWS Secrets,
         aws_secrets: Optional[Any] = None,
+        # -*- Qdrant Volume,
+        qdrant_volume_name: Optional[str] = None,
+        # Path to mount the qdrant volume inside the container,
+        qdrant_storage_container_path: str = "/qdrant/storage",
+        # Mount local qdrant storage directory to the container,
+        mount_qdrant_storage: bool = False,
+        # Path to the qdrant storage directory,
+        qdrant_storage_dir: str = "storage/qdrant",
         # -*- Container Ports,
         # Open a container port if open_container_port=True,
         open_container_port: bool = True,
@@ -65,19 +68,6 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
         container_port_name: str = "http",
         # Host port to map to the container port,
         container_host_port: int = 6333,
-        # -*- Workspace Volume,
-        # Mount the workspace directory on the container,
-        mount_workspace: bool = False,
-        workspace_volume_name: Optional[str] = None,
-        workspace_volume_type: Optional[WorkspaceVolumeType] = None,
-        # Path to mount the workspace volume inside the container,
-        workspace_dir_container_path: str = "/usr/local/app",
-        # Add the workspace name to the container path,
-        add_workspace_name_to_container_path: bool = False,
-        # -*- If workspace_volume_type=WorkspaceVolumeType.HostPath,
-        # Mount workspace_dir to workspace_dir_container_path,
-        # If None, use the workspace_root,
-        workspace_dir: Optional[str] = None,
         # -*- Container Configuration,
         container_name: Optional[str] = None,
         # Run container in the background and return a Container object.,
@@ -134,116 +124,17 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
         #   - A list of integers, if you want to bind multiple host ports to a single container port.,
         #       For example, {'1111/tcp': [1234, 4567]}.,
         container_ports: Optional[Dict[str, Any]] = None,
-        # -*- Pod Configuration,
-        pod_name: Optional[str] = None,
-        pod_annotations: Optional[Dict[str, str]] = None,
-        pod_node_selector: Optional[Dict[str, str]] = None,
-        # -*- Secret Configuration,
-        secret_name: Optional[str] = None,
-        # -*- Configmap Configuration,
-        configmap_name: Optional[str] = None,
-        # -*- Deployment Configuration,
-        replicas: int = 1,
-        deploy_name: Optional[str] = None,
-        # Type: ImagePullPolicy,
-        image_pull_policy: Optional[Any] = None,
-        # Type: RestartPolicy,
-        deploy_restart_policy: Optional[Any] = None,
-        deploy_labels: Optional[Dict[str, Any]] = None,
-        termination_grace_period_seconds: Optional[int] = None,
-        # Key to spread the pods across a topology,
-        topology_spread_key: Optional[str] = None,
-        # The degree to which pods may be unevenly distributed,
-        topology_spread_max_skew: Optional[int] = None,
-        # How to deal with a pod if it doesn't satisfy the spread constraint.,
-        topology_spread_when_unsatisfiable: Optional[str] = None,
-        # -*- Service Configuration,
-        create_service: bool = False,
-        service_name: Optional[str] = None,
-        # Type: ServiceType,
-        service_type: Optional[Any] = None,
-        # The port exposed by the service.,
-        service_port: int = 6333,
-        # The node_port exposed by the service if service_type = ServiceType.NODE_PORT,
-        service_node_port: Optional[int] = None,
-        # The target_port is the port to access on the pods targeted by the service.,
-        # It can be the port number or port name on the pod.,
-        service_target_port: Optional[Union[str, int]] = None,
-        # Extra ports exposed by the webserver service. Type: List[CreatePort],
-        service_ports: Optional[List[Any]] = None,
-        service_labels: Optional[Dict[str, Any]] = None,
-        service_annotations: Optional[Dict[str, str]] = None,
-        # If ServiceType == ServiceType.LoadBalancer,
-        service_health_check_node_port: Optional[int] = None,
-        service_internal_traffic_policy: Optional[str] = None,
-        service_load_balancer_class: Optional[str] = None,
-        service_load_balancer_ip: Optional[str] = None,
-        service_load_balancer_source_ranges: Optional[List[str]] = None,
-        service_allocate_load_balancer_node_ports: Optional[bool] = None,
-        # -*- Ingress Configuration,
-        create_ingress: bool = False,
-        ingress_name: Optional[str] = None,
-        ingress_annotations: Optional[Dict[str, str]] = None,
-        # -*- RBAC Configuration,
-        use_rbac: bool = False,
-        # Create a Namespace with name ns_name & default values,
-        ns_name: Optional[str] = None,
-        # or Provide the full Namespace definition,
-        # Type: CreateNamespace,
-        namespace: Optional[Any] = None,
-        # Create a ServiceAccount with name sa_name & default values,
-        sa_name: Optional[str] = None,
-        # or Provide the full ServiceAccount definition,
-        # Type: CreateServiceAccount,
-        service_account: Optional[Any] = None,
-        # Create a ClusterRole with name cr_name & default values,
-        cr_name: Optional[str] = None,
-        # or Provide the full ClusterRole definition,
-        # Type: CreateClusterRole,
-        cluster_role: Optional[Any] = None,
-        # Create a ClusterRoleBinding with name crb_name & default values,
-        crb_name: Optional[str] = None,
-        # or Provide the full ClusterRoleBinding definition,
-        # Type: CreateClusterRoleBinding,
-        cluster_role_binding: Optional[Any] = None,
         # -*- AWS Configuration,
         aws_subnets: Optional[List[str]] = None,
         aws_security_groups: Optional[List[Any]] = None,
         # -*- ECS Configuration,
         ecs_cluster: Optional[Any] = None,
         ecs_launch_type: str = "FARGATE",
-        ecs_task_cpu: str = "1024",
-        ecs_task_memory: str = "2048",
+        ecs_task_cpu: str = "2048",
+        ecs_task_memory: str = "4095",
         ecs_service_count: int = 1,
-        assign_public_ip: bool = True,
+        assign_public_ip: bool = False,
         ecs_enable_exec: bool = True,
-        # -*- LoadBalancer Configuration,
-        load_balancer: Optional[Any] = None,
-        listener: Optional[Any] = None,
-        # Create a load balancer if load_balancer is None,
-        create_load_balancer: bool = False,
-        # HTTP or HTTPS,
-        load_balancer_protocol: str = "HTTP",
-        load_balancer_security_groups: Optional[List[Any]] = None,
-        # Default 80 for HTTP and 443 for HTTPS,
-        load_balancer_port: Optional[int] = None,
-        load_balancer_certificate: Optional[Any] = None,
-        load_balancer_certificate_arn: Optional[str] = None,
-        # -*- TargetGroup Configuration,
-        target_group: Optional[Any] = None,
-        # HTTP or HTTPS,
-        target_group_protocol: str = "HTTP",
-        # Default 80 for HTTP and 443 for HTTPS,
-        target_group_port: Optional[int] = None,
-        target_group_type: str = "ip",
-        health_check_protocol: Optional[str] = None,
-        health_check_port: Optional[str] = None,
-        health_check_enabled: Optional[bool] = None,
-        health_check_path: Optional[str] = None,
-        health_check_interval_seconds: Optional[int] = None,
-        health_check_timeout_seconds: Optional[int] = None,
-        healthy_threshold_count: Optional[int] = None,
-        unhealthy_threshold_count: Optional[int] = None,
         #  -*- Resource Control,
         skip_create: bool = False,
         skip_read: bool = False,
@@ -279,26 +170,19 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
                 entrypoint=entrypoint,
                 command=command,
                 debug_mode=debug_mode,
-                install_requirements=install_requirements,
-                requirements_file=requirements_file,
-                set_python_path=set_python_path,
-                python_path=python_path,
-                add_python_paths=add_python_paths,
                 env=env,
                 env_file=env_file,
                 secrets=secrets,
                 secrets_file=secrets_file,
                 aws_secrets=aws_secrets,
+                qdrant_volume_name=qdrant_volume_name,
+                qdrant_storage_container_path=qdrant_storage_container_path,
+                mount_qdrant_storage=mount_qdrant_storage,
+                qdrant_storage_dir=qdrant_storage_dir,
                 open_container_port=open_container_port,
                 container_port=container_port,
                 container_port_name=container_port_name,
                 container_host_port=container_host_port,
-                mount_workspace=mount_workspace,
-                workspace_volume_name=workspace_volume_name,
-                workspace_volume_type=workspace_volume_type,
-                workspace_dir_container_path=workspace_dir_container_path,
-                add_workspace_name_to_container_path=add_workspace_name_to_container_path,
-                workspace_dir=workspace_dir,
                 container_name=container_name,
                 container_detach=container_detach,
                 container_auto_remove=container_auto_remove,
@@ -316,47 +200,6 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
                 container_restart_policy=container_restart_policy,
                 container_volumes=container_volumes,
                 container_ports=container_ports,
-                pod_name=pod_name,
-                pod_annotations=pod_annotations,
-                pod_node_selector=pod_node_selector,
-                secret_name=secret_name,
-                configmap_name=configmap_name,
-                replicas=replicas,
-                deploy_name=deploy_name,
-                image_pull_policy=image_pull_policy,
-                deploy_restart_policy=deploy_restart_policy,
-                deploy_labels=deploy_labels,
-                termination_grace_period_seconds=termination_grace_period_seconds,
-                topology_spread_key=topology_spread_key,
-                topology_spread_max_skew=topology_spread_max_skew,
-                topology_spread_when_unsatisfiable=topology_spread_when_unsatisfiable,
-                create_service=create_service,
-                service_name=service_name,
-                service_type=service_type,
-                service_port=service_port,
-                service_node_port=service_node_port,
-                service_target_port=service_target_port,
-                service_ports=service_ports,
-                service_labels=service_labels,
-                service_annotations=service_annotations,
-                service_health_check_node_port=service_health_check_node_port,
-                service_internal_traffic_policy=service_internal_traffic_policy,
-                service_load_balancer_class=service_load_balancer_class,
-                service_load_balancer_ip=service_load_balancer_ip,
-                service_load_balancer_source_ranges=service_load_balancer_source_ranges,
-                service_allocate_load_balancer_node_ports=service_allocate_load_balancer_node_ports,
-                create_ingress=create_ingress,
-                ingress_name=ingress_name,
-                ingress_annotations=ingress_annotations,
-                use_rbac=use_rbac,
-                ns_name=ns_name,
-                namespace=namespace,
-                sa_name=sa_name,
-                service_account=service_account,
-                cr_name=cr_name,
-                cluster_role=cluster_role,
-                crb_name=crb_name,
-                cluster_role_binding=cluster_role_binding,
                 aws_subnets=aws_subnets,
                 aws_security_groups=aws_security_groups,
                 ecs_cluster=ecs_cluster,
@@ -366,26 +209,6 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
                 ecs_service_count=ecs_service_count,
                 assign_public_ip=assign_public_ip,
                 ecs_enable_exec=ecs_enable_exec,
-                load_balancer=load_balancer,
-                listener=listener,
-                create_load_balancer=create_load_balancer,
-                load_balancer_protocol=load_balancer_protocol,
-                load_balancer_security_groups=load_balancer_security_groups,
-                load_balancer_port=load_balancer_port,
-                load_balancer_certificate=load_balancer_certificate,
-                load_balancer_certificate_arn=load_balancer_certificate_arn,
-                target_group=target_group,
-                target_group_protocol=target_group_protocol,
-                target_group_port=target_group_port,
-                target_group_type=target_group_type,
-                health_check_protocol=health_check_protocol,
-                health_check_port=health_check_port,
-                health_check_enabled=health_check_enabled,
-                health_check_path=health_check_path,
-                health_check_interval_seconds=health_check_interval_seconds,
-                health_check_timeout_seconds=health_check_timeout_seconds,
-                healthy_threshold_count=healthy_threshold_count,
-                unhealthy_threshold_count=unhealthy_threshold_count,
                 skip_create=skip_create,
                 skip_read=skip_read,
                 skip_update=skip_update,
@@ -405,3 +228,43 @@ class Qdrant(AwsApp, DockerApp, K8sApp):
         except Exception as e:
             logger.error(f"Args for {self.name} are not valid: {e}")
             raise
+
+    def build_container_volumes_docker(
+        self, container_paths: ContainerPathContext
+    ) -> Dict[str, dict]:
+        from phidata.utils.common import get_default_volume_name
+
+        if self.workspace_root_path is None:
+            logger.error("Invalid workspace_root_path")
+            return {}
+
+        # container_volumes is a dictionary which configures the volumes to mount
+        # inside the container. The key is either the host path or a volume name,
+        # and the value is a dictionary with 2 keys:
+        #   bind - The path to mount the volume inside the container
+        #   mode - Either rw to mount the volume read/write, or ro to mount it read-only.
+        # For example:
+        # {
+        #   '/home/user1/': {'bind': '/mnt/vol2', 'mode': 'rw'},
+        #   '/var/www': {'bind': '/mnt/vol1', 'mode': 'ro'}
+        # }
+        container_volumes = self.args.container_volumes or {}
+
+        # Create a volume for Qdrant Storage
+        qdrant_storage_host = self.args.qdrant_volume_name or get_default_volume_name(
+            self.app_name
+        )
+
+        # If mount_qdrant_storage is True, mount the qdrant_storage_dir to the container
+        if self.args.mount_qdrant_storage:
+            qdrant_storage_host = str(
+                self.workspace_root_path.joinpath(self.args.qdrant_storage_dir)
+            )
+
+        logger.debug(f"Mounting: {qdrant_storage_host}")
+        logger.debug(f"\tto: {self.args.qdrant_storage_container_path}")
+        container_volumes[qdrant_storage_host] = {
+            "bind": self.args.qdrant_storage_container_path,
+            "mode": "rw",
+        }
+        return container_volumes

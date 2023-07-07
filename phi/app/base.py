@@ -20,7 +20,7 @@ class AppVolumeType(str, Enum):
     PersistentVolume = "PersistentVolume"
 
 
-class BaseAppArgs(PhiBase):
+class AppBase(PhiBase):
     # App name is required
     name: str
 
@@ -62,28 +62,6 @@ class BaseAppArgs(PhiBase):
     # If python_path is provided, this value is ignored
     add_python_paths: Optional[List[str]] = None
 
-    # -*- App Environment
-    # Add env variables to container
-    env: Optional[Dict[str, Any]] = None
-    # Read env variables from a file in yaml format
-    env_file: Optional[Path] = None
-    # Add secret variables to container
-    secrets: Optional[Dict[str, Any]] = None
-    # Read secret variables from a file in yaml format
-    secrets_file: Optional[Path] = None
-    # Read secret variables from AWS Secrets
-    aws_secrets: Optional[Any] = None
-
-    # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = False
-    # Host port to map to the container port
-    host_port: int = 80
-    # Port number on the container
-    container_port: int = 80
-    # Port name (used by k8s)
-    container_port_name: str = "http"
-
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
@@ -106,6 +84,28 @@ class BaseAppArgs(PhiBase):
     # Branch to sync
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
+
+    # -*- App Environment
+    # Add env variables to container
+    env: Optional[Dict[str, Any]] = None
+    # Read env variables from a file in yaml format
+    env_file: Optional[Path] = None
+    # Add secret variables to container
+    secrets: Optional[Dict[str, Any]] = None
+    # Read secret variables from a file in yaml format
+    secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secrets
+    aws_secrets: Optional[Any] = None
+
+    # -*- App Ports
+    # Open a container port if open_container_port=True
+    open_container_port: bool = False
+    # Host port to map to the container port
+    host_port: int = 80
+    # Port number on the container
+    container_port: int = 80
+    # Port name (used by k8s)
+    container_port_name: str = "http"
 
     # -*- App Volume
     # Create a volume for mounting App data like notebooks, models, etc.
@@ -136,6 +136,13 @@ class BaseAppArgs(PhiBase):
     # Or provide Efs Volume-id manually
     app_efs_volume_id: Optional[str] = None
 
+    # -*- App Resources
+    resources: Optional[List[Any]] = None
+
+    # -*- AWS Configuration
+    aws_region: Optional[str] = None
+    aws_profile: Optional[str] = None
+
     #  -*- Other args
     print_env_on_load: bool = False
 
@@ -144,8 +151,12 @@ class BaseAppArgs(PhiBase):
     container_context: Optional[ContainerContext] = None
 
     # -*- Cached Data
+    cached_resources: Optional[List[Any]] = None
     cached_env_file_data: Optional[Dict[str, Any]] = None
     cached_secret_file_data: Optional[Dict[str, Any]] = None
+
+    def get_app_name(self) -> str:
+        return self.app_name
 
     def get_image_str(self) -> str:
         if self.image:
@@ -172,6 +183,19 @@ class BaseAppArgs(PhiBase):
 
             self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
         return self.cached_secret_file_data
+
+    def set_aws_env_vars(self, env_dict: Dict[str, str]) -> None:
+        from phi.constants import (
+            AWS_REGION_ENV_VAR,
+            AWS_DEFAULT_REGION_ENV_VAR,
+            AWS_PROFILE_ENV_VAR,
+        )
+
+        if self.aws_region is not None:
+            env_dict[AWS_REGION_ENV_VAR] = self.aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.aws_region
+        if self.aws_profile is not None:
+            env_dict[AWS_PROFILE_ENV_VAR] = self.aws_profile
 
     def build_container_context(self) -> Optional[ContainerContext]:
         logger.debug("Building ContainerContext")
@@ -229,6 +253,18 @@ class BaseAppArgs(PhiBase):
         self.container_context = container_context
         return self.container_context
 
-    def get_resource_group(self, app_context: Any) -> Optional[Any]:
-        logger.debug(f"@get_resource_group not defined for {self.name}")
+    def build_resources(self, build_context: Any) -> Optional[Any]:
+        logger.debug(f"@build_resource_group not defined for {self.get_app_name()}")
         return None
+
+    def get_resources(self, build_context: Any) -> Optional[Any]:
+        if self.cached_resources is not None and len(self.cached_resources) > 0:
+            return self.cached_resources
+
+        self.cached_resources = self.resources or []
+        app_resources = self.build_resources(build_context)
+        if app_resources is not None:
+            self.cached_resources.extend(app_resources)
+
+        logger.debug(f"Resources: {self.cached_resources}")
+        return self.cached_resources

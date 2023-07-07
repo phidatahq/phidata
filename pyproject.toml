@@ -15,6 +15,7 @@ dependencies = [
   "httpx",
   "kubernetes",
   "pydantic",
+  "pydantic-settings",
   "python-dotenv",
   "pyyaml",
   "rich",
@@ -42,6 +43,9 @@ documentation = "https://docs.phidata.com"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["phidata", "phi"]
+
 [tool.mypy]
 plugins = [
   "pydantic.mypy"
@@ -53,6 +57,8 @@ exclude = [
   "phidata", # exclude the phidata module
 ]
 
-#[[tool.mypy.overrides]]
-#module = []
-#ignore_missing_imports = true
+[[tool.mypy.overrides]]
+module = [
+  "setuptools",
+]
+ignore_missing_imports = true

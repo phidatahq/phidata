@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Optional, List, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from phi.utils.log import logger
 
 
 class PhiBase(BaseModel):
@@ -16,6 +18,8 @@ class PhiBase(BaseModel):
     recreate_on_update: bool = False
     # Skip create if resource with the same name is active
     use_cache: bool = True
+    # Force create/update/delete implementation
+    force: bool = False
 
     # -*- Waiter Control
     wait_for_create: bool = True
@@ -24,10 +28,21 @@ class PhiBase(BaseModel):
     waiter_delay: int = 30
     waiter_max_attempts: int = 50
 
-    #  -*- Save Resources to output directory
-    # If True, output the resources to json files
+    #  -*- Save to output directory
+    # If True, save output to json files
     save_output: bool = False
     # The directory for the output files
     output_dir: Optional[str] = None
 
+    #  -*- Dependencies
+    depends_on: Optional[List[Any]] = None
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("force", mode="before")
+    def set_force(cls, force):
+        logger.info(f"Setting force to {force}")
+        from os import getenv
+
+        force = force or getenv("PHI_WS_FORCE", False)
+        return force

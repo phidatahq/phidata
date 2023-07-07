@@ -166,9 +166,7 @@ def filter_and_flatten_docker_resource_groups(
                     logger.debug(f"  -*- skipping {docker_rg_name}")
                     continue
 
-            _docker_resources = get_docker_resources_from_group(
-                docker_rg, name_filter, type_filter
-            )
+            _docker_resources = get_docker_resources_from_group(docker_rg, name_filter, type_filter)
             if _docker_resources:
                 docker_resource_list.extend(_docker_resources)
 
@@ -176,14 +174,10 @@ def filter_and_flatten_docker_resource_groups(
     if sort_order == "create":
         docker_resource_list.sort(key=lambda x: get_rank_for_docker_resource(x))
     elif sort_order == "delete":
-        docker_resource_list.sort(
-            key=lambda x: get_rank_for_docker_resource(x), reverse=True
-        )
+        docker_resource_list.sort(key=lambda x: get_rank_for_docker_resource(x), reverse=True)
 
     # De-duplicate DockerResources
-    deduped_docker_resources: List[DockerResource] = dedup_docker_resources(
-        docker_resource_list
-    )
+    deduped_docker_resources: List[DockerResource] = dedup_docker_resources(docker_resource_list)
 
     # Implement dependency sorting and drop the weight
     final_docker_resources: List[DockerResource] = []
@@ -201,9 +195,7 @@ def filter_and_flatten_docker_resource_groups(
                 # 2. Remove the dependencies if they are already added to the final_docker_resources
                 for dep in docker_resource.depends_on:
                     if dep in final_docker_resources:
-                        logger.debug(
-                            f"  -*- Removing {dep.name}, dependency of {docker_resource.name}"
-                        )
+                        logger.debug(f"  -*- Removing {dep.name}, dependency of {docker_resource.name}")
                         final_docker_resources.remove(dep)
                 # 3. Add the resource to be deleted before its dependencies
                 if docker_resource not in final_docker_resources:
@@ -216,9 +208,7 @@ def filter_and_flatten_docker_resource_groups(
             for dep in docker_resource.depends_on:
                 if isinstance(dep, DockerResource):
                     if dep not in final_docker_resources:
-                        logger.debug(
-                            f"  -*- Adding {dep.name}, dependency of {docker_resource.name}"
-                        )
+                        logger.debug(f"  -*- Adding {dep.name}, dependency of {docker_resource.name}")
                         final_docker_resources.append(dep)
 
             # If the sort_order is create,

@@ -38,9 +38,7 @@ class ResourceBase(PhiBase):
     cached_env_file_data: Optional[Dict[str, Any]] = None
     cached_secret_file_data: Optional[Dict[str, Any]] = None
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
 
     def get_resource_name(self) -> str:
         return self.name
@@ -94,9 +92,7 @@ class ResourceBase(PhiBase):
                     if data_from_file is not None and isinstance(data_from_file, dict):
                         return data_from_file
                     else:
-                        logger.warning(
-                            f"Could not read {self.get_resource_name()} from {output_file_path}"
-                        )
+                        logger.warning(f"Could not read {self.get_resource_name()} from {output_file_path}")
             except Exception as e:
                 logger.error(f"Could not read {self.get_resource_name()} from file: {e}")
         return None

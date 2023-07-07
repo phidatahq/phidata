@@ -226,24 +226,16 @@ class AppBase(PhiBase):
         )
 
         if self.scripts_dir is not None:
-            container_context.scripts_dir = (
-                f"{workspace_volume_container_path}/{self.scripts_dir}"
-            )
+            container_context.scripts_dir = f"{workspace_volume_container_path}/{self.scripts_dir}"
 
         if self.storage_dir is not None:
-            container_context.storage_dir = (
-                f"{workspace_volume_container_path}/{self.storage_dir}"
-            )
+            container_context.storage_dir = f"{workspace_volume_container_path}/{self.storage_dir}"
 
         if self.workflows_dir is not None:
-            container_context.workflows_dir = (
-                f"{workspace_volume_container_path}/{self.workflows_dir}"
-            )
+            container_context.workflows_dir = f"{workspace_volume_container_path}/{self.workflows_dir}"
 
         if self.workspace_dir is not None:
-            container_context.workspace_dir = (
-                f"{workspace_volume_container_path}/{self.workspace_dir}"
-            )
+            container_context.workspace_dir = f"{workspace_volume_container_path}/{self.workspace_dir}"
 
         if self.requirements_file is not None:
             container_context.requirements_file = (

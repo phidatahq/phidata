@@ -37,7 +37,7 @@ aws = [
 ]
 
 [project.scripts]
-phi = "phi.cli.cli_app:cli"
+phi = "phi.cli.entrypoint:phi_cli"
 
 [project.urls]
 homepage = "https://phidata.com"
@@ -52,9 +52,9 @@ packages = ["phidata", "phi"]
 
 [tool.black]
 line-length = 110
-exclude = [
-  "phienv*",
-]
+#exclude = [
+#  "phienv*",
+#]
 
 [tool.ruff]
 line-length = 110

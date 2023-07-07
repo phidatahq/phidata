@@ -155,9 +155,7 @@ class DockerContainer(DockerResource):
                 )
                 return container_object
         except ImageNotFound as img_error:
-            logger.error(
-                f"Image {self.image} not found. Explanation: {img_error.explanation}"
-            )
+            logger.error(f"Image {self.image} not found. Explanation: {img_error.explanation}")
             raise
         except APIError as api_err:
             logger.error(f"APIError: {api_err.explanation}")
@@ -203,12 +201,8 @@ class DockerContainer(DockerResource):
             self.status = _status
             wait_for_container_to_start = False
             if _status == "created":
-                logger.debug(
-                    f"Container {container_name} is created but not yet running"
-                )
-                logger.debug(
-                    "Waiting for 30 seconds for the container to start running"
-                )
+                logger.debug(f"Container {container_name} is created but not yet running")
+                logger.debug("Waiting for 30 seconds for the container to start running")
                 sleep(30)
                 container_object.reload()
                 _status = container_object.status
@@ -230,9 +224,7 @@ class DockerContainer(DockerResource):
                 sleep(5)
                 _status = container_object.status
                 while _status != "created":
-                    logger.debug(
-                        "--> status: {}, trying again in 5 seconds".format(_status)
-                    )
+                    logger.debug("--> status: {}, trying again in 5 seconds".format(_status))
                     sleep(5)
                     _status = container_object.status
                 logger.debug("--> status: {}".format(_status))
@@ -337,9 +329,7 @@ class DockerContainer(DockerResource):
         # if self.force then always create container
         if not self.force:
             if self.use_cache and self.is_active_on_cluster(docker_client):
-                print_info(
-                    f"{self.get_resource_type()} {self.get_resource_name()} active on cluster."
-                )
+                print_info(f"{self.get_resource_type()} {self.get_resource_name()} active on cluster.")
                 return True
 
         return self._create(docker_client)

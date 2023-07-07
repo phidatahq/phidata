@@ -24,9 +24,7 @@ class DockerApiClient:
             else:
                 api_client = docker.DockerClient(base_url=self.base_url)
         except Exception as e:
-            logger.error(
-                "Could not connect to docker. Please confirm docker is installed and running"
-            )
+            logger.error("Could not connect to docker. Please confirm docker is installed and running")
             logger.error(e)
             exit(0)
         return api_client

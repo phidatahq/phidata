@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, Union, List
 
-from phi.app.base import AppBase, WorkspaceVolumeType, AppVolumeType # noqa: F401
+from phi.app.base import AppBase, WorkspaceVolumeType, AppVolumeType  # noqa: F401
 from phi.app.context import ContainerContext
 from phi.utils.log import logger
 
@@ -78,9 +78,7 @@ class DockerApp(AppBase):
         else:
             return self.container_name
 
-    def build_container_env_docker(
-        self, container_context: ContainerContext
-    ) -> Dict[str, str]:
+    def build_container_env_docker(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
             PYTHONPATH_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
@@ -103,8 +101,7 @@ class DockerApp(AppBase):
                 WORKSPACE_DIR_ENV_VAR: container_context.workspace_dir or "",
                 WORKSPACE_ROOT_ENV_VAR: container_context.workspace_root or "",
                 "INSTALL_REQUIREMENTS": str(self.install_requirements),
-                REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file
-                or "",
+                REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
                 "MOUNT_WORKSPACE": str(self.mount_workspace),
                 "MOUNT_RESOURCES": str(self.mount_resources),
                 "RESOURCES_DIR_CONTAINER_PATH": str(self.resources_dir_container_path),
@@ -116,17 +113,10 @@ class DockerApp(AppBase):
             python_path = self.python_path
             if python_path is None:
                 python_path = container_context.workspace_root
-                if (
-                    self.mount_resources
-                    and self.resources_dir_container_path is not None
-                ):
-                    python_path = "{}:{}".format(
-                        python_path, self.resources_dir_container_path
-                    )
+                if self.mount_resources and self.resources_dir_container_path is not None:
+                    python_path = "{}:{}".format(python_path, self.resources_dir_container_path)
                 if self.add_python_paths is not None:
-                    python_path = "{}:{}".format(
-                        python_path, ":".join(self.add_python_paths)
-                    )
+                    python_path = "{}:{}".format(python_path, ":".join(self.add_python_paths))
             if python_path is not None:
                 container_env[PYTHONPATH_ENV_VAR] = python_path
 
@@ -136,30 +126,22 @@ class DockerApp(AppBase):
         # Update the container env using env_file
         env_data_from_file = self.get_env_file_data()
         if env_data_from_file is not None:
-            container_env.update(
-                {k: str(v) for k, v in env_data_from_file.items() if v is not None}
-            )
+            container_env.update({k: str(v) for k, v in env_data_from_file.items() if v is not None})
 
         # Update the container env using secrets_file
         secret_data_from_file = self.get_secret_file_data()
         if secret_data_from_file is not None:
-            container_env.update(
-                {k: str(v) for k, v in secret_data_from_file.items() if v is not None}
-            )
+            container_env.update({k: str(v) for k, v in secret_data_from_file.items() if v is not None})
 
         # Update the container env with user provided env
         # this overwrites any existing variables with the same key
         if self.env is not None and isinstance(self.env, dict):
-            container_env.update(
-                {k: str(v) for k, v in self.env.items() if v is not None}
-            )
+            container_env.update({k: str(v) for k, v in self.env.items() if v is not None})
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
 
-    def build_container_volumes_docker(
-        self, container_context: ContainerContext
-    ) -> Dict[str, dict]:
+    def build_container_volumes_docker(self, container_context: ContainerContext) -> Dict[str, dict]:
         from phi.utils.defaults import get_default_volume_name
 
         if self.workspace_root is None:
@@ -195,9 +177,7 @@ class DockerApp(AppBase):
             elif self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
                 workspace_volume_name = self.workspace_volume_name
                 if workspace_volume_name is None:
-                    workspace_volume_name = get_default_volume_name(
-                        container_context.workspace_name or "ws"
-                    )
+                    workspace_volume_name = get_default_volume_name(container_context.workspace_name or "ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"\tto: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -258,14 +238,10 @@ class DockerApp(AppBase):
             return None
 
         # -*- Build Container Environment
-        container_env: Dict[str, str] = self.build_container_env_docker(
-            container_context=container_context
-        )
+        container_env: Dict[str, str] = self.build_container_env_docker(container_context=container_context)
 
         # -*- Build Container Volumes
-        container_volumes = self.build_container_volumes_docker(
-            container_context=container_context
-        )
+        container_volumes = self.build_container_volumes_docker(container_context=container_context)
 
         # -*- Build Container Ports
         container_ports: Dict[str, int] = self.build_container_ports_docker()

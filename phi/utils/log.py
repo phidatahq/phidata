@@ -1,15 +1,16 @@
 import logging
 
+from rich.logging import RichHandler
 
-def get_logger(logger_name: str, show_path: bool = False) -> logging.Logger:
-    from rich.logging import RichHandler
+LOGGER_NAME = "phi"
 
+
+def get_logger(logger_name: str) -> logging.Logger:
     # https://rich.readthedocs.io/en/latest/reference/logging.html#rich.logging.RichHandler
     # https://rich.readthedocs.io/en/latest/logging.html#handle-exceptions
     rich_handler = RichHandler(
         show_time=False,
         rich_tracebacks=False,
-        show_path=show_path,
         tracebacks_show_locals=False,
     )
     rich_handler.setFormatter(
@@ -26,4 +27,9 @@ def get_logger(logger_name: str, show_path: bool = False) -> logging.Logger:
     return _logger
 
 
-logger: logging.Logger = get_logger("phi")
+logger: logging.Logger = get_logger(LOGGER_NAME)
+
+
+def set_log_level_to_debug():
+    _logger = logging.getLogger(LOGGER_NAME)
+    _logger.setLevel(logging.DEBUG)

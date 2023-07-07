@@ -211,14 +211,10 @@ class DockerImage(DockerResource):
                         if push_output.get("error", None) is not None:
                             logger.error(push_output["error"])
                             logger.error(f"Push failed for {self.get_image_str()}")
-                            logger.error(
-                                "If you are using a private registry, make sure you are logged in"
-                            )
+                            logger.error("If you are using a private registry, make sure you are logged in")
                             return None
 
-                        if self.print_push_output and push_output.get(
-                            "status", None
-                        ) in (
+                        if self.print_push_output and push_output.get("status", None) in (
                             "Pushing",
                             "Pushed",
                         ):
@@ -290,9 +286,7 @@ class DockerImage(DockerResource):
         logger.debug("Reading: {}".format(self.get_image_str()))
         try:
             _api_client: DockerClient = docker_client.api_client
-            image_object: Optional[List[Image]] = _api_client.images.get(
-                name=self.get_image_str()
-            )
+            image_object: Optional[List[Image]] = _api_client.images.get(name=self.get_image_str())
             if image_object is not None and isinstance(image_object, Image):
                 logger.debug("Image found: {}".format(image_object))
                 self.active_resource = image_object
@@ -343,9 +337,7 @@ class DockerImage(DockerResource):
         # if self.force then always create image
         if not self.force:
             if self.use_cache and self.is_active_on_cluster(docker_client):
-                print_info(
-                    f"{self.get_resource_type()} {self.get_resource_name()} already active."
-                )
+                print_info(f"{self.get_resource_type()} {self.get_resource_name()} already active.")
                 return True
 
         return self._create(docker_client)

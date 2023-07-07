@@ -48,9 +48,7 @@ class DockerResource(ResourceBase):
             print_info(f"Skipping create: {self.get_resource_name()}")
             return True
         if self.use_cache and self.is_active_on_cluster(docker_client=docker_client):
-            print_info(
-                f"{self.get_resource_type()} {self.get_resource_name()} active on cluster."
-            )
+            print_info(f"{self.get_resource_type()} {self.get_resource_name()} active on cluster.")
             return True
         return self._create(docker_client=docker_client)
 
@@ -68,9 +66,7 @@ class DockerResource(ResourceBase):
         if self.is_active_on_cluster(docker_client=docker_client):
             return self._update(docker_client=docker_client)
         else:
-            print_info(
-                f"{self.get_resource_type()} {self.get_resource_name()} not active, creating..."
-            )
+            print_info(f"{self.get_resource_type()} {self.get_resource_name()} not active, creating...")
             return self.create(docker_client=docker_client)
 
     def _delete(self, docker_client: DockerApiClient) -> bool:
@@ -87,7 +83,5 @@ class DockerResource(ResourceBase):
         if self.is_active_on_cluster(docker_client=docker_client):
             return self._delete(docker_client=docker_client)
         else:
-            print_info(
-                f"{self.get_resource_type()} {self.get_resource_name()} not active on cluster."
-            )
+            print_info(f"{self.get_resource_type()} {self.get_resource_name()} not active on cluster.")
             return True

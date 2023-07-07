@@ -52,9 +52,14 @@ packages = ["phidata", "phi"]
 
 [tool.black]
 line-length = 110
-#exclude = [
-#  "phienv*",
-#]
+extend-exclude = '''
+# A regex preceded with ^/ will apply only to files and directories
+# in the root of the project.
+(
+  ^/phienv    # exclude phienv directory
+  | ^/phidata # exclude phidata directory
+)
+'''
 
 [tool.ruff]
 line-length = 110

@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "1.7.9"
-description = "Phidata is a toolkit for building applications using OSS"
+version = "1.10.0"
+description = "A toolkit for building applications using OSS"
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [
@@ -9,11 +9,18 @@ authors = [
 ]
 
 dependencies = [
-  "boto3>=1.26.76,<1.26.77",
-  "botocore>=1.29.76,<1.29.77",
-  "phiterm==1.7.9",
-  "pyarrow",
+  "boto3",
+  "docker",
+  "gitpython",
+  "httpx",
+  "kubernetes",
   "pydantic",
+  "python-dotenv",
+  "pyyaml",
+  "rich",
+  "tomli",
+  "typer",
+  "typing-extensions",
 ]
 
 [project.optional-dependencies]
@@ -21,7 +28,7 @@ dev = [
     "mypy",
     "black",
     "pytest",
-    "types-PyYAML",
+    "types-pyyaml",
 ]
 aws = [
     "boto3",
@@ -43,29 +50,9 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 exclude = [
-  "phidata/asset/dev", # exclude dev assets from mypy
-  "phidata/workflow/dev", # exclude dev workflows from mypy
-  "phidata/product/dev", # exclude dev products from mypy
-  "phidata/task/dev", # exclude dev tasks from mypy
-  "phidata/app/traefik/router", # exclude traefik router
+  "phidata", # exclude the phidata module
 ]
 
-[[tool.mypy.overrides]]
-module = [
-  "git",
-  "setuptools",
-  "boto3",
-  "boto3.*",
-  "botocore",
-  "botocore.*",
-  "duckdb.*",
-  "docker.*",
-  "airflow.*",
-  "pandas.*",
-  "pyarrow.*",
-  "kubernetes.*",
-  "langchain.*",
-  "sqlalchemy.*",
-  "matplotlib.*",
-]
-ignore_missing_imports = true
+#[[tool.mypy.overrides]]
+#module = []
+#ignore_missing_imports = true

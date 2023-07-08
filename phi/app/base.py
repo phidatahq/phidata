@@ -58,6 +58,28 @@ class AppBase(PhiBase):
     # If python_path is provided, this value is ignored
     add_python_paths: Optional[List[str]] = None
 
+    # -*- App Environment
+    # Add env variables to container
+    env: Optional[Dict[str, Any]] = None
+    # Read env variables from a file in yaml format
+    env_file: Optional[Path] = None
+    # Add secret variables to container
+    secrets: Optional[Dict[str, Any]] = None
+    # Read secret variables from a file in yaml format
+    secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secrets
+    aws_secrets: Optional[Any] = None
+
+    # -*- App Ports
+    # Open a container port if open_container_port=True
+    open_container_port: bool = False
+    # Port number on the container
+    container_port: int = 80
+    # Port name (used by k8s)
+    container_port_name: str = "http"
+    # Host port to map to the container port
+    host_port: int = 80
+
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
@@ -80,28 +102,6 @@ class AppBase(PhiBase):
     # Branch to sync
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
-
-    # -*- App Environment
-    # Add env variables to container
-    env: Optional[Dict[str, Any]] = None
-    # Read env variables from a file in yaml format
-    env_file: Optional[Path] = None
-    # Add secret variables to container
-    secrets: Optional[Dict[str, Any]] = None
-    # Read secret variables from a file in yaml format
-    secrets_file: Optional[Path] = None
-    # Read secret variables from AWS Secrets
-    aws_secrets: Optional[Any] = None
-
-    # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = False
-    # Host port to map to the container port
-    host_port: int = 80
-    # Port number on the container
-    container_port: int = 80
-    # Port name (used by k8s)
-    container_port_name: str = "http"
 
     # -*- App Volume
     # Create a volume for mounting App data like notebooks, models, etc.

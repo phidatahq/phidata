@@ -34,7 +34,7 @@ class InfraResource(PhiBase):
     output_dir: Optional[str] = None
 
     # -*- Cached Data
-    cached_resource: Optional[Any] = None
+    active_resource: Optional[Any] = None
     cached_env_file_data: Optional[Dict[str, Any]] = None
     cached_secret_file_data: Optional[Dict[str, Any]] = None
 
@@ -83,7 +83,7 @@ class InfraResource(PhiBase):
                 if not output_file_path.exists():
                     output_file_path.parent.mkdir(parents=True, exist_ok=True)
                     output_file_path.touch(exist_ok=True)
-                write_json_file(output_file_path, self.cached_resource)
+                write_json_file(output_file_path, self.active_resource)
                 logger.info(f"Resource saved to: {str(output_file_path)}")
                 return True
             except Exception as e:

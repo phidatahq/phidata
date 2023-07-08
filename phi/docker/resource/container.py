@@ -231,7 +231,7 @@ class DockerContainer(DockerResource):
 
             if _status == "running" or "created":
                 logger.debug("Container Created")
-                self.cached_resource = container_object
+                self.active_resource = container_object
                 return True
 
         logger.debug("Container not found :(")
@@ -257,7 +257,7 @@ class DockerContainer(DockerResource):
                 for container in container_list:
                     if container.name == container_name:
                         logger.debug(f"Container {container_name} exists")
-                        self.cached_resource = container
+                        self.active_resource = container
                         return container
         except Exception:
             logger.debug(f"Container {container_name} not found")
@@ -281,7 +281,7 @@ class DockerContainer(DockerResource):
 
         # Delete Container
         try:
-            self.cached_resource = None
+            self.active_resource = None
             _status: str = container_object.status
             self.status = _status
             logger.debug("Container Status: {}".format(_status))

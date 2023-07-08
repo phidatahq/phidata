@@ -61,7 +61,6 @@ class DockerNetwork(DockerResource):
         if network_object is not None:
             # TODO: validate that the network was actually created
             self.active_resource = network_object
-            self.active_resource_class = Network
             return True
 
         logger.debug("Network not found")
@@ -87,7 +86,6 @@ class DockerNetwork(DockerResource):
                     if network.name == network_name:
                         logger.debug(f"Network {network_name} exists")
                         self.active_resource = network
-                        self.active_resource_class = Network
                         return network
         except Exception:
             logger.debug(f"Network {network_name} not found")

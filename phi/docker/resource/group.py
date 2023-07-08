@@ -86,6 +86,7 @@ class DockerResourceGroup(InfraResourceGroup):
 
         # Implement dependency sorting
         final_docker_resources: List[DockerResource] = []
+        logger.debug("-*- Building DockerResources dependency graph")
         for docker_resource in deduped_resources_to_create:
             # Logic to follow if resource has dependencies
             if docker_resource.depends_on is not None:
@@ -93,17 +94,17 @@ class DockerResourceGroup(InfraResourceGroup):
                 for dep in docker_resource.depends_on:
                     if isinstance(dep, DockerResource):
                         if dep not in final_docker_resources:
-                            logger.debug(f"  -*- Adding {dep.name}, dependency of {docker_resource.name}")
+                            logger.debug(f"-*- Adding {dep.name}, dependency of {docker_resource.name}")
                             final_docker_resources.append(dep)
 
                 # Add the resource to be created after its dependencies
                 if docker_resource not in final_docker_resources:
-                    logger.debug(f"  -*- Adding {docker_resource.name}")
+                    logger.debug(f"-*- Adding {docker_resource.name}")
                     final_docker_resources.append(docker_resource)
             else:
                 # Add the resource to be created if it has no dependencies
                 if docker_resource not in final_docker_resources:
-                    logger.debug(f"  -*- Adding {docker_resource.name}")
+                    logger.debug(f"-*- Adding {docker_resource.name}")
                     final_docker_resources.append(docker_resource)
 
         # Track the total number of DockerResources to create for validation
@@ -137,7 +138,6 @@ class DockerResourceGroup(InfraResourceGroup):
                 _resource_created = resource.create(docker_client=self.docker_client)
                 if _resource_created:
                     num_resources_created += 1
-                    print_info("Resource created")
                 else:
                     logger.error(
                         f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."  # noqa: E501

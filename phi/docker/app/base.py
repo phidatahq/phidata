@@ -169,7 +169,7 @@ class DockerApp(AppBase):
             ):
                 workspace_volume_host_path = str(self.workspace_root)
                 logger.debug(f"Mounting: {workspace_volume_host_path}")
-                logger.debug(f"\tto: {workspace_volume_container_path_str}")
+                logger.debug(f"      to: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_host_path] = {
                     "bind": workspace_volume_container_path_str,
                     "mode": "rw",
@@ -179,7 +179,7 @@ class DockerApp(AppBase):
                 if workspace_volume_name is None:
                     workspace_volume_name = get_default_volume_name(container_context.workspace_name or "ws")
                 logger.debug(f"Mounting: {workspace_volume_name}")
-                logger.debug(f"\tto: {workspace_volume_container_path_str}")
+                logger.debug(f"      to: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
                     "bind": workspace_volume_container_path_str,
                     "mode": "rw",
@@ -191,7 +191,7 @@ class DockerApp(AppBase):
         if self.mount_resources:
             resources_dir_path = str(self.workspace_root.joinpath(self.resources_dir))
             logger.debug(f"Mounting: {resources_dir_path}")
-            logger.debug(f"\tto: {self.resources_dir_container_path}")
+            logger.debug(f"      to: {self.resources_dir_container_path}")
             container_volumes[resources_dir_path] = {
                 "bind": self.resources_dir_container_path,
                 "mode": "ro",
@@ -229,7 +229,7 @@ class DockerApp(AppBase):
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
-        logger.debug(f"Building DockerResourceGroup for {self.get_app_name()}")
+        logger.debug(f"------------ Building {self.get_app_name()} ------------")
 
         if build_context is None or not isinstance(build_context, DockerBuildContext):
             logger.error("build_context not a DockerBuildContext")
@@ -251,7 +251,7 @@ class DockerApp(AppBase):
 
         # -*- Create DockerContainer
         docker_container = DockerContainer(
-            name=self.container_name,
+            name=self.get_container_name(),
             image=self.get_image_str(),
             entrypoint=self.entrypoint,
             command=" ".join(container_cmd) if container_cmd is not None else None,
@@ -287,4 +287,5 @@ class DockerApp(AppBase):
             ]
         )
 
+        logger.debug(f"------------ {self.get_app_name()} Built ------------")
         return app_resources

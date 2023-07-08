@@ -282,7 +282,7 @@ class AppBase(PhiBase):
             base_resources.extend(app_resources)
 
         self.cached_resources = self.add_app_properties_to_resources(base_resources)
-        logger.debug(f"Resources: {self.cached_resources}")
+        # logger.debug(f"Resources: {self.cached_resources}")
         return self.cached_resources
 
     def should_create(self, group_filter: Optional[str] = None) -> bool:

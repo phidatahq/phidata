@@ -67,7 +67,6 @@ class DockerVolume(DockerResource):
 
             # TODO: Validate that the volume object is created properly
             self.active_resource = volume_object
-            self.active_resource_class = Volume
             return True
         return False
 
@@ -88,7 +87,7 @@ class DockerVolume(DockerResource):
                     if volume.name == volume_name:
                         logger.debug(f"Volume {volume_name} exists")
                         self.active_resource = volume
-                        self.active_resource_class = Volume
+
                         return volume
         except Exception:
             logger.debug(f"Volume {volume_name} not found")

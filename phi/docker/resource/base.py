@@ -25,14 +25,14 @@ class DockerResource(InfraResource):
 
     def read(self, docker_client: DockerApiClient) -> Any:
         """Reads the resource from the docker cluster"""
-        if self.use_cache and self.cached_resource is not None:
-            return self.cached_resource
+        if self.use_cache and self.active_resource is not None:
+            return self.active_resource
         return self._read(docker_client=docker_client)
 
     def is_active_on_cluster(self, docker_client: DockerApiClient) -> bool:
         """Returns True if the resource is running on the docker cluster"""
-        self.cached_resource = self._read(docker_client=docker_client)
-        if self.cached_resource is not None:
+        self.active_resource = self._read(docker_client=docker_client)
+        if self.active_resource is not None:
             return True
         return False
 
@@ -48,9 +48,14 @@ class DockerResource(InfraResource):
             print_info(f"Skipping create: {self.get_resource_name()}")
             return True
         if self.use_cache and self.is_active_on_cluster(docker_client=docker_client):
-            print_info(f"{self.get_resource_type()} {self.get_resource_name()} active on cluster.")
+            print_info(f"{self.get_resource_type()} {self.get_resource_name()} already exists.")
             return True
-        return self._create(docker_client=docker_client)
+        if self._create(docker_client=docker_client):
+            print_info(f"{self.get_resource_type()} {self.get_resource_name()} created.")
+            return True
+        else:
+            print_info(f"{self.get_resource_type()} {self.get_resource_name()} could not be created.")
+            return False
 
     def _update(self, docker_client: DockerApiClient) -> bool:
         logger.warning(f"@_update method not defined for {self.get_resource_name()}")

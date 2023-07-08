@@ -264,7 +264,6 @@ class DockerImage(DockerResource):
             if image_object is not None and isinstance(image_object, Image):
                 logger.debug("Image built: {}".format(image_object))
                 self.active_resource = image_object
-                self.active_resource_class = Image
                 return True
         except Exception as e:
             logger.exception(e)

@@ -81,3 +81,33 @@ def log_server_error_msg() -> None:
 
 def log_auth_error_msg() -> None:
     logger.error("AuthError: could not authenticate, please run `phi auth`")
+
+
+def confirm_yes_no(question, default: str = "yes") -> bool:
+    """Ask a yes/no question via raw_input().
+
+    "question" is a string that is presented to the user.
+    "default" is the presumed answer if the user just hits <Enter>.
+            It must be "yes" (the default), "no" or None (meaning
+            an answer is required of the user).
+
+    The "answer" return value is True for "yes" or False for "no".
+    """
+    inp_to_result_map = {"yes": True, "y": True, "ye": True, "no": False, "n": False}
+    if default is None:
+        prompt = " [y/n]: "
+    elif default == "yes":
+        prompt = " [Y/n]: "
+    elif default == "no":
+        prompt = " [y/N]: "
+    else:
+        raise ValueError(f"Invalid default answer: {default}")
+
+    choice = console.input(prompt=(question + prompt)).lower()
+    if default is not None and choice == "":
+        return inp_to_result_map[default]
+    elif choice in inp_to_result_map:
+        return inp_to_result_map[choice]
+    else:
+        logger.error(f"{choice} invalid")
+        return False

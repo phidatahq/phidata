@@ -97,9 +97,8 @@ class PhiCliConfig:
             return
 
         ######################################################
-        # Create ws_config for ws_name does not exist
+        # Create new ws_config for ws_name if one does not exist
         ######################################################
-
         if ws_name not in self.ws_config_map:
             logger.debug(f"Creating workspace: {ws_name}")
             new_workspace_config = WorkspaceConfig(
@@ -119,7 +118,6 @@ class PhiCliConfig:
         ######################################################
         # Update ws_config
         ######################################################
-
         logger.debug(f"Updating workspace: {ws_name}")
         # By this point there should be a WorkspaceConfig object for this ws_name
         existing_ws_config: Optional[WorkspaceConfig] = self.ws_config_map.get(ws_name, None)
@@ -127,18 +125,13 @@ class PhiCliConfig:
             logger.error("Something went wrong. Please try again.")
             return
 
-        # Make a deep copy of the existing workspace data
-        # This allows us to update the fields we want, and keep any existing fields as is
-        updated_ws_config: WorkspaceConfig = existing_ws_config.model_copy(deep=True)
-
-        # Update values where available
-        if ws_schema is not None and ws_schema != existing_ws_config.ws_schema:
-            logger.debug("Updating ws_schema")
-            updated_ws_config.ws_schema = ws_schema
-        if ws_root_path is not None and ws_root_path != existing_ws_config.ws_root_path:
-            logger.debug("Updating ws_root_path")
-            updated_ws_config.ws_root_path = ws_root_path
-
+        # Make a new WorkspaceConfig using new fields or fields from the existing_ws_config
+        updated_ws_config: WorkspaceConfig = WorkspaceConfig(
+            ws_name=(ws_name or existing_ws_config.ws_name),
+            ws_schema=(ws_schema or existing_ws_config.ws_schema),
+            ws_root_path=(ws_root_path or existing_ws_config.ws_root_path),
+            create_ts=existing_ws_config.create_ts,
+        )
         # Load the updated workspace
         updated_ws_config.load()
 

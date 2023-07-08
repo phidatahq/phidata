@@ -12,8 +12,8 @@ class InfraResource(PhiBase):
     name: str
     # Resource type
     resource_type: Optional[str] = None
-    # Resource type filters
-    resource_type_filters: Optional[List[str]] = None
+    # List of resource types to match against for filtering
+    resource_type_list: Optional[List[str]] = None
 
     # -*- Resource Environment
     # Add env variables to resource where applicable
@@ -47,6 +47,15 @@ class InfraResource(PhiBase):
         if self.resource_type is None:
             return self.__class__.__name__
         return self.resource_type
+
+    def get_resource_type_list(self) -> List[str]:
+        if self.resource_type_list is None:
+            return [self.get_resource_type()]
+
+        type_list: List[str] = self.resource_type_list
+        if self.get_resource_type() not in type_list:
+            type_list.append(self.get_resource_type())
+        return type_list
 
     def get_output_file_path(self) -> Optional[Path]:
         if self.output_file is None:
@@ -122,6 +131,31 @@ class InfraResource(PhiBase):
 
             self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
         return self.cached_secret_file_data
+
+    def should_create(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+    ) -> bool:
+        if not self.enabled or self.skip_create:
+            return False
+        if group_filter is not None:
+            group_name = self.get_group_name()
+            if group_name is not None:
+                if group_name != group_filter:
+                    return False
+        if name_filter is not None:
+            resource_name = self.get_resource_name()
+            if resource_name is not None:
+                if resource_name != name_filter:
+                    return False
+        if type_filter is not None:
+            resource_type_list = self.get_resource_type_list()
+            if resource_type_list is not None:
+                if type_filter not in resource_type_list:
+                    return False
+        return True
 
     def __hash__(self):
         return hash(self.get_resource_name())

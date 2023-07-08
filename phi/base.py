@@ -7,6 +7,7 @@ from phi.utils.log import logger
 
 class PhiBase(BaseModel):
     name: Optional[str] = None
+    group: Optional[str] = None
     version: Optional[str] = None
     enabled: bool = True
 
@@ -20,6 +21,9 @@ class PhiBase(BaseModel):
     use_cache: bool = True
     # Force create/update/delete implementation
     force: bool = False
+
+    # -*- Debug Mode
+    debug_mode: bool = False
 
     # -*- Waiter Control
     wait_for_create: bool = True
@@ -38,6 +42,9 @@ class PhiBase(BaseModel):
     depends_on: Optional[List[Any]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def get_group_name(self) -> Optional[str]:
+        return self.group or self.name
 
     @field_validator("force", mode="before")
     def set_force(cls, force):

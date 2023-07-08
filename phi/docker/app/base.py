@@ -219,12 +219,10 @@ class DockerApp(AppBase):
         return self.command
 
     def build_resources(self, build_context: Any) -> Optional[Any]:
-        from phi.docker.resource.group import (
-            DockerNetwork,
-            DockerContainer,
-            DockerResourceGroup,
-            DockerBuildContext,
-        )
+        from phi.docker.context import DockerBuildContext
+        from phi.docker.resource.base import DockerResource
+        from phi.docker.resource.network import DockerNetwork
+        from phi.docker.resource.container import DockerContainer
 
         # -*- Build Container Paths
         container_context: Optional[ContainerContext] = self.build_container_context()
@@ -278,11 +276,15 @@ class DockerApp(AppBase):
             use_cache=self.use_cache,
         )
 
-        resource_group = DockerResourceGroup(
-            name=self.get_app_name(),
-            enabled=self.enabled,
-            network=DockerNetwork(name=build_context.network),
-            containers=[docker_container],
-            images=[self.image] if self.image else None,
+        # -*- Create app_resources list
+        app_resources: List[DockerResource] = []
+        if self.image:
+            app_resources.append(self.image)
+        app_resources.extend(
+            [
+                DockerNetwork(name=build_context.network),
+                docker_container,
+            ]
         )
-        return resource_group
+
+        return app_resources

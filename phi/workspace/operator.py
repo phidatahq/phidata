@@ -380,14 +380,20 @@ def start_workspace(
     ws_config.set_local_env()
 
     # Get a resource groups to deploy
-    resource_groups_to_deploy: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_create: List[InfraResourceGroup] = ws_config.get_resource_groups(
         env=target_env,
         infra=target_infra,
         order="create",
     )
-    num_rgs_to_deploy = len(resource_groups_to_deploy)
-    num_rgs_deployed = 0
-    for rg in resource_groups_to_deploy:
+    num_rgs_to_create = len(resource_groups_to_create)
+    num_rgs_created = 0
+
+    if num_rgs_to_create == 0:
+        print_info("No resources to create")
+        return
+
+    logger.debug(f"Deploying {num_rgs_to_create} resource groups")
+    for rg in resource_groups_to_create:
         rg.create_resources(
             group_filter=target_group,
             name_filter=target_name,
@@ -397,12 +403,12 @@ def start_workspace(
             workspace_root=ws_config.ws_root_path,
             workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_deployed += 1
+        num_rgs_created += 1
         # print white space between runs
         print_info("")
 
-    print_info(f"# Configs deployed: {num_rgs_deployed}/{num_rgs_to_deploy}\n")
-    if num_rgs_to_deploy == num_rgs_deployed:
+    print_info(f"# Configs deployed: {num_rgs_created}/{num_rgs_to_create}\n")
+    if num_rgs_to_create == num_rgs_created:
         if not dry_run:
             print_subheading("Workspace started")
     else:

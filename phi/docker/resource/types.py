@@ -1,13 +1,13 @@
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
-from phidata.docker.resource.network import DockerNetwork
-from phidata.docker.resource.image import DockerImage
-from phidata.docker.resource.container import DockerContainer
-from phidata.docker.resource.volume import DockerVolume
-from phidata.docker.resource.base import DockerResource
+from phi.docker.resource.network import DockerNetwork
+from phi.docker.resource.image import DockerImage
+from phi.docker.resource.container import DockerContainer
+from phi.docker.resource.volume import DockerVolume
+from phi.docker.resource.base import DockerResource
 
-# Use this as a type for an object which can hold any DockerResource
+# Use this as a type for an object that can hold any DockerResource
 DockerResourceType = Union[
     DockerNetwork,
     DockerImage,
@@ -24,9 +24,9 @@ DockerResourceTypeList: List[Type[DockerResource]] = [
     DockerContainer,
 ]
 
-# Maps each DockerResource to an install weight
+# Maps each DockerResource to an Install weight
 # lower weight DockerResource(s) get installed first
-# i.e. networks are installed first, then volumes ... and so on
+# i.e. Networks are installed first, Images, then Volumes ... and so on
 DockerResourceInstallOrder: Dict[str, int] = OrderedDict(
     {resource_type.__name__: idx for idx, resource_type in enumerate(DockerResourceTypeList, start=1)}
 )

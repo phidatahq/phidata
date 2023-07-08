@@ -29,12 +29,12 @@ class WorkspaceConfig(BaseModel):
     # Timestamp of when this workspace was created on the users machine
     create_ts: datetime.datetime = current_datetime_utc()
 
-    # List of DockerResources
-    docker_resources: Optional[List[Any]] = None
-    # List of K8sResources
-    k8s_resources: Optional[List[Any]] = None
-    # List of AwsResources
-    aws_resources: Optional[List[Any]] = None
+    # List of DockerResourceGroup
+    docker_resource_groups: Optional[List[Any]] = None
+    # List of K8sResourceGroup
+    k8s_resource_groups: Optional[List[Any]] = None
+    # List of AwsResourceGroup
+    aws_resource_groups: Optional[List[Any]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -79,9 +79,9 @@ class WorkspaceConfig(BaseModel):
                         _type_name = obj.__class__.__name__
                         if _type_name in [
                             "WorkspaceSettings",
-                            "DockerResources",
-                            "K8sResources",
-                            "AwsResources",
+                            "DockerResourceGroup",
+                            "K8sResourceGroup",
+                            "AwsResourceGroup",
                         ]:
                             workspace_objects[obj_name] = obj
                 except Exception as e:
@@ -103,18 +103,18 @@ class WorkspaceConfig(BaseModel):
                 logger.debug(f"Adding {obj_name} | Type: {_obj_type}")
                 if _obj_type == "WorkspaceSettings":
                     self.workspace_settings = obj
-                elif _obj_type == "DockerResources":
-                    if self.docker_resources is None:
-                        self.docker_resources = []
-                    self.docker_resources.append(obj)
-                elif _obj_type == "K8sResources":
-                    if self.k8s_resources is None:
-                        self.k8s_resources = []
-                    self.k8s_resources.append(obj)
-                elif _obj_type == "AwsResources":
-                    if self.aws_resources is None:
-                        self.aws_resources = []
-                    self.aws_resources.append(obj)
+                elif _obj_type == "DockerResourceGroup":
+                    if self.docker_resource_groups is None:
+                        self.docker_resource_groups = []
+                    self.docker_resource_groups.append(obj)
+                elif _obj_type == "K8sResourceGroup":
+                    if self.k8s_resource_groups is None:
+                        self.k8s_resource_groups = []
+                    self.k8s_resource_groups.append(obj)
+                elif _obj_type == "AwsResourceGroup":
+                    if self.aws_resource_groups is None:
+                        self.aws_resource_groups = []
+                    self.aws_resource_groups.append(obj)
 
         logger.debug("**--> WorkspaceConfig loaded")
         return True
@@ -153,27 +153,27 @@ class WorkspaceConfig(BaseModel):
         # Get all resource groups
         all_resource_groups: List[InfraResourceGroup] = []
         if infra is None:
-            if self.docker_resources is not None:
-                all_resource_groups.extend(self.docker_resources)
+            if self.docker_resource_groups is not None:
+                all_resource_groups.extend(self.docker_resource_groups)
             if order == "delete":
-                if self.k8s_resources is not None:
-                    all_resource_groups.extend(self.k8s_resources)
-                if self.aws_resources is not None:
-                    all_resource_groups.extend(self.aws_resources)
+                if self.k8s_resource_groups is not None:
+                    all_resource_groups.extend(self.k8s_resource_groups)
+                if self.aws_resource_groups is not None:
+                    all_resource_groups.extend(self.aws_resource_groups)
             else:
-                if self.aws_resources is not None:
-                    all_resource_groups.extend(self.aws_resources)
-                if self.k8s_resources is not None:
-                    all_resource_groups.extend(self.k8s_resources)
+                if self.aws_resource_groups is not None:
+                    all_resource_groups.extend(self.aws_resource_groups)
+                if self.k8s_resource_groups is not None:
+                    all_resource_groups.extend(self.k8s_resource_groups)
         elif infra == "docker":
-            if self.docker_resources is not None:
-                all_resource_groups.extend(self.docker_resources)
+            if self.docker_resource_groups is not None:
+                all_resource_groups.extend(self.docker_resource_groups)
         elif infra == "k8s":
-            if self.k8s_resources is not None:
-                all_resource_groups.extend(self.k8s_resources)
+            if self.k8s_resource_groups is not None:
+                all_resource_groups.extend(self.k8s_resource_groups)
         elif infra == "aws":
-            if self.aws_resources is not None:
-                all_resource_groups.extend(self.aws_resources)
+            if self.aws_resource_groups is not None:
+                all_resource_groups.extend(self.aws_resource_groups)
 
         # Filter by env
         filtered_resource_groups: List[InfraResourceGroup] = []

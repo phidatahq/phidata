@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any, Union, List
 
 from phi.base import PhiBase
 from phi.app.context import ContainerContext
+from phi.infra.resource import InfraResource
+from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
@@ -24,13 +26,10 @@ class AppBase(PhiBase):
     # App name is required
     name: str
 
-    # -*- Host Machine Path Parameters
-    # Path to the workspace root directory
+    # -*- Workspace Configuration
+    # Added when the App is being built by the InfraResourceGroup
     workspace_root: Optional[Path] = None
-    scripts_dir: Optional[str] = None
-    storage_dir: Optional[str] = None
-    workflows_dir: Optional[str] = None
-    workspace_dir: Optional[str] = None
+    workspace_settings: Optional[WorkspaceSettings] = None
 
     # -*- Image Configuration
     # Image can be provided as a DockerImage object
@@ -44,9 +43,6 @@ class AppBase(PhiBase):
     entrypoint: Optional[Union[str, List[str]]] = None
     # Command for the container
     command: Optional[Union[str, List[str]]] = None
-
-    # -*- Debug Mode
-    debug_mode: bool = False
 
     # -*- Python Configuration
     # Install python dependencies using a requirements.txt file
@@ -136,17 +132,13 @@ class AppBase(PhiBase):
     # Or provide Efs Volume-id manually
     app_efs_volume_id: Optional[str] = None
 
-    # -*- AWS Configuration
-    aws_region: Optional[str] = None
-    aws_profile: Optional[str] = None
-
-    # -*- Extra Resources
-    resources: Optional[List[Any]] = None
+    # -*- Extra Resources created "before" the App resources
+    resources: Optional[List[InfraResource]] = None
 
     #  -*- Other args
     print_env_on_load: bool = False
 
-    # -*- App specific args (used by subclass)
+    # -*- App specific args (updated by subclassed)
     container_env: Optional[Dict[str, Any]] = None
     container_context: Optional[ContainerContext] = None
 
@@ -191,11 +183,11 @@ class AppBase(PhiBase):
             AWS_PROFILE_ENV_VAR,
         )
 
-        if self.aws_region is not None:
-            env_dict[AWS_REGION_ENV_VAR] = self.aws_region
-            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.aws_region
-        if self.aws_profile is not None:
-            env_dict[AWS_PROFILE_ENV_VAR] = self.aws_profile
+        if self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
+            env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region
+        if self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
+            env_dict[AWS_PROFILE_ENV_VAR] = self.workspace_settings.aws_profile
 
     def build_container_context(self) -> Optional[ContainerContext]:
         logger.debug("Building ContainerContext")
@@ -218,45 +210,87 @@ class AppBase(PhiBase):
         workspace_parent_paths = workspace_volume_container_path.split("/")[0:-1]
         workspace_parent = "/".join(workspace_parent_paths)
 
-        container_context = ContainerContext(
+        self.container_context = ContainerContext(
             workspace_name=workspace_name,
             workspace_root=workspace_volume_container_path,
             # Required for git-sync and K8s volume mounts
             workspace_parent=workspace_parent,
         )
 
-        if self.scripts_dir is not None:
-            container_context.scripts_dir = f"{workspace_volume_container_path}/{self.scripts_dir}"
+        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
+            self.container_context.scripts_dir = (
+                f"{workspace_volume_container_path}/{self.workspace_settings.scripts_dir}"
+            )
 
-        if self.storage_dir is not None:
-            container_context.storage_dir = f"{workspace_volume_container_path}/{self.storage_dir}"
+        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
+            self.container_context.storage_dir = (
+                f"{workspace_volume_container_path}/{self.workspace_settings.storage_dir}"
+            )
 
-        if self.workflows_dir is not None:
-            container_context.workflows_dir = f"{workspace_volume_container_path}/{self.workflows_dir}"
+        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
+            self.container_context.workflows_dir = (
+                f"{workspace_volume_container_path}/{self.workspace_settings.workflows_dir}"
+            )
 
-        if self.workspace_dir is not None:
-            container_context.workspace_dir = f"{workspace_volume_container_path}/{self.workspace_dir}"
+        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
+            self.container_context.workspace_dir = (
+                f"{workspace_volume_container_path}/{self.workspace_settings.workspace_dir}"
+            )
 
         if self.requirements_file is not None:
-            container_context.requirements_file = (
+            self.container_context.requirements_file = (
                 f"{workspace_volume_container_path}/{self.requirements_file}"
             )
 
-        self.container_context = container_context
         return self.container_context
 
     def build_resources(self, build_context: Any) -> Optional[Any]:
         logger.debug(f"@build_resource_group not defined for {self.get_app_name()}")
         return None
 
-    def get_resources(self, build_context: Any) -> Optional[Any]:
+    def get_dependencies(self) -> List[InfraResource]:
+        return []
+
+    def add_workspace_settings_to_app(
+        self, workspace_root: Optional[Path] = None, workspace_settings: Optional[WorkspaceSettings] = None
+    ) -> None:
+        if workspace_root is not None:
+            self.workspace_root = workspace_root
+        if workspace_settings is not None:
+            self.workspace_settings = workspace_settings
+
+    def add_app_properties_to_resources(self, resources: List[InfraResource]) -> List[InfraResource]:
+        updated_resources = []
+        for resource in resources:
+            resource.group = resource.group or self.group
+            resource.wait_for_create = resource.wait_for_create or self.wait_for_create
+            resource.wait_for_update = resource.wait_for_update or self.wait_for_update
+            resource.wait_for_delete = resource.wait_for_delete or self.wait_for_delete
+            resource.save_output = resource.save_output or self.save_output
+            resource.output_dir = resource.output_dir or self.get_app_name()
+            resource.depends_on = resource.depends_on or self.get_dependencies()
+            updated_resources.append(resource)
+        return updated_resources
+
+    def get_resources(self, build_context: Any) -> List[InfraResource]:
         if self.cached_resources is not None and len(self.cached_resources) > 0:
             return self.cached_resources
 
-        self.cached_resources = self.resources or []
+        base_resources = self.resources or []
         app_resources = self.build_resources(build_context)
         if app_resources is not None:
-            self.cached_resources.extend(app_resources)
+            base_resources.extend(app_resources)
 
+        self.cached_resources = self.add_app_properties_to_resources(base_resources)
         logger.debug(f"Resources: {self.cached_resources}")
         return self.cached_resources
+
+    def should_create(self, group_filter: Optional[str] = None) -> bool:
+        if not self.enabled or self.skip_create:
+            return False
+        if group_filter is not None:
+            group_name = self.get_group_name()
+            if group_name is not None:
+                if group_name != group_filter:
+                    return False
+        return True

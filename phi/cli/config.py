@@ -295,7 +295,7 @@ class PhiCliConfig:
         logger.debug(f"Reading PhiCliConfig from {phi_cli_settings.config_file_path}")
         cli_config = unpickle_object_from_file(file_path=phi_cli_settings.config_file_path, verify_class=cls)
         if cli_config is None:
-            logger.warning(f"Unable to read config from {phi_cli_settings.config_file_path}")
+            logger.debug(f"Unable to read config from {phi_cli_settings.config_file_path}")
             return None
         return cli_config
 

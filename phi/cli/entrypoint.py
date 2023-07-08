@@ -49,10 +49,10 @@ def init(
     * `phi init`    -> Initializing phidata
     * `phi init -r` -> Reset and initializing phidata
     """
-    from phi.cli.operator import initialize_phidata
-
     if print_debug_log:
         set_log_level_to_debug()
+
+    from phi.cli.operator import initialize_phidata
 
     initialize_phidata(reset=reset, login=login)
 
@@ -71,10 +71,10 @@ def reset(
     Reset the existing phidata installation
     After resetting please run `phi init` to initialize again.
     """
-    from phi.cli.operator import initialize_phidata
-
     if print_debug_log:
         set_log_level_to_debug()
+
+    from phi.cli.operator import initialize_phidata
 
     initialize_phidata(reset=True)
 
@@ -92,10 +92,10 @@ def auth(
     \b
     Authenticate your account with phidata.
     """
-    from phi.cli.operator import authenticate_user
-
     if print_debug_log:
         set_log_level_to_debug()
+
+    from phi.cli.operator import authenticate_user
 
     authenticate_user()
 
@@ -117,10 +117,10 @@ def login(
     Examples:
     * `phi login`
     """
-    from phi.cli.operator import sign_in_using_cli
-
     if print_debug_log:
         set_log_level_to_debug()
+
+    from phi.cli.operator import sign_in_using_cli
 
     sign_in_using_cli()
 
@@ -135,11 +135,11 @@ def ping(
     ),
 ):
     """Ping the phidata servers and check if you are authenticated"""
-    from phi.api.user import user_ping, is_user_authenticated
-    from phi.cli.console import print_info
-
     if print_debug_log:
         set_log_level_to_debug()
+
+    from phi.api.user import user_ping, is_user_authenticated
+    from phi.cli.console import print_info
 
     ping_success = user_ping()
     if ping_success:
@@ -169,11 +169,11 @@ def config(
     ),
 ):
     """Print your current phidata config"""
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.console import print_info
-
     if print_debug_log:
         set_log_level_to_debug()
+
+    from phi.cli.config import PhiCliConfig
+    from phi.cli.console import print_info
 
     conf: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if conf is not None:

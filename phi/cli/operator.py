@@ -75,7 +75,7 @@ def initialize_phidata(reset: bool = False, login: bool = False) -> bool:
     """
     from phi.utils.filesystem import delete_from_fs
 
-    print_heading("Welcome to phidata!\n")
+    print_heading("Welcome to phidata!")
     if reset:
         delete_phidata_conf()
 

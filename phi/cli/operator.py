@@ -65,8 +65,8 @@ def authenticate_user() -> bool:
     return phi_config.sync_workspaces_from_api()
 
 
-def initialize_phidata(reset: bool = False, login: bool = False) -> bool:
-    """Initialize phidata on the users' machine.
+def initialize_phi(reset: bool = False, login: bool = False) -> bool:
+    """Initialize phi on the users machine.
 
     Steps:
     1. Check if PHI_CLI_DIR exists, if not, create it. If reset == True, recreate PHI_CLI_DIR.

@@ -7,7 +7,7 @@ from phi.base import PhiBase
 from phi.utils.log import logger
 
 
-class ResourceBase(PhiBase):
+class InfraResource(PhiBase):
     # Resource name is required
     name: str
     # Resource type
@@ -127,16 +127,16 @@ class ResourceBase(PhiBase):
         return hash(self.get_resource_name())
 
     def __eq__(self, other):
-        if isinstance(other, ResourceBase):
+        if isinstance(other, InfraResource):
             if other.get_resource_type() == self.get_resource_type():
                 return self.get_resource_name() == other.get_resource_name()
         return False
 
     """
     ## Functions to be implemented by subclasses
-    def create(self, infra_api_client: InfraApiClient) -> bool:
-    def read(self, infra_api_client: InfraApiClient) -> bool:
-    def update(self, infra_api_client: InfraApiClient) -> bool:
-    def delete(self, infra_api_client: InfraApiClient) -> bool:
-    def is_active(self, infra_api_client: InfraApiClient) -> bool:
+    def create(self, api_client: ApiClient) -> bool:
+    def read(self, api_client: ApiClient) -> bool:
+    def update(self, api_client: ApiClient) -> bool:
+    def delete(self, api_client: ApiClient) -> bool:
+    def is_active(self, api_client: ApiClient) -> bool:
     """

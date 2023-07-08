@@ -136,17 +136,17 @@ class AppBase(PhiBase):
     # Or provide Efs Volume-id manually
     app_efs_volume_id: Optional[str] = None
 
-    # -*- App Resources
-    resources: Optional[List[Any]] = None
-
     # -*- AWS Configuration
     aws_region: Optional[str] = None
     aws_profile: Optional[str] = None
 
+    # -*- Extra Resources
+    resources: Optional[List[Any]] = None
+
     #  -*- Other args
     print_env_on_load: bool = False
 
-    # -*- App specific args (provided by subclass)
+    # -*- App specific args (used by subclass)
     container_env: Optional[Dict[str, Any]] = None
     container_context: Optional[ContainerContext] = None
 

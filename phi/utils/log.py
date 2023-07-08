@@ -11,6 +11,7 @@ def get_logger(logger_name: str) -> logging.Logger:
     rich_handler = RichHandler(
         show_time=False,
         rich_tracebacks=False,
+        show_path=False,
         tracebacks_show_locals=False,
     )
     rich_handler.setFormatter(

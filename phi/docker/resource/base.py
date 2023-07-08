@@ -1,15 +1,15 @@
 from typing import Any, Optional, Dict
 
-from phi.resource.base import ResourceBase
+from phi.infra.resource import InfraResource
 from phi.docker.api_client import DockerApiClient
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
 
-class DockerResource(ResourceBase):
+class DockerResource(InfraResource):
     """Base class for Docker Resources."""
 
-    # Fields for the resource from the DockerApiClient
+    # Fields received from the DockerApiClient
     id: Optional[str] = None
     short_id: Optional[str] = None
     attrs: Optional[Dict[str, Any]] = None

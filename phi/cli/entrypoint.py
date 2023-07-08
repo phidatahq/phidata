@@ -6,7 +6,8 @@ from typing import Optional
 
 import typer
 
-# from phi.cli.ws.ws_app import ws_app
+from phi.cli.ws.ws_cli import ws_cli
+
 # from phi.cli.k8s.k8s_app import k8s_app
 # from phi.cli.wf.wf_app import wf_app
 from phi.utils.log import set_log_level_to_debug
@@ -52,9 +53,9 @@ def init(
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.operator import initialize_phidata
+    from phi.cli.operator import initialize_phi
 
-    initialize_phidata(reset=reset, login=login)
+    initialize_phi(reset=reset, login=login)
 
 
 @phi_cli.command(short_help="Reset phidata installation")
@@ -74,9 +75,9 @@ def reset(
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.operator import initialize_phidata
+    from phi.cli.operator import initialize_phi
 
-    initialize_phidata(reset=True)
+    initialize_phi(reset=True)
 
 
 @phi_cli.command(short_help="Authenticate with phidata.com")
@@ -667,6 +668,6 @@ def config(
 #     )
 
 
-# phi_cli.add_typer(ws_app)
+phi_cli.add_typer(ws_cli)
 # phi_cli.add_typer(k8s_app)
 # phi_cli.add_typer(wf_app)

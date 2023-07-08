@@ -4,6 +4,8 @@ from typing import Optional, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from phi.infra.enums import InfraType
+from phi.infra.resource_group import InfraResourceGroup
 from phi.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.dttm import current_datetime_utc
@@ -23,7 +25,7 @@ class WorkspaceConfig(BaseModel):
     # WorkspaceSettings
     workspace_settings: Optional[WorkspaceSettings] = None
     # Path to the workspace directory
-    workspace_dir_path: Optional[Path] = None
+    _workspace_dir_path: Optional[Path] = None
     # Timestamp of when this workspace was created on the users machine
     create_ts: datetime.datetime = current_datetime_utc()
 
@@ -36,12 +38,21 @@ class WorkspaceConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @property
+    def workspace_dir_path(self) -> Optional[Path]:
+        if self._workspace_dir_path is None:
+            if self.ws_root_path is not None:
+                from phi.workspace.helpers import get_workspace_dir_path
+
+                self._workspace_dir_path = get_workspace_dir_path(self.ws_root_path)
+        return self._workspace_dir_path
+
     def load(self) -> bool:
         if self.ws_root_path is None:
             raise Exception("Workspace root not set")
 
+        logger.debug("**--> Loading WorkspaceConfig")
         from sys import path as sys_path
-        from phi.workspace.helpers import get_workspace_dir_path
         from phi.utils.py_io import get_python_objects_from_module
 
         # NOTE: When loading a workspace, relative imports or package imports dont work.
@@ -51,20 +62,19 @@ class WorkspaceConfig(BaseModel):
         logger.debug(f"Adding {self.ws_root_path} to path")
         sys_path.insert(0, str(self.ws_root_path))
 
-        logger.debug("**--> Loading WorkspaceConfig")
-        self.workspace_dir_path: Optional[Path] = get_workspace_dir_path(self.ws_root_path)
-        if self.workspace_dir_path is not None:
-            logger.debug(f"--^^-- Loading workspace from: {self.workspace_dir_path}")
+        workspace_dir_path: Optional[Path] = self.workspace_dir_path
+        if workspace_dir_path is not None:
+            logger.debug(f"--^^-- Loading workspace from: {workspace_dir_path}")
             # Create a dict of objects in the workspace directory
             workspace_objects = {}
-            resource_files = self.workspace_dir_path.rglob("*.py")
+            resource_files = workspace_dir_path.rglob("*.py")
             for resource_file in resource_files:
                 if resource_file.name == "__init__.py":
                     continue
                 logger.debug(f"Reading file: {resource_file}")
                 try:
                     python_objects = get_python_objects_from_module(resource_file)
-                    logger.debug(f"python_objects: {python_objects}")
+                    # logger.debug(f"python_objects: {python_objects}")
                     for obj_name, obj in python_objects.items():
                         _type_name = obj.__class__.__name__
                         if _type_name in [
@@ -87,7 +97,7 @@ class WorkspaceConfig(BaseModel):
                         logger.warning(f"Error in {resource_file}: {e}")
                     pass
 
-            logger.debug(f"workspace_objects: {workspace_objects}")
+            # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
                 _obj_type = obj.__class__.__name__
                 logger.debug(f"Adding {obj_name} | Type: {_obj_type}")
@@ -109,7 +119,69 @@ class WorkspaceConfig(BaseModel):
         logger.debug("**--> WorkspaceConfig loaded")
         return True
 
-    def print_to_cli(self):
-        from rich.pretty import pprint
+    def set_local_env(self) -> None:
+        from os import environ
 
-        pprint(self.model_dump_json(indent=2))
+        from phi.constants import (
+            SCRIPTS_DIR_ENV_VAR,
+            STORAGE_DIR_ENV_VAR,
+            WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
+            WORKSPACE_DIR_ENV_VAR,
+        )
+
+        if self.ws_root_path is not None:
+            environ[WORKSPACE_ROOT_ENV_VAR] = str(self.ws_root_path)
+
+            workspace_dir_path: Optional[Path] = self.workspace_dir_path
+            if workspace_dir_path is not None:
+                environ[WORKSPACE_DIR_ENV_VAR] = str(workspace_dir_path)
+
+            if self.workspace_settings is not None:
+                scripts_dir = self.ws_root_path.joinpath(self.workspace_settings.scripts_dir)
+                environ[SCRIPTS_DIR_ENV_VAR] = str(scripts_dir)
+
+                storage_dir = self.ws_root_path.joinpath(self.workspace_settings.storage_dir)
+                environ[STORAGE_DIR_ENV_VAR] = str(storage_dir)
+
+                workflows_dir = self.ws_root_path.joinpath(self.workspace_settings.workflows_dir)
+                environ[WORKFLOWS_DIR_ENV_VAR] = str(workflows_dir)
+
+    def get_resource_groups(
+        self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"
+    ) -> List[InfraResourceGroup]:
+        # Get all resource groups
+        all_resource_groups: List[InfraResourceGroup] = []
+        if infra is None:
+            if self.docker_resources is not None:
+                all_resource_groups.extend(self.docker_resources)
+            if order == "delete":
+                if self.k8s_resources is not None:
+                    all_resource_groups.extend(self.k8s_resources)
+                if self.aws_resources is not None:
+                    all_resource_groups.extend(self.aws_resources)
+            else:
+                if self.aws_resources is not None:
+                    all_resource_groups.extend(self.aws_resources)
+                if self.k8s_resources is not None:
+                    all_resource_groups.extend(self.k8s_resources)
+        elif infra == "docker":
+            if self.docker_resources is not None:
+                all_resource_groups.extend(self.docker_resources)
+        elif infra == "k8s":
+            if self.k8s_resources is not None:
+                all_resource_groups.extend(self.k8s_resources)
+        elif infra == "aws":
+            if self.aws_resources is not None:
+                all_resource_groups.extend(self.aws_resources)
+
+        # Filter by env
+        filtered_resource_groups: List[InfraResourceGroup] = []
+        if env is None:
+            filtered_resource_groups = all_resource_groups
+        else:
+            for resource_group in all_resource_groups:
+                if resource_group.env == env:
+                    filtered_resource_groups.append(resource_group)
+
+        return filtered_resource_groups

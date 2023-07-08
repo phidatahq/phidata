@@ -47,6 +47,22 @@ def print_info(msg: str) -> None:
     console.print(msg, style=info_style)
 
 
+def log_config_not_available_msg() -> None:
+    logger.error("Phi not initialized, please run `phi init`")
+
+
+def log_active_workspace_not_available() -> None:
+    logger.error("No active workspace. You can:")
+    logger.error("- Run `phi ws create` to create a new workspace")
+    logger.error("- OR Run `phi ws setup` from an existing directory to setup the workspace")
+    logger.error("- OR Set an existing workspace as active using `phi set [ws_name]`")
+
+
+def print_available_workspaces(avl_ws_list) -> None:
+    avl_ws_names = [w.name for w in avl_ws_list] if avl_ws_list else []
+    print_info("Available Workspaces:\n  - {}".format("\n  - ".join(avl_ws_names)))
+
+
 def log_generic_error_msg() -> None:
     logger.error("Something went wrong. Please try again.")
 

@@ -59,7 +59,6 @@ class PhiCliConfig:
     def active_ws_name(self, ws_name: Optional[str]) -> None:
         if ws_name is not None:
             self._active_ws_name = ws_name
-            self._add_or_update_ws_config(ws_name=ws_name)
             self.save_config()
 
     @property
@@ -103,13 +102,16 @@ class PhiCliConfig:
 
         if ws_name not in self.ws_config_map:
             logger.debug(f"Creating workspace: {ws_name}")
-            self.ws_config_map[ws_name] = WorkspaceConfig(
+            new_workspace_config = WorkspaceConfig(
                 ws_name=ws_name,
                 ws_schema=ws_schema,
                 ws_root_path=ws_root_path,
             )
+            # Load the new workspace
+            new_workspace_config.load()
+            self.ws_config_map[ws_name] = new_workspace_config
             if ws_root_path is not None:
-                self.path_to_ws_config_map[ws_root_path] = self.ws_config_map[ws_name]
+                self.path_to_ws_config_map[ws_root_path] = new_workspace_config
                 logger.debug(f"Workspace dir: {ws_root_path}")
             logger.debug(f"Workspace created: {ws_name}")
             return
@@ -136,6 +138,9 @@ class PhiCliConfig:
         if ws_root_path is not None and ws_root_path != existing_ws_config.ws_root_path:
             logger.debug("Updating ws_root_path")
             updated_ws_config.ws_root_path = ws_root_path
+
+        # Load the updated workspace
+        updated_ws_config.load()
 
         # Point the ws_config in ws_config_map and path_to_ws_config_map to updated_ws_config
         # 1. Pop the existing object from the self.ws_config_map
@@ -305,9 +310,9 @@ class PhiCliConfig:
 
     def print_to_cli(self, show_all: bool = False):
         if self.user:
-            print_heading(f"User: {self.user.email}")
+            print_heading(f"User: {self.user.email}\n")
         if self.active_ws_name:
-            print_heading(f"\nActive workspace: {self.active_ws_name}\n")
+            print_heading(f"Active workspace: {self.active_ws_name}\n")
         else:
             print_info("* No active workspace, run `phi ws create` or `phi ws set`")
 

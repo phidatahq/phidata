@@ -3,6 +3,7 @@ from typing import Optional, List, Dict
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
+from pydantic_core.core_schema import FieldValidationInfo
 
 
 class WorkspaceSettings(BaseSettings):
@@ -20,10 +21,15 @@ class WorkspaceSettings(BaseSettings):
     ws_repo: Optional[str] = None
     # Path to the workspace root
     ws_root: Path
+    # Path to important directories relative to the ws_root
+    scripts_dir: str = "scripts"
+    storage_dir: str = "storage"
+    workflows_dir: str = "workflows"
+    workspace_dir: str = "workspace"
     # default env for phi ws commands
     default_env: Optional[str] = None
-    # default config for phi ws commands
-    default_config: Optional[str] = None
+    # default infra for phi ws commands
+    default_infra: Optional[str] = None
     #
     # -*- Dev settings
     #
@@ -171,30 +177,30 @@ class WorkspaceSettings(BaseSettings):
     use_cache: bool = True
 
     @field_validator("dev_key", mode="before")
-    def set_dev_key(cls, dev_key, values):
+    def set_dev_key(cls, dev_key, info: FieldValidationInfo):
         if dev_key is not None:
             return dev_key
 
-        ws_name = values.get("ws_name")
+        ws_name = info.data.get("ws_name")
         if ws_name is None:
             raise ValueError("ws_name invalid")
 
-        dev_env = values.get("dev_env")
+        dev_env = info.data.get("dev_env")
         if dev_env is None:
             raise ValueError("dev_env invalid")
 
         return f"{ws_name}-{dev_env}"
 
     @field_validator("dev_tags", mode="before")
-    def set_dev_tags(cls, dev_tags, values):
+    def set_dev_tags(cls, dev_tags, info: FieldValidationInfo):
         if dev_tags is not None:
             return dev_tags
 
-        ws_name = values.get("ws_name")
+        ws_name = info.data.get("ws_name")
         if ws_name is None:
             raise ValueError("ws_name invalid")
 
-        dev_env = values.get("dev_env")
+        dev_env = info.data.get("dev_env")
         if dev_env is None:
             raise ValueError("dev_env invalid")
 
@@ -204,30 +210,30 @@ class WorkspaceSettings(BaseSettings):
         }
 
     @field_validator("stg_key", mode="before")
-    def set_stg_key(cls, stg_key, values):
+    def set_stg_key(cls, stg_key, info: FieldValidationInfo):
         if stg_key is not None:
             return stg_key
 
-        ws_name = values.get("ws_name")
+        ws_name = info.data.get("ws_name")
         if ws_name is None:
             raise ValueError("ws_name invalid")
 
-        stg_env = values.get("stg_env")
+        stg_env = info.data.get("stg_env")
         if stg_env is None:
             raise ValueError("stg_env invalid")
 
         return f"{ws_name}-{stg_env}"
 
     @field_validator("stg_tags", mode="before")
-    def set_stg_tags(cls, stg_tags, values):
+    def set_stg_tags(cls, stg_tags, info: FieldValidationInfo):
         if stg_tags is not None:
             return stg_tags
 
-        ws_name = values.get("ws_name")
+        ws_name = info.data.get("ws_name")
         if ws_name is None:
             raise ValueError("ws_name invalid")
 
-        stg_env = values.get("stg_env")
+        stg_env = info.data.get("stg_env")
         if stg_env is None:
             raise ValueError("stg_env invalid")
 
@@ -237,30 +243,30 @@ class WorkspaceSettings(BaseSettings):
         }
 
     @field_validator("prd_key", mode="before")
-    def set_prd_key(cls, prd_key, values):
+    def set_prd_key(cls, prd_key, info: FieldValidationInfo):
         if prd_key is not None:
             return prd_key
 
-        ws_name = values.get("ws_name")
+        ws_name = info.data.get("ws_name")
         if ws_name is None:
             raise ValueError("ws_name invalid")
 
-        prd_env = values.get("prd_env")
+        prd_env = info.data.get("prd_env")
         if prd_env is None:
             raise ValueError("prd_env invalid")
 
         return f"{ws_name}-{prd_env}"
 
     @field_validator("prd_tags", mode="before")
-    def set_prd_tags(cls, prd_tags, values):
+    def set_prd_tags(cls, prd_tags, info: FieldValidationInfo):
         if prd_tags is not None:
             return prd_tags
 
-        ws_name = values.get("ws_name")
+        ws_name = info.data.get("ws_name")
         if ws_name is None:
             raise ValueError("ws_name invalid")
 
-        prd_env = values.get("prd_env")
+        prd_env = info.data.get("prd_env")
         if prd_env is None:
             raise ValueError("prd_env invalid")
 
@@ -270,11 +276,11 @@ class WorkspaceSettings(BaseSettings):
         }
 
     @field_validator("subnet_ids", mode="before")
-    def set_subnet_ids(cls, subnet_ids, values):
+    def set_subnet_ids(cls, subnet_ids, info: FieldValidationInfo):
         if subnet_ids is not None:
             return subnet_ids
 
-        public_subnets = values.get("public_subnets")
-        private_subnets = values.get("private_subnets")
+        public_subnets = info.data.get("public_subnets", [])
+        private_subnets = info.data.get("private_subnets", [])
 
         return public_subnets + private_subnets

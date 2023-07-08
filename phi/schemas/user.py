@@ -2,8 +2,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from phiterm.enums.user import UserPermissions
-
 
 class UserSchema(BaseModel):
     """
@@ -22,7 +20,7 @@ class UserSchema(BaseModel):
     country_code: Optional[str] = None
     tos_accepted: Optional[bool] = False
     email_verified: Optional[bool] = False
-    user_permissions: Optional[List[UserPermissions]] = None
+    user_permissions: Optional[List[str]] = None
 
     @classmethod
     def from_dict(cls, user_dict: Dict[str, Any]):

@@ -1,16 +1,16 @@
-import json
-import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 
-from phiterm.conf.constants import PHI_AUTH_TOKEN_PATH
-from phiterm.utils.log import logger
+from phi.cli.settings import phi_cli_settings
+from phi.utils.log import logger
 
 
 class CliAuthRequestHandler(BaseHTTPRequestHandler):
     """Request Handler to accept the CLI auth token after the web based auth flow.
-    Reference: https://medium.com/@hasinthaindrajee/browser-sso-for-cli-applications-b0be743fa656
-    Source: https://gist.github.com/mdonkers/63e115cc0c79b4f6b8b3a6b797e485c7
+    References:
+        https://medium.com/@hasinthaindrajee/browser-sso-for-cli-applications-b0be743fa656
+        https://gist.github.com/mdonkers/63e115cc0c79b4f6b8b3a6b797e485c7
+
     TODO:
         * Fix the header and limit to only localhost or phidata.com
     """
@@ -29,26 +29,27 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
     #     self.wfile.write("GET request for {}".format(self.path).encode('utf-8'))
 
     def do_OPTIONS(self):
-        # logger.info(
-        #     "OPTIONS request,\nPath: %s\nHeaders:\n%s\n",
-        #     str(self.path),
-        #     str(self.headers),
-        # )
+        logger.info(
+            "OPTIONS request,\nPath: %s\nHeaders:\n%s\n",
+            str(self.path),
+            str(self.headers),
+        )
         self._set_response()
         # self.wfile.write("OPTIONS request for {}".format(self.path).encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers["Content-Length"])  # <--- Gets the size of data
         post_data = self.rfile.read(content_length)  # <--- Gets the data itself
-        # logger.info(
-        #     "POST request,\nPath: {}\nHeaders:\n{}\n\nBody:\n{}\n".format(
-        #         str(self.path), str(self.headers), post_data.decode("utf-8")
-        #     )
-        # )
-        # logger.info("Data: {}".format(post_data))
+        decoded_post_data = post_data.decode("utf-8")
+        logger.info(
+            "POST request,\nPath: {}\nHeaders:\n{}\n\nBody:\n{}\n".format(
+                str(self.path), str(self.headers), decoded_post_data
+            )
+        )
+        logger.info("Data: {}".format(decoded_post_data))
         # logger.info("type: {}".format(type(post_data)))
-        PHI_AUTH_TOKEN_PATH.touch(exist_ok=True)
-        PHI_AUTH_TOKEN_PATH.write_text(post_data.decode("utf-8"))
+        phi_cli_settings.auth_token_path.touch(exist_ok=True)
+        phi_cli_settings.auth_token_path.write_text(decoded_post_data)
         # TODO: Add checks before shutting down the server
         self.server.running = False  # type: ignore
         self._set_response()
@@ -63,6 +64,8 @@ class CliAuthServer:
     """
 
     def __init__(self, port=9190):
+        import threading
+
         self._server = HTTPServer(("", port), CliAuthRequestHandler)
         self._thread = threading.Thread(target=self.run)
         self._thread.daemon = True
@@ -90,13 +93,14 @@ def get_auth_token_from_web_flow(port) -> Optional[str]:
     GET request: curl http://localhost:9190
     POST request: curl -d "foo=bar&bin=baz" http://localhost:9190
     """
+    import json
 
     server = CliAuthServer(port)
     server.run()
 
-    if PHI_AUTH_TOKEN_PATH.exists() and PHI_AUTH_TOKEN_PATH.is_file():
-        auth_token_str = PHI_AUTH_TOKEN_PATH.read_text()
+    if phi_cli_settings.auth_token_path.exists() and phi_cli_settings.auth_token_path.is_file():
+        auth_token_str = phi_cli_settings.auth_token_path.read_text()
         auth_token_json = json.loads(auth_token_str)
-        PHI_AUTH_TOKEN_PATH.unlink()
+        phi_cli_settings.auth_token_path.unlink()
         return auth_token_json.get("AuthToken", None)
     return None

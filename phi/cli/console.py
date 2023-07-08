@@ -1,6 +1,8 @@
 from rich.console import Console
 from rich.style import Style
 
+from phi.utils.log import logger
+
 console = Console()
 
 ######################################################
@@ -43,3 +45,23 @@ def print_horizontal_line() -> None:
 
 def print_info(msg: str) -> None:
     console.print(msg, style=info_style)
+
+
+def log_generic_error_msg() -> None:
+    logger.error("Something went wrong. Please try again.")
+
+
+def log_client_error_msg() -> None:
+    logger.error("ClientError: Please try again.")
+
+
+def log_network_error_msg() -> None:
+    logger.error("NetworkError: Please check internet connectivity.")
+
+
+def log_server_error_msg() -> None:
+    logger.error("ServerError: Could not reach phidata servers.")
+
+
+def log_auth_error_msg() -> None:
+    logger.error("AuthError: could not authenticate, please run `phi auth`")

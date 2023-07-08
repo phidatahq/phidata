@@ -1,57 +1,53 @@
 from typing import Any, Dict, List, Optional, Union
 
-from httpx import Client, Response, NetworkError, codes
+from httpx import Client, Response, NetworkError
 
-from phiterm.api.client import get_authenticated_client, base_headers
-from phiterm.api.exceptions import CliAuthException
-from phiterm.api.routes import ApiRoutes
-from phiterm.api.handler import invalid_response
-from phiterm.conf.constants import BACKEND_API_URL, PHI_AUTH_TOKEN_HEADER
-from phiterm.schemas.user import UserSchema, EmailPasswordSignInSchema
-from phiterm.utils.cli_console import log_network_error_msg
-from phiterm.utils.log import logger
+from phi.api.client import base_headers, get_authenticated_client
+from phi.api.helpers import is_valid_response, is_invalid_response
+from phi.api.routes import ApiRoutes
+from phi.cli.config import PhiCliConfig
+from phi.cli.console import log_network_error_msg
+from phi.cli.settings import phi_cli_settings
+from phi.schemas.user import UserSchema, EmailPasswordSignInSchema
+from phi.utils.log import logger
 
 
 def user_ping() -> bool:
     logger.debug("--o-o-- Ping user api")
-
-    with Client(base_url=BACKEND_API_URL, headers=base_headers, timeout=60) as api:
+    with Client(base_url=phi_cli_settings.api_url, headers=base_headers, timeout=60) as api:
         try:
             r: Response = api.get(ApiRoutes.USER_PING)
-            if invalid_response(r):
+            if is_invalid_response(r):
                 return False
-        except NetworkError as e:
+        except NetworkError:
             log_network_error_msg()
             return False
 
-        if r.status_code == codes.OK:
+        if is_valid_response(r):
             return True
     return False
 
 
 def is_user_authenticated() -> bool:
-    from phiterm.conf.phi_conf import PhiConf
-
     logger.debug("--o-o-- Authenticating user")
-
     authenticated_client: Optional[Client] = get_authenticated_client()
     if authenticated_client is None:
         logger.debug("Session not available")
         return False
 
-    phi_conf: Optional[PhiConf] = PhiConf.get_saved_conf()
-    if phi_conf is None:
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if phi_config is None:
         return False
-    user: Optional[UserSchema] = phi_conf.user
+    user: Optional[UserSchema] = phi_config.user
     if user is None:
         return False
 
     with authenticated_client as api:
         try:
             r: Response = api.post(
-                ApiRoutes.USER_AUTHENTICATE, data=user.json(exclude_none=True)  # type: ignore
+                ApiRoutes.USER_AUTHENTICATE, data=user.model_dump_json(exclude_none=True)  # type: ignore
             )
-            if invalid_response(r):
+            if is_invalid_response(r):
                 return False
         except NetworkError:
             log_network_error_msg()
@@ -69,33 +65,32 @@ def is_user_authenticated() -> bool:
 def authenticate_and_get_user(
     tmp_auth_token: str,
 ) -> Optional[UserSchema]:
-    from phiterm.conf.auth import save_auth_token
+    from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Getting user")
-
     authenticated_headers = base_headers.copy()
-    authenticated_headers[PHI_AUTH_TOKEN_HEADER] = tmp_auth_token
+    authenticated_headers[phi_cli_settings.auth_token_header] = tmp_auth_token
     with Client(
-        base_url=BACKEND_API_URL,
+        base_url=phi_cli_settings.api_url,
         headers=authenticated_headers,
         timeout=None,
     ) as api:
         try:
             r: Response = api.post(ApiRoutes.USER_CLI_AUTH, data={"token": tmp_auth_token})
-            if invalid_response(r):
+            if is_invalid_response(r):
                 return None
         except NetworkError:
             log_network_error_msg()
             return None
 
-        phidata_auth_token = r.headers.get(PHI_AUTH_TOKEN_HEADER)
+        phidata_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
         if phidata_auth_token is None:
             logger.error("Could not authenticate user")
             return None
 
         user_data = r.json()
         if not isinstance(user_data, dict):
-            raise CliAuthException("Could not parse response")
+            raise Exception("Could not parse response")
 
         current_user: UserSchema = UserSchema.from_dict(user_data)
         if current_user is not None:
@@ -107,31 +102,30 @@ def authenticate_and_get_user(
 def sign_in_user(
     sign_in_data: EmailPasswordSignInSchema,
 ) -> Optional[UserSchema]:
-    from phiterm.conf.auth import save_auth_token
+    from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Sign in user")
-
     with Client(
-        base_url=BACKEND_API_URL,
+        base_url=phi_cli_settings.api_url,
         headers=base_headers,
         timeout=None,
     ) as api:
         try:
             r: Response = api.post(ApiRoutes.USER_SIGN_IN, json=sign_in_data.dict())
-            if invalid_response(r):
+            if is_invalid_response(r):
                 return None
-        except NetworkError as e:
+        except NetworkError:
             log_network_error_msg()
             return None
 
-        phidata_auth_token = r.headers.get(PHI_AUTH_TOKEN_HEADER)
+        phidata_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
         if phidata_auth_token is None:
             logger.error("Could not authenticate user")
             return None
 
         user_data = r.json()
         if not isinstance(user_data, dict):
-            raise CliAuthException("Could not parse response")
+            raise Exception("Could not parse response")
 
         current_user: UserSchema = UserSchema.from_dict(user_data)
         if current_user is not None:

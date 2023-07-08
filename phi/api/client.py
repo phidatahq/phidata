@@ -1,64 +1,55 @@
 from httpx import Client, AsyncClient
 from typing import Optional
 
-from phiterm.conf.constants import (
-    APP_NAME,
-    APP_VERSION,
-    BACKEND_API_URL,
-    PHI_AUTH_TOKEN_COOKIE,
-    PHI_AUTH_TOKEN_HEADER,
-)
-from phiterm.utils.log import logger
+from phi.cli.settings import phi_cli_settings
+from phi.cli.credentials import read_auth_token
+from phi.utils.log import logger
 
 base_headers = {
-    "user-agent": f"{APP_NAME}/{APP_VERSION}",
+    "user-agent": f"{phi_cli_settings.app_name}/{phi_cli_settings.app_version}",
     "Content-Type": "application/json",
 }
 
 
 def get_authenticated_client() -> Optional[Client]:
-    """Returns an instance of httpx.Client which with preconfigured auth and base url"""
-
-    from phiterm.conf.auth import read_auth_token
+    """Returns an instance of httpx.Client with preconfigured auth and base url"""
 
     try:
         auth_token: Optional[str] = read_auth_token()
     except Exception as e:
-        # logger.warning(f"Failed to read auth token: {e}")
+        logger.warning(f"Failed to read auth token: {e}")
         return None
 
     if auth_token is None:
         return None
 
     authenticated_headers = base_headers.copy()
-    authenticated_headers[PHI_AUTH_TOKEN_HEADER] = auth_token
+    authenticated_headers[phi_cli_settings.auth_token_header] = auth_token
     return Client(
-        base_url=BACKEND_API_URL,
+        base_url=phi_cli_settings.api_url,
         headers=authenticated_headers,
-        cookies={PHI_AUTH_TOKEN_COOKIE: auth_token},
+        cookies={phi_cli_settings.auth_token_cookie: auth_token},
         timeout=60,
     )
 
 
 def get_async_client() -> Optional[AsyncClient]:
-    """Returns an instance of httpx.AsyncClient which with preconfigured auth and base url"""
-
-    from phiterm.conf.auth import read_auth_token
+    """Returns an instance of httpx.AsyncClient with preconfigured auth and base url"""
 
     try:
         auth_token: Optional[str] = read_auth_token()
-    except Exception:
-        # logger.warning(f"Failed to read auth token: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to read auth token: {e}")
         return None
 
     if auth_token is None:
         return None
 
     authenticated_headers = base_headers.copy()
-    authenticated_headers[PHI_AUTH_TOKEN_HEADER] = auth_token
+    authenticated_headers[phi_cli_settings.auth_token_header] = auth_token
     return AsyncClient(
-        base_url=BACKEND_API_URL,
+        base_url=phi_cli_settings.api_url,
         headers=authenticated_headers,
-        cookies={PHI_AUTH_TOKEN_COOKIE: auth_token},
+        cookies={phi_cli_settings.auth_token_cookie: auth_token},
         timeout=60,
     )

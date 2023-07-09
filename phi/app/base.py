@@ -238,9 +238,7 @@ class AppBase(PhiBase):
         # logger.debug(f"Resources: {self.cached_resources}")
         return self.cached_resources
 
-    def should_create(self, group_filter: Optional[str] = None) -> bool:
-        if not self.enabled or self.skip_create:
-            return False
+    def matches_filters(self, group_filter: Optional[str] = None) -> bool:
         if group_filter is not None:
             group_name = self.get_group_name()
             logger.debug(f"Checking {group_filter} in {group_name}")
@@ -248,3 +246,18 @@ class AppBase(PhiBase):
                 if group_filter not in group_name:
                     return False
         return True
+
+    def should_create(self, group_filter: Optional[str] = None) -> bool:
+        if not self.enabled or self.skip_create:
+            return False
+        return self.matches_filters(group_filter)
+
+    def should_delete(self, group_filter: Optional[str] = None) -> bool:
+        if not self.enabled or self.skip_delete:
+            return False
+        return self.matches_filters(group_filter)
+
+    def should_update(self, group_filter: Optional[str] = None) -> bool:
+        if not self.enabled or self.skip_update:
+            return False
+        return self.matches_filters(group_filter)

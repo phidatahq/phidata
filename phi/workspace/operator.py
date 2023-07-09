@@ -379,7 +379,7 @@ def start_workspace(
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
-    # Get a resource groups to deploy
+    # Get resource groups to deploy
     resource_groups_to_create: List[InfraResourceGroup] = ws_config.get_resource_groups(
         env=target_env,
         infra=target_infra,
@@ -406,9 +406,121 @@ def start_workspace(
         # print white space between runs
         print_info("")
 
-    print_info(f"# Configs deployed: {num_rgs_created}/{num_rgs_to_create}\n")
+    print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
     if num_rgs_to_create == num_rgs_created:
         if not dry_run:
             print_subheading("Workspace started")
     else:
         logger.error("Workspace start failed")
+
+
+def stop_workspace(
+    ws_config: WorkspaceConfig,
+    target_env: Optional[str] = None,
+    target_infra: Optional[InfraType] = None,
+    target_group: Optional[str] = None,
+    target_name: Optional[str] = None,
+    target_type: Optional[str] = None,
+    dry_run: Optional[bool] = False,
+    auto_confirm: Optional[bool] = False,
+) -> None:
+    """Stop a Phi Workspace. This is called from `phi ws down`"""
+    if ws_config is None is None:
+        logger.error("WorkspaceConfig invalid")
+        return
+    if ws_config.workspace_settings is None:
+        logger.error("WorkspaceSettings invalid")
+        return
+
+    # Set the local environment variables before processing configs
+    ws_config.set_local_env()
+
+    # Get resource groups to delete
+    resource_groups_to_delete: List[InfraResourceGroup] = ws_config.get_resource_groups(
+        env=target_env,
+        infra=target_infra,
+        order="delete",
+    )
+    num_rgs_to_delete = len(resource_groups_to_delete)
+    num_rgs_deleted = 0
+
+    if num_rgs_to_delete == 0:
+        print_info("No resources to delete")
+        return
+
+    logger.debug(f"Deleting {num_rgs_to_delete} resource groups")
+    for rg in resource_groups_to_delete:
+        rg.delete_resources(
+            group_filter=target_group,
+            name_filter=target_name,
+            type_filter=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            workspace_settings=ws_config.workspace_settings,
+        )
+        num_rgs_deleted += 1
+        # print white space between runs
+        print_info("")
+
+    print_info(f"# ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
+    if num_rgs_to_delete == num_rgs_deleted:
+        if not dry_run:
+            print_subheading("Workspace stopped")
+    else:
+        logger.error("Workspace stop failed")
+
+
+def update_workspace(
+    ws_config: WorkspaceConfig,
+    target_env: Optional[str] = None,
+    target_infra: Optional[InfraType] = None,
+    target_group: Optional[str] = None,
+    target_name: Optional[str] = None,
+    target_type: Optional[str] = None,
+    dry_run: Optional[bool] = False,
+    auto_confirm: Optional[bool] = False,
+) -> None:
+    """Update a Phi Workspace. This is called from `phi ws patch`"""
+    if ws_config is None is None:
+        logger.error("WorkspaceConfig invalid")
+        return
+    if ws_config.workspace_settings is None:
+        logger.error("WorkspaceSettings invalid")
+        return
+
+    # Set the local environment variables before processing configs
+    ws_config.set_local_env()
+
+    # Get resource groups to update
+    resource_groups_to_update: List[InfraResourceGroup] = ws_config.get_resource_groups(
+        env=target_env,
+        infra=target_infra,
+        order="create",
+    )
+    num_rgs_to_update = len(resource_groups_to_update)
+    num_rgs_updated = 0
+
+    if num_rgs_to_update == 0:
+        print_info("No resources to update")
+        return
+
+    logger.debug(f"Updating {num_rgs_to_update} resource groups")
+    for rg in resource_groups_to_update:
+        rg.update_resources(
+            group_filter=target_group,
+            name_filter=target_name,
+            type_filter=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            workspace_settings=ws_config.workspace_settings,
+        )
+        num_rgs_updated += 1
+        # print white space between runs
+        print_info("")
+
+    print_info(f"# ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
+    if num_rgs_to_update == num_rgs_updated:
+        if not dry_run:
+            print_subheading("Workspace updated")
+    else:
+        logger.error("Workspace update failed")

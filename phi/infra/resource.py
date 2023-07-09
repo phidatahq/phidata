@@ -95,14 +95,12 @@ class InfraResource(PhiBase):
                 logger.error(f"Could not delete output file: {e}")
         return False
 
-    def should_create(
+    def matches_filters(
         self,
         group_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
     ) -> bool:
-        if not self.enabled or self.skip_create:
-            return False
         if group_filter is not None:
             group_name = self.get_group_name()
             logger.debug(f"Checking {group_filter} in {group_name}")
@@ -122,6 +120,36 @@ class InfraResource(PhiBase):
                 if type_filter not in resource_type_list:
                     return False
         return True
+
+    def should_create(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+    ) -> bool:
+        if not self.enabled or self.skip_create:
+            return False
+        return self.matches_filters(group_filter, name_filter, type_filter)
+
+    def should_delete(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+    ) -> bool:
+        if not self.enabled or self.skip_delete:
+            return False
+        return self.matches_filters(group_filter, name_filter, type_filter)
+
+    def should_update(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+    ) -> bool:
+        if not self.enabled or self.skip_update:
+            return False
+        return self.matches_filters(group_filter, name_filter, type_filter)
 
     def __hash__(self):
         return hash(f"{self.get_resource_type()}:{self.get_resource_name()}")

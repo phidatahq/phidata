@@ -224,12 +224,12 @@ class DockerApp(AppBase):
         from phi.docker.resource.network import DockerNetwork
         from phi.docker.resource.container import DockerContainer
 
+        logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Build Container Paths
         container_context: Optional[ContainerContext] = self.build_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
-        logger.debug(f"------------ Building {self.get_app_name()} ------------")
 
         if build_context is None or not isinstance(build_context, DockerBuildContext):
             logger.error("build_context not a DockerBuildContext")

@@ -156,3 +156,287 @@ class DockerResourceGroup(InfraResourceGroup):
             f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}"  # noqa: E501
         )
         return False
+
+    def delete_resources(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        dry_run: Optional[bool] = False,
+        auto_confirm: Optional[bool] = False,
+        workspace_settings: Optional[WorkspaceSettings] = None,
+    ):
+        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
+
+        logger.debug("-*- Deleting DockerResources")
+
+        # Build a list of DockerResources to delete
+        resources_to_delete: List[DockerResource] = []
+        if self.resources is not None:
+            for r in self.resources:
+                if r.should_delete(
+                    group_filter=group_filter,
+                    name_filter=name_filter,
+                    type_filter=type_filter,
+                ):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    resources_to_delete.append(r)
+
+        # Build a list of DockerApps to delete
+        apps_to_delete: List[DockerApp] = []
+        if self.apps is not None:
+            for app in self.apps:
+                if app.should_delete(group_filter=group_filter):
+                    apps_to_delete.append(app)
+
+        # Get the list of DockerResources from the DockerApps
+        if len(apps_to_delete) > 0:
+            logger.debug(f"Found {len(apps_to_delete)} apps to delete")
+            for app in apps_to_delete:
+                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app_resources = app.get_resources(build_context=DockerBuildContext(network=self.network))
+                if len(app_resources) > 0:
+                    for app_resource in app_resources:
+                        if isinstance(app_resource, DockerResource) and app_resource.should_delete(
+                            name_filter=name_filter, type_filter=type_filter
+                        ):
+                            resources_to_delete.append(app_resource)
+
+        # Sort the DockerResources in install order
+        resources_to_delete.sort(
+            key=lambda x: DockerResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True
+        )
+
+        # Deduplicate DockerResources
+        deduped_resources_to_delete: List[DockerResource] = []
+        for r in resources_to_delete:
+            if r not in deduped_resources_to_delete:
+                deduped_resources_to_delete.append(r)
+
+        # Implement dependency sorting
+        final_docker_resources: List[DockerResource] = []
+        logger.debug("-*- Building DockerResources dependency graph")
+        for docker_resource in deduped_resources_to_delete:
+            # Logic to follow if resource has dependencies
+            if docker_resource.depends_on is not None:
+                # 1. Reverse the order of dependencies
+                docker_resource.depends_on.reverse()
+
+                # 2. Remove the dependencies if they are already added to the final_docker_resources
+                for dep in docker_resource.depends_on:
+                    if dep in final_docker_resources:
+                        logger.debug(f"-*- Removing {dep.name}, dependency of {docker_resource.name}")
+                        final_docker_resources.remove(dep)
+
+                # 3. Add the resource to be deleted before its dependencies
+                if docker_resource not in final_docker_resources:
+                    logger.debug(f"-*- Adding {docker_resource.name}")
+                    final_docker_resources.append(docker_resource)
+
+                # 4. Add the dependencies back in reverse order
+                for dep in docker_resource.depends_on:
+                    if isinstance(dep, DockerResource):
+                        if dep not in final_docker_resources:
+                            logger.debug(f"-*- Adding {dep.name}, dependency of {docker_resource.name}")
+                            final_docker_resources.append(dep)
+            else:
+                # Add the resource to be deleted if it has no dependencies
+                if docker_resource not in final_docker_resources:
+                    logger.debug(f"-*- Adding {docker_resource.name}")
+                    final_docker_resources.append(docker_resource)
+
+        # Track the total number of DockerResources to delete for validation
+        num_resources_to_delete: int = len(final_docker_resources)
+        num_resources_deleted: int = 0
+        if num_resources_to_delete == 0:
+            print_info("No DockerResources to delete")
+            return
+
+        # Validate resources to be deleted
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for resource in final_docker_resources:
+                print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\nNetwork: {self.network}")
+            print_info(f"\nTotal {num_resources_to_delete} resources")
+            confirm = confirm_yes_no("\nConfirm deploy")
+            if not confirm:
+                print_info("-*-")
+                print_info("-*- Skipping deploy")
+                print_info("-*-")
+                exit(0)
+
+        for resource in final_docker_resources:
+            print_info(f"-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if isinstance(resource, DockerContainer):
+                if resource.network is None and self.network is not None:
+                    resource.network = self.network
+            # logger.debug(resource)
+            try:
+                _resource_deleted = resource.delete(docker_client=self.docker_client)
+                if _resource_deleted:
+                    num_resources_deleted += 1
+                else:
+                    logger.error(
+                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."  # noqa: E501
+                    )
+                    if workspace_settings is not None and not workspace_settings.continue_on_delete_failure:
+                        return False
+            except Exception as e:
+                logger.error(
+                    f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."  # noqa: E501
+                )
+                logger.error("Error: {}".format(e))
+                logger.error("Skipping resource deletion, please fix and try again...")
+
+        print_info(f"\n# Resources deleted: {num_resources_deleted}/{num_resources_to_delete}")
+        if num_resources_to_delete == num_resources_deleted:
+            return True
+
+        logger.error(
+            f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"  # noqa: E501
+        )
+        return False
+
+    def update_resources(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        dry_run: Optional[bool] = False,
+        auto_confirm: Optional[bool] = False,
+        workspace_settings: Optional[WorkspaceSettings] = None,
+    ):
+        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
+
+        logger.debug("-*- Updating DockerResources")
+
+        # Build a list of DockerResources to update
+        resources_to_update: List[DockerResource] = []
+        if self.resources is not None:
+            for r in self.resources:
+                if r.should_update(
+                    group_filter=group_filter,
+                    name_filter=name_filter,
+                    type_filter=type_filter,
+                ):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    resources_to_update.append(r)
+
+        # Build a list of DockerApps to update
+        apps_to_update: List[DockerApp] = []
+        if self.apps is not None:
+            for app in self.apps:
+                if app.should_update(group_filter=group_filter):
+                    apps_to_update.append(app)
+
+        # Get the list of DockerResources from the DockerApps
+        if len(apps_to_update) > 0:
+            logger.debug(f"Found {len(apps_to_update)} apps to update")
+            for app in apps_to_update:
+                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app_resources = app.get_resources(build_context=DockerBuildContext(network=self.network))
+                if len(app_resources) > 0:
+                    for app_resource in app_resources:
+                        if isinstance(app_resource, DockerResource) and app_resource.should_update(
+                            name_filter=name_filter, type_filter=type_filter
+                        ):
+                            resources_to_update.append(app_resource)
+
+        # Sort the DockerResources in install order
+        resources_to_update.sort(
+            key=lambda x: DockerResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True
+        )
+
+        # Deduplicate DockerResources
+        deduped_resources_to_update: List[DockerResource] = []
+        for r in resources_to_update:
+            if r not in deduped_resources_to_update:
+                deduped_resources_to_update.append(r)
+
+        # Implement dependency sorting
+        final_docker_resources: List[DockerResource] = []
+        logger.debug("-*- Building DockerResources dependency graph")
+        for docker_resource in deduped_resources_to_update:
+            # Logic to follow if resource has dependencies
+            if docker_resource.depends_on is not None:
+                # 1. Reverse the order of dependencies
+                docker_resource.depends_on.reverse()
+
+                # 2. Remove the dependencies if they are already added to the final_docker_resources
+                for dep in docker_resource.depends_on:
+                    if dep in final_docker_resources:
+                        logger.debug(f"-*- Removing {dep.name}, dependency of {docker_resource.name}")
+                        final_docker_resources.remove(dep)
+
+                # 3. Add the resource to be updated before its dependencies
+                if docker_resource not in final_docker_resources:
+                    logger.debug(f"-*- Adding {docker_resource.name}")
+                    final_docker_resources.append(docker_resource)
+
+                # 4. Add the dependencies back in reverse order
+                for dep in docker_resource.depends_on:
+                    if isinstance(dep, DockerResource):
+                        if dep not in final_docker_resources:
+                            logger.debug(f"-*- Adding {dep.name}, dependency of {docker_resource.name}")
+                            final_docker_resources.append(dep)
+            else:
+                # Add the resource to be updated if it has no dependencies
+                if docker_resource not in final_docker_resources:
+                    logger.debug(f"-*- Adding {docker_resource.name}")
+                    final_docker_resources.append(docker_resource)
+
+        # Track the total number of DockerResources to update for validation
+        num_resources_to_update: int = len(final_docker_resources)
+        num_resources_updated: int = 0
+        if num_resources_to_update == 0:
+            print_info("No DockerResources to update")
+            return
+
+        # Validate resources to be updated
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources:")
+            for resource in final_docker_resources:
+                print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\nNetwork: {self.network}")
+            print_info(f"\nTotal {num_resources_to_update} resources")
+            confirm = confirm_yes_no("\nConfirm deploy")
+            if not confirm:
+                print_info("-*-")
+                print_info("-*- Skipping deploy")
+                print_info("-*-")
+                exit(0)
+
+        for resource in final_docker_resources:
+            print_info(f"-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if isinstance(resource, DockerContainer):
+                if resource.network is None and self.network is not None:
+                    resource.network = self.network
+            # logger.debug(resource)
+            try:
+                _resource_updated = resource.update(docker_client=self.docker_client)
+                if _resource_updated:
+                    num_resources_updated += 1
+                else:
+                    logger.error(
+                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be updated."  # noqa: E501
+                    )
+                    if workspace_settings is not None and not workspace_settings.continue_on_patch_failure:
+                        return False
+            except Exception as e:
+                logger.error(
+                    f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be updated."  # noqa: E501
+                )
+                logger.error("Error: {}".format(e))
+                logger.error("Skipping resource deletion, please fix and try again...")
+
+        print_info(f"\n# Resources updated: {num_resources_updated}/{num_resources_to_update}")
+        if num_resources_to_update == num_resources_updated:
+            return True
+
+        logger.error(
+            f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"  # noqa: E501
+        )
+        return False

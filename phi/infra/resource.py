@@ -105,16 +105,19 @@ class InfraResource(PhiBase):
             return False
         if group_filter is not None:
             group_name = self.get_group_name()
+            logger.debug(f"Checking {group_filter} in {group_name}")
             if group_name is not None:
-                if group_name != group_filter:
+                if group_filter not in group_name:
                     return False
         if name_filter is not None:
             resource_name = self.get_resource_name()
+            logger.debug(f"Checking {name_filter} in {resource_name}")
             if resource_name is not None:
-                if resource_name != name_filter:
+                if name_filter not in resource_name:
                     return False
         if type_filter is not None:
             resource_type_list = self.get_resource_type_list()
+            logger.debug(f"Checking {type_filter} in {resource_type_list}")
             if resource_type_list is not None:
                 if type_filter not in resource_type_list:
                     return False

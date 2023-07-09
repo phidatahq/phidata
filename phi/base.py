@@ -1,10 +1,9 @@
 from pathlib import Path
 from typing import Optional, List, Any, Dict
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from phi.workspace.settings import WorkspaceSettings
-from phi.utils.log import logger
 
 
 class PhiBase(BaseModel):
@@ -67,13 +66,14 @@ class PhiBase(BaseModel):
     def get_group_name(self) -> Optional[str]:
         return self.group or self.name
 
-    @field_validator("force", mode="before")
-    def set_force(cls, force):
-        logger.info(f"Setting force to {force}")
+    @model_validator(mode="before")
+    def set_force(cls, data):
         from os import getenv
 
-        force = force or getenv("PHI_CLI_FORCE", False)
-        return force
+        phi_cli_force = getenv("PHI_CLI_FORCE", False)
+        if phi_cli_force:
+            data["force"] = phi_cli_force
+        return data
 
     @property
     def workspace_root(self) -> Optional[Path]:

@@ -5,7 +5,6 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
-
 PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
 
 

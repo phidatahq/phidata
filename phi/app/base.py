@@ -243,7 +243,8 @@ class AppBase(PhiBase):
             return False
         if group_filter is not None:
             group_name = self.get_group_name()
+            logger.debug(f"Checking {group_filter} in {group_name}")
             if group_name is not None:
-                if group_name != group_filter:
+                if group_filter not in group_name:
                     return False
         return True

@@ -221,7 +221,7 @@ def up(
     # Load environment from .env
     load_env(
         env={
-            "PHI_WS_FORCE": str(force),
+            "PHI_CLI_FORCE": str(force),
         },
         dotenv_dir=active_ws_config.ws_root_path,
     )
@@ -398,7 +398,7 @@ def up(
 #     # Load environment from .env
 #     load_env(
 #         env={
-#             "PHI_WS_FORCE": str(force),
+#             "PHI_CLI_FORCE": str(force),
 #         },
 #         dotenv_dir=active_ws_config.ws_root_path,
 #     )
@@ -591,7 +591,7 @@ def up(
 #     # Load environment from .env
 #     load_env(
 #         env={
-#             "PHI_WS_FORCE": str(force),
+#             "PHI_CLI_FORCE": str(force),
 #         },
 #         dotenv_dir=active_ws_config.ws_root_path,
 #     )
@@ -875,7 +875,7 @@ def up(
 #     # Load environment from .env
 #     load_env(
 #         env={
-#             "PHI_WS_FORCE": str(force),
+#             "PHI_CLI_FORCE": str(force),
 #         },
 #         dotenv_dir=active_ws_config.ws_root_path,
 #     )

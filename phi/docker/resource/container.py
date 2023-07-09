@@ -107,7 +107,7 @@ class DockerContainer(DockerResource):
     devices: Optional[list] = None
 
     # Data provided by the resource running on the docker client
-    status: Optional[str] = None
+    container_status: Optional[str] = None
 
     def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
@@ -172,12 +172,10 @@ class DockerContainer(DockerResource):
         from docker.models.containers import Container
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
-        container_name: Optional[str] = self.name
         container_object: Optional[Container] = self._read(docker_client)
 
-        # delete the container if it exists and force = True or use_cache = False
-        if container_object is not None and (self.force or self.use_cache is False):
-            logger.debug(f"force: {self.force}, use_cache: {self.use_cache}")
+        # Delete the container if it exists
+        if container_object is not None:
             print_info(f"Deleting container {container_object.name}")
             self._delete(docker_client)
 
@@ -187,7 +185,6 @@ class DockerContainer(DockerResource):
                 logger.debug("Container Created: {}".format(container_object.name))
             else:
                 logger.debug("Container could not be created")
-            # logger.debug()("Container {}".format(container_object.attrs))
         except Exception:
             raise
 
@@ -196,45 +193,30 @@ class DockerContainer(DockerResource):
         logger.debug("Validating container is created...")
         if container_object is not None:
             container_object.reload()
-            _status: str = container_object.status
-            print_info("Container Status: {}".format(_status))
-            self.status = _status
-            wait_for_container_to_start = False
-            if _status == "created":
-                logger.debug(f"Container {container_name} is created but not yet running")
-                logger.debug("Waiting for 30 seconds for the container to start running")
-                sleep(30)
-                container_object.reload()
-                _status = container_object.status
-                if _status == "created":
-                    logger.debug("Container still not running")
-                    logger.debug(f"Removing and re-running container {container_name}")
-                    container_object.stop()
-                    container_object.remove()
-                    container_object = self.run_container(docker_client)
-                wait_for_container_to_start = True
-            if _status == "exited":
-                logger.debug(f"Starting container {container_name}")
-                container_object.remove()
-                container_object = self.run_container(docker_client)
-                wait_for_container_to_start = True
+            self.container_status: str = container_object.status
+            print_info("Container Status: {}".format(self.container_status))
 
-            if wait_for_container_to_start:
-                logger.debug("Waiting 5 seconds for the container to start")
-                sleep(5)
-                _status = container_object.status
-                while _status != "created":
-                    logger.debug("--> status: {}, trying again in 5 seconds".format(_status))
-                    sleep(5)
-                    _status = container_object.status
-                logger.debug("--> status: {}".format(_status))
+            if self.container_status == "running":
+                logger.debug("Container is running")
+                return True
+            elif self.container_status == "created":
+                from rich.progress import Progress
 
-            if _status == "running" or "created":
+                with Progress(transient=True) as progress:
+                    task = progress.add_task("Waiting for container to start", total=None)  # noqa: F841
+                    while self.container_status != "created":
+                        logger.debug(f"Container Status: {self.container_status}, trying again in 1 seconds")
+                        sleep(1)
+                        container_object.reload()
+                        self.container_status = container_object.status
+                    logger.debug(f"Container Status: {self.container_status}")
+
+            if self.container_status in ("running", "created"):
                 logger.debug("Container Created")
                 self.active_resource = container_object
                 return True
 
-        logger.debug("Container not found :(")
+        logger.debug("Container not found")
         return False
 
     def _read(self, docker_client: DockerApiClient) -> Optional[Any]:
@@ -282,9 +264,8 @@ class DockerContainer(DockerResource):
         # Delete Container
         try:
             self.active_resource = None
-            _status: str = container_object.status
-            self.status = _status
-            logger.debug("Container Status: {}".format(_status))
+            self.container_status = container_object.status
+            logger.debug("Container Status: {}".format(self.container_status))
             logger.debug("Stopping Container: {}".format(container_name))
             container_object.stop()
             # If self.remove is set, then the container would be auto removed after being stopped
@@ -326,8 +307,9 @@ class DockerContainer(DockerResource):
         return False
 
     def create(self, docker_client: DockerApiClient) -> bool:
-        # if self.force then always create container
+        # If self.force then always create container
         if not self.force:
+            # If use_cache is True and container is active then return True
             if self.use_cache and self.is_active(docker_client):
                 print_info(f"{self.get_resource_type()} {self.get_resource_name()} active on cluster.")
                 return True

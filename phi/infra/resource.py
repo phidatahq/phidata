@@ -30,11 +30,11 @@ class InfraResource(PhiBase):
 
     def get_resource_type_list(self) -> List[str]:
         if self.resource_type_list is None:
-            return [self.get_resource_type()]
+            return [self.get_resource_type().lower()]
 
-        type_list: List[str] = self.resource_type_list
+        type_list: List[str] = [resource_type.lower() for resource_type in self.resource_type_list]
         if self.get_resource_type() not in type_list:
-            type_list.append(self.get_resource_type())
+            type_list.append(self.get_resource_type().lower())
         return type_list
 
     def get_output_file_path(self) -> Optional[Path]:
@@ -115,9 +115,9 @@ class InfraResource(PhiBase):
                     return False
         if type_filter is not None:
             resource_type_list = self.get_resource_type_list()
-            logger.debug(f"Checking {type_filter} in {resource_type_list}")
+            logger.debug(f"Checking {type_filter.lower()} in {resource_type_list}")
             if resource_type_list is not None:
-                if type_filter not in resource_type_list:
+                if type_filter.lower() not in resource_type_list:
                     return False
         return True
 

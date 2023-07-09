@@ -111,13 +111,21 @@ class DockerResourceGroup(InfraResourceGroup):
             print_info("No DockerResources to create")
             return
 
-        # Validate resources to be created
-        if not auto_confirm:
-            print_heading("--**-- Confirm resources:")
+        if dry_run:
+            print_heading("--**- Docker resources to create:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info(f"\nNetwork: {self.network}")
-            print_info(f"\nTotal {num_resources_to_create} resources")
+            print_info(f"Total {num_resources_to_create} resources")
+            return
+
+        # Validate resources to be created
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources to create:")
+            for resource in final_docker_resources:
+                print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\nNetwork: {self.network}")
+            print_info(f"Total {num_resources_to_create} resources")
             confirm = confirm_yes_no("\nConfirm deploy")
             if not confirm:
                 print_info("-*-")
@@ -126,7 +134,7 @@ class DockerResourceGroup(InfraResourceGroup):
                 exit(0)
 
         for resource in final_docker_resources:
-            print_info(f"-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network
@@ -253,22 +261,30 @@ class DockerResourceGroup(InfraResourceGroup):
             print_info("No DockerResources to delete")
             return
 
-        # Validate resources to be deleted
-        if not auto_confirm:
-            print_heading("--**-- Confirm resources:")
+        if dry_run:
+            print_heading("--**- Docker resources to delete:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info(f"\nNetwork: {self.network}")
-            print_info(f"\nTotal {num_resources_to_delete} resources")
-            confirm = confirm_yes_no("\nConfirm deploy")
+            print_info(f"Total {num_resources_to_delete} resources")
+            return
+
+        # Validate resources to be deleted
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources to delete:")
+            for resource in final_docker_resources:
+                print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\nNetwork: {self.network}")
+            print_info(f"Total {num_resources_to_delete} resources")
+            confirm = confirm_yes_no("\nConfirm delete")
             if not confirm:
                 print_info("-*-")
-                print_info("-*- Skipping deploy")
+                print_info("-*- Skipping delete")
                 print_info("-*-")
                 exit(0)
 
         for resource in final_docker_resources:
-            print_info(f"-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network
@@ -395,22 +411,30 @@ class DockerResourceGroup(InfraResourceGroup):
             print_info("No DockerResources to update")
             return
 
-        # Validate resources to be updated
-        if not auto_confirm:
-            print_heading("--**-- Confirm resources:")
+        if dry_run:
+            print_heading("--**- Docker resources to update:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info(f"\nNetwork: {self.network}")
-            print_info(f"\nTotal {num_resources_to_update} resources")
-            confirm = confirm_yes_no("\nConfirm deploy")
+            print_info(f"Total {num_resources_to_update} resources")
+            return
+
+        # Validate resources to be updated
+        if not auto_confirm:
+            print_heading("--**-- Confirm resources to update:")
+            for resource in final_docker_resources:
+                print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\nNetwork: {self.network}")
+            print_info(f"Total {num_resources_to_update} resources")
+            confirm = confirm_yes_no("\nConfirm patch")
             if not confirm:
                 print_info("-*-")
-                print_info("-*- Skipping deploy")
+                print_info("-*- Skipping patch")
                 print_info("-*-")
                 exit(0)
 
         for resource in final_docker_resources:
-            print_info(f"-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network

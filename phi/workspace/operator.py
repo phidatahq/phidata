@@ -406,6 +406,9 @@ def start_workspace(
         # print white space between runs
         print_info("")
 
+    if dry_run:
+        return
+
     print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
     if num_rgs_to_create == num_rgs_created:
         if not dry_run:

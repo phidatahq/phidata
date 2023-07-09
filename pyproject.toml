@@ -85,7 +85,8 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = [
-  "setuptools.*",
+  "boto3.*",
   "docker.*",
+  "setuptools.*",
 ]
 ignore_missing_imports = true

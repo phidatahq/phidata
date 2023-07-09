@@ -17,6 +17,9 @@ class InfraResource(PhiBase):
 
     # -*- Cached Data
     active_resource: Optional[Any] = None
+    resource_created: bool = False
+    resource_updated: bool = False
+    resource_deleted: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
 

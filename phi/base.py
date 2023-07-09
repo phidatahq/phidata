@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, List, Any, Dict
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from phi.workspace.settings import WorkspaceSettings
 
@@ -21,7 +21,7 @@ class PhiBase(BaseModel):
     # Skip create if resource with the same name is active
     use_cache: bool = True
     # Force create/update/delete implementation
-    force: bool = False
+    force: bool = Field(False, validate_default=True)
 
     # -*- Debug Mode
     debug_mode: bool = False
@@ -66,14 +66,14 @@ class PhiBase(BaseModel):
     def get_group_name(self) -> Optional[str]:
         return self.group or self.name
 
-    @model_validator(mode="before")
-    def set_force(cls, data):
+    @field_validator("force", mode="before")
+    def update_force(cls, v):
         from os import getenv
 
         phi_cli_force = getenv("PHI_CLI_FORCE", False)
         if phi_cli_force:
-            data["force"] = phi_cli_force
-        return data
+            return phi_cli_force
+        return v
 
     @property
     def workspace_root(self) -> Optional[Path]:

@@ -1,7 +1,7 @@
 from pathlib import Path
 from importlib import metadata
 
-from pydantic import field_validator
+from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
@@ -26,8 +26,8 @@ class PhiCliSettings(BaseSettings):
     runtime: str = "prd"
     auth_token_cookie: str = "__phi_session"
     auth_token_header: str = "X-PHIDATA-AUTH-TOKEN"
-    signin_url: str = "https://phidata.com/signin"
-    api_url: str = "https://api.phidata.com"
+    signin_url: str = Field("https://phidata.com/signin", validate_default=True)
+    api_url: str = Field("https://api.phidata.com", validate_default=True)
 
     model_config = SettingsConfigDict(env_prefix="PHI_CLI_")
 
@@ -36,7 +36,6 @@ class PhiCliSettings(BaseSettings):
         dev_signin_url = info.data.get("dev_signin_url", "http://localhost:3000/signin")
         prd_signin_url = info.data.get("prd_signin_url", "https://phidata.com/signin")
         signin_url = dev_signin_url if info.data["runtime"] == "dev" else prd_signin_url
-        # logger.debug(f"signin_url: {signin_url}")
         return signin_url
 
     @field_validator("api_url", mode="before")
@@ -44,7 +43,6 @@ class PhiCliSettings(BaseSettings):
         dev_api_url = info.data.get("dev_api_url", "http://localhost:8000")
         prd_api_url = info.data.get("prd_api_url", "https://api.phidata.com")
         api_url = dev_api_url if info.data["runtime"] == "dev" else prd_api_url
-        # logger.debug(f"api_url: {api_url}")
         return api_url
 
 

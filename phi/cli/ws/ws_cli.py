@@ -478,7 +478,7 @@ def patch(
     ),
     env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to patch."),
     infra_filter: Optional[str] = typer.Option(
-        None, "-i", "--infra", metavar="", help="Filter the infra to shut down."
+        None, "-i", "--infra", metavar="", help="Filter the infra to patch."
     ),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
@@ -644,99 +644,96 @@ def patch(
     )
 
 
-#
-#
-# @ws_cli.command(short_help="Restart resources for active workspace")
-# def restart(
-#     resource_filter: Optional[str] = typer.Argument(
-#         None,
-#         help="Resource filter. Format - ENV:CONFIG:GROUP:NAME:TYPE",
-#         metavar="[FILTER]",
-#     ),
-#     env_filter: str = typer.Option(
-#         None, "-e", "--env", metavar="", help="Filter the environment to restart"
-#     ),
-#     config_filter: str = typer.Option(
-#         None, "-i", "--config", metavar="", help="Filter the config to restart"
-#     ),
-#     name_filter: Optional[str] = typer.Option(
-#         None, "-n", "--name", metavar="", help="Filter using resource name"
-#     ),
-#     type_filter: Optional[str] = typer.Option(
-#         None,
-#         "-t",
-#         "--type",
-#         metavar="",
-#         help="Filter using resource type",
-#     ),
-#     group_filter: Optional[str] = typer.Option(
-#         None, "-g", "--group", metavar="", help="Filter using group name"
-#     ),
-#     dry_run: bool = typer.Option(
-#         False,
-#         "-dr",
-#         "--dry-run",
-#         help="Print which resources will be restarted and exit.",
-#     ),
-#     auto_confirm: bool = typer.Option(
-#         False,
-#         "-y",
-#         "--yes",
-#         help="Skip the confirmation before restarting resources.",
-#     ),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-#     force: bool = typer.Option(
-#         False,
-#         "-f",
-#         "--force",
-#         help="Force",
-#     ),
-# ):
-#     """\b
-#     Restarts the active workspace. i.e. runs `phi ws down` and then `phi ws up`.
-#
-#     \b
-#     Examples:
-#     > `phi ws restart`
-#     """
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     from time import sleep
-#
-#     down(
-#         resource_filter=resource_filter,
-#         env_filter=env_filter,
-#         config_filter=config_filter,
-#         name_filter=name_filter,
-#         type_filter=type_filter,
-#         group_filter=group_filter,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#         print_debug_log=print_debug_log,
-#         force=force,
-#     )
-#     print_info("Sleeping for 2 seconds..")
-#     sleep(2)
-#     up(
-#         resource_filter=resource_filter,
-#         env_filter=env_filter,
-#         config_filter=config_filter,
-#         name_filter=name_filter,
-#         type_filter=type_filter,
-#         group_filter=group_filter,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#         print_debug_log=print_debug_log,
-#         force=force,
-#     )
-#
-#
+@ws_cli.command(short_help="Restart resources for active workspace")
+def restart(
+    resource_filter: Optional[str] = typer.Argument(
+        None,
+        help="Resource filter. Format - ENV:INFRA:GROUP:NAME:TYPE",
+    ),
+    env_filter: str = typer.Option(
+        None, "-e", "--env", metavar="", help="Filter the environment to restart."
+    ),
+    infra_filter: Optional[str] = typer.Option(
+        None, "-i", "--infra", metavar="", help="Filter the infra to restart."
+    ),
+    group_filter: Optional[str] = typer.Option(
+        None, "-g", "--group", metavar="", help="Filter resources using group name."
+    ),
+    name_filter: Optional[str] = typer.Option(
+        None, "-n", "--name", metavar="", help="Filter resource using name."
+    ),
+    type_filter: Optional[str] = typer.Option(
+        None,
+        "-t",
+        "--type",
+        metavar="",
+        help="Filter resource using type",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "-dr",
+        "--dry-run",
+        help="Print resources and exit.",
+    ),
+    auto_confirm: bool = typer.Option(
+        False,
+        "-y",
+        "--yes",
+        help="Skip the confirmation before restarting resources.",
+    ),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Force",
+    ),
+):
+    """\b
+    Restarts the active workspace. i.e. runs `phi ws down` and then `phi ws up`.
+
+    \b
+    Examples:
+    > `phi ws restart`
+    """
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from time import sleep
+
+    down(
+        resource_filter=resource_filter,
+        env_filter=env_filter,
+        group_filter=group_filter,
+        infra_filter=infra_filter,
+        name_filter=name_filter,
+        type_filter=type_filter,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        print_debug_log=print_debug_log,
+        force=force,
+    )
+    print_info("Sleeping for 2 seconds..")
+    sleep(2)
+    up(
+        resource_filter=resource_filter,
+        env_filter=env_filter,
+        infra_filter=infra_filter,
+        group_filter=group_filter,
+        name_filter=name_filter,
+        type_filter=type_filter,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        print_debug_log=print_debug_log,
+        force=force,
+    )
+
+
 # @ws_cli.command(short_help="Show status for workspace resources")
 # def status(
 #     resource_filter: Optional[str] = typer.Argument(

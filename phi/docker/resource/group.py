@@ -144,17 +144,14 @@ class DockerResourceGroup(InfraResourceGroup):
                 if _resource_created:
                     num_resources_created += 1
                 else:
-                    logger.error(
-                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."  # noqa: E501
-                    )
                     if workspace_settings is not None and not workspace_settings.continue_on_create_failure:
                         return False
             except Exception as e:
                 logger.error(
-                    f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be created."  # noqa: E501
+                    f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}"
                 )
-                logger.error("Error: {}".format(e))
-                logger.error("Skipping resource creation, please fix and try again...")
+                logger.error(e)
+                logger.error("Please fix and try again...")
 
         print_info(f"\n# Resources created: {num_resources_created}/{num_resources_to_create}")
         if num_resources_to_create == num_resources_created:
@@ -294,17 +291,14 @@ class DockerResourceGroup(InfraResourceGroup):
                 if _resource_deleted:
                     num_resources_deleted += 1
                 else:
-                    logger.error(
-                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."  # noqa: E501
-                    )
                     if workspace_settings is not None and not workspace_settings.continue_on_delete_failure:
                         return False
             except Exception as e:
                 logger.error(
-                    f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be deleted."  # noqa: E501
+                    f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}"
                 )
-                logger.error("Error: {}".format(e))
-                logger.error("Skipping resource deletion, please fix and try again...")
+                logger.error(e)
+                logger.error("Please fix and try again...")
 
         print_info(f"\n# Resources deleted: {num_resources_deleted}/{num_resources_to_delete}")
         if num_resources_to_delete == num_resources_deleted:
@@ -444,17 +438,14 @@ class DockerResourceGroup(InfraResourceGroup):
                 if _resource_updated:
                     num_resources_updated += 1
                 else:
-                    logger.error(
-                        f"Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be updated."  # noqa: E501
-                    )
                     if workspace_settings is not None and not workspace_settings.continue_on_patch_failure:
                         return False
             except Exception as e:
                 logger.error(
-                    f"-==+==--> Resource {resource.get_resource_type()}: {resource.get_resource_name()} could not be updated."  # noqa: E501
+                    f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}"
                 )
-                logger.error("Error: {}".format(e))
-                logger.error("Skipping resource deletion, please fix and try again...")
+                logger.error(e)
+                logger.error("Please fix and try again...")
 
         print_info(f"\n# Resources updated: {num_resources_updated}/{num_resources_to_update}")
         if num_resources_to_update == num_resources_updated:

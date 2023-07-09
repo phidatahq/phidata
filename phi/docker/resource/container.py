@@ -310,8 +310,13 @@ class DockerContainer(DockerResource):
         # If self.force then always create container
         if not self.force:
             # If use_cache is True and container is active then return True
-            if self.use_cache and self.is_active(docker_client):
-                print_info(f"{self.get_resource_type()} {self.get_resource_name()} active on cluster.")
+            if self.use_cache and self.is_active(docker_client=docker_client):
+                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} already exists")
                 return True
 
-        return self._create(docker_client)
+        resource_created = self._create(docker_client=docker_client)
+        if resource_created:
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} created")
+            return True
+        logger.error(f"Failed to create {self.get_resource_type()}: {self.get_resource_name()}")
+        return False

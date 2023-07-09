@@ -48,14 +48,14 @@ class DockerResource(InfraResource):
             print_info(f"Skipping create: {self.get_resource_name()}")
             return True
         if self.use_cache and self.is_active(docker_client=docker_client):
-            print_info(f"{self.get_resource_type()} {self.get_resource_name()} already exists.")
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} already exists")
             return True
-        if self._create(docker_client=docker_client):
-            print_info(f"{self.get_resource_type()} {self.get_resource_name()} created.")
+        resource_created = self._create(docker_client=docker_client)
+        if resource_created:
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} created")
             return True
-        else:
-            print_info(f"{self.get_resource_type()} {self.get_resource_name()} could not be created.")
-            return False
+        logger.error(f"Failed to create {self.get_resource_type()}: {self.get_resource_name()}")
+        return False
 
     def _update(self, docker_client: DockerApiClient) -> bool:
         logger.warning(f"@_update method not defined for {self.get_resource_name()}")
@@ -69,10 +69,15 @@ class DockerResource(InfraResource):
             print_info(f"Skipping update: {self.get_resource_name()}")
             return True
         if self.is_active(docker_client=docker_client):
-            return self._update(docker_client=docker_client)
+            resource_updated = self._update(docker_client=docker_client)
+            if resource_updated:
+                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} updated")
+                return True
         else:
-            print_info(f"{self.get_resource_type()} {self.get_resource_name()} not active, creating...")
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} not active, creating...")
             return self.create(docker_client=docker_client)
+        logger.error(f"Failed to update {self.get_resource_type()}: {self.get_resource_name()}")
+        return False
 
     def _delete(self, docker_client: DockerApiClient) -> bool:
         logger.warning(f"@_delete method not defined for {self.get_resource_name()}")
@@ -86,7 +91,12 @@ class DockerResource(InfraResource):
             print_info(f"Skipping delete: {self.get_resource_name()}")
             return True
         if self.is_active(docker_client=docker_client):
-            return self._delete(docker_client=docker_client)
+            resource_deleted = self._delete(docker_client=docker_client)
+            if resource_deleted:
+                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
+                return True
         else:
-            print_info(f"{self.get_resource_type()} {self.get_resource_name()} not active on cluster.")
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} not active on cluster")
             return True
+        logger.error(f"Failed to delete {self.get_resource_type()}: {self.get_resource_name()}")
+        return False

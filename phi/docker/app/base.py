@@ -135,8 +135,8 @@ class DockerApp(AppBase):
 
         # Update the container env with user provided env
         # this overwrites any existing variables with the same key
-        if self.env is not None and isinstance(self.env, dict):
-            container_env.update({k: str(v) for k, v in self.env.items() if v is not None})
+        if self.env_vars is not None and isinstance(self.env_vars, dict):
+            container_env.update({k: str(v) for k, v in self.env_vars.items() if v is not None})
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env

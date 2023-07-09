@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, Union, Dict, List
+from typing import Any, Optional, Dict, List
 
 from pydantic import ConfigDict
 
@@ -15,28 +15,8 @@ class InfraResource(PhiBase):
     # List of resource types to match against for filtering
     resource_type_list: Optional[List[str]] = None
 
-    # -*- Resource Environment
-    # Add env variables to resource where applicable
-    env: Optional[Dict[str, Any]] = None
-    # Read env from a file in yaml format
-    env_file: Optional[Path] = None
-    # Add secret variables to resource where applicable
-    secrets: Optional[Dict[str, Any]] = None
-    # Read secrets from a file in yaml format
-    secrets_file: Optional[Path] = None
-
-    # -*- Save resource output
-    # If True, save output to a json file
-    save_output: bool = False
-    # The file to save the output to
-    output_file: Optional[Union[str, Path]] = None
-    # The directory for the output files
-    output_dir: Optional[str] = None
-
     # -*- Cached Data
     active_resource: Optional[Any] = None
-    cached_env_file_data: Optional[Dict[str, Any]] = None
-    cached_secret_file_data: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
 
@@ -58,20 +38,17 @@ class InfraResource(PhiBase):
         return type_list
 
     def get_output_file_path(self) -> Optional[Path]:
-        if self.output_file is None:
+        workspace_dir: Optional[Path] = self.workspace_dir
+        if workspace_dir is None:
             from phi.workspace.helpers import get_workspace_dir_from_env
 
             workspace_dir = get_workspace_dir_from_env()
-            if workspace_dir is not None:
-                if self.get_resource_name() is not None:
-                    _output_fn = f"{self.get_resource_name()}.json"
-                    output_dir = self.output_dir or self.get_resource_type()
-                    return workspace_dir.joinpath("output", output_dir, _output_fn)
-
-        if isinstance(self.output_file, str):
-            return Path(self.output_file)
-        elif isinstance(self.output_file, Path):
-            return self.output_file
+        if workspace_dir is not None:
+            resource_name: str = self.get_resource_name()
+            if resource_name is not None:
+                output_file_name = f"{resource_name}.json"
+                output_dir = self.output_dir or self.get_resource_type()
+                return workspace_dir.joinpath("output", output_dir, output_file_name)
         return None
 
     def save_output_file(self) -> bool:
@@ -117,20 +94,6 @@ class InfraResource(PhiBase):
             except Exception as e:
                 logger.error(f"Could not delete output file: {e}")
         return False
-
-    def get_env_file_data(self) -> Optional[Dict[str, Any]]:
-        if self.cached_env_file_data is None:
-            from phi.utils.yaml_io import read_yaml_file
-
-            self.cached_env_file_data = read_yaml_file(file_path=self.env_file)
-        return self.cached_env_file_data
-
-    def get_secret_file_data(self) -> Optional[Dict[str, Any]]:
-        if self.cached_secret_file_data is None:
-            from phi.utils.yaml_io import read_yaml_file
-
-            self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
-        return self.cached_secret_file_data
 
     def should_create(
         self,

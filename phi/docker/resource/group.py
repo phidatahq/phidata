@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List, Optional
 
 from phi.docker.app.base import DockerApp
@@ -34,7 +33,6 @@ class DockerResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
-        workspace_root: Optional[Path] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -51,6 +49,7 @@ class DockerResourceGroup(InfraResourceGroup):
                     name_filter=name_filter,
                     type_filter=type_filter,
                 ):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     resources_to_create.append(r)
 
         # Build a list of DockerApps to create
@@ -64,9 +63,7 @@ class DockerResourceGroup(InfraResourceGroup):
         if len(apps_to_create) > 0:
             logger.debug(f"Found {len(apps_to_create)} apps to create")
             for app in apps_to_create:
-                app.add_workspace_settings_to_app(
-                    workspace_root=workspace_root, workspace_settings=workspace_settings
-                )
+                app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(build_context=DockerBuildContext(network=self.network))
                 if len(app_resources) > 0:
                     for app_resource in app_resources:

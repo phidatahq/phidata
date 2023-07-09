@@ -47,6 +47,18 @@ class WorkspaceConfig(BaseModel):
                 self._workspace_dir_path = get_workspace_dir_path(self.ws_root_path)
         return self._workspace_dir_path
 
+    def validate_workspace_settings(self, obj: Any) -> bool:
+        if not isinstance(obj, WorkspaceSettings):
+            raise Exception("WorkspaceSettings must be of type WorkspaceSettings")
+        if self.ws_root_path is not None and obj.ws_root is not None:
+            if obj.ws_root != self.ws_root_path:
+                raise Exception(f"WorkspaceSettings.ws_root must match {self.ws_root_path}")
+        if obj.workspace_dir is not None:
+            if self.workspace_dir_path is not None:
+                if obj.workspace_dir != self.workspace_dir_path:
+                    raise Exception(f"WorkspaceSettings.workspace_dir must match {self.workspace_dir_path}")
+        return True
+
     def load(self) -> bool:
         if self.ws_root_path is None:
             raise Exception("Workspace root not set")
@@ -102,7 +114,8 @@ class WorkspaceConfig(BaseModel):
                 _obj_type = obj.__class__.__name__
                 logger.debug(f"Adding {obj_name} | Type: {_obj_type}")
                 if _obj_type == "WorkspaceSettings":
-                    self.workspace_settings = obj
+                    if self.validate_workspace_settings(obj):
+                        self.workspace_settings = obj
                 elif _obj_type == "DockerResourceGroup":
                     if self.docker_resource_groups is None:
                         self.docker_resource_groups = []

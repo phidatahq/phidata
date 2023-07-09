@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Optional, List, Any
 
 from phi.base import PhiBase
@@ -19,7 +18,6 @@ class InfraResourceGroup(PhiBase):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
-        workspace_root: Optional[Path] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         logger.warning(f"create_resources() not implemented for {self.__class__.__name__}")

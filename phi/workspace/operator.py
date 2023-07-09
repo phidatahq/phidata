@@ -400,7 +400,6 @@ def start_workspace(
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
-            workspace_root=ws_config.ws_root_path,
             workspace_settings=ws_config.workspace_settings,
         )
         num_rgs_created += 1

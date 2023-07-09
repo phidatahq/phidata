@@ -1,7 +1,9 @@
-from typing import Optional, List, Any
+from pathlib import Path
+from typing import Optional, List, Any, Dict
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
@@ -25,6 +27,18 @@ class PhiBase(BaseModel):
     # -*- Debug Mode
     debug_mode: bool = False
 
+    # -*- Resource Environment
+    # Add env variables to resource where applicable
+    env_vars: Optional[Dict[str, Any]] = None
+    # Read env from a file in yaml format
+    env_file: Optional[Path] = None
+    # Add secret variables to resource where applicable
+    secrets: Optional[Dict[str, Any]] = None
+    # Read secrets from a file in yaml format
+    secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secrets
+    aws_secrets: Optional[Any] = None
+
     # -*- Waiter Control
     wait_for_create: bool = True
     wait_for_update: bool = True
@@ -41,6 +55,13 @@ class PhiBase(BaseModel):
     #  -*- Dependencies
     depends_on: Optional[List[Any]] = None
 
+    # -*- Workspace Settings
+    workspace_settings: Optional[WorkspaceSettings] = None
+
+    # -*- Cached Data
+    cached_env_file_data: Optional[Dict[str, Any]] = None
+    cached_secret_file_data: Optional[Dict[str, Any]] = None
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_group_name(self) -> Optional[str]:
@@ -51,5 +72,54 @@ class PhiBase(BaseModel):
         logger.info(f"Setting force to {force}")
         from os import getenv
 
-        force = force or getenv("PHI_WS_FORCE", False)
+        force = force or getenv("PHI_CLI_FORCE", False)
         return force
+
+    @property
+    def workspace_root(self) -> Optional[Path]:
+        return self.workspace_settings.ws_root if self.workspace_settings is not None else None
+
+    @property
+    def workspace_name(self) -> Optional[str]:
+        return self.workspace_settings.ws_name if self.workspace_settings is not None else None
+
+    @property
+    def workspace_dir(self) -> Optional[Path]:
+        if self.workspace_root is not None:
+            workspace_dir = (
+                self.workspace_settings.workspace_dir if self.workspace_settings is not None else None
+            )
+            if workspace_dir is not None:
+                return self.workspace_root.joinpath(workspace_dir)
+        return None
+
+    def set_workspace_settings(self, workspace_settings: Optional[WorkspaceSettings] = None) -> None:
+        if workspace_settings is not None:
+            self.workspace_settings = workspace_settings
+
+    def get_env_file_data(self) -> Optional[Dict[str, Any]]:
+        if self.cached_env_file_data is None:
+            from phi.utils.yaml_io import read_yaml_file
+
+            self.cached_env_file_data = read_yaml_file(file_path=self.env_file)
+        return self.cached_env_file_data
+
+    def get_secret_file_data(self) -> Optional[Dict[str, Any]]:
+        if self.cached_secret_file_data is None:
+            from phi.utils.yaml_io import read_yaml_file
+
+            self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
+        return self.cached_secret_file_data
+
+    def set_aws_env_vars(self, env_dict: Dict[str, str]) -> None:
+        from phi.constants import (
+            AWS_REGION_ENV_VAR,
+            AWS_DEFAULT_REGION_ENV_VAR,
+            AWS_PROFILE_ENV_VAR,
+        )
+
+        if self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
+            env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region
+        if self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
+            env_dict[AWS_PROFILE_ENV_VAR] = self.workspace_settings.aws_profile

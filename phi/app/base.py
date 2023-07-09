@@ -1,11 +1,9 @@
 from enum import Enum
-from pathlib import Path
 from typing import Optional, Dict, Any, Union, List
 
 from phi.base import PhiBase
 from phi.app.context import ContainerContext
 from phi.infra.resource import InfraResource
-from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
@@ -25,11 +23,6 @@ class AppVolumeType(str, Enum):
 class AppBase(PhiBase):
     # App name is required
     name: str
-
-    # -*- Workspace Configuration
-    # Added when the App is being built by the InfraResourceGroup
-    workspace_root: Optional[Path] = None
-    workspace_settings: Optional[WorkspaceSettings] = None
 
     # -*- Image Configuration
     # Image can be provided as a DockerImage object
@@ -57,28 +50,6 @@ class AppBase(PhiBase):
     # Add paths to the PYTHONPATH env var
     # If python_path is provided, this value is ignored
     add_python_paths: Optional[List[str]] = None
-
-    # -*- App Environment
-    # Add env variables to container
-    env: Optional[Dict[str, Any]] = None
-    # Read env variables from a file in yaml format
-    env_file: Optional[Path] = None
-    # Add secret variables to container
-    secrets: Optional[Dict[str, Any]] = None
-    # Read secret variables from a file in yaml format
-    secrets_file: Optional[Path] = None
-    # Read secret variables from AWS Secrets
-    aws_secrets: Optional[Any] = None
-
-    # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = False
-    # Port number on the container
-    container_port: int = 80
-    # Port name (used by k8s)
-    container_port_name: str = "http"
-    # Host port to map to the container port
-    host_port: int = 80
 
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container
@@ -132,20 +103,28 @@ class AppBase(PhiBase):
     # Or provide Efs Volume-id manually
     app_efs_volume_id: Optional[str] = None
 
+    # -*- App Ports
+    # Open a container port if open_container_port=True
+    open_container_port: bool = False
+    # Port number on the container
+    container_port: int = 80
+    # Port name (used by k8s)
+    container_port_name: str = "http"
+    # Host port to map to the container port
+    host_port: int = 80
+
     # -*- Extra Resources created "before" the App resources
     resources: Optional[List[InfraResource]] = None
 
     #  -*- Other args
     print_env_on_load: bool = False
 
-    # -*- App specific args (updated by subclassed)
+    # -*- App specific args (updated by subclasses)
     container_env: Optional[Dict[str, Any]] = None
     container_context: Optional[ContainerContext] = None
 
     # -*- Cached Data
     cached_resources: Optional[List[Any]] = None
-    cached_env_file_data: Optional[Dict[str, Any]] = None
-    cached_secret_file_data: Optional[Dict[str, Any]] = None
 
     def get_app_name(self) -> str:
         return self.name
@@ -162,49 +141,20 @@ class AppBase(PhiBase):
         else:
             return ""
 
-    def get_env_file_data(self) -> Optional[Dict[str, Any]]:
-        if self.cached_env_file_data is None:
-            from phi.utils.yaml_io import read_yaml_file
-
-            self.cached_env_file_data = read_yaml_file(file_path=self.env_file)
-        return self.cached_env_file_data
-
-    def get_secret_file_data(self) -> Optional[Dict[str, Any]]:
-        if self.cached_secret_file_data is None:
-            from phi.utils.yaml_io import read_yaml_file
-
-            self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
-        return self.cached_secret_file_data
-
-    def set_aws_env_vars(self, env_dict: Dict[str, str]) -> None:
-        from phi.constants import (
-            AWS_REGION_ENV_VAR,
-            AWS_DEFAULT_REGION_ENV_VAR,
-            AWS_PROFILE_ENV_VAR,
-        )
-
-        if self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
-            env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
-            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region
-        if self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
-            env_dict[AWS_PROFILE_ENV_VAR] = self.workspace_settings.aws_profile
-
     def build_container_context(self) -> Optional[ContainerContext]:
         logger.debug("Building ContainerContext")
 
         if self.container_context is not None:
             return self.container_context
 
-        if self.workspace_root is None:
-            logger.error("Invalid workspace_root")
-            return None
-
-        workspace_name = self.workspace_root.stem
+        workspace_name = self.workspace_name
         if workspace_name is None:
+            logger.warning("Invalid workspace_name")
             return None
 
         workspace_volume_container_path: str = self.workspace_volume_container_path
         if workspace_volume_container_path is None:
+            logger.warning("Invalid workspace_volume_container_path")
             return None
 
         workspace_parent_paths = workspace_volume_container_path.split("/")[0:-1]
@@ -251,24 +201,27 @@ class AppBase(PhiBase):
     def get_dependencies(self) -> List[InfraResource]:
         return []
 
-    def add_workspace_settings_to_app(
-        self, workspace_root: Optional[Path] = None, workspace_settings: Optional[WorkspaceSettings] = None
-    ) -> None:
-        if workspace_root is not None:
-            self.workspace_root = workspace_root
-        if workspace_settings is not None:
-            self.workspace_settings = workspace_settings
-
     def add_app_properties_to_resources(self, resources: List[InfraResource]) -> List[InfraResource]:
         updated_resources = []
         for resource in resources:
             resource.group = resource.group or self.group
+            resource.skip_create = resource.skip_create or self.skip_create
+            resource.skip_read = resource.skip_read or self.skip_read
+            resource.skip_update = resource.skip_update or self.skip_update
+            resource.skip_delete = resource.skip_delete or self.skip_delete
+            resource.recreate_on_update = resource.recreate_on_update or self.recreate_on_update
+            resource.use_cache = resource.use_cache or self.use_cache
+            resource.force = resource.force or self.force
+            resource.debug_mode = resource.debug_mode or self.debug_mode
             resource.wait_for_create = resource.wait_for_create or self.wait_for_create
             resource.wait_for_update = resource.wait_for_update or self.wait_for_update
             resource.wait_for_delete = resource.wait_for_delete or self.wait_for_delete
             resource.save_output = resource.save_output or self.save_output
             resource.output_dir = resource.output_dir or self.get_app_name()
             resource.depends_on = resource.depends_on or self.get_dependencies()
+            if self.workspace_settings is not None:
+                if resource.workspace_settings is None:
+                    resource.set_workspace_settings(self.workspace_settings)
             updated_resources.append(resource)
         return updated_resources
 

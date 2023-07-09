@@ -121,7 +121,7 @@ class InfraResource(PhiBase):
         return True
 
     def __hash__(self):
-        return hash(self.get_resource_name())
+        return hash(f"{self.get_resource_type()}:{self.get_resource_name()}")
 
     def __eq__(self, other):
         if isinstance(other, InfraResource):
@@ -129,11 +129,17 @@ class InfraResource(PhiBase):
                 return self.get_resource_name() == other.get_resource_name()
         return False
 
-    """
-    ## Functions to be implemented by subclasses
-    def create(self, api_client: ApiClient) -> bool:
-    def read(self, api_client: ApiClient) -> bool:
-    def update(self, api_client: ApiClient) -> bool:
-    def delete(self, api_client: ApiClient) -> bool:
-    def is_active(self, api_client: ApiClient) -> bool:
-    """
+    def create(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def read(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def update(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def delete(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def is_active(self, client: Any) -> bool:
+        raise NotImplementedError

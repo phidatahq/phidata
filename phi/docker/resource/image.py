@@ -335,7 +335,7 @@ class DockerImage(DockerResource):
     def create(self, docker_client: DockerApiClient) -> bool:
         # if self.force then always create image
         if not self.force:
-            if self.use_cache and self.is_active_on_cluster(docker_client):
+            if self.use_cache and self.is_active(docker_client):
                 print_info(f"{self.get_resource_type()} {self.get_resource_name()} already active.")
                 return True
 

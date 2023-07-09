@@ -311,7 +311,7 @@ class DockerContainer(DockerResource):
 
         return True
 
-    def is_active_on_cluster(self, docker_client: DockerApiClient) -> bool:
+    def is_active(self, docker_client: DockerApiClient) -> bool:
         """Returns True if the container is running on the docker cluster"""
         from docker.models.containers import Container
 
@@ -328,7 +328,7 @@ class DockerContainer(DockerResource):
     def create(self, docker_client: DockerApiClient) -> bool:
         # if self.force then always create container
         if not self.force:
-            if self.use_cache and self.is_active_on_cluster(docker_client):
+            if self.use_cache and self.is_active(docker_client):
                 print_info(f"{self.get_resource_type()} {self.get_resource_name()} active on cluster.")
                 return True
 

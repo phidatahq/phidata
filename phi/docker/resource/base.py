@@ -29,7 +29,7 @@ class DockerResource(InfraResource):
             return self.active_resource
         return self._read(docker_client=docker_client)
 
-    def is_active_on_cluster(self, docker_client: DockerApiClient) -> bool:
+    def is_active(self, docker_client: DockerApiClient) -> bool:
         """Returns True if the resource is running on the docker cluster"""
         self.active_resource = self._read(docker_client=docker_client)
         if self.active_resource is not None:
@@ -47,7 +47,7 @@ class DockerResource(InfraResource):
         if self.skip_create:
             print_info(f"Skipping create: {self.get_resource_name()}")
             return True
-        if self.use_cache and self.is_active_on_cluster(docker_client=docker_client):
+        if self.use_cache and self.is_active(docker_client=docker_client):
             print_info(f"{self.get_resource_type()} {self.get_resource_name()} already exists.")
             return True
         if self._create(docker_client=docker_client):
@@ -68,7 +68,7 @@ class DockerResource(InfraResource):
         if self.skip_update:
             print_info(f"Skipping update: {self.get_resource_name()}")
             return True
-        if self.is_active_on_cluster(docker_client=docker_client):
+        if self.is_active(docker_client=docker_client):
             return self._update(docker_client=docker_client)
         else:
             print_info(f"{self.get_resource_type()} {self.get_resource_name()} not active, creating...")
@@ -85,7 +85,7 @@ class DockerResource(InfraResource):
         if self.skip_delete:
             print_info(f"Skipping delete: {self.get_resource_name()}")
             return True
-        if self.is_active_on_cluster(docker_client=docker_client):
+        if self.is_active(docker_client=docker_client):
             return self._delete(docker_client=docker_client)
         else:
             print_info(f"{self.get_resource_type()} {self.get_resource_name()} not active on cluster.")

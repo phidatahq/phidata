@@ -297,7 +297,6 @@ class EksCluster(AwsResource):
         try:
             delete_response = service_client.delete_cluster(name=self.name)
             logger.debug(f"EksCluster: {delete_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

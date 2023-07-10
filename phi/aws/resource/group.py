@@ -13,21 +13,22 @@ class AwsResourceGroup(InfraResourceGroup):
     apps: Optional[List[AwsApp]] = None
     resources: Optional[List[AwsResource]] = None
 
-    aws_region: Optional[str] = None
-    aws_profile: Optional[str] = None
+    _aws_region: Optional[str] = None
+    _aws_profile: Optional[str] = None
 
     # -*- Cached Data
     _api_client: Optional[AwsApiClient] = None
 
-    def get_aws_region(self) -> Optional[str]:
+    @property
+    def aws_region(self) -> Optional[str]:
         # Priority 1: Use aws_region from ResourceGroup (or cached value)
-        if self.aws_region:
-            return self.aws_region
+        if self._aws_region:
+            return self._aws_region
 
         # Priority 2: Get aws_region from workspace settings
         if self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
-            self.aws_region = self.workspace_settings.aws_region
-            return self.aws_region
+            self._aws_region = self.workspace_settings.aws_region
+            return self._aws_region
 
         # Priority 3: Get aws_region from env
         from os import getenv
@@ -36,18 +37,23 @@ class AwsResourceGroup(InfraResourceGroup):
         aws_region_env = getenv(AWS_REGION_ENV_VAR)
         if aws_region_env is not None:
             logger.debug(f"{AWS_REGION_ENV_VAR}: {aws_region_env}")
-            self.aws_region = aws_region_env
-        return self.aws_region
+            self._aws_region = aws_region_env
+        return self._aws_region
 
-    def get_aws_profile(self) -> Optional[str]:
+    @aws_region.setter
+    def aws_region(self, value: str) -> None:
+        self._aws_region = value
+
+    @property
+    def aws_profile(self) -> Optional[str]:
         # Priority 1: Use aws_region from ResourceGroup (or cached value)
-        if self.aws_profile:
-            return self.aws_profile
+        if self._aws_profile:
+            return self._aws_profile
 
         # Priority 2: Get aws_profile from workspace settings
         if self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
-            self.aws_profile = self.workspace_settings.aws_profile
-            return self.aws_profile
+            self._aws_profile = self.workspace_settings.aws_profile
+            return self._aws_profile
 
         # Priority 3: Get aws_profile from env
         from os import getenv
@@ -56,13 +62,17 @@ class AwsResourceGroup(InfraResourceGroup):
         aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)
         if aws_profile_env is not None:
             logger.debug(f"{AWS_PROFILE_ENV_VAR}: {aws_profile_env}")
-            self.aws_profile = aws_profile_env
-        return self.aws_profile
+            self._aws_profile = aws_profile_env
+        return self._aws_profile
+
+    @aws_profile.setter
+    def aws_profile(self, value: str) -> None:
+        self._aws_profile = value
 
     @property
     def aws_client(self) -> AwsApiClient:
         if self._api_client is None:
-            self._api_client = AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+            self._api_client = AwsApiClient(aws_region=self.aws_region, aws_profile=self.aws_profile)
         return self._api_client
 
     def create_resources(
@@ -72,6 +82,7 @@ class AwsResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -104,7 +115,7 @@ class AwsResourceGroup(InfraResourceGroup):
             for app in apps_to_create:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(
-                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                    build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
                 )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
@@ -127,7 +138,7 @@ class AwsResourceGroup(InfraResourceGroup):
         logger.debug("-*- Building AwsResources dependency graph")
         for aws_resource in deduped_resources_to_create:
             # Logic to follow if resource has dependencies
-            if aws_resource.depends_on is not None:
+            if aws_resource.depends_on is not None and len(aws_resource.depends_on) > 0:
                 # Add the dependencies before the resource itself
                 for dep in aws_resource.depends_on:
                     if isinstance(dep, AwsResource):
@@ -156,8 +167,9 @@ class AwsResourceGroup(InfraResourceGroup):
             print_heading("--**- AWS resources to create:")
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             if self.aws_region:
-                print_info(f"\nRegion: {self.aws_region}")
+                print_info(f"Region: {self.aws_region}")
             if self.aws_profile:
                 print_info(f"Profile: {self.aws_profile}")
             print_info(f"Total {num_resources_to_create} resources")
@@ -168,8 +180,9 @@ class AwsResourceGroup(InfraResourceGroup):
             print_heading("--**-- Confirm resources to create:")
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             if self.aws_region:
-                print_info(f"\nRegion: {self.aws_region}")
+                print_info(f"Region: {self.aws_region}")
             if self.aws_profile:
                 print_info(f"Profile: {self.aws_profile}")
             print_info(f"Total {num_resources_to_create} resources")
@@ -182,6 +195,8 @@ class AwsResourceGroup(InfraResourceGroup):
 
         for resource in final_aws_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if force is True:
+                resource.force = True
             # logger.debug(resource)
             try:
                 _resource_created = resource.create(aws_client=self.aws_client)
@@ -211,6 +226,7 @@ class AwsResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -243,7 +259,7 @@ class AwsResourceGroup(InfraResourceGroup):
             for app in apps_to_delete:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(
-                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                    build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
                 )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
@@ -266,7 +282,7 @@ class AwsResourceGroup(InfraResourceGroup):
         logger.debug("-*- Building AwsResources dependency graph")
         for aws_resource in deduped_resources_to_delete:
             # Logic to follow if resource has dependencies
-            if aws_resource.depends_on is not None:
+            if aws_resource.depends_on is not None and len(aws_resource.depends_on) > 0:
                 # 1. Reverse the order of dependencies
                 aws_resource.depends_on.reverse()
 
@@ -304,8 +320,9 @@ class AwsResourceGroup(InfraResourceGroup):
             print_heading("--**- AWS resources to delete:")
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             if self.aws_region:
-                print_info(f"\nRegion: {self.aws_region}")
+                print_info(f"Region: {self.aws_region}")
             if self.aws_profile:
                 print_info(f"Profile: {self.aws_profile}")
             print_info(f"Total {num_resources_to_delete} resources")
@@ -316,8 +333,9 @@ class AwsResourceGroup(InfraResourceGroup):
             print_heading("--**-- Confirm resources to delete:")
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             if self.aws_region:
-                print_info(f"\nRegion: {self.aws_region}")
+                print_info(f"Region: {self.aws_region}")
             if self.aws_profile:
                 print_info(f"Profile: {self.aws_profile}")
             print_info(f"Total {num_resources_to_delete} resources")
@@ -330,6 +348,8 @@ class AwsResourceGroup(InfraResourceGroup):
 
         for resource in final_aws_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if force is True:
+                resource.force = True
             # logger.debug(resource)
             try:
                 _resource_deleted = resource.delete(aws_client=self.aws_client)
@@ -359,6 +379,7 @@ class AwsResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -391,7 +412,7 @@ class AwsResourceGroup(InfraResourceGroup):
             for app in apps_to_update:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(
-                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                    build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
                 )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
@@ -414,7 +435,7 @@ class AwsResourceGroup(InfraResourceGroup):
         logger.debug("-*- Building AwsResources dependency graph")
         for aws_resource in deduped_resources_to_update:
             # Logic to follow if resource has dependencies
-            if aws_resource.depends_on is not None:
+            if aws_resource.depends_on is not None and len(aws_resource.depends_on) > 0:
                 # 1. Reverse the order of dependencies
                 aws_resource.depends_on.reverse()
 
@@ -452,8 +473,9 @@ class AwsResourceGroup(InfraResourceGroup):
             print_heading("--**- AWS resources to update:")
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             if self.aws_region:
-                print_info(f"\nRegion: {self.aws_region}")
+                print_info(f"Region: {self.aws_region}")
             if self.aws_profile:
                 print_info(f"Profile: {self.aws_profile}")
             print_info(f"Total {num_resources_to_update} resources")
@@ -464,8 +486,9 @@ class AwsResourceGroup(InfraResourceGroup):
             print_heading("--**-- Confirm resources to update:")
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             if self.aws_region:
-                print_info(f"\nRegion: {self.aws_region}")
+                print_info(f"Region: {self.aws_region}")
             if self.aws_profile:
                 print_info(f"Profile: {self.aws_profile}")
             print_info(f"Total {num_resources_to_update} resources")
@@ -478,6 +501,8 @@ class AwsResourceGroup(InfraResourceGroup):
 
         for resource in final_aws_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if force is True:
+                resource.force = True
             # logger.debug(resource)
             try:
                 _resource_updated = resource.update(aws_client=self.aws_client)

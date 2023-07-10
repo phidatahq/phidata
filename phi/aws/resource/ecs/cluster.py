@@ -71,7 +71,6 @@ class EcsCluster(AwsResource):
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"EcsCluster created: {self.get_resource_name()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -125,7 +124,6 @@ class EcsCluster(AwsResource):
         try:
             delete_response = service_client.delete_cluster(cluster=self.get_ecs_cluster_name())
             logger.debug(f"EcsCluster: {delete_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

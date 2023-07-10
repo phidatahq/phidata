@@ -126,7 +126,6 @@ class SecretsManager(AwsResource):
             logger.debug(f"secret_arn: {self.secret_arn}")
             logger.debug(f"secret_name: {self.secret_name}")
             if self.secret_arn is not None:
-                print_info(f"SecretsManager created: {self.name}")
                 self.cached_secret = secret_dict
                 self.active_resource = created_resource
                 return True
@@ -182,7 +181,6 @@ class SecretsManager(AwsResource):
                 SecretId=self.name, ForceDeleteWithoutRecovery=self.force_delete
             )
             logger.debug(f"SecretsManager: {delete_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")
@@ -217,7 +215,6 @@ class SecretsManager(AwsResource):
                 SecretString=json.dumps(secret_dict),
             )
             logger.debug(f"SecretsManager: {create_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} Updated")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be Updated.")

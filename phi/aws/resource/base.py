@@ -127,10 +127,11 @@ class AwsResource(InfraResource):
         if self.use_cache and self.is_active(client):
             self.resource_created = True
             print_info(f"{self.get_resource_type()}: {self.get_resource_name()} already exists")
-            return True
-
         # Step 3: Create the resource
-        self.resource_created = self._create(client)
+        else:
+            self.resource_created = self._create(client)
+            if self.resource_created:
+                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} created")
 
         # Step 4: Run post create steps
         if self.resource_created:
@@ -161,14 +162,13 @@ class AwsResource(InfraResource):
         client: AwsApiClient = aws_client or self.get_aws_client()
         if self.is_active(client):
             self.resource_updated = self._update(client)
-            if self.resource_updated:
-                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} updated")
         else:
             print_info(f"{self.get_resource_type()}: {self.get_resource_name()} does not exist")
             return True
 
         # Step 3: Run post update steps
         if self.resource_updated:
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} updated")
             if self.save_output:
                 self.save_output_file()
             logger.debug(f"Running post-update for {self.get_resource_type()}: {self.get_resource_name()}")
@@ -196,14 +196,13 @@ class AwsResource(InfraResource):
         client: AwsApiClient = aws_client or self.get_aws_client()
         if self.is_active(client):
             self.resource_deleted = self._delete(client)
-            if self.resource_deleted:
-                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
         else:
             print_info(f"{self.get_resource_type()}: {self.get_resource_name()} does not exist")
             return True
 
         # Step 3: Run post delete steps
         if self.resource_deleted:
+            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             if self.save_output:
                 self.delete_output_file()
             logger.debug(f"Running post-delete for {self.get_resource_type()}: {self.get_resource_name()}.")

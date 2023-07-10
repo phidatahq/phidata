@@ -196,30 +196,93 @@ class InfraApp(PhiBase):
         logger.debug(f"@build_resource_group not defined for {self.get_app_name()}")
         return None
 
-    def get_dependencies(self) -> List[InfraResource]:
-        return []
+    def get_dependencies(self) -> Optional[List[InfraResource]]:
+        return self.depends_on
 
     def add_app_properties_to_resources(self, resources: List[InfraResource]) -> List[InfraResource]:
         updated_resources = []
+        app_properties = self.model_dump(exclude_defaults=True)
+        app_group = self.get_group_name()
+        app_output_dir = self.get_app_name()
+
+        app_skip_create = app_properties.get("skip_create", None)
+        app_skip_read = app_properties.get("skip_read", None)
+        app_skip_update = app_properties.get("skip_update", None)
+        app_skip_delete = app_properties.get("skip_delete", None)
+        app_recreate_on_update = app_properties.get("recreate_on_update", None)
+        app_use_cache = app_properties.get("use_cache", None)
+        app_force = app_properties.get("force", None)
+        app_debug_mode = app_properties.get("debug_mode", None)
+        app_wait_for_create = app_properties.get("wait_for_create", None)
+        app_wait_for_update = app_properties.get("wait_for_update", None)
+        app_wait_for_delete = app_properties.get("wait_for_delete", None)
+        app_save_output = app_properties.get("save_output", None)
+
         for resource in resources:
-            resource.group = resource.group or self.group
-            resource.skip_create = resource.skip_create or self.skip_create
-            resource.skip_read = resource.skip_read or self.skip_read
-            resource.skip_update = resource.skip_update or self.skip_update
-            resource.skip_delete = resource.skip_delete or self.skip_delete
-            resource.recreate_on_update = resource.recreate_on_update or self.recreate_on_update
-            resource.use_cache = resource.use_cache or self.use_cache
-            resource.force = resource.force or self.force
-            resource.debug_mode = resource.debug_mode or self.debug_mode
-            resource.wait_for_create = resource.wait_for_create or self.wait_for_create
-            resource.wait_for_update = resource.wait_for_update or self.wait_for_update
-            resource.wait_for_delete = resource.wait_for_delete or self.wait_for_delete
-            resource.save_output = resource.save_output or self.save_output
-            resource.output_dir = resource.output_dir or self.get_app_name()
-            resource.depends_on = resource.depends_on or self.get_dependencies()
-            if self.workspace_settings is not None:
-                if resource.workspace_settings is None:
-                    resource.set_workspace_settings(self.workspace_settings)
+            resource_properties = resource.model_dump(exclude_defaults=True)
+            resource_skip_create = resource_properties.get("skip_create", None)
+            resource_skip_read = resource_properties.get("skip_read", None)
+            resource_skip_update = resource_properties.get("skip_update", None)
+            resource_skip_delete = resource_properties.get("skip_delete", None)
+            resource_recreate_on_update = resource_properties.get("recreate_on_update", None)
+            resource_use_cache = resource_properties.get("use_cache", None)
+            resource_force = resource_properties.get("force", None)
+            resource_debug_mode = resource_properties.get("debug_mode", None)
+            resource_wait_for_create = resource_properties.get("wait_for_create", None)
+            resource_wait_for_update = resource_properties.get("wait_for_update", None)
+            resource_wait_for_delete = resource_properties.get("wait_for_delete", None)
+            resource_save_output = resource_properties.get("save_output", None)
+
+            # If skip_create on resource is not set, use app level skip_create (if set on app)
+            if resource_skip_create is None and app_skip_create is not None:
+                resource.skip_create = app_skip_create
+            # If skip_read on resource is not set, use app level skip_read (if set on app)
+            if resource_skip_read is None and app_skip_read is not None:
+                resource.skip_read = app_skip_read
+            # If skip_update on resource is not set, use app level skip_update (if set on app)
+            if resource_skip_update is None and app_skip_update is not None:
+                resource.skip_update = app_skip_update
+            # If skip_delete on resource is not set, use app level skip_delete (if set on app)
+            if resource_skip_delete is None and app_skip_delete is not None:
+                resource.skip_delete = app_skip_delete
+            # If recreate_on_update on resource is not set, use app level recreate_on_update (if set on app)
+            if resource_recreate_on_update is None and app_recreate_on_update is not None:
+                resource.recreate_on_update = app_recreate_on_update
+            # If use_cache on resource is not set, use app level use_cache (if set on app)
+            if resource_use_cache is None and app_use_cache is not None:
+                resource.use_cache = app_use_cache
+            # If force on resource is not set, use app level force (if set on app)
+            if resource_force is None and app_force is not None:
+                resource.force = app_force
+            # If debug_mode on resource is not set, use app level debug_mode (if set on app)
+            if resource_debug_mode is None and app_debug_mode is not None:
+                resource.debug_mode = app_debug_mode
+            # If wait_for_create on resource is not set, use app level wait_for_create (if set on app)
+            if resource_wait_for_create is None and app_wait_for_create is not None:
+                resource.wait_for_create = app_wait_for_create
+            # If wait_for_update on resource is not set, use app level wait_for_update (if set on app)
+            if resource_wait_for_update is None and app_wait_for_update is not None:
+                resource.wait_for_update = app_wait_for_update
+            # If wait_for_delete on resource is not set, use app level wait_for_delete (if set on app)
+            if resource_wait_for_delete is None and app_wait_for_delete is not None:
+                resource.wait_for_delete = app_wait_for_delete
+            # If save_output on resource is not set, use app level save_output (if set on app)
+            if resource_save_output is None and app_save_output is not None:
+                resource.save_output = app_save_output
+            # If workspace_settings on resource is not set, use app level workspace_settings (if set on app)
+            if resource.workspace_settings is None and self.workspace_settings is not None:
+                resource.set_workspace_settings(self.workspace_settings)
+
+            resource.group = app_group
+            resource.output_dir = app_output_dir
+
+            app_dependencies = self.get_dependencies()
+            if app_dependencies is not None:
+                if resource.depends_on is None:
+                    resource.depends_on = app_dependencies
+                else:
+                    resource.depends_on.extend(app_dependencies)
+
             updated_resources.append(resource)
         return updated_resources
 

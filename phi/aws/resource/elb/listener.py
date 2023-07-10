@@ -88,7 +88,6 @@ class Listener(AwsResource):
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"Listener created: {self.get_resource_name()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -145,7 +144,6 @@ class Listener(AwsResource):
 
             delete_response = service_client.delete_listener(ListenerArn=listener_arn)
             logger.debug(f"Delete Response: {delete_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

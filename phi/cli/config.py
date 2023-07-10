@@ -183,9 +183,9 @@ class PhiCliConfig:
             self.active_ws_name = ws_name
         self.save_config()
 
-    def delete_ws(self, ws_name: str, delete_ws_dir: bool = False) -> bool:
+    def delete_ws(self, ws_name: str) -> bool:
         """Handles Deleting a workspace from the PhiCliConfig"""
-        print_info(f"Deleting record for: {ws_name}")
+        print_heading(f"Deleting record for: {ws_name}")
         print_info("-*- Note: this does not delete any files on disk, please delete them manually")
 
         ws_config: Optional[WorkspaceConfig] = self.ws_config_map.pop(ws_name, None)
@@ -204,6 +204,16 @@ class PhiCliConfig:
         ):
             print_info(f"Removing {ws_config.ws_name} as the active workspace")
             self._active_ws_name = None
+
+        # TODO: Delete the workspace from the api
+        # from phi.api.workspace import delete_workspaces_api
+        # workspaces_deleted = delete_workspaces_api(
+        #     user=phi_config.user, workspaces_to_delete=ws_to_delete
+        # )
+        # if workspaces_deleted:
+        #     pass
+        #     # phi_conf.delete_ws_data(ws_name=ws)
+        # return workspaces_deleted
 
         self.save_config()
         return True
@@ -289,11 +299,14 @@ class PhiCliConfig:
     @classmethod
     def from_saved_config(cls):
         logger.debug(f"Reading PhiCliConfig from {phi_cli_settings.config_file_path}")
-        cli_config = unpickle_object_from_file(file_path=phi_cli_settings.config_file_path, verify_class=cls)
-        if cli_config is None:
-            logger.debug(f"Unable to read config from {phi_cli_settings.config_file_path}")
-            return None
-        return cli_config
+        try:
+            return unpickle_object_from_file(file_path=phi_cli_settings.config_file_path, verify_class=cls)
+        except Exception:
+            logger.warning("PhiCliConfig not found or corrupted, creating new config")
+            from phi.utils.filesystem import delete_from_fs
+
+            delete_from_fs(phi_cli_settings.config_file_path)
+            return cls()
 
     ######################################################
     ## Print PhiCliConfig

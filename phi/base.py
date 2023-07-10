@@ -3,7 +3,6 @@ from typing import Optional, List, Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from phi.utils.log import logger
 from phi.workspace.settings import WorkspaceSettings
 
 
@@ -68,13 +67,23 @@ class PhiBase(BaseModel):
         return self.group or self.name
 
     @field_validator("force", mode="before")
-    def update_force(cls, v):
+    def set_force(cls, v):
         from os import getenv
 
         phi_cli_force = getenv("PHI_CLI_FORCE", False)
         if phi_cli_force:
-            return phi_cli_force
+            return True
         return v
+
+    # @model_validator(mode="before")
+    # def update_force(cls, data):
+    #     from os import getenv
+    #
+    #     phi_cli_force = getenv("PHI_CLI_FORCE", False)
+    #     if phi_cli_force:
+    #         data["force"] = True
+    #         logger.info("Setting force to True using PHI_CLI_FORCE")
+    #     return data
 
     @property
     def workspace_root(self) -> Optional[Path]:
@@ -120,17 +129,17 @@ class PhiBase(BaseModel):
         )
 
         if aws_region is not None:
-            logger.debug(f"Setting AWS Region to {aws_region}")
+            # logger.debug(f"Setting AWS Region to {aws_region}")
             env_dict[AWS_REGION_ENV_VAR] = aws_region
             env_dict[AWS_DEFAULT_REGION_ENV_VAR] = aws_region
         elif self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
-            logger.debug(f"Setting AWS Region to {aws_region} using workspace_settings")
+            # logger.debug(f"Setting AWS Region to {aws_region} using workspace_settings")
             env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
             env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region
 
         if aws_profile is not None:
-            logger.debug(f"Setting AWS Profile to {aws_profile}")
+            # logger.debug(f"Setting AWS Profile to {aws_profile}")
             env_dict[AWS_PROFILE_ENV_VAR] = aws_profile
         elif self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
-            logger.debug(f"Setting AWS Profile to {aws_profile} using workspace_settings")
+            # logger.debug(f"Setting AWS Profile to {aws_profile} using workspace_settings")
             env_dict[AWS_PROFILE_ENV_VAR] = self.workspace_settings.aws_profile

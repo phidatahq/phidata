@@ -161,7 +161,6 @@ class EcsTaskDefinition(AwsResource):
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"EcsTaskDefinition created: {self.get_resource_name()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:

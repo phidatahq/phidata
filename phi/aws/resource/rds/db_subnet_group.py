@@ -133,7 +133,6 @@ class DbSubnetGroup(AwsResource):
 
             delete_response = service_client.delete_db_subnet_group(DBSubnetGroupName=self.name)
             logger.debug(f"delete_response: {delete_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

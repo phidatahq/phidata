@@ -205,5 +205,6 @@ class WorkspaceConfig(BaseModel):
         # Updated filtered resource groups with the workspace settings
         if self.workspace_settings is not None:
             for resource_group in filtered_resource_groups:
+                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
                 resource_group.set_workspace_settings(self.workspace_settings)
         return filtered_resource_groups

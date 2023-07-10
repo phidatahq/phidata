@@ -346,6 +346,7 @@ def start_workspace(
     target_type: Optional[str] = None,
     dry_run: Optional[bool] = False,
     auto_confirm: Optional[bool] = False,
+    force: Optional[bool] = None,
 ) -> None:
     """Start a Phi Workspace. This is called from `phi ws up`"""
     if ws_config is None is None:
@@ -379,6 +380,7 @@ def start_workspace(
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
+            force=force,
             workspace_settings=ws_config.workspace_settings,
         )
         num_rgs_created += 1
@@ -405,6 +407,7 @@ def stop_workspace(
     target_type: Optional[str] = None,
     dry_run: Optional[bool] = False,
     auto_confirm: Optional[bool] = False,
+    force: Optional[bool] = None,
 ) -> None:
     """Stop a Phi Workspace. This is called from `phi ws down`"""
     if ws_config is None is None:
@@ -438,6 +441,7 @@ def stop_workspace(
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
+            force=force,
             workspace_settings=ws_config.workspace_settings,
         )
         num_rgs_deleted += 1
@@ -461,6 +465,7 @@ def update_workspace(
     target_type: Optional[str] = None,
     dry_run: Optional[bool] = False,
     auto_confirm: Optional[bool] = False,
+    force: Optional[bool] = None,
 ) -> None:
     """Update a Phi Workspace. This is called from `phi ws patch`"""
     if ws_config is None is None:
@@ -494,6 +499,7 @@ def update_workspace(
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
+            force=force,
             workspace_settings=ws_config.workspace_settings,
         )
         num_rgs_updated += 1
@@ -506,3 +512,12 @@ def update_workspace(
             print_subheading("Workspace updated")
     else:
         logger.error("Workspace update failed")
+
+
+def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[str]]) -> None:
+    if ws_to_delete is None or len(ws_to_delete) == 0:
+        print_heading("No workspaces to delete")
+        return
+
+    for ws in ws_to_delete:
+        phi_config.delete_ws(ws_name=ws)

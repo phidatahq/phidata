@@ -159,7 +159,6 @@ class EksAddon(AwsResource):
             )
             logger.debug(f"EksAddon: {delete_response}")
             # logger.debug(f"EksAddon type: {type(delete_response)}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

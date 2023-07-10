@@ -206,7 +206,6 @@ class EcsService(AwsResource):
 
             # Validate resource creation
             if resource_dict is not None:
-                print_info(f"EcsService created: {self.get_resource_name()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -293,7 +292,6 @@ class EcsService(AwsResource):
                 **not_null_args,
             )
             logger.debug(f"EcsService: {delete_response}")
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

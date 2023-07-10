@@ -51,7 +51,7 @@ class InfraResource(PhiBase):
             if resource_name is not None:
                 output_file_name = f"{resource_name}.json"
                 output_dir = self.output_dir or self.get_resource_type()
-                return workspace_dir.joinpath("output", output_dir, output_file_name)
+                return workspace_dir.joinpath("output", output_dir.lower(), output_file_name)
         return None
 
     def save_output_file(self) -> bool:

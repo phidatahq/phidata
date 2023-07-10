@@ -14,6 +14,10 @@ class InboundRule(AwsResource):
     - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/authorize_security_group_ingress.html
     """
 
+    name: str = "InboundRule"
+    resource_type: Optional[str] = "InboundRule"
+    service_name: str = "ec2"
+
     # What to enable ingress for.
     # The IPv4 CIDR range. You can either specify a CIDR range or a source security group, not both.
     # To specify a single IPv4 address, use the /32 prefix length.
@@ -45,6 +49,10 @@ class OutboundRule(AwsResource):
     Reference:
     - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/authorize_security_group_ingress.html
     """
+
+    name: str = "OutboundRule"
+    resource_type: Optional[str] = "OutboundRule"
+    service_name: str = "ec2"
 
     # What to enable egress for.
     # The IPv4 CIDR range. You can either specify a CIDR range or a source security group, not both.
@@ -159,7 +167,6 @@ class SecurityGroup(AwsResource):
 
             # Validate resource creation
             if create_response is not None:
-                print_info(f"SecurityGroup created: {self.get_resource_name()}")
                 self.active_resource = create_response
                 return True
         except Exception as e:
@@ -256,7 +263,6 @@ class SecurityGroup(AwsResource):
                 delete_response = service_client.delete_security_group(GroupName=self.name)
             logger.debug(f"Response: {delete_response}")
 
-            print_info(f"{self.get_resource_type()}: {self.get_resource_name()} deleted")
             return True
         except ClientError as ce:
             ce_resp = ce.response

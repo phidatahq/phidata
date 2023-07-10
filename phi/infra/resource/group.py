@@ -18,6 +18,7 @@ class InfraResourceGroup(PhiBase):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         logger.warning(f"create_resources() not implemented for {self.__class__.__name__}")
@@ -29,6 +30,7 @@ class InfraResourceGroup(PhiBase):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         logger.warning(f"delete_resources() not implemented for {self.__class__.__name__}")
@@ -40,6 +42,7 @@ class InfraResourceGroup(PhiBase):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         logger.warning(f"update_resources() not implemented for {self.__class__.__name__}")

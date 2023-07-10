@@ -151,8 +151,8 @@ def up(
         "--debug",
         help="Print debug logs.",
     ),
-    force: bool = typer.Option(
-        False,
+    force: Optional[bool] = typer.Option(
+        None,
         "-f",
         "--force",
         help="Force create resources where applicable.",
@@ -273,6 +273,7 @@ def up(
     logger.debug(f"\ttarget_type  : {target_type}")
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
     print_heading("Starting workspace: {}\n".format(active_ws_config.ws_name))
     start_workspace(
         ws_config=active_ws_config,
@@ -283,6 +284,7 @@ def up(
         target_type=target_type,
         dry_run=dry_run,
         auto_confirm=auto_confirm,
+        force=force,
     )
 
 
@@ -326,7 +328,7 @@ def down(
         help="Print debug logs.",
     ),
     force: bool = typer.Option(
-        False,
+        None,
         "-f",
         "--force",
         help="Force",
@@ -443,6 +445,7 @@ def down(
     logger.debug(f"\ttarget_type  : {target_type}")
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
     print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_name))
     stop_workspace(
         ws_config=active_ws_config,
@@ -453,6 +456,7 @@ def down(
         target_type=target_type,
         dry_run=dry_run,
         auto_confirm=auto_confirm,
+        force=force,
     )
 
 
@@ -494,7 +498,7 @@ def patch(
         help="Print debug logs.",
     ),
     force: bool = typer.Option(
-        False,
+        None,
         "-f",
         "--force",
         help="Force",
@@ -611,6 +615,7 @@ def patch(
     logger.debug(f"\ttarget_type  : {target_type}")
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
     print_heading("Updating workspace: {}\n".format(active_ws_config.ws_name))
     update_workspace(
         ws_config=active_ws_config,
@@ -621,6 +626,7 @@ def patch(
         target_type=target_type,
         dry_run=dry_run,
         auto_confirm=auto_confirm,
+        force=force,
     )
 
 
@@ -662,7 +668,7 @@ def restart(
         help="Print debug logs.",
     ),
     force: bool = typer.Option(
-        False,
+        None,
         "-f",
         "--force",
         help="Force",
@@ -708,286 +714,94 @@ def restart(
     )
 
 
-# @ws_cli.command(short_help="Show status for workspace resources")
-# def status(
-#     resource_filter: Optional[str] = typer.Argument(
-#         None,
-#         help="Resource filter. Format - ENV:CONFIG:GROUP:NAME:TYPE",
-#         metavar="[FILTER]",
-#     ),
-#     env_filter: str = typer.Option(
-#         None, "-e", "--env", metavar="", help="Filter the environment"
-#     ),
-#     config_filter: str = typer.Option(
-#         None, "-c", "--config", metavar="", help="Filter the config"
-#     ),
-#     name_filter: Optional[str] = typer.Option(
-#         None, "-n", "--name", metavar="", help="Filter using resource name"
-#     ),
-#     type_filter: Optional[str] = typer.Option(
-#         None,
-#         "-t",
-#         "--type",
-#         metavar="",
-#         help="Filter using resource type",
-#     ),
-#     group_filter: Optional[str] = typer.Option(
-#         None, "-g", "--group", metavar="", help="Filter using group name"
-#     ),
-#     dry_run: bool = typer.Option(
-#         False,
-#         "-dr",
-#         "--dry-run",
-#         help="Print which resources will be displayed and exit.",
-#     ),
-#     auto_confirm: bool = typer.Option(
-#         False,
-#         "-y",
-#         "--yes",
-#         help="Skip the confirmation before displaying resources.",
-#     ),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-#     force: bool = typer.Option(
-#         False,
-#         "-f",
-#         "--force",
-#         help="Force",
-#     ),
-# ):
-#     """\b
-#     Get resource status for active workspace.
-#     Options can be used to limit the resources to update.
-#       --env     : Env (dev, stg, prd)
-#       --group   : Group name
-#       --name    : Resource name
-#       --type    : Resource type
-#       --config  : Config type (docker, aws, k8s)
-#     \b
-#     Filters can also be provided as a single argument - ENV:CONFIG:GROUP:NAME:TYPE
-#     Examples:
-#     \b
-#     > `phi ws status`           -> Show status for all resources
-#     """
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     from phi.conf.phi_config import PhiCliConfig, WorkspaceConfig
-#     from phi.workspace.operator import print_workspace_status
-#     from phi.utils.load_env import load_env
-#     from phi.utils.ws_filter import parse_ws_filter
-#
-#     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-#     if not phi_config:
-#         log_config_not_available_msg()
-#         return
-#
-#     active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
-#     if active_ws_config is None:
-#         log_active_workspace_not_available()
-#         avl_ws = phi_config.available_ws
-#         if avl_ws:
-#             print_available_workspaces(avl_ws)
-#         return
-#
-#     current_path: Path = Path(".").resolve()
-#     if active_ws_config.ws_root_path != current_path and not auto_confirm:
-#         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
-#         if ws_at_current_path is not None:
-#             print_info(
-#                 f"Workspace at the current directory ({ws_at_current_path.ws_name}) "
-#                 + f"is not the Active Workspace ({active_ws_config.ws_name})"
-#             )
-#             update_active_workspace = typer.confirm(
-#                 f"Update active workspace to {ws_at_current_path.ws_name}", default=True
-#             )
-#             if update_active_workspace:
-#                 phi_config.active_ws_name = ws_at_current_path.ws_name
-#                 active_ws_config = ws_at_current_path
-#
-#     # Load environment from .env
-#     load_env(
-#         env={
-#             "PHI_CLI_FORCE": str(force),
-#         },
-#         dotenv_dir=active_ws_config.ws_root_path,
-#     )
-#
-#     target_env: Optional[str] = None
-#     target_infra_str: Optional[str] = None
-#     target_infra: Optional[InfraType] = None
-#     target_group: Optional[str] = None
-#     target_name: Optional[str] = None
-#     target_type: Optional[str] = None
-#
-#     # derive env:config:name:type:group from ws_filter
-#     if resource_filter is not None:
-#         if not isinstance(resource_filter, str):
-#             raise TypeError(
-#                 f"Invalid resource_filter. Expected: str, Received: {type(resource_filter)}"
-#             )
-#         (
-#             target_env,
-#             target_infra_str,
-#             target_group,
-#             target_name,
-#             target_type,
-#         ) = parse_ws_filter(resource_filter)
-#
-#     # derive env:config:name:type:group from command options
-#     if (
-#         target_infra_str is None
-#         and config_filter is not None
-#         and isinstance(config_filter, str)
-#     ):
-#         target_infra_str = config_filter
-#     if (
-#         target_group is None
-#         and group_filter is not None
-#         and isinstance(group_filter, str)
-#     ):
-#         target_group = group_filter
-#     if target_name is None and name_filter is not None and isinstance(name_filter, str):
-#         target_name = name_filter
-#     if target_type is None and type_filter is not None and isinstance(type_filter, str):
-#         target_type = type_filter
-#     if target_env is None and env_filter is not None and isinstance(env_filter, str):
-#         target_env = env_filter
-#
-#     # derive env/config/name/type from defaults
-#     if target_env is None:
-#         target_env = (
-#             active_ws_config.ws_config.default_env if active_ws_config.ws_config else None
-#         )
-#     if target_infra_str is None:
-#         target_infra_str = (
-#             active_ws_config.ws_config.default_config
-#             if active_ws_config.ws_config
-#             else None
-#         )
-#     if target_infra_str is not None:
-#         if target_infra_str.lower() not in InfraType.values_list():
-#             print_error(
-#                 f"{target_infra_str} is not supported, please choose from: {InfraType.values_list()}"
-#             )
-#             return
-#         target_infra = cast(
-#             InfraType,
-#             InfraType.from_str(target_infra_str),
-#         )
-#
-#     logger.debug("Reading workspace status")
-#     logger.debug(f"\ttarget_env   : {target_env}")
-#     logger.debug(f"\ttarget_infra: {target_infra}")
-#     logger.debug(f"\ttarget_group : {target_group}")
-#     logger.debug(f"\ttarget_name  : {target_name}")
-#     logger.debug(f"\ttarget_type  : {target_type}")
-#     logger.debug(f"\tdry_run      : {dry_run}")
-#     logger.debug(f"\tauto_confirm : {auto_confirm}")
-#     print_heading("Reading workspace status: {}\n".format(active_ws_config.ws_name))
-#     print_workspace_status(
-#         ws_data=active_ws_config,
-#         target_env=target_env,
-#         target_infra=target_infra,
-#         target_name=target_name,
-#         target_type=target_type,
-#         target_app=target_group,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#     )
-#
-#
-# @ws_cli.command(short_help="Prints active workspace config", hidden=True)
-# def config(
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-# ):
-#     """\b
-#     Prints the active workspace config
-#
-#     \b
-#     Examples:
-#     $ `phi ws config`         -> Print the active workspace config
-#     """
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     from phi.conf.phi_config import PhiCliConfig, WorkspaceConfig
-#     from phi.utils.load_env import load_env
-#
-#     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-#     if not phi_config:
-#         log_config_not_available_msg()
-#         return
-#
-#     active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
-#     if active_ws_config is None:
-#         log_active_workspace_not_available()
-#         avl_ws = phi_config.available_ws
-#         if avl_ws:
-#             print_available_workspaces(avl_ws)
-#         return
-#
-#     # Load environment from .env
-#     load_env(
-#         dotenv_dir=active_ws_config.ws_root_path,
-#     )
-#     active_ws_config.print_to_cli()
-#
-#
-# @ws_cli.command(short_help="Delete workspace from phidata", hidden=True)
-# def delete(
-#     ws_name: str = typer.Option(None, "-ws", help="Name of the workspace to delete"),
-#     all_workspaces: bool = typer.Option(
-#         False,
-#         "-a",
-#         "--all",
-#         help="Delete all workspaces from phidata",
-#     ),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-# ):
-#     """\b
-#     Deletes the workspace record from phidata.
-#     NOTE: Does not delete any physical files.
-#
-#     \b
-#     Examples:
-#     $ `phi ws delete`         -> Delete the active workspace from phidata
-#     $ `phi ws delete -a`      -> Delete all workspaces from phidata
-#     """
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     from phi.conf.phi_config import PhiCliConfig
-#     from phi.workspace.operator import delete_workspace
-#
-#     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-#     if not phi_config:
-#         log_config_not_available_msg()
-#         return
-#
-#     ws_to_delete = []
-#     # By default, we assume this command is run from the workspace directory
-#     if ws_name is not None:
-#         ws_to_delete.append(ws_name)
-#     else:
-#         if all_workspaces:
-#             ws_to_delete = [ws.ws_name for ws in phi_config.available_ws]
-#         else:
-#             if phi_config.active_ws_name is not None:
-#                 ws_to_delete.append(phi_config.active_ws_name)
-#
-#     delete_workspace(ws_to_delete, phi_config)
+@ws_cli.command(short_help="Prints active workspace config")
+def config(
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+):
+    """\b
+    Prints the active workspace config
+
+    \b
+    Examples:
+    $ `phi ws config`         -> Print the active workspace config
+    """
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from phi.cli.config import PhiCliConfig
+    from phi.workspace.config import WorkspaceConfig
+    from phi.utils.load_env import load_env
+
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        log_config_not_available_msg()
+        return
+
+    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
+    if active_ws_config is None:
+        log_active_workspace_not_available()
+        avl_ws = phi_config.available_ws
+        if avl_ws:
+            print_available_workspaces(avl_ws)
+        return
+
+    # Load environment from .env
+    load_env(
+        dotenv_dir=active_ws_config.ws_root_path,
+    )
+    print_info(active_ws_config.model_dump_json(include={"ws_name", "ws_root_path"}, indent=2))
+
+
+@ws_cli.command(short_help="Delete workspace record")
+def delete(
+    ws_name: Optional[str] = typer.Option(None, "-ws", help="Name of the workspace to delete"),
+    all_workspaces: bool = typer.Option(
+        False,
+        "-a",
+        "--all",
+        help="Delete all workspaces from phidata",
+    ),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+):
+    """\b
+    Deletes the workspace record from phi.
+    NOTE: Does not delete any physical files.
+
+    \b
+    Examples:
+    $ `phi ws delete`         -> Delete the active workspace from phidata
+    $ `phi ws delete -a`      -> Delete all workspaces from phidata
+    """
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from phi.cli.config import PhiCliConfig
+    from phi.workspace.operator import delete_workspace
+
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        log_config_not_available_msg()
+        return
+
+    ws_to_delete = []
+    # By default, we assume this command is run from the workspace directory
+    if ws_name is not None:
+        ws_to_delete.append(ws_name)
+    else:
+        if all_workspaces:
+            ws_to_delete = [ws.ws_name for ws in phi_config.available_ws if ws.ws_name is not None]
+        else:
+            if phi_config.active_ws_name is not None:
+                ws_to_delete.append(phi_config.active_ws_name)
+
+    delete_workspace(phi_config, ws_to_delete)

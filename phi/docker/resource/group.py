@@ -33,6 +33,7 @@ class DockerResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -135,6 +136,8 @@ class DockerResourceGroup(InfraResourceGroup):
 
         for resource in final_docker_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if force is True:
+                resource.force = True
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network
@@ -167,6 +170,7 @@ class DockerResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -278,6 +282,8 @@ class DockerResourceGroup(InfraResourceGroup):
 
         for resource in final_docker_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if force is True:
+                resource.force = True
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network
@@ -310,6 +316,7 @@ class DockerResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
+        force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ):
         from phi.cli.console import print_info, print_heading, confirm_yes_no
@@ -421,6 +428,8 @@ class DockerResourceGroup(InfraResourceGroup):
 
         for resource in final_docker_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            if force is True:
+                resource.force = True
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network

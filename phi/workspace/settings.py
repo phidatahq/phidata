@@ -27,9 +27,9 @@ class WorkspaceSettings(BaseSettings):
     workflows_dir: str = "workflows"
     workspace_dir: str = "workspace"
     # default env for phi ws commands
-    default_env: Optional[str] = None
+    default_env: Optional[str] = "dev"
     # default infra for phi ws commands
-    default_infra: Optional[str] = None
+    default_infra: Optional[str] = "docker"
     #
     # -*- Dev settings
     #

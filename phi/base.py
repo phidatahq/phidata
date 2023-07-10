@@ -28,7 +28,7 @@ class PhiBase(BaseModel):
 
     # -*- Resource Environment
     # Add env variables to resource where applicable
-    env_dict: Optional[Dict[str, Any]] = None
+    env_vars: Optional[Dict[str, Any]] = None
     # Read env from a file in yaml format
     env_file: Optional[Path] = None
     # Add secret variables to resource where applicable
@@ -118,6 +118,12 @@ class PhiBase(BaseModel):
 
             self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
         return self.cached_secret_file_data
+
+    def get_secret_from_file(self, secret_name: str) -> Optional[str]:
+        secret_file_data = self.get_secret_file_data()
+        if secret_file_data is not None:
+            return secret_file_data.get(secret_name)
+        return None
 
     def set_aws_env_vars(
         self, env_dict: Dict[str, str], aws_region: Optional[str] = None, aws_profile: Optional[str] = None

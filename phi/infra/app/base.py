@@ -21,7 +21,7 @@ class AppVolumeType(str, Enum):
 
 
 class InfraApp(PhiBase):
-    # App name is required
+    # -*- App Name (required)
     name: str
 
     # -*- Image Configuration
@@ -74,42 +74,11 @@ class InfraApp(PhiBase):
     git_sync_branch: Optional[str] = None
     git_sync_wait: int = 1
 
-    # -*- App Volume
-    # Create a volume for mounting App data like notebooks, models, etc.
-    create_app_volume: bool = False
-    app_volume_name: Optional[str] = None
-    # Path to mount the app volume inside the container
-    app_volume_container_path: str = "/mnt/app"
-    # Type of volume to create
-    # -*- If volume_type=AppVolumeType.EmptyDir
-    # Create an empty volume with the name app_volume_name
-    app_volume_type: AppVolumeType = AppVolumeType.EmptyDir
-    # -*- If volume_type=AppVolumeType.HostPath
-    # Mount the app_volume_host_path to app_volume_container_path
-    app_volume_host_path: Optional[str] = None
-    # -*- If volume_type=AppVolumeType.AwsEbs
-    # Mount an AWS EBS volume to app_volume_container_path
-    # EbsVolume: used to derive the volume_id, region, and az
-    app_ebs_volume: Optional[Any] = None
-    # Or provide Ebs Volume-id manually
-    app_ebs_volume_id: Optional[str] = None
-    # And provide region and az
-    app_ebs_volume_region: Optional[str] = None
-    app_ebs_volume_az: Optional[str] = None
-    # -*- If volume_type=AppVolumeType.AwsEfs
-    # Mount an AWS EFS volume to app_volume_container_path
-    # EfsVolume: used to derive the volume_id
-    app_efs_volume: Optional[Any] = None
-    # Or provide Efs Volume-id manually
-    app_efs_volume_id: Optional[str] = None
-
     # -*- App Ports
     # Open a container port if open_container_port=True
     open_container_port: bool = False
     # Port number on the container
     container_port: int = 80
-    # Port name (used by k8s)
-    container_port_name: str = "http"
     # Host port to map to the container port
     host_port: int = 80
 

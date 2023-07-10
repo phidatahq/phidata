@@ -40,7 +40,6 @@ class DockerResourceGroup(InfraResourceGroup):
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Creating DockerResources")
-
         # Build a list of DockerResources to create
         resources_to_create: List[DockerResource] = []
         if self.resources is not None:
@@ -177,7 +176,6 @@ class DockerResourceGroup(InfraResourceGroup):
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Deleting DockerResources")
-
         # Build a list of DockerResources to delete
         resources_to_delete: List[DockerResource] = []
         if self.resources is not None:

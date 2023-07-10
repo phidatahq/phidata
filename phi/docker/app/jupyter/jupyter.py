@@ -7,14 +7,32 @@ from phi.docker.app.base import DockerApp, WorkspaceVolumeType, AppVolumeType, C
 
 
 class Jupyter(DockerApp):
+    # -*- App Name
     name: str = "jupyter"
+
+    # -*- Image Configuration
     image_name: str = "phidata/jupyter"
     image_tag: str = "3.6.3"
     command: Optional[Union[str, List[str]]] = "jupyter lab"
+
+    # -*- App Ports
+    # Open a container port if open_container_port=True
     open_container_port: bool = True
+    # Port number on the container
     container_port: int = 8888
+    # Host port to map to the container port
     host_port: int = 8888
+
+    # -*- Workspace Volume
+    # Mount the workspace directory from host machine to the container
+    mount_workspace: bool = False
+    # Path to mount the workspace volume inside the container
     workspace_volume_container_path: str = "/usr/local/jupyter"
+
+    # -*- Resources Volume
+    # Mount a read-only directory from host machine to the container
+    mount_resources: bool = False
+    # Resources directory relative to the workspace_root
     resources_dir: str = "workspace/jupyter/resources"
 
     # -*- Jupyter Configuration

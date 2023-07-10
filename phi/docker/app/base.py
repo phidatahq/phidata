@@ -7,6 +7,18 @@ from phi.utils.log import logger
 
 
 class DockerApp(InfraApp):
+    # -*- App Volume
+    # Create a volume for container storage
+    create_volume: bool = False
+    # If volume_host_path is provided, mount this directory relative to the workspace_root
+    # from host machine to container
+    volume_dir: Optional[str] = None
+    # Otherwise, mount a volume named volume_name to the container
+    # If volume_name is not provided, use {app-name}-volume
+    volume_name: Optional[str] = None
+    # Path to mount the volume inside the container
+    volume_container_path: str = "/mnt/app"
+
     # -*- Resources Volume
     # Mount a read-only directory from host machine to the container
     mount_resources: bool = False
@@ -129,10 +141,10 @@ class DockerApp(InfraApp):
         if secret_data_from_file is not None:
             container_env.update({k: str(v) for k, v in secret_data_from_file.items() if v is not None})
 
-        # Update the container env with user provided env_dict
+        # Update the container env with user provided env_vars
         # this overwrites any existing variables with the same key
-        if self.env_dict is not None and isinstance(self.env_dict, dict):
-            container_env.update({k: str(v) for k, v in self.env_dict.items() if v is not None})
+        if self.env_vars is not None and isinstance(self.env_vars, dict):
+            container_env.update({k: str(v) for k, v in self.env_vars.items() if v is not None})
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
@@ -156,7 +168,7 @@ class DockerApp(InfraApp):
         # }
         container_volumes = self.container_volumes or {}
 
-        # Create a volume for the workspace dir
+        # Create Workspace Volume
         if self.mount_workspace:
             workspace_volume_container_path_str = container_context.workspace_root
             if self.workspace_volume_type is None or self.workspace_volume_type == WorkspaceVolumeType.HostPath:
@@ -180,7 +192,19 @@ class DockerApp(InfraApp):
             else:
                 logger.error(f"{self.workspace_volume_type.value} not supported")
 
-        # Create a volume for the resources dir
+        # Create App Volume
+        if self.create_volume:
+            volume_host = self.volume_name or get_default_volume_name(self.get_app_name())
+            if self.volume_dir is not None:
+                volume_host = str(self.workspace_root.joinpath(self.volume_dir))
+            logger.debug(f"Mounting: {volume_host}")
+            logger.debug(f"\tto: {self.volume_container_path}")
+            container_volumes[volume_host] = {
+                "bind": self.volume_container_path,
+                "mode": "rw",
+            }
+
+        # Create Resources Volume
         if self.mount_resources:
             resources_dir_path = str(self.workspace_root.joinpath(self.resources_dir))
             logger.debug(f"Mounting: {resources_dir_path}")

@@ -109,10 +109,10 @@ class AwsApp(InfraApp):
         if secret_data_from_file is not None:
             container_env.update({k: str(v) for k, v in secret_data_from_file.items() if v is not None})
 
-        # Update the container env with user provided env_dict
+        # Update the container env with user provided env_vars
         # this overwrites any existing variables with the same key
-        if self.env_dict is not None and isinstance(self.env_dict, dict):
-            container_env.update({k: v for k, v in self.env_dict.items() if v is not None})
+        if self.env_vars is not None and isinstance(self.env_vars, dict):
+            container_env.update({k: v for k, v in self.env_vars.items() if v is not None})
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env

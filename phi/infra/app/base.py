@@ -2,8 +2,8 @@ from enum import Enum
 from typing import Optional, Dict, Any, Union, List
 
 from phi.base import PhiBase
-from phi.app.context import ContainerContext
-from phi.infra.resource import InfraResource
+from phi.infra.app.context import ContainerContext
+from phi.infra.resource.base import InfraResource
 from phi.utils.log import logger
 
 
@@ -20,7 +20,7 @@ class AppVolumeType(str, Enum):
     PersistentVolume = "PersistentVolume"
 
 
-class AppBase(PhiBase):
+class InfraApp(PhiBase):
     # App name is required
     name: str
 

@@ -164,7 +164,7 @@ class DockerContainer(DockerResource):
             raise
 
     def _create(self, docker_client: DockerApiClient) -> bool:
-        """Creates the Container on docker
+        """Creates the Container
 
         Args:
             docker_client: The DockerApiClient for the current cluster
@@ -245,8 +245,17 @@ class DockerContainer(DockerResource):
             logger.debug(f"Container {container_name} not found")
         return None
 
+    def _update(self, docker_client: DockerApiClient) -> bool:
+        """Updates the Container
+
+        Args:
+            docker_client: The DockerApiClient for the current cluster
+        """
+        logger.debug("Updating: {}".format(self.get_resource_name()))
+        return self._create(docker_client=docker_client)
+
     def _delete(self, docker_client: DockerApiClient) -> bool:
-        """Deletes the Container from docker
+        """Deletes the Container
 
         Args:
             docker_client: The DockerApiClient for the current cluster

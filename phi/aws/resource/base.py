@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from phi.infra.resource import InfraResource
+from phi.infra.resource.base import InfraResource
 from phi.aws.api_client import AwsApiClient
 from phi.cli.console import print_info
 from phi.utils.log import logger
@@ -167,7 +167,7 @@ class AwsResource(InfraResource):
             print_info(f"{self.get_resource_type()}: {self.get_resource_name()} does not exist")
             return True
 
-        # Step 4: Run post update steps
+        # Step 3: Run post update steps
         if self.resource_updated:
             if self.save_output:
                 self.save_output_file()
@@ -202,7 +202,7 @@ class AwsResource(InfraResource):
             print_info(f"{self.get_resource_type()}: {self.get_resource_name()} does not exist")
             return True
 
-        # Step 4: Run post delete steps
+        # Step 3: Run post delete steps
         if self.resource_deleted:
             if self.save_output:
                 self.delete_output_file()

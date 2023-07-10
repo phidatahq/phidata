@@ -5,7 +5,7 @@ from typing import Optional, List, Any
 from pydantic import BaseModel, ConfigDict
 
 from phi.infra.enums import InfraType
-from phi.infra.resource_group import InfraResourceGroup
+from phi.infra.resource.group import InfraResourceGroup
 from phi.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.dttm import current_datetime_utc
@@ -202,4 +202,8 @@ class WorkspaceConfig(BaseModel):
                 if resource_group.env == env:
                     filtered_resource_groups.append(resource_group)
 
+        # Updated filtered resource groups with the workspace settings
+        if self.workspace_settings is not None:
+            for resource_group in filtered_resource_groups:
+                resource_group.set_workspace_settings(self.workspace_settings)
         return filtered_resource_groups

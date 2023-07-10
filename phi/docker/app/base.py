@@ -1,11 +1,11 @@
 from typing import Optional, Dict, Any, Union, List
 
-from phi.app.base import AppBase, WorkspaceVolumeType, AppVolumeType  # noqa: F401
-from phi.app.context import ContainerContext
+from phi.infra.app.base import InfraApp, WorkspaceVolumeType, AppVolumeType  # noqa: F401
+from phi.infra.app.context import ContainerContext
 from phi.utils.log import logger
 
 
-class DockerApp(AppBase):
+class DockerApp(InfraApp):
     # -*- Resources Volume
     # Mount a read-only directory from host machine to the container
     mount_resources: bool = False
@@ -71,12 +71,7 @@ class DockerApp(AppBase):
     container_ports: Optional[Dict[str, Any]] = None
 
     def get_container_name(self):
-        if self.container_name is None:
-            from phi.utils.defaults import get_default_container_name
-
-            return get_default_container_name(self.get_app_name())
-        else:
-            return self.container_name
+        return self.container_name or self.get_app_name()
 
     def build_container_env_docker(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
@@ -219,7 +214,7 @@ class DockerApp(AppBase):
         return self.command
 
     def build_resources(self, build_context: Any) -> Optional[Any]:
-        from phi.docker.context import DockerBuildContext
+        from phi.docker.app.context import DockerBuildContext
         from phi.docker.resource.base import DockerResource
         from phi.docker.resource.network import DockerNetwork
         from phi.docker.resource.container import DockerContainer

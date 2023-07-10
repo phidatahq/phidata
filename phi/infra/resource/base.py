@@ -58,7 +58,7 @@ class InfraResource(PhiBase):
         output_file_path: Optional[Path] = self.get_output_file_path()
         if output_file_path is not None:
             try:
-                from phidata.utils.json_io import write_json_file
+                from phi.utils.json_io import write_json_file
 
                 if not output_file_path.exists():
                     output_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +74,7 @@ class InfraResource(PhiBase):
         output_file_path: Optional[Path] = self.get_output_file_path()
         if output_file_path is not None:
             try:
-                from phidata.utils.json_io import read_json_file
+                from phi.utils.json_io import read_json_file
 
                 if output_file_path.exists() and output_file_path.is_file():
                     data_from_file = read_json_file(output_file_path)

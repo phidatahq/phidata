@@ -188,9 +188,7 @@ class InfraApp(PhiBase):
             )
 
         if self.requirements_file is not None:
-            self.container_context.requirements_file = (
-                f"{workspace_volume_container_path}/{self.requirements_file}"
-            )
+            self.container_context.requirements_file = f"{workspace_volume_container_path}/{self.requirements_file}"
 
         return self.container_context
 

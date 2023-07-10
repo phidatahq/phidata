@@ -216,9 +216,7 @@ class PhiCliConfig:
         return self.ws_config_map[ws_name] if ws_name in self.ws_config_map else None
 
     def get_ws_config_by_path(self, ws_root_path: Path) -> Optional[WorkspaceConfig]:
-        return (
-            self.path_to_ws_config_map[ws_root_path] if ws_root_path in self.path_to_ws_config_map else None
-        )
+        return self.path_to_ws_config_map[ws_root_path] if ws_root_path in self.path_to_ws_config_map else None
 
     def get_ws_name_by_path(self, ws_root_path: Path) -> Optional[str]:
         if ws_root_path in self.path_to_ws_config_map:

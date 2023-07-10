@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, Union, List
 
 from phi.infra.app.base import InfraApp, WorkspaceVolumeType, AppVolumeType  # noqa: F401
 from phi.infra.app.context import ContainerContext
+from phi.docker.app.context import DockerBuildContext
 from phi.utils.log import logger
 
 
@@ -128,10 +129,10 @@ class DockerApp(InfraApp):
         if secret_data_from_file is not None:
             container_env.update({k: str(v) for k, v in secret_data_from_file.items() if v is not None})
 
-        # Update the container env with user provided env
+        # Update the container env with user provided env_dict
         # this overwrites any existing variables with the same key
-        if self.env_vars is not None and isinstance(self.env_vars, dict):
-            container_env.update({k: str(v) for k, v in self.env_vars.items() if v is not None})
+        if self.env_dict is not None and isinstance(self.env_dict, dict):
+            container_env.update({k: str(v) for k, v in self.env_dict.items() if v is not None})
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
@@ -158,10 +159,7 @@ class DockerApp(InfraApp):
         # Create a volume for the workspace dir
         if self.mount_workspace:
             workspace_volume_container_path_str = container_context.workspace_root
-            if (
-                self.workspace_volume_type is None
-                or self.workspace_volume_type == WorkspaceVolumeType.HostPath
-            ):
+            if self.workspace_volume_type is None or self.workspace_volume_type == WorkspaceVolumeType.HostPath:
                 workspace_volume_host_path = str(self.workspace_root)
                 logger.debug(f"Mounting: {workspace_volume_host_path}")
                 logger.debug(f"      to: {workspace_volume_container_path_str}")
@@ -213,8 +211,7 @@ class DockerApp(InfraApp):
             return self.command.strip().split(" ")
         return self.command
 
-    def build_resources(self, build_context: Any) -> Optional[Any]:
-        from phi.docker.app.context import DockerBuildContext
+    def build_resources(self, build_context: DockerBuildContext) -> Optional[Any]:
         from phi.docker.resource.base import DockerResource
         from phi.docker.resource.network import DockerNetwork
         from phi.docker.resource.container import DockerContainer
@@ -225,10 +222,6 @@ class DockerApp(InfraApp):
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
-
-        if build_context is None or not isinstance(build_context, DockerBuildContext):
-            logger.error("build_context not a DockerBuildContext")
-            return None
 
         # -*- Build Container Environment
         container_env: Dict[str, str] = self.build_container_env_docker(container_context=container_context)

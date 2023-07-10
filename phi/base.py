@@ -3,6 +3,7 @@ from typing import Optional, List, Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from phi.utils.log import logger
 from phi.workspace.settings import WorkspaceSettings
 
 
@@ -28,11 +29,11 @@ class PhiBase(BaseModel):
 
     # -*- Resource Environment
     # Add env variables to resource where applicable
-    env_vars: Optional[Dict[str, Any]] = None
+    env_dict: Optional[Dict[str, Any]] = None
     # Read env from a file in yaml format
     env_file: Optional[Path] = None
     # Add secret variables to resource where applicable
-    secrets: Optional[Dict[str, Any]] = None
+    # secrets_dict: Optional[Dict[str, Any]] = None
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
     # Read secret variables from AWS Secrets
@@ -86,9 +87,7 @@ class PhiBase(BaseModel):
     @property
     def workspace_dir(self) -> Optional[Path]:
         if self.workspace_root is not None:
-            workspace_dir = (
-                self.workspace_settings.workspace_dir if self.workspace_settings is not None else None
-            )
+            workspace_dir = self.workspace_settings.workspace_dir if self.workspace_settings is not None else None
             if workspace_dir is not None:
                 return self.workspace_root.joinpath(workspace_dir)
         return None
@@ -111,15 +110,27 @@ class PhiBase(BaseModel):
             self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
         return self.cached_secret_file_data
 
-    def set_aws_env_vars(self, env_dict: Dict[str, str]) -> None:
+    def set_aws_env_vars(
+        self, env_dict: Dict[str, str], aws_region: Optional[str] = None, aws_profile: Optional[str] = None
+    ) -> None:
         from phi.constants import (
             AWS_REGION_ENV_VAR,
             AWS_DEFAULT_REGION_ENV_VAR,
             AWS_PROFILE_ENV_VAR,
         )
 
-        if self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
+        if aws_region is not None:
+            logger.debug(f"Setting AWS Region to {aws_region}")
+            env_dict[AWS_REGION_ENV_VAR] = aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = aws_region
+        elif self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
+            logger.debug(f"Setting AWS Region to {aws_region} using workspace_settings")
             env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
             env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region
-        if self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
+
+        if aws_profile is not None:
+            logger.debug(f"Setting AWS Profile to {aws_profile}")
+            env_dict[AWS_PROFILE_ENV_VAR] = aws_profile
+        elif self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
+            logger.debug(f"Setting AWS Profile to {aws_profile} using workspace_settings")
             env_dict[AWS_PROFILE_ENV_VAR] = self.workspace_settings.aws_profile

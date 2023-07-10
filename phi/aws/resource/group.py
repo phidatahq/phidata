@@ -103,7 +103,9 @@ class AwsResourceGroup(InfraResourceGroup):
             logger.debug(f"Found {len(apps_to_create)} apps to create")
             for app in apps_to_create:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile()))
+                app_resources = app.get_resources(
+                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, AwsResource) and app_resource.should_create(
@@ -189,9 +191,7 @@ class AwsResourceGroup(InfraResourceGroup):
                     if workspace_settings is not None and not workspace_settings.continue_on_create_failure:
                         return False
             except Exception as e:
-                logger.error(
-                    f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
+                logger.error(f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}")
                 logger.error(e)
                 logger.error("Please fix and try again...")
 
@@ -242,7 +242,9 @@ class AwsResourceGroup(InfraResourceGroup):
             logger.debug(f"Found {len(apps_to_delete)} apps to delete")
             for app in apps_to_delete:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile()))
+                app_resources = app.get_resources(
+                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, AwsResource) and app_resource.should_delete(
@@ -251,9 +253,7 @@ class AwsResourceGroup(InfraResourceGroup):
                             resources_to_delete.append(app_resource)
 
         # Sort the AwsResources in install order
-        resources_to_delete.sort(
-            key=lambda x: AwsResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True
-        )
+        resources_to_delete.sort(key=lambda x: AwsResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True)
 
         # Deduplicate AwsResources
         deduped_resources_to_delete: List[AwsResource] = []
@@ -339,9 +339,7 @@ class AwsResourceGroup(InfraResourceGroup):
                     if workspace_settings is not None and not workspace_settings.continue_on_delete_failure:
                         return False
             except Exception as e:
-                logger.error(
-                    f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
+                logger.error(f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}")
                 logger.error(e)
                 logger.error("Please fix and try again...")
 
@@ -392,7 +390,9 @@ class AwsResourceGroup(InfraResourceGroup):
             logger.debug(f"Found {len(apps_to_update)} apps to update")
             for app in apps_to_update:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile()))
+                app_resources = app.get_resources(
+                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, AwsResource) and app_resource.should_update(
@@ -401,9 +401,7 @@ class AwsResourceGroup(InfraResourceGroup):
                             resources_to_update.append(app_resource)
 
         # Sort the AwsResources in install order
-        resources_to_update.sort(
-            key=lambda x: AwsResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True
-        )
+        resources_to_update.sort(key=lambda x: AwsResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True)
 
         # Deduplicate AwsResources
         deduped_resources_to_update: List[AwsResource] = []
@@ -489,9 +487,7 @@ class AwsResourceGroup(InfraResourceGroup):
                     if workspace_settings is not None and not workspace_settings.continue_on_patch_failure:
                         return False
             except Exception as e:
-                logger.error(
-                    f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}"
-                )
+                logger.error(f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}")
                 logger.error(e)
                 logger.error("Please fix and try again...")
 

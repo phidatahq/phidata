@@ -11,26 +11,11 @@ from phi.cli.console import (
     log_config_not_available_msg,
 )
 from phi.infra.enums import InfraType
-from phi.infra.resource_group import InfraResourceGroup
+from phi.infra.resource.group import InfraResourceGroup
 from phi.schemas.workspace import WorkspaceSchema
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
-
-# from phi.infra.config import InfraConfig
-# from phi.workspace import WorkspaceConfig
-#
-# from phi.conf.constants import DEFAULT_WS_NAME
-# from phi.conf.phi_config import PhiCliConfig, WorkspaceConfig
-# from phi.schemas.workspace import WorkspaceSchema
-
-# from phi.utils.log import logger
-# from phi.workspace.ws_enums import (
-#     WorkspaceConfigType,
-#     WorkspaceStarterTemplate,
-# )
-# from phi.workspace.exceptions import WorkspaceException
-# from phi.utils.prep_infra_config import filter_and_prep_configs
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.api_app: "api-app",
@@ -52,9 +37,7 @@ TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
 }
 
 
-def create_workspace(
-    name: Optional[str] = None, template: Optional[str] = None, url: Optional[str] = None
-) -> bool:
+def create_workspace(name: Optional[str] = None, template: Optional[str] = None, url: Optional[str] = None) -> bool:
     """Creates a new workspace.
 
     This function clones a template or url on the users machine at the path:
@@ -98,9 +81,7 @@ def create_workspace(
 
             # Get starter template from the user
             template_choices = [str(idx) for idx, _ in enumerate(templates, start=1)]
-            template_inp_raw = Prompt.ask(
-                "Template Number", choices=template_choices, default="1", show_choices=False
-            )
+            template_inp_raw = Prompt.ask("Template Number", choices=template_choices, default="1", show_choices=False)
             # Convert input to int
             template_inp = str_to_int(template_inp_raw)
 
@@ -146,9 +127,7 @@ def create_workspace(
     # Check if we can create the workspace in the current dir
     ws_root_path: Path = current_dir.joinpath(ws_name)
     if ws_root_path.exists():
-        logger.error(
-            f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace"
-        )
+        logger.error(f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace")
         return False
 
     print_info(f"Creating {str(ws_root_path)}")

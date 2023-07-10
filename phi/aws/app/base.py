@@ -1,7 +1,8 @@
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, List
 
 from phi.infra.app.base import InfraApp, WorkspaceVolumeType, AppVolumeType  # noqa: F401
 from phi.infra.app.context import ContainerContext
+from phi.aws.app.context import AwsBuildContext
 from phi.utils.log import logger
 
 
@@ -53,7 +54,9 @@ class AwsApp(InfraApp):
     healthy_threshold_count: Optional[int] = None
     unhealthy_threshold_count: Optional[int] = None
 
-    def build_container_env_ecs(self, container_context: ContainerContext) -> Dict[str, str]:
+    def build_container_env_ecs(
+        self, container_context: ContainerContext, build_context: AwsBuildContext
+    ) -> Dict[str, str]:
         from phi.constants import (
             PYTHONPATH_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
@@ -92,28 +95,24 @@ class AwsApp(InfraApp):
                 container_env[PYTHONPATH_ENV_VAR] = python_path
 
         # Set aws region and profile
-        self.set_aws_env_vars(env_dict=container_env)
+        self.set_aws_env_vars(
+            env_dict=container_env, aws_region=build_context.aws_region, aws_profile=build_context.aws_profile
+        )
 
         # Update the container env using env_file
-        env_data_from_file = self.get_env_data()
+        env_data_from_file = self.get_env_file_data()
         if env_data_from_file is not None:
-            container_env.update(
-                {k: str(v) for k, v in env_data_from_file.items() if v is not None}
-            )
+            container_env.update({k: str(v) for k, v in env_data_from_file.items() if v is not None})
 
         # Update the container env using secrets_file
-        secret_data_from_file = self.get_secret_data()
+        secret_data_from_file = self.get_secret_file_data()
         if secret_data_from_file is not None:
-            container_env.update(
-                {k: str(v) for k, v in secret_data_from_file.items() if v is not None}
-            )
+            container_env.update({k: str(v) for k, v in secret_data_from_file.items() if v is not None})
 
-        # Update the container env with user provided env
+        # Update the container env with user provided env_dict
         # this overwrites any existing variables with the same key
-        if self.envenv_vars is not None and isinstance(self.envenv_vars, dict):
-            container_env.update(
-                {k: v for k, v in self.env_vars.items() if v is not None}
-            )
+        if self.env_dict is not None and isinstance(self.env_dict, dict):
+            container_env.update({k: v for k, v in self.env_dict.items() if v is not None})
 
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
@@ -122,12 +121,12 @@ class AwsApp(InfraApp):
         from phi.aws.resource.ec2.security_group import SecurityGroup
 
         security_groups: List[SecurityGroup] = []
-        if self.args.load_balancer_security_groups is not None:
-            for lb_sg in self.args.load_balancer_security_groups:
+        if self.load_balancer_security_groups is not None:
+            for lb_sg in self.load_balancer_security_groups:
                 if isinstance(lb_sg, SecurityGroup):
                     security_groups.append(lb_sg)
-        if self.args.aws_security_groups is not None:
-            for sg in self.args.aws_security_groups:
+        if self.aws_security_groups is not None:
+            for sg in self.aws_security_groups:
                 if isinstance(sg, SecurityGroup):
                     security_groups.append(sg)
 
@@ -136,133 +135,94 @@ class AwsApp(InfraApp):
     def build_ecs_cluster(self) -> Optional[Any]:
         from phi.aws.resource.ecs.cluster import EcsCluster
 
-        if self.args.ecs_cluster is None:
+        if self.ecs_cluster is None:
             return EcsCluster(
-                name=f"{self.app_name}-cluster",
-                ecs_cluster_name=self.args.ecs_cluster_name or self.app_name,
-                capacity_providers=[self.args.ecs_launch_type],
-                save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or self.app_name,
-                skip_create=self.args.skip_create,
-                skip_delete=self.args.skip_delete,
-                wait_for_creation=self.args.wait_for_creation,
-                wait_for_deletion=self.args.wait_for_deletion,
+                name=f"{self.get_app_name()}-cluster",
+                ecs_cluster_name=self.ecs_cluster_name or self.get_app_name(),
+                capacity_providers=[self.ecs_launch_type],
             )
-        elif isinstance(self.args.ecs_cluster, EcsCluster):
-            return self.args.ecs_cluster
+        elif isinstance(self.ecs_cluster, EcsCluster):
+            return self.ecs_cluster
         else:
-            raise Exception(
-                f"Invalid ECSCluster: {self.args.ecs_cluster} - Must be of type EcsCluster"
-            )
+            raise Exception(f"Invalid ECSCluster: {self.ecs_cluster} - Must be of type EcsCluster")
 
     def build_load_balancer(self) -> Optional[Any]:
         from phi.aws.resource.elb.load_balancer import LoadBalancer
 
-        if self.args.load_balancer is None and self.args.create_load_balancer:
-            if self.args.load_balancer_protocol not in ["HTTP", "HTTPS"]:
+        if self.load_balancer is None and self.create_load_balancer:
+            if self.load_balancer_protocol not in ["HTTP", "HTTPS"]:
                 raise Exception(
-                    "Load Balancer Protocol must be one of: HTTP, HTTPS. "
-                    f"Got: {self.args.load_balancer_protocol}"
+                    "Load Balancer Protocol must be one of: HTTP, HTTPS. " f"Got: {self.load_balancer_protocol}"
                 )
             return LoadBalancer(
-                name=f"{self.app_name}-lb",
-                subnets=self.args.aws_subnets,
-                security_groups=self.args.load_balancer_security_groups
-                or self.args.aws_security_groups,
-                protocol=self.args.load_balancer_protocol,
-                save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or self.app_name,
-                skip_create=self.args.skip_create,
-                skip_delete=self.args.skip_delete,
-                wait_for_creation=self.args.wait_for_creation,
-                wait_for_deletion=self.args.wait_for_deletion,
+                name=f"{self.get_app_name()}-lb",
+                subnets=self.aws_subnets,
+                security_groups=self.load_balancer_security_groups or self.aws_security_groups,
+                protocol=self.load_balancer_protocol,
             )
-        elif isinstance(self.args.load_balancer, LoadBalancer):
-            return self.args.load_balancer
+        elif isinstance(self.load_balancer, LoadBalancer):
+            return self.load_balancer
         else:
-            raise Exception(
-                f"Invalid LoadBalancer: {self.args.load_balancer} - Must be of type LoadBalancer"
-            )
+            raise Exception(f"Invalid LoadBalancer: {self.load_balancer} - Must be of type LoadBalancer")
 
     def build_target_group(self) -> Optional[Any]:
         from phi.aws.resource.elb.target_group import TargetGroup
 
-        if self.args.target_group is None and self.args.create_load_balancer:
-            if self.args.target_group_protocol not in ["HTTP", "HTTPS"]:
+        if self.target_group is None and self.create_load_balancer:
+            if self.target_group_protocol not in ["HTTP", "HTTPS"]:
                 raise Exception(
-                    "Target Group Protocol must be one of: HTTP, HTTPS. "
-                    f"Got: {self.args.target_group_protocol}"
+                    "Target Group Protocol must be one of: HTTP, HTTPS. " f"Got: {self.target_group_protocol}"
                 )
             return TargetGroup(
-                name=f"{self.app_name}-tg",
-                port=self.args.target_group_port or self.container_port,
-                protocol=self.args.target_group_protocol,
-                subnets=self.args.aws_subnets,
-                target_type=self.args.target_group_type,
-                health_check_protocol=self.args.health_check_protocol,
-                health_check_port=self.args.health_check_port,
-                health_check_enabled=self.args.health_check_enabled,
-                health_check_path=self.args.health_check_path,
-                health_check_interval_seconds=self.args.health_check_interval_seconds,
-                health_check_timeout_seconds=self.args.health_check_timeout_seconds,
-                healthy_threshold_count=self.args.healthy_threshold_count,
-                unhealthy_threshold_count=self.args.unhealthy_threshold_count,
-                save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or self.app_name,
-                skip_create=self.args.skip_create,
-                skip_delete=self.args.skip_delete,
-                wait_for_creation=self.args.wait_for_creation,
-                wait_for_deletion=self.args.wait_for_deletion,
+                name=f"{self.get_app_name()}-tg",
+                port=self.target_group_port or self.container_port,
+                protocol=self.target_group_protocol,
+                subnets=self.aws_subnets,
+                target_type=self.target_group_type,
+                health_check_protocol=self.health_check_protocol,
+                health_check_port=self.health_check_port,
+                health_check_enabled=self.health_check_enabled,
+                health_check_path=self.health_check_path,
+                health_check_interval_seconds=self.health_check_interval_seconds,
+                health_check_timeout_seconds=self.health_check_timeout_seconds,
+                healthy_threshold_count=self.healthy_threshold_count,
+                unhealthy_threshold_count=self.unhealthy_threshold_count,
             )
-        elif isinstance(self.args.target_group, TargetGroup):
-            return self.args.target_group
+        elif isinstance(self.target_group, TargetGroup):
+            return self.target_group
         else:
-            raise Exception(
-                f"Invalid TargetGroup: {self.args.target_group} - Must be of type TargetGroup"
-            )
+            raise Exception(f"Invalid TargetGroup: {self.target_group} - Must be of type TargetGroup")
 
     def build_listener(self, load_balancer: Any, target_group: Any) -> Optional[Any]:
         from phi.aws.resource.elb.listener import Listener
 
-        if self.args.listener is None and self.args.create_load_balancer:
+        if self.listener is None and self.create_load_balancer:
             listener = Listener(
-                name=f"{self.app_name}-listener",
+                name=f"{self.get_app_name()}-listener",
                 load_balancer=load_balancer,
                 target_group=target_group,
-                save_output=self.args.save_output,
-                resource_dir=self.args.resource_dir or self.app_name,
-                skip_create=self.args.skip_create,
-                skip_delete=self.args.skip_delete,
-                wait_for_creation=self.args.wait_for_creation,
-                wait_for_deletion=self.args.wait_for_deletion,
             )
-            if self.args.load_balancer_certificate_arn is not None:
-                listener.certificates = [
-                    {"CertificateArn": self.args.load_balancer_certificate_arn}
-                ]
-            if self.args.load_balancer_certificate is not None:
-                listener.acm_certificates = [self.args.load_balancer_certificate]
+            if self.load_balancer_certificate_arn is not None:
+                listener.certificates = [{"CertificateArn": self.load_balancer_certificate_arn}]
+            if self.load_balancer_certificate is not None:
+                listener.acm_certificates = [self.load_balancer_certificate]
             return listener
-        elif isinstance(self.args.listener, Listener):
-            return self.args.listener
+        elif isinstance(self.listener, Listener):
+            return self.listener
         else:
-            raise Exception(
-                f"Invalid Listener: {self.args.listener} - Must be of type Listener"
-            )
+            raise Exception(f"Invalid Listener: {self.listener} - Must be of type Listener")
 
     def build_container_command_aws(self) -> Optional[List[str]]:
-        if isinstance(self.args.command, str):
-            return self.args.command.strip().split(" ")
-        return self.args.command
+        if isinstance(self.command, str):
+            return self.command.strip().split(" ")
+        return self.command
 
-    def build_ecs_container(
-        self, container_paths: ContainerPathContext
-    ) -> Optional[Any]:
+    def build_ecs_container(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Optional[Any]:
         from phi.aws.resource.ecs.container import EcsContainer
 
         # -*- Build Container Environment
         container_env: Dict[str, str] = self.build_container_env_ecs(
-            container_paths=container_paths
+            container_context=container_context, build_context=build_context
         )
 
         # -*- Build Container Command
@@ -270,8 +230,11 @@ class AwsApp(InfraApp):
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
+        aws_region = build_context.aws_region or (
+            self.workspace_settings.aws_region if self.workspace_settings else None
+        )
         return EcsContainer(
-            name=self.app_name,
+            name=self.get_app_name(),
             image=self.get_image_str(),
             port_mappings=[{"containerPort": self.container_port}],
             command=container_cmd,
@@ -280,41 +243,29 @@ class AwsApp(InfraApp):
             log_configuration={
                 "logDriver": "awslogs",
                 "options": {
-                    "awslogs-group": self.app_name,
-                    "awslogs-region": self.aws_region,
+                    "awslogs-group": self.get_app_name(),
+                    "awslogs-region": aws_region,
                     "awslogs-create-group": "true",
-                    "awslogs-stream-prefix": self.app_name,
+                    "awslogs-stream-prefix": self.get_app_name(),
                 },
             },
             linux_parameters={"initProcessEnabled": True},
-            env_from_secrets=self.args.aws_secrets,
-            save_output=self.args.save_output,
-            resource_dir=self.args.resource_dir or self.app_name,
-            skip_create=self.args.skip_create,
-            skip_delete=self.args.skip_delete,
-            wait_for_creation=self.args.wait_for_creation,
-            wait_for_deletion=self.args.wait_for_deletion,
+            env_from_secrets=self.aws_secrets,
         )
 
     def build_ecs_task_definition(self, ecs_container: Any) -> Optional[Any]:
         from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
 
         return EcsTaskDefinition(
-            name=f"{self.app_name}-td",
-            family=self.app_name,
+            name=f"{self.get_app_name()}-td",
+            family=self.get_app_name(),
             network_mode="awsvpc",
-            cpu=self.args.ecs_task_cpu,
-            memory=self.args.ecs_task_memory,
+            cpu=self.ecs_task_cpu,
+            memory=self.ecs_task_memory,
             containers=[ecs_container],
-            requires_compatibilities=[self.args.ecs_launch_type],
-            add_ecs_exec_policy=self.args.ecs_enable_exec,
+            requires_compatibilities=[self.ecs_launch_type],
+            add_ecs_exec_policy=self.ecs_enable_exec,
             add_ecs_secret_policy=True,
-            save_output=self.args.save_output,
-            resource_dir=self.args.resource_dir or self.app_name,
-            skip_create=self.args.skip_create,
-            skip_delete=self.args.skip_delete,
-            wait_for_creation=self.args.wait_for_creation,
-            wait_for_deletion=self.args.wait_for_deletion,
         )
 
     def build_ecs_service(
@@ -327,44 +278,34 @@ class AwsApp(InfraApp):
         from phi.aws.resource.ecs.service import EcsService
 
         return EcsService(
-            name=f"{self.app_name}-service",
-            desired_count=self.args.ecs_service_count,
-            launch_type=self.args.ecs_launch_type,
+            name=f"{self.get_app_name()}-service",
+            desired_count=self.ecs_service_count,
+            launch_type=self.ecs_launch_type,
             cluster=ecs_cluster,
             task_definition=ecs_task_definition,
             target_group=target_group,
             target_container_name=ecs_container.name,
             target_container_port=self.container_port,
-            subnets=self.args.aws_subnets,
-            security_groups=self.args.aws_security_groups,
-            assign_public_ip=self.args.assign_public_ip,
+            subnets=self.aws_subnets,
+            security_groups=self.aws_security_groups,
+            assign_public_ip=self.assign_public_ip,
             # Force delete the service.
             force_delete=True,
             # Force a new deployment of the service on update.
             force_new_deployment=True,
-            enable_execute_command=self.args.ecs_enable_exec,
-            save_output=self.args.save_output,
-            resource_dir=self.args.resource_dir or self.app_name,
-            skip_create=self.args.skip_create,
-            skip_delete=self.args.skip_delete,
-            wait_for_creation=self.args.wait_for_creation,
-            wait_for_deletion=self.args.wait_for_deletion,
+            enable_execute_command=self.ecs_enable_exec,
         )
 
-    def build_resources(self, build_context: Any) -> Optional[Any]:
-        from phi.aws.resource.group import (
-            AwsResourceGroup,
-            EcsCluster,
-            EcsContainer,
-            EcsTaskDefinition,
-            EcsService,
-            LoadBalancer,
-            TargetGroup,
-            Listener,
-            AcmCertificate,
-            SecurityGroup,
-        )
-        from phi.aws.app.context import AwsBuildContext
+    def build_resources(self, build_context: AwsBuildContext) -> Optional[Any]:
+        from phi.aws.resource.base import AwsResource
+        from phi.aws.resource.ec2.security_group import SecurityGroup
+        from phi.aws.resource.ecs.cluster import EcsCluster
+        from phi.aws.resource.elb.load_balancer import LoadBalancer
+        from phi.aws.resource.elb.target_group import TargetGroup
+        from phi.aws.resource.elb.listener import Listener
+        from phi.aws.resource.ecs.container import EcsContainer
+        from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
+        from phi.aws.resource.ecs.service import EcsService
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Build ContainerContext
@@ -372,10 +313,6 @@ class AwsApp(InfraApp):
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
-
-        if build_context is None or not isinstance(build_context, AwsBuildContext):
-            logger.error("build_context not a AwsBuildContext")
-            return None
 
         # -*- Build Security Groups
         security_groups: Optional[List[SecurityGroup]] = self.build_security_groups()
@@ -390,19 +327,15 @@ class AwsApp(InfraApp):
         target_group: Optional[TargetGroup] = self.build_target_group()
 
         # -*- Build Listener
-        listener: Optional[Listener] = self.build_listener(
-            load_balancer=load_balancer, target_group=target_group
-        )
+        listener: Optional[Listener] = self.build_listener(load_balancer=load_balancer, target_group=target_group)
 
         # -*- Build ECSContainer
         ecs_container: Optional[EcsContainer] = self.build_ecs_container(
-            container_context=container_context
+            container_context=container_context, build_context=build_context
         )
 
         # -*- Build ECS Task Definition
-        ecs_task_definition: Optional[
-            EcsTaskDefinition
-        ] = self.build_ecs_task_definition(ecs_container=ecs_container)
+        ecs_task_definition: Optional[EcsTaskDefinition] = self.build_ecs_task_definition(ecs_container=ecs_container)
 
         # -*- Build ECS Service
         ecs_service: Optional[EcsService] = self.build_ecs_service(
@@ -412,29 +345,23 @@ class AwsApp(InfraApp):
             ecs_container=ecs_container,
         )
 
-        # -*- Create AwsResourceGroup
-        return AwsResourceGroup(
-            name=self.app_name,
-            enabled=self.enabled,
-            ecs_clusters=[ecs_cluster],
-            ecs_task_definitions=[ecs_task_definition],
-            ecs_services=[ecs_service],
-            load_balancers=[load_balancer],
-            target_groups=[target_group],
-            listeners=[listener],
-            security_groups=security_groups,
-        )
-
         # -*- Create app_resources list
         app_resources: List[AwsResource] = []
-        if self.image:
-            app_resources.append(self.image)
-        app_resources.extend(
-            [
-                DockerNetwork(name=build_context.network),
-                docker_container,
-            ]
-        )
+
+        if security_groups:
+            app_resources.extend(security_groups)
+        if load_balancer:
+            app_resources.append(load_balancer)
+        if target_group:
+            app_resources.append(target_group)
+        if listener:
+            app_resources.append(listener)
+        if ecs_cluster:
+            app_resources.append(ecs_cluster)
+        if ecs_task_definition:
+            app_resources.append(ecs_task_definition)
+        if ecs_service:
+            app_resources.append(ecs_service)
 
         logger.debug(f"------------ {self.get_app_name()} Built ------------")
         return app_resources

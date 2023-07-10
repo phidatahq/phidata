@@ -132,9 +132,7 @@ def sign_in_using_cli() -> bool:
         logger.error("Incorrect email or password")
 
     try:
-        user: Optional[UserSchema] = sign_in_user(
-            EmailPasswordSignInSchema(email=email_raw, password=pass_raw)
-        )
+        user: Optional[UserSchema] = sign_in_user(EmailPasswordSignInSchema(email=email_raw, password=pass_raw))
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")

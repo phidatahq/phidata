@@ -120,18 +120,12 @@ def up(
         None,
         help="Resource filter. Format - ENV:INFRA:GROUP:NAME:TYPE",
     ),
-    env_filter: Optional[str] = typer.Option(
-        None, "-e", "--env", metavar="", help="Filter the environment to deploy."
-    ),
-    infra_filter: Optional[str] = typer.Option(
-        None, "-i", "--infra", metavar="", help="Filter the infra to deploy."
-    ),
+    env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy."),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
-    name_filter: Optional[str] = typer.Option(
-        None, "-n", "--name", metavar="", help="Filter resource using name."
-    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
         "-t",
@@ -259,9 +253,7 @@ def up(
 
     # derive env:infra:name:type:group from defaults
     if target_env is None:
-        target_env = (
-            active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
-        )
+        target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
     if target_infra_str is None:
         target_infra_str = (
             active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
@@ -300,18 +292,14 @@ def down(
         None,
         help="Resource filter. Format - ENV:INFRA:GROUP:NAME:TYPE",
     ),
-    env_filter: str = typer.Option(
-        None, "-e", "--env", metavar="", help="Filter the environment to shut down."
-    ),
+    env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to shut down."),
     infra_filter: Optional[str] = typer.Option(
         None, "-i", "--infra", metavar="", help="Filter the infra to shut down."
     ),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
-    name_filter: Optional[str] = typer.Option(
-        None, "-n", "--name", metavar="", help="Filter resource using name."
-    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
         "-t",
@@ -435,9 +423,7 @@ def down(
 
     # derive env:infra:name:type:group from defaults
     if target_env is None:
-        target_env = (
-            active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
-        )
+        target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
     if target_infra_str is None:
         target_infra_str = (
             active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
@@ -477,15 +463,11 @@ def patch(
         help="Resource filter. Format - ENV:INFRA:GROUP:NAME:TYPE",
     ),
     env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to patch."),
-    infra_filter: Optional[str] = typer.Option(
-        None, "-i", "--infra", metavar="", help="Filter the infra to patch."
-    ),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to patch."),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
-    name_filter: Optional[str] = typer.Option(
-        None, "-n", "--name", metavar="", help="Filter resource using name."
-    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
         "-t",
@@ -609,9 +591,7 @@ def patch(
 
     # derive env:infra:name:type:group from defaults
     if target_env is None:
-        target_env = (
-            active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
-        )
+        target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
     if target_infra_str is None:
         target_infra_str = (
             active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
@@ -650,18 +630,12 @@ def restart(
         None,
         help="Resource filter. Format - ENV:INFRA:GROUP:NAME:TYPE",
     ),
-    env_filter: str = typer.Option(
-        None, "-e", "--env", metavar="", help="Filter the environment to restart."
-    ),
-    infra_filter: Optional[str] = typer.Option(
-        None, "-i", "--infra", metavar="", help="Filter the infra to restart."
-    ),
+    env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to restart."),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to restart."),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
-    name_filter: Optional[str] = typer.Option(
-        None, "-n", "--name", metavar="", help="Filter resource using name."
-    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
         "-t",

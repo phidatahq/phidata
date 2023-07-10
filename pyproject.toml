@@ -51,7 +51,7 @@ build-backend = "setuptools.build_meta"
 packages = ["phidata", "phi"]
 
 [tool.black]
-line-length = 110
+line-length = 120
 extend-exclude = '''
 # A regex preceded with ^/ will apply only to files and directories
 # in the root of the project.
@@ -62,7 +62,7 @@ extend-exclude = '''
 '''
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 exclude = [
   "phienv*",
   "phidata",
@@ -86,6 +86,7 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
   "boto3.*",
+  "botocore.*",
   "docker.*",
   "setuptools.*",
 ]

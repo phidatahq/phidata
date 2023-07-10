@@ -82,9 +82,7 @@ def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceSchema]
 
     with authenticated_client as api:
         try:
-            r: Response = api.post(
-                ApiRoutes.WORKSPACES_READ_AVAILABLE, data=user.model_dump(exclude_none=True)
-            )
+            r: Response = api.post(ApiRoutes.WORKSPACES_READ_AVAILABLE, data=user.model_dump(exclude_none=True))
             if is_invalid_response(r):
                 return None
         except NetworkError:

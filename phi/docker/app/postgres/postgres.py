@@ -59,7 +59,7 @@ class PostgresDb(DockerApp, DbApp):
         return self.get_container_name()
 
     def get_db_port(self) -> Optional[int]:
-        return self.host_port
+        return self.container_port
 
     def build_container_env_docker(self, container_context: ContainerContext) -> Dict[str, str]:
         # Container Environment

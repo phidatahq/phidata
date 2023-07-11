@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from pydantic import Field, BaseModel
 
@@ -8,4 +8,5 @@ class Document(BaseModel):
 
     content: str
     source: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    meta_data: Dict[str, Any] = Field(default_factory=dict)
+    embedding: Optional[List[float]] = None

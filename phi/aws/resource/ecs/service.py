@@ -55,7 +55,7 @@ class EcsService(AwsResource):
     # The network configuration for the service. This parameter is required for task definitions that
     # use the awsvpc network mode to receive their own elastic network interface
     network_configuration: Optional[Dict[str, Any]] = None
-    subnets: Optional[List[str]] = None
+    subnets: Optional[List[Union[str, Subnet]]] = None
     security_groups: Optional[List[Union[str, SecurityGroup]]] = None
     assign_public_ip: Optional[bool] = None
 

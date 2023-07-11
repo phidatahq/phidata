@@ -301,12 +301,9 @@ class PhiCliConfig:
         logger.debug(f"Reading PhiCliConfig from {phi_cli_settings.config_file_path}")
         try:
             return unpickle_object_from_file(file_path=phi_cli_settings.config_file_path, verify_class=cls)
-        except Exception:
-            logger.warning("PhiCliConfig not found or corrupted, creating new config")
-            from phi.utils.filesystem import delete_from_fs
-
-            delete_from_fs(phi_cli_settings.config_file_path)
-            return cls()
+        except Exception as e:
+            logger.warning(e)
+            logger.warning("If error persists, setup the workspace again using `phi ws setup`")
 
     ######################################################
     ## Print PhiCliConfig

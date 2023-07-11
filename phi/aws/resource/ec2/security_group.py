@@ -88,6 +88,7 @@ class SecurityGroup(AwsResource):
     """
 
     resource_type: Optional[str] = "SecurityGroup"
+    resource_type_list: List[str] = ["sg"]
     service_name: str = "ec2"
 
     # The name of the security group.
@@ -272,9 +273,9 @@ class SecurityGroup(AwsResource):
                         f"SecurityGroup {self.get_resource_name()} could not be deleted "
                         f"as it is being used by another resource."
                     )
+                    if ce_resp.get("Error", {}).get("Message", "") != "":
+                        logger.warning(f"Error: {ce_resp.get('Error', {}).get('Message', '')}")
                     logger.warning("Please try again later or delete resources manually.")
-                    logger.warning(f"Error: {ce_resp}")
-                    return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")
             logger.error("Please try again or delete resources manually.")
@@ -335,21 +336,31 @@ class SecurityGroup(AwsResource):
                             "Description": rule.description or "",
                         },
                     ]
-                if rule.source_security_group_id is not None or rule.source_security_group_name is not None:
-                    source_sg_id: Optional[str] = None
-                    if isinstance(rule.source_security_group_id, str):
-                        source_sg_id = rule.source_security_group_id
-                    elif isinstance(rule.source_security_group_id, AwsReference):
-                        source_sg_id = rule.source_security_group_id.get_reference(aws_client=aws_client)
 
-                    user_id_group_pair = {}
-                    if source_sg_id is not None:
-                        user_id_group_pair["GroupId"] = source_sg_id
-                    if rule.source_security_group_name is not None:
-                        user_id_group_pair["GroupName"] = rule.source_security_group_name
-                    if rule.description is not None:
-                        user_id_group_pair["Description"] = rule.description
-                    ip_permission["UserIdGroupPairs"] = [user_id_group_pair]
+                if rule.cidr_ip is None and rule.cidr_ipv6 is None:
+                    source_sg_id: Optional[str] = None
+                    # If source_security_group_id is specified, use that
+                    # Otherwise, use the current security group id
+                    if rule.source_security_group_id is not None:
+                        if isinstance(rule.source_security_group_id, str):
+                            source_sg_id = rule.source_security_group_id
+                        elif isinstance(rule.source_security_group_id, AwsReference):
+                            source_sg_id = rule.source_security_group_id.get_reference(aws_client=aws_client)
+                    else:
+                        source_sg_id = group_id
+
+                    # Either source_security_group_id or source_security_group_name must be specified
+                    # for the rule to be valid
+                    if source_sg_id is not None or rule.source_security_group_name is not None:
+                        user_id_group_pair = {}
+                        if source_sg_id is not None:
+                            user_id_group_pair["GroupId"] = source_sg_id
+                        if rule.source_security_group_name is not None:
+                            user_id_group_pair["GroupName"] = rule.source_security_group_name
+                        if rule.description is not None:
+                            user_id_group_pair["Description"] = rule.description
+                        ip_permission["UserIdGroupPairs"] = [user_id_group_pair]
+
                 logger.debug(f"Inbound Rule: {ip_permission}")
                 ip_permissions.append(ip_permission)
 

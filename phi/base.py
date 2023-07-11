@@ -21,7 +21,7 @@ class PhiBase(BaseModel):
     # Skip create if resource with the same name is active
     use_cache: bool = True
     # Force create/update/delete implementation
-    force: bool = Field(False, validate_default=True)
+    force: Optional[bool] = Field(None, validate_default=True)
 
     # -*- Debug Mode
     debug_mode: bool = False
@@ -67,13 +67,16 @@ class PhiBase(BaseModel):
         return self.group or self.name
 
     @field_validator("force", mode="before")
-    def set_force(cls, v):
+    def update_force(cls, force):
+        if force:
+            return True
+
         from os import getenv
 
         phi_cli_force = getenv("PHI_CLI_FORCE", False)
         if phi_cli_force:
             return True
-        return v
+        return False
 
     # @model_validator(mode="before")
     # def update_force(cls, data):

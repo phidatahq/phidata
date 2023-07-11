@@ -34,6 +34,10 @@ class EcsCluster(AwsResource):
     # is set for a cluster, when you call the RunTask or CreateService APIs with no capacity provider strategy or
     # launch type specified, the default capacity provider strategy for the cluster is used.
     default_capacity_provider_strategy: Optional[List[Dict[str, Any]]] = None
+    # Use this parameter to set a default Service Connect namespace.
+    # After you set a default Service Connect namespace, any new services with Service Connect turned on that are
+    # created in the cluster are added as client services in the namespace.
+    service_connect_namespace: Optional[str] = None
 
     def get_ecs_cluster_name(self):
         return self.ecs_cluster_name or self.name
@@ -58,6 +62,10 @@ class EcsCluster(AwsResource):
             not_null_args["capacityProviders"] = self.capacity_providers
         if self.default_capacity_provider_strategy is not None:
             not_null_args["defaultCapacityProviderStrategy"] = self.default_capacity_provider_strategy
+        if self.service_connect_namespace is not None:
+            not_null_args["serviceConnectDefaults"] = {
+                "namespace": self.service_connect_namespace,
+            }
 
         # Create EcsCluster
         service_client = self.get_service_client(aws_client)

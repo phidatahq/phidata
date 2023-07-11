@@ -59,6 +59,10 @@ class EcsService(AwsResource):
     security_groups: Optional[List[Union[str, SecurityGroup]]] = None
     assign_public_ip: Optional[bool] = None
 
+    # The configuration for this service to discover and connect to services,
+    # and be discovered by, and connected from, other services within a namespace.
+    service_connect_configuration: Optional[Dict[str, Any]] = None
+
     # The details of the service discovery registries to assign to this service.
     service_registries: Optional[List[Dict[str, Any]]] = None
     # The number of instantiations of the specified task definition to place and keep running on your cluster.
@@ -146,6 +150,9 @@ class EcsService(AwsResource):
             network_configuration = {"awsvpcConfiguration": aws_vpc_config}
         if network_configuration is not None:
             not_null_args["networkConfiguration"] = network_configuration
+
+        if self.service_connect_configuration is not None:
+            not_null_args["serviceConnectConfiguration"] = self.service_connect_configuration
 
         if self.service_registries is not None:
             not_null_args["serviceRegistries"] = self.service_registries

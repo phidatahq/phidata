@@ -7,15 +7,25 @@ from phi.aws.app.base import AwsApp, WorkspaceVolumeType, AppVolumeType, Contain
 
 
 class Jupyter(AwsApp):
+    # -*- App Name
     name: str = "jupyter"
+
+    # -*- Image Configuration
     image_name: str = "phidata/jupyter"
     image_tag: str = "3.6.3"
     command: Optional[Union[str, List[str]]] = "jupyter lab"
+
+    # -*- App Ports
+    # Open a container port if open_container_port=True
     open_container_port: bool = True
+    # Port number on the container
     container_port: int = 8888
-    host_port: int = 8888
-    workspace_volume_container_path: str = "/usr/local/jupyter"
-    resources_dir: str = "workspace/jupyter/resources"
+
+    # -*- ECS Configuration
+    ecs_task_cpu: str = "1024"
+    ecs_task_memory: str = "2048"
+    ecs_service_count: int = 1
+    assign_public_ip: Optional[bool] = True
 
     # -*- Jupyter Configuration
     # Absolute path to JUPYTER_CONFIG_FILE

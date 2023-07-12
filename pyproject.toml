@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.0.0.dev2"
+version = "2.0.0.dev4"
 description = "A toolkit for building applications using OSS"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -47,8 +47,9 @@ documentation = "https://docs.phidata.com"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["phidata", "phi"]
+[tool.setuptools.packages.find]
+include = ["phidata*", "phi*"]
+namespaces = false
 
 [tool.black]
 line-length = 120
@@ -88,6 +89,7 @@ module = [
   "boto3.*",
   "botocore.*",
   "docker.*",
+  "pgvector.*",
   "setuptools.*",
 ]
 ignore_missing_imports = true

@@ -70,7 +70,11 @@ class WorkspaceConfig(BaseModel):
 
         logger.debug("**--> Loading WorkspaceConfig")
         from sys import path as sys_path
+        from phi.utils.load_env import load_env
         from phi.utils.py_io import get_python_objects_from_module
+
+        logger.debug(f"Loading .env from {self.ws_root_path}")
+        load_env(dotenv_dir=self.ws_root_path)
 
         # NOTE: When loading a workspace, relative imports or package imports dont work.
         # This is a known problem in python

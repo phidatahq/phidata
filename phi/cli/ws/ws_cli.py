@@ -15,7 +15,6 @@ from phi.cli.console import (
     print_available_workspaces,
 )
 from phi.utils.log import logger, set_log_level_to_debug
-from phi.utils.load_env import load_env
 from phi.infra.enums import InfraType
 
 ws_cli = typer.Typer(
@@ -212,14 +211,6 @@ def up(
                 phi_config.active_ws_name = ws_at_current_path.ws_name
                 active_ws_config = ws_at_current_path
 
-    # Load environment from .env
-    load_env(
-        env={
-            "PHI_CLI_FORCE": str(force),
-        },
-        dotenv_dir=active_ws_config.ws_root_path,
-    )
-
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
     target_infra: Optional[InfraType] = None
@@ -384,14 +375,6 @@ def down(
                 phi_config.active_ws_name = ws_at_current_path.ws_name
                 active_ws_config = ws_at_current_path
 
-    # Load environment from .env
-    load_env(
-        env={
-            "PHI_CLI_FORCE": str(force),
-        },
-        dotenv_dir=active_ws_config.ws_root_path,
-    )
-
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
     target_infra: Optional[InfraType] = None
@@ -553,14 +536,6 @@ def patch(
             if update_active_workspace:
                 phi_config.active_ws_name = ws_at_current_path.ws_name
                 active_ws_config = ws_at_current_path
-
-    # Load environment from .env
-    load_env(
-        env={
-            "PHI_CLI_FORCE": str(force),
-        },
-        dotenv_dir=active_ws_config.ws_root_path,
-    )
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None

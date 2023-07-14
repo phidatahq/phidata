@@ -1,5 +1,4 @@
-import copy
-from typing import List, Optional, Type
+from typing import Optional, Type
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine import create_engine
 
@@ -7,34 +6,53 @@ from phi.document import Document
 from phi.table.sql import BaseTable
 from phi.vectordb.base import VectorDB
 from phi.vectordb.pgvector.document_table import DocumentTable
+from phi.utils.log import logger
 
 
 class PGVector(VectorDB):
     def __init__(
         self,
-        collection_name: str,
-        table_format: Type[BaseTable] = DocumentTable,
-        connection_url: Optional[str] = None,
+        collection: str,
+        documents_table: Type[BaseTable] = DocumentTable,
         session: Optional[Session] = None,
+        connection_url: Optional[str] = None,
     ):
-        if connection_url is None and session is None:
+        _session = session
+        if _session is None and connection_url is not None:
+            _session = sessionmaker(bind=create_engine(connection_url))()
+        if _session is None:
             raise ValueError("Must provide either connection_url or session")
-        if connection_url is not None and session is not None:
-            raise ValueError("Must provide either connection_url or session, not both")
 
-        self.session: Session
+        self.session: Session = _session
+        self.collection = collection
+        self.documents_table: Type[BaseTable] = documents_table
 
-        if session is not None:
-            self.session = session
-        elif connection_url is not None:
-            self.session = sessionmaker(bind=create_engine(connection_url))()
+    def table_exists(self) -> bool:
+        from sqlalchemy import inspect
 
-        self.collection_name = collection_name
-        self.db_table: Type[BaseTable] = copy.deepcopy(table_format)
-        self.db_table.__tablename__ = collection_name
+        logger.info(f"Checking if table exists: {self.documents_table.__tablename__}")
+        try:
+            return inspect(self.session.bind).has_table(self.documents_table.__tablename__)
+        except Exception as e:
+            logger.error(e)
+            return False
 
     def create(self) -> None:
-        pass
+        if not self.table_exists():
+            logger.info(f"Creating collection: {self.collection}")
+            self.documents_table.__table__.create(self.session.bind)
 
-    def upsert(self, documents: List[Document]) -> None:
-        pass
+    def insert(self, document: Document) -> bool:
+        document_row = DocumentTable(
+            collection=self.collection,
+            name=document.name,
+            page=document.page,
+            meta_data=document.meta_data,
+            usage=document.usage,
+            content=document.content,
+            embedding=document.embedding,
+        )
+        saved_document = document_row.save_to_db(session=self.session)
+        if saved_document is None:
+            return False
+        return True

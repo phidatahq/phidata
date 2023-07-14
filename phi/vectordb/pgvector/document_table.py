@@ -20,6 +20,7 @@ class DocumentTable(BaseTable):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    collection: Mapped[str]
     name: Mapped[str]
     page: Mapped[Optional[int]]
     meta_data: Mapped[Optional[Dict]] = mapped_column(JSONB)
@@ -29,10 +30,8 @@ class DocumentTable(BaseTable):
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=current_datetime_utc)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=current_datetime_utc)
 
-
-def save_document_to_db(db_session: Session, document: DocumentTable) -> DocumentTable:
-    """Save a document to the database"""
-    db_session.add(document)
-    db_session.commit()
-    db_session.refresh(document)
-    return document
+    def save_to_db(self, session: Session) -> "DocumentTable":
+        session.add(self)
+        session.commit()
+        session.refresh(self)
+        return self

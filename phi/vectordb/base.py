@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List
 
 from phi.document import Document
 
@@ -10,5 +9,5 @@ class VectorDB(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def upsert(self, documents: List[Document]):
+    def insert(self, document: Document):
         raise NotImplementedError

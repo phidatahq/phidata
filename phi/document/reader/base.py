@@ -34,7 +34,6 @@ class Reader(BaseModel):
         chunk_start = 1
         chunked_text = ""
         chunk_size = 0
-        chunk_source = document.source
         chunk_meta_data = document.meta_data
         for idx, chunk in enumerate(chunks, start=1):
             chunk_size += len(chunk)
@@ -45,7 +44,8 @@ class Reader(BaseModel):
                 chunked_documents.append(
                     Document(
                         content=chunked_text,
-                        source=chunk_source,
+                        name=document.name,
+                        page=document.page,
                         meta_data=meta_data,
                     )
                 )
@@ -63,7 +63,8 @@ class Reader(BaseModel):
             chunked_documents.append(
                 Document(
                     content=chunked_text,
-                    source=chunk_source,
+                    name=document.name,
+                    page=document.page,
                     meta_data=meta_data,
                 )
             )

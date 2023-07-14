@@ -1,7 +1,7 @@
 from textwrap import dedent
 from typing import List, Any, Optional, Dict, Iterator
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from phi.document import Document
 from phi.llm.base import LLM
@@ -27,6 +27,8 @@ class Conversation(BaseModel):
     usage_data: Dict[str, Any] = {}
 
     knowledge_base: Optional[KnowledgeBase] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def user_messages(self) -> List[Dict[str, Any]]:
@@ -74,16 +76,16 @@ class Conversation(BaseModel):
         if self.knowledge_base is None:
             return None
 
-        relevant_docs: List[Document] = self.knowledge_base.get_relevant_documents(query=question)
+        relevant_docs: List[Document] = self.knowledge_base.search(query=question)
         context = ""
         for doc in relevant_docs:
             context += f"---\n{doc.content}\n"
-            source = doc.source
-            page = doc.meta_data.get("page", None)
-            if source:
-                ref = source
-                if page:
-                    ref += f" (Page {page})"
+            doc_name = doc.name
+            doc_page = doc.page
+            if doc_name:
+                ref = doc_name
+                if doc_page:
+                    ref += f" (Page {doc_page})"
                 context += f"Reference: {ref}\n"
             context += "---\n"
         return context

@@ -46,8 +46,8 @@ class Conversation(BaseModel):
     def llm_messages(self, messages: List[Dict[str, Any]]) -> None:
         self._llm_messages = [Message(**message) for message in messages]
 
-    def train(self) -> bool:
-        """Train the conversation"""
+    def load_knowledge_base(self) -> bool:
+        """Loads the knowledge base"""
         if self.knowledge_base is None:
             return True
         return self.knowledge_base.load_knowledge_base()

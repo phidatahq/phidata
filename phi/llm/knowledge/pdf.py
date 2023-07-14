@@ -38,8 +38,27 @@ class PDFKnowledgeBase(KnowledgeBase):
 
     def search(self, query: str) -> List[Document]:
         """Return all relevant documents matching the query"""
+        if self.vector_db is None:
+            logger.warning("No vector db provided")
+            return []
+
+        import openai
+
         logger.info(f"Getting relevant documents for query: {query}")
-        return []
+
+        # Get embedding for question
+        response = openai.Embedding.create(input=query, model="text-embedding-ada-002")
+        if "data" not in response:
+            logger.error(f"Error getting embedding: {response}")
+            return []
+
+        query_embedding = response["data"][0]["embedding"]
+
+        if query_embedding is None:
+            logger.error(f"Error getting embedding for question: {query}")
+            return []
+
+        return self.vector_db.search(query_embedding)
 
     def load_knowledge_base(self) -> bool:
         """Load the knowledge base to vector db"""
@@ -56,5 +75,6 @@ class PDFKnowledgeBase(KnowledgeBase):
             document.embed()
             success = self.vector_db.insert(document=document)
             if success:
+                logger.info(f"Inserted document: {document.name} ({document.page})")
                 num_documents += 1
         return True

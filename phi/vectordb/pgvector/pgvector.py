@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Optional, Type, List
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine import create_engine
 
@@ -56,3 +56,26 @@ class PGVector(VectorDB):
         if saved_document is None:
             return False
         return True
+
+    def search(self, embeddings: List[float]) -> Optional[List[Document]]:
+        from sqlalchemy import select
+
+        # Get relevant documents
+        neighbors = self.session.scalars(
+            select(DocumentTable).order_by(DocumentTable.embedding.max_inner_product(embeddings)).limit(5)
+        )
+
+        relevant_documents: List[Document] = []
+        for neighbor in neighbors:
+            relevant_documents.append(
+                Document(
+                    content=neighbor.content,
+                    name=neighbor.name,
+                    page=neighbor.page,
+                    meta_data=neighbor.meta_data,
+                    embedding=neighbor.embedding,
+                    usage=neighbor.usage,
+                )
+            )
+
+        return relevant_documents

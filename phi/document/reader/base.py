@@ -8,7 +8,7 @@ from phi.document.base import Document
 class Reader(BaseModel):
     chunk: bool = True
     chunk_size: int = 500
-    separators: List[str] = ["\n", "\r\n", "\r", " \n"]
+    separators: List[str] = ["(\n)", "(\n\n)", "(\r)", "(\r\n)"]
 
     def read(self, obj: Any) -> List[Document]:
         raise NotImplementedError
@@ -31,15 +31,15 @@ class Reader(BaseModel):
         # Create a list of chunked documents
         chunked_documents: List[Document] = []
 
-        chunk_start = 1
-        chunked_text = ""
         chunk_size = 0
+        chunk_number = 1
+        chunked_text = ""
         chunk_meta_data = document.meta_data
-        for idx, chunk in enumerate(chunks, start=1):
+        for chunk in chunks:
             chunk_size += len(chunk)
             if chunk_size > self.chunk_size:
                 meta_data = chunk_meta_data.copy()
-                meta_data["chunk"] = chunk_start
+                meta_data["chunk"] = chunk_number
                 meta_data["chunk_size"] = chunk_size
                 chunked_documents.append(
                     Document(
@@ -48,7 +48,7 @@ class Reader(BaseModel):
                         meta_data=meta_data,
                     )
                 )
-                chunk_start = idx
+                chunk_number += 1
                 chunked_text = ""
                 chunk_size = 0
             else:
@@ -57,7 +57,7 @@ class Reader(BaseModel):
         # Get the last chunk
         if chunked_text:
             meta_data = chunk_meta_data.copy()
-            meta_data["chunk"] = chunk_start
+            meta_data["chunk"] = chunk_number
             meta_data["chunk_size"] = chunk_size
             chunked_documents.append(
                 Document(

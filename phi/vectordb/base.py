@@ -18,5 +18,9 @@ class VectorDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def upsert(self, documents: List[Document]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def search(self, query: str, num_documents: int = 5) -> List[Document]:
         raise NotImplementedError

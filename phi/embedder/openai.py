@@ -1,12 +1,11 @@
 from typing import Optional, Dict, List, Tuple
 
-from pydantic import BaseModel
-
 from phi.embedder.base import Embedder
 
 
-class OpenAIEmbedder(BaseModel, Embedder):
+class OpenAIEmbedder(Embedder):
     model: str = "text-embedding-ada-002"
+    dimensions: int = 1536
 
     def _response(self, text: str):
         try:

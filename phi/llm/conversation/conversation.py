@@ -18,10 +18,11 @@ class Conversation(BaseModel):
 
     # LLM parameters
     llm: LLM = OpenAIChat()
-    name: Optional[str] = None
-    tone: Optional[str] = None
+    llm_name: Optional[str] = None
+    llm_tone: Optional[str] = None
 
     # User parameters
+    user_id: Optional[str] = None
     user_persona: Optional[str] = None
 
     # Log messages
@@ -64,8 +65,8 @@ class Conversation(BaseModel):
         """Build the system prompt for the conversation"""
 
         _system_prompt = ""
-        if self.name:
-            _system_prompt += f"You are a chatbot named '{self.name}' "
+        if self.llm_name:
+            _system_prompt += f"You are a chatbot named '{self.llm_name}' "
         else:
             _system_prompt += "You are a chatbot "
 
@@ -74,8 +75,8 @@ class Conversation(BaseModel):
         else:
             _system_prompt += "designed to answer questions from a user.\n"
 
-        if self.tone:
-            _system_prompt += f"Speak to them in a '{self.tone}' tone.\n"
+        if self.llm_tone:
+            _system_prompt += f"Speak to them in a '{self.llm_tone}' tone.\n"
 
         return _system_prompt
 

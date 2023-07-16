@@ -10,8 +10,8 @@ class KnowledgeBase(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
-    def documents(self) -> Iterator[Document]:
-        """Return all documents in the knowledge base"""
+    def document_lists(self) -> Iterator[List[Document]]:
+        """Iterate over document lists in the knowledge base"""
         raise NotImplementedError
 
     def search(self, query: str) -> List[Document]:

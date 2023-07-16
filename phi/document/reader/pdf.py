@@ -27,9 +27,9 @@ class PDFReader(Reader):
             doc_name = path.name.split(".")[0]
             documents = [
                 Document(
-                    content=page.extract_text(),
                     name=doc_name,
                     meta_data={"page": page_number + 1},
+                    content=page.extract_text(),
                 )
                 for page_number, page in enumerate(doc_reader.pages)
             ]

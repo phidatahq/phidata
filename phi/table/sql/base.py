@@ -1,5 +1,5 @@
 try:
-    from sqlalchemy.orm import DeclarativeBase, registry
+    from sqlalchemy.orm import DeclarativeBase
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 

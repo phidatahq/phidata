@@ -6,6 +6,8 @@ from sqlalchemy.engine import create_engine, Engine
 from sqlalchemy.dialects import postgresql
 
 from phi.document import Document
+from phi.embedder import Embedder
+from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
 
@@ -14,7 +16,7 @@ class PgVector(VectorDb):
     def __init__(
         self,
         collection: str,
-        dimensions: int = 1536,
+        embedder: Optional[Embedder] = None,
         db_schema: Optional[str] = None,
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
@@ -28,7 +30,10 @@ class PgVector(VectorDb):
 
         # Collection attributes
         self.collection: str = collection
-        self.dimensions: int = dimensions
+
+        # Embedder to embed the document contents
+        self.embedder: Embedder = embedder or OpenAIEmbedder()
+        self.dimensions: int = self.embedder.dimensions
 
         # Database attributes
         self.db_schema: Optional[str] = db_schema
@@ -37,25 +42,18 @@ class PgVector(VectorDb):
         self.metadata: MetaData = MetaData(schema=self.db_schema)
 
         # Database session
-        self._db_session: Optional[Session] = None
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
 
         # Database table for the collection
         self.table: Table = self.get_table()
 
         logger.info("Creating extension: vector")
-        with self.db_session as sess:
-            sess.execute(text("create extension if not exists vector;"))
-            if self.db_schema is not None:
-                sess.execute(text(f"create schema if not exists {self.db_schema};"))
-            sess.commit()
+        with self.Session() as sess:
+            with sess.begin():
+                sess.execute(text("create extension if not exists vector;"))
+                if self.db_schema is not None:
+                    sess.execute(text(f"create schema if not exists {self.db_schema};"))
         logger.info("Extension created")
-
-    @property
-    def db_session(self) -> Session:
-        if self._db_session is None:
-            self._db_session = self.Session()
-        return self._db_session
 
     def get_table(self) -> Table:
         from sqlalchemy.schema import Column
@@ -80,7 +78,7 @@ class PgVector(VectorDb):
 
         logger.info(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_session.bind).has_table(self.table.name)  # type: ignore
+            return inspect(self.db_engine).has_table(self.table.name)  # type: ignore
         except Exception as e:
             logger.error(e)
             return False
@@ -88,27 +86,34 @@ class PgVector(VectorDb):
     def create(self) -> None:
         if not self.table_exists():
             logger.info(f"Creating collection: {self.collection}")
-            self.table.create(self.db_session.bind)  # type: ignore
+            self.table.create(self.db_engine)
 
     def delete(self) -> None:
         if self.table_exists():
             logger.info(f"Deleting collection: {self.collection}")
-            self.table.drop(self.db_session.bind)  # type: ignore
+            self.table.drop(self.db_engine)
 
-    def insert(self, document: Document) -> None:
-        stmt = postgresql.insert(self.table).values(
-            name=document.name,
-            meta_data=document.meta_data,
-            content=document.content,
-            embedding=document.embedding,
-            usage=document.usage,
-        )
-        with self.db_session as sess:
-            sess.execute(stmt)
-            sess.commit()
+    def insert(self, documents: List[Document]) -> None:
+        with self.Session() as sess:
+            with sess.begin():
+                for document in documents:
+                    document.embed(embedder=self.embedder)
+                    stmt = postgresql.insert(self.table).values(
+                        name=document.name,
+                        meta_data=document.meta_data,
+                        content=document.content,
+                        embedding=document.embedding,
+                        usage=document.usage,
+                    )
+                    sess.execute(stmt)
 
-    def search(self, query_embedding: List[float], num_documents: int = 5) -> List[Document]:
+    def search(self, query: str, num_documents: int = 5) -> List[Document]:
         from sqlalchemy import select
+
+        query_embedding = self.embedder.get_embedding(query)
+        if query_embedding is None:
+            logger.error(f"Error getting embedding for Query: {query}")
+            return []
 
         columns = [
             self.table.c.name,
@@ -117,27 +122,27 @@ class PgVector(VectorDb):
             self.table.c.embedding,
             self.table.c.usage,
         ]
-        # Get neighbors
-        neighbors = self.db_session.scalars(
-            select(*columns).order_by(self.table.c.embedding.max_inner_product(query_embedding)).limit(num_documents)
-        )
 
         stmt = select(*columns).order_by(self.table.c.embedding.max_inner_product(query_embedding)).limit(num_documents)
         logger.info(f"Query: {stmt}")
-        with self.db_session as sess:
-            neighbors = sess.execute(stmt).fetchall()
 
-        # Build relevant documents
-        relevant_documents: List[Document] = []
+        # Get neighbors
+        with self.Session() as sess:
+            with sess.begin():
+                neighbors = sess.execute(stmt).fetchall() or []
+
+        # Build search results
+        search_results: List[Document] = []
         for neighbor in neighbors:
-            relevant_documents.append(
+            search_results.append(
                 Document(
                     name=neighbor.name,
                     meta_data=neighbor.meta_data,
                     content=neighbor.content,
+                    embedder=self.embedder,
                     embedding=neighbor.embedding,
                     usage=neighbor.usage,
                 )
             )
 
-        return relevant_documents
+        return search_results

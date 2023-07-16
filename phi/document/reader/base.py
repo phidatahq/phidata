@@ -8,7 +8,7 @@ from phi.document.base import Document
 class Reader(BaseModel):
     chunk: bool = True
     chunk_size: int = 500
-    separators: List[str] = ["(\n)", "(\n\n)", "(\r)", "(\r\n)"]
+    separators: List[str] = ["\n", "\n\n", "\r", "\r\n", "\n\r", "\W"]
 
     def read(self, obj: Any) -> List[Document]:
         raise NotImplementedError

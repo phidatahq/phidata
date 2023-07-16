@@ -1,1 +1,1 @@
-from phi.vectordb.base import VectorDB
+from phi.vectordb.base import VectorDb

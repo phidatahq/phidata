@@ -22,13 +22,14 @@ class PDFReader(Reader):
             raise ImportError("`pypdf` not installed")
 
         try:
+            logger.info(f"Reading: {path}")
             doc_reader = DocumentReader(path)
             doc_name = path.name.split(".")[0]
             documents = [
                 Document(
                     content=page.extract_text(),
                     name=doc_name,
-                    page=page_number + 1,
+                    meta_data={"page": page_number + 1},
                 )
                 for page_number, page in enumerate(doc_reader.pages)
             ]

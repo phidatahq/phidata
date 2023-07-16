@@ -1,3 +1,4 @@
+from logging import Logger
 from textwrap import dedent
 from typing import List, Any, Optional, Dict, Iterator
 
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from phi.document import Document
 from phi.llm.base import LLM
 from phi.llm.conversation.schemas import Message
+from phi.llm.conversation.storage.base import ConversationStorage
 from phi.llm.knowledge.base import KnowledgeBase
 from phi.llm.openai import OpenAIChat
 from phi.utils.log import logger
@@ -14,18 +16,24 @@ from phi.utils.log import logger
 class Conversation(BaseModel):
     """Model for managing a conversation"""
 
+    # LLM parameters
     llm: LLM = OpenAIChat()
-    llm_name: Optional[str] = None
-    llm_tone: Optional[str] = None
+    name: Optional[str] = None
+    tone: Optional[str] = None
 
+    # User parameters
     user_persona: Optional[str] = None
+
+    # Log messages
     log_messages: bool = False
+    logger: Logger = logger
 
     _user_messages: List[Message] = []
     _llm_messages: List[Message] = []
 
     usage_data: Dict[str, Any] = {}
 
+    storage: Optional[ConversationStorage] = None
     knowledge_base: Optional[KnowledgeBase] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -46,18 +54,18 @@ class Conversation(BaseModel):
     def llm_messages(self, messages: List[Dict[str, Any]]) -> None:
         self._llm_messages = [Message(**message) for message in messages]
 
-    def load_knowledge_base(self) -> bool:
+    def load_knowledge_base(self, recreate: bool = False) -> None:
         """Loads the knowledge base"""
         if self.knowledge_base is None:
-            return True
-        return self.knowledge_base.load_knowledge_base()
+            return
+        self.knowledge_base.load_knowledge_base(recreate=recreate)
 
     def build_system_prompt(self) -> str:
         """Build the system prompt for the conversation"""
 
         _system_prompt = ""
-        if self.llm_name:
-            _system_prompt += f"You are a chatbot named '{self.llm_name}' "
+        if self.name:
+            _system_prompt += f"You are a chatbot named '{self.name}' "
         else:
             _system_prompt += "You are a chatbot "
 
@@ -66,8 +74,8 @@ class Conversation(BaseModel):
         else:
             _system_prompt += "designed to answer questions from a user.\n"
 
-        if self.llm_tone:
-            _system_prompt += f"Speak to them in a '{self.llm_tone}' tone.\n"
+        if self.tone:
+            _system_prompt += f"Speak to them in a '{self.tone}' tone.\n"
 
         return _system_prompt
 
@@ -81,7 +89,7 @@ class Conversation(BaseModel):
         for doc in relevant_docs:
             context += f"---\n{doc.content}\n"
             doc_name = doc.name
-            doc_page = doc.page
+            doc_page = doc.meta_data.get("page")
             if doc_name:
                 ref = doc_name
                 if doc_page:
@@ -159,7 +167,9 @@ class Conversation(BaseModel):
         # Generate response
         response = ""
         response_tokens = 0
-        for delta in self.llm.streaming_response(messages=[m.model_dump() for m in self._llm_messages]):
+        for delta in self.llm.streaming_response(
+            messages=[m.model_dump(exclude_none=True) for m in self._llm_messages]
+        ):
             response += delta
             response_tokens += 1
             yield response

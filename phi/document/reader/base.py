@@ -45,7 +45,6 @@ class Reader(BaseModel):
                     Document(
                         content=chunked_text,
                         name=document.name,
-                        page=document.page,
                         meta_data=meta_data,
                     )
                 )
@@ -64,7 +63,6 @@ class Reader(BaseModel):
                 Document(
                     content=chunked_text,
                     name=document.name,
-                    page=document.page,
                     meta_data=meta_data,
                 )
             )

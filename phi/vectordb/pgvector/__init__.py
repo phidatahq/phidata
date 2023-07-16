@@ -1,1 +1,1 @@
-from phi.vectordb.pgvector.pgvector import PGVector
+from phi.vectordb.pgvector.pgvector import PgVector

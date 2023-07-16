@@ -10,7 +10,6 @@ class Document(BaseModel):
 
     content: str
     name: Optional[str] = None
-    page: Optional[int] = None
     meta_data: Dict[str, Any] = {}
     embedder: Optional[Embedder] = None
     embedding: Optional[List[float]] = None

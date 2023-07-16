@@ -5,11 +5,12 @@ from phi.document import Document
 
 
 class KnowledgeBase(BaseModel):
-    """Base class for managing knowledge base"""
+    """Base class for managing LLM knowledge"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def get_documents(self) -> Iterator[Document]:
+    @property
+    def documents(self) -> Iterator[Document]:
         """Return all documents in the knowledge base"""
         raise NotImplementedError
 
@@ -17,6 +18,6 @@ class KnowledgeBase(BaseModel):
         """Return all relevant documents matching the query"""
         raise NotImplementedError
 
-    def load_knowledge_base(self) -> bool:
+    def load_knowledge_base(self, recreate: bool = False) -> None:
         """Load the knowledge base to vector db"""
         raise NotImplementedError

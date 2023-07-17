@@ -9,14 +9,15 @@ from phi.utils.log import logger
 
 
 class PDFKnowledgeBase(KnowledgeBase):
-    """Model for managing a PDF knowledge base"""
+    def __init__(
+        self, path: Union[str, Path], reader: Optional[PDFReader] = None, vector_db: Optional[VectorDb] = None
+    ):
+        if not (isinstance(path, str) or isinstance(path, Path)):
+            raise TypeError(f"Path must be of type str or Path, got: {type(path)}")
 
-    # Provide a path to a directory of PDFs
-    path: Optional[Union[str, Path]] = None
-    # Provide a PDF reader to read the PDFs
-    reader: PDFReader = PDFReader()
-    # Provide a vector db to store and search the knowledge base
-    vector_db: Optional[VectorDb] = None
+        self.path: Path = Path(path) if isinstance(path, str) else path
+        self.reader: PDFReader = reader or PDFReader()
+        self.vector_db: Optional[VectorDb] = vector_db
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -25,13 +26,11 @@ class PDFKnowledgeBase(KnowledgeBase):
             Iterator[List[Document]]: Iterator over List of documents in each PDF
         """
 
-        kb_path = Path(self.path) if isinstance(self.path, str) else self.path
-        if kb_path is not None:
-            if kb_path.exists() and kb_path.is_dir():
-                for _pdf in kb_path.glob("*.pdf"):
-                    yield self.reader.read(path=_pdf)
-            elif kb_path.exists() and kb_path.is_file() and kb_path.suffix == ".pdf":
-                yield self.reader.read(path=kb_path)
+        if self.path.exists() and self.path.is_dir():
+            for _pdf in self.path.glob("*.pdf"):
+                yield self.reader.read(path=_pdf)
+        elif self.path.exists() and self.path.is_file() and self.path.suffix == ".pdf":
+            yield self.reader.read(path=self.path)
 
     def search(self, query: str, num_documents: int = 5) -> List[Document]:
         """Return all relevant documents matching the query"""
@@ -39,7 +38,7 @@ class PDFKnowledgeBase(KnowledgeBase):
             logger.warning("No vector db provided")
             return []
 
-        logger.info(f"Getting relevant documents for query: {query}")
+        logger.debug(f"Getting relevant documents for query: {query}")
         return self.vector_db.search(query=query, num_documents=num_documents)
 
     def load_knowledge_base(self, recreate: bool = False) -> None:
@@ -49,16 +48,16 @@ class PDFKnowledgeBase(KnowledgeBase):
             return
 
         if recreate:
-            logger.info("Recreating collection")
+            logger.debug("Recreating collection")
             self.vector_db.delete()
 
-        logger.info("Creating collection")
+        logger.debug("Creating collection")
         self.vector_db.create()
 
         logger.info("Loading knowledge base")
         num_documents = 0
         for document_list in self.document_lists:
             self.vector_db.insert(documents=document_list)
-            logger.info(f"Inserted {len(document_list)} documents")
+            logger.debug(f"Inserted {len(document_list)} documents")
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")

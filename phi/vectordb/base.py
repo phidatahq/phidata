@@ -5,6 +5,8 @@ from phi.document import Document
 
 
 class VectorDb(ABC):
+    """Base class for managing Vector Databases"""
+
     @abstractmethod
     def create(self) -> None:
         raise NotImplementedError

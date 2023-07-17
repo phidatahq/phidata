@@ -1,9 +1,13 @@
 from typing import Optional, List
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.schema import MetaData, Table
-from sqlalchemy.sql.expression import text
-from sqlalchemy.engine import create_engine, Engine
-from sqlalchemy.dialects import postgresql
+
+try:
+    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.schema import MetaData, Table
+    from sqlalchemy.sql.expression import text
+    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.dialects import postgresql
+except ImportError:
+    raise ImportError("`sqlalchemy` not installed")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -16,10 +20,10 @@ class PgVector(VectorDb):
     def __init__(
         self,
         collection: str,
-        embedder: Optional[Embedder] = None,
-        db_schema: Optional[str] = None,
+        schema: Optional[str] = None,
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
+        embedder: Optional[Embedder] = None,
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -31,15 +35,15 @@ class PgVector(VectorDb):
         # Collection attributes
         self.collection: str = collection
 
-        # Embedder to embed the document contents
-        self.embedder: Embedder = embedder or OpenAIEmbedder()
-        self.dimensions: int = self.embedder.dimensions
-
         # Database attributes
-        self.db_schema: Optional[str] = db_schema
+        self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
-        self.metadata: MetaData = MetaData(schema=self.db_schema)
+        self.metadata: MetaData = MetaData(schema=self.schema)
+
+        # Embedder for embedding the document contents
+        self.embedder: Embedder = embedder or OpenAIEmbedder()
+        self.dimensions: int = self.embedder.dimensions
 
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
@@ -47,13 +51,13 @@ class PgVector(VectorDb):
         # Database table for the collection
         self.table: Table = self.get_table()
 
-        logger.info("Creating extension: vector")
+        logger.debug("Creating extension: vector")
         with self.Session() as sess:
             with sess.begin():
                 sess.execute(text("create extension if not exists vector;"))
-                if self.db_schema is not None:
-                    sess.execute(text(f"create schema if not exists {self.db_schema};"))
-        logger.info("Extension created")
+                if self.schema is not None:
+                    sess.execute(text(f"create schema if not exists {self.schema};"))
+        logger.debug("Extension created")
 
     def get_table(self) -> Table:
         from sqlalchemy.schema import Column
@@ -76,21 +80,21 @@ class PgVector(VectorDb):
     def table_exists(self) -> bool:
         from sqlalchemy import inspect
 
-        logger.info(f"Checking if table exists: {self.table.name}")
+        logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name)  # type: ignore
+            return inspect(self.db_engine).has_table(self.table.name)
         except Exception as e:
             logger.error(e)
             return False
 
     def create(self) -> None:
         if not self.table_exists():
-            logger.info(f"Creating collection: {self.collection}")
+            logger.debug(f"Creating collection: {self.collection}")
             self.table.create(self.db_engine)
 
     def delete(self) -> None:
         if self.table_exists():
-            logger.info(f"Deleting collection: {self.collection}")
+            logger.debug(f"Deleting collection: {self.collection}")
             self.table.drop(self.db_engine)
 
     def insert(self, documents: List[Document]) -> None:
@@ -106,9 +110,10 @@ class PgVector(VectorDb):
                         usage=document.usage,
                     )
                     sess.execute(stmt)
+                    logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
     def search(self, query: str, num_documents: int = 5) -> List[Document]:
-        from sqlalchemy import select
+        from sqlalchemy.sql.expression import select
 
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
@@ -124,7 +129,7 @@ class PgVector(VectorDb):
         ]
 
         stmt = select(*columns).order_by(self.table.c.embedding.max_inner_product(query_embedding)).limit(num_documents)
-        logger.info(f"Query: {stmt}")
+        logger.debug(f"Query: {stmt}")
 
         # Get neighbors
         with self.Session() as sess:

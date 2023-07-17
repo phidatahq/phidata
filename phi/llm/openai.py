@@ -1,11 +1,9 @@
 from typing import Optional, List, Iterator
 
-from pydantic import BaseModel
-
 from phi.llm.base import LLM
 
 
-class OpenAIChat(BaseModel, LLM):
+class OpenAIChat(LLM):
     model: str = "gpt-3.5-turbo-16k"
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None

@@ -51,14 +51,6 @@ class PgVector(VectorDb):
         # Database table for the collection
         self.table: Table = self.get_table()
 
-        logger.debug("Creating extension: vector")
-        with self.Session() as sess:
-            with sess.begin():
-                sess.execute(text("create extension if not exists vector;"))
-                if self.schema is not None:
-                    sess.execute(text(f"create schema if not exists {self.schema};"))
-        logger.debug("Extension created")
-
     def get_table(self) -> Table:
         from sqlalchemy.schema import Column
         from sqlalchemy.types import DateTime, String
@@ -89,12 +81,18 @@ class PgVector(VectorDb):
 
     def create(self) -> None:
         if not self.table_exists():
-            logger.debug(f"Creating collection: {self.collection}")
+            with self.Session() as sess:
+                with sess.begin():
+                    logger.debug("Creating extension: vector")
+                    sess.execute(text("create extension if not exists vector;"))
+                    if self.schema is not None:
+                        sess.execute(text(f"create schema if not exists {self.schema};"))
+            logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
 
     def delete(self) -> None:
         if self.table_exists():
-            logger.debug(f"Deleting collection: {self.collection}")
+            logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
 
     def insert(self, documents: List[Document]) -> None:

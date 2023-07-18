@@ -173,22 +173,32 @@ class Conversation(BaseModel):
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
-        # Add the system prompt to llm_messages
-        if len(self.llm_messages) == 0:
-            self.llm_messages.append(Message(role="system", content=self.get_system_prompt()))
+        system_prompt = self.get_system_prompt()
+        user_prompt = self.get_user_prompt(question=question)
 
-        # Add the question prompt to llm_messages
-        self.llm_messages.append(Message(role="user", content=self.get_user_prompt(question=question)))
-        for message in self.llm_messages:
-            logger.debug(f"{message.role}: {message.content}")
+        # Create messages
+        messages: List[Message] = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=user_prompt),
+        ]
 
+        # Update user_messages and llm_messages
         # Add the question to user_messages
         self.user_messages.append(Message(role="user", content=question))
+        # Add the system prompt to llm_messages if needed
+        if len(self.llm_messages) == 0:
+            self.llm_messages.append(Message(role="system", content=system_prompt))
+        # Add the user prompt to llm_messages
+        self.llm_messages.append(Message(role="user", content=user_prompt))
+
+        # Log messages
+        for message in messages:
+            logger.debug(f"{message.role}: {message.content}")
 
         # Generate response
         response = ""
         response_tokens = 0
-        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in self.llm_messages]):
+        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in messages]):
             response += delta
             response_tokens += 1
             yield response
@@ -199,6 +209,7 @@ class Conversation(BaseModel):
         self.user_messages.append(Message(role="assistant", content=response))
         # Add response to llm_messages
         self.llm_messages.append(Message(role="assistant", content=response))
+
         # Add response tokens to usage data
         if "response_tokens" in self.usage_data:
             self.usage_data["response_tokens"] += response_tokens

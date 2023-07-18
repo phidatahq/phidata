@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, List, Any, Dict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from phi.workspace.settings import WorkspaceSettings
 
@@ -21,7 +21,7 @@ class PhiBase(BaseModel):
     # Skip create if resource with the same name is active
     use_cache: bool = True
     # Force create/update/delete implementation
-    force: Optional[bool] = Field(None, validate_default=True)
+    force: Optional[bool] = None
 
     # -*- Debug Mode
     debug_mode: bool = False

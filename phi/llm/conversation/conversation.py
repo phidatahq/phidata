@@ -1,5 +1,6 @@
-from textwrap import dedent
 from typing import List, Any, Optional, Dict, Iterator
+
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from phi.document import Document
 from phi.llm.base import LLM
@@ -10,95 +11,83 @@ from phi.llm.openai import OpenAIChat
 from phi.utils.log import logger, set_log_level_to_debug
 
 
-class Conversation:
-    def __init__(
-        self,
-        llm: Optional[LLM] = None,
-        llm_name: Optional[str] = None,
-        user_id: Optional[str] = None,
-        user_persona: Optional[str] = None,
-        meta_data: Optional[Dict[str, Any]] = None,
-        system_prompt: Optional[str] = None,
-        storage: Optional[ConversationStorage] = None,
-        knowledge_base: Optional[KnowledgeBase] = None,
-        debug_logs: bool = False,
-    ):
-        # LLM parameters
-        self.llm: LLM = llm or OpenAIChat()
-        self.llm_name: Optional[str] = llm_name
-        self._llm_messages: List[Message] = []
+class Conversation(BaseModel):
+    # System settings
+    # Set log level to debug
+    debug_logs: bool = False
 
-        # User parameters
-        self.user_id: str = user_id or "anonymous"
-        self.user_persona: Optional[str] = user_persona
-        self.meta_data: Optional[Dict[str, Any]] = meta_data
-        self._user_messages: List[Message] = []
+    # LLM settings
+    llm: LLM = OpenAIChat()
+    llm_name: Optional[str] = None
+    llm_messages: List[Message] = []
 
-        # System parameters
-        self.system_prompt: Optional[str] = system_prompt
+    # User settings
+    user_id: str = "anonymous"
+    user_persona: Optional[str] = None
+    user_data: Optional[Dict[str, Any]] = None
+    user_messages: List[Message] = []
 
-        # Set log level to debug
-        if debug_logs:
+    # Prompt settings
+    system_prompt: Optional[str] = None
+    # Chat history settings
+    max_chat_history_messages: int = 6
+    max_chat_history_tokens: Optional[int] = None
+    include_responses_in_chat_history: bool = True
+
+    # Usage data
+    usage_data: Dict[str, Any] = {}
+
+    # Knowledge base for conversation
+    knowledge_base: Optional[KnowledgeBase] = None
+
+    # Storage for conversation
+    storage: Optional[ConversationStorage] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("debug_logs", mode="before")
+    def set_log_level(cls, v: bool) -> bool:
+        if v:
             set_log_level_to_debug()
+            logger.debug("Debug logs enabled")
+        return v
 
-        # Usage data
-        self.usage_data: Dict[str, Any] = {}
-
-        # Conversation storage
-        self.storage: Optional[ConversationStorage] = storage
-        self.initialize_storage()
-
-        # Knowledge base
-        self.knowledge_base: Optional[KnowledgeBase] = knowledge_base
-
-    @property
-    def user_messages(self) -> List[Dict[str, Any]]:
-        return [message.model_dump(exclude_none=True) for message in self._user_messages]
-
-    @user_messages.setter
-    def user_messages(self, messages: List[Dict[str, Any]]) -> None:
-        self._user_messages = [Message(**message) for message in messages]
+    @model_validator(mode="after")  # type: ignore
+    def initialize_storage(self):
+        if self.storage is not None:
+            logger.debug("Initializing storage")
+            self.storage.create()
+            self.read_from_storage()  # type: ignore
+        return self
 
     @property
-    def llm_messages(self) -> List[Dict[str, Any]]:
-        return [message.model_dump(exclude_none=True) for message in self._llm_messages]
+    def user_chat_history(self) -> List[Dict[str, Any]]:
+        return [message.model_dump(exclude_none=True) for message in self.user_messages]
 
-    @llm_messages.setter
-    def llm_messages(self, messages: List[Dict[str, Any]]) -> None:
-        self._llm_messages = [Message(**message) for message in messages]
+    @property
+    def llm_chat_history(self) -> List[Dict[str, Any]]:
+        return [message.model_dump(exclude_none=True) for message in self.llm_messages]
 
-    def save_to_storage(self) -> None:
-        """Save the conversation to the storage"""
-        if self.storage is None:
-            return
-        self.storage.upsert(
-            user_id=self.user_id,
-            user_persona=self.user_persona,
-            user_messages=self.user_messages,
-            llm_messages=self.llm_messages,
-            meta_data=self.meta_data,
-            usage_data=self.usage_data,
-        )
+    def get_chat_history_for_prompt(self) -> Optional[str]:
+        """Build formatted chat history for the conversation"""
+        if len(self.user_messages) == 0:
+            return None
 
-    def read_from_storage(self) -> None:
-        """Read the conversation from the storage"""
-        if self.storage is None:
-            return
-        conversation = self.storage.read(user_id=self.user_id)
-        if conversation is None:
-            return
-        self.user_persona = conversation["user_persona"]
-        self.user_messages = conversation["user_messages"]
-        self.llm_messages = conversation["llm_messages"]
-        self.meta_data = conversation["meta_data"]
-        self.usage_data = conversation["usage_data"]
+        chat_history = ""
+        chat_history_messages: List[Message] = []
+        for message in self.user_messages[::-1]:
+            if message.role == "user":
+                chat_history_messages.insert(0, message)
+            if message.role == "assistant" and self.include_responses_in_chat_history:
+                chat_history_messages.insert(0, message)
+            if len(chat_history_messages) >= self.max_chat_history_messages:
+                break
 
-    def initialize_storage(self) -> None:
-        """Initialize the storage"""
-        if self.storage is None:
-            return
-        self.storage.create()
-        self.read_from_storage()
+        for message in chat_history_messages:
+            if message.role == "user":
+                chat_history += "\n---\n"
+            chat_history += f"{message.role.upper()}: {message.content}\n"
+        return chat_history
 
     def load_knowledge_base(self, recreate: bool = False) -> None:
         """Loads the knowledge base"""
@@ -106,11 +95,11 @@ class Conversation:
             return
         self.knowledge_base.load_knowledge_base(recreate=recreate)
 
-    def build_system_prompt(self) -> str:
+    def get_system_prompt(self) -> str:
         """Build the system prompt for the conversation"""
 
         if self.system_prompt:
-            return self.system_prompt
+            return "\n".join([line.strip() for line in self.system_prompt.split("\n")])
 
         _system_prompt = ""
         if self.llm_name:
@@ -126,93 +115,80 @@ class Conversation:
         _system_prompt += "If you don't know the answer, say 'I don't know'. You can ask follow up questions if needed."
         return _system_prompt
 
-    def build_question_context(self, question: str) -> Optional[str]:
-        """Build the context for a question"""
+    def get_relevant_information(self, question: str) -> Optional[str]:
+        """Get relevant information for answering a question"""
         if self.knowledge_base is None:
             return None
 
         relevant_docs: List[Document] = self.knowledge_base.search(query=question)
-        context = ""
+        relevant_info = ""
         for doc in relevant_docs:
-            context += f"---\n{doc.content}\n"
+            relevant_info += f"---\n{doc.content}\n"
             doc_name = doc.name
             doc_page = doc.meta_data.get("page")
             if doc_name:
-                ref = doc_name
+                ref = f"Title: {doc_name}"
                 if doc_page:
-                    ref += f" (Page {doc_page})"
-                context += f"Reference: {ref}\n"
-            context += "---\n"
-        return context
+                    ref += f", Page: {doc_page}"
+                relevant_info += f"Reference: {ref}\n"
+            relevant_info += "---\n"
+        return relevant_info
 
-    def build_chat_history(self) -> Optional[str]:
-        """Build the chat history for the conversation"""
-        if len(self._user_messages) == 0:
-            return None
-
-        chat_history = ""
-        for message in self._user_messages:
-            chat_history += f"{message.role}: {message.content}\n"
-        return chat_history
-
-    def get_question_prompt(self, question: str) -> str:
+    def get_user_prompt(self, question: str) -> str:
         """Build the user prompt for the conversation"""
 
-        _question_prompt = "Your task is to answer the following question in the best way possible.\n"
-        # Add question to prompt
-        _question_prompt += f"\nQuestion: {question}\n"
+        _user_prompt = "Your task is to answer the following question in the best way possible.\n"
+        # Add question to the prompt
+        _user_prompt += f"\nQuestion: {question}\n"
 
         # Add context to prompt
-        context = self.build_question_context(question=question)
-        if context:
-            _question_prompt += dedent(
-                f"""
-            You have access to the following information which you can use to answer the question if it helps.
-            START OF INFORMATION
-            ---
-            {context}
-            ---
-            END OF INFORMATION
-            """
-            )
+        relevant_info = self.get_relevant_information(question=question)
+        if relevant_info:
+            _user_prompt += f"""
+                You have access to the following information that you can use to answer the question if it helps.
+                START OF INFORMATION
+                ```
+                {relevant_info}
+                ```
+                END OF INFORMATION
+                """
 
         # Add chat history to prompt
-        chat_history = self.build_chat_history()
+        chat_history = self.get_chat_history_for_prompt()
         if chat_history:
-            _question_prompt += dedent(
-                f"""
-            You have access to the following chat history which you can use to answer the question if it helps.
-            START OF CHAT HISTORY
-            ---
-            {chat_history}
-            ---
-            END OF CHAT HISTORY
-            """
-            )
+            _user_prompt += f"""
+                You have access to the following chat history that you can use to answer the question if it helps.
+                START OF CHAT HISTORY
+                ```
+                {chat_history}
+                ```
+                END OF CHAT HISTORY
+                """
 
-        return dedent(_question_prompt)
+        _user_prompt += "\nRemember, your task is to answer the following question:\n"
+        _user_prompt += f"Question: {question}\n"
+
+        return "\n".join([line.strip() for line in _user_prompt.split("\n")])
 
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
         # Add the system prompt to llm_messages
-        if len(self._llm_messages) == 0:
-            self._llm_messages.append(Message(role="system", content=self.build_system_prompt()))
+        if len(self.llm_messages) == 0:
+            self.llm_messages.append(Message(role="system", content=self.get_system_prompt()))
 
         # Add the question prompt to llm_messages
-        self._llm_messages.append(Message(role="user", content=self.get_question_prompt(question=question)))
-        for message in self._llm_messages:
+        self.llm_messages.append(Message(role="user", content=self.get_user_prompt(question=question)))
+        for message in self.llm_messages:
             logger.debug(f"{message.role}: {message.content}")
 
         # Add the question to user_messages
-        self._user_messages.append(Message(role="user", content=question))
+        self.user_messages.append(Message(role="user", content=question))
 
         # Generate response
         response = ""
         response_tokens = 0
-        for delta in self.llm.streaming_response(
-            messages=[m.model_dump(exclude_none=True) for m in self._llm_messages]
-        ):
+        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in self.llm_messages]):
             response += delta
             response_tokens += 1
             yield response
@@ -220,9 +196,9 @@ class Conversation:
         logger.debug(f"Response: {response}")
 
         # Add response to user_messages
-        self._user_messages.append(Message(role="assistant", content=response))
+        self.user_messages.append(Message(role="assistant", content=response))
         # Add response to llm_messages
-        self._llm_messages.append(Message(role="assistant", content=response))
+        self.llm_messages.append(Message(role="assistant", content=response))
         # Add response tokens to usage data
         if "response_tokens" in self.usage_data:
             self.usage_data["response_tokens"] += response_tokens
@@ -238,10 +214,49 @@ class Conversation:
         # Save conversation to storage
         self.save_to_storage()
 
+    def read_from_storage(self) -> None:
+        """Read existing conversation from storage"""
+        if self.storage is None:
+            return
+
+        existing_conversation = self.storage.read(user_id=self.user_id)
+        if existing_conversation is None:
+            logger.debug(f"No conversation found for user: {self.user_id}")
+            return
+
+        logger.debug(f"Found existing conversation for user: {self.user_id}")
+        # Values that should not be overwritten if provided
+        if self.user_persona is None and existing_conversation.get("user_persona") is not None:
+            self.user_persona = existing_conversation["user_persona"]
+        if self.user_data is None and existing_conversation.get("user_data") is not None:
+            self.user_data = existing_conversation["user_data"]
+
+        # Update conversation using existing conversation
+        user_chat_history = existing_conversation.get("user_chat_history")
+        if user_chat_history is not None and len(user_chat_history) > 0:
+            self.user_messages = [Message(**message) for message in user_chat_history]
+        llm_chat_history = existing_conversation.get("llm_chat_history")
+        if llm_chat_history is not None and len(llm_chat_history) > 0:
+            self.llm_messages = [Message(**message) for message in llm_chat_history]
+        if existing_conversation.get("usage_data") is not None:
+            self.usage_data = existing_conversation["usage_data"]
+
+    def save_to_storage(self) -> None:
+        """Save the conversation to the storage"""
+        if self.storage is None:
+            return
+        self.storage.upsert(
+            user_id=self.user_id,
+            user_persona=self.user_persona,
+            user_data=self.user_data,
+            user_chat_history=self.user_chat_history,
+            llm_chat_history=self.llm_chat_history,
+            usage_data=self.usage_data,
+        )
+
     def end(self) -> None:
         """End the conversation"""
         self.user_messages = []
         self.llm_messages = []
-        if self.storage is None:
-            return
-        self.storage.end(user_id=self.user_id)
+        if self.storage is not None:
+            self.storage.end(user_id=self.user_id)

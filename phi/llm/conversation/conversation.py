@@ -12,7 +12,6 @@ from phi.utils.log import logger, set_log_level_to_debug
 
 
 class Conversation(BaseModel):
-    # System settings
     # Set log level to debug
     debug_logs: bool = False
 
@@ -61,6 +60,15 @@ class Conversation(BaseModel):
         return self
 
     @property
+    def conversation_id(self) -> Optional[int]:
+        if self.storage is None:
+            return None
+        conversation = self.storage.read(self.user_id)
+        if conversation is None:
+            return None
+        return conversation.get("id", None)
+
+    @property
     def user_chat_history(self) -> List[Dict[str, Any]]:
         return [message.model_dump(exclude_none=True) for message in self.user_messages]
 
@@ -68,8 +76,41 @@ class Conversation(BaseModel):
     def llm_chat_history(self) -> List[Dict[str, Any]]:
         return [message.model_dump(exclude_none=True) for message in self.llm_messages]
 
-    def get_chat_history_for_prompt(self) -> Optional[str]:
-        """Build formatted chat history for the conversation"""
+    def is_knowledge_base_up_to_date(self) -> bool:
+        if self.knowledge_base is None:
+            return False
+        return False
+        # return self.knowledge_base.up_to_date
+
+    def load_knowledge_base(self, recreate: bool = False) -> None:
+        """Loads the knowledge base"""
+        if self.knowledge_base is None:
+            return
+        self.knowledge_base.load_knowledge_base(recreate=recreate)
+
+    def get_system_prompt(self) -> str:
+        """Return the system prompt for the conversation"""
+
+        if self.system_prompt:
+            return "\n".join([line.strip() for line in self.system_prompt.split("\n")])
+
+        _system_prompt = ""
+        if self.llm_name:
+            _system_prompt += f"You are a chatbot named '{self.llm_name}'"
+        else:
+            _system_prompt += "You are a chatbot "
+
+        if self.user_persona:
+            _system_prompt += f"that is designed to help a '{self.user_persona}' with their work.\n"
+        else:
+            _system_prompt += "that is designed to help a user with their work.\n"
+
+        _system_prompt += "If you don't know the answer, say 'I don't know'. You can ask follow up questions if needed."
+        return _system_prompt
+
+    def get_chat_history(self) -> Optional[str]:
+        """Return a formatted chat history for the prompt"""
+
         if len(self.user_messages) == 0:
             return None
 
@@ -89,34 +130,9 @@ class Conversation(BaseModel):
             chat_history += f"{message.role.upper()}: {message.content}\n"
         return chat_history
 
-    def load_knowledge_base(self, recreate: bool = False) -> None:
-        """Loads the knowledge base"""
-        if self.knowledge_base is None:
-            return
-        self.knowledge_base.load_knowledge_base(recreate=recreate)
+    def get_references(self, question: str) -> Optional[str]:
+        """Return relevant information from the knowledge base"""
 
-    def get_system_prompt(self) -> str:
-        """Build the system prompt for the conversation"""
-
-        if self.system_prompt:
-            return "\n".join([line.strip() for line in self.system_prompt.split("\n")])
-
-        _system_prompt = ""
-        if self.llm_name:
-            _system_prompt += f"You are a chatbot named '{self.llm_name}'"
-        else:
-            _system_prompt += "You are a chatbot "
-
-        if self.user_persona:
-            _system_prompt += f"that is designed to help a '{self.user_persona}' with their work.\n"
-        else:
-            _system_prompt += "that is designed to help a user with their work.\n"
-
-        _system_prompt += "If you don't know the answer, say 'I don't know'. You can ask follow up questions if needed."
-        return _system_prompt
-
-    def get_relevant_information(self, question: str) -> Optional[str]:
-        """Get relevant information for answering a question"""
         if self.knowledge_base is None:
             return None
 
@@ -134,30 +150,32 @@ class Conversation(BaseModel):
             relevant_info += "---\n"
         return relevant_info
 
-    def get_user_prompt(self, question: str) -> str:
-        """Build the user prompt for the conversation"""
+    def get_user_prompt(self, question: str, references: Optional[str], chat_history: Optional[str]) -> str:
+        """Build the user prompt given a question, references and chat_history"""
 
-        _user_prompt = "Your task is to answer the following question in the best way possible.\n"
+        _user_prompt = "Your task is to answer the following question "
+        if self.user_persona:
+            _user_prompt += f"for a '{self.user_persona}' "
+        _user_prompt += "using the following information:\n"
         # Add question to the prompt
         _user_prompt += f"\nQuestion: {question}\n"
 
-        # Add context to prompt
-        relevant_info = self.get_relevant_information(question=question)
-        if relevant_info:
+        # Add relevant_information to prompt
+        if references:
             _user_prompt += f"""
-                You have access to the following information that you can use to answer the question if it helps.
-                START OF INFORMATION
+                You can use the following references if they help you answer the question.
+                If you use the information from the references, please cite them as a bulleted list at the end.
+                START OF REFERENCES
                 ```
-                {relevant_info}
+                {references}
                 ```
-                END OF INFORMATION
+                END OF REFERENCES
                 """
 
         # Add chat history to prompt
-        chat_history = self.get_chat_history_for_prompt()
         if chat_history:
             _user_prompt += f"""
-                You have access to the following chat history that you can use to answer the question if it helps.
+                You can use the following chat history if it helps you answer the question.
                 START OF CHAT HISTORY
                 ```
                 {chat_history}
@@ -165,18 +183,24 @@ class Conversation(BaseModel):
                 END OF CHAT HISTORY
                 """
 
-        _user_prompt += "\nRemember, your task is to answer the following question:\n"
+        _user_prompt += "\nRemember, your task is to answer the following question using the provided information:\n"
         _user_prompt += f"Question: {question}\n"
 
+        # Return the user prompt after removing newlines and indenting
         return "\n".join([line.strip() for line in _user_prompt.split("\n")])
 
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
+        # Build the system prompt
         system_prompt = self.get_system_prompt()
-        user_prompt = self.get_user_prompt(question=question)
 
-        # Create messages
+        # Build the user prompt
+        references = self.get_references(question=question)
+        chat_history = self.get_chat_history()
+        user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
+
+        # Create messages for the LLM
         messages: List[Message] = [
             Message(role="system", content=system_prompt),
             Message(role="user", content=user_prompt),

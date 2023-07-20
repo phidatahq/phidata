@@ -4,7 +4,7 @@ from dataclasses import dataclass
 @dataclass
 class ApiRoutes:
     # user paths
-    USER_PING: str = "v1/user/ping"
+    USER_HEALTH: str = "v1/user/health"
     USER_READ: str = "v1/user/read"
     USER_UPDATE: str = "v1/user/update"
     USER_SIGN_IN: str = "v1/user/signin"
@@ -13,7 +13,7 @@ class ApiRoutes:
     USER_AUTH_REFRESH: str = "v1/user/authrefresh"
 
     # workspace paths
-    WORKSPACE_PING: str = "v1/workspace/ping"
+    WORKSPACE_HEALTH: str = "v1/workspace/health"
     WORKSPACE_CREATE: str = "v1/workspace/create"
     WORKSPACE_UPDATE: str = "v1/workspace/update"
     WORKSPACE_DELETE: str = "v1/workspace/delete"

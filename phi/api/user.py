@@ -16,7 +16,7 @@ def user_ping() -> bool:
     logger.debug("--o-o-- Ping user api")
     with Client(base_url=phi_cli_settings.api_url, headers=base_headers, timeout=60) as api:
         try:
-            r: Response = api.get(ApiRoutes.USER_PING)
+            r: Response = api.get(ApiRoutes.USER_HEALTH)
             if is_invalid_response(r):
                 return False
         except NetworkError:
@@ -76,7 +76,7 @@ def authenticate_and_get_user(
         timeout=None,
     ) as api:
         try:
-            r: Response = api.post(ApiRoutes.USER_CLI_AUTH, data={"token": tmp_auth_token})
+            r: Response = api.post(ApiRoutes.USER_CLI_AUTH)
             if is_invalid_response(r):
                 return None
         except NetworkError:

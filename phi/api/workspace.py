@@ -35,7 +35,7 @@ def workspace_ping() -> bool:
     logger.debug("--o-o-- Pinging workspace api")
     with Client(base_url=phi_cli_settings.api_url, headers=base_headers, timeout=60) as api:
         try:
-            r: Response = api.get(ApiRoutes.WORKSPACE_PING)
+            r: Response = api.get(ApiRoutes.WORKSPACE_HEALTH)
             if is_invalid_response(r):
                 return False
         except NetworkError:

@@ -29,11 +29,11 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
     #     self.wfile.write("GET request for {}".format(self.path).encode('utf-8'))
 
     def do_OPTIONS(self):
-        logger.info(
-            "OPTIONS request,\nPath: %s\nHeaders:\n%s\n",
-            str(self.path),
-            str(self.headers),
-        )
+        # logger.debug(
+        #     "OPTIONS request,\nPath: %s\nHeaders:\n%s\n",
+        #     str(self.path),
+        #     str(self.headers),
+        # )
         self._set_response()
         # self.wfile.write("OPTIONS request for {}".format(self.path).encode('utf-8'))
 
@@ -41,12 +41,12 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers["Content-Length"])  # <--- Gets the size of data
         post_data = self.rfile.read(content_length)  # <--- Gets the data itself
         decoded_post_data = post_data.decode("utf-8")
-        logger.info(
-            "POST request,\nPath: {}\nHeaders:\n{}\n\nBody:\n{}\n".format(
-                str(self.path), str(self.headers), decoded_post_data
-            )
-        )
-        logger.info("Data: {}".format(decoded_post_data))
+        # logger.debug(
+        #     "POST request,\nPath: {}\nHeaders:\n{}\n\nBody:\n{}\n".format(
+        #         str(self.path), str(self.headers), decoded_post_data
+        #     )
+        # )
+        # logger.debug("Data: {}".format(decoded_post_data))
         # logger.info("type: {}".format(type(post_data)))
         phi_cli_settings.auth_token_path.touch(exist_ok=True)
         phi_cli_settings.auth_token_path.write_text(decoded_post_data)
@@ -63,7 +63,7 @@ class CliAuthServer:
     Source: https://stackoverflow.com/a/38196725/10953921
     """
 
-    def __init__(self, port=9190):
+    def __init__(self, port=9191):
         import threading
 
         self._server = HTTPServer(("", port), CliAuthRequestHandler)
@@ -85,13 +85,13 @@ class CliAuthServer:
 
 def get_port_for_auth_server():
     # TODO: Check if port is available
-    return 9190
+    return 9191
 
 
 def get_auth_token_from_web_flow(port) -> Optional[str]:
     """
-    GET request: curl http://localhost:9190
-    POST request: curl -d "foo=bar&bin=baz" http://localhost:9190
+    GET request: curl http://localhost:9191
+    POST request: curl -d "foo=bar&bin=baz" http://localhost:9191
     """
     import json
 

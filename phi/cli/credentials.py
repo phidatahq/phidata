@@ -15,12 +15,12 @@ class PhiCliCreds:
 
 
 def save_auth_token(auth_token: str):
-    logger.debug(f"Storing {auth_token} to {str(phi_cli_settings.credentials_path)}")
+    # logger.debug(f"Storing {auth_token} to {str(phi_cli_settings.credentials_path)}")
     creds = PhiCliCreds(auth_token)
     pickle_object_to_file(creds, phi_cli_settings.credentials_path)
 
 
 def read_auth_token() -> Optional[str]:
-    logger.debug(f"Reading token from {str(phi_cli_settings.credentials_path)}")
+    # logger.debug(f"Reading token from {str(phi_cli_settings.credentials_path)}")
     creds: PhiCliCreds = unpickle_object_from_file(phi_cli_settings.credentials_path)
     return creds.auth_token

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from phi.infra.enums import InfraType
 from phi.infra.resource.group import InfraResourceGroup
-from phi.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.dttm import current_datetime_utc
 from phi.utils.log import logger

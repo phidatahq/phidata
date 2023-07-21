@@ -15,7 +15,7 @@ def delete_phidata_conf() -> None:
     delete_from_fs(PHI_CLI_DIR)
 
 
-def authenticate_user() -> bool:
+async def authenticate_user() -> None:
     """Authenticate the user using credentials from phidata.com
     Steps:
     1. Authenticate the user by opening the phidata sign-in url
@@ -26,7 +26,7 @@ def authenticate_user() -> bool:
     3. After the user is authenticated update the PhiCliConfig.
     """
     from phi.api.user import authenticate_and_get_user
-    from phi.schemas.user import UserSchema
+    from phi.api.schemas.user import UserSchema
     from phi.cli.auth_server import (
         get_port_for_auth_server,
         get_auth_token_from_web_flow,
@@ -44,25 +44,27 @@ def authenticate_user() -> bool:
     tmp_auth_token = get_auth_token_from_web_flow(auth_server_port)
     if tmp_auth_token is None:
         logger.error("Could not authenticate, please try again")
-        return False
+        return
 
     try:
-        user: Optional[UserSchema] = authenticate_and_get_user(tmp_auth_token)
+        user: Optional[UserSchema] = await authenticate_and_get_user(tmp_auth_token)
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
-        return False
+        return
 
     if user is None:
         logger.error("Could not get user data, please try again")
-        return False
+        return
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         phi_config = PhiCliConfig(user)
+    else:
+        phi_config.user = user
 
     print_info("Welcome {}, you are authenticated\n".format(user.email))
-    return phi_config.sync_workspaces_from_api()
+    await phi_config.sync_workspaces_from_api()
 
 
 def initialize_phi(reset: bool = False, login: bool = False) -> bool:
@@ -122,7 +124,7 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
 def sign_in_using_cli() -> bool:
     from getpass import getpass
     from phi.api.user import sign_in_user
-    from phi.schemas.user import UserSchema, EmailPasswordSignInSchema
+    from phi.api.schemas.user import UserSchema, EmailPasswordSignInSchema
 
     print_heading("Log in")
     email_raw = input("email: ")

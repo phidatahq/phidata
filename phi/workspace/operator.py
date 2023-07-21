@@ -12,7 +12,7 @@ from phi.cli.console import (
 )
 from phi.infra.enums import InfraType
 from phi.infra.resource.group import InfraResourceGroup
-from phi.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger

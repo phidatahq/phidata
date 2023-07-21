@@ -4,8 +4,8 @@ from typing import Dict, List, Optional
 
 from phi.cli.console import print_heading, print_info
 from phi.cli.settings import phi_cli_settings
-from phi.schemas.user import UserSchema
-from phi.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.user import UserSchema
+from phi.api.schemas.workspace import WorkspaceSchema
 from phi.utils.log import logger
 from phi.utils.pickle import pickle_object_to_file, unpickle_object_from_file
 from phi.workspace.config import WorkspaceConfig
@@ -265,28 +265,26 @@ class PhiCliConfig:
     ## Sync Workspace Data from api
     ######################################################
 
-    def sync_workspaces_from_api(self) -> bool:
+    async def sync_workspaces_from_api(self) -> None:
         from phi.api.workspace import get_primary_workspace, get_available_workspaces
 
         if self.user is None:
             logger.error("User not available for workspace sync")
-            return False
+            return
 
         # Call api to get the available workspaces
-        available_workspaces: Optional[List[WorkspaceSchema]] = get_available_workspaces(self.user)
+        available_workspaces: Optional[List[WorkspaceSchema]] = await get_available_workspaces(self.user)
         if available_workspaces is not None:
             logger.debug(f"Received {len(available_workspaces)} available workspaces")
             self.available_ws = available_workspaces
 
         # Call api to get the primary_ws
-        primary_ws: Optional[WorkspaceSchema] = get_primary_workspace(self.user)
+        primary_ws: Optional[WorkspaceSchema] = await get_primary_workspace(self.user)
         if primary_ws is None:
             logger.debug("No primary workspace available")
         else:
             logger.debug(f"Received primary ws: {primary_ws.model_dump_json(indent=2)}")
             self.active_ws_name = primary_ws.ws_name
-
-        return True
 
     ######################################################
     ## Save PhiCliConfig

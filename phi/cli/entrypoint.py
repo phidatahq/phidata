@@ -2,6 +2,7 @@
 
 This is the entrypoint for the `phi` cli application.
 """
+from asyncio import run as aiorun
 from typing import Optional
 
 import typer
@@ -98,7 +99,7 @@ def auth(
 
     from phi.cli.operator import authenticate_user
 
-    authenticate_user()
+    aiorun(authenticate_user())
 
 
 @phi_cli.command(short_help="Log in from the cli", hidden=True)
@@ -139,19 +140,14 @@ def ping(
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.api.user import user_ping, is_user_authenticated
+    from phi.api.user import user_ping
     from phi.cli.console import print_info
 
-    ping_success = user_ping()
+    ping_success = aiorun(user_ping())
     if ping_success:
         print_info("Ping successful")
     else:
         print_info("Could not reach phidata servers")
-
-    if is_user_authenticated():
-        print_info("User is authenticated")
-    else:
-        print_info("User is not authenticated, run `phi auth` to log in")
 
 
 @phi_cli.command(short_help="Print phidata config", hidden=True)

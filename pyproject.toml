@@ -9,10 +9,10 @@ authors = [
 ]
 
 dependencies = [
+  "aiohttp",
   "boto3",
   "docker",
   "gitpython",
-  "httpx",
   "kubernetes",
   "pydantic",
   "pydantic-settings",
@@ -89,7 +89,9 @@ module = [
   "boto3.*",
   "botocore.*",
   "docker.*",
+  "openai.*",
   "pgvector.*",
+  "sqlalchemy.*",
   "setuptools.*",
 ]
 ignore_missing_imports = true

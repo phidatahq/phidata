@@ -2,7 +2,6 @@ from typing import Optional
 
 from phi.cli.settings import phi_cli_settings
 from phi.utils.pickle import pickle_object_to_file, unpickle_object_from_file
-from phi.utils.log import logger
 
 
 class PhiCliCreds:

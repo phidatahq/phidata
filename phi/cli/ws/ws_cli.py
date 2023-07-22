@@ -2,6 +2,7 @@
 
 This is the entrypoint for the `phi ws` application.
 """
+from asyncio import run as aiorun
 from pathlib import Path
 from typing import Optional, cast
 
@@ -74,7 +75,7 @@ def create(
 
     from phi.workspace.operator import create_workspace
 
-    create_workspace(name=name, template=template, url=url)
+    aiorun(create_workspace(name=name, template=template, url=url))
 
 
 @ws_cli.command(short_help="Setup workspace from the current directory")
@@ -110,7 +111,7 @@ def setup(
     if path is not None:
         ws_root_path = Path(".").joinpath(path).resolve()
 
-    setup_workspace(ws_root_path=ws_root_path)
+    aiorun(setup_workspace(ws_root_path=ws_root_path))
 
 
 @ws_cli.command(short_help="Create resources for the active workspace")
@@ -266,16 +267,18 @@ def up(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     print_heading("Starting workspace: {}\n".format(active_ws_config.ws_name))
-    start_workspace(
-        ws_config=active_ws_config,
-        target_env=target_env,
-        target_infra=target_infra,
-        target_group=target_group,
-        target_name=target_name,
-        target_type=target_type,
-        dry_run=dry_run,
-        auto_confirm=auto_confirm,
-        force=force,
+    aiorun(
+        start_workspace(
+            ws_config=active_ws_config,
+            target_env=target_env,
+            target_infra=target_infra,
+            target_group=target_group,
+            target_name=target_name,
+            target_type=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            force=force,
+        )
     )
 
 
@@ -430,16 +433,18 @@ def down(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_name))
-    stop_workspace(
-        ws_config=active_ws_config,
-        target_env=target_env,
-        target_infra=target_infra,
-        target_group=target_group,
-        target_name=target_name,
-        target_type=target_type,
-        dry_run=dry_run,
-        auto_confirm=auto_confirm,
-        force=force,
+    aiorun(
+        stop_workspace(
+            ws_config=active_ws_config,
+            target_env=target_env,
+            target_infra=target_infra,
+            target_group=target_group,
+            target_name=target_name,
+            target_type=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            force=force,
+        )
     )
 
 
@@ -592,16 +597,18 @@ def patch(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     print_heading("Updating workspace: {}\n".format(active_ws_config.ws_name))
-    update_workspace(
-        ws_config=active_ws_config,
-        target_env=target_env,
-        target_infra=target_infra,
-        target_group=target_group,
-        target_name=target_name,
-        target_type=target_type,
-        dry_run=dry_run,
-        auto_confirm=auto_confirm,
-        force=force,
+    aiorun(
+        update_workspace(
+            ws_config=active_ws_config,
+            target_env=target_env,
+            target_infra=target_infra,
+            target_group=target_group,
+            target_name=target_name,
+            target_type=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            force=force,
+        )
     )
 
 
@@ -769,14 +776,16 @@ def delete(
         return
 
     ws_to_delete = []
-    # By default, we assume this command is run from the workspace directory
+    # Delete workspace by name if provided
     if ws_name is not None:
         ws_to_delete.append(ws_name)
     else:
+        # Delete all workspaces if flag is set
         if all_workspaces:
             ws_to_delete = [ws.ws_name for ws in phi_config.available_ws if ws.ws_name is not None]
         else:
+            # # By default, we assume this command is run for the active workspace
             if phi_config.active_ws_name is not None:
                 ws_to_delete.append(phi_config.active_ws_name)
 
-    delete_workspace(phi_config, ws_to_delete)
+    aiorun(delete_workspace(phi_config, ws_to_delete))

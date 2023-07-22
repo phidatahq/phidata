@@ -63,24 +63,8 @@ def print_available_workspaces(avl_ws_list) -> None:
     print_info("Available Workspaces:\n  - {}".format("\n  - ".join(avl_ws_names)))
 
 
-def log_generic_error_msg() -> None:
-    logger.error("Something went wrong. Please try again.")
-
-
-def log_client_error_msg() -> None:
-    logger.error("ClientError: Please try again.")
-
-
-def log_network_error_msg() -> None:
-    logger.error("NetworkError: Please check internet connectivity.")
-
-
-def log_server_error_msg() -> None:
-    logger.error("ServerError: Could not reach phidata servers.")
-
-
-def log_auth_error_msg() -> None:
-    logger.error("AuthError: could not authenticate, please run `phi auth`")
+def log_phi_init_failed_msg() -> None:
+    logger.error("phi initialization failed, please try again")
 
 
 def confirm_yes_no(question, default: str = "yes") -> bool:

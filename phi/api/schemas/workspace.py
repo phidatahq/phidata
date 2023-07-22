@@ -14,5 +14,4 @@ class WorkspaceSchema(BaseModel):
     visibility: Optional[str] = None
     ws_data: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
-
-    # is_primary_ws_for_user: Optional[bool] = None
+    is_primary_ws_for_user: Optional[bool] = None

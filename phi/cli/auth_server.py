@@ -2,7 +2,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 
 from phi.cli.settings import phi_cli_settings
-from phi.utils.log import logger
 
 
 class CliAuthRequestHandler(BaseHTTPRequestHandler):

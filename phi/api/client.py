@@ -30,7 +30,8 @@ class ApiClient:
     def authenticated_headers(self):
         if self._authenticated_headers is None:
             self._authenticated_headers = self.headers.copy()
-            self._authenticated_headers[phi_cli_settings.auth_token_header] = self.auth_token
+            if self.auth_token is not None:
+                self._authenticated_headers[phi_cli_settings.auth_token_header] = self.auth_token
         return self._authenticated_headers
 
     def Session(self):
@@ -46,6 +47,5 @@ api_client = ApiClient()
 def invalid_respose(response: aiohttp.ClientResponse):
     status = response.status
     if status >= 400:
-        logger.warning(f"Invalid response: {status}")
         return True
     return False

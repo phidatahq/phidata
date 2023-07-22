@@ -56,10 +56,10 @@ def init(
 
     from phi.cli.operator import initialize_phi
 
-    initialize_phi(reset=reset, login=login)
+    aiorun(initialize_phi(reset=reset, login=login))
 
 
-@phi_cli.command(short_help="Reset phidata installation")
+@phi_cli.command(short_help="Reset phi installation")
 def reset(
     print_debug_log: bool = typer.Option(
         False,
@@ -78,7 +78,7 @@ def reset(
 
     from phi.cli.operator import initialize_phi
 
-    initialize_phi(reset=True)
+    aiorun(initialize_phi(reset=True))
 
 
 @phi_cli.command(short_help="Authenticate with phidata.com")
@@ -124,10 +124,10 @@ def login(
 
     from phi.cli.operator import sign_in_using_cli
 
-    sign_in_using_cli()
+    aiorun(sign_in_using_cli())
 
 
-@phi_cli.command(short_help="Ping phidata servers", hidden=True)
+@phi_cli.command(short_help="Ping phidata servers")
 def ping(
     print_debug_log: bool = typer.Option(
         False,
@@ -150,7 +150,7 @@ def ping(
         print_info("Could not reach phidata servers")
 
 
-@phi_cli.command(short_help="Print phidata config", hidden=True)
+@phi_cli.command(short_help="Print phi config")
 def config(
     print_debug_log: bool = typer.Option(
         False,
@@ -179,37 +179,37 @@ def config(
         print_info("Phi not initialized, run `phi init` to get started")
 
 
-# @phi_cli.command(short_help="Set current directory as active workspace")
-# def set(
-#     ws_name: str = typer.Option(None, "-ws", help="Active workspace name"),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-# ):
-#     """
-#     \b
-#     Setup the current directory as the active workspace.
-#     This command can be run from within the workspace directory
-#         OR with a -ws flag to set another workspace as primary.
-#
-#     Set a workspace as active
-#
-#     \b
-#     Examples:
-#     $ `phi ws set`           -> Set the current directory as the active phidata workspace
-#     $ `phi ws set -ws idata` -> Set the workspace named idata as the active phidata workspace
-#     """
-#     from phi.workspace.ws_operator import set_workspace_as_active
-#
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     operation_success: bool = set_workspace_as_active(ws_name)
-#
-#
+@phi_cli.command(short_help="Set current directory as active workspace")
+def set(
+    ws_name: str = typer.Option(None, "-ws", help="Active workspace name"),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+):
+    """
+    \b
+    Set the current directory as the active workspace.
+    This command can be run from within the workspace directory
+        OR with a -ws flag to set another workspace as primary.
+
+    Set a workspace as active
+
+    \b
+    Examples:
+    $ `phi ws set`           -> Set the current directory as the active phidata workspace
+    $ `phi ws set -ws idata` -> Set the workspace named idata as the active phidata workspace
+    """
+    from phi.workspace.operator import set_workspace_as_active
+
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    aiorun(set_workspace_as_active(ws_name))
+
+
 # @phi_cli.command(short_help="Start resources defined in a resources.py file")
 # def start(
 #     resources_file: str = typer.Argument(

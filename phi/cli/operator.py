@@ -63,11 +63,11 @@ async def authenticate_user() -> None:
     else:
         phi_config.user = user
 
-    print_info("Welcome {}, you are authenticated\n".format(user.email))
+    print_info("Welcome {}".format(user.email))
     await phi_config.sync_workspaces_from_api()
 
 
-def initialize_phi(reset: bool = False, login: bool = False) -> bool:
+async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     """Initialize phi on the users machine.
 
     Steps:
@@ -109,11 +109,10 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
         phi_config = PhiCliConfig()
 
     # Authenticate user
-    auth_valid: bool = True
     if login:
-        auth_valid = authenticate_user()
+        await authenticate_user()
 
-    if phi_config is not None and auth_valid:
+    if phi_config is not None:
         logger.debug("Phidata initialized")
         return True
     else:
@@ -121,10 +120,10 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
         return False
 
 
-def sign_in_using_cli() -> bool:
+async def sign_in_using_cli() -> None:
     from getpass import getpass
     from phi.api.user import sign_in_user
-    from phi.api.schemas.user import UserSchema, EmailPasswordSignInSchema
+    from phi.api.schemas.user import UserSchema, EmailPasswordAuthSchema
 
     print_heading("Log in")
     email_raw = input("email: ")
@@ -134,22 +133,24 @@ def sign_in_using_cli() -> bool:
         logger.error("Incorrect email or password")
 
     try:
-        user: Optional[UserSchema] = sign_in_user(EmailPasswordSignInSchema(email=email_raw, password=pass_raw))
+        user: Optional[UserSchema] = await sign_in_user(EmailPasswordAuthSchema(email=email_raw, password=pass_raw))
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
-        return False
+        return
 
     if user is None:
-        logger.error("Could not get user data, please try again")
-        return False
+        logger.error("Could not get user, please try again")
+        return
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         phi_config = PhiCliConfig(user)
+    else:
+        phi_config.user = user
 
-    print_info("Welcome {}, you are authenticated\n".format(user.email))
-    return phi_config.sync_workspaces_from_api()
+    print_info("Welcome {}".format(user.email))
+    await phi_config.sync_workspaces_from_api()
 
 
 # def start_resources(

@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class Message(BaseModel):
@@ -20,24 +20,27 @@ class Message(BaseModel):
 
 
 class ConversationRow(BaseModel):
-    """Pydanctic model for holding LLM conversations"""
+    """Pydantic model for holding LLM conversations"""
 
+    # The ID of this conversation.
     id: Optional[int] = None
-    # The user ID of the user who is participating in this conversation.
+    # The ID of the user who is participating in this conversation.
     user_id: str
     # The persona of the user who is participating in this conversation.
     user_persona: Optional[str] = None
     # The data of the user who is participating in this conversation.
     user_data: Optional[Any] = None
-    # The chat history of the user who is participating in this conversation.
-    user_chat_history: Optional[Any] = None
-    # The chat history of the LLM who is participating in this conversation.
-    llm_chat_history: Optional[Any] = None
-    # The usage data of the user who is participating in this conversation.
-    usage_data: Optional[Any] = None
     # True if this conversation is active.
-    is_active: bool
+    is_active: Optional[bool] = None
+    # The chat history with the user participating in this conversation.
+    chat_history: Optional[Any] = None
+    # The history with the LLM participating in this conversation.
+    llm_history: Optional[Any] = None
+    # The usage data of this conversation.
+    usage_data: Optional[Any] = None
     # The timestamp of when this conversation was created.
     created_at: Optional[str] = None
     # The timestamp of when this conversation was last updated.
     updated_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)

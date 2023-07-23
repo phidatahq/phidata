@@ -21,16 +21,12 @@ print_horizontal_line() {
   echo "------------------------------------------------------------"
 }
 
-print_info() {
+print_heading() {
   print_horizontal_line
-  echo "--*--> $1"
+  echo "-*- $1"
   print_horizontal_line
-}
-
-print_info_2() {
-  echo "--*--> $1"
 }
 
 print_status() {
-  echo "* $1"
+  echo "-*- $1"
 }

@@ -14,8 +14,8 @@ VENV_DIR="${REPO_ROOT}/phienv"
 source ${CURR_DIR}/_utils.sh
 
 main() {
-  print_info "phidata dev setup"
-  print_info "Creating venv: ${VENV_DIR}"
+  print_heading "phidata dev setup"
+  print_heading "Creating venv: ${VENV_DIR}"
 
   print_status "Removing existing venv: ${VENV_DIR}"
   rm -rf ${VENV_DIR}
@@ -23,14 +23,14 @@ main() {
   print_status "Creating python3 venv: ${VENV_DIR}"
   python3 -m venv ${VENV_DIR}
 
+  print_status "Installing base python packages"
+  pip3 install --upgrade pip pip-tools twine build
+
   # Install workspace
   source ${VENV_DIR}/bin/activate
   source ${CURR_DIR}/install.sh
 
-  print_info_2 "Installing base python packages"
-  pip3 install --upgrade pip pip-tools twine build
-
-  print_info "Activate using: source ${VENV_DIR}/bin/activate"
+  print_heading "Activate using: source ${VENV_DIR}/bin/activate"
 }
 
 main "$@"

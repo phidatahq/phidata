@@ -13,13 +13,13 @@ REPO_ROOT="$( dirname ${CURR_DIR} )"
 source ${CURR_DIR}/_utils.sh
 
 main() {
-  print_info "Installing phidata"
+  print_heading "Installing phidata"
 
-  print_info "Installing requirements.txt"
+  print_heading "Installing requirements.txt"
   pip install --no-deps \
     -r ${REPO_ROOT}/requirements.txt
 
-  print_info "Installing phidata with [dev] extras"
+  print_heading "Installing phidata with [dev] extras"
   pip install --editable "${REPO_ROOT}[dev]"
 }
 

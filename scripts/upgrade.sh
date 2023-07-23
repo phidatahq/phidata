@@ -23,21 +23,21 @@ main() {
     UPGRADE_ALL=1
   fi
 
-  print_info "Upgrading phidata dependencies"
-  print_info "Installing pip & pip-tools"
+  print_heading "Upgrading phidata dependencies"
+  print_heading "Installing pip & pip-tools"
   python -m pip install --upgrade pip pip-tools
 
   cd ${ROOT_DIR}
   if [[ UPGRADE_ALL -eq 1 ]];
   then
-    print_info "Upgrading all dependencies to latest version"
+    print_heading "Upgrading all dependencies to latest version"
     CUSTOM_COMPILE_COMMAND="./scripts/upgrade.sh" \
       pip-compile --upgrade --no-annotate --pip-args "--no-cache-dir" \
       -o ${ROOT_DIR}/requirements.txt \
       ${ROOT_DIR}/pyproject.toml
     print_horizontal_line
   else
-    print_info "Updating requirements.txt"
+    print_heading "Updating requirements.txt"
     CUSTOM_COMPILE_COMMAND="./scripts/upgrade.sh" \
       pip-compile --no-annotate --pip-args "--no-cache-dir" \
       -o ${ROOT_DIR}/requirements.txt \

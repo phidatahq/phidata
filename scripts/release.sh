@@ -15,22 +15,22 @@ REPO_ROOT="$( dirname ${CURR_DIR} )"
 source ${CURR_DIR}/_utils.sh
 
 main() {
-  print_info "Releasing *phidata*"
+  print_heading "Releasing *phidata*"
 
   cd ${REPO_ROOT}
-  print_info "pwd: $(pwd)"
+  print_heading "pwd: $(pwd)"
 
-  print_info "Proceed?"
+  print_heading "Proceed?"
   space_to_continue
 
-  print_info "Building phidata"
+  print_heading "Building phidata"
   python3 -m build
 
-  print_info "Release phidata to testpypi?"
+  print_heading "Release phidata to testpypi?"
   space_to_continue
   python3 -m twine upload --repository testpypi ${REPO_ROOT}/dist/*
 
-  print_info "Release phidata to pypi"
+  print_heading "Release phidata to pypi"
   space_to_continue
   python3 -m twine upload --repository pypi ${REPO_ROOT}/dist/*
 }

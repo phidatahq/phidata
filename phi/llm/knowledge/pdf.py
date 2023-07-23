@@ -3,21 +3,16 @@ from typing import Union, List, Optional, Iterator
 
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
-from phi.llm.knowledge.base import KnowledgeBase
+from phi.llm.knowledge.base import LLMKnowledgeBase
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
 
-class PDFKnowledgeBase(KnowledgeBase):
-    def __init__(
-        self, path: Union[str, Path], reader: Optional[PDFReader] = None, vector_db: Optional[VectorDb] = None
-    ):
-        if not (isinstance(path, str) or isinstance(path, Path)):
-            raise TypeError(f"Path must be of type str or Path, got: {type(path)}")
-
-        self.path: Path = Path(path) if isinstance(path, str) else path
-        self.reader: PDFReader = reader or PDFReader()
-        self.vector_db: Optional[VectorDb] = vector_db
+class PDFKnowledgeBase(LLMKnowledgeBase):
+    path: Union[str, Path]
+    reader: PDFReader = PDFReader()
+    vector_db: Optional[VectorDb] = None
+    relevant_documents: int = 5
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -26,22 +21,25 @@ class PDFKnowledgeBase(KnowledgeBase):
             Iterator[List[Document]]: Iterator over List of documents in each PDF
         """
 
-        if self.path.exists() and self.path.is_dir():
-            for _pdf in self.path.glob("*.pdf"):
-                yield self.reader.read(path=_pdf)
-        elif self.path.exists() and self.path.is_file() and self.path.suffix == ".pdf":
-            yield self.reader.read(path=self.path)
+        pdf_dir_path: Path = Path(self.path) if isinstance(self.path, str) else self.path
 
-    def search(self, query: str, num_documents: int = 5) -> List[Document]:
+        if pdf_dir_path.exists() and pdf_dir_path.is_dir():
+            for _pdf in pdf_dir_path.glob("*.pdf"):
+                yield self.reader.read(path=_pdf)
+        elif pdf_dir_path.exists() and pdf_dir_path.is_file() and pdf_dir_path.suffix == ".pdf":
+            yield self.reader.read(path=pdf_dir_path)
+
+    def search(self, query: str, num_documents: Optional[int] = None) -> List[Document]:
         """Return all relevant documents matching the query"""
         if self.vector_db is None:
             logger.warning("No vector db provided")
             return []
 
-        logger.debug(f"Getting relevant documents for query: {query}")
-        return self.vector_db.search(query=query, num_documents=num_documents)
+        _num_documents = num_documents or self.relevant_documents
+        logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
+        return self.vector_db.search(query=query, num_documents=_num_documents)
 
-    def load_knowledge_base(self, recreate: bool = False) -> None:
+    def load(self, recreate: bool = False) -> None:
         """Load the knowledge base to vector db"""
         if self.vector_db is None:
             logger.warning("No vector db provided")

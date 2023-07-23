@@ -4,43 +4,45 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from phi.document import Document
 from phi.llm.base import LLM
-from phi.llm.conversation.schemas import Message
-from phi.llm.conversation.storage.base import ConversationStorage
-from phi.llm.knowledge.base import KnowledgeBase
+from phi.llm.schemas import Message, References
+from phi.llm.conversation.schemas import ConversationRow
+from phi.llm.storage.base import LLMStorage
+from phi.llm.history.base import LLMHistory
+from phi.llm.history.simple import SimpleConversationHistory
+from phi.llm.knowledge.base import LLMKnowledgeBase
 from phi.llm.openai import OpenAIChat
 from phi.utils.log import logger, set_log_level_to_debug
 
 
 class Conversation(BaseModel):
+    # The ID of this conversation.
+    id: Optional[int] = None
     # Set log level to debug
     debug_logs: bool = False
+    # Send monitoring data to phidata.com
+    monitoring: bool = False
 
     # LLM settings
     llm: LLM = OpenAIChat()
     llm_name: Optional[str] = None
-    llm_messages: List[Message] = []
+    system_prompt: Optional[str] = None
 
     # User settings
     user_id: str = "anonymous"
     user_persona: Optional[str] = None
     user_data: Optional[Dict[str, Any]] = None
-    user_messages: List[Message] = []
-
-    # Prompt settings
-    system_prompt: Optional[str] = None
-    # Chat history settings
-    max_chat_history_messages: int = 6
-    max_chat_history_tokens: Optional[int] = None
-    include_responses_in_chat_history: bool = True
 
     # Usage data
     usage_data: Dict[str, Any] = {}
 
-    # Knowledge base for conversation
-    knowledge_base: Optional[KnowledgeBase] = None
+    # Conversation history
+    history: LLMHistory = SimpleConversationHistory()
 
-    # Storage for conversation
-    storage: Optional[ConversationStorage] = None
+    # Knowledge base for the LLM
+    knowledge_base: Optional[LLMKnowledgeBase] = None
+
+    # Conversation storage
+    storage: Optional[LLMStorage] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -59,34 +61,15 @@ class Conversation(BaseModel):
             self.read_from_storage()  # type: ignore
         return self
 
-    @property
-    def conversation_id(self) -> Optional[int]:
-        if self.storage is None:
-            return None
-        conversation = self.storage.read(self.user_id)
-        if conversation is None:
-            return None
-        return conversation.get("id", None)
+    def get_id(self) -> Optional[int]:
+        if self.id is not None:
+            return self.id
 
-    @property
-    def user_chat_history(self) -> List[Dict[str, Any]]:
-        return [message.model_dump(exclude_none=True) for message in self.user_messages]
-
-    @property
-    def llm_chat_history(self) -> List[Dict[str, Any]]:
-        return [message.model_dump(exclude_none=True) for message in self.llm_messages]
-
-    def is_knowledge_base_up_to_date(self) -> bool:
-        if self.knowledge_base is None:
-            return False
-        return False
-        # return self.knowledge_base.up_to_date
-
-    def load_knowledge_base(self, recreate: bool = False) -> None:
-        """Loads the knowledge base"""
-        if self.knowledge_base is None:
-            return
-        self.knowledge_base.load_knowledge_base(recreate=recreate)
+        if self.storage is not None:
+            conversation: Optional[ConversationRow] = self.storage.read(self.user_id)
+            if conversation is not None:
+                return conversation.id
+        return None
 
     def get_system_prompt(self) -> str:
         """Return the system prompt for the conversation"""
@@ -111,24 +94,7 @@ class Conversation(BaseModel):
     def get_chat_history(self) -> Optional[str]:
         """Return a formatted chat history for the prompt"""
 
-        if len(self.user_messages) == 0:
-            return None
-
-        chat_history = ""
-        chat_history_messages: List[Message] = []
-        for message in self.user_messages[::-1]:
-            if message.role == "user":
-                chat_history_messages.insert(0, message)
-            if message.role == "assistant" and self.include_responses_in_chat_history:
-                chat_history_messages.insert(0, message)
-            if len(chat_history_messages) >= self.max_chat_history_messages:
-                break
-
-        for message in chat_history_messages:
-            if message.role == "user":
-                chat_history += "\n---\n"
-            chat_history += f"{message.role.upper()}: {message.content}\n"
-        return chat_history
+        return self.history.get_formatted_history()
 
     def get_references(self, question: str) -> Optional[str]:
         """Return relevant information from the knowledge base"""
@@ -201,22 +167,24 @@ class Conversation(BaseModel):
         user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
 
         # Create messages for the LLM
-        messages: List[Message] = [
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_prompt),
-        ]
+        system_message = Message(role="system", content=system_prompt)
+        user_message = Message(role="user", content=user_prompt)
+        messages: List[Message] = [system_message, user_message]
 
-        # Update user_messages and llm_messages
-        # Add the question to user_messages
-        self.user_messages.append(Message(role="user", content=question))
-        # Add the system prompt to llm_messages if needed
-        if len(self.llm_messages) == 0:
-            self.llm_messages.append(Message(role="system", content=system_prompt))
-        # Add the user prompt to llm_messages
-        self.llm_messages.append(Message(role="user", content=user_prompt))
+        # Add messages to the history
+        # Add user question to the chat history
+        self.history.add_chat_history(message=Message(role="user", content=question))
+        # Add the system message to the history
+        self.history.add_system_message(message=system_message)
+        # Add the user message to the llm history
+        self.history.add_llm_history(message=user_message)
+
+        # Add references to the history
+        if references:
+            self.history.add_references(references=References(question=question, references=references))
 
         # Log messages
-        for message in messages:
+        for message in self.history.chat_history:
             logger.debug(f"{message.role}: {message.content}")
 
         # Generate response
@@ -229,10 +197,11 @@ class Conversation(BaseModel):
 
         logger.debug(f"Response: {response}")
 
-        # Add response to user_messages
-        self.user_messages.append(Message(role="assistant", content=response))
-        # Add response to llm_messages
-        self.llm_messages.append(Message(role="assistant", content=response))
+        # Add response to chat history
+        self.history.add_chat_history(message=Message(role="assistant", content=response))
+
+        # Add response to llm history
+        self.history.add_llm_history(message=Message(role="assistant", content=response))
 
         # Add response tokens to usage data
         if "response_tokens" in self.usage_data:

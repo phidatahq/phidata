@@ -1,13 +1,20 @@
 from typing import Optional, List
 
 try:
-    from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table
-    from sqlalchemy.sql.expression import text
-    from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.dialects import postgresql
+    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.inspection import inspect
+    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.sql.expression import text
+    from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
+
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    raise ImportError("`pgvector` not installed")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -52,10 +59,6 @@ class PgVector(VectorDb):
         self.table: Table = self.get_table()
 
     def get_table(self) -> Table:
-        from sqlalchemy.schema import Column
-        from sqlalchemy.types import DateTime, String
-        from pgvector.sqlalchemy import Vector
-
         return Table(
             self.collection,
             self.metadata,
@@ -70,8 +73,6 @@ class PgVector(VectorDb):
         )
 
     def table_exists(self) -> bool:
-        from sqlalchemy import inspect
-
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
             return inspect(self.db_engine).has_table(self.table.name)
@@ -89,11 +90,6 @@ class PgVector(VectorDb):
                         sess.execute(text(f"create schema if not exists {self.schema};"))
             logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
-
-    def delete(self) -> None:
-        if self.table_exists():
-            logger.debug(f"Deleting table: {self.collection}")
-            self.table.drop(self.db_engine)
 
     def insert(self, documents: List[Document]) -> None:
         with self.Session() as sess:
@@ -149,3 +145,8 @@ class PgVector(VectorDb):
             )
 
         return search_results
+
+    def delete(self) -> None:
+        if self.table_exists():
+            logger.debug(f"Deleting table: {self.collection}")
+            self.table.drop(self.db_engine)

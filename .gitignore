@@ -21,7 +21,7 @@
 .envrc
 
 # ignore storage dir
-storage
+/storage
 .images
 
 # ignore dist dir

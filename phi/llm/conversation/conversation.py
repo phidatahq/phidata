@@ -21,7 +21,7 @@ class Conversation(BaseModel):
     name: Optional[str] = None
     # Set log level to debug
     debug_logs: bool = False
-    # Send monitoring data to phidata.com
+    # Monitor conversations on phidata.com
     monitoring: bool = False
 
     # LLM settings
@@ -275,6 +275,9 @@ class Conversation(BaseModel):
         # Save conversation to storage
         self.save_to_storage()
 
+        # Monitor conversation
+        self.monitor()
+
     def save_to_storage(self) -> None:
         """Save the conversation to the storage"""
         if self.storage is None:
@@ -286,3 +289,7 @@ class Conversation(BaseModel):
         if self.storage is not None:
             if self.id is not None:
                 self.storage.end_conversation(conversation_id=self.id, user_id=self.user_id)
+
+    def monitor(self):
+        logger.debug("Monitoring request")
+        pass

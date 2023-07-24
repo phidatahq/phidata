@@ -148,9 +148,13 @@ class WorkspaceConfig(BaseModel):
             SCRIPTS_DIR_ENV_VAR,
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_NAME_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
         )
+
+        if self.ws_name is not None:
+            environ[WORKSPACE_NAME_ENV_VAR] = str(self.ws_name)
 
         if self.ws_root_path is not None:
             environ[WORKSPACE_ROOT_ENV_VAR] = str(self.ws_root_path)

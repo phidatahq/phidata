@@ -1,6 +1,6 @@
 from typing import List, Any, Optional, Dict, Iterator
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from phi.document import Document
 from phi.llm.base import LLM
@@ -17,6 +17,8 @@ from phi.utils.log import logger, set_log_level_to_debug
 class Conversation(BaseModel):
     # The ID of this conversation.
     id: Optional[int] = None
+    # The name of this conversation.
+    name: Optional[str] = None
     # Set log level to debug
     debug_logs: bool = False
     # Send monitoring data to phidata.com
@@ -37,6 +39,8 @@ class Conversation(BaseModel):
 
     # Conversation history
     history: LLMHistory = SimpleConversationHistory()
+    add_history_to_prompt: bool = True
+    add_history_to_messages: bool = False
 
     # Knowledge base for the LLM
     knowledge_base: Optional[LLMKnowledgeBase] = None
@@ -53,23 +57,83 @@ class Conversation(BaseModel):
             logger.debug("Debug logs enabled")
         return v
 
-    @model_validator(mode="after")  # type: ignore
-    def initialize_storage(self):
-        if self.storage is not None:
-            logger.debug("Initializing storage")
-            self.storage.create()
-            self.read_from_storage()  # type: ignore
-        return self
+    @property
+    def conversation_row(self) -> ConversationRow:
+        """Return the conversation row"""
 
-    def get_id(self) -> Optional[int]:
+        return ConversationRow(
+            id=self.id,
+            name=self.name,
+            user_id=self.user_id,
+            user_persona=self.user_persona,
+            user_data=self.user_data,
+            is_active=True,
+            history=self.history,
+            usage_data=self.usage_data,
+            created_at=None,
+            updated_at=None,
+        )
+
+    @conversation_row.setter
+    def conversation_row(self, conversation_row: ConversationRow):
+        """Set the conversation row"""
+
+        # Values that should be overwritten only if they are None
+        if self.id is None and conversation_row.id is not None:
+            self.id = conversation_row.id
+        if self.name is None and conversation_row.name is not None:
+            self.name = conversation_row.name
+        if self.user_persona is None and conversation_row.user_persona is not None:
+            self.user_persona = conversation_row.user_persona
+        if self.user_data is None and conversation_row.user_data is not None:
+            self.user_data = conversation_row.user_data
+
+        # Update current conversation using existing conversation
+        if conversation_row.history is not None:
+            self.history.chat_history = conversation_row.history.chat_history
+            self.history.llm_history = conversation_row.history.llm_history
+            self.history.references = conversation_row.history.references
+        if conversation_row.usage_data is not None:
+            self.usage_data = conversation_row.usage_data
+
+    @property
+    def conversation_id(self) -> Optional[int]:
         if self.id is not None:
             return self.id
 
+        # The create function creates a new conversation row in the database
+        # and returns the ID of the new conversation.
+        return self.start()
+
+    def start(self) -> Optional[int]:
+        """Creates a new conversation and returns the conversation ID
+        that can be used to retrieve this conversation later"""
+
+        _conversation: Optional[ConversationRow] = None
+
         if self.storage is not None:
-            conversation: Optional[ConversationRow] = self.storage.read(self.user_id)
-            if conversation is not None:
-                return conversation.id
-        return None
+            logger.debug("Initializing storage")
+            self.storage.create()
+
+            if self.id is not None:
+                logger.debug(f"Reading conversation: {self.id}")
+                # If the conversation ID is already set, read the conversation from the database
+                _conversation = self.storage.read_conversation(conversation_id=self.id, user_id=self.user_id)
+                if _conversation is None:
+                    raise Exception(f"Conversation not found: {self.id}")
+                logger.debug(f"Conversation found: {self.id}")
+            else:
+                logger.debug("Creating new conversation")
+                # If the conversation ID is not set, create a new conversation in the database
+                _conversation = self.storage.upsert_conversation(conversation=self.conversation_row)
+                if _conversation is None:
+                    raise Exception("Failed to create conversation")
+                logger.debug(f"Created conversation: {_conversation.id}")
+
+        if _conversation is not None:
+            self.conversation_row = _conversation
+
+        return self.id
 
     def get_system_prompt(self) -> str:
         """Return the system prompt for the conversation"""
@@ -91,11 +155,6 @@ class Conversation(BaseModel):
         _system_prompt += "If you don't know the answer, say 'I don't know'. You can ask follow up questions if needed."
         return _system_prompt
 
-    def get_chat_history(self) -> Optional[str]:
-        """Return a formatted chat history for the prompt"""
-
-        return self.history.get_formatted_history()
-
     def get_references(self, question: str) -> Optional[str]:
         """Return relevant information from the knowledge base"""
 
@@ -116,7 +175,9 @@ class Conversation(BaseModel):
             relevant_info += "---\n"
         return relevant_info
 
-    def get_user_prompt(self, question: str, references: Optional[str], chat_history: Optional[str]) -> str:
+    def get_user_prompt(
+        self, question: str, references: Optional[str] = None, chat_history: Optional[str] = None
+    ) -> str:
         """Build the user prompt given a question, references and chat_history"""
 
         _user_prompt = "Your task is to answer the following question "
@@ -163,7 +224,7 @@ class Conversation(BaseModel):
 
         # Build the user prompt
         references = self.get_references(question=question)
-        chat_history = self.get_chat_history()
+        chat_history = self.history.get_formatted_history() if self.add_history_to_prompt else None
         user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
 
         # Create messages for the LLM
@@ -172,13 +233,12 @@ class Conversation(BaseModel):
         messages: List[Message] = [system_message, user_message]
 
         # Add messages to the history
-        # Add user question to the chat history
-        self.history.add_chat_history(message=Message(role="user", content=question))
-        # Add the system message to the history
-        self.history.add_system_message(message=system_message)
-        # Add the user message to the llm history
-        self.history.add_llm_history(message=user_message)
-
+        # Add the system prompt to the history - only added if this is the first message to the LLM
+        self.history.add_system_prompt(message=system_message)
+        # Add user question to the history - this is added to the chat history
+        self.history.add_user_question(message=Message(role="user", content=question))
+        # Add user prompt to the history - this is added to the llm history
+        self.history.add_user_prompt(message=user_message)
         # Add references to the history
         if references:
             self.history.add_references(references=References(question=question, references=references))
@@ -197,11 +257,8 @@ class Conversation(BaseModel):
 
         logger.debug(f"Response: {response}")
 
-        # Add response to chat history
-        self.history.add_chat_history(message=Message(role="assistant", content=response))
-
-        # Add response to llm history
-        self.history.add_llm_history(message=Message(role="assistant", content=response))
+        # Add response to the history - this is added to the chat and llm history
+        self.history.add_llm_response(message=Message(role="assistant", content=response))
 
         # Add response tokens to usage data
         if "response_tokens" in self.usage_data:
@@ -218,49 +275,14 @@ class Conversation(BaseModel):
         # Save conversation to storage
         self.save_to_storage()
 
-    def read_from_storage(self) -> None:
-        """Read existing conversation from storage"""
-        if self.storage is None:
-            return
-
-        existing_conversation = self.storage.read(user_id=self.user_id)
-        if existing_conversation is None:
-            logger.debug(f"No conversation found for user: {self.user_id}")
-            return
-
-        logger.debug(f"Found existing conversation for user: {self.user_id}")
-        # Values that should not be overwritten if provided
-        if self.user_persona is None and existing_conversation.get("user_persona") is not None:
-            self.user_persona = existing_conversation["user_persona"]
-        if self.user_data is None and existing_conversation.get("user_data") is not None:
-            self.user_data = existing_conversation["user_data"]
-
-        # Update conversation using existing conversation
-        user_chat_history = existing_conversation.get("user_chat_history")
-        if user_chat_history is not None and len(user_chat_history) > 0:
-            self.user_messages = [Message(**message) for message in user_chat_history]
-        llm_chat_history = existing_conversation.get("llm_chat_history")
-        if llm_chat_history is not None and len(llm_chat_history) > 0:
-            self.llm_messages = [Message(**message) for message in llm_chat_history]
-        if existing_conversation.get("usage_data") is not None:
-            self.usage_data = existing_conversation["usage_data"]
-
     def save_to_storage(self) -> None:
         """Save the conversation to the storage"""
         if self.storage is None:
             return
-        self.storage.upsert(
-            user_id=self.user_id,
-            user_persona=self.user_persona,
-            user_data=self.user_data,
-            user_chat_history=self.user_chat_history,
-            llm_chat_history=self.llm_chat_history,
-            usage_data=self.usage_data,
-        )
+        self.storage.upsert_conversation(conversation=self.conversation_row)
 
     def end(self) -> None:
         """End the conversation"""
-        self.user_messages = []
-        self.llm_messages = []
         if self.storage is not None:
-            self.storage.end(user_id=self.user_id)
+            if self.id is not None:
+                self.storage.end_conversation(conversation_id=self.id, user_id=self.user_id)

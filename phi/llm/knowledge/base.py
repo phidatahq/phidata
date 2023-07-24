@@ -1,12 +1,14 @@
 from typing import List, Iterator
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from phi.document import Document
 
 
 class LLMKnowledgeBase(BaseModel):
     """Base class for LLM knowledge base"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:

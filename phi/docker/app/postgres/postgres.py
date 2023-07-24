@@ -27,7 +27,7 @@ class PostgresDb(DockerApp, DbApp):
     db_password: Optional[str] = None
     # Provide POSTGRES_DB as db_schema or POSTGRES_DB in secrets_file
     db_schema: Optional[str] = None
-    db_driver: str = "postgresql"
+    db_driver: str = "postgresql+psycopg"
     pgdata: Optional[str] = "/var/lib/postgresql/data/pgdata"
     postgres_initdb_args: Optional[str] = None
     postgres_initdb_waldir: Optional[str] = None
@@ -53,7 +53,7 @@ class PostgresDb(DockerApp, DbApp):
         return self.db_schema or self.get_secret_from_file("POSTGRES_DB")
 
     def get_db_driver(self) -> Optional[str]:
-        return self.db_driver or "postgresql"
+        return self.db_driver
 
     def get_db_host(self) -> Optional[str]:
         return self.get_container_name()

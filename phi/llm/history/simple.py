@@ -14,12 +14,12 @@ class SimpleConversationHistory(LLMHistory):
 
         history = ""
         messages_in_history: List[Message] = []
-        for message in self.messages[::-1]:
+        for message in self.chat_history[::-1]:
             if message.role == "user":
                 messages_in_history.insert(0, message)
             if message.role == "assistant" and self.include_assistant_responses:
                 messages_in_history.insert(0, message)
-            if len(messages_in_history) >= self.max_history_messages:
+            if len(messages_in_history) >= self.max_messages:
                 break
 
         for message in messages_in_history:

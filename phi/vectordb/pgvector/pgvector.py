@@ -75,7 +75,7 @@ class PgVector(VectorDb):
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name)
+            return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
         except Exception as e:
             logger.error(e)
             return False

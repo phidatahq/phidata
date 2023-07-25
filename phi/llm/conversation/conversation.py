@@ -1,4 +1,4 @@
-from typing import List, Any, Optional, Dict, Iterator
+from typing import List, Any, Optional, Dict, Iterator, Callable
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -28,6 +28,7 @@ class Conversation(BaseModel):
     llm: LLM = OpenAIChat()
     llm_name: Optional[str] = None
     system_prompt: Optional[str] = None
+    user_prompt_function: Optional[Callable[[str, Optional[str], Optional[str]], str]] = None
 
     # User settings
     user_id: str = "anonymous"
@@ -180,23 +181,26 @@ class Conversation(BaseModel):
     ) -> str:
         """Build the user prompt given a question, references and chat_history"""
 
-        _user_prompt = "Your task is to answer the following question "
+        if self.user_prompt_function is not None:
+            _generated_user_prompt = self.user_prompt_function(question, references, chat_history)
+            if _generated_user_prompt is not None:
+                return _generated_user_prompt
+
+        _user_prompt = "Your task is to answer the following question"
         if self.user_persona:
-            _user_prompt += f"for a '{self.user_persona}' "
-        _user_prompt += "using the following information:\n"
+            _user_prompt += f" for a '{self.user_persona}'"
         # Add question to the prompt
-        _user_prompt += f"\nQuestion: {question}\n"
+        _user_prompt += f":\nQuestion: {question}\n"
 
         # Add relevant_information to prompt
         if references:
             _user_prompt += f"""
-                You can use the following references if they help you answer the question.
-                If you use the information from the references, please cite them as a bulleted list at the end.
-                START OF REFERENCES
+                You can use the following information if it helps you answer the question.
+                START OF INFORMATION
                 ```
                 {references}
                 ```
-                END OF REFERENCES
+                END OF INFORMATION
                 """
 
         # Add chat history to prompt
@@ -210,8 +214,9 @@ class Conversation(BaseModel):
                 END OF CHAT HISTORY
                 """
 
-        _user_prompt += "\nRemember, your task is to answer the following question using the provided information:\n"
-        _user_prompt += f"Question: {question}\n"
+        _user_prompt += "\nRemember, your task is to answer the following question:"
+        _user_prompt += f"\nQuestion: {question}"
+        _user_prompt += "\nAnswer: "
 
         # Return the user prompt after removing newlines and indenting
         return "\n".join([line.strip() for line in _user_prompt.split("\n")])
@@ -219,21 +224,27 @@ class Conversation(BaseModel):
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
-        # Build the system prompt
+        # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
 
-        # Build the user prompt
+        # -*- Build the user prompt
         references = self.get_references(question=question)
         chat_history = self.history.get_formatted_history() if self.add_history_to_prompt else None
         user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
 
-        # Create messages for the LLM
+        # -*- Build messages to send to the LLM
+        # Create system message
         system_message = Message(role="system", content=system_prompt)
+        # Create user message
         user_message = Message(role="user", content=user_prompt)
-        messages: List[Message] = [system_message, user_message]
+        # Create message list
+        messages: List[Message] = [system_message]
+        if self.add_history_to_messages:
+            messages += self.history.chat_history
+        messages += [user_message]
 
         # Add messages to the history
-        # Add the system prompt to the history - only added if this is the first message to the LLM
+        # Add the system prompt to the history - added only if this is the first message to the LLM
         self.history.add_system_prompt(message=system_message)
         # Add user question to the history - this is added to the chat history
         self.history.add_user_question(message=Message(role="user", content=question))
@@ -244,7 +255,7 @@ class Conversation(BaseModel):
             self.history.add_references(references=References(question=question, references=references))
 
         # Log messages
-        for message in self.history.chat_history:
+        for message in self.history.llm_history:
             logger.debug(f"{message.role}: {message.content}")
 
         # Generate response
@@ -291,5 +302,5 @@ class Conversation(BaseModel):
                 self.storage.end_conversation(conversation_id=self.id, user_id=self.user_id)
 
     def monitor(self):
-        logger.debug("Monitoring request")
+        logger.debug("Sending monitoring request")
         pass

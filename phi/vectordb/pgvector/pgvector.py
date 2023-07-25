@@ -106,7 +106,7 @@ class PgVector(VectorDb):
                     sess.execute(stmt)
                     logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-    def search(self, query: str, num_documents: int = 5) -> List[Document]:
+    def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
         from sqlalchemy.sql.expression import select
 
         query_embedding = self.embedder.get_embedding(query)
@@ -122,7 +122,11 @@ class PgVector(VectorDb):
             self.table.c.usage,
         ]
 
-        stmt = select(*columns).order_by(self.table.c.embedding.max_inner_product(query_embedding)).limit(num_documents)
+        stmt = (
+            select(*columns)
+            .order_by(self.table.c.embedding.max_inner_product(query_embedding))
+            .limit(relevant_documents)
+        )
         logger.debug(f"Query: {stmt}")
 
         # Get neighbors

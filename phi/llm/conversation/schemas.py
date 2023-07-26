@@ -2,28 +2,28 @@ from datetime import datetime
 from typing import Optional, Any, Dict
 from pydantic import BaseModel, ConfigDict
 
-from phi.llm.history.base import LLMHistory
-
 
 class ConversationRow(BaseModel):
-    """Pydantic model for holding LLM conversations"""
+    """Interface between Conversation class and the database"""
 
-    # The ID of this conversation. Added after the conversation is created.
+    # -*- Database ID/Primary key for this conversation.
+    # This is set after the conversation is started and saved to the database.
     id: Optional[int] = None
-    # The name of this conversation. Added after the conversation is created.
-    name: Optional[str] = None
-    # Required: The ID of the user who is participating in this conversation.
-    user_id: str
-    # Required: The history for this conversation.
-    history: LLMHistory
-    # The persona of the user who is participating in this conversation.
+    # -*- User data
+    # The name of the user participating in this conversation.
+    user_name: Optional[str] = None
+    # The persona of the user participating in this conversation.
     user_persona: Optional[str] = None
-    # The data of the user who is participating in this conversation.
-    user_data: Optional[Dict[str, Any]] = None
-    # True if this conversation is active.
+    # True if this conversation is active i.e. not ended.
     is_active: Optional[bool] = None
-    # The usage data of this conversation.
+    # -*- LLM data (name, model, etc.)
+    llm: Optional[Dict[str, Any]] = None
+    # -*- Conversation history
+    history: Optional[Dict[str, Any]] = None
+    # Usage data for this conversation.
     usage_data: Optional[Dict[str, Any]] = None
+    # Extra data associated with this conversation.
+    extra_data: Optional[Dict[str, Any]] = None
     # The timestamp of when this conversation was created.
     created_at: Optional[datetime] = None
     # The timestamp of when this conversation was last updated.

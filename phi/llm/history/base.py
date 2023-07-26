@@ -27,6 +27,12 @@ class LLMHistory(BaseModel):
         self.chat_history.append(message)
         self.llm_history.append(message)
 
+    def add_chat_history(self, messages: List[Message]) -> None:
+        self.chat_history.extend(messages)
+
+    def add_llm_history(self, messages: List[Message]) -> None:
+        self.llm_history.extend(messages)
+
     def add_references(self, references: References) -> None:
         self.references.append(references)
 

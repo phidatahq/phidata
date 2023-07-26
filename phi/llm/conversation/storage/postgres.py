@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 try:
     from sqlalchemy.dialects import postgresql
@@ -12,12 +12,17 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
+try:
+    from psycopg.errors import UndefinedTable
+except ImportError:
+    raise ImportError("`psycopg` not installed")
+
 from phi.llm.conversation.schemas import ConversationRow
-from phi.llm.storage.base import LLMStorage
+from phi.llm.conversation.storage.base import ConversationStorage
 from phi.utils.log import logger
 
 
-class PgConversationStorage(LLMStorage):
+class PgConversationStorage(ConversationStorage):
     def __init__(
         self,
         table_name: str,
@@ -49,22 +54,22 @@ class PgConversationStorage(LLMStorage):
         return Table(
             self.table_name,
             self.metadata,
-            # The ID of this conversation.
+            # Database ID/Primary key for this conversation.
             Column("id", BigInteger, primary_key=True, autoincrement=True),
-            # The name of this conversation.
-            Column("name", String),
-            # The ID of the user who is participating in this conversation.
-            Column("user_id", String),
-            # The persona of the user who is participating in this conversation.
+            # The name of the user participating in this conversation.
+            Column("user_name", String),
+            # The persona of the user participating in this conversation.
             Column("user_persona", String),
-            # The data of the user who is participating in this conversation.
-            Column("user_data", postgresql.JSONB),
             # True if this conversation is active.
             Column("is_active", postgresql.BOOLEAN, server_default=text("true")),
-            # The history of this conversation.
+            # -*- LLM data (name, model, etc.)
+            Column("llm", postgresql.JSONB),
+            # -*- Conversation history
             Column("history", postgresql.JSONB),
-            # The usage data of this conversation.
+            # Usage data for this conversation.
             Column("usage_data", postgresql.JSONB),
+            # Extra data associated with this conversation.
+            Column("extra_data", postgresql.JSONB),
             # The timestamp of when this conversation was created.
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             # The timestamp of when this conversation was last updated.
@@ -90,25 +95,39 @@ class PgConversationStorage(LLMStorage):
             logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
-    def _read_conversation(self, session: Session, conversation_id: int, user_id: str) -> Optional[Row[Any]]:
-        stmt = (
-            select(self.table)
-            .where(self.table.c.id == conversation_id)
-            .where(self.table.c.user_id == user_id)
-            .where(self.table.c.is_active == True)  # noqa: E712
-        )
+    def _read(self, session: Session, conversation_id: int) -> Optional[Row[Any]]:
+        stmt = select(self.table).where(self.table.c.id == conversation_id)
+        try:
+            return session.execute(stmt).first()
+        except UndefinedTable:
+            # Create table if it does not exist
+            self.create()
+        except Exception as e:
+            logger.warning(e)
+        return None
 
-        return session.execute(stmt).one()
-
-    def read_conversation(self, conversation_id: int, user_id: str) -> Optional[ConversationRow]:
+    def read(self, conversation_id: int) -> Optional[ConversationRow]:
         with self.Session() as sess:
             with sess.begin():
-                existing_row: Optional[Row[Any]] = self._read_conversation(
-                    session=sess, conversation_id=conversation_id, user_id=user_id
-                )
+                existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)
                 return ConversationRow.model_validate(existing_row) if existing_row is not None else None
 
-    def upsert_conversation(self, conversation: ConversationRow) -> Optional[ConversationRow]:
+    def get_all_conversation_ids(self, user_name: str) -> List[int]:
+        conversation_ids: List[int] = []
+        with self.Session() as sess:
+            with sess.begin():
+                # get all conversation ids for this user
+                stmt = select(self.table).where(self.table.c.user_name == user_name)
+                # order by id desc
+                stmt = stmt.order_by(self.table.c.id.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                for row in rows:
+                    conversation_ids.append(row.id)
+
+        return conversation_ids
+
+    def upsert(self, conversation: ConversationRow) -> Optional[ConversationRow]:
         """
         Create a new conversation if it does not exist, otherwise update the existing conversation.
         """
@@ -117,55 +136,51 @@ class PgConversationStorage(LLMStorage):
                 # Conversation exists if conversation.id is not None
                 if conversation.id is None:
                     values_to_insert: Dict[str, Any] = {
-                        "user_id": conversation.user_id,
+                        "user_name": conversation.user_name,
                         "user_persona": conversation.user_persona,
-                        "user_data": conversation.user_data,
-                        "history": conversation.history.model_dump(
-                            include={"chat_history", "llm_history", "references"}
-                        ),
+                        "history": conversation.history,
+                        "llm": conversation.llm,
                         "usage_data": conversation.usage_data,
+                        "extra_data": conversation.extra_data,
                     }
-                    if conversation.name is not None:
-                        values_to_insert["name"] = conversation.name
 
                     insert_stmt = postgresql.insert(self.table).values(**values_to_insert)
-                    result = sess.execute(insert_stmt)
+                    try:
+                        result = sess.execute(insert_stmt)
+                    except UndefinedTable:
+                        # Create table if it does not exist
+                        self.create()
+                        result = sess.execute(insert_stmt)
                     conversation.id = result.inserted_primary_key[0]  # type: ignore
                 else:
                     values_to_update: Dict[str, Any] = {}
-                    if conversation.name is not None:
-                        values_to_update["name"] = conversation.name
+                    if conversation.user_name is not None:
+                        values_to_update["user_name"] = conversation.user_name
                     if conversation.user_persona is not None:
                         values_to_update["user_persona"] = conversation.user_persona
-                    if conversation.user_data is not None:
-                        values_to_update["user_data"] = conversation.user_data
                     if conversation.history is not None:
-                        values_to_update["history"] = conversation.history.model_dump(
-                            include={"chat_history", "llm_history", "references"}
-                        )
+                        values_to_update["history"] = conversation.history
+                    if conversation.llm is not None:
+                        values_to_update["llm"] = conversation.llm
                     if conversation.usage_data is not None:
                         values_to_update["usage_data"] = conversation.usage_data
+                    if conversation.extra_data is not None:
+                        values_to_update["extra_data"] = conversation.extra_data
 
                     update_stmt = (
                         self.table.update().where(self.table.c.id == conversation.id).values(**values_to_update)
                     )
                     sess.execute(update_stmt)
-        return self.read_conversation(conversation_id=conversation.id, user_id=conversation.user_id)
+        return self.read(conversation_id=conversation.id)
 
-    def end_conversation(self, conversation_id: int, user_id: str) -> None:
+    def end(self, conversation_id: int) -> None:
         with self.Session() as sess:
             with sess.begin():
-                existing_row: Optional[Row[Any]] = self._read_conversation(
-                    session=sess, conversation_id=conversation_id, user_id=user_id
-                )
                 # Check if conversation exists in the database
+                existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)
+                # If conversation exists, set is_active to False
                 if existing_row is not None:
-                    stmt = (
-                        self.table.update()
-                        .where(self.table.c.id == conversation_id)
-                        .where(self.table.c.user_id == user_id)
-                        .values(is_active=False)
-                    )
+                    stmt = self.table.update().where(self.table.c.id == conversation_id).values(is_active=False)
                     sess.execute(stmt)
 
     def delete(self) -> None:

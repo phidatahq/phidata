@@ -106,6 +106,37 @@ class PgVector(VectorDb):
                     sess.execute(stmt)
                     logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
+    def upsert(self, documents: List[Document]) -> None:
+        """
+        Upsert documents into the database.
+
+        Args:
+            documents (List[Document]): List of documents to upsert
+
+        TODO: This is not working as expected. Need to fix.
+        """
+        with self.Session() as sess:
+            with sess.begin():
+                for document in documents:
+                    document.embed(embedder=self.embedder)
+                    stmt = postgresql.insert(self.table).values(
+                        name=document.name,
+                        meta_data=document.meta_data,
+                        content=document.content,
+                        embedding=document.embedding,
+                        usage=document.usage,
+                    )
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["name", "meta_data"],
+                        set_=dict(
+                            content=stmt.excluded.content,
+                            embedding=stmt.excluded.embedding,
+                            usage=stmt.excluded.usage,
+                        ),
+                    )
+                    sess.execute(stmt)
+                    logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
+
     def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
         from sqlalchemy.sql.expression import select
 
@@ -154,3 +185,6 @@ class PgVector(VectorDb):
         if self.table_exists():
             logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
+
+    def exists(self) -> bool:
+        return self.table_exists()

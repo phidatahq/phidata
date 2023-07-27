@@ -6,6 +6,7 @@ class ApiRoutes:
     # user paths
     USER_HEALTH: str = "/v1/user/health"
     USER_READ: str = "/v1/user/read"
+    USER_CREATE: str = "/v1/user/create"
     USER_UPDATE: str = "/v1/user/update"
     USER_SIGN_IN: str = "/v1/user/signin"
     USER_CLI_AUTH: str = "/v1/user/cliauth"

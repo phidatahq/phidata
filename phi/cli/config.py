@@ -44,7 +44,14 @@ class PhiCliConfig:
     def user(self, user: Optional[UserSchema]) -> None:
         """Sets the user"""
         if user is not None:
-            self._user = user
+            if self._user is not None:
+                logger.debug("Overwriting user")
+                logger.debug(f"Old user: {self._user}")
+                logger.debug(f"New user: {user}")
+                # TOD0: add update user logic on the api
+            else:
+                logger.debug("Setting user")
+                self._user = user
             self.save_config()
 
     ######################################################

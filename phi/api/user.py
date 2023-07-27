@@ -93,3 +93,29 @@ async def user_is_authenticated() -> bool:
             if response_json is not None and response_json.get("status") == "success":
                 return True
             return False
+
+
+async def create_anon_user() -> Optional[UserSchema]:
+    from phi.cli.credentials import save_auth_token
+
+    logger.debug("--o-o-- Creating anon user")
+    return None
+    # async with api_client.Session() as api:
+    #     async with api.post(ApiRoutes.USER_SIGN_IN, json=sign_in_data.model_dump()) as response:
+    #         if invalid_respose(response):
+    #             return None
+    #
+    #         phidata_auth_token = response.headers.get(phi_cli_settings.auth_token_header)
+    #         if phidata_auth_token is None:
+    #             logger.error("Could not authenticate user")
+    #             return None
+    #
+    #         response_json = await response.json()
+    #         if response_json is None:
+    #             return None
+    #
+    #         current_user: UserSchema = UserSchema.model_validate(response_json)
+    #         if current_user is not None:
+    #             save_auth_token(phidata_auth_token)
+    #             return current_user
+    #         return None

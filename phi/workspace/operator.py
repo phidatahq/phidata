@@ -192,6 +192,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
     1.3 Validate WorkspaceConfig is available
     1.4 Set workspace as active
     1.5 Check if remote origin is available
+    1.6 Create anon user if not available
 
     2. Create or Update WorkspaceSchema (if user is logged in)
     If a ws_schema exists for this workspace, this workspace has a record in the backend
@@ -274,7 +275,18 @@ async def setup_workspace(ws_root_path: Path) -> None:
     logger.debug("Git origin: {}".format(git_remote_origin_url))
 
     ######################################################
-    ## 2. Create or Update WorkspaceSchema (if user is logged in)
+    # 1.6 Create anon user if not logged in
+    ######################################################
+    if phi_config.user is None:
+        from phi.api.user import create_anon_user
+
+        logger.debug("Creating anon user")
+        anon_user = await create_anon_user()
+        if anon_user is not None:
+            phi_config.user = anon_user
+
+    ######################################################
+    ## 2. Create or Update WorkspaceSchema
     ######################################################
     if phi_config.user is not None:
         # If a ws_schema exists for this workspace, this workspace is synced with the api

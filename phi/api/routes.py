@@ -22,3 +22,7 @@ class ApiRoutes:
     WORKSPACE_UPDATE_PRIMARY: str = "/v1/workspace/update/primary"
     WORKSPACE_READ_PRIMARY: str = "/v1/workspace/read/primary"
     WORKSPACE_READ_AVAILABLE: str = "/v1/workspace/read/available"
+
+    # monitor paths
+    MONITOR_HEALTH: str = "/v1/monitor/health"
+    MONITOR_EVENT: str = "/v1/monitor/event"

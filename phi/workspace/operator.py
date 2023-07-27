@@ -12,6 +12,7 @@ from phi.cli.console import (
 )
 from phi.infra.enums import InfraType
 from phi.infra.resource.group import InfraResourceGroup
+from phi.api.schemas.monitor import MonitorEventSchema
 from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
@@ -201,6 +202,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
 
     3. Refresh WorkspaceConfig and Complete Workspace setup
     """
+    from phi.api.monitor import log_monitor_event
     from phi.cli.operator import initialize_phi
     from phi.utils.git import get_remote_origin_for_dir
 
@@ -351,6 +353,16 @@ async def setup_workspace(ws_root_path: Path) -> None:
             install_ws_file = f"sh {ws_root_path}/{scripts_dir}/install.sh"
             print_info("3. Install workspace dependencies:")
             print_info(f"\t{install_ws_file}")
+
+        if ws_config.ws_schema is not None:
+            await log_monitor_event(
+                monitor=MonitorEventSchema(
+                    object_name="workspace",
+                    object_data=ws_config.ws_schema.model_dump(exclude_none=True),
+                    event_data={"setup": "success" if ws_config is not None else "failed"},
+                ),
+                workspace=ws_config.ws_schema,
+            )
     else:
         print_info("Workspace setup unsuccessful. Please try again.")
 

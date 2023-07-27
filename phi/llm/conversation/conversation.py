@@ -20,6 +20,8 @@ class Conversation(BaseModel):
     llm: LLM = OpenAIChat()
     # System prompt
     system_prompt: Optional[str] = None
+    # Add an initial introduction (from the assistant) to the chat history
+    introduction: Optional[str] = None
 
     # -*- User settings
     # Name of the user participating in this conversation.
@@ -110,13 +112,19 @@ class Conversation(BaseModel):
         """Use the data to build the conversation
 
         Note:
-            - Only id, history and usage_data are updated from the database.
-            - LLM data, user_name, user_persona, is_active, extra_data are not updated from the database
+            - Parameters updated from the database are: id, user_name, user_persona, history, usage_data, extra_data
+            - Parameters not updated from the database are: LLM, is_active, created_at, updated_at
         """
 
-        # Values that should be overwritten from the database
+        # Values that are overwritten from the database if they are not set in the conversation
         if self.id is None and conversation_row.id is not None:
             self.id = conversation_row.id
+        if self.user_name is None and conversation_row.user_name is not None:
+            self.user_name = conversation_row.user_name
+        if self.user_persona is None and conversation_row.user_persona is not None:
+            self.user_persona = conversation_row.user_persona
+        if self.extra_data is None and conversation_row.extra_data is not None:
+            self.extra_data = conversation_row.extra_data
 
         # Update conversation history from database
         if conversation_row.history is not None:
@@ -154,6 +162,8 @@ class Conversation(BaseModel):
                 logger.debug("Creating new conversation")
                 if self.create_storage:
                     self.storage.create()
+                if self.introduction is not None:
+                    self.history.add_chat_history([Message(role="assistant", content=self.introduction)])
                 self.conversation_row = self.save_to_storage()
                 if self.conversation_row is None:
                     raise Exception("Failed to create conversation")
@@ -270,11 +280,6 @@ class Conversation(BaseModel):
         # Return the user prompt after removing newlines and indenting
         _user_prompt = cast(str, remove_indent(_user_prompt))
         return _user_prompt
-
-    def add_introduction(self, introduction: str) -> None:
-        """Add the introduction to the chat history"""
-        self.history.add_chat_history([Message(role="assistant", content=introduction)])
-        self.save_to_storage()
 
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")

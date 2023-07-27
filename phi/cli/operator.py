@@ -76,6 +76,7 @@ async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     3. If PhiCliConfig exists and auth is valid, return True.
     """
     from phi.utils.filesystem import delete_from_fs
+    from phi.api.user import create_anon_user
 
     print_heading("Welcome to phidata!")
     if reset:
@@ -111,6 +112,10 @@ async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     # Authenticate user
     if login:
         await authenticate_user()
+    else:
+        anon_user = await create_anon_user()
+        if anon_user is not None and phi_config is not None:
+            phi_config.user = anon_user
 
     if phi_config is not None:
         logger.debug("Phidata initialized")

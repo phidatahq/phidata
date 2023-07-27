@@ -25,7 +25,7 @@ class Conversation(BaseModel):
 
     # -*- User settings
     # Name of the user participating in this conversation.
-    user_name: Optional[str] = "anonymous"
+    user_name: Optional[str] = None
     user_persona: Optional[str] = None
 
     # -*- Conversation settings
@@ -89,7 +89,7 @@ class Conversation(BaseModel):
             logger.debug("Debug logs enabled")
         return v
 
-    def get_database_row(self) -> ConversationRow:
+    def to_conversation_row(self) -> ConversationRow:
         """Return the conversation row"""
 
         return ConversationRow(
@@ -108,8 +108,8 @@ class Conversation(BaseModel):
             updated_at=None,
         )
 
-    def from_database_row(self, conversation_row: ConversationRow):
-        """Use the data to build the conversation
+    def from_conversation_row(self, row: ConversationRow):
+        """Load the existing conversation from a database row
 
         Note:
             - Parameters updated from the database are: id, user_name, user_persona, history, usage_data, extra_data
@@ -117,25 +117,25 @@ class Conversation(BaseModel):
         """
 
         # Values that are overwritten from the database if they are not set in the conversation
-        if self.id is None and conversation_row.id is not None:
-            self.id = conversation_row.id
-        if self.user_name is None and conversation_row.user_name is not None:
-            self.user_name = conversation_row.user_name
-        if self.user_persona is None and conversation_row.user_persona is not None:
-            self.user_persona = conversation_row.user_persona
-        if self.extra_data is None and conversation_row.extra_data is not None:
-            self.extra_data = conversation_row.extra_data
+        if self.id is None and row.id is not None:
+            self.id = row.id
+        if self.user_name is None and row.user_name is not None:
+            self.user_name = row.user_name
+        if self.user_persona is None and row.user_persona is not None:
+            self.user_persona = row.user_persona
+        if self.extra_data is None and row.extra_data is not None:
+            self.extra_data = row.extra_data
 
         # Update conversation history from database
-        if conversation_row.history is not None:
+        if row.history is not None:
             try:
-                self.history = self.history.__class__.model_validate(conversation_row.history)
+                self.history = self.history.__class__.model_validate(row.history)
             except Exception as e:
                 logger.error(f"Failed to load conversation history: {e}")
 
         # Update usage data from database
-        if conversation_row.usage_data is not None:
-            self.usage_data = conversation_row.usage_data
+        if row.usage_data is not None:
+            self.usage_data = row.usage_data
 
     def start(self) -> Optional[int]:
         """Starts the conversation and returns the conversation ID
@@ -150,13 +150,10 @@ class Conversation(BaseModel):
             # If the conversation ID is available, read the conversation from the database
             if self.id is not None:
                 logger.debug(f"Reading conversation: {self.id}")
-                self.conversation_row = self.read_from_storage()
-                if self.conversation_row is not None:
-                    logger.debug(f"Conversation found: {self.id}")
-                else:
-                    logger.debug(f"Conversation not found: {self.id}")
+                self.load_from_storage()
 
-            # If the conversation ID is not available OR the conversation is not found in the database,
+            # If the conversation ID is not available
+            # OR the conversation is not found in the database
             # create a new conversation in the database
             if self.conversation_row is None:
                 logger.debug("Creating new conversation")
@@ -168,12 +165,9 @@ class Conversation(BaseModel):
                 if self.conversation_row is None:
                     raise Exception("Failed to create conversation")
                 logger.debug(f"Created conversation: {self.conversation_row.id}")
+                self.from_conversation_row(row=self.conversation_row)
 
-        if self.conversation_row is not None:
-            self.from_database_row(self.conversation_row)
-            return self.conversation_row.id
-
-        return None
+        return self.id
 
     def get_system_prompt(self) -> str:
         """Return the system prompt for the conversation"""
@@ -284,6 +278,9 @@ class Conversation(BaseModel):
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
+        # If needed, load the conversation from the database
+        self.load_from_storage()
+
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
 
@@ -352,6 +349,9 @@ class Conversation(BaseModel):
     def prompt(self, messages: List[Message], user_question: Optional[str] = None) -> Iterator[str]:
         logger.debug("Sending prompt request")
 
+        # If needed, load the conversation from the database
+        self.load_from_storage()
+
         # Add user question to the history - this is added to the chat history
         if user_question:
             self.history.add_user_question(message=Message(role="user", content=user_question))
@@ -393,16 +393,20 @@ class Conversation(BaseModel):
         # Monitor conversation
         self.monitor()
 
-    def read_from_storage(self) -> Optional[ConversationRow]:
-        """Read the conversation from the storage"""
+    def load_from_storage(self) -> Optional[ConversationRow]:
+        """Load the conversation from storage"""
         if self.storage is not None and self.id is not None:
-            return self.storage.read(conversation_id=self.id)
-        return None
+            self.conversation_row = self.storage.read(conversation_id=self.id)
+            if self.conversation_row is not None:
+                logger.debug(f"Found conversation: {self.conversation_row.id}")
+                self.from_conversation_row(row=self.conversation_row)
+                logger.debug(f"Loaded conversation: {self.id}")
+        return self.conversation_row
 
     def save_to_storage(self) -> Optional[ConversationRow]:
         """Save the conversation to the storage"""
         if self.storage is not None:
-            return self.storage.upsert(conversation=self.get_database_row())
+            return self.storage.upsert(conversation=self.to_conversation_row())
         return None
 
     def end(self) -> None:

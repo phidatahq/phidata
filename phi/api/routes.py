@@ -18,6 +18,7 @@ class ApiRoutes:
     WORKSPACE_CREATE: str = "/v1/workspace/create"
     WORKSPACE_UPDATE: str = "/v1/workspace/update"
     WORKSPACE_DELETE: str = "/v1/workspace/delete"
+    WORKSPACE_CLAIM: str = "/v1/workspace/claim"
     WORKSPACE_UPDATE_PRIMARY: str = "/v1/workspace/update/primary"
     WORKSPACE_READ_PRIMARY: str = "/v1/workspace/read/primary"
     WORKSPACE_READ_AVAILABLE: str = "/v1/workspace/read/available"

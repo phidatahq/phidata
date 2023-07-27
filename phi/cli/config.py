@@ -45,10 +45,19 @@ class PhiCliConfig:
         """Sets the user"""
         if user is not None:
             if self._user is not None:
-                logger.debug("Overwriting user")
-                logger.debug(f"Old user: {self._user}")
-                logger.debug(f"New user: {user}")
-                # TOD0: add update user logic on the api
+                if self._user.email == "anon":
+                    from phi.api.workspace import claim_anonymous_workspaces
+
+                    logger.debug("Current user is anon -- claiming workspaces")
+                    # If the current user is anon, claim all workspaces
+                    workspaces_claimed = claim_anonymous_workspaces(
+                        anon_user=self._user,
+                        authenticated_user=user,
+                        workspaces=self.available_ws,
+                    )
+                    if workspaces_claimed:
+                        logger.debug("Workspaces claimed by new user")
+                self._user = user
             else:
                 logger.debug("Setting user")
                 self._user = user

@@ -118,15 +118,16 @@ class PgVector(VectorDb):
             with sess.begin():
                 for document in documents:
                     document.embed(embedder=self.embedder)
+                    cleaned_content = document.content.replace("\x00", "\uFFFD")
                     stmt = postgresql.insert(self.table).values(
                         name=document.name,
                         meta_data=document.meta_data,
-                        content=document.content,
+                        content=cleaned_content,
                         embedding=document.embedding,
                         usage=document.usage,
                     )
                     sess.execute(stmt)
-                    logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
+                    logger.debug(f"Inserted document: {document.name}")
 
     def upsert(self, documents: List[Document]) -> None:
         """

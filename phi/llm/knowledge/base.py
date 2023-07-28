@@ -38,6 +38,9 @@ class LLMKnowledgeBase(BaseModel):
         logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
         return self.vector_db.search(query=query, relevant_documents=_num_documents)
 
+    def reload(self):
+        logger.warning("=" * 100)
+
     def load(self, recreate: bool = False) -> None:
         """Load the knowledge base to vector db"""
 
@@ -48,15 +51,19 @@ class LLMKnowledgeBase(BaseModel):
         if recreate:
             logger.debug("Deleting collection")
             self.vector_db.delete()
-
-        logger.debug("Creating collection")
-        self.vector_db.create()
+            # Create the db only if its deleted
+            logger.debug("Creating collection")
+            self.vector_db.create()
 
         logger.info("Loading knowledge base")
         num_documents = 0
+
         for document_list in self.document_lists:
+            # Filter out documents which are already uploaded
+            if not recreate:
+                document_list = [document for document in document_list if self.vector_db.is_doc_exists(document)]
+
             self.vector_db.insert(documents=document_list)
-            logger.debug(f"Inserted {len(document_list)} documents")
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")
         logger.debug("Optimizing Vector DB")

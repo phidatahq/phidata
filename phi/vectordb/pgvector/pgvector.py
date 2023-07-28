@@ -133,7 +133,7 @@ class PgVector(VectorDb):
                         usage=document.usage,
                     )
                     sess.execute(stmt)
-                    logger.debug(f"Inserted document: {document.name}")
+                    logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
     def upsert(self, documents: List[Document]) -> None:
         """

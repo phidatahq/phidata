@@ -163,17 +163,17 @@ class InfraResource(PhiBase):
                 return self.get_resource_name() == other.get_resource_name()
         return False
 
-    def create(self, client: Any) -> bool:
+    def read(self, client: Any) -> bool:
         raise NotImplementedError
 
-    def read(self, client: Any) -> bool:
+    def is_active(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def create(self, client: Any) -> bool:
         raise NotImplementedError
 
     def update(self, client: Any) -> bool:
         raise NotImplementedError
 
     def delete(self, client: Any) -> bool:
-        raise NotImplementedError
-
-    def is_active(self, client: Any) -> bool:
         raise NotImplementedError

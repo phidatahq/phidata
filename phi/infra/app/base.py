@@ -110,7 +110,7 @@ class InfraApp(PhiBase):
         else:
             return ""
 
-    def build_container_context(self) -> Optional[ContainerContext]:
+    def get_container_context(self) -> Optional[ContainerContext]:
         logger.debug("Building ContainerContext")
 
         if self.container_context is not None:

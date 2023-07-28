@@ -92,6 +92,7 @@ module = [
   "openai.*",
   "pgvector.*",
   "pypdf.*",
+  "kubernetes.*",
   "sqlalchemy.*",
   "setuptools.*",
 ]

@@ -56,12 +56,6 @@ class AwsResource(InfraResource):
             self.aws_profile = aws_profile_env
         return self.aws_profile
 
-    def get_aws_client(self) -> AwsApiClient:
-        if self.aws_client is not None:
-            return self.aws_client
-        self.aws_client = AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
-        return self.aws_client
-
     def get_service_client(self, aws_client: AwsApiClient):
         from boto3 import session
 
@@ -84,6 +78,12 @@ class AwsResource(InfraResource):
             )
         return self.service_resource
 
+    def get_aws_client(self) -> AwsApiClient:
+        if self.aws_client is not None:
+            return self.aws_client
+        self.aws_client = AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+        return self.aws_client
+
     def _read(self, aws_client: AwsApiClient) -> Any:
         logger.warning(f"@_read method not defined for {self.get_resource_name()}")
         return True
@@ -105,10 +105,8 @@ class AwsResource(InfraResource):
 
     def is_active(self, aws_client: AwsApiClient) -> bool:
         """Returns True if the resource is active on Aws"""
-        active_resource = self.read(aws_client=aws_client)
-        if active_resource is not None:
-            return True
-        return False
+        self.active_resource = self.read(aws_client=aws_client)
+        return True if self.active_resource is not None else False
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         logger.warning(f"@_create method not defined for {self.get_resource_name()}")
@@ -143,7 +141,6 @@ class AwsResource(InfraResource):
         return self.resource_created
 
     def post_create(self, aws_client: AwsApiClient) -> bool:
-        # return True as this function is not used for most resources
         return True
 
     def _update(self, aws_client: AwsApiClient) -> Any:
@@ -177,7 +174,6 @@ class AwsResource(InfraResource):
         return self.resource_updated
 
     def post_update(self, aws_client: AwsApiClient) -> bool:
-        # return True as this function is not used for most resources
         return True
 
     def _delete(self, aws_client: AwsApiClient) -> Any:
@@ -211,5 +207,4 @@ class AwsResource(InfraResource):
         return self.resource_deleted
 
     def post_delete(self, aws_client: AwsApiClient) -> bool:
-        # return True because this function is not used for most resources
         return True

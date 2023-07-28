@@ -13,10 +13,9 @@ class AwsResourceGroup(InfraResourceGroup):
     apps: Optional[List[AwsApp]] = None
     resources: Optional[List[AwsResource]] = None
 
+    # -*- Cached Data
     _aws_region: Optional[str] = None
     _aws_profile: Optional[str] = None
-
-    # -*- Cached Data
     _api_client: Optional[AwsApiClient] = None
 
     @property
@@ -89,7 +88,6 @@ class AwsResourceGroup(InfraResourceGroup):
         from phi.aws.resource.types import AwsResourceInstallOrder
 
         logger.debug("-*- Creating AwsResources")
-
         # Build a list of AwsResources to create
         resources_to_create: List[AwsResource] = []
         if self.resources is not None:

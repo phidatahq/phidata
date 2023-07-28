@@ -39,6 +39,7 @@ class CreateClusterRole(BaseModel):
         )
 
         cr = ClusterRole(
+            name=cr_name,
             api_version=ApiVersion.RBAC_AUTH_V1,
             kind=Kind.CLUSTERROLE,
             metadata=ObjectMeta(

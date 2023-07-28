@@ -115,6 +115,7 @@ class DockerResourceGroup(InfraResourceGroup):
             print_heading("--**- Docker resources to create:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             print_info(f"\nNetwork: {self.network}")
             print_info(f"Total {num_resources_to_create} resources")
             return
@@ -124,6 +125,7 @@ class DockerResourceGroup(InfraResourceGroup):
             print_heading("--**-- Confirm resources to create:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             print_info(f"\nNetwork: {self.network}")
             print_info(f"Total {num_resources_to_create} resources")
             confirm = confirm_yes_no("\nConfirm deploy")
@@ -260,6 +262,7 @@ class DockerResourceGroup(InfraResourceGroup):
             print_heading("--**- Docker resources to delete:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             print_info(f"\nNetwork: {self.network}")
             print_info(f"Total {num_resources_to_delete} resources")
             return
@@ -269,6 +272,7 @@ class DockerResourceGroup(InfraResourceGroup):
             print_heading("--**-- Confirm resources to delete:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             print_info(f"\nNetwork: {self.network}")
             print_info(f"Total {num_resources_to_delete} resources")
             confirm = confirm_yes_no("\nConfirm delete")
@@ -406,6 +410,7 @@ class DockerResourceGroup(InfraResourceGroup):
             print_heading("--**- Docker resources to update:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             print_info(f"\nNetwork: {self.network}")
             print_info(f"Total {num_resources_to_update} resources")
             return
@@ -415,6 +420,7 @@ class DockerResourceGroup(InfraResourceGroup):
             print_heading("--**-- Confirm resources to update:")
             for resource in final_docker_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
+            print_info("")
             print_info(f"\nNetwork: {self.network}")
             print_info(f"Total {num_resources_to_update} resources")
             confirm = confirm_yes_no("\nConfirm patch")

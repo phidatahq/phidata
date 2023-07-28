@@ -91,6 +91,28 @@ class PgVector(VectorDb):
             logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
 
+    def is_doc_exists(self, document: Document) -> bool:
+        """
+        Validating if the doc exists or not
+
+        Args:
+            document (Document): Document to validate
+
+        TODO: Currently the logic is checking the doc name exists or not,
+        this can be expanded to validate meta_data
+        """
+        from sqlalchemy.sql.expression import select
+
+        columns = [
+            self.table.c.name,
+        ]
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = select(*columns).where(self.table.c.name == document.name)
+                result = sess.execute(stmt).first()
+                # logger.debug(f"*is the table exists {result} for {document.name}")
+                return result is None
+
     def insert(self, documents: List[Document]) -> None:
         with self.Session() as sess:
             with sess.begin():

@@ -22,7 +22,7 @@ class PDFKnowledgeBase(LLMKnowledgeBase):
         _pdf_path: Path = Path(self.path) if isinstance(self.path, str) else self.path
 
         if _pdf_path.exists() and _pdf_path.is_dir():
-            for _pdf in _pdf_path.glob("*.pdf"):
+            for _pdf in _pdf_path.glob("**/*.pdf"):
                 yield self.reader.read(path=_pdf)
         elif _pdf_path.exists() and _pdf_path.is_file() and _pdf_path.suffix == ".pdf":
             yield self.reader.read(path=_pdf_path)

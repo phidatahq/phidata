@@ -38,9 +38,6 @@ class LLMKnowledgeBase(BaseModel):
         logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
         return self.vector_db.search(query=query, relevant_documents=_num_documents)
 
-    def reload(self):
-        logger.warning("=" * 100)
-
     def load(self, recreate: bool = False) -> None:
         """Load the knowledge base to vector db"""
 

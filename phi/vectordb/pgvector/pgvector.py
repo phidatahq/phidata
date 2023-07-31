@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 
 try:
     from sqlalchemy.dialects import postgresql
@@ -20,6 +20,7 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
+from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
 
 
@@ -31,6 +32,7 @@ class PgVector(VectorDb):
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
+        index: Optional[Union[Ivfflat, HNSW]] = None,
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -52,6 +54,9 @@ class PgVector(VectorDb):
         self.embedder: Embedder = embedder or OpenAIEmbedder()
         self.dimensions: int = self.embedder.dimensions
 
+        # Index for the collection
+        self.index: Optional[Union[Ivfflat, HNSW]] = index
+
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
 
@@ -69,6 +74,7 @@ class PgVector(VectorDb):
             Column("usage", postgresql.JSONB),
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
+            Column("content_hash", String),
             extend_existing=True,
         )
 
@@ -188,3 +194,6 @@ class PgVector(VectorDb):
 
     def exists(self) -> bool:
         return self.table_exists()
+
+    def optimize(self) -> None:
+        pass

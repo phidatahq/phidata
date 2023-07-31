@@ -30,3 +30,7 @@ class VectorDb(ABC):
     @abstractmethod
     def exists(self) -> bool:
         raise NotImplementedError
+
+    @abstractmethod
+    def optimize(self) -> None:
+        raise NotImplementedError

@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.storage_class import StorageClassType
@@ -10,7 +10,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateStorageClass(CreateResourceBase):
+class CreateStorageClass(CreateK8sResource):
     storage_class_name: str
     app_name: str
     storage_class_type: Optional[StorageClassType] = None
@@ -23,7 +23,7 @@ class CreateStorageClass(CreateResourceBase):
     namespace: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[StorageClass]:
+    def _create(self) -> Optional[StorageClass]:
         """Creates a StorageClass resource."""
 
         logger.debug(f"Init StorageClass resource: {self.storage_class_name}")

@@ -12,14 +12,6 @@ class WorkspaceVolumeType(str, Enum):
     EmptyDir = "EmptyDir"
 
 
-class AppVolumeType(str, Enum):
-    HostPath = "HostPath"
-    EmptyDir = "EmptyDir"
-    AwsEbs = "AwsEbs"
-    AwsEfs = "AwsEfs"
-    PersistentVolume = "PersistentVolume"
-
-
 class InfraApp(PhiBase):
     # -*- App Name (required)
     name: str

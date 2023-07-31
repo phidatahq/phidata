@@ -1,8 +1,6 @@
 from typing import Optional
 
-from phi.k8s.create.base import CreateResourceBase
-from phi.k8s.enums.api_version import ApiVersion
-from phi.k8s.enums.kind import Kind
+from phi.k8s.create.base import CreateK8sObject
 from phi.k8s.enums.volume_type import VolumeType
 from phi.k8s.resource.core.v1.volume import (
     Volume,
@@ -15,11 +13,10 @@ from phi.k8s.resource.core.v1.volume import (
     GitRepoVolumeSource,
     HostPathVolumeSource,
 )
-from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateVolume(CreateResourceBase):
+class CreateVolume(CreateK8sObject):
     volume_name: str
     app_name: str
     mount_path: str
@@ -33,18 +30,13 @@ class CreateVolume(CreateResourceBase):
     pvc: Optional[PersistentVolumeClaimVolumeSource] = None
     secret: Optional[SecretVolumeSource] = None
 
-    def _get_resource(self) -> Optional[Volume]:
+    def _create(self) -> Optional[Volume]:
         """Creates the Volume resource"""
 
         volume_name = self.volume_name
         logger.debug(f"Init Volume resource: {volume_name}")
 
-        volume = Volume(
-            name=volume_name,
-            api_version=ApiVersion.CORE_V1,  # only added for pydantic validation
-            kind=Kind.VOLUME,  # only added for pydantic validation
-            metadata=ObjectMeta(),  # only added for pydantic validation
-        )
+        volume = Volume(name=volume_name)
 
         if self.volume_type == VolumeType.EMPTY_DIR:
             if self.empty_dir is not None and isinstance(self.empty_dir, EmptyDirVolumeSource):

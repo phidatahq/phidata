@@ -17,7 +17,7 @@ from pydantic import Field
 
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy
 from phi.k8s.enums.protocol import Protocol
-from phi.k8s.resource.base import K8sObject, K8sResource
+from phi.k8s.resource.base import K8sObject
 from phi.k8s.resource.core.v1.resource_requirements import (
     ResourceRequirements,
 )
@@ -359,7 +359,7 @@ class VolumeMount(K8sObject):
         return _v1_volume_mount
 
 
-class Container(K8sResource):
+class Container(K8sObject):
     """
     Reference:
     - https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#container-v1-core

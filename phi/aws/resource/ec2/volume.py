@@ -261,19 +261,10 @@ class EbsVolume(AwsResource):
             logger.error(e)
         return False
 
-    def get_volume_id(
-        self,
-        aws_client: Optional[AwsApiClient] = None,
-        aws_region: Optional[str] = None,
-        aws_profile: Optional[str] = None,
-    ) -> Optional[str]:
-        """Returns the volume_id of the EbsVolume
+    def get_volume_id(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
+        """Returns the volume_id of the EbsVolume"""
 
-        TODO:
-        - remove aws_region, aws_profile
-        """
-
-        aws_api_client = aws_client or AwsApiClient(aws_region=aws_region, aws_profile=aws_profile)
-        if aws_api_client is not None:
-            self._read(aws_api_client)
+        client = aws_client or self.get_aws_client()
+        if client is not None:
+            self._read(client)
         return self.volume_id

@@ -5,7 +5,7 @@ from pydantic import Field, field_validator, FieldValidationInfo
 from phi.k8s.app.base import K8sApp
 from phi.k8s.app.context import K8sBuildContext
 from phi.k8s.api_client import K8sApiClient
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.resource.base import K8sResource
 from phi.infra.resource.group import InfraResourceGroup
 from phi.workspace.settings import WorkspaceSettings
@@ -14,7 +14,7 @@ from phi.utils.log import logger
 
 class K8sResourceGroup(InfraResourceGroup):
     apps: Optional[List[K8sApp]] = None
-    resources: Optional[List[Union[K8sResource, CreateResourceBase]]] = None
+    resources: Optional[List[Union[K8sResource, CreateK8sResource]]] = None
 
     # K8s namespace to use
     namespace: str = "default"
@@ -93,8 +93,8 @@ class K8sResourceGroup(InfraResourceGroup):
                 ):
                     r.set_workspace_settings(workspace_settings=workspace_settings)
                     resources_to_create.append(r)
-                if isinstance(r, CreateResourceBase):
-                    _k8s_resource = r.get_resource()
+                if isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.create()
                     if _k8s_resource is not None and _k8s_resource.should_create(
                         group_filter=group_filter,
                         name_filter=name_filter,
@@ -235,8 +235,8 @@ class K8sResourceGroup(InfraResourceGroup):
                 ):
                     r.set_workspace_settings(workspace_settings=workspace_settings)
                     resources_to_delete.append(r)
-                if isinstance(r, CreateResourceBase):
-                    _k8s_resource = r.get_resource()
+                if isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.create()
                     if _k8s_resource is not None and _k8s_resource.should_delete(
                         group_filter=group_filter,
                         name_filter=name_filter,
@@ -387,8 +387,8 @@ class K8sResourceGroup(InfraResourceGroup):
                 ):
                     r.set_workspace_settings(workspace_settings=workspace_settings)
                     resources_to_update.append(r)
-                if isinstance(r, CreateResourceBase):
-                    _k8s_resource = r.get_resource()
+                if isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.create()
                     if _k8s_resource is not None and _k8s_resource.should_update(
                         group_filter=group_filter,
                         name_filter=name_filter,

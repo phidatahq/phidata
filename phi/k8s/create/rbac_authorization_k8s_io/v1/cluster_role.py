@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.rbac_authorization_k8s_io.v1.cluster_role import (
@@ -12,14 +12,14 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateClusterRole(CreateResourceBase):
+class CreateClusterRole(CreateK8sResource):
     cr_name: str
     app_name: str
     rules: Optional[List[PolicyRule]] = None
     namespace: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[ClusterRole]:
+    def _create(self) -> Optional[ClusterRole]:
         """Creates the ClusterRole resource"""
 
         cr_name = self.cr_name

@@ -1,8 +1,7 @@
 from typing import Dict, List, Optional
 from typing_extensions import Literal
 
-from pydantic import BaseModel
-
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.apiextensions_k8s_io.v1.custom_resource_definition import (
@@ -16,7 +15,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateCustomResourceDefinition(BaseModel):
+class CreateCustomResourceDefinition(CreateK8sResource):
     crd_name: str
     app_name: str
     group: str
@@ -26,7 +25,7 @@ class CreateCustomResourceDefinition(BaseModel):
     annotations: Optional[Dict[str, str]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def create(self) -> Optional[CustomResourceDefinition]:
+    def _create(self) -> Optional[CustomResourceDefinition]:
         """Creates a CustomResourceDefinition resource"""
 
         crd_name = self.crd_name

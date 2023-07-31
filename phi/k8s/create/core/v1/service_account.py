@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.core.v1.service_account import (
@@ -14,7 +14,7 @@ from phi.utils.defaults import get_default_sa_name
 from phi.utils.log import logger
 
 
-class CreateServiceAccount(CreateResourceBase):
+class CreateServiceAccount(CreateK8sResource):
     sa_name: str
     app_name: str
     automount_service_account_token: Optional[bool] = None
@@ -23,7 +23,7 @@ class CreateServiceAccount(CreateResourceBase):
     namespace: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[ServiceAccount]:
+    def _create(self) -> Optional[ServiceAccount]:
         sa_name = self.sa_name if self.sa_name else get_default_sa_name(self.app_name)
         logger.debug(f"Init ServiceAccount resource: {sa_name}")
 

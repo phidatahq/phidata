@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.create.apps.v1.deployment import CreateDeployment
 from phi.k8s.create.common.port import CreatePort
 from phi.k8s.enums.api_version import ApiVersion
@@ -12,7 +12,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateService(CreateResourceBase):
+class CreateService(CreateK8sResource):
     service_name: str
     app_name: str
     namespace: Optional[str] = None
@@ -39,7 +39,7 @@ class CreateService(CreateResourceBase):
     labels: Optional[Dict[str, str]] = None
     annotations: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[Service]:
+    def _create(self) -> Optional[Service]:
         """Creates a Service resource"""
         service_name = self.service_name
         logger.debug(f"Init Service resource: {service_name}")

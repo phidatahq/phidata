@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType, AppVolumeType  # noqa: F401
+from phi.infra.app.base import InfraApp, WorkspaceVolumeType
 from phi.infra.app.context import ContainerContext
 from phi.docker.app.context import DockerBuildContext
 from phi.utils.log import logger
@@ -13,8 +13,8 @@ class DockerApp(InfraApp):
     # -*- App Volume
     # Create a volume for container storage
     create_volume: bool = False
-    # If volume_host_path is provided, mount this directory relative to the workspace_root
-    # from host machine to container
+    # If volume_dir is provided, mount this directory
+    # RELATIVE to the workspace_root from host machine to container
     volume_dir: Optional[str] = None
     # Otherwise, mount a volume named volume_name to the container
     # If volume_name is not provided, use {app-name}-volume
@@ -244,27 +244,27 @@ class DockerApp(InfraApp):
         from phi.docker.resource.container import DockerContainer
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
-        # -*- Build Container Paths
+        # -*- Get Container Context
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
-        # -*- Build Container Environment
+        # -*- Get Container Environment
         container_env: Dict[str, str] = self.get_container_env(container_context=container_context)
 
-        # -*- Build Container Volumes
+        # -*- Get Container Volumes
         container_volumes = self.get_container_volumes(container_context=container_context)
 
-        # -*- Build Container Ports
+        # -*- Get Container Ports
         container_ports: Dict[str, int] = self.get_container_ports()
 
-        # -*- Build Container Command
+        # -*- Get Container Command
         container_cmd: Optional[List[str]] = self.get_container_command()
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
-        # -*- Create DockerContainer
+        # -*- Build the DockerContainer for this App
         docker_container = DockerContainer(
             name=self.get_container_name(),
             image=self.get_image_str(),

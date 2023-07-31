@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.pv import PVAccessMode
@@ -16,7 +16,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreatePVC(CreateResourceBase):
+class CreatePVC(CreateK8sResource):
     pvc_name: str
     app_name: str
     namespace: Optional[str] = None
@@ -25,7 +25,7 @@ class CreatePVC(CreateResourceBase):
     access_modes: List[PVAccessMode] = [PVAccessMode.READ_WRITE_ONCE]
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[PersistentVolumeClaim]:
+    def _create(self) -> Optional[PersistentVolumeClaim]:
         """Creates a PersistentVolumeClaim resource."""
 
         pvc_name = self.pvc_name

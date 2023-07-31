@@ -1,7 +1,6 @@
 from typing import Dict, Optional
 
-from pydantic import BaseModel
-
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.core.v1.secret import Secret
@@ -10,7 +9,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateSecret(BaseModel):
+class CreateSecret(CreateK8sResource):
     secret_name: str
     app_name: str
     secret_type: Optional[str] = "Opaque"
@@ -19,7 +18,7 @@ class CreateSecret(BaseModel):
     string_data: Optional[Dict[str, str]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def create(self) -> Optional[Secret]:
+    def _create(self) -> Optional[Secret]:
         """Creates a Secret resource"""
 
         secret_name = self.secret_name

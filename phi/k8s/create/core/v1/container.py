@@ -2,14 +2,11 @@ from typing import List, Optional, Dict
 
 from pydantic import BaseModel
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sObject
 from phi.k8s.create.common.port import CreatePort
 from phi.k8s.create.core.v1.volume import CreateVolume
-from phi.k8s.enums.api_version import ApiVersion
-from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy
 from phi.utils.common import get_image_str
-from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.k8s.resource.core.v1.container import (
     Container,
     ContainerPort,
@@ -37,7 +34,7 @@ class CreateEnvVarFromSecret(BaseModel):
     secret_key: Optional[str] = None
 
 
-class CreateContainer(CreateResourceBase):
+class CreateContainer(CreateK8sObject):
     container_name: str
     app_name: str
     image_name: str
@@ -54,7 +51,7 @@ class CreateContainer(CreateResourceBase):
     volumes: Optional[List[CreateVolume]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[Container]:
+    def _create(self) -> Optional[Container]:
         """Creates the Container resource"""
 
         container_name = self.container_name
@@ -141,9 +138,6 @@ class CreateContainer(CreateResourceBase):
                 )
 
         container_resource = Container(
-            api_version=ApiVersion.CORE_V1,  # only added for pydantic validation
-            kind=Kind.CONTAINER,  # only added for pydantic validation
-            metadata=ObjectMeta(),  # only added for pydantic validation
             name=container_name,
             image=get_image_str(self.image_name, self.image_tag),
             image_pull_policy=self.image_pull_policy,

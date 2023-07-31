@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_group import ApiGroup
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
@@ -14,7 +14,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateClusterRoleBinding(CreateResourceBase):
+class CreateClusterRoleBinding(CreateK8sResource):
     crb_name: str
     cr_name: str
     service_account_name: str
@@ -22,7 +22,7 @@ class CreateClusterRoleBinding(CreateResourceBase):
     namespace: str
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> ClusterRoleBinding:
+    def _create(self) -> ClusterRoleBinding:
         """Creates the ClusterRoleBinding resource"""
 
         crb_name = self.crb_name

@@ -1,6 +1,6 @@
 from typing import Dict, Optional, List
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.core.v1.namespace import Namespace, NamespaceSpec
@@ -10,7 +10,7 @@ from phi.utils.defaults import get_default_ns_name
 from phi.utils.log import logger
 
 
-class CreateNamespace(CreateResourceBase):
+class CreateNamespace(CreateK8sResource):
     ns: str
     app_name: str
     # Finalizers is an opaque list of values that must be empty to permanently remove object from storage.
@@ -18,7 +18,7 @@ class CreateNamespace(CreateResourceBase):
     finalizers: Optional[List[str]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _get_resource(self) -> Optional[Namespace]:
+    def _create(self) -> Optional[Namespace]:
         ns_name = self.ns if self.ns else get_default_ns_name(self.app_name)
         logger.debug(f"Init Namespace resource: {ns_name}")
 

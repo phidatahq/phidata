@@ -3,7 +3,7 @@ from typing_extensions import Literal
 
 from phi.k8s.create.core.v1.container import CreateContainer
 from phi.k8s.create.core.v1.volume import CreateVolume
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.restart_policy import RestartPolicy
@@ -24,7 +24,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateDeployment(CreateResourceBase):
+class CreateDeployment(CreateK8sResource):
     deploy_name: str
     pod_name: str
     app_name: str
@@ -46,7 +46,7 @@ class CreateDeployment(CreateResourceBase):
     # Used for deployments with EBS volumes
     recreate_on_update: bool = False
 
-    def _get_resource(self) -> Optional[Deployment]:
+    def _create(self) -> Optional[Deployment]:
         """Creates the Deployment resource"""
 
         deploy_name = self.deploy_name
@@ -67,7 +67,7 @@ class CreateDeployment(CreateResourceBase):
 
         containers: List[Container] = []
         for cc in self.containers:
-            container = cc.get_resource()
+            container = cc.create()
             if container is not None and isinstance(container, Container):
                 containers.append(container)
 
@@ -75,7 +75,7 @@ class CreateDeployment(CreateResourceBase):
         if self.init_containers is not None:
             init_containers = []
             for ic in self.init_containers:
-                _init_container = ic.get_resource()
+                _init_container = ic.create()
                 if _init_container is not None and isinstance(_init_container, Container):
                     init_containers.append(_init_container)
 
@@ -94,7 +94,7 @@ class CreateDeployment(CreateResourceBase):
         if self.volumes:
             volumes = []
             for cv in self.volumes:
-                volume = cv.get_resource()
+                volume = cv.create()
                 if volume and isinstance(volume, Volume):
                     volumes.append(volume)
 

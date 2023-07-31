@@ -3,7 +3,7 @@ from typing import Optional
 from kubernetes.client.models.v1_volume import V1Volume
 from pydantic import Field
 
-from phi.k8s.resource.base import K8sResource
+from phi.k8s.resource.base import K8sObject
 from phi.k8s.resource.core.v1.volume_source import (
     AwsElasticBlockStoreVolumeSource,
     ConfigMapVolumeSource,
@@ -16,7 +16,7 @@ from phi.k8s.resource.core.v1.volume_source import (
 )
 
 
-class Volume(K8sResource):
+class Volume(K8sObject):
     """
     Reference:
     - https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#volume-v1-core

@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict
 from typing_extensions import Literal
 
-from phi.k8s.create.base import CreateResourceBase
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.pv import PVAccessMode
@@ -21,7 +21,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreatePersistentVolume(CreateResourceBase):
+class CreatePersistentVolume(CreateK8sResource):
     pv_name: str
     app_name: str
     labels: Optional[Dict[str, str]] = None
@@ -64,7 +64,7 @@ class CreatePersistentVolume(CreateResourceBase):
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#binding
     claim_ref: Optional[ClaimRef] = None
 
-    def _get_resource(self) -> Optional[PersistentVolume]:
+    def _create(self) -> Optional[PersistentVolume]:
         """Creates the PersistentVolume resource"""
 
         pv_name = self.pv_name

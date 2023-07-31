@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 
-from pydantic import ConfigDict
-
 from phi.base import PhiBase
 from phi.utils.log import logger
 
@@ -20,8 +18,6 @@ class InfraResource(PhiBase):
     resource_created: bool = False
     resource_updated: bool = False
     resource_deleted: bool = False
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
 
     def get_resource_name(self) -> str:
         return self.name

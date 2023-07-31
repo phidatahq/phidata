@@ -1,7 +1,6 @@
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel
-
+from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.create.apiextensions_k8s_io.v1.custom_resource_definition import (
@@ -15,7 +14,7 @@ from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
 
-class CreateCustomObject(BaseModel):
+class CreateCustomObject(CreateK8sResource):
     name: str
     app_name: str
     crd: CreateCustomResourceDefinition
@@ -25,7 +24,7 @@ class CreateCustomObject(BaseModel):
     service_account_name: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def create(self) -> Optional[CustomObject]:
+    def _create(self) -> Optional[CustomObject]:
         """Creates a CustomObject resource."""
         # logger.debug(f"Creating CustomObject Resource: {group_name}")
 

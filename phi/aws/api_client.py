@@ -1,7 +1,4 @@
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import boto3
+from typing import Optional, Any
 
 from phi.utils.log import logger
 
@@ -17,10 +14,10 @@ class AwsApiClient:
         self.aws_profile: Optional[str] = aws_profile
 
         # aws boto3 session
-        self._boto3_session: Optional[boto3.Session] = None
+        self._boto3_session: Optional[Any] = None
         logger.debug("**-+-** AwsApiClient created")
 
-    def create_boto3_session(self) -> Optional[boto3.Session]:
+    def create_boto3_session(self) -> Optional[Any]:
         """Create a boto3 session"""
         import boto3
 
@@ -40,7 +37,7 @@ class AwsApiClient:
         return self._boto3_session
 
     @property
-    def boto3_session(self) -> Optional[boto3.Session]:
+    def boto3_session(self) -> Optional[Any]:
         if self._boto3_session is None:
             self._boto3_session = self.create_boto3_session()
         return self._boto3_session

@@ -105,7 +105,7 @@ class WorkspaceConfig(BaseModel):
                             "AwsResourceGroup",
                         ]:
                             workspace_objects[obj_name] = obj
-                except Exception as e:
+                except Exception:
                     parent_dir = resource_file.parent.name
                     parent_parent_dir = resource_file.parent.parent.name
                     # Ignore errors in resources and tests subdirectories
@@ -115,8 +115,8 @@ class WorkspaceConfig(BaseModel):
                     ):
                         pass
                     else:
-                        logger.warning(f"Error in {resource_file}: {e}")
-                    pass
+                        logger.warning(f"Error in {resource_file}")
+                        raise
 
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():

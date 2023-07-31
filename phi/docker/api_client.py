@@ -1,7 +1,4 @@
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import docker
+from typing import Optional, Any
 
 from phi.utils.log import logger
 
@@ -13,10 +10,10 @@ class DockerApiClient:
         self.timeout: int = timeout
 
         # DockerClient
-        self._api_client: Optional[docker.DockerClient] = None
+        self._api_client: Optional[Any] = None
         logger.debug("**-+-** DockerApiClient created")
 
-    def create_api_client(self) -> Optional[docker.DockerClient]:
+    def create_api_client(self) -> Optional[Any]:
         """Create a docker.DockerClient"""
         import docker
 
@@ -33,7 +30,7 @@ class DockerApiClient:
         return self._api_client
 
     @property
-    def api_client(self) -> Optional[docker.DockerClient]:
+    def api_client(self) -> Optional[Any]:
         if self._api_client is None:
             self._api_client = self.create_api_client()
         return self._api_client

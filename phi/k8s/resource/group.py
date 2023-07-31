@@ -35,7 +35,7 @@ class K8sResourceGroup(InfraResourceGroup):
     @property
     def k8s_client(self) -> K8sApiClient:
         if self._api_client is None:
-            self._api_client = K8sApiClient()
+            self._api_client = K8sApiClient(context=self.context, kubeconfig_path=self.kubeconfig)
         return self._api_client
 
     @field_validator("context", mode="before")

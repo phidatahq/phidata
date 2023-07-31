@@ -168,44 +168,6 @@ class K8sApp(InfraApp):
     # Type: CreateCustomResourceDefinition
     extra_crds: Optional[List[Any]] = None
 
-    def get_container_name(self) -> str:
-        from phi.utils.defaults import get_default_container_name
-
-        return self.container_name or get_default_container_name(self.name)
-
-    def get_pod_name(self) -> str:
-        from phi.utils.defaults import get_default_pod_name
-
-        return self.pod_name or get_default_pod_name(self.name)
-
-    def get_secret_name(self) -> str:
-        from phi.utils.defaults import get_default_secret_name
-
-        return self.secret_name or get_default_secret_name(self.name)
-
-    def get_configmap_name(self) -> str:
-        from phi.utils.defaults import get_default_configmap_name
-
-        return self.configmap_name or get_default_configmap_name(self.name)
-
-    def get_deploy_name(self) -> str:
-        from phi.utils.defaults import get_default_deploy_name
-
-        return self.deploy_name or get_default_deploy_name(self.name)
-
-    def get_service_name(self) -> str:
-        from phi.utils.defaults import get_default_service_name
-
-        return self.service_name or get_default_service_name(self.name)
-
-    def get_service_port(self) -> int:
-        return self.service_port
-
-    def get_sa_name(self) -> str:
-        from phi.utils.defaults import get_default_sa_name
-
-        return self.sa_name or get_default_sa_name(self.name)
-
     def get_cr_name(self) -> str:
         from phi.utils.defaults import get_default_cr_name
 
@@ -215,6 +177,39 @@ class K8sApp(InfraApp):
         from phi.utils.defaults import get_default_crb_name
 
         return self.crb_name or get_default_crb_name(self.name)
+
+    def get_configmap_name(self) -> str:
+        from phi.utils.defaults import get_default_configmap_name
+
+        return self.configmap_name or get_default_configmap_name(self.name)
+
+    def get_secret_name(self) -> str:
+        from phi.utils.defaults import get_default_secret_name
+
+        return self.secret_name or get_default_secret_name(self.name)
+
+    def get_container_name(self) -> str:
+        from phi.utils.defaults import get_default_container_name
+
+        return self.container_name or get_default_container_name(self.name)
+
+    def get_deploy_name(self) -> str:
+        from phi.utils.defaults import get_default_deploy_name
+
+        return self.deploy_name or get_default_deploy_name(self.name)
+
+    def get_pod_name(self) -> str:
+        from phi.utils.defaults import get_default_pod_name
+
+        return self.pod_name or get_default_pod_name(self.name)
+
+    def get_service_name(self) -> str:
+        from phi.utils.defaults import get_default_service_name
+
+        return self.service_name or get_default_service_name(self.name)
+
+    def get_service_port(self) -> int:
+        return self.service_port
 
     def get_cr_policy_rules(self) -> List[Any]:
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
@@ -316,7 +311,7 @@ class K8sApp(InfraApp):
             return self.command.strip().split(" ")
         return self.command
 
-    def build_resources(self, build_context: K8sBuildContext) -> List[K8sResource]:
+    def build_resources(self, build_context: K8sBuildContext) -> List["K8sResource"]:
         from phi.k8s.create.apiextensions_k8s_io.v1.custom_object import CreateCustomObject
         from phi.k8s.create.apiextensions_k8s_io.v1.custom_resource_definition import CreateCustomResourceDefinition
         from phi.k8s.create.apps.v1.deployment import CreateDeployment
@@ -338,7 +333,7 @@ class K8sApp(InfraApp):
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import CreateClusterRoleBinding
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import CreateClusterRole
         from phi.k8s.create.storage_k8s_io.v1.storage_class import CreateStorageClass
-        from phi.utils.defaults import get_default_volume_name
+        from phi.utils.defaults import get_default_volume_name, get_default_sa_name
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Initialize K8s resources
@@ -385,7 +380,7 @@ class K8sApp(InfraApp):
             # Create Service Account
             if sa is None:
                 sa = CreateServiceAccount(
-                    sa_name=sa_name or self.sa_name,
+                    sa_name=sa_name or get_default_sa_name(self.get_app_name()),
                     app_name=self.get_app_name(),
                     namespace=ns_name,
                 )
@@ -394,7 +389,7 @@ class K8sApp(InfraApp):
             # Create Cluster Role
             if cr is None:
                 cr = CreateClusterRole(
-                    cr_name=self.cr_name,
+                    cr_name=self.get_cr_name(),
                     rules=self.get_cr_policy_rules(),
                     app_name=self.get_app_name(),
                     labels=common_labels,
@@ -403,7 +398,7 @@ class K8sApp(InfraApp):
             # Create ClusterRoleBinding
             if crb is None:
                 crb = CreateClusterRoleBinding(
-                    crb_name=self.crb_name,
+                    crb_name=self.get_crb_name(),
                     cr_name=cr.cr_name,
                     service_account_name=sa.sa_name,
                     app_name=self.get_app_name(),
@@ -682,7 +677,7 @@ class K8sApp(InfraApp):
 
         # -*- Build the Container
         container = CreateContainer(
-            container_name=self.container_name,
+            container_name=self.get_container_name(),
             app_name=self.get_app_name(),
             image_name=self.image_name,
             image_tag=self.image_tag,
@@ -717,8 +712,8 @@ class K8sApp(InfraApp):
 
         # -*- Create the Deployment
         deployment = CreateDeployment(
-            deploy_name=self.deploy_name,
-            pod_name=self.pod_name,
+            deploy_name=self.get_deploy_name(),
+            pod_name=self.get_pod_name(),
             app_name=self.get_app_name(),
             namespace=ns_name,
             service_account_name=sa_name,
@@ -742,7 +737,7 @@ class K8sApp(InfraApp):
         if self.create_service:
             service_labels: Dict[str, str] = self.get_service_labels(common_labels)
             service = CreateService(
-                service_name=self.service_name,
+                service_name=self.get_service_name(),
                 app_name=self.get_app_name(),
                 namespace=ns_name,
                 service_account_name=sa_name,

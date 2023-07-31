@@ -238,7 +238,7 @@ class DockerApp(InfraApp):
             return self.command.strip().split(" ")
         return self.command
 
-    def build_resources(self, build_context: DockerBuildContext) -> List[DockerResource]:
+    def build_resources(self, build_context: DockerBuildContext) -> List["DockerResource"]:
         from phi.docker.resource.base import DockerResource
         from phi.docker.resource.network import DockerNetwork
         from phi.docker.resource.container import DockerContainer

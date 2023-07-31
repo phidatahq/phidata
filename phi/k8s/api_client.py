@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
-if TYPE_CHECKING:
-    import kubernetes
+import kubernetes
 
 from phi.utils.log import logger
 
@@ -23,12 +22,10 @@ class K8sApiClient:
         self._apiextensions_v1_api: Optional[kubernetes.client.ApiextensionsV1Api] = None
         self._networking_v1_api: Optional[kubernetes.client.NetworkingV1Api] = None
         self._custom_objects_api: Optional[kubernetes.client.CustomObjectsApi] = None
-        logger.debug("**-+-** K8sApiClient created")
+        logger.debug(f"**-+-** K8sApiClient created for {self.context}")
 
     def create_api_client(self) -> kubernetes.client.ApiClient:
         """Create a kubernetes.client.ApiClient"""
-        import kubernetes
-
         logger.debug("Creating kubernetes.client.ApiClient")
         try:
             self.configuration = kubernetes.client.Configuration()

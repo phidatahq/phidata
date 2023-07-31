@@ -545,7 +545,7 @@ class AwsApp(InfraApp):
             }
         return ecs_service
 
-    def build_resources(self, build_context: AwsBuildContext) -> List[AwsResource]:
+    def build_resources(self, build_context: AwsBuildContext) -> List["AwsResource"]:
         from phi.aws.resource.base import AwsResource
         from phi.aws.resource.ec2.security_group import SecurityGroup
         from phi.aws.resource.ecs.cluster import EcsCluster

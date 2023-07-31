@@ -334,6 +334,21 @@ class PhiCliConfig:
             for k, v in self.ws_config_map.items():
                 print_info(f"  {c}. Name: {v.ws_name}")
                 print_info(f"     Dir: {v.ws_root_path}")
+                if v.docker_resource_groups:
+                    logger.debug("Docker resource groups:")
+                    for drg in v.docker_resource_groups:
+                        logger.debug(f"Env: {drg.env}")
+                        logger.debug(drg.model_dump_json(exclude_none=True, exclude_defaults=True, indent=2))
+                if v.k8s_resource_groups:
+                    logger.debug("K8s resource groups:")
+                    for krg in v.k8s_resource_groups:
+                        logger.debug(f"Env: {krg.env}")
+                        logger.debug(krg.model_dump_json(exclude_none=True, exclude_defaults=True, indent=2))
+                if v.aws_resource_groups:
+                    logger.debug("AWS resource groups:")
+                    for awsg in v.aws_resource_groups:
+                        logger.debug(f"Env: {awsg.env}")
+                        logger.debug(awsg.model_dump_json(exclude_none=True, exclude_defaults=True, indent=2))
                 if v.ws_schema:
                     logger.debug(f"     Schema: {v.ws_schema.model_dump_json(exclude_none=True, indent=2)}")
                 print_info("  -*-\n")

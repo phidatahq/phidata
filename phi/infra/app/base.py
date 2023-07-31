@@ -235,8 +235,11 @@ class InfraApp(PhiBase):
             # If workspace_settings on resource is not set, use app level workspace_settings (if set on app)
             if resource.workspace_settings is None and self.workspace_settings is not None:
                 resource.set_workspace_settings(self.workspace_settings)
+            # If group on resource is not set, use app level group (if set on app)
+            if resource.group is None and app_group is not None:
+                resource.group = app_group
 
-            resource.group = app_group
+            # Always set output_dir on resource to app level output_dir
             resource.output_dir = app_output_dir
 
             app_dependencies = self.get_dependencies()
@@ -265,10 +268,11 @@ class InfraApp(PhiBase):
     def matches_filters(self, group_filter: Optional[str] = None) -> bool:
         if group_filter is not None:
             group_name = self.get_group_name()
-            logger.debug(f"Checking {group_filter} in {group_name}")
-            if group_name is not None:
-                if group_filter not in group_name:
-                    return False
+            logger.debug(f"{self.get_app_name()}: Checking {group_filter} in {group_name}")
+            if group_name is not None and group_filter in group_name:
+                return True
+            else:
+                return False
         return True
 
     def should_create(self, group_filter: Optional[str] = None) -> bool:

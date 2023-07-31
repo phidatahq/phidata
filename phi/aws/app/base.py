@@ -73,9 +73,9 @@ class AwsApp(InfraApp):
     load_balancer_security_groups: Optional[List[Any]] = None
 
     # -*- Listener Configuration
-    listeners: Optional[List[Any]] = None
+    listener: Optional[List[Any]] = None
     # Create a listener if listener is None
-    create_listeners: Optional[bool] = Field(None, validate_default=True)
+    create_listener: Optional[bool] = Field(None, validate_default=True)
 
     # -*- TargetGroup Configuration
     target_group: Optional[Any] = None
@@ -96,10 +96,10 @@ class AwsApp(InfraApp):
     healthy_threshold_count: Optional[int] = None
     unhealthy_threshold_count: Optional[int] = None
 
-    @field_validator("create_listeners", mode="before")
-    def update_create_listeners(cls, create_listeners, info: FieldValidationInfo):
-        if create_listeners:
-            return create_listeners
+    @field_validator("create_listener", mode="before")
+    def update_create_listener(cls, create_listener, info: FieldValidationInfo):
+        if create_listener:
+            return create_listener
 
         # If create_listener is False, then create a listener if create_load_balancer is True
         return info.data.get("create_load_balancer", None)
@@ -377,7 +377,7 @@ class AwsApp(InfraApp):
         else:
             raise Exception(f"Invalid TargetGroup: {self.target_group} - Must be of type TargetGroup")
 
-    def listeners_definition(
+    def listener_definition(
         self, load_balancer: Optional["LoadBalancer"], target_group: Optional["TargetGroup"]
     ) -> List["Listener"]:
         from phi.aws.resource.elb.listener import Listener
@@ -392,12 +392,13 @@ class AwsApp(InfraApp):
         if self.load_balancer_certificate is not None:
             listener.acm_certificates = [self.load_balancer_certificate]
 
-        listeners: List[Listener] = [listener]
+        listener: List[Listener] = [listener]
         if self.load_balancer_enable_https:
             # Add a listener to redirect HTTP to HTTPS
-            listeners.append(
+            listener.append(
                 Listener(
                     name=f"{self.get_app_name()}-redirect-listener",
+                    load_balancer=load_balancer,
                     port=80,
                     protocol="HTTP",
                     default_actions=[
@@ -415,24 +416,24 @@ class AwsApp(InfraApp):
                     ],
                 )
             )
-        return listeners
+        return listener
 
-    def get_listeners(
+    def get_listener(
         self, load_balancer: Optional["LoadBalancer"], target_group: Optional["TargetGroup"]
     ) -> Optional[List["Listener"]]:
         from phi.aws.resource.elb.listener import Listener
 
-        if self.listeners is None:
-            if self.create_listeners:
-                return self.listeners_definition(load_balancer, target_group)
+        if self.listener is None:
+            if self.create_listener:
+                return self.listener_definition(load_balancer, target_group)
             return None
-        elif isinstance(self.listeners, list):
-            for listener in self.listeners:
+        elif isinstance(self.listener, list):
+            for listener in self.listener:
                 if not isinstance(listener, Listener):
                     raise Exception(f"Invalid Listener: {listener} - Must be of type Listener")
-            return self.listeners
+            return self.listener
         else:
-            raise Exception(f"Invalid Listener: {self.listeners} - Must be of type List[Listener]")
+            raise Exception(f"Invalid Listener: {self.listener} - Must be of type List[Listener]")
 
     def get_container_command(self) -> Optional[List[str]]:
         if isinstance(self.command, str):
@@ -576,7 +577,7 @@ class AwsApp(InfraApp):
         target_group: Optional[TargetGroup] = self.get_target_group()
 
         # -*- Get Listener
-        listeners: Optional[List[Listener]] = self.get_listeners(load_balancer=load_balancer, target_group=target_group)
+        listener: Optional[List[Listener]] = self.get_listener(load_balancer=load_balancer, target_group=target_group)
 
         # -*- Get ECSContainer
         ecs_container: EcsContainer = self.get_ecs_container(
@@ -602,8 +603,8 @@ class AwsApp(InfraApp):
             app_resources.append(load_balancer)
         if target_group:
             app_resources.append(target_group)
-        if listeners:
-            app_resources.extend(listeners)
+        if listener:
+            app_resources.append(listener)
         if ecs_cluster:
             app_resources.append(ecs_cluster)
         if ecs_task_definition:

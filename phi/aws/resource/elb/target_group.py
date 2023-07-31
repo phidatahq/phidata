@@ -167,7 +167,7 @@ class TargetGroup(AwsResource):
         """Update EcsService"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        tg_arn = self.get_arn
+        tg_arn = self.get_arn(aws_client=aws_client)
         if tg_arn is None:
             logger.error(f"TargetGroup {self.get_resource_name()} not found.")
             return True
@@ -195,17 +195,17 @@ class TargetGroup(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            create_response = service_client.modify_target_group(
+            response = service_client.modify_target_group(
                 TargetGroupArn=tg_arn,
                 **not_null_args,
             )
-            logger.debug(f"Update Response: {create_response}")
-            resource_dict = create_response.get("TargetGroups", {})
+            logger.debug(f"Update Response: {response}")
+            resource_dict = response.get("TargetGroups", {})
 
             # Validate resource creation
             if resource_dict is not None:
                 print_info(f"TargetGroup updated: {self.get_resource_name()}")
-                self.active_resource = create_response
+                self.active_resource = response
                 return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be created.")

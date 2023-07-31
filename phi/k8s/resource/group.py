@@ -119,7 +119,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_create(
-                            name_filter=name_filter, type_filter=type_filter
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_create.append(app_resource)
 
@@ -261,7 +261,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_delete(
-                            name_filter=name_filter, type_filter=type_filter
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_delete.append(app_resource)
 
@@ -413,7 +413,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_update(
-                            name_filter=name_filter, type_filter=type_filter
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_update.append(app_resource)
 

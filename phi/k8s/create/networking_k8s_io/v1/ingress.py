@@ -27,7 +27,7 @@ class CreateIngress(CreateK8sResource):
     labels: Optional[Dict[str, str]] = None
     annotations: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[Ingress]:
+    def _create(self) -> Ingress:
         """Creates an Ingress resource"""
         ingress_name = self.ingress_name
         logger.debug(f"Init Service resource: {ingress_name}")

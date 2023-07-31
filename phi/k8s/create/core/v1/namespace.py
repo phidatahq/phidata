@@ -18,7 +18,7 @@ class CreateNamespace(CreateK8sResource):
     finalizers: Optional[List[str]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[Namespace]:
+    def _create(self) -> Namespace:
         ns_name = self.ns if self.ns else get_default_ns_name(self.app_name)
         logger.debug(f"Init Namespace resource: {ns_name}")
 

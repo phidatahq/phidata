@@ -46,7 +46,7 @@ class CreateDeployment(CreateK8sResource):
     # Used for deployments with EBS volumes
     recreate_on_update: bool = False
 
-    def _create(self) -> Optional[Deployment]:
+    def _create(self) -> Deployment:
         """Creates the Deployment resource"""
 
         deploy_name = self.deploy_name

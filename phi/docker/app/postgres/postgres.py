@@ -1,7 +1,7 @@
 from typing import Optional, Dict
 
 from phi.infra.app.db_app import DbApp
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, AppVolumeType, ContainerContext  # noqa: F401
+from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
 
 class PostgresDb(DockerApp, DbApp):

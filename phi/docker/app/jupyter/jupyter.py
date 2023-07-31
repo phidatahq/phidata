@@ -3,7 +3,7 @@ from typing import Optional, Union, List, Dict, Any
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, AppVolumeType, ContainerContext  # noqa: F401
+from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
 
 class Jupyter(DockerApp):

@@ -69,8 +69,10 @@ class InfraApp(PhiBase):
     # -*- App Ports
     # Open a container port if open_container_port=True
     open_container_port: bool = False
-    # Port number on the container
+    # Port number to open
     container_port: int = 80
+    # Port name for the opened port
+    container_port_name: str = "http"
     # Host port to map to the container port
     host_port: int = 80
 

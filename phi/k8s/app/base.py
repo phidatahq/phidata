@@ -329,7 +329,12 @@ class K8sApp(InfraApp):
         from phi.k8s.create.core.v1.secret import CreateSecret
         from phi.k8s.create.core.v1.service import CreateService
         from phi.k8s.create.core.v1.service_account import CreateServiceAccount
-        from phi.k8s.create.core.v1.volume import CreateVolume, HostPathVolumeSource, AwsElasticBlockStoreVolumeSource, VolumeType
+        from phi.k8s.create.core.v1.volume import (
+            CreateVolume,
+            HostPathVolumeSource,
+            AwsElasticBlockStoreVolumeSource,
+            VolumeType,
+        )
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import CreateClusterRoleBinding
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import CreateClusterRole
         from phi.k8s.create.storage_k8s_io.v1.storage_class import CreateStorageClass
@@ -450,12 +455,9 @@ class K8sApp(InfraApp):
                     workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-ws")
 
             # If workspace_volume_type is None or EmptyDir
-            if (
-                self.workspace_volume_type is None
-                or self.workspace_volume_type == WorkspaceVolumeType.EmptyDir
-            ):
+            if self.workspace_volume_type is None or self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
                 workspace_parent_container_path_str = container_context.workspace_parent
-                logger.debug(f"Creating EmptyDir")
+                logger.debug("Creating EmptyDir")
                 logger.debug(f"    at: {workspace_parent_container_path_str}")
                 workspace_volume = CreateVolume(
                     volume_name=workspace_volume_name,
@@ -482,20 +484,14 @@ class K8sApp(InfraApp):
                             image_name=self.git_sync_image_name,
                             image_tag=self.git_sync_image_tag,
                             env=git_sync_env,
-                            envs_from_configmap=[cm.cm_name for cm in config_maps]
-                            if len(config_maps) > 0
-                            else None,
-                            envs_from_secret=[secret.secret_name for secret in secrets]
-                            if len(secrets) > 0
-                            else None,
+                            envs_from_configmap=[cm.cm_name for cm in config_maps] if len(config_maps) > 0 else None,
+                            envs_from_secret=[secret.secret_name for secret in secrets] if len(secrets) > 0 else None,
                             volumes=[workspace_volume],
                         )
                         containers.append(git_sync_container)
 
                         if self.create_git_sync_init_container:
-                            git_sync_init_env: Dict[str, Any] = {
-                                "GIT_SYNC_ONE_TIME": True
-                            }
+                            git_sync_init_env: Dict[str, Any] = {"GIT_SYNC_ONE_TIME": True}
                             git_sync_init_env.update(git_sync_env)
                             _git_sync_init_container = CreateContainer(
                                 container_name="git-sync-init",
@@ -541,10 +537,7 @@ class K8sApp(InfraApp):
 
             # If volume_type is AwsEbs
             if self.volume_type == AppVolumeType.AwsEbs:
-                if (
-                    self.ebs_volume_id is not None
-                    or self.ebs_volume is not None
-                ):
+                if self.ebs_volume_id is not None or self.ebs_volume is not None:
                     # To use EbsVolume as the volume_type we:
                     # 1. Need the volume_id
                     # 2. Need to make sure pods are scheduled in the
@@ -555,10 +548,7 @@ class K8sApp(InfraApp):
                     # 2. OR get it from self.ebs_volume
                     ebs_volume_id = self.ebs_volume_id
                     # Derive ebs_volume_id from self.ebs_volume if needed
-                    if (
-                        ebs_volume_id is None
-                        and self.ebs_volume is not None
-                    ):
+                    if ebs_volume_id is None and self.ebs_volume is not None:
                         from phi.aws.resource.ec2.volume import EbsVolume
 
                         # Validate self.ebs_volume is of type EbsVolume
@@ -571,6 +561,8 @@ class K8sApp(InfraApp):
                     if ebs_volume_id is None:
                         raise ValueError("ebs_volume_id is None and could not be derived")
 
+                    logger.debug(f"Mounting: {volume_name}")
+                    logger.debug(f"      to: {self.volume_container_path}")
                     ebs_volume = CreateVolume(
                         volume_name=volume_name,
                         app_name=self.get_app_name(),
@@ -588,10 +580,7 @@ class K8sApp(InfraApp):
                     ebs_volume_region = self.ebs_volume_region
                     ebs_volume_az = self.ebs_volume_az
                     # Derive the aws_region from self.ebs_volume if needed
-                    if (
-                        ebs_volume_region is None
-                        and self.ebs_volume is not None
-                    ):
+                    if ebs_volume_region is None and self.ebs_volume is not None:
                         from phi.aws.resource.ec2.volume import EbsVolume
 
                         # Validate self.ebs_volume is of type EbsVolume
@@ -603,10 +592,7 @@ class K8sApp(InfraApp):
                             ebs_volume_region = _aws_region_from_ebs_volume
 
                     # Derive the availability_zone from self.ebs_volume if needed
-                    if (
-                        ebs_volume_az is None
-                        and self.ebs_volume is not None
-                    ):
+                    if ebs_volume_az is None and self.ebs_volume is not None:
                         from phi.aws.resource.ec2.volume import EbsVolume
 
                         # Validate self.ebs_volume is of type EbsVolume
@@ -628,35 +614,42 @@ class K8sApp(InfraApp):
                         # region and zone as the ebs_volume
                         # https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone
                         if ebs_volume_region is not None:
-                            pod_node_selector[
-                                "topology.kubernetes.io/region"
-                            ] = ebs_volume_region
+                            pod_node_selector["topology.kubernetes.io/region"] = ebs_volume_region
                         else:
-                            raise ValueError(f"{self.get_app_name()}: ebs_volume_region not provided but needed for scheduling pods in the same region as the ebs_volume")
+                            raise ValueError(
+                                f"{self.get_app_name()}: ebs_volume_region not provided "
+                                f"but needed for scheduling pods in the same region as the ebs_volume"
+                            )
 
                         if ebs_volume_az is not None:
-                            pod_node_selector[
-                                "topology.kubernetes.io/zone"
-                            ] = ebs_volume_az
+                            pod_node_selector["topology.kubernetes.io/zone"] = ebs_volume_az
+                        else:
+                            raise ValueError(
+                                f"{self.get_app_name()}: ebs_volume_az not provided "
+                                f"but needed for scheduling pods in the same zone as the ebs_volume"
+                            )
                 else:
                     raise ValueError(f"{self.get_app_name()}: ebs_volume_id not provided")
 
-            # Use EmptyDir as AppVolumeType
+            # If volume_type is EmptyDir
             elif self.volume_type == AppVolumeType.EmptyDir:
                 empty_dir_volume = CreateVolume(
                     volume_name=volume_name,
-                    app_name=app_name,
+                    app_name=self.get_app_name(),
                     mount_path=self.volume_container_path,
                     volume_type=VolumeType.EMPTY_DIR,
                 )
                 volumes.append(empty_dir_volume)
-            # Use HostPath as AppVolumeType
+
+            # If volume_type is HostPath
             elif self.volume_type == AppVolumeType.HostPath:
                 if self.volume_host_path is not None:
                     volume_host_path_str = str(self.volume_host_path)
+                    logger.debug(f"Mounting: {volume_host_path_str}")
+                    logger.debug(f"      to: {self.volume_container_path}")
                     host_path_volume = CreateVolume(
                         volume_name=volume_name,
-                        app_name=app_name,
+                        app_name=self.get_app_name(),
                         mount_path=self.volume_container_path,
                         volume_type=VolumeType.HOST_PATH,
                         host_path=HostPathVolumeSource(
@@ -665,8 +658,9 @@ class K8sApp(InfraApp):
                     )
                     volumes.append(host_path_volume)
                 else:
-                    logger.error(f"{app_name}: volume_host_path not provided")
-                    return None
+                    raise ValueError(f"{self.get_app_name()}: volume_host_path not provided")
+            else:
+                raise ValueError(f"{self.get_app_name()}: volume_type: {self.volume_type} not supported")
 
         # -*- Get Container Ports
         if self.open_container_port:
@@ -674,8 +668,7 @@ class K8sApp(InfraApp):
                 name=self.container_port_name,
                 container_port=self.container_port,
                 service_port=self.service_port,
-                target_port=self.service_target_port
-                or self.container_port_name,
+                target_port=self.service_target_port or self.container_port_name,
             )
             ports.append(container_port)
 
@@ -696,17 +689,10 @@ class K8sApp(InfraApp):
             # Equivalent to docker images CMD
             args=container_args,
             # Equivalent to docker images ENTRYPOINT
-            command=[self.entrypoint]
-            if isinstance(self.entrypoint, str)
-            else self.entrypoint,
-            image_pull_policy=self.image_pull_policy
-            or ImagePullPolicy.IF_NOT_PRESENT,
-            envs_from_configmap=[cm.cm_name for cm in config_maps]
-            if len(config_maps) > 0
-            else None,
-            envs_from_secret=[secret.secret_name for secret in secrets]
-            if len(secrets) > 0
-            else None,
+            command=[self.entrypoint] if isinstance(self.entrypoint, str) else self.entrypoint,
+            image_pull_policy=self.image_pull_policy or ImagePullPolicy.IF_NOT_PRESENT,
+            envs_from_configmap=[cm.cm_name for cm in config_maps] if len(config_maps) > 0 else None,
+            envs_from_secret=[secret.secret_name for secret in secrets] if len(secrets) > 0 else None,
             ports=ports if len(ports) > 0 else None,
             volumes=volumes if len(volumes) > 0 else None,
             labels=container_labels,
@@ -715,27 +701,18 @@ class K8sApp(InfraApp):
 
         # Set default container for kubectl commands
         # https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
-        pod_annotations = {
-            "kubectl.kubernetes.io/default-container": container.container_name
-        }
+        pod_annotations = {"kubectl.kubernetes.io/default-container": container.container_name}
 
         # -*- Add pod annotations
-        if self.pod_annotations is not None and isinstance(
-            self.pod_annotations, dict
-        ):
+        if self.pod_annotations is not None and isinstance(self.pod_annotations, dict):
             pod_annotations.update(self.pod_annotations)
 
         # -*- Get Deployment Labels
-        deploy_labels: Dict[str, str] = self.build_deployment_labels_k8s(common_labels)
+        deploy_labels: Dict[str, str] = self.get_deployment_labels(common_labels)
 
         # If using EbsVolume, restart the deployment on update
         recreate_deployment_on_update = (
-            True
-            if (
-                self.create_volume
-                and self.volume_type == AppVolumeType.AwsEbs
-            )
-            else False
+            True if (self.create_volume and self.volume_type == AppVolumeType.AwsEbs) else False
         )
 
         # -*- Create the Deployment
@@ -763,10 +740,8 @@ class K8sApp(InfraApp):
 
         # -*- Create the Service
         if self.create_service:
-            service_labels: Dict[str, str] = self.build_service_labels_k8s(
-                common_labels
-            )
-            _service = CreateService(
+            service_labels: Dict[str, str] = self.get_service_labels(common_labels)
+            service = CreateService(
                 service_name=self.service_name,
                 app_name=self.get_app_name(),
                 namespace=ns_name,
@@ -776,7 +751,7 @@ class K8sApp(InfraApp):
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
             )
-            services.append(_service)
+            services.append(service)
 
         # -*- List of K8sResources created by this App
         app_resources: List[K8sResource] = []
@@ -795,7 +770,7 @@ class K8sApp(InfraApp):
         if len(storage_classes) > 0:
             app_resources.extend([sc.create() for sc in storage_classes])
         if len(services) > 0:
-            app_resources.extend([_service.create() for _service in services])
+            app_resources.extend([service.create() for service in services])
         if len(deployments) > 0:
             app_resources.extend([deployment.create() for deployment in deployments])
         if len(custom_objects) > 0:

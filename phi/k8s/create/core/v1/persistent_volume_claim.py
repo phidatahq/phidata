@@ -25,7 +25,7 @@ class CreatePVC(CreateK8sResource):
     access_modes: List[PVAccessMode] = [PVAccessMode.READ_WRITE_ONCE]
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[PersistentVolumeClaim]:
+    def _create(self) -> PersistentVolumeClaim:
         """Creates a PersistentVolumeClaim resource."""
 
         pvc_name = self.pvc_name

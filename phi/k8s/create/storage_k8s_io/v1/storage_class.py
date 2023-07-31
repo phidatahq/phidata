@@ -23,7 +23,7 @@ class CreateStorageClass(CreateK8sResource):
     namespace: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[StorageClass]:
+    def _create(self) -> StorageClass:
         """Creates a StorageClass resource."""
 
         logger.debug(f"Init StorageClass resource: {self.storage_class_name}")
@@ -50,8 +50,7 @@ class CreateStorageClass(CreateK8sResource):
             else:
                 raise Exception(f"{self.storage_class_type} not found")
         else:
-            logger.error(f"No provisioner or StorageClassType found for {self.storage_class_name}")
-            return None
+            raise Exception(f"No provisioner or StorageClassType found for {self.storage_class_name}")
 
         # if the parameters are provided use those
         if self.parameters is not None:
@@ -65,8 +64,7 @@ class CreateStorageClass(CreateK8sResource):
             else:
                 raise Exception(f"{self.storage_class_type} not found")
         else:
-            logger.error(f"No parameters or StorageClassType found for {self.storage_class_name}")
-            return None
+            raise Exception(f"No parameters or StorageClassType found for {self.storage_class_name}")
 
         _storage_class = StorageClass(
             name=self.storage_class_name,

@@ -64,7 +64,7 @@ class CreatePersistentVolume(CreateK8sResource):
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#binding
     claim_ref: Optional[ClaimRef] = None
 
-    def _create(self) -> Optional[PersistentVolume]:
+    def _create(self) -> PersistentVolume:
         """Creates the PersistentVolume resource"""
 
         pv_name = self.pv_name

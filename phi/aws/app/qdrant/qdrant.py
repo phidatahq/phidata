@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, AppVolumeType, ContainerContext  # noqa: F401
+from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
 
 class Qdrant(AwsApp):

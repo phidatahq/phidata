@@ -16,7 +16,7 @@ class CreateConfigMap(CreateK8sResource):
     data: Optional[Dict[str, Any]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[ConfigMap]:
+    def _create(self) -> ConfigMap:
         """Creates the ConfigMap resource"""
 
         cm_name = self.cm_name

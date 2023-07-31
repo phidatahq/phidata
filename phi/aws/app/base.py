@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.infra.app.base import InfraApp
+from phi.infra.app.base import InfraApp, WorkspaceVolumeType  # noqa: F401
 from phi.infra.app.context import ContainerContext
 from phi.aws.app.context import AwsBuildContext
 from phi.utils.log import logger

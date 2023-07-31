@@ -51,7 +51,7 @@ class CreateContainer(CreateK8sObject):
     volumes: Optional[List[CreateVolume]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[Container]:
+    def _create(self) -> Container:
         """Creates the Container resource"""
 
         container_name = self.container_name

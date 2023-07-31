@@ -11,7 +11,6 @@ from phi.k8s.resource.apiextensions_k8s_io.v1.custom_object import (
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateCustomObject(CreateK8sResource):
@@ -24,7 +23,7 @@ class CreateCustomObject(CreateK8sResource):
     service_account_name: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[CustomObject]:
+    def _create(self) -> CustomObject:
         """Creates a CustomObject resource."""
         # logger.debug(f"Creating CustomObject Resource: {group_name}")
 
@@ -36,7 +35,6 @@ class CreateCustomObject(CreateK8sResource):
         )
 
         api_group_str: str = self.crd.group
-
         api_version_str: Optional[str] = None
         if self.version is not None and isinstance(self.version, str):
             api_version_str = self.version
@@ -44,14 +42,12 @@ class CreateCustomObject(CreateK8sResource):
             api_version_str = self.crd.versions[0].name
         # api_version is required
         if api_version_str is None:
-            logger.error(f"CustomObject ApiVersion invalid: {api_version_str}")
-            return None
+            raise ValueError(f"CustomObject ApiVersion invalid: {api_version_str}")
 
         plural: Optional[str] = self.crd.names.plural
         # plural is required
         if plural is None:
-            logger.error(f"CustomResourceDefinition plural invalid: {plural}")
-            return None
+            raise ValueError(f"CustomResourceDefinition plural invalid: {plural}")
 
         # validate api_group_str and api_version_str
         api_group_version_str = "{}/{}".format(api_group_str, api_version_str)
@@ -59,18 +55,14 @@ class CreateCustomObject(CreateK8sResource):
         try:
             api_version_enum = ApiVersion.from_str(api_group_version_str)
         except NotImplementedError:
-            logger.error(f"{api_group_version_str} is not a supported API version")
-            logger.error("Please add to phidata.infra.k8s.enums.api_version.ApiVersion")
-            return None
+            raise NotImplementedError(f"{api_group_version_str} is not a supported API version")
 
         kind_str: str = self.crd.names.kind
         kind_enum = None
         try:
             kind_enum = Kind.from_str(kind_str)
         except NotImplementedError:
-            logger.error(f"{kind_str} is not a supported Kind")
-            logger.error("Please add to phidata.infra.k8s.enums.kind.Kind")
-            return None
+            raise NotImplementedError(f"{kind_str} is not a supported Kind")
 
         custom_object = CustomObject(
             name=custom_object_name,

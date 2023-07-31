@@ -30,7 +30,7 @@ class CreateVolume(CreateK8sObject):
     pvc: Optional[PersistentVolumeClaimVolumeSource] = None
     secret: Optional[SecretVolumeSource] = None
 
-    def _create(self) -> Optional[Volume]:
+    def _create(self) -> Volume:
         """Creates the Volume resource"""
 
         volume_name = self.volume_name

@@ -39,7 +39,7 @@ class CreateService(CreateK8sResource):
     labels: Optional[Dict[str, str]] = None
     annotations: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[Service]:
+    def _create(self) -> Service:
         """Creates a Service resource"""
         service_name = self.service_name
         logger.debug(f"Init Service resource: {service_name}")

@@ -19,7 +19,7 @@ class CreateClusterRole(CreateK8sResource):
     namespace: Optional[str] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[ClusterRole]:
+    def _create(self) -> ClusterRole:
         """Creates the ClusterRole resource"""
 
         cr_name = self.cr_name

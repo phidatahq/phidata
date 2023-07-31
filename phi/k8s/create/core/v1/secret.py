@@ -18,7 +18,7 @@ class CreateSecret(CreateK8sResource):
     string_data: Optional[Dict[str, str]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[Secret]:
+    def _create(self) -> Secret:
         """Creates a Secret resource"""
 
         secret_name = self.secret_name

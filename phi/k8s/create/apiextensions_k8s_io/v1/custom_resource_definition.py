@@ -25,7 +25,7 @@ class CreateCustomResourceDefinition(CreateK8sResource):
     annotations: Optional[Dict[str, str]] = None
     labels: Optional[Dict[str, str]] = None
 
-    def _create(self) -> Optional[CustomResourceDefinition]:
+    def _create(self) -> CustomResourceDefinition:
         """Creates a CustomResourceDefinition resource"""
 
         crd_name = self.crd_name
@@ -43,8 +43,7 @@ class CreateCustomResourceDefinition(CreateK8sResource):
                 if isinstance(version, CustomResourceDefinitionVersion):
                     crd_versions.append(version)
         else:
-            logger.error("CustomResourceDefinitionVersion invalid")
-            return None
+            raise ValueError("CustomResourceDefinitionVersion invalid")
 
         crd = CustomResourceDefinition(
             name=crd_name,

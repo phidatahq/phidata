@@ -1,4 +1,3 @@
-from typing import Optional
 
 from phi.base import PhiBase
 from phi.k8s.resource.base import K8sResource, K8sObject
@@ -6,13 +5,13 @@ from phi.utils.log import logger
 
 
 class CreateK8sObject(PhiBase):
-    def _create(self) -> Optional[K8sObject]:
+    def _create(self) -> K8sObject:
         raise NotImplementedError
 
-    def create(self) -> Optional[K8sObject]:
+    def create(self) -> K8sObject:
         _resource = self._create()
         if _resource is None:
-            return None
+            raise ValueError(f"Failed to create resource: {self.__class__.__name__}")
 
         resource_fields = _resource.model_dump(exclude_defaults=True)
         base_fields = self.model_dump(exclude_defaults=True)
@@ -27,13 +26,13 @@ class CreateK8sObject(PhiBase):
 
 
 class CreateK8sResource(PhiBase):
-    def _create(self) -> Optional[K8sResource]:
+    def _create(self) -> K8sResource:
         raise NotImplementedError
 
-    def create(self) -> Optional[K8sResource]:
+    def create(self) -> K8sResource:
         _resource = self._create()
         if _resource is None:
-            return None
+            raise ValueError(f"Failed to create resource: {self.__class__.__name__}")
 
         resource_fields = _resource.model_dump(exclude_defaults=True)
         base_fields = self.model_dump(exclude_defaults=True)

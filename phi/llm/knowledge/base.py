@@ -64,7 +64,8 @@ class LLMKnowledgeBase(BaseModel):
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")
         logger.debug("Optimizing Vector DB")
-        self.vector_db.optimize()
+        if num_documents > 0:
+            self.vector_db.optimize()
 
     def exists(self) -> bool:
         """Returns True if the knowledge base exists"""

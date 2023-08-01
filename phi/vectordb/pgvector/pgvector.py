@@ -6,7 +6,7 @@ try:
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text
+    from sqlalchemy.sql.expression import text, func, select
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -23,6 +23,7 @@ from phi.vectordb.base import VectorDb
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
 import hashlib
+import math
 
 class PgVector(VectorDb):
     def __init__(
@@ -55,7 +56,7 @@ class PgVector(VectorDb):
         self.dimensions: int = self.embedder.dimensions
 
         # Index for the collection
-        self.index: Optional[Union[Ivfflat, HNSW]] = index
+        self.index: Optional[Union[Ivfflat, HNSW]] = index or Ivfflat()
 
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
@@ -104,8 +105,6 @@ class PgVector(VectorDb):
         Args:
             document (Document): Document to validate
         """
-        from sqlalchemy.sql.expression import select
-
         columns = [
             self.table.c.name,
             self.table.c.content_hash
@@ -166,7 +165,6 @@ class PgVector(VectorDb):
                     logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
 
     def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
-        from sqlalchemy.sql.expression import select
 
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
@@ -216,6 +214,27 @@ class PgVector(VectorDb):
 
     def exists(self) -> bool:
         return self.table_exists()
+    
+    def get_count(self) -> int:
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = select(func.count(self.table.c.name)).select_from(self.table)
+                return int(sess.execute(stmt).scalar())
 
     def optimize(self) -> None:
-        pass
+        est_list = self.index.nlist
+        if not self.index.dynamic_list:
+            total_records = self.get_count()
+            logger.debug(f"Total Number of records {total_records}")
+            if est_list < 10:
+                est_list = 10
+            if est_list > 1000000:
+                est_list = math.sqrt(total_records)
+        
+        with self.Session() as sess:
+            with sess.begin():
+                logger.debug(f"Creating Index with appropriate number of lists {est_list} and probes {self.index.probes} with distance metric {self.index.distance_metric}")
+                sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
+                sess.execute(text(f"CREATE INDEX ON {self.table} USING ivfflat (embedding {self.index.distance_metric}) WITH (lists = {est_list});"))
+
+        

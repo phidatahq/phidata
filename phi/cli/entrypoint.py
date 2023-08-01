@@ -2,16 +2,13 @@
 
 This is the entrypoint for the `phi` cli application.
 """
-import asyncio
+import sys
 from asyncio import run as aiorun
 from typing import Optional
 
 import typer
 
 from phi.cli.ws.ws_cli import ws_cli
-
-asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
 # from phi.cli.k8s.k8s_app import k8s_app
 # from phi.cli.wf.wf_app import wf_app
 from phi.utils.log import set_log_level_to_debug
@@ -670,3 +667,7 @@ def set(
 phi_cli.add_typer(ws_cli)
 # phi_cli.add_typer(k8s_app)
 # phi_cli.add_typer(wf_app)
+
+if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith('win'):
+    from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
+    set_event_loop_policy(WindowsSelectorEventLoopPolicy())

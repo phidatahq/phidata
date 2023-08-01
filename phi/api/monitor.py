@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phi.api.client import api_client, invalid_respose
+from phi.api.client import api_client, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.monitor import MonitorEventSchema, MonitorResponseSchema
 from phi.api.schemas.workspace import WorkspaceSchema
@@ -18,7 +18,7 @@ async def log_monitor_event(monitor: MonitorEventSchema, workspace: WorkspaceSch
                     "workspace": workspace.model_dump(include={"id_workspace"}),
                 },
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()

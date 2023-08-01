@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phi.api.client import api_client, invalid_respose
+from phi.api.client import api_client, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.user import UserSchema, EmailPasswordAuthSchema
 from phi.cli.config import PhiCliConfig
@@ -13,7 +13,7 @@ async def user_ping() -> bool:
     try:
         async with api_client.Session() as api:
             async with api.get(ApiRoutes.USER_HEALTH) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return False
 
                 response_json = await response.json()
@@ -35,7 +35,7 @@ async def authenticate_and_get_user(tmp_auth_token: str) -> Optional[UserSchema]
 
         async with api_client.Session() as api:
             async with api.post(ApiRoutes.USER_CLI_AUTH, headers=headers) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 new_auth_token = response.headers.get(phi_cli_settings.auth_token_header)
@@ -65,7 +65,7 @@ async def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSc
     try:
         async with api_client.Session() as api:
             async with api.post(ApiRoutes.USER_SIGN_IN, json=sign_in_data.model_dump()) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 phidata_auth_token = response.headers.get(phi_cli_settings.auth_token_header)
@@ -101,7 +101,7 @@ async def user_is_authenticated() -> bool:
             async with api.get(
                 ApiRoutes.USER_AUTHENTICATE, json=user.model_dump(include={"id_user", "email"})
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return False
 
                 response_json = await response.json()
@@ -120,7 +120,7 @@ async def create_anon_user() -> Optional[UserSchema]:
     try:
         async with api_client.Session() as api:
             async with api.post(ApiRoutes.USER_CREATE, json={"email": "anon", "is_bot": True}) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 phidata_auth_token = response.headers.get(phi_cli_settings.auth_token_header)

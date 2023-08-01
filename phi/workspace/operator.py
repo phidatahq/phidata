@@ -304,7 +304,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
         ######################################################
         # 2.1 Create WorkspaceSchema for NEW WORKSPACE
         ######################################################
-        if ws_schema is None:
+        if ws_schema is None or ws_schema.id_workspace is None:
             from phi.api.workspace import create_workspace_for_user
 
             # If ws_schema is None, this is a NEWLY CREATED WORKSPACE.

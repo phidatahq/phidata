@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from phi.api.client import api_client, invalid_respose
+from phi.api.client import api_client, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.user import UserSchema
 from phi.api.schemas.workspace import WorkspaceSchema
@@ -14,7 +14,7 @@ async def get_primary_workspace(user: UserSchema) -> Optional[WorkspaceSchema]:
             async with api.post(
                 ApiRoutes.WORKSPACE_READ_PRIMARY, json=user.model_dump(include={"id_user", "email"})
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()
@@ -37,7 +37,7 @@ async def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceS
             async with api.post(
                 ApiRoutes.WORKSPACE_READ_AVAILABLE, json=user.model_dump(include={"id_user", "email"})
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()
@@ -67,7 +67,7 @@ async def create_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
                     "workspace": workspace.model_dump(exclude_none=True),
                 },
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()
@@ -95,14 +95,13 @@ async def update_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
                     "workspace": workspace.model_dump(exclude_none=True),
                 },
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()
                 if response_json is None:
                     return None
 
-                # logger.debug(f"response_json: {response_json}")
                 updated_workspace: WorkspaceSchema = WorkspaceSchema.model_validate(response_json)
                 if updated_workspace is not None:
                     return updated_workspace
@@ -122,7 +121,7 @@ async def update_primary_workspace_for_user(user: UserSchema, workspace: Workspa
                     "workspace": workspace.model_dump(include={"id_workspace"}),
                 },
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()
@@ -150,7 +149,7 @@ async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
                     "workspace": workspace.model_dump(include={"id_workspace"}),
                 },
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return None
 
                 response_json = await response.json()
@@ -181,7 +180,7 @@ async def claim_anonymous_workspaces(
                     "workspaces": [workspace.model_dump(include={"id_workspace"}) for workspace in workspaces],
                 },
             ) as response:
-                if invalid_respose(response):
+                if invalid_response(response):
                     return False
 
                 response_json = await response.json()

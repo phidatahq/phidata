@@ -54,14 +54,14 @@ async def authenticate_user() -> None:
         return
 
     if user is None:
-        logger.error("Could not get user data, please try again")
+        logger.error("Could not authenticate, please try again")
         return
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         phi_config = PhiCliConfig(user)
     else:
-        phi_config.user = user
+        await phi_config.set_user(user)
 
     print_info("Welcome {}".format(user.email))
     await phi_config.sync_workspaces_from_api()
@@ -115,7 +115,7 @@ async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     else:
         anon_user = await create_anon_user()
         if anon_user is not None and phi_config is not None:
-            phi_config.user = anon_user
+            await phi_config.set_user(anon_user)
 
     if phi_config is not None:
         logger.debug("Phidata initialized")
@@ -152,7 +152,7 @@ async def sign_in_using_cli() -> None:
     if phi_config is None:
         phi_config = PhiCliConfig(user)
     else:
-        phi_config.user = user
+        await phi_config.set_user(user)
 
     print_info("Welcome {}".format(user.email))
     await phi_config.sync_workspaces_from_api()

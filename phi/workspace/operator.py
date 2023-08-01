@@ -3,6 +3,7 @@ from typing import Optional, cast, Dict, List
 
 import typer
 
+from phi.api.monitor import log_monitor_event
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
     print_heading,
@@ -202,7 +203,6 @@ async def setup_workspace(ws_root_path: Path) -> None:
 
     3. Refresh WorkspaceConfig and Complete Workspace setup
     """
-    from phi.api.monitor import log_monitor_event
     from phi.cli.operator import initialize_phi
     from phi.utils.git import get_remote_origin_for_dir
 
@@ -285,7 +285,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
         logger.debug("Creating anon user")
         anon_user = await create_anon_user()
         if anon_user is not None:
-            phi_config.user = anon_user
+            await phi_config.set_user(anon_user)
 
     ######################################################
     ## 2. Create or Update WorkspaceSchema
@@ -341,6 +341,15 @@ async def setup_workspace(ws_root_path: Path) -> None:
     # will create a new ws_config object in PhiCliConfig
     ws_config = cast(WorkspaceConfig, phi_config.get_ws_config_by_name(ws_config.ws_name))
 
+    # Log workspace setup event
+    monitor_event = MonitorEventSchema(
+        object_name="workspace",
+        event_type="setup",
+        event_status="success",
+        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
+        event_data={"workspace_root_path": str(ws_root_path)},
+    )
+
     if ws_config is not None:
         # logger.debug("Workspace Config: {}".format(ws_config.model_dump_json(indent=2)))
         print_subheading("Setup complete! Next steps:")
@@ -356,11 +365,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
 
         if ws_config.ws_schema is not None:
             await log_monitor_event(
-                monitor=MonitorEventSchema(
-                    object_name="workspace",
-                    object_data=ws_config.ws_schema.model_dump(exclude_none=True),
-                    event_data={"setup": "success" if ws_config is not None else "failed"},
-                ),
+                monitor=monitor_event,
                 workspace=ws_config.ws_schema,
             )
     else:
@@ -425,11 +430,34 @@ async def start_workspace(
         return
 
     print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
+
+    # Log workspace start event
+    monitor_event = MonitorEventSchema(
+        object_name="workspace",
+        event_type="workspace_start",
+        event_status="in_progress",
+        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
+        event_data={
+            "target_env": target_env,
+            "target_infra": target_infra,
+            "target_group": target_group,
+            "target_name": target_name,
+            "target_type": target_type,
+            "dry_run": dry_run,
+            "auto_confirm": auto_confirm,
+            "force": force,
+        },
+    )
+
     if num_rgs_to_create == num_rgs_created:
-        if not dry_run:
-            print_subheading("Workspace started")
+        print_subheading("Workspace started")
+        monitor_event.event_status = "success"
     else:
         logger.error("Workspace start failed")
+        monitor_event.event_status = "failed"
+
+    if ws_config.ws_schema is not None:
+        await log_monitor_event(monitor=monitor_event, workspace=ws_config.ws_schema)
 
 
 async def stop_workspace(

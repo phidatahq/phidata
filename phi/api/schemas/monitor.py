@@ -4,9 +4,11 @@ from pydantic import BaseModel
 
 
 class MonitorEventSchema(BaseModel):
-    object_name: Optional[str] = None
-    object_data: Optional[Dict[str, Any]] = None
+    event_type: str
+    event_status: str
+    object_name: str
     event_data: Optional[Dict[str, Any]] = None
+    object_data: Optional[Dict[str, Any]] = None
 
 
 class MonitorResponseSchema(BaseModel):

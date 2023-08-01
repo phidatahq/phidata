@@ -144,32 +144,26 @@ async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
             return None
 
 
-def claim_anonymous_workspaces(
+async def claim_anonymous_workspaces(
     anon_user: UserSchema, authenticated_user: UserSchema, workspaces: List[WorkspaceSchema]
 ) -> bool:
     logger.debug("--o-o-- Claiming anonymous workspaces")
-    return True
-    # async with api_client.AuthenticatedSession() as api:
-    #     async with api.post(
-    #         ApiRoutes.WORKSPACE_CLAIM,
-    #         json={
-    #             "anon_user": anon_user.model_dump(include={"id_user", "email"}),
-    #             "user": authenticated_user.model_dump(include={"id_user", "email"}),
-    #             "workspaces": [workspace.model_dump(include={"id_workspace"}) for workspace in workspaces],
-    #         }
-    #     ) as response:
-    #         if invalid_respose(response):
-    #             return None
-    #
-    #         response_json = await response.json()
-    #         if response_json is None:
-    #             return None
-    #
-    #         # logger.debug(f"response_json: {response_json}")
-    #         claimed_workspaces: List[WorkspaceSchema] = []
-    #         for workspace in response_json:
-    #             if not isinstance(workspace, dict):
-    #                 logger.debug("Could not parse {}".format(workspace))
-    #                 continue
-    #             claimed_workspaces.append(WorkspaceSchema.model_validate(workspace))
-    #         return claimed_workspaces
+    async with api_client.AuthenticatedSession() as api:
+        async with api.post(
+            ApiRoutes.WORKSPACE_CLAIM,
+            json={
+                "anon_user": anon_user.model_dump(include={"id_user", "email"}),
+                "user": authenticated_user.model_dump(include={"id_user", "email"}),
+                "workspaces": [workspace.model_dump(include={"id_workspace"}) for workspace in workspaces],
+            },
+        ) as response:
+            if invalid_respose(response):
+                return False
+
+            response_json = await response.json()
+            if response_json is None:
+                return False
+
+            if isinstance(response_json, dict) and response_json.get("status") == "success":
+                return True
+            return False

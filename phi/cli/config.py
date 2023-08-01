@@ -40,8 +40,7 @@ class PhiCliConfig:
     def user(self) -> Optional[UserSchema]:
         return self._user
 
-    @user.setter
-    def user(self, user: Optional[UserSchema]) -> None:
+    async def set_user(self, user: Optional[UserSchema]) -> None:
         """Sets the user"""
         if user is not None:
             if self._user is not None:
@@ -50,13 +49,13 @@ class PhiCliConfig:
 
                     logger.debug("Current user is anon -- claiming workspaces")
                     # If the current user is anon, claim all workspaces
-                    workspaces_claimed = claim_anonymous_workspaces(
+                    workspaces_claimed = await claim_anonymous_workspaces(
                         anon_user=self._user,
                         authenticated_user=user,
                         workspaces=self.available_ws,
                     )
-                    if workspaces_claimed:
-                        logger.debug("Workspaces claimed by new user")
+                    if not workspaces_claimed:
+                        logger.warning("Could not claim existing workspaces, please authenticate again")
                 self._user = user
             else:
                 logger.debug("Setting user")
@@ -340,7 +339,6 @@ class PhiCliConfig:
                     print_info("     K8s Envs: {}".format([krg.env for krg in v.k8s_resource_groups]))
                 if v.aws_resource_groups:
                     print_info("     AWS Envs: {}".format([awsg.env for awsg in v.aws_resource_groups]))
-                if v.ws_schema:
-                    logger.debug(f"     Schema: {v.ws_schema.model_dump_json(exclude_none=True, indent=2)}")
-                print_info("  -*-")
+                if v.ws_schema and v.ws_schema.id_workspace:
+                    print_info(f"     Id: {v.ws_schema.id_workspace}")
                 c += 1

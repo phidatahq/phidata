@@ -59,7 +59,6 @@ extend-exclude = '''
 (
   ^/phienv    # exclude phienv directory
   | ^/phidata # exclude phidata directory
-  | ^/.history
 )
 '''
 
@@ -67,8 +66,7 @@ extend-exclude = '''
 line-length = 120
 exclude = [
   "phienv*",
-  "phidata",
-  ".history"
+  "phidata"
 ]
 # Ignore `F401` (import violations) in all `__init__.py` files
 [tool.ruff.per-file-ignores]

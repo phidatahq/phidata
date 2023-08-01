@@ -59,7 +59,7 @@ def log_active_workspace_not_available() -> None:
 
 
 def print_available_workspaces(avl_ws_list) -> None:
-    avl_ws_names = [w.name for w in avl_ws_list] if avl_ws_list else []
+    avl_ws_names = [w.ws_dir_name for w in avl_ws_list] if avl_ws_list else []
     print_info("Available Workspaces:\n  - {}".format("\n  - ".join(avl_ws_names)))
 
 

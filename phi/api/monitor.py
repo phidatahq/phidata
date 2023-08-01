@@ -34,5 +34,5 @@ async def log_monitor_event(monitor: MonitorEventSchema, workspace: WorkspaceSch
                 except Exception as e:
                     logger.warning(e)
     except Exception as e:
-        logger.debug(f"Could not create anon user: {e}")
+        logger.debug(f"Could not log monitor event: {e}")
     return None

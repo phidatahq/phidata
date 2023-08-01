@@ -64,7 +64,6 @@ async def authenticate_user() -> None:
         await phi_config.set_user(user)
 
     print_info("Welcome {}".format(user.email))
-    await phi_config.sync_workspaces_from_api()
 
 
 async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
@@ -155,7 +154,6 @@ async def sign_in_using_cli() -> None:
         await phi_config.set_user(user)
 
     print_info("Welcome {}".format(user.email))
-    await phi_config.sync_workspaces_from_api()
 
 
 # def start_resources(

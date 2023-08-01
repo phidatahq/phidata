@@ -15,19 +15,19 @@ from phi.utils.log import logger
 class WorkspaceConfig(BaseModel):
     """The WorkspaceConfig stores data for a phidata workspace."""
 
-    # Name of the workspace
-    ws_name: str
-    # WorkspaceSchema: This field indicates that the workspace is synced with the api
-    ws_schema: Optional[WorkspaceSchema] = None
+    # Name of the workspace directory
+    ws_dir_name: str
     # The root directory for the workspace.
     # This field indicates that the ws has been downloaded on this machine
     ws_root_path: Optional[Path] = None
     # WorkspaceSettings
     workspace_settings: Optional[WorkspaceSettings] = None
-    # Path to the workspace directory
+    # Path to the "workspace" directory inside the workspace root
     _workspace_dir_path: Optional[Path] = None
     # Timestamp of when this workspace was created on the users machine
     create_ts: datetime.datetime = current_datetime_utc()
+    # WorkspaceSchema: This field indicates that the workspace is synced with the api
+    ws_schema: Optional[WorkspaceSchema] = None
 
     # List of DockerResourceGroup
     docker_resource_groups: Optional[List[Any]] = None
@@ -66,7 +66,8 @@ class WorkspaceConfig(BaseModel):
 
     def load(self) -> bool:
         if self.ws_root_path is None:
-            raise Exception("Workspace root not set")
+            logger.debug("WorkspaceConfig.ws_root_path is None")
+            return False
 
         logger.debug("**--> Loading WorkspaceConfig")
         from sys import path as sys_path
@@ -153,9 +154,6 @@ class WorkspaceConfig(BaseModel):
             WORKSPACE_DIR_ENV_VAR,
         )
 
-        if self.ws_name is not None:
-            environ[WORKSPACE_NAME_ENV_VAR] = str(self.ws_name)
-
         if self.ws_root_path is not None:
             environ[WORKSPACE_ROOT_ENV_VAR] = str(self.ws_root_path)
 
@@ -164,6 +162,8 @@ class WorkspaceConfig(BaseModel):
                 environ[WORKSPACE_DIR_ENV_VAR] = str(workspace_dir_path)
 
             if self.workspace_settings is not None:
+                environ[WORKSPACE_NAME_ENV_VAR] = str(self.workspace_settings.ws_name)
+
                 scripts_dir = self.ws_root_path.joinpath(self.workspace_settings.scripts_dir)
                 environ[SCRIPTS_DIR_ENV_VAR] = str(scripts_dir)
 

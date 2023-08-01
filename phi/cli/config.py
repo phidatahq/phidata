@@ -19,11 +19,11 @@ class PhiCliConfig:
         # To add a user, use the user setter
         self._user: Optional[UserSchema] = user_schema
 
-        # Active ws - used as the default for `phi` commands
-        # To add an active workspace, use the active_ws_name setter
-        self._active_ws_name: Optional[str] = None
+        # Active ws dir - used as the default for `phi` commands
+        # To add an active workspace, use the active_ws_dir setter
+        self._active_ws_dir: Optional[str] = None
 
-        # Mapping from ws_name to ws_config
+        # Mapping from ws_dir_name to ws_config
         self.ws_config_map: Dict[str, WorkspaceConfig] = OrderedDict()
 
         # Quick access from ws_root -> ws_config
@@ -52,7 +52,7 @@ class PhiCliConfig:
                     workspaces_claimed = await claim_anonymous_workspaces(
                         anon_user=self._user,
                         authenticated_user=user,
-                        workspaces=self.available_ws,
+                        workspaces=[ws.ws_schema for ws in self.available_ws if ws.ws_schema is not None],
                     )
                     if not workspaces_claimed:
                         logger.warning("Could not claim existing workspaces, please authenticate again")
@@ -67,37 +67,24 @@ class PhiCliConfig:
     ######################################################
 
     @property
-    def active_ws_name(self) -> Optional[str]:
-        return self._active_ws_name
+    def active_ws_dir(self) -> Optional[str]:
+        return self._active_ws_dir
 
-    @active_ws_name.setter
-    def active_ws_name(self, ws_name: Optional[str]) -> None:
-        if ws_name is not None:
-            self._active_ws_name = ws_name
+    @active_ws_dir.setter
+    def active_ws_dir(self, ws_dir_name: Optional[str]) -> None:
+        if ws_dir_name is not None:
+            self._active_ws_dir = ws_dir_name
             self.save_config()
 
     @property
-    def available_ws(self) -> List[WorkspaceSchema]:
-        available_ws = []
-        if self.ws_config_map:
-            for ws_config in self.ws_config_map.values():
-                if ws_config.ws_schema is not None:
-                    available_ws.append(ws_config.ws_schema)
-        return available_ws
-
-    @available_ws.setter
-    def available_ws(self, avl_ws: Optional[List[WorkspaceSchema]]) -> None:
-        if avl_ws:
-            for ws_schema in avl_ws:
-                if ws_schema.ws_name is not None:
-                    self._add_or_update_ws_config(ws_name=ws_schema.ws_name, ws_schema=ws_schema)
-            self.save_config()
+    def available_ws(self) -> List[WorkspaceConfig]:
+        return list(self.ws_config_map.values())
 
     def _add_or_update_ws_config(
         self,
-        ws_name: str,
-        ws_schema: Optional[WorkspaceSchema] = None,
+        ws_dir_name: str,
         ws_root_path: Optional[Path] = None,
+        ws_schema: Optional[WorkspaceSchema] = None,
     ) -> None:
         """The main function to create, update or refresh the WorkspaceConfig.
 
@@ -108,62 +95,62 @@ class PhiCliConfig:
         """
 
         # Validate ws_name is not None
-        if ws_name is None or not isinstance(ws_name, str):
+        if ws_dir_name is None or not isinstance(ws_dir_name, str):
             return
 
         ######################################################
         # Create new ws_config for ws_name if one does not exist
         ######################################################
-        if ws_name not in self.ws_config_map:
-            logger.debug(f"Creating workspace: {ws_name}")
+        if ws_dir_name not in self.ws_config_map:
+            logger.debug(f"Creating workspace for directory: {ws_dir_name}")
             new_workspace_config = WorkspaceConfig(
-                ws_name=ws_name,
+                ws_dir_name=ws_dir_name,
                 ws_schema=ws_schema,
                 ws_root_path=ws_root_path,
             )
             # Load the new workspace
-            new_workspace_config.load()
-            self.ws_config_map[ws_name] = new_workspace_config
+            # new_workspace_config.load()
+            self.ws_config_map[ws_dir_name] = new_workspace_config
             if ws_root_path is not None:
                 self.path_to_ws_config_map[ws_root_path] = new_workspace_config
                 logger.debug(f"Workspace dir: {ws_root_path}")
-            logger.debug(f"Workspace created: {ws_name}")
+            logger.debug(f"Workspace created for directory: {ws_dir_name}")
             return
 
         ######################################################
         # Update ws_config
         ######################################################
-        logger.debug(f"Updating workspace: {ws_name}")
+        logger.debug(f"Updating workspace at directory: {ws_dir_name}")
         # By this point there should be a WorkspaceConfig object for this ws_name
-        existing_ws_config: Optional[WorkspaceConfig] = self.ws_config_map.get(ws_name, None)
+        existing_ws_config: Optional[WorkspaceConfig] = self.ws_config_map.get(ws_dir_name, None)
         if existing_ws_config is None:
             logger.error("Something went wrong. Please try again.")
             return
 
         # Make a new WorkspaceConfig using new fields or fields from the existing_ws_config
         updated_ws_config: WorkspaceConfig = WorkspaceConfig(
-            ws_name=(ws_name or existing_ws_config.ws_name),
+            ws_dir_name=(ws_dir_name or existing_ws_config.ws_dir_name),
             ws_schema=(ws_schema or existing_ws_config.ws_schema),
             ws_root_path=(ws_root_path or existing_ws_config.ws_root_path),
             create_ts=existing_ws_config.create_ts,
         )
         # Load the updated workspace
-        updated_ws_config.load()
+        # updated_ws_config.load()
 
         # Point the ws_config in ws_config_map and path_to_ws_config_map to updated_ws_config
         # 1. Pop the existing object from the self.ws_config_map
-        if ws_name in self.ws_config_map:
-            self.ws_config_map.pop(ws_name)
-            logger.debug(f"Removed {ws_name} from ws_config_map")
-        self.ws_config_map[ws_name] = updated_ws_config
+        if ws_dir_name in self.ws_config_map:
+            self.ws_config_map.pop(ws_dir_name)
+            logger.debug(f"Removed {ws_dir_name} from ws_config_map")
+        self.ws_config_map[ws_dir_name] = updated_ws_config
 
         # 2. Pop the existing object from the self.path_to_ws_config_map
         if updated_ws_config.ws_root_path is not None:
             if updated_ws_config.ws_root_path in self.path_to_ws_config_map:
                 self.path_to_ws_config_map.pop(updated_ws_config.ws_root_path)
                 logger.debug(f"Removed {updated_ws_config.ws_root_path} from path_to_ws_config_map")
-            self.path_to_ws_config_map[updated_ws_config.ws_root_path] = self.ws_config_map[ws_name]
-        logger.debug(f"Workspace updated: {ws_name}")
+            self.path_to_ws_config_map[updated_ws_config.ws_root_path] = self.ws_config_map[ws_dir_name]
+        logger.debug(f"Workspace updated: {ws_dir_name}")
 
     ######################################################
     # END
@@ -171,42 +158,42 @@ class PhiCliConfig:
 
     def add_new_ws_to_config(
         self,
-        ws_name: str,
+        ws_dir_name: str,
         ws_root_path: Path,
     ) -> None:
         """Adds a newly created workspace to the PhiCliConfig"""
         self._add_or_update_ws_config(
-            ws_name=ws_name,
+            ws_dir_name=ws_dir_name,
             ws_root_path=ws_root_path,
         )
         self.save_config()
 
     def update_ws_config(
         self,
-        ws_name: str,
+        ws_dir_name: str,
         ws_schema: Optional[WorkspaceSchema] = None,
         ws_root_path: Optional[Path] = None,
         set_as_active: bool = False,
     ) -> None:
         """Updates WorkspaceConfig and returns True if successful"""
         self._add_or_update_ws_config(
-            ws_name=ws_name,
+            ws_dir_name=ws_dir_name,
             ws_schema=ws_schema,
             ws_root_path=ws_root_path,
         )
         if set_as_active:
-            self.active_ws_name = ws_name
+            self.active_ws_dir = ws_dir_name
         self.save_config()
 
-    async def delete_ws(self, ws_name: str) -> None:
+    async def delete_ws(self, ws_dir_name: str) -> None:
         """Handles Deleting a workspace from the PhiCliConfig and api"""
 
-        print_heading(f"Deleting record for: {ws_name}")
+        print_heading(f"Deleting record for directory: {ws_dir_name}")
         print_info("-*- Note: this does not delete any files on disk, please delete them manually")
 
-        ws_config: Optional[WorkspaceConfig] = self.ws_config_map.pop(ws_name, None)
+        ws_config: Optional[WorkspaceConfig] = self.ws_config_map.pop(ws_dir_name, None)
         if ws_config is None:
-            logger.warning(f"No record of workspace {ws_name}")
+            logger.warning(f"No record of workspace at {ws_dir_name}")
             return
 
         if ws_config.ws_root_path is not None:
@@ -214,15 +201,15 @@ class PhiCliConfig:
 
         # Check if we're deleting the active workspace, if yes, unset the active ws
         if (
-            self._active_ws_name is not None
-            and ws_config.ws_name is not None
-            and self._active_ws_name == ws_config.ws_name
+            self._active_ws_dir is not None
+            and ws_config.ws_dir_name is not None
+            and self._active_ws_dir == ws_config.ws_dir_name
         ):
-            print_info(f"Removing {ws_config.ws_name} as the active workspace")
-            self._active_ws_name = None
+            print_info(f"Removing {ws_config.ws_dir_name} as the active workspace")
+            self._active_ws_dir = None
 
         if self.user is not None and ws_config.ws_schema is not None:
-            print_info(f"Deleting workspace {ws_config.ws_name} from the server")
+            print_info(f"Deleting workspace {ws_config.ws_dir_name} from the server")
 
             from phi.api.workspace import delete_workspace_for_user
 
@@ -234,20 +221,20 @@ class PhiCliConfig:
     ## Get Workspace Data
     ######################################################
 
-    def get_ws_config_by_name(self, ws_name: str) -> Optional[WorkspaceConfig]:
-        return self.ws_config_map[ws_name] if ws_name in self.ws_config_map else None
+    def get_ws_config_by_dir_name(self, ws_dir_name: str) -> Optional[WorkspaceConfig]:
+        return self.ws_config_map[ws_dir_name] if ws_dir_name in self.ws_config_map else None
 
     def get_ws_config_by_path(self, ws_root_path: Path) -> Optional[WorkspaceConfig]:
         return self.path_to_ws_config_map[ws_root_path] if ws_root_path in self.path_to_ws_config_map else None
 
-    def get_ws_name_by_path(self, ws_root_path: Path) -> Optional[str]:
+    def get_ws_dir_name_by_path(self, ws_root_path: Path) -> Optional[str]:
         if ws_root_path in self.path_to_ws_config_map:
-            return self.path_to_ws_config_map[ws_root_path].ws_name
+            return self.path_to_ws_config_map[ws_root_path].ws_dir_name
         return None
 
-    def get_ws_schema_by_name(self, ws_name: str) -> Optional[WorkspaceSchema]:
-        if ws_name in self.ws_config_map:
-            return self.ws_config_map[ws_name].ws_schema
+    def get_ws_schema_by_dir_name(self, ws_dir_name: str) -> Optional[WorkspaceSchema]:
+        if ws_dir_name in self.ws_config_map:
+            return self.ws_config_map[ws_dir_name].ws_schema
         return None
 
     def get_ws_schema_by_path(self, ws_root_path: Path) -> Optional[WorkspaceSchema]:
@@ -255,48 +242,18 @@ class PhiCliConfig:
             return self.path_to_ws_config_map[ws_root_path].ws_schema
         return None
 
-    def get_ws_root_path_by_name(self, ws_name: str) -> Optional[Path]:
-        if ws_name in self.ws_config_map:
-            return self.ws_config_map[ws_name].ws_root_path
+    def get_ws_root_path_by_dir_name(self, ws_dir_name: str) -> Optional[Path]:
+        if ws_dir_name in self.ws_config_map:
+            return self.ws_config_map[ws_dir_name].ws_root_path
         return None
 
-    def get_active_ws_config(self, refresh: bool = False) -> Optional[WorkspaceConfig]:
-        if self.active_ws_name is not None and self.active_ws_name in self.ws_config_map:
-            if refresh:
-                self.refresh_ws_config(self.active_ws_name)
-            return self.ws_config_map[self.active_ws_name]
+    def get_active_ws_config(self, load: bool = True) -> Optional[WorkspaceConfig]:
+        if self.active_ws_dir is not None and self.active_ws_dir in self.ws_config_map:
+            active_ws_config: WorkspaceConfig = self.ws_config_map[self.active_ws_dir]
+            if load:
+                active_ws_config.load()
+            return active_ws_config
         return None
-
-    def refresh_ws_config(self, ws_name: str) -> None:
-        """Refresh the workspace config for a given workspace name"""
-        self._add_or_update_ws_config(ws_name=ws_name)
-        logger.debug(f"++**++ Config refreshed: {ws_name}")
-        self.save_config()
-
-    ######################################################
-    ## Sync Workspace Data from api
-    ######################################################
-
-    async def sync_workspaces_from_api(self) -> None:
-        from phi.api.workspace import get_primary_workspace, get_available_workspaces
-
-        if self.user is None:
-            logger.error("User not available for workspace sync")
-            return
-
-        # Call api to get the available workspaces
-        available_workspaces: Optional[List[WorkspaceSchema]] = await get_available_workspaces(self.user)
-        if available_workspaces is not None:
-            logger.debug(f"Received {len(available_workspaces)} available workspaces")
-            self.available_ws = available_workspaces
-
-        # Call api to get the primary_ws
-        primary_ws: Optional[WorkspaceSchema] = await get_primary_workspace(self.user)
-        if primary_ws is None:
-            logger.debug("No primary workspace available")
-        else:
-            logger.debug(f"Received primary ws: {primary_ws.model_dump_json(indent=2)}")
-            self.active_ws_name = primary_ws.ws_name
 
     ######################################################
     ## Save PhiCliConfig
@@ -322,8 +279,8 @@ class PhiCliConfig:
     def print_to_cli(self, show_all: bool = False):
         if self.user:
             print_heading(f"User: {self.user.email}\n")
-        if self.active_ws_name:
-            print_heading(f"Active workspace: {self.active_ws_name}\n")
+        if self.active_ws_dir:
+            print_heading(f"Active workspace directory: {self.active_ws_dir}\n")
         else:
             print_info("* No active workspace, run `phi ws create` or `phi ws set`")
 
@@ -331,8 +288,8 @@ class PhiCliConfig:
             print_heading("Available workspaces:\n")
             c = 1
             for k, v in self.ws_config_map.items():
-                print_info(f"  {c}. Name: {v.ws_name}")
-                print_info(f"     Dir: {v.ws_root_path}")
+                print_info(f"  {c}. Directory: {v.ws_dir_name}")
+                print_info(f"     Path: {v.ws_root_path}")
                 if v.docker_resource_groups:
                     print_info("     Docker Envs: {}".format([drg.env for drg in v.docker_resource_groups]))
                 if v.k8s_resource_groups:

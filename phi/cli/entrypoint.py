@@ -9,6 +9,7 @@ from typing import Optional
 import typer
 
 from phi.cli.ws.ws_cli import ws_cli
+
 # from phi.cli.k8s.k8s_app import k8s_app
 # from phi.cli.wf.wf_app import wf_app
 from phi.utils.log import set_log_level_to_debug
@@ -207,7 +208,7 @@ def set(
     if print_debug_log:
         set_log_level_to_debug()
 
-    aiorun(set_workspace_as_active(ws_name))
+    aiorun(set_workspace_as_active(ws_dir_name=ws_name))
 
 
 # @phi_cli.command(short_help="Start resources defined in a resources.py file")
@@ -668,6 +669,7 @@ phi_cli.add_typer(ws_cli)
 # phi_cli.add_typer(k8s_app)
 # phi_cli.add_typer(wf_app)
 
-if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith('win'):
+if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith("win"):
     from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
+
     set_event_loop_policy(WindowsSelectorEventLoopPolicy())

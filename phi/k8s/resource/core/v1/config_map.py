@@ -88,7 +88,6 @@ class ConfigMap(K8sResource):
         if v1_config_map.metadata.creation_timestamp is not None:
             logger.debug("ConfigMap Created")
             self.active_resource = v1_config_map
-            self.active_resource_class = V1ConfigMap
             return True
         logger.error("ConfigMap could not be created")
         return False
@@ -112,7 +111,6 @@ class ConfigMap(K8sResource):
         if cm_name in active_resources_dict:
             active_resource = active_resources_dict[cm_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1ConfigMap
             logger.debug(f"Found active {cm_name}")
         return active_resource
 
@@ -134,7 +132,6 @@ class ConfigMap(K8sResource):
         if v1_config_map.metadata.creation_timestamp is not None:
             logger.debug("ConfigMap Updated")
             self.active_resource = v1_config_map
-            self.active_resource_class = V1ConfigMap
             return True
         logger.error("ConfigMap could not be updated")
         return False

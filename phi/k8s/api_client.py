@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Optional
 
 import kubernetes
@@ -7,10 +6,10 @@ from phi.utils.log import logger
 
 
 class K8sApiClient:
-    def __init__(self, context: Optional[str] = None, kubeconfig_path: Optional[Path] = None):
+    def __init__(self, context: Optional[str] = None, kubeconfig_path: Optional[str] = None):
         super().__init__()
         self.context: Optional[str] = context
-        self.kubeconfig_path: Optional[Path] = kubeconfig_path
+        self.kubeconfig_path: Optional[str] = kubeconfig_path
         self.configuration: Optional[kubernetes.client.Configuration] = None
 
         # kubernetes API clients
@@ -30,7 +29,9 @@ class K8sApiClient:
         try:
             self.configuration = kubernetes.client.Configuration()
             try:
-                kubernetes.config.load_kube_config(client_configuration=self.configuration, context=self.context)
+                kubernetes.config.load_kube_config(
+                    config_file=self.kubeconfig_path, client_configuration=self.configuration, context=self.context
+                )
             except kubernetes.config.ConfigException:
                 # Usually because the context is not in the kubeconfig
                 kubernetes.config.load_kube_config(client_configuration=self.configuration)

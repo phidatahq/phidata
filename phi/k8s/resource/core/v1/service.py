@@ -5,6 +5,7 @@ from kubernetes.client.models.v1_service import V1Service
 from kubernetes.client.models.v1_service_list import V1ServiceList
 from kubernetes.client.models.v1_service_port import V1ServicePort
 from kubernetes.client.models.v1_service_spec import V1ServiceSpec
+from kubernetes.client.models.v1_service_status import V1ServiceStatus
 from kubernetes.client.models.v1_status import V1Status
 from pydantic import Field
 
@@ -289,7 +290,6 @@ class Service(K8sResource):
         if v1_service.metadata.creation_timestamp is not None:
             logger.debug("Service Created")
             self.active_resource = v1_service
-            self.active_resource_class = V1Service
             return True
         logger.error("Service could not be created")
         return False
@@ -313,7 +313,6 @@ class Service(K8sResource):
         if svc_name in active_resources_dict:
             active_resource = active_resources_dict[svc_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1Service
             logger.debug(f"Found active {svc_name}")
         return active_resource
 
@@ -335,7 +334,6 @@ class Service(K8sResource):
         if v1_service.metadata.creation_timestamp is not None:
             logger.debug("Service Updated")
             self.active_resource = v1_service
-            self.active_resource_class = V1Service
             return True
         logger.error("Service could not be updated")
         return False
@@ -354,9 +352,11 @@ class Service(K8sResource):
             async_req=self.async_req,
             pretty=self.pretty,
         )
-        logger.debug("delete_status: {}".format(delete_status.status))
-        if delete_status.status == "Success":
-            logger.debug("Service Deleted")
-            return True
+        delete_service_status = delete_status.status
+        logger.debug(f"Delete Status: {delete_service_status}")
+        if isinstance(delete_service_status, V1ServiceStatus):
+            if delete_service_status.conditions is None:
+                logger.debug("Service Deleted")
+                return True
         logger.error("Service could not be deleted")
         return False

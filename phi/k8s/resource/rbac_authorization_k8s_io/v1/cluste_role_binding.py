@@ -149,7 +149,6 @@ class ClusterRoleBinding(K8sResource):
         if v1_cluster_role_binding.metadata.creation_timestamp is not None:
             logger.debug("ClusterRoleBinding Created")
             self.active_resource = v1_cluster_role_binding
-            self.active_resource_class = V1ClusterRoleBinding
             return True
         logger.error("ClusterRoleBinding could not be created")
         return False
@@ -171,7 +170,6 @@ class ClusterRoleBinding(K8sResource):
         if crb_name in active_resources_dict:
             active_resource = active_resources_dict[crb_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1ClusterRoleBinding
             logger.debug(f"Found active {crb_name}")
         return active_resource
 
@@ -191,7 +189,6 @@ class ClusterRoleBinding(K8sResource):
         if v1_cluster_role_binding.metadata.creation_timestamp is not None:
             logger.debug("ClusterRoleBinding Updated")
             self.active_resource = v1_cluster_role_binding
-            self.active_resource_class = V1ClusterRoleBinding
             return True
         logger.error("ClusterRoleBinding could not be updated")
         return False

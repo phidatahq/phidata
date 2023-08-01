@@ -98,7 +98,6 @@ class StorageClass(K8sResource):
         if v1_storage_class.metadata.creation_timestamp is not None:
             logger.debug("StorageClass Created")
             self.active_resource = v1_storage_class
-            self.active_resource_class = V1StorageClass
             return True
         logger.error("StorageClass could not be created")
         return False
@@ -120,7 +119,6 @@ class StorageClass(K8sResource):
         if sc_name in active_resources_dict:
             active_resource = active_resources_dict[sc_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1StorageClass
             logger.debug(f"Found active {sc_name}")
         return active_resource
 
@@ -140,7 +138,6 @@ class StorageClass(K8sResource):
         if v1_storage_class.metadata.creation_timestamp is not None:
             logger.debug("StorageClass Updated")
             self.active_resource = v1_storage_class
-            self.active_resource_class = V1StorageClass
             return True
         logger.error("StorageClass could not be updated")
         return False

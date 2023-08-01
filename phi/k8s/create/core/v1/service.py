@@ -9,7 +9,6 @@ from phi.k8s.enums.service_type import ServiceType
 from phi.k8s.resource.core.v1.service import Service, ServicePort, ServiceSpec
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateService(CreateK8sResource):
@@ -42,7 +41,7 @@ class CreateService(CreateK8sResource):
     def _create(self) -> Service:
         """Creates a Service resource"""
         service_name = self.service_name
-        logger.debug(f"Init Service resource: {service_name}")
+        # logger.debug(f"Init Service resource: {service_name}")
 
         service_labels = create_component_labels_dict(
             component_name=service_name,

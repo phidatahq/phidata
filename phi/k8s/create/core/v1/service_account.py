@@ -11,7 +11,6 @@ from phi.k8s.resource.core.v1.service_account import (
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.defaults import get_default_sa_name
-from phi.utils.log import logger
 
 
 class CreateServiceAccount(CreateK8sResource):
@@ -25,7 +24,7 @@ class CreateServiceAccount(CreateK8sResource):
 
     def _create(self) -> ServiceAccount:
         sa_name = self.sa_name if self.sa_name else get_default_sa_name(self.app_name)
-        logger.debug(f"Init ServiceAccount resource: {sa_name}")
+        # logger.debug(f"Init ServiceAccount resource: {sa_name}")
 
         sa_labels = create_component_labels_dict(
             component_name=sa_name,

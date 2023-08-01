@@ -103,7 +103,6 @@ class ClusterRole(K8sResource):
         if v1_cluster_role.metadata.creation_timestamp is not None:
             logger.debug("ClusterRole Created")
             self.active_resource = v1_cluster_role
-            self.active_resource_class = V1ClusterRole
             return True
         logger.error("ClusterRole could not be created")
         return False
@@ -125,7 +124,6 @@ class ClusterRole(K8sResource):
         if cr_name in active_resources_dict:
             active_resource = active_resources_dict[cr_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1ClusterRole
             logger.debug(f"Found active {cr_name}")
         return active_resource
 
@@ -145,7 +143,6 @@ class ClusterRole(K8sResource):
         if v1_cluster_role.metadata.creation_timestamp is not None:
             logger.debug("ClusterRole Updated")
             self.active_resource = v1_cluster_role
-            self.active_resource_class = V1ClusterRole
             return True
         logger.error("ClusterRole could not be updated")
         return False

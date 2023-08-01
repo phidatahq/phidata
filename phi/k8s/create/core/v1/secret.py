@@ -6,7 +6,6 @@ from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.core.v1.secret import Secret
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateSecret(CreateK8sResource):
@@ -22,7 +21,7 @@ class CreateSecret(CreateK8sResource):
         """Creates a Secret resource"""
 
         secret_name = self.secret_name
-        logger.debug(f"Init Secret resource: {secret_name}")
+        # logger.debug(f"Init Secret resource: {secret_name}")
 
         secret_labels = create_component_labels_dict(
             component_name=secret_name,

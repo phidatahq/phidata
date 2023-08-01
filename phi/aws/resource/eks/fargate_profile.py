@@ -125,7 +125,6 @@ class EksFargateProfile(AwsResource):
                 if fargate_profile_creation_time is not None:
                     print_info(f"EksFargateProfile created: {self.name}")
                     self.active_resource = create_profile_response
-                    self.active_resource_class = create_profile_response.__class__
                     return True
             except Exception as e:
                 logger.error("EksFargateProfile could not be created, this operation is known to be buggy.")
@@ -183,7 +182,6 @@ class EksFargateProfile(AwsResource):
             if fargate_profile_creation_time is not None:
                 logger.debug(f"EksFargateProfile found: {self.name}")
                 self.active_resource = describe_profile_response
-                self.active_resource_class = describe_profile_response.__class__
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -211,7 +209,6 @@ class EksFargateProfile(AwsResource):
             # Delete the Fargate profile
             service_client = self.get_service_client(aws_client)
             self.active_resource = None
-            self.active_resource_class = None
             service_client.delete_fargate_profile(
                 clusterName=self.eks_cluster.name,
                 fargateProfileName=self.name,

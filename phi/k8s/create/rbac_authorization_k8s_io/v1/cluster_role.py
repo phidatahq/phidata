@@ -9,7 +9,6 @@ from phi.k8s.resource.rbac_authorization_k8s_io.v1.cluster_role import (
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateClusterRole(CreateK8sResource):
@@ -23,7 +22,7 @@ class CreateClusterRole(CreateK8sResource):
         """Creates the ClusterRole resource"""
 
         cr_name = self.cr_name
-        logger.debug(f"Init ClusterRole resource: {cr_name}")
+        # logger.debug(f"Init ClusterRole resource: {cr_name}")
 
         cr_labels = create_component_labels_dict(
             component_name=cr_name,

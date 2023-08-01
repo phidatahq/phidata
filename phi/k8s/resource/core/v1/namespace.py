@@ -97,8 +97,7 @@ class Namespace(K8sResource):
         logger.debug("Created: {}".format(v1_namespace))
         if v1_namespace.metadata.creation_timestamp is not None:
             logger.debug("Namespace Created")
-            self.active_resource = v1_namespace
-            self.active_resource_class = V1Namespace
+            self.active_resource = v1_namespace  # logger.debug(f"Init
             return True
         logger.error("Namespace could not be created")
         return False
@@ -119,8 +118,7 @@ class Namespace(K8sResource):
         ns_name = self.get_resource_name()
         if ns_name in active_resources_dict:
             active_resource = active_resources_dict[ns_name]
-            self.active_resource = active_resource
-            self.active_resource_class = V1Namespace
+            self.active_resource = active_resource  # logger.debug(f"Init
             logger.debug(f"Found active {ns_name}")
         return active_resource
 
@@ -139,8 +137,7 @@ class Namespace(K8sResource):
         # logger.debug("Updated:\n{}".format(pformat(v1_namespace.to_dict(), indent=2)))
         if v1_namespace.metadata.creation_timestamp is not None:
             logger.debug("Namespace Updated")
-            self.active_resource = v1_namespace
-            self.active_resource_class = V1Namespace
+            self.active_resource = v1_namespace  # logger.debug(f"Init
             return True
         logger.error("Namespace could not be updated")
         return False

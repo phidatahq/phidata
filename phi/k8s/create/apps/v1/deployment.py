@@ -21,7 +21,6 @@ from phi.k8s.resource.core.v1.topology_spread_constraints import (
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateDeployment(CreateK8sResource):
@@ -50,7 +49,7 @@ class CreateDeployment(CreateK8sResource):
         """Creates the Deployment resource"""
 
         deploy_name = self.deploy_name
-        logger.debug(f"Init Deployment resource: {deploy_name}")
+        # logger.debug(f"Init Deployment resource: {deploy_name}")
 
         deploy_labels = create_component_labels_dict(
             component_name=deploy_name,

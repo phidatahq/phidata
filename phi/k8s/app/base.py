@@ -93,7 +93,7 @@ class K8sApp(InfraApp):
     create_service: bool = False
     service_name: Optional[str] = None
     service_type: Optional[ServiceType] = None
-    # The port exposed by the service.
+    # The port exposed by the service
     service_port: int = 8000
     # The node_port exposed by the service if service_type = ServiceType.NODE_PORT
     service_node_port: Optional[int] = None

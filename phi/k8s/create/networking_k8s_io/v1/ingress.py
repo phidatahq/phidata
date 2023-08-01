@@ -12,7 +12,6 @@ from phi.k8s.resource.networking_k8s_io.v1.ingress import (
     V1IngressRule,
 )
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateIngress(CreateK8sResource):
@@ -30,7 +29,7 @@ class CreateIngress(CreateK8sResource):
     def _create(self) -> Ingress:
         """Creates an Ingress resource"""
         ingress_name = self.ingress_name
-        logger.debug(f"Init Service resource: {ingress_name}")
+        # logger.debug(f"Init Service resource: {ingress_name}")
 
         ingress_labels = create_component_labels_dict(
             component_name=ingress_name,

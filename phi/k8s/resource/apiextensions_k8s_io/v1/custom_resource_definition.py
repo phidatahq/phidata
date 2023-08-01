@@ -225,7 +225,6 @@ class CustomResourceDefinition(K8sResource):
             if v1_custom_resource_definition.metadata.creation_timestamp is not None:
                 logger.debug("CustomResourceDefinition Created")
                 self.active_resource = v1_custom_resource_definition
-                self.active_resource_class = V1CustomResourceDefinition
                 return True
         except ValueError as e:
             # This is a K8s bug. Ref: https://github.com/kubernetes-client/python/issues/1022
@@ -252,7 +251,6 @@ class CustomResourceDefinition(K8sResource):
         if crd_name in active_resources_dict:
             active_resource = active_resources_dict[crd_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1CustomResourceDefinition
             logger.debug(f"Found active {crd_name}")
         return active_resource
 
@@ -274,7 +272,6 @@ class CustomResourceDefinition(K8sResource):
         if v1_custom_resource_definition.metadata.creation_timestamp is not None:
             logger.debug("CustomResourceDefinition Updated")
             self.active_resource = v1_custom_resource_definition
-            self.active_resource_class = V1CustomResourceDefinition
             return True
         logger.error("CustomResourceDefinition could not be updated")
         return False

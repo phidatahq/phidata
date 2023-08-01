@@ -11,7 +11,6 @@ from phi.k8s.resource.rbac_authorization_k8s_io.v1.cluste_role_binding import (
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateClusterRoleBinding(CreateK8sResource):
@@ -26,7 +25,7 @@ class CreateClusterRoleBinding(CreateK8sResource):
         """Creates the ClusterRoleBinding resource"""
 
         crb_name = self.crb_name
-        logger.debug(f"Init ClusterRoleBinding resource: {crb_name}")
+        # logger.debug(f"Init ClusterRoleBinding resource: {crb_name}")
 
         sa_name = self.service_account_name
         subjects: List[Subject] = [Subject(kind=Kind.SERVICEACCOUNT, name=sa_name, namespace=self.namespace)]

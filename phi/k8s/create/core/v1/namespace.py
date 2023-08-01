@@ -7,7 +7,6 @@ from phi.k8s.resource.core.v1.namespace import Namespace, NamespaceSpec
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.defaults import get_default_ns_name
-from phi.utils.log import logger
 
 
 class CreateNamespace(CreateK8sResource):
@@ -20,7 +19,7 @@ class CreateNamespace(CreateK8sResource):
 
     def _create(self) -> Namespace:
         ns_name = self.ns if self.ns else get_default_ns_name(self.app_name)
-        logger.debug(f"Init Namespace resource: {ns_name}")
+        # logger.debug(f"Init Namespace resource: {ns_name}")
 
         ns_labels = create_component_labels_dict(
             component_name=ns_name,

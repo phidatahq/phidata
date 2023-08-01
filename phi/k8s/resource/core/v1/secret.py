@@ -84,7 +84,6 @@ class Secret(K8sResource):
         if v1_secret.metadata.creation_timestamp is not None:
             logger.debug("Secret Created")
             self.active_resource = v1_secret
-            self.active_resource_class = V1Secret
             return True
         logger.error("Secret could not be created")
         return False
@@ -108,7 +107,6 @@ class Secret(K8sResource):
         if secret_name in active_resources_dict:
             active_resource = active_resources_dict[secret_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1Secret
             logger.debug(f"Found active {secret_name}")
         return active_resource
 
@@ -130,7 +128,6 @@ class Secret(K8sResource):
         if v1_secret.metadata.creation_timestamp is not None:
             logger.debug("Secret Updated")
             self.active_resource = v1_secret
-            self.active_resource_class = V1Secret
             return True
         logger.error("Secret could not be updated")
         return False

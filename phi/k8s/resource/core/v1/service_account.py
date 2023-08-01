@@ -115,7 +115,6 @@ class ServiceAccount(K8sResource):
         if v1_service_account.metadata.creation_timestamp is not None:
             logger.debug("ServiceAccount Created")
             self.active_resource = v1_service_account
-            self.active_resource_class = V1ServiceAccount
             return True
         logger.error("ServiceAccount could not be created")
         return False
@@ -139,7 +138,6 @@ class ServiceAccount(K8sResource):
         if sa_name in active_resources_dict:
             active_resource = active_resources_dict[sa_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1ServiceAccount
             logger.debug(f"Found active {sa_name}")
         return active_resource
 
@@ -161,7 +159,6 @@ class ServiceAccount(K8sResource):
         if v1_service_account.metadata.creation_timestamp is not None:
             logger.debug("ServiceAccount Updated")
             self.active_resource = v1_service_account
-            self.active_resource_class = V1ServiceAccount
             return True
         logger.error("ServiceAccount could not be updated")
         return False

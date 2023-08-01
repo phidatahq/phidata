@@ -13,7 +13,6 @@ from phi.k8s.resource.core.v1.resource_requirements import (
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreatePVC(CreateK8sResource):
@@ -29,7 +28,7 @@ class CreatePVC(CreateK8sResource):
         """Creates a PersistentVolumeClaim resource."""
 
         pvc_name = self.pvc_name
-        logger.debug(f"Init PersistentVolumeClaim resource: {pvc_name}")
+        # logger.debug(f"Init PersistentVolumeClaim resource: {pvc_name}")
 
         pvc_labels = create_component_labels_dict(
             component_name=pvc_name,

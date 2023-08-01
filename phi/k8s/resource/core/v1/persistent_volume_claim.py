@@ -118,8 +118,7 @@ class PersistentVolumeClaim(K8sResource):
         # logger.debug("Created: {}".format(v1_persistent_volume_claim))
         if v1_persistent_volume_claim.metadata.creation_timestamp is not None:
             logger.debug("PVC Created")
-            self.active_resource = v1_persistent_volume_claim
-            self.active_resource_class = V1PersistentVolumeClaim
+            self.active_resource = v1_persistent_volume_claim  # logger.debug(f"InitClaim
             return True
         logger.error("PVC could not be created")
         return False
@@ -142,8 +141,7 @@ class PersistentVolumeClaim(K8sResource):
         pvc_name = self.get_resource_name()
         if pvc_name in _active_pvcs_dict:
             active_pvc = _active_pvcs_dict[pvc_name]
-            self.active_resource = active_pvc
-            self.active_resource_class = V1PersistentVolumeClaim
+            self.active_resource = active_pvc  # logger.debug(f"InitClaim
             # logger.debug(f"Found {pvc_name}")
         return active_pvc
 
@@ -160,8 +158,7 @@ class PersistentVolumeClaim(K8sResource):
         # logger.debug("Updated:\n{}".format(pformat(v1_persistent_volume_claim.to_dict(), indent=2)))
         if v1_persistent_volume_claim.metadata.creation_timestamp is not None:
             logger.debug("PVC Updated")
-            self.active_resource = v1_persistent_volume_claim
-            self.active_resource_class = V1PersistentVolumeClaim
+            self.active_resource = v1_persistent_volume_claim  # logger.debug(f"InitClaim
             return True
         logger.error("PVC could not be updated")
         return False

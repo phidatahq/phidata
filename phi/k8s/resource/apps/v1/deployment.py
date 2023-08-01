@@ -141,7 +141,6 @@ class Deployment(K8sResource):
         if v1_deployment.metadata.creation_timestamp is not None:
             logger.debug("Deployment Created")
             self.active_resource = v1_deployment
-            self.active_resource_class = V1Deployment
             return True
         logger.error("Deployment could not be created")
         return False
@@ -203,7 +202,6 @@ class Deployment(K8sResource):
         if v1_deployment.metadata.creation_timestamp is not None:
             logger.debug("Deployment Updated")
             self.active_resource = v1_deployment
-            self.active_resource_class = V1Deployment
             return True
         logger.error("Deployment could not be updated")
         return False

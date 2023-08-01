@@ -34,7 +34,7 @@ class CreateVolume(CreateK8sObject):
         """Creates the Volume resource"""
 
         volume_name = self.volume_name
-        logger.debug(f"Init Volume resource: {volume_name}")
+        # logger.debug(f"Init Volume resource: {volume_name}")
 
         volume = Volume(name=volume_name)
 

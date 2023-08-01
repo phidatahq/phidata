@@ -195,7 +195,6 @@ class Ingress(K8sResource):
         if v1_ingress.metadata.creation_timestamp is not None:
             logger.debug("Ingress Created")
             self.active_resource = v1_ingress
-            self.active_resource_class = V1Ingress
             return True
         logger.error("Ingress could not be created")
         return False
@@ -219,7 +218,6 @@ class Ingress(K8sResource):
         if ingress_name in active_resources_dict:
             active_resource = active_resources_dict[ingress_name]
             self.active_resource = active_resource
-            self.active_resource_class = V1Ingress
             logger.debug(f"Found active {ingress_name}")
         return active_resource
 
@@ -241,7 +239,6 @@ class Ingress(K8sResource):
         if v1_ingress.metadata.creation_timestamp is not None:
             logger.debug("Ingress Updated")
             self.active_resource = v1_ingress
-            self.active_resource_class = V1Ingress
             return True
         logger.error("Ingress could not be updated")
         return False

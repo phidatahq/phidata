@@ -26,7 +26,7 @@ class CreateStorageClass(CreateK8sResource):
     def _create(self) -> StorageClass:
         """Creates a StorageClass resource."""
 
-        logger.debug(f"Init StorageClass resource: {self.storage_class_name}")
+        # logger.debug(f"Init StorageClass resource: {self.storage_class_name}")
         sc_labels = create_component_labels_dict(
             component_name=self.storage_class_name,
             app_name=self.app_name,

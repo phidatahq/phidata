@@ -19,7 +19,6 @@ from phi.k8s.resource.core.v1.container import (
     ConfigMapKeySelector,
     SecretKeySelector,
 )
-from phi.utils.log import logger
 
 
 class CreateEnvVarFromConfigMap(BaseModel):
@@ -55,7 +54,7 @@ class CreateContainer(CreateK8sObject):
         """Creates the Container resource"""
 
         container_name = self.container_name
-        logger.debug(f"Init Container resource: {container_name}")
+        # logger.debug(f"Init Container resource: {container_name}")
 
         container_ports: Optional[List[ContainerPort]] = None
         if self.ports:

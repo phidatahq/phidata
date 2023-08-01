@@ -269,9 +269,7 @@ class InfraApp(PhiBase):
         if group_filter is not None:
             group_name = self.get_group_name()
             logger.debug(f"{self.get_app_name()}: Checking {group_filter} in {group_name}")
-            if group_name is not None and group_filter in group_name:
-                return True
-            else:
+            if group_name is None or group_filter not in group_name:
                 return False
         return True
 

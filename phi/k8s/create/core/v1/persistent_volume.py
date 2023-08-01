@@ -68,7 +68,7 @@ class CreatePersistentVolume(CreateK8sResource):
         """Creates the PersistentVolume resource"""
 
         pv_name = self.pv_name
-        logger.debug(f"Init PersistentVolume resource: {pv_name}")
+        # logger.debug(f"Init PersistentVolume resource: {pv_name}")
 
         pv_labels = create_component_labels_dict(
             component_name=pv_name,

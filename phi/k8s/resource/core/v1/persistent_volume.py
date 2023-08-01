@@ -183,8 +183,7 @@ class PersistentVolume(K8sResource):
         # logger.debug("Created: {}".format(v1_persistent_volume))
         if v1_persistent_volume.metadata.creation_timestamp is not None:
             logger.debug("PV Created")
-            self.active_resource = v1_persistent_volume
-            self.active_resource_class = V1PersistentVolume
+            self.active_resource = v1_persistent_volume  # logger.debug(f"Init
             return True
         logger.error("PV could not be created")
         return False
@@ -205,8 +204,7 @@ class PersistentVolume(K8sResource):
         pv_name = self.get_resource_name()
         if pv_name in active_resources_dict:
             active_resource = active_resources_dict[pv_name]
-            self.active_resource = active_resource
-            self.active_resource_class = V1PersistentVolume
+            self.active_resource = active_resource  # logger.debug(f"Init
             logger.debug(f"Found active {pv_name}")
         return active_resource
 
@@ -225,8 +223,7 @@ class PersistentVolume(K8sResource):
         # logger.debug("Updated:\n{}".format(pformat(v1_persistent_volume.to_dict(), indent=2)))
         if v1_persistent_volume.metadata.creation_timestamp is not None:
             logger.debug("PV Updated")
-            self.active_resource = v1_persistent_volume
-            self.active_resource_class = V1PersistentVolume
+            self.active_resource = v1_persistent_volume  # logger.debug(f"Init
             return True
         logger.error("PV could not be updated")
         return False

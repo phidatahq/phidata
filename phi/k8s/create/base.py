@@ -1,6 +1,5 @@
 from phi.base import PhiBase
 from phi.k8s.resource.base import K8sResource, K8sObject
-from phi.utils.log import logger
 
 
 class CreateK8sObject(PhiBase):
@@ -19,7 +18,7 @@ class CreateK8sObject(PhiBase):
         diff_fields = {k: v for k, v in base_fields.items() if k not in resource_fields}
 
         updated_resource = _resource.model_copy(update=diff_fields)
-        logger.debug(f"Created resource: {updated_resource.__class__.__name__}: {updated_resource.model_dump()}")
+        # logger.debug(f"Created resource: {updated_resource.__class__.__name__}: {updated_resource.model_dump()}")
 
         return updated_resource
 
@@ -40,6 +39,6 @@ class CreateK8sResource(PhiBase):
         diff_fields = {k: v for k, v in base_fields.items() if k not in resource_fields}
 
         updated_resource = _resource.model_copy(update=diff_fields)
-        logger.debug(f"Created resource: {updated_resource.__class__.__name__}: {updated_resource.model_dump()}")
+        # logger.debug(f"Created resource: {updated_resource.__class__.__name__}: {updated_resource.model_dump()}")
 
         return updated_resource

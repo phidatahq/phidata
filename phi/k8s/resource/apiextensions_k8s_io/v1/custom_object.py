@@ -133,7 +133,6 @@ class CustomObject(K8sResource):
         if custom_object.get("metadata", {}).get("creationTimestamp", None) is not None:
             logger.debug("CustomObject Created")
             self.active_resource = custom_object
-            self.active_resource_class = Dict
             return True
         logger.error("CustomObject could not be created")
         return False
@@ -162,7 +161,6 @@ class CustomObject(K8sResource):
         if custom_object_name in active_resources_dict:
             active_resource = active_resources_dict[custom_object_name]
             self.active_resource = active_resource
-            self.active_resource_class = Dict
             logger.debug(f"Found active {custom_object_name}")
         return active_resource
 
@@ -185,7 +183,6 @@ class CustomObject(K8sResource):
         if custom_object.get("metadata", {}).get("creationTimestamp", None) is not None:
             logger.debug("CustomObject Updated")
             self.active_resource = custom_object
-            self.active_resource_class = Dict
             return True
         logger.error("CustomObject could not be updated")
         return False

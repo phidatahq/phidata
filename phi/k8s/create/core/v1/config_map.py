@@ -6,7 +6,6 @@ from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.core.v1.config_map import ConfigMap
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.utils.log import logger
 
 
 class CreateConfigMap(CreateK8sResource):
@@ -20,7 +19,7 @@ class CreateConfigMap(CreateK8sResource):
         """Creates the ConfigMap resource"""
 
         cm_name = self.cm_name
-        logger.debug(f"Init ConfigMap resource: {cm_name}")
+        # logger.debug(f"Init ConfigMap resource: {cm_name}")
 
         cm_labels = create_component_labels_dict(
             component_name=cm_name,

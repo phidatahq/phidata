@@ -2,12 +2,15 @@
 
 This is the entrypoint for the `phi` cli application.
 """
+import asyncio
 from asyncio import run as aiorun
 from typing import Optional
 
 import typer
 
 from phi.cli.ws.ws_cli import ws_cli
+
+asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # from phi.cli.k8s.k8s_app import k8s_app
 # from phi.cli.wf.wf_app import wf_app

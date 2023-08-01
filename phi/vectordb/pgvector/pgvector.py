@@ -25,6 +25,7 @@ from phi.utils.log import logger
 import hashlib
 import math
 
+
 class PgVector(VectorDb):
     def __init__(
         self,
@@ -105,14 +106,13 @@ class PgVector(VectorDb):
         Args:
             document (Document): Document to validate
         """
-        columns = [
-            self.table.c.name,
-            self.table.c.content_hash
-        ]
+        columns = [self.table.c.name, self.table.c.content_hash]
         with self.Session() as sess:
             with sess.begin():
                 cleaned_content = document.content.replace("\x00", "\uFFFD")
-                stmt = select(*columns).where(self.table.c.content_hash == hashlib.md5(cleaned_content.encode()).hexdigest())
+                stmt = select(*columns).where(
+                    self.table.c.content_hash == hashlib.md5(cleaned_content.encode()).hexdigest()
+                )
                 result = sess.execute(stmt).first()
                 return result is None
 
@@ -128,7 +128,7 @@ class PgVector(VectorDb):
                         content=cleaned_content,
                         embedding=document.embedding,
                         usage=document.usage,
-                        content_hash=hashlib.md5(cleaned_content.encode()).hexdigest()
+                        content_hash=hashlib.md5(cleaned_content.encode()).hexdigest(),
                     )
                     sess.execute(stmt)
                     logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
@@ -165,7 +165,6 @@ class PgVector(VectorDb):
                     logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
 
     def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
-
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -214,27 +213,37 @@ class PgVector(VectorDb):
 
     def exists(self) -> bool:
         return self.table_exists()
-    
+
     def get_count(self) -> int:
         with self.Session() as sess:
             with sess.begin():
                 stmt = select(func.count(self.table.c.name)).select_from(self.table)
-                return int(sess.execute(stmt).scalar())
+                result = sess.execute(stmt).scalar()
+                if result is not None:
+                    return int(result)
+                return 0
 
     def optimize(self) -> None:
-        est_list = self.index.nlist
-        if not self.index.dynamic_list:
-            total_records = self.get_count()
-            logger.debug(f"Total Number of records {total_records}")
-            if est_list < 10:
-                est_list = 10
-            if est_list > 1000000:
-                est_list = math.sqrt(total_records)
-        
-        with self.Session() as sess:
-            with sess.begin():
-                logger.debug(f"Creating Index with appropriate number of lists {est_list} and probes {self.index.probes} with distance metric {self.index.distance_metric}")
-                sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
-                sess.execute(text(f"CREATE INDEX ON {self.table} USING ivfflat (embedding {self.index.distance_metric}) WITH (lists = {est_list});"))
+        if isinstance(self.index, Ivfflat):
+            est_list = self.index.nlist
+            if not self.index.dynamic_list:
+                total_records = self.get_count()
+                logger.debug(f"Total Number of records {total_records}")
+                if est_list < 10:
+                    est_list = 10
+                if est_list > 1000000:
+                    est_list = int(math.sqrt(total_records))
 
-        
+            with self.Session() as sess:
+                with sess.begin():
+                    logger.debug(
+                        f"Creating Index with appropriate number of lists {est_list} \
+                            and probes {self.index.probes} with distance metric {self.index.distance_metric}"
+                    )
+                    sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
+                    sess.execute(
+                        text(
+                            f"CREATE INDEX ON {self.table} USING ivfflat (embedding \
+                                {self.index.distance_metric}) WITH (lists = {est_list});"
+                        )
+                    )

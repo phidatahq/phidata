@@ -34,3 +34,7 @@ class VectorDb(ABC):
     @abstractmethod
     def optimize(self) -> None:
         raise NotImplementedError
+
+    @abstractmethod
+    def is_doc_exists(self, document: Document) -> bool:
+        raise NotImplementedError

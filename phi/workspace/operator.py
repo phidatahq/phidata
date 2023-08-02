@@ -466,8 +466,6 @@ async def start_workspace(
         print_info("")
         logger.debug(f"Deployed {num_resources_created} resources in {num_rgs_created} resource groups")
 
-    logger.debug(f"num_resources_created: {num_resources_created}")
-
     if dry_run:
         return
 
@@ -555,6 +553,7 @@ async def stop_workspace(
         num_rgs_deleted += 1
         # print white space between runs
         print_info("")
+        logger.debug(f"Deleted {num_resources_deleted} resources in {num_rgs_deleted} resource groups")
 
     if dry_run:
         return
@@ -643,6 +642,7 @@ async def update_workspace(
         num_rgs_updated += 1
         # print white space between runs
         print_info("")
+        logger.debug(f"Updated {num_resources_updated} resources in {num_rgs_updated} resource groups")
 
     if dry_run:
         return

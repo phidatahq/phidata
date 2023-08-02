@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Any, Optional, Dict, Iterator, Callable, cast
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -34,6 +35,8 @@ class Conversation(BaseModel):
     id: Optional[int] = None
     # Conversation name
     name: Optional[str] = None
+    # True if this conversation is active i.e. not ended
+    is_active: bool = True
     # Set log level to debug
     debug_logs: bool = False
     # Monitor conversations on phidata.com
@@ -42,6 +45,10 @@ class Conversation(BaseModel):
     usage_data: Dict[str, Any] = {}
     # Extra data
     extra_data: Optional[Dict[str, Any]] = None
+    # The timestamp of when this conversation was created in the database
+    created_at: Optional[datetime] = None
+    # The timestamp of when this conversation was last updated in the database
+    updated_at: Optional[datetime] = None
 
     # -*- Conversation history
     history: LLMHistory = SimpleConversationHistory()
@@ -96,9 +103,10 @@ class Conversation(BaseModel):
 
         return ConversationRow(
             id=self.id,
+            name=self.name,
             user_name=self.user_name,
             user_persona=self.user_persona,
-            is_active=True,
+            is_active=self.is_active,
             llm={
                 "type": self.llm.__class__.__name__,
                 "config": self.llm.model_dump(exclude_none=True),
@@ -106,25 +114,40 @@ class Conversation(BaseModel):
             history=self.history.model_dump(include={"chat_history", "llm_history", "references"}),
             usage_data=self.usage_data,
             extra_data=self.extra_data,
-            created_at=None,
-            updated_at=None,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
         )
 
     def from_conversation_row(self, row: ConversationRow):
         """Load the existing conversation from a database row
 
         Note:
-            - Parameters updated from the database are: id, user_name, user_persona, history, usage_data, extra_data
-            - Parameters not updated from the database are: LLM, is_active, created_at, updated_at
+            - Parameters updated from the database: id, name, user_name, user_persona, history, usage_data, extra_data
+            - Parameters not updated from the database: LLM, is_active, created_at, updated_at
         """
 
         # Values that are overwritten from the database if they are not set in the conversation
         if self.id is None and row.id is not None:
             self.id = row.id
+        if self.name is None and row.name is not None:
+            self.name = row.name
         if self.user_name is None and row.user_name is not None:
             self.user_name = row.user_name
         if self.user_persona is None and row.user_persona is not None:
             self.user_persona = row.user_persona
+        if self.is_active is None and row.is_active is not None:
+            self.is_active = row.is_active
+
+        # Update conversation history from database regardless of whether it is set in the conversation
+        if row.history is not None:
+            try:
+                self.history = self.history.__class__.model_validate(row.history)
+            except Exception as e:
+                logger.error(f"Failed to load conversation history: {e}")
+
+        # Update usage data from database regardless of whether it is set in the conversation
+        if row.usage_data is not None:
+            self.usage_data = row.usage_data
 
         # If extra data is set in the conversation, merge it with the database extra data
         # The conversation extra data takes precedence
@@ -134,16 +157,29 @@ class Conversation(BaseModel):
         if self.extra_data is None and row.extra_data is not None:
             self.extra_data = row.extra_data
 
-        # Update conversation history from database
-        if row.history is not None:
-            try:
-                self.history = self.history.__class__.model_validate(row.history)
-            except Exception as e:
-                logger.error(f"Failed to load conversation history: {e}")
+        # Update the timestamp of when this conversation was created in the database
+        if row.created_at is not None:
+            self.created_at = row.created_at
 
-        # Update usage data from database
-        if row.usage_data is not None:
-            self.usage_data = row.usage_data
+        # Update the timestamp of when this conversation was last updated in the database
+        if row.updated_at is not None:
+            self.updated_at = row.updated_at
+
+    def load_from_storage(self) -> Optional[ConversationRow]:
+        """Load the conversation from storage"""
+        if self.storage is not None and self.id is not None:
+            self.conversation_row = self.storage.read(conversation_id=self.id)
+            if self.conversation_row is not None:
+                logger.debug(f"Found conversation: {self.conversation_row.id}")
+                self.from_conversation_row(row=self.conversation_row)
+                logger.debug(f"Loaded conversation: {self.id}")
+        return self.conversation_row
+
+    def save_to_storage(self) -> Optional[ConversationRow]:
+        """Save the conversation to the storage"""
+        if self.storage is not None:
+            return self.storage.upsert(conversation=self.to_conversation_row())
+        return None
 
     def start(self) -> Optional[int]:
         """Starts the conversation and returns the conversation ID
@@ -176,6 +212,11 @@ class Conversation(BaseModel):
                 self.from_conversation_row(row=self.conversation_row)
 
         return self.id
+
+    def end(self) -> None:
+        """End the conversation"""
+        if self.storage is not None and self.id is not None:
+            self.storage.end(conversation_id=self.id)
 
     def get_system_prompt(self) -> str:
         """Return the system prompt for the conversation"""
@@ -286,7 +327,7 @@ class Conversation(BaseModel):
     def review(self, question: str) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
-        # If needed, load the conversation from the database
+        # Load the conversation from the database if available
         self.load_from_storage()
 
         # -*- Build the system prompt
@@ -401,26 +442,34 @@ class Conversation(BaseModel):
         # Monitor conversation
         self.monitor()
 
-    def load_from_storage(self) -> Optional[ConversationRow]:
-        """Load the conversation from storage"""
-        if self.storage is not None and self.id is not None:
-            self.conversation_row = self.storage.read(conversation_id=self.id)
-            if self.conversation_row is not None:
-                logger.debug(f"Found conversation: {self.conversation_row.id}")
-                self.from_conversation_row(row=self.conversation_row)
-                logger.debug(f"Loaded conversation: {self.id}")
-        return self.conversation_row
+    def rename(self, name: str) -> None:
+        """Rename the conversation"""
+        self.load_from_storage()
+        self.name = name
+        self.save_to_storage()
 
-    def save_to_storage(self) -> Optional[ConversationRow]:
-        """Save the conversation to the storage"""
-        if self.storage is not None:
-            return self.storage.upsert(conversation=self.to_conversation_row())
-        return None
+    def generate_name(self) -> str:
+        """Generate a name for the conversation using chat history"""
+        _conv = ""
+        for message in self.history.chat_history[1:4]:
+            _conv += f"{message.role.upper()}: {message.content}\n"
 
-    def end(self) -> None:
-        """End the conversation"""
-        if self.storage is not None and self.id is not None:
-            self.storage.end(conversation_id=self.id)
+        system_message = Message(
+            role="system",
+            content="Please provide a suitable name for the conversation in maximum 5 words.",
+        )
+        user_message = Message(role="user", content=_conv)
+        generate_name_message = [system_message, user_message]
+        generate_name = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in generate_name_message])
+        return generate_name.replace('"', "").strip()
+
+    def auto_rename(self) -> None:
+        """Automatically rename the conversation"""
+        self.load_from_storage()
+        generated_name = self.generate_name()
+        logger.debug(f"Generated name: {generated_name}")
+        self.name = generated_name
+        self.save_to_storage()
 
     def monitor(self):
         logger.debug("Sending monitoring request")

@@ -20,7 +20,9 @@ class OpenAIChat(LLM):
             max_tokens=self.max_tokens,
             temperature=self.temperature,
         )
-        return response["choices"][0]["text"]
+        # logger.debug(f"OpenAI response type: {type(response)}")
+        # logger.debug(f"OpenAI response: {response}")
+        return response["choices"][0]["message"]["content"]
 
     def streaming_response(self, messages: List) -> Iterator[str]:
         try:

@@ -56,6 +56,8 @@ class PgConversationStorage(ConversationStorage):
             self.metadata,
             # Database ID/Primary key for this conversation.
             Column("id", BigInteger, primary_key=True, autoincrement=True),
+            # Conversation name
+            Column("name", String),
             # The name of the user participating in this conversation.
             Column("user_name", String),
             # The persona of the user participating in this conversation.
@@ -123,7 +125,24 @@ class PgConversationStorage(ConversationStorage):
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    conversation_ids.append(row.id)
+                    if row is not None and row.id is not None:
+                        conversation_ids.append(row.id)
+
+        return conversation_ids
+
+    def get_all_conversations(self, user_name: str) -> List[ConversationRow]:
+        conversation_ids: List[ConversationRow] = []
+        with self.Session() as sess:
+            with sess.begin():
+                # get all conversation ids for this user
+                stmt = select(self.table).where(self.table.c.user_name == user_name)
+                # order by id desc
+                stmt = stmt.order_by(self.table.c.id.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                for row in rows:
+                    if row.id is not None:
+                        conversation_ids.append(ConversationRow.model_validate(row))
 
         return conversation_ids
 
@@ -136,6 +155,7 @@ class PgConversationStorage(ConversationStorage):
                 # Conversation exists if conversation.id is not None
                 if conversation.id is None:
                     values_to_insert: Dict[str, Any] = {
+                        "name": conversation.name,
                         "user_name": conversation.user_name,
                         "user_persona": conversation.user_persona,
                         "history": conversation.history,
@@ -154,6 +174,8 @@ class PgConversationStorage(ConversationStorage):
                     conversation.id = result.inserted_primary_key[0]  # type: ignore
                 else:
                     values_to_update: Dict[str, Any] = {}
+                    if conversation.name is not None:
+                        values_to_update["name"] = conversation.name
                     if conversation.user_name is not None:
                         values_to_update["user_name"] = conversation.user_name
                     if conversation.user_persona is not None:

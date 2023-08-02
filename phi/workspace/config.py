@@ -20,8 +20,6 @@ class WorkspaceConfig(BaseModel):
     # The root directory for the workspace.
     # This field indicates that the ws has been downloaded on this machine
     ws_root_path: Optional[Path] = None
-    # WorkspaceSettings
-    workspace_settings: Optional[WorkspaceSettings] = None
     # Path to the "workspace" directory inside the workspace root
     _workspace_dir_path: Optional[Path] = None
     # Timestamp of when this workspace was created on the users machine
@@ -29,6 +27,9 @@ class WorkspaceConfig(BaseModel):
     # WorkspaceSchema: This field indicates that the workspace is synced with the api
     ws_schema: Optional[WorkspaceSchema] = None
 
+    # Values loaded from the files in the workspace_dir_path
+    # WorkspaceSettings
+    workspace_settings: Optional[WorkspaceSettings] = None
     # List of DockerResourceGroup
     docker_resource_groups: Optional[List[Any]] = None
     # List of K8sResourceGroup
@@ -54,15 +55,15 @@ class WorkspaceConfig(BaseModel):
         if self.ws_root_path is not None and obj.ws_root is not None:
             if obj.ws_root != self.ws_root_path:
                 raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
-        # if obj.workspace_dir is not None:
-        #     if self.workspace_dir_path is not None:
-        #         if self.ws_root_path is None:
-        #             raise Exception("Workspace root not set")
-        #         workspace_dir = self.ws_root_path.joinpath(obj.workspace_dir)
-        #         if workspace_dir != self.workspace_dir_path:
-        #             raise Exception(
-        #                 f"WorkspaceSettings.workspace_dir ({workspace_dir}) must match {self.workspace_dir_path}"  # noqa
-        #             )
+        if obj.workspace_dir is not None:
+            if self.workspace_dir_path is not None:
+                if self.ws_root_path is None:
+                    raise Exception("Workspace root not set")
+                workspace_dir = self.ws_root_path.joinpath(obj.workspace_dir)
+                if workspace_dir != self.workspace_dir_path:
+                    raise Exception(
+                        f"WorkspaceSettings.workspace_dir ({workspace_dir}) must match {self.workspace_dir_path}"  # noqa
+                    )
         return True
 
     def load(self) -> bool:
@@ -129,7 +130,6 @@ class WorkspaceConfig(BaseModel):
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
                 _obj_type = obj.__class__.__name__
-                logger.debug(f"Adding {_obj_type} | {obj_name}")
                 if _obj_type == "WorkspaceSettings":
                     if self.validate_workspace_settings(obj):
                         self.workspace_settings = obj
@@ -145,6 +145,7 @@ class WorkspaceConfig(BaseModel):
                     if self.aws_resource_groups is None:
                         self.aws_resource_groups = []
                     self.aws_resource_groups.append(obj)
+                logger.debug(f"Loaded {_obj_type}: {obj_name}")
 
         logger.debug("**--> WorkspaceConfig loaded")
         return True
@@ -185,7 +186,7 @@ class WorkspaceConfig(BaseModel):
     ) -> List[InfraResourceGroup]:
         # Get all resource groups
         all_resource_groups: List[InfraResourceGroup] = []
-        logger.debug(f"Getting resource for env: {env} | infra: {infra} | order: {order}")
+        logger.debug(f"Getting resource groups for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
             if self.docker_resource_groups is not None:
                 all_resource_groups.extend(self.docker_resource_groups)

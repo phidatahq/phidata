@@ -14,7 +14,12 @@ from phi.cli.console import (
 from phi.infra.enums import InfraType
 from phi.infra.resource.group import InfraResourceGroup
 from phi.api.schemas.monitor import MonitorEventSchema
-from phi.api.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.workspace import (
+    WorkspaceSchema,
+    WorkspaceCreate,
+    WorkspaceUpdate,
+    UpdatePrimaryWorkspace,
+)
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
@@ -189,17 +194,18 @@ async def setup_workspace(ws_root_path: Path) -> None:
     """Setup a phi workspace at `ws_root_path`.
 
     1. Validate pre-requisites
-    1.1 Check ws_root_path is valid
-    1.2 Check PhiCliConfig is valid
+    1.1 Check ws_root_path is available
+    1.2 Check PhiCliConfig is available
     1.3 Validate WorkspaceConfig is available
-    1.4 Set workspace as active
+    1.4 Load workspace and set as active
     1.5 Check if remote origin is available
     1.6 Create anon user if not available
 
-    2. Create or Update WorkspaceSchema (if user is logged in)
+    2. Create or Update WorkspaceSchema
     If a ws_schema exists for this workspace, this workspace has a record in the backend
     2.1 Create WorkspaceSchema for a NEWLY CREATED WORKSPACE
-    2.2 Update WorkspaceSchema for EXISTING WORKSPACE
+        OR set workspace as primary workspace for user
+    2.2 Update WorkspaceSchema if git_url has changed
 
     3. Refresh WorkspaceConfig and Complete Workspace setup
     """
@@ -212,7 +218,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
     ## 1. Validate Pre-requisites
     ######################################################
     ######################################################
-    # 1.1 Check ws_root_path is valid
+    # 1.1 Check ws_root_path is available
     ######################################################
     _ws_is_valid: bool = ws_root_path is not None and ws_root_path.exists() and ws_root_path.is_dir()
     if not _ws_is_valid:
@@ -220,7 +226,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
         return
 
     ######################################################
-    # 1.2 Check PhiCliConfig is valid
+    # 1.2 Check PhiCliConfig is available
     ######################################################
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -263,19 +269,15 @@ async def setup_workspace(ws_root_path: Path) -> None:
         logger.error("Please try again")
         return
 
+    ######################################################
+    # 1.4 Load workspace and set as active
+    ######################################################
     # Load the workspace config
     ws_config.load()
-
     # Get the workspace dir name
     ws_dir_name = ws_config.ws_dir_name
-    # Get the workspace name from the workspace settings
-    workspace_name = ws_config.workspace_settings.ws_name if ws_config.workspace_settings else ws_dir_name
-
-    ######################################################
-    # 1.4 Set workspace as active
-    ######################################################
+    # Set as active
     phi_config.active_ws_dir = ws_dir_name
-    is_active_ws = True
 
     ######################################################
     # 1.5 Check if remote origin is available
@@ -297,49 +299,84 @@ async def setup_workspace(ws_root_path: Path) -> None:
     ######################################################
     ## 2. Create or Update WorkspaceSchema
     ######################################################
+    # If a ws_schema exists for this workspace, this workspace is synced with the api
+    ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema
     if phi_config.user is not None:
-        # If a ws_schema exists for this workspace, this workspace is synced with the api
-        ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema
-
         ######################################################
         # 2.1 Create WorkspaceSchema for NEW WORKSPACE
         ######################################################
         if ws_schema is None or ws_schema.id_workspace is None:
             from phi.api.workspace import create_workspace_for_user
+            from phi.workspace.helpers import generate_workspace_name
 
             # If ws_schema is None, this is a NEWLY CREATED WORKSPACE.
             # We make a call to the api to create a new ws_schema
+            new_workspace_name = generate_workspace_name(ws_dir_name=ws_dir_name)
             logger.debug("Creating ws_schema for new workspace")
-            logger.debug("ws_dir_name: {}".format(ws_dir_name))
-            logger.debug("is_active_ws: {}".format(is_active_ws))
+            logger.debug(f"ws_dir_name: {ws_dir_name}")
+            logger.debug(f"workspace_name: {new_workspace_name}")
 
             ws_schema = await create_workspace_for_user(
                 user=phi_config.user,
-                workspace=WorkspaceSchema(
-                    ws_name=workspace_name,
-                    is_primary_ws_for_user=is_active_ws,
+                workspace=WorkspaceCreate(
+                    ws_name=new_workspace_name,
+                    git_url=git_remote_origin_url,
+                    is_primary_for_user=True,
                 ),
             )
             if ws_schema is not None:
                 phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=ws_schema)
+            else:
+                logger.warning("Failed to sync workspace with api. Please setup again")
+
         ######################################################
-        # 2.2 Update WorkspaceSchema for EXISTING WORKSPACE
+        # OR set workspace as primary workspace for user
         ######################################################
         else:
+            from phi.api.workspace import update_primary_workspace_for_user
+
+            logger.debug("Setting workspace as primary")
+            logger.debug(f"ws_dir_name: {ws_dir_name}")
+            logger.debug(f"workspace_name: {ws_schema.ws_name}")
+
+            updated_workspace_schema = await update_primary_workspace_for_user(
+                user=phi_config.user,
+                workspace=UpdatePrimaryWorkspace(
+                    id_workspace=ws_schema.id_workspace,
+                    ws_name=ws_schema.ws_name,
+                ),
+            )
+
+            if updated_workspace_schema is not None:
+                # Update the ws_schema for this workspace.
+                phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
+            else:
+                logger.warning("Failed to sync workspace with api. Please setup again")
+
+        ######################################################
+        # 2.2 Update WorkspaceSchema if git_url has changed
+        ######################################################
+        if ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
             from phi.api.workspace import update_workspace_for_user
 
-            logger.debug("Updating ws_schema for existing workspace")
-            logger.debug("ws_dir_name: {}".format(ws_dir_name))
-            logger.debug("is_active_ws: {}".format(is_active_ws))
+            logger.debug("Updating git_url for existing workspace")
+            logger.debug(f"ws_dir_name: {ws_dir_name}")
+            logger.debug(f"workspace_name: {ws_schema.ws_name}")
+            logger.debug(f"Existing git_url: {ws_schema.git_url}")
+            logger.debug(f"New git_url: {git_remote_origin_url}")
 
-            ws_schema.is_primary_ws_for_user = is_active_ws
-            ws_schema_updated = await update_workspace_for_user(
+            updated_workspace_schema = await update_workspace_for_user(
                 user=phi_config.user,
-                workspace=ws_schema,
+                workspace=WorkspaceUpdate(
+                    id_workspace=ws_schema.id_workspace,
+                    git_url=git_remote_origin_url,
+                ),
             )
-            if ws_schema_updated is not None:
+            if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=ws_schema_updated)
+                phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
+            else:
+                logger.warning("Failed to sync workspace with api. Please setup again")
 
     ######################################################
     # 3. Refresh WorkspaceConfig and Complete Workspace setup
@@ -721,7 +758,10 @@ async def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True)
 
             updated_workspace_schema = await update_primary_workspace_for_user(
                 user=phi_config.user,
-                workspace=ws_schema,
+                workspace=UpdatePrimaryWorkspace(
+                    id_workspace=ws_schema.id_workspace,
+                    ws_name=ws_schema.ws_name,
+                ),
             )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.

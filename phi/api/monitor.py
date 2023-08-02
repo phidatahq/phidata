@@ -4,10 +4,14 @@ from phi.api.client import api_client, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.monitor import MonitorEventSchema, MonitorResponseSchema
 from phi.api.schemas.workspace import WorkspaceSchema
+from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 
 async def log_monitor_event(monitor: MonitorEventSchema, workspace: WorkspaceSchema) -> Optional[MonitorResponseSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug("--o-o-- Log monitor event")
     try:
         async with api_client.Session() as api:

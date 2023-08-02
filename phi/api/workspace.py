@@ -3,11 +3,21 @@ from typing import List, Optional
 from phi.api.client import api_client, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.user import UserSchema
-from phi.api.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.workspace import (
+    WorkspaceSchema,
+    WorkspaceCreate,
+    WorkspaceUpdate,
+    WorkspaceDelete,
+    UpdatePrimaryWorkspace,
+)
+from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 
 async def get_primary_workspace(user: UserSchema) -> Optional[WorkspaceSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug("--o-o-- Get primary workspace")
     try:
         async with api_client.AuthenticatedSession() as api:
@@ -31,6 +41,9 @@ async def get_primary_workspace(user: UserSchema) -> Optional[WorkspaceSchema]:
 
 
 async def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceSchema]]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug("--o-o-- Get available workspaces")
     try:
         async with api_client.AuthenticatedSession() as api:
@@ -56,7 +69,10 @@ async def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceS
     return None
 
 
-async def create_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema) -> Optional[WorkspaceSchema]:
+async def create_workspace_for_user(user: UserSchema, workspace: WorkspaceCreate) -> Optional[WorkspaceSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug("--o-o-- Create workspace")
     try:
         async with api_client.AuthenticatedSession() as api:
@@ -84,7 +100,10 @@ async def create_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
     return None
 
 
-async def update_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema) -> Optional[WorkspaceSchema]:
+async def update_workspace_for_user(user: UserSchema, workspace: WorkspaceUpdate) -> Optional[WorkspaceSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug("--o-o-- Update workspace")
     try:
         async with api_client.AuthenticatedSession() as api:
@@ -110,7 +129,12 @@ async def update_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
     return None
 
 
-async def update_primary_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema) -> Optional[WorkspaceSchema]:
+async def update_primary_workspace_for_user(
+    user: UserSchema, workspace: UpdatePrimaryWorkspace
+) -> Optional[WorkspaceSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug(f"--o-o-- Update primary workspace to: {workspace.ws_name}")
     try:
         async with api_client.AuthenticatedSession() as api:
@@ -118,7 +142,7 @@ async def update_primary_workspace_for_user(user: UserSchema, workspace: Workspa
                 ApiRoutes.WORKSPACE_UPDATE_PRIMARY,
                 json={
                     "user": user.model_dump(include={"id_user", "email"}),
-                    "workspace": workspace.model_dump(include={"id_workspace"}),
+                    "workspace": workspace.model_dump(exclude_none=True),
                 },
             ) as response:
                 if invalid_response(response):
@@ -138,7 +162,10 @@ async def update_primary_workspace_for_user(user: UserSchema, workspace: Workspa
     return None
 
 
-async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema) -> Optional[WorkspaceSchema]:
+async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceDelete) -> Optional[WorkspaceSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     logger.debug("--o-o-- Delete workspace")
     try:
         async with api_client.AuthenticatedSession() as api:
@@ -146,7 +173,7 @@ async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
                 ApiRoutes.WORKSPACE_DELETE,
                 json={
                     "user": user.model_dump(include={"id_user", "email"}),
-                    "workspace": workspace.model_dump(include={"id_workspace"}),
+                    "workspace": workspace.model_dump(exclude_none=True),
                 },
             ) as response:
                 if invalid_response(response):
@@ -169,6 +196,9 @@ async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceSchema
 async def claim_anonymous_workspaces(
     anon_user: UserSchema, authenticated_user: UserSchema, workspaces: List[WorkspaceSchema]
 ) -> bool:
+    if not phi_cli_settings.api_enabled:
+        return False
+
     logger.debug("--o-o-- Claiming anonymous workspaces")
     try:
         async with api_client.AuthenticatedSession() as api:

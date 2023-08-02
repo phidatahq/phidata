@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from phi.cli.console import print_heading, print_info
 from phi.cli.settings import phi_cli_settings
 from phi.api.schemas.user import UserSchema
-from phi.api.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.workspace import WorkspaceSchema, WorkspaceDelete
 from phi.utils.log import logger
 from phi.utils.pickle import pickle_object_to_file, unpickle_object_from_file
 from phi.workspace.config import WorkspaceConfig
@@ -213,7 +213,12 @@ class PhiCliConfig:
 
             from phi.api.workspace import delete_workspace_for_user
 
-            await delete_workspace_for_user(user=self.user, workspace=ws_config.ws_schema)
+            await delete_workspace_for_user(
+                user=self.user,
+                workspace=WorkspaceDelete(
+                    id_workspace=ws_config.ws_schema.id_workspace, ws_name=ws_config.ws_schema.ws_name
+                ),
+            )
 
         self.save_config()
 
@@ -296,6 +301,8 @@ class PhiCliConfig:
                     print_info("     K8s Envs: {}".format([krg.env for krg in v.k8s_resource_groups]))
                 if v.aws_resource_groups:
                     print_info("     AWS Envs: {}".format([awsg.env for awsg in v.aws_resource_groups]))
+                if v.ws_schema and v.ws_schema.ws_name:
+                    print_info(f"     Name: {v.ws_schema.ws_name}")
                 if v.ws_schema and v.ws_schema.id_workspace:
-                    print_info(f"     Id: {v.ws_schema.id_workspace}")
+                    logger.debug(f"Id: {v.ws_schema.id_workspace}")
                 c += 1

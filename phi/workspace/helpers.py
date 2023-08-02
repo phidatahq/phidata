@@ -2,7 +2,6 @@ from typing import Optional
 from pathlib import Path
 
 from phi.utils.log import logger
-from phi.utils.pyproject import read_pyproject_phidata
 
 
 def get_workspace_dir_from_env() -> Optional[Path]:
@@ -23,6 +22,8 @@ def get_workspace_dir_path(ws_root_path: Path) -> Path:
         1. subdirectory: workspace
         2. In a folder defined by the pyproject.toml file
     """
+    from phi.utils.pyproject import read_pyproject_phidata
+
     logger.debug(f"Searching for a workspace directory in {ws_root_path}")
 
     # Case 1: Look for a subdirectory with name: workspace
@@ -42,5 +43,13 @@ def get_workspace_dir_path(ws_root_path: Path) -> Path:
             if phidata_conf_workspace_dir_path.exists() and phidata_conf_workspace_dir_path.is_dir():
                 return phidata_conf_workspace_dir_path
 
-    logger.error(f"Could not find a workspace dir for {ws_root_path}")
+    logger.error(f"Could not find a workspace dir at {ws_root_path}")
     exit(0)
+
+
+def generate_workspace_name(ws_dir_name: str) -> str:
+    import uuid
+
+    formatted_ws_name = ws_dir_name.replace(" ", "-").replace("_", "-").lower()
+    random_suffix = str(uuid.uuid4())[:4]
+    return f"{formatted_ws_name}-{random_suffix}"

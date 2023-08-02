@@ -9,6 +9,9 @@ from phi.utils.log import logger
 
 
 async def user_ping() -> bool:
+    if not phi_cli_settings.api_enabled:
+        return False
+
     logger.debug("--o-o-- Ping user api")
     try:
         async with api_client.Session() as api:
@@ -26,6 +29,9 @@ async def user_ping() -> bool:
 
 
 async def authenticate_and_get_user(tmp_auth_token: str) -> Optional[UserSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Getting user")
@@ -59,6 +65,9 @@ async def authenticate_and_get_user(tmp_auth_token: str) -> Optional[UserSchema]
 
 
 async def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Signing in user")
@@ -88,6 +97,9 @@ async def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSc
 
 
 async def user_is_authenticated() -> bool:
+    if not phi_cli_settings.api_enabled:
+        return False
+
     logger.debug("--o-o-- Checking if user is authenticated")
     try:
         phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
@@ -114,6 +126,9 @@ async def user_is_authenticated() -> bool:
 
 
 async def create_anon_user() -> Optional[UserSchema]:
+    if not phi_cli_settings.api_enabled:
+        return None
+
     from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Creating anon user")

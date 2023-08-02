@@ -15,6 +15,13 @@ def delete_phidata_conf() -> None:
     delete_from_fs(PHI_CLI_DIR)
 
 
+async def ping_user_api() -> bool:
+    """Ping the user api to check if the user is authenticated"""
+    from phi.api.user import user_ping
+
+    return await user_ping()
+
+
 async def authenticate_user() -> None:
     """Authenticate the user using credentials from phidata.com
     Steps:

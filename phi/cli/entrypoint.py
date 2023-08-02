@@ -148,7 +148,7 @@ def ping(
     if ping_success:
         print_info("Ping successful")
     else:
-        print_info("Could not reach phidata servers")
+        print_info("Could not ping phidata servers")
 
 
 @phi_cli.command(short_help="Print phi config")

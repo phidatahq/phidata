@@ -29,6 +29,9 @@ class PhiCliSettings(BaseSettings):
     signin_url: str = Field("https://phidata.com/signin", validate_default=True)
     api_url: str = Field("https://api.phidata.com", validate_default=True)
 
+    # Feature Gates
+    api_enabled: bool = False
+
     model_config = SettingsConfigDict(env_prefix="PHI_CLI_")
 
     @field_validator("signin_url", mode="before")

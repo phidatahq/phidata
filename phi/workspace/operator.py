@@ -464,6 +464,9 @@ async def start_workspace(
         num_rgs_created += 1
         # print white space between runs
         print_info("")
+        logger.debug(f"Deployed {num_resources_created} resources in {num_rgs_created} resource groups")
+
+    logger.debug(f"num_resources_created: {num_resources_created}")
 
     if dry_run:
         return

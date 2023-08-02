@@ -32,6 +32,8 @@ class Conversation(BaseModel):
     # Database ID/Primary key for this conversation.
     # This is set after the conversation is started and saved to the database.
     id: Optional[int] = None
+    # Conversation name
+    name: Optional[str] = None
     # Set log level to debug
     debug_logs: bool = False
     # Monitor conversations on phidata.com

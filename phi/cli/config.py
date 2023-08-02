@@ -85,7 +85,7 @@ class PhiCliConfig:
         ws_dir_name: str,
         ws_root_path: Optional[Path] = None,
         ws_schema: Optional[WorkspaceSchema] = None,
-    ) -> None:
+    ) -> Optional[WorkspaceConfig]:
         """The main function to create, update or refresh the WorkspaceConfig.
 
         Notes:
@@ -96,7 +96,7 @@ class PhiCliConfig:
 
         # Validate ws_name is not None
         if ws_dir_name is None or not isinstance(ws_dir_name, str):
-            return
+            return None
 
         ######################################################
         # Create new ws_config for ws_name if one does not exist
@@ -108,14 +108,14 @@ class PhiCliConfig:
                 ws_schema=ws_schema,
                 ws_root_path=ws_root_path,
             )
-            # Load the new workspace
-            # new_workspace_config.load()
             self.ws_config_map[ws_dir_name] = new_workspace_config
             if ws_root_path is not None:
                 self.path_to_ws_config_map[ws_root_path] = new_workspace_config
                 logger.debug(f"Workspace dir: {ws_root_path}")
             logger.debug(f"Workspace created for directory: {ws_dir_name}")
-            return
+
+            # Return the new_workspace_config
+            return new_workspace_config
 
         ######################################################
         # Update ws_config
@@ -125,17 +125,15 @@ class PhiCliConfig:
         existing_ws_config: Optional[WorkspaceConfig] = self.ws_config_map.get(ws_dir_name, None)
         if existing_ws_config is None:
             logger.error("Something went wrong. Please try again.")
-            return
+            return None
 
-        # Make a new WorkspaceConfig using new fields or fields from the existing_ws_config
+        # Make a new WorkspaceConfig using new fields where provided and fields from the existing_ws_config where not
         updated_ws_config: WorkspaceConfig = WorkspaceConfig(
             ws_dir_name=(ws_dir_name or existing_ws_config.ws_dir_name),
             ws_schema=(ws_schema or existing_ws_config.ws_schema),
             ws_root_path=(ws_root_path or existing_ws_config.ws_root_path),
             create_ts=existing_ws_config.create_ts,
         )
-        # Load the updated workspace
-        # updated_ws_config.load()
 
         # Point the ws_config in ws_config_map and path_to_ws_config_map to updated_ws_config
         # 1. Pop the existing object from the self.ws_config_map
@@ -152,6 +150,9 @@ class PhiCliConfig:
             self.path_to_ws_config_map[updated_ws_config.ws_root_path] = self.ws_config_map[ws_dir_name]
         logger.debug(f"Workspace updated: {ws_dir_name}")
 
+        # Return the updated_ws_config
+        return updated_ws_config
+
     ######################################################
     # END
     ######################################################
@@ -160,13 +161,14 @@ class PhiCliConfig:
         self,
         ws_dir_name: str,
         ws_root_path: Path,
-    ) -> None:
+    ) -> Optional[WorkspaceConfig]:
         """Adds a newly created workspace to the PhiCliConfig"""
-        self._add_or_update_ws_config(
+        ws_config = self._add_or_update_ws_config(
             ws_dir_name=ws_dir_name,
             ws_root_path=ws_root_path,
         )
         self.save_config()
+        return ws_config
 
     def update_ws_config(
         self,
@@ -174,9 +176,9 @@ class PhiCliConfig:
         ws_schema: Optional[WorkspaceSchema] = None,
         ws_root_path: Optional[Path] = None,
         set_as_active: bool = False,
-    ) -> None:
+    ) -> Optional[WorkspaceConfig]:
         """Updates WorkspaceConfig and returns True if successful"""
-        self._add_or_update_ws_config(
+        ws_config = self._add_or_update_ws_config(
             ws_dir_name=ws_dir_name,
             ws_schema=ws_schema,
             ws_root_path=ws_root_path,
@@ -184,6 +186,7 @@ class PhiCliConfig:
         if set_as_active:
             self.active_ws_dir = ws_dir_name
         self.save_config()
+        return ws_config
 
     async def delete_ws(self, ws_dir_name: str) -> None:
         """Handles Deleting a workspace from the PhiCliConfig and api"""
@@ -303,6 +306,4 @@ class PhiCliConfig:
                     print_info("     AWS Envs: {}".format([awsg.env for awsg in v.aws_resource_groups]))
                 if v.ws_schema and v.ws_schema.ws_name:
                     print_info(f"     Name: {v.ws_schema.ws_name}")
-                if v.ws_schema and v.ws_schema.id_workspace:
-                    logger.debug(f"Id: {v.ws_schema.id_workspace}")
                 c += 1

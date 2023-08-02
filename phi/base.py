@@ -64,7 +64,7 @@ class PhiBase(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
 
     def get_group_name(self) -> Optional[str]:
-        return self.group
+        return self.group or self.name
 
     @property
     def workspace_root(self) -> Optional[Path]:

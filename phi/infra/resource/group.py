@@ -2,7 +2,6 @@ from typing import Optional, List, Any
 
 from phi.base import PhiBase
 from phi.workspace.settings import WorkspaceSettings
-from phi.utils.log import logger
 
 
 class InfraResourceGroup(PhiBase):
@@ -20,8 +19,8 @@ class InfraResourceGroup(PhiBase):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
-    ):
-        logger.warning(f"create_resources() not implemented for {self.__class__.__name__}")
+    ) -> int:
+        raise NotImplementedError
 
     def delete_resources(
         self,
@@ -32,8 +31,8 @@ class InfraResourceGroup(PhiBase):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
-    ):
-        logger.warning(f"delete_resources() not implemented for {self.__class__.__name__}")
+    ) -> int:
+        raise NotImplementedError
 
     def update_resources(
         self,
@@ -44,5 +43,5 @@ class InfraResourceGroup(PhiBase):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
-    ):
-        logger.warning(f"update_resources() not implemented for {self.__class__.__name__}")
+    ) -> int:
+        raise NotImplementedError

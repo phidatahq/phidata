@@ -123,6 +123,12 @@ class Conversation(BaseModel):
             self.user_name = row.user_name
         if self.user_persona is None and row.user_persona is not None:
             self.user_persona = row.user_persona
+
+        # If extra data is set in the conversation, merge it with the database extra data
+        # The conversation extra data takes precedence
+        if self.extra_data is not None and row.extra_data is not None:
+            self.extra_data = {**row.extra_data, **self.extra_data}
+        # If extra data is not set in the conversation, use the database extra data
         if self.extra_data is None and row.extra_data is not None:
             self.extra_data = row.extra_data
 

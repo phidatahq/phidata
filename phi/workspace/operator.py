@@ -3,7 +3,7 @@ from typing import Optional, Dict, List
 
 import typer
 
-from phi.api.monitor import log_monitor_event
+from phi.api.workspace import log_workspace_event
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
     print_heading,
@@ -13,11 +13,11 @@ from phi.cli.console import (
 )
 from phi.infra.enums import InfraType
 from phi.infra.resource.group import InfraResourceGroup
-from phi.api.schemas.monitor import MonitorEventSchema
 from phi.api.schemas.workspace import (
     WorkspaceSchema,
     WorkspaceCreate,
     WorkspaceUpdate,
+    WorkspaceEvent,
     UpdatePrimaryWorkspace,
 )
 from phi.workspace.config import WorkspaceConfig
@@ -393,18 +393,15 @@ async def setup_workspace(ws_root_path: Path) -> None:
             print_info("3. Install workspace dependencies:")
             print_info(f"\t{install_ws_file}")
 
-        if ws_config.ws_schema is not None:
-            await log_monitor_event(
-                monitor=MonitorEventSchema(
-                    object_name="workspace",
+        if ws_config.ws_schema is not None and phi_config.user is not None:
+            await log_workspace_event(
+                user=phi_config.user,
+                workspace_event=WorkspaceEvent(
+                    id_workspace=ws_config.ws_schema.id_workspace,
                     event_type="setup",
                     event_status="success",
-                    object_data=ws_config.ws_schema.model_dump(exclude_none=True)
-                    if ws_config.ws_schema is not None
-                    else None,
                     event_data={"workspace_root_path": str(ws_root_path)},
                 ),
-                workspace=ws_config.ws_schema,
             )
     else:
         print_info("Workspace setup unsuccessful. Please try again.")
@@ -415,6 +412,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
 
 
 async def start_workspace(
+    phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -474,36 +472,38 @@ async def start_workspace(
 
     print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
 
-    # Log workspace start event
-    monitor_event = MonitorEventSchema(
-        object_name="workspace",
-        event_type="workspace_start",
-        event_status="in_progress",
-        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
-        event_data={
-            "target_env": target_env,
-            "target_infra": target_infra,
-            "target_group": target_group,
-            "target_name": target_name,
-            "target_type": target_type,
-            "dry_run": dry_run,
-            "auto_confirm": auto_confirm,
-            "force": force,
-        },
-    )
-
+    workspace_event_status = "in_progress"
     if num_rgs_to_create == num_rgs_created:
         print_subheading("Workspace started")
-        monitor_event.event_status = "success"
+        workspace_event_status = "success"
     else:
         logger.error("Workspace start failed")
-        monitor_event.event_status = "failed"
+        workspace_event_status = "failed"
 
-    if ws_config.ws_schema is not None:
-        await log_monitor_event(monitor=monitor_event, workspace=ws_config.ws_schema)
+    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+        # Log workspace start event
+        await log_workspace_event(
+            user=phi_config.user,
+            workspace_event=WorkspaceEvent(
+                id_workspace=ws_config.ws_schema.id_workspace,
+                event_type="workspace_start",
+                event_status=workspace_event_status,
+                event_data={
+                    "target_env": target_env,
+                    "target_infra": target_infra,
+                    "target_group": target_group,
+                    "target_name": target_name,
+                    "target_type": target_type,
+                    "dry_run": dry_run,
+                    "auto_confirm": auto_confirm,
+                    "force": force,
+                },
+            ),
+        )
 
 
 async def stop_workspace(
+    phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -563,36 +563,38 @@ async def stop_workspace(
 
     print_info(f"# ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
 
-    # Log workspace start event
-    monitor_event = MonitorEventSchema(
-        object_name="workspace",
-        event_type="workspace_stop",
-        event_status="in_progress",
-        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
-        event_data={
-            "target_env": target_env,
-            "target_infra": target_infra,
-            "target_group": target_group,
-            "target_name": target_name,
-            "target_type": target_type,
-            "dry_run": dry_run,
-            "auto_confirm": auto_confirm,
-            "force": force,
-        },
-    )
-
+    workspace_event_status = "in_progress"
     if num_rgs_to_delete == num_rgs_deleted:
         print_subheading("Workspace stopped")
-        monitor_event.event_status = "success"
+        workspace_event_status = "success"
     else:
         logger.error("Workspace stop failed")
-        monitor_event.event_status = "failed"
+        workspace_event_status = "failed"
 
-    if ws_config.ws_schema is not None:
-        await log_monitor_event(monitor=monitor_event, workspace=ws_config.ws_schema)
+    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+        # Log workspace stop event
+        await log_workspace_event(
+            user=phi_config.user,
+            workspace_event=WorkspaceEvent(
+                id_workspace=ws_config.ws_schema.id_workspace,
+                event_type="workspace_stop",
+                event_status=workspace_event_status,
+                event_data={
+                    "target_env": target_env,
+                    "target_infra": target_infra,
+                    "target_group": target_group,
+                    "target_name": target_name,
+                    "target_type": target_type,
+                    "dry_run": dry_run,
+                    "auto_confirm": auto_confirm,
+                    "force": force,
+                },
+            ),
+        )
 
 
 async def update_workspace(
+    phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -652,33 +654,34 @@ async def update_workspace(
 
     print_info(f"# ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
 
-    # Log workspace start event
-    monitor_event = MonitorEventSchema(
-        object_name="workspace",
-        event_type="workspace_update",
-        event_status="in_progress",
-        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
-        event_data={
-            "target_env": target_env,
-            "target_infra": target_infra,
-            "target_group": target_group,
-            "target_name": target_name,
-            "target_type": target_type,
-            "dry_run": dry_run,
-            "auto_confirm": auto_confirm,
-            "force": force,
-        },
-    )
-
+    workspace_event_status = "in_progress"
     if num_rgs_to_update == num_rgs_updated:
         print_subheading("Workspace updated")
-        monitor_event.event_status = "success"
+        workspace_event_status = "success"
     else:
         logger.error("Workspace update failed")
-        monitor_event.event_status = "failed"
+        workspace_event_status = "failed"
 
-    if ws_config.ws_schema is not None:
-        await log_monitor_event(monitor=monitor_event, workspace=ws_config.ws_schema)
+    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+        # Log workspace start event
+        await log_workspace_event(
+            user=phi_config.user,
+            workspace_event=WorkspaceEvent(
+                id_workspace=ws_config.ws_schema.id_workspace,
+                event_type="workspace_update",
+                event_status=workspace_event_status,
+                event_data={
+                    "target_env": target_env,
+                    "target_infra": target_infra,
+                    "target_group": target_group,
+                    "target_name": target_name,
+                    "target_type": target_type,
+                    "dry_run": dry_run,
+                    "auto_confirm": auto_confirm,
+                    "force": force,
+                },
+            ),
+        )
 
 
 async def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[str]]) -> None:

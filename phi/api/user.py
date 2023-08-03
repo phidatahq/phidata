@@ -28,19 +28,30 @@ async def user_ping() -> bool:
     return False
 
 
-async def authenticate_and_get_user(tmp_auth_token: str) -> Optional[UserSchema]:
+async def authenticate_and_get_user(
+    tmp_auth_token: str, existing_user: Optional[UserSchema] = None
+) -> Optional[UserSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    from phi.cli.credentials import save_auth_token
+    from phi.cli.credentials import save_auth_token, read_auth_token
 
     logger.debug("--o-o-- Getting user")
+    anon_user = None
+    if existing_user is not None:
+        if existing_user.email == "anon":
+            logger.debug(f"Claiming anonymous user: {existing_user.id_user}")
+            anon_user = {
+                "email": existing_user.email,
+                "id_user": existing_user.id_user,
+                "auth_token": read_auth_token() or "",
+            }
     try:
         headers = api_client.headers.copy()
         headers[phi_cli_settings.auth_token_header] = tmp_auth_token
 
         async with api_client.Session() as api:
-            async with api.post(ApiRoutes.USER_CLI_AUTH, headers=headers) as response:
+            async with api.post(ApiRoutes.USER_CLI_AUTH, headers=headers, json=anon_user) as response:
                 if invalid_response(response):
                     return None
 
@@ -134,7 +145,9 @@ async def create_anon_user() -> Optional[UserSchema]:
     logger.debug("--o-o-- Creating anon user")
     try:
         async with api_client.Session() as api:
-            async with api.post(ApiRoutes.USER_CREATE, json={"email": "anon", "is_bot": True}) as response:
+            async with api.post(
+                ApiRoutes.USER_CREATE, json={"email": "anon", "username": "anon", "is_bot": True}
+            ) as response:
                 if invalid_response(response):
                     return None
 

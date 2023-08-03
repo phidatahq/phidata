@@ -53,8 +53,12 @@ async def authenticate_user() -> None:
         logger.error("Could not authenticate, please try again")
         return
 
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    existing_user: Optional[UserSchema] = phi_config.user if phi_config is not None else None
     try:
-        user: Optional[UserSchema] = await authenticate_and_get_user(tmp_auth_token)
+        user: Optional[UserSchema] = await authenticate_and_get_user(
+            tmp_auth_token=tmp_auth_token, existing_user=existing_user
+        )
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
@@ -64,7 +68,6 @@ async def authenticate_user() -> None:
         logger.error("Could not authenticate, please try again")
         return
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         phi_config = PhiCliConfig(user)
     else:

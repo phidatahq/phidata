@@ -43,23 +43,8 @@ class PhiCliConfig:
     async def set_user(self, user: Optional[UserSchema]) -> None:
         """Sets the user"""
         if user is not None:
-            if self._user is not None:
-                if self._user.email == "anon":
-                    from phi.api.workspace import claim_anonymous_workspaces
-
-                    logger.debug("Current user is anon -- claiming workspaces")
-                    # If the current user is anon, claim all workspaces
-                    workspaces_claimed = await claim_anonymous_workspaces(
-                        anon_user=self._user,
-                        authenticated_user=user,
-                        workspaces=[ws.ws_schema for ws in self.available_ws if ws.ws_schema is not None],
-                    )
-                    if not workspaces_claimed:
-                        logger.warning("Could not claim existing workspaces, please authenticate again")
-                self._user = user
-            else:
-                logger.debug("Setting user")
-                self._user = user
+            logger.debug(f"Setting user to: {user.email}")
+            self._user = user
             self.save_config()
 
     ######################################################

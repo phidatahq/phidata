@@ -8,6 +8,7 @@ from phi.api.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceUpdate,
     WorkspaceDelete,
+    WorkspaceEvent,
     UpdatePrimaryWorkspace,
 )
 from phi.cli.settings import phi_cli_settings
@@ -193,27 +194,25 @@ async def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceDelete
     return None
 
 
-async def claim_anonymous_workspaces(
-    anon_user: UserSchema, authenticated_user: UserSchema, workspaces: List[WorkspaceSchema]
-) -> bool:
+async def log_workspace_event(user: UserSchema, workspace_event: WorkspaceEvent) -> bool:
     if not phi_cli_settings.api_enabled:
         return False
 
-    logger.debug("--o-o-- Claiming anonymous workspaces")
+    logger.debug("--o-o-- Log workspace event")
     try:
         async with api_client.AuthenticatedSession() as api:
             async with api.post(
-                ApiRoutes.WORKSPACE_CLAIM,
+                ApiRoutes.WORKSPACE_EVENT,
                 json={
-                    "anon_user": anon_user.model_dump(include={"id_user", "email"}),
-                    "user": authenticated_user.model_dump(include={"id_user", "email"}),
-                    "workspaces": [workspace.model_dump(include={"id_workspace"}) for workspace in workspaces],
+                    "user": user.model_dump(include={"id_user", "email"}),
+                    "workspace_event": workspace_event.model_dump(exclude_none=True),
                 },
             ) as response:
                 if invalid_response(response):
                     return False
 
                 response_json = await response.json()
+                # logger.debug(f"response_json: {response_json}")
                 if response_json is None:
                     return False
 

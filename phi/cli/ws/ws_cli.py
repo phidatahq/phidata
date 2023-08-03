@@ -269,6 +269,7 @@ def up(
     print_heading("Starting workspace: {}\n".format(active_ws_config.ws_dir_name))
     aiorun(
         start_workspace(
+            phi_config=phi_config,
             ws_config=active_ws_config,
             target_env=target_env,
             target_infra=target_infra,
@@ -435,6 +436,7 @@ def down(
     print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_dir_name))
     aiorun(
         stop_workspace(
+            phi_config=phi_config,
             ws_config=active_ws_config,
             target_env=target_env,
             target_infra=target_infra,
@@ -599,6 +601,7 @@ def patch(
     print_heading("Updating workspace: {}\n".format(active_ws_config.ws_dir_name))
     aiorun(
         update_workspace(
+            phi_config=phi_config,
             ws_config=active_ws_config,
             target_env=target_env,
             target_infra=target_infra,

@@ -30,6 +30,13 @@ class WorkspaceDelete(BaseModel):
     ws_name: Optional[str] = None
 
 
+class WorkspaceEvent(BaseModel):
+    id_workspace: int
+    event_type: str
+    event_status: str
+    event_data: Optional[Dict[str, Any]] = None
+
+
 class WorkspaceSchema(BaseModel):
     """Workspace data returned by the API."""
 

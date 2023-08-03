@@ -186,6 +186,8 @@ class PgVector(VectorDb):
         # Get neighbors
         with self.Session() as sess:
             with sess.begin():
+                if self.index is not None and isinstance(self.index, Ivfflat):
+                    sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
                 neighbors = sess.execute(stmt).fetchall() or []
 
         # Build search results
@@ -224,11 +226,14 @@ class PgVector(VectorDb):
     def optimize(self) -> None:
         from math import sqrt
 
+        if self.index is None:
+            return
+
         if isinstance(self.index, Ivfflat):
             est_list = self.index.nlist
             if not self.index.dynamic_list:
                 total_records = self.get_count()
-                logger.debug(f"Total Number of records: {total_records}")
+                logger.debug(f"Number of records: {total_records}")
                 if est_list < 10:
                     est_list = 10
                 if est_list > 1000000:
@@ -237,8 +242,8 @@ class PgVector(VectorDb):
             with self.Session() as sess:
                 with sess.begin():
                     logger.debug(
-                        f"Creating Index with appropriate number of lists {est_list} \
-                            and probes {self.index.probes} with distance metric {self.index.distance_metric}"
+                        f"Creating Index with lists: {est_list}, probes: {self.index.probes} "
+                        f"and distance metric: {self.index.distance_metric}"
                     )
                     sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
                     sess.execute(

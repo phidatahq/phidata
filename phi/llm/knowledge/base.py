@@ -17,6 +17,8 @@ class LLMKnowledgeBase(BaseModel):
     vector_db: Optional[VectorDb] = None
     # Number of relevant documents to return on search
     relevant_documents: int = 5
+    # Number of documents to optimize the vector db on
+    optimize_on: int = 1000
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -67,7 +69,7 @@ class LLMKnowledgeBase(BaseModel):
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")
 
-        if num_documents > 0:
+        if num_documents > self.optimize_on:
             logger.debug("Optimizing Vector DB")
             self.vector_db.optimize()
 

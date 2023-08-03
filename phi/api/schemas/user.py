@@ -4,9 +4,7 @@ from pydantic import BaseModel
 
 
 class UserSchema(BaseModel):
-    """
-    Schema for user data returned by the API.
-    """
+    """Schema for user data returned by the API."""
 
     id_user: int
     email: Optional[str] = None

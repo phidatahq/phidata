@@ -29,7 +29,7 @@ class WorkspaceSettings(BaseSettings):
     # default env for phi ws commands
     default_env: Optional[str] = "dev"
     # default infra for phi ws commands
-    default_infra: Optional[str] = "docker"
+    default_infra: Optional[str] = None
     #
     # -*- Dev settings
     #

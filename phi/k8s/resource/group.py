@@ -77,7 +77,7 @@ class K8sResourceGroup(InfraResourceGroup):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
-    ):
+    ) -> int:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
@@ -160,7 +160,7 @@ class K8sResourceGroup(InfraResourceGroup):
         num_resources_created: int = 0
         if num_resources_to_create == 0:
             print_info("No K8sResources to create")
-            return
+            return 0
 
         if dry_run:
             print_heading("--**- K8s resources to create:")
@@ -168,7 +168,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
             print_info(f"Total {num_resources_to_create} resources")
-            return
+            return 0
 
         # Validate resources to be created
         if not auto_confirm:
@@ -182,7 +182,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 print_info("-*-")
                 print_info("-*- Skipping deploy")
                 print_info("-*-")
-                exit(0)
+                return 0
 
         for resource in final_k8s_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -195,20 +195,18 @@ class K8sResourceGroup(InfraResourceGroup):
                     num_resources_created += 1
                 else:
                     if workspace_settings is not None and not workspace_settings.continue_on_create_failure:
-                        return False
+                        return num_resources_created
             except Exception as e:
                 logger.error(f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}")
                 logger.error(e)
                 logger.error("Please fix and try again...")
 
         print_info(f"\n# Resources created: {num_resources_created}/{num_resources_to_create}")
-        if num_resources_to_create == num_resources_created:
-            return True
-
-        logger.error(
-            f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}"  # noqa: E501
-        )
-        return False
+        if num_resources_to_create != num_resources_created:
+            logger.error(
+                f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}"
+            )  # noqa: E501
+        return num_resources_created
 
     def delete_resources(
         self,
@@ -219,7 +217,7 @@ class K8sResourceGroup(InfraResourceGroup):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
-    ):
+    ) -> int:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
@@ -311,7 +309,7 @@ class K8sResourceGroup(InfraResourceGroup):
         num_resources_deleted: int = 0
         if num_resources_to_delete == 0:
             print_info("No K8sResources to delete")
-            return
+            return 0
 
         if dry_run:
             print_heading("--**- K8s resources to delete:")
@@ -319,7 +317,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
             print_info(f"Total {num_resources_to_delete} resources")
-            return
+            return 0
 
         # Validate resources to be deleted
         if not auto_confirm:
@@ -333,7 +331,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 print_info("-*-")
                 print_info("-*- Skipping delete")
                 print_info("-*-")
-                exit(0)
+                return 0
 
         for resource in final_k8s_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -346,20 +344,18 @@ class K8sResourceGroup(InfraResourceGroup):
                     num_resources_deleted += 1
                 else:
                     if workspace_settings is not None and not workspace_settings.continue_on_delete_failure:
-                        return False
+                        return num_resources_deleted
             except Exception as e:
                 logger.error(f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}")
                 logger.error(e)
                 logger.error("Please fix and try again...")
 
         print_info(f"\n# Resources deleted: {num_resources_deleted}/{num_resources_to_delete}")
-        if num_resources_to_delete == num_resources_deleted:
-            return True
-
-        logger.error(
-            f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"  # noqa: E501
-        )
-        return False
+        if num_resources_to_delete != num_resources_deleted:
+            logger.error(
+                f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"
+            )  # noqa: E501
+        return num_resources_deleted
 
     def update_resources(
         self,
@@ -370,7 +366,7 @@ class K8sResourceGroup(InfraResourceGroup):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
-    ):
+    ) -> int:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
@@ -463,7 +459,7 @@ class K8sResourceGroup(InfraResourceGroup):
         num_resources_updated: int = 0
         if num_resources_to_update == 0:
             print_info("No K8sResources to update")
-            return
+            return 0
 
         if dry_run:
             print_heading("--**- K8s resources to update:")
@@ -471,7 +467,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
             print_info(f"Total {num_resources_to_update} resources")
-            return
+            return 0
 
         # Validate resources to be updated
         if not auto_confirm:
@@ -485,7 +481,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 print_info("-*-")
                 print_info("-*- Skipping patch")
                 print_info("-*-")
-                exit(0)
+                return 0
 
         for resource in final_k8s_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -498,17 +494,15 @@ class K8sResourceGroup(InfraResourceGroup):
                     num_resources_updated += 1
                 else:
                     if workspace_settings is not None and not workspace_settings.continue_on_patch_failure:
-                        return False
+                        return num_resources_updated
             except Exception as e:
                 logger.error(f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}")
                 logger.error(e)
                 logger.error("Please fix and try again...")
 
         print_info(f"\n# Resources updated: {num_resources_updated}/{num_resources_to_update}")
-        if num_resources_to_update == num_resources_updated:
-            return True
-
-        logger.error(
-            f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"  # noqa: E501
-        )
-        return False
+        if num_resources_to_update != num_resources_updated:
+            logger.error(
+                f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"
+            )  # noqa: E501
+        return num_resources_updated

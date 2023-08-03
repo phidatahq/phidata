@@ -44,7 +44,7 @@ class ApiClient:
 api_client = ApiClient()
 
 
-def invalid_respose(response: aiohttp.ClientResponse):
+def invalid_response(response: aiohttp.ClientResponse):
     status = response.status
     if status >= 400:
         return True

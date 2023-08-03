@@ -2,6 +2,7 @@
 
 This is the entrypoint for the `phi` cli application.
 """
+import sys
 from asyncio import run as aiorun
 from typing import Optional
 
@@ -147,7 +148,7 @@ def ping(
     if ping_success:
         print_info("Ping successful")
     else:
-        print_info("Could not reach phidata servers")
+        print_info("Could not ping phidata servers")
 
 
 @phi_cli.command(short_help="Print phi config")
@@ -207,7 +208,7 @@ def set(
     if print_debug_log:
         set_log_level_to_debug()
 
-    aiorun(set_workspace_as_active(ws_name))
+    aiorun(set_workspace_as_active(ws_dir_name=ws_name))
 
 
 # @phi_cli.command(short_help="Start resources defined in a resources.py file")
@@ -667,3 +668,8 @@ def set(
 phi_cli.add_typer(ws_cli)
 # phi_cli.add_typer(k8s_app)
 # phi_cli.add_typer(wf_app)
+
+if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith("win"):
+    from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
+
+    set_event_loop_policy(WindowsSelectorEventLoopPolicy())

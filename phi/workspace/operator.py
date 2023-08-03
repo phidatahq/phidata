@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Optional, cast, Dict, List
+from typing import Optional, Dict, List
 
 import typer
 
-from phi.api.monitor import log_monitor_event
+from phi.api.workspace import log_workspace_event
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
     print_heading,
@@ -13,8 +13,13 @@ from phi.cli.console import (
 )
 from phi.infra.enums import InfraType
 from phi.infra.resource.group import InfraResourceGroup
-from phi.api.schemas.monitor import MonitorEventSchema
-from phi.api.schemas.workspace import WorkspaceSchema
+from phi.api.schemas.workspace import (
+    WorkspaceSchema,
+    WorkspaceCreate,
+    WorkspaceUpdate,
+    WorkspaceEvent,
+    UpdatePrimaryWorkspace,
+)
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
@@ -74,7 +79,7 @@ async def create_workspace(
             log_config_not_available_msg()
             return
 
-    ws_name: Optional[str] = name
+    ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
     ws_template = WorkspaceStarterTemplate.api_app
     templates = list(WorkspaceStarterTemplate.__members__.values())
@@ -104,7 +109,7 @@ async def create_workspace(
             raise Exception(f"{template} is not a supported template, please choose from: {templates}")
         repo_to_clone = TEMPLATE_TO_REPO_MAP.get(ws_template)
 
-    if ws_name is None:
+    if ws_dir_name is None:
         default_ws_name = "api-app"
         if url is not None:
             # Get default_ws_name from url
@@ -114,9 +119,9 @@ async def create_workspace(
             default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "api-app")
 
         # Ask user for workspace name if not provided
-        ws_name = Prompt.ask("Workspace Name", default=default_ws_name)
+        ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name)
 
-    if ws_name is None:
+    if ws_dir_name is None:
         logger.error("Workspace name is required")
         return
     if repo_to_clone is None:
@@ -124,17 +129,17 @@ async def create_workspace(
         return
 
     # Check if a workspace with the same name exists
-    existing_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_name(ws_name)
+    existing_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
     if existing_ws_config is not None:
-        logger.error(f"Found existing record for a workspace: {ws_name}")
+        logger.error(f"Found existing record for a workspace at: {ws_dir_name}")
         delete_existing_ws_config = typer.confirm("Replace existing record?", default=True)
         if delete_existing_ws_config:
-            await phi_config.delete_ws(ws_name)
+            await phi_config.delete_ws(ws_dir_name)
         else:
             return
 
     # Check if we can create the workspace in the current dir
-    ws_root_path: Path = current_dir.joinpath(ws_name)
+    ws_root_path: Path = current_dir.joinpath(ws_dir_name)
     if ws_root_path.exists():
         logger.error(f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace")
         return
@@ -162,7 +167,7 @@ async def create_workspace(
             pass
 
     phi_config.add_new_ws_to_config(
-        ws_name=ws_name,
+        ws_dir_name=ws_dir_name,
         ws_root_path=ws_root_path,
     )
 
@@ -189,19 +194,18 @@ async def setup_workspace(ws_root_path: Path) -> None:
     """Setup a phi workspace at `ws_root_path`.
 
     1. Validate pre-requisites
-    1.1 Check ws_root_path is valid
-    1.2 Check PhiCliConfig is valid
+    1.1 Check ws_root_path is available
+    1.2 Check PhiCliConfig is available
     1.3 Validate WorkspaceConfig is available
-    1.4 Set workspace as active
+    1.4 Load workspace and set as active
     1.5 Check if remote origin is available
     1.6 Create anon user if not available
 
-    2. Create or Update WorkspaceSchema (if user is logged in)
+    2. Create or Update WorkspaceSchema
     If a ws_schema exists for this workspace, this workspace has a record in the backend
     2.1 Create WorkspaceSchema for a NEWLY CREATED WORKSPACE
-    2.2 Update WorkspaceSchema for EXISTING WORKSPACE
-
-    3. Refresh WorkspaceConfig and Complete Workspace setup
+    2.2 Set workspace as primary if needed
+    2.3 Update WorkspaceSchema if git_url has changed
     """
     from phi.cli.operator import initialize_phi
     from phi.utils.git import get_remote_origin_for_dir
@@ -212,7 +216,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
     ## 1. Validate Pre-requisites
     ######################################################
     ######################################################
-    # 1.1 Check ws_root_path is valid
+    # 1.1 Check ws_root_path is available
     ######################################################
     _ws_is_valid: bool = ws_root_path is not None and ws_root_path.exists() and ws_root_path.is_dir()
     if not _ws_is_valid:
@@ -220,7 +224,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
         return
 
     ######################################################
-    # 1.2 Check PhiCliConfig is valid
+    # 1.2 Check PhiCliConfig is available
     ######################################################
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -250,25 +254,32 @@ async def setup_workspace(ws_root_path: Path) -> None:
         # In this case, the local workspace directory exists but PhiCliConfig does not have a record
         print_info(f"Adding {ws_root_path} as a workspace")
         phi_config.add_new_ws_to_config(
-            ws_name=ws_root_path.stem,
+            ws_dir_name=ws_root_path.stem,
             ws_root_path=ws_root_path,
         )
         ws_config = phi_config.get_ws_config_by_path(ws_root_path)
     else:
-        logger.debug(f"Found workspace {ws_config.ws_name}")
-        phi_config.refresh_ws_config(ws_config.ws_name)
+        logger.debug(f"Found workspace at {ws_config.ws_dir_name}")
 
     # If the ws_config is still None it means the workspace is corrupt
     if ws_config is None:
-        logger.error(f"Could not add workspace from: {ws_root_path}")
+        logger.error(f"Could not use workspace from: {ws_root_path}")
         logger.error("Please try again")
         return
 
     ######################################################
-    # 1.4 Set workspace as active
+    # 1.4 Load workspace and set as active
     ######################################################
-    phi_config.active_ws_name = ws_config.ws_name
-    is_active_ws = True
+    # Load and save the workspace config
+    ws_config.load()
+    # Get the workspace dir name
+    ws_dir_name = ws_config.ws_dir_name
+    # Set the workspace as active if it is not already
+    # update_primary_ws is a flag to update the primary workspace in the backend
+    update_primary_ws = False
+    if phi_config.active_ws_dir is None or phi_config.active_ws_dir != ws_dir_name:
+        phi_config.active_ws_dir = ws_dir_name
+        update_primary_ws = True
 
     ######################################################
     # 1.5 Check if remote origin is available
@@ -290,65 +301,84 @@ async def setup_workspace(ws_root_path: Path) -> None:
     ######################################################
     ## 2. Create or Update WorkspaceSchema
     ######################################################
+    # If a ws_schema exists for this workspace, this workspace is synced with the api
+    ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema
     if phi_config.user is not None:
-        # If a ws_schema exists for this workspace, this workspace is synced with the api
-        ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema
-
         ######################################################
         # 2.1 Create WorkspaceSchema for NEW WORKSPACE
         ######################################################
-        if ws_schema is None:
+        if ws_schema is None or ws_schema.id_workspace is None:
             from phi.api.workspace import create_workspace_for_user
+            from phi.workspace.helpers import generate_workspace_name
 
             # If ws_schema is None, this is a NEWLY CREATED WORKSPACE.
             # We make a call to the api to create a new ws_schema
+            new_workspace_name = generate_workspace_name(ws_dir_name=ws_dir_name)
             logger.debug("Creating ws_schema for new workspace")
-            logger.debug("ws_name: {}".format(ws_config.ws_name))
-            logger.debug("is_active_ws: {}".format(is_active_ws))
+            logger.debug(f"ws_dir_name: {ws_dir_name}")
+            logger.debug(f"workspace_name: {new_workspace_name}")
 
             ws_schema = await create_workspace_for_user(
                 user=phi_config.user,
-                workspace=WorkspaceSchema(
-                    ws_name=ws_config.ws_name,
-                    is_primary_ws_for_user=is_active_ws,
+                workspace=WorkspaceCreate(
+                    ws_name=new_workspace_name,
+                    git_url=git_remote_origin_url,
+                    is_primary_for_user=True,
                 ),
             )
             if ws_schema is not None:
-                phi_config.update_ws_config(ws_name=ws_config.ws_name, ws_schema=ws_schema)
+                ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=ws_schema)
+            else:
+                logger.warning("Failed to sync workspace with api. Please setup again")
+
         ######################################################
-        # 2.2 Update WorkspaceSchema for EXISTING WORKSPACE
+        # 2.2 Set workspace as primary if needed
         ######################################################
-        else:
+        elif update_primary_ws:
+            from phi.api.workspace import update_primary_workspace_for_user
+
+            logger.debug("Setting workspace as primary")
+            logger.debug(f"ws_dir_name: {ws_dir_name}")
+            logger.debug(f"workspace_name: {ws_schema.ws_name}")
+
+            updated_workspace_schema = await update_primary_workspace_for_user(
+                user=phi_config.user,
+                workspace=UpdatePrimaryWorkspace(
+                    id_workspace=ws_schema.id_workspace,
+                    ws_name=ws_schema.ws_name,
+                ),
+            )
+
+            if updated_workspace_schema is not None:
+                # Update the ws_schema for this workspace.
+                ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
+            else:
+                logger.warning("Failed to sync workspace with api. Please setup again")
+
+        ######################################################
+        # 2.3 Update WorkspaceSchema if git_url has changed
+        ######################################################
+        if ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
             from phi.api.workspace import update_workspace_for_user
 
-            logger.debug("Updating ws_schema for existing workspace")
-            logger.debug("ws_name: {}".format(ws_config.ws_name))
-            logger.debug("is_active_ws: {}".format(is_active_ws))
+            logger.debug("Updating git_url for existing workspace")
+            logger.debug(f"ws_dir_name: {ws_dir_name}")
+            logger.debug(f"workspace_name: {ws_schema.ws_name}")
+            logger.debug(f"Existing git_url: {ws_schema.git_url}")
+            logger.debug(f"New git_url: {git_remote_origin_url}")
 
-            ws_schema.is_primary_ws_for_user = is_active_ws
-            ws_schema_updated = await update_workspace_for_user(
+            updated_workspace_schema = await update_workspace_for_user(
                 user=phi_config.user,
-                workspace=ws_schema,
+                workspace=WorkspaceUpdate(
+                    id_workspace=ws_schema.id_workspace,
+                    git_url=git_remote_origin_url,
+                ),
             )
-            if ws_schema_updated is not None:
+            if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                phi_config.update_ws_config(ws_name=ws_config.ws_name, ws_schema=ws_schema_updated)
-
-    ######################################################
-    # 3. Refresh WorkspaceConfig and Complete Workspace setup
-    ######################################################
-    # Refresh ws_config because phi_config.update_ws_config()
-    # will create a new ws_config object in PhiCliConfig
-    ws_config = cast(WorkspaceConfig, phi_config.get_ws_config_by_name(ws_config.ws_name))
-
-    # Log workspace setup event
-    monitor_event = MonitorEventSchema(
-        object_name="workspace",
-        event_type="setup",
-        event_status="success",
-        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
-        event_data={"workspace_root_path": str(ws_root_path)},
-    )
+                ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
+            else:
+                logger.warning("Failed to sync workspace with api. Please setup again")
 
     if ws_config is not None:
         # logger.debug("Workspace Config: {}".format(ws_config.model_dump_json(indent=2)))
@@ -363,10 +393,15 @@ async def setup_workspace(ws_root_path: Path) -> None:
             print_info("3. Install workspace dependencies:")
             print_info(f"\t{install_ws_file}")
 
-        if ws_config.ws_schema is not None:
-            await log_monitor_event(
-                monitor=monitor_event,
-                workspace=ws_config.ws_schema,
+        if ws_config.ws_schema is not None and phi_config.user is not None:
+            await log_workspace_event(
+                user=phi_config.user,
+                workspace_event=WorkspaceEvent(
+                    id_workspace=ws_config.ws_schema.id_workspace,
+                    event_type="setup",
+                    event_status="success",
+                    event_data={"workspace_root_path": str(ws_root_path)},
+                ),
             )
     else:
         print_info("Workspace setup unsuccessful. Please try again.")
@@ -377,6 +412,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
 
 
 async def start_workspace(
+    phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -388,7 +424,7 @@ async def start_workspace(
     force: Optional[bool] = None,
 ) -> None:
     """Start a Phi Workspace. This is called from `phi ws up`"""
-    if ws_config is None is None:
+    if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
     if ws_config.workspace_settings is None:
@@ -406,6 +442,7 @@ async def start_workspace(
     )
     num_rgs_to_create = len(resource_groups_to_create)
     num_rgs_created = 0
+    num_resources_created = 0
 
     if num_rgs_to_create == 0:
         print_info("No resources to create")
@@ -413,7 +450,7 @@ async def start_workspace(
 
     logger.debug(f"Deploying {num_rgs_to_create} resource groups")
     for rg in resource_groups_to_create:
-        rg.create_resources(
+        num_resources_created += rg.create_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
@@ -425,42 +462,48 @@ async def start_workspace(
         num_rgs_created += 1
         # print white space between runs
         print_info("")
+        logger.debug(f"Deployed {num_resources_created} resources in {num_rgs_created} resource groups")
 
     if dry_run:
         return
 
+    if num_resources_created == 0:
+        return
+
     print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
 
-    # Log workspace start event
-    monitor_event = MonitorEventSchema(
-        object_name="workspace",
-        event_type="workspace_start",
-        event_status="in_progress",
-        object_data=ws_config.ws_schema.model_dump(exclude_none=True) if ws_config.ws_schema is not None else None,
-        event_data={
-            "target_env": target_env,
-            "target_infra": target_infra,
-            "target_group": target_group,
-            "target_name": target_name,
-            "target_type": target_type,
-            "dry_run": dry_run,
-            "auto_confirm": auto_confirm,
-            "force": force,
-        },
-    )
-
+    workspace_event_status = "in_progress"
     if num_rgs_to_create == num_rgs_created:
         print_subheading("Workspace started")
-        monitor_event.event_status = "success"
+        workspace_event_status = "success"
     else:
         logger.error("Workspace start failed")
-        monitor_event.event_status = "failed"
+        workspace_event_status = "failed"
 
-    if ws_config.ws_schema is not None:
-        await log_monitor_event(monitor=monitor_event, workspace=ws_config.ws_schema)
+    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+        # Log workspace start event
+        await log_workspace_event(
+            user=phi_config.user,
+            workspace_event=WorkspaceEvent(
+                id_workspace=ws_config.ws_schema.id_workspace,
+                event_type="start",
+                event_status=workspace_event_status,
+                event_data={
+                    "target_env": target_env,
+                    "target_infra": target_infra,
+                    "target_group": target_group,
+                    "target_name": target_name,
+                    "target_type": target_type,
+                    "dry_run": dry_run,
+                    "auto_confirm": auto_confirm,
+                    "force": force,
+                },
+            ),
+        )
 
 
 async def stop_workspace(
+    phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -472,7 +515,7 @@ async def stop_workspace(
     force: Optional[bool] = None,
 ) -> None:
     """Stop a Phi Workspace. This is called from `phi ws down`"""
-    if ws_config is None is None:
+    if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
     if ws_config.workspace_settings is None:
@@ -490,6 +533,7 @@ async def stop_workspace(
     )
     num_rgs_to_delete = len(resource_groups_to_delete)
     num_rgs_deleted = 0
+    num_resources_deleted = 0
 
     if num_rgs_to_delete == 0:
         print_info("No resources to delete")
@@ -497,7 +541,7 @@ async def stop_workspace(
 
     logger.debug(f"Deleting {num_rgs_to_delete} resource groups")
     for rg in resource_groups_to_delete:
-        rg.delete_resources(
+        num_resources_deleted += rg.delete_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
@@ -509,16 +553,48 @@ async def stop_workspace(
         num_rgs_deleted += 1
         # print white space between runs
         print_info("")
+        logger.debug(f"Deleted {num_resources_deleted} resources in {num_rgs_deleted} resource groups")
+
+    if dry_run:
+        return
+
+    if num_resources_deleted == 0:
+        return
 
     print_info(f"# ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
+
+    workspace_event_status = "in_progress"
     if num_rgs_to_delete == num_rgs_deleted:
-        if not dry_run:
-            print_subheading("Workspace stopped")
+        print_subheading("Workspace stopped")
+        workspace_event_status = "success"
     else:
         logger.error("Workspace stop failed")
+        workspace_event_status = "failed"
+
+    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+        # Log workspace stop event
+        await log_workspace_event(
+            user=phi_config.user,
+            workspace_event=WorkspaceEvent(
+                id_workspace=ws_config.ws_schema.id_workspace,
+                event_type="stop",
+                event_status=workspace_event_status,
+                event_data={
+                    "target_env": target_env,
+                    "target_infra": target_infra,
+                    "target_group": target_group,
+                    "target_name": target_name,
+                    "target_type": target_type,
+                    "dry_run": dry_run,
+                    "auto_confirm": auto_confirm,
+                    "force": force,
+                },
+            ),
+        )
 
 
 async def update_workspace(
+    phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -530,7 +606,7 @@ async def update_workspace(
     force: Optional[bool] = None,
 ) -> None:
     """Update a Phi Workspace. This is called from `phi ws patch`"""
-    if ws_config is None is None:
+    if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
     if ws_config.workspace_settings is None:
@@ -548,6 +624,7 @@ async def update_workspace(
     )
     num_rgs_to_update = len(resource_groups_to_update)
     num_rgs_updated = 0
+    num_resources_updated = 0
 
     if num_rgs_to_update == 0:
         print_info("No resources to update")
@@ -555,7 +632,7 @@ async def update_workspace(
 
     logger.debug(f"Updating {num_rgs_to_update} resource groups")
     for rg in resource_groups_to_update:
-        rg.update_resources(
+        num_resources_updated += rg.update_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
@@ -567,13 +644,44 @@ async def update_workspace(
         num_rgs_updated += 1
         # print white space between runs
         print_info("")
+        logger.debug(f"Updated {num_resources_updated} resources in {num_rgs_updated} resource groups")
+
+    if dry_run:
+        return
+
+    if num_resources_updated == 0:
+        return
 
     print_info(f"# ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
+
+    workspace_event_status = "in_progress"
     if num_rgs_to_update == num_rgs_updated:
-        if not dry_run:
-            print_subheading("Workspace updated")
+        print_subheading("Workspace updated")
+        workspace_event_status = "success"
     else:
         logger.error("Workspace update failed")
+        workspace_event_status = "failed"
+
+    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+        # Log workspace start event
+        await log_workspace_event(
+            user=phi_config.user,
+            workspace_event=WorkspaceEvent(
+                id_workspace=ws_config.ws_schema.id_workspace,
+                event_type="update",
+                event_status=workspace_event_status,
+                event_data={
+                    "target_env": target_env,
+                    "target_infra": target_infra,
+                    "target_group": target_group,
+                    "target_name": target_name,
+                    "target_type": target_type,
+                    "dry_run": dry_run,
+                    "auto_confirm": auto_confirm,
+                    "force": force,
+                },
+            ),
+        )
 
 
 async def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[str]]) -> None:
@@ -581,11 +689,11 @@ async def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List
         print_heading("No workspaces to delete")
         return
 
-    for ws in ws_to_delete:
-        await phi_config.delete_ws(ws_name=ws)
+    for ws_dir in ws_to_delete:
+        await phi_config.delete_ws(ws_dir_name=ws_dir)
 
 
-async def set_workspace_as_active(ws_name: Optional[str], refresh: bool = True) -> None:
+async def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> None:
     from phi.cli.operator import initialize_phi
 
     ######################################################
@@ -613,15 +721,15 @@ async def set_workspace_as_active(ws_name: Optional[str], refresh: bool = True) 
     ######################################################
     # By default, we assume this command is run from the workspace directory
     ws_root_path: Optional[Path] = None
-    if ws_name is None:
+    if ws_dir_name is None:
         # If the user does not provide a ws_name, that implies `phi set` is ran from
         # the workspace directory.
         ws_root_path = Path(".").resolve()
     else:
         # If the user provides a workspace name manually, we find the dir for that ws
-        ws_root_path = phi_config.get_ws_root_path_by_name(ws_name)
+        ws_root_path = phi_config.get_ws_root_path_by_dir_name(ws_dir_name)
         if ws_root_path is None:
-            logger.error(f"Could not find workspace {ws_name}")
+            logger.error(f"Could not find workspace {ws_dir_name}")
             return
 
     ws_dir_is_valid: bool = ws_root_path is not None and ws_root_path.exists() and ws_root_path.is_dir()
@@ -640,13 +748,12 @@ async def set_workspace_as_active(ws_name: Optional[str], refresh: bool = True) 
         print_info("If this workspace has not been setup, please run `phi ws setup` from the workspace directory")
         return
 
-    new_active_ws_name: str = active_ws_config.ws_name
-    print_heading(f"Setting workspace {new_active_ws_name} as active")
-    if refresh:
+    print_heading(f"Setting workspace {active_ws_config.ws_dir_name} as active")
+    if load:
         try:
-            phi_config.refresh_ws_config(new_active_ws_name)
+            active_ws_config.load()
         except Exception as e:
-            logger.error("Could not refresh workspace config, please fix errors and try again")
+            logger.error("Could not load workspace config, please fix errors and try again")
             logger.error(e)
             return
 
@@ -657,21 +764,26 @@ async def set_workspace_as_active(ws_name: Optional[str], refresh: bool = True) 
     if phi_config.user is not None:
         ws_schema: Optional[WorkspaceSchema] = active_ws_config.ws_schema
         if ws_schema is None:
-            logger.warning(f"Please setup {new_active_ws_name} by running `phi ws setup`")
+            logger.warning(f"Please setup {active_ws_config.ws_dir_name} by running `phi ws setup`")
         else:
             from phi.api.workspace import update_primary_workspace_for_user
 
             updated_workspace_schema = await update_primary_workspace_for_user(
                 user=phi_config.user,
-                workspace=ws_schema,
+                workspace=UpdatePrimaryWorkspace(
+                    id_workspace=ws_schema.id_workspace,
+                    ws_name=ws_schema.ws_name,
+                ),
             )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                phi_config.update_ws_config(ws_name=new_active_ws_name, ws_schema=updated_workspace_schema)
+                phi_config.update_ws_config(
+                    ws_dir_name=active_ws_config.ws_dir_name, ws_schema=updated_workspace_schema
+                )
 
     ######################################################
     ## 2. Set workspace as active
     ######################################################
-    phi_config.active_ws_name = new_active_ws_name
+    phi_config.active_ws_dir = active_ws_config.ws_dir_name
     print_info("Active workspace updated")
     return

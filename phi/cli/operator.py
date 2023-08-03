@@ -15,6 +15,13 @@ def delete_phidata_conf() -> None:
     delete_from_fs(PHI_CLI_DIR)
 
 
+async def ping_user_api() -> bool:
+    """Ping the user api to check if the user is authenticated"""
+    from phi.api.user import user_ping
+
+    return await user_ping()
+
+
 async def authenticate_user() -> None:
     """Authenticate the user using credentials from phidata.com
     Steps:
@@ -46,8 +53,12 @@ async def authenticate_user() -> None:
         logger.error("Could not authenticate, please try again")
         return
 
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    existing_user: Optional[UserSchema] = phi_config.user if phi_config is not None else None
     try:
-        user: Optional[UserSchema] = await authenticate_and_get_user(tmp_auth_token)
+        user: Optional[UserSchema] = await authenticate_and_get_user(
+            tmp_auth_token=tmp_auth_token, existing_user=existing_user
+        )
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
@@ -57,14 +68,12 @@ async def authenticate_user() -> None:
         logger.error("Could not authenticate, please try again")
         return
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         phi_config = PhiCliConfig(user)
     else:
         await phi_config.set_user(user)
 
     print_info("Welcome {}".format(user.email))
-    await phi_config.sync_workspaces_from_api()
 
 
 async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
@@ -155,7 +164,6 @@ async def sign_in_using_cli() -> None:
         await phi_config.set_user(user)
 
     print_info("Welcome {}".format(user.email))
-    await phi_config.sync_workspaces_from_api()
 
 
 # def start_resources(

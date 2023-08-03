@@ -189,7 +189,7 @@ def up(
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
+    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
     if active_ws_config is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
@@ -202,14 +202,14 @@ def up(
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_name})"
+                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_name}", default=True
+                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_name = ws_at_current_path.ws_name
+                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -266,9 +266,10 @@ def up(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Starting workspace: {}\n".format(active_ws_config.ws_name))
+    print_heading("Starting workspace: {}\n".format(active_ws_config.ws_dir_name))
     aiorun(
         start_workspace(
+            phi_config=phi_config,
             ws_config=active_ws_config,
             target_env=target_env,
             target_infra=target_infra,
@@ -355,7 +356,7 @@ def down(
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
+    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
     if active_ws_config is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
@@ -368,14 +369,14 @@ def down(
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_name})"
+                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_name}", default=True
+                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_name = ws_at_current_path.ws_name
+                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -432,9 +433,10 @@ def down(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_name))
+    print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_dir_name))
     aiorun(
         stop_workspace(
+            phi_config=phi_config,
             ws_config=active_ws_config,
             target_env=target_env,
             target_infra=target_infra,
@@ -519,7 +521,7 @@ def patch(
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
+    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
     if active_ws_config is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
@@ -532,14 +534,14 @@ def patch(
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_name})"
+                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_name}", default=True
+                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_name = ws_at_current_path.ws_name
+                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -596,9 +598,10 @@ def patch(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Updating workspace: {}\n".format(active_ws_config.ws_name))
+    print_heading("Updating workspace: {}\n".format(active_ws_config.ws_dir_name))
     aiorun(
         update_workspace(
+            phi_config=phi_config,
             ws_config=active_ws_config,
             target_env=target_env,
             target_infra=target_infra,
@@ -724,7 +727,7 @@ def config(
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config(refresh=True)
+    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
     if active_ws_config is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
@@ -782,10 +785,10 @@ def delete(
     else:
         # Delete all workspaces if flag is set
         if all_workspaces:
-            ws_to_delete = [ws.ws_name for ws in phi_config.available_ws if ws.ws_name is not None]
+            ws_to_delete = [ws.ws_dir_name for ws in phi_config.available_ws if ws.ws_dir_name is not None]
         else:
             # # By default, we assume this command is run for the active workspace
-            if phi_config.active_ws_name is not None:
-                ws_to_delete.append(phi_config.active_ws_name)
+            if phi_config.active_ws_dir is not None:
+                ws_to_delete.append(phi_config.active_ws_dir)
 
     aiorun(delete_workspace(phi_config, ws_to_delete))

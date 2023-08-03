@@ -18,6 +18,10 @@ class ConversationStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_all_conversations(self, user_name: str) -> List[ConversationRow]:
+        raise NotImplementedError
+
+    @abstractmethod
     def upsert(self, conversation: ConversationRow) -> Optional[ConversationRow]:
         raise NotImplementedError
 

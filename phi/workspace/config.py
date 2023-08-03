@@ -15,20 +15,21 @@ from phi.utils.log import logger
 class WorkspaceConfig(BaseModel):
     """The WorkspaceConfig stores data for a phidata workspace."""
 
-    # Name of the workspace
-    ws_name: str
-    # WorkspaceSchema: This field indicates that the workspace is synced with the api
-    ws_schema: Optional[WorkspaceSchema] = None
+    # Name of the workspace directory
+    ws_dir_name: str
     # The root directory for the workspace.
     # This field indicates that the ws has been downloaded on this machine
     ws_root_path: Optional[Path] = None
-    # WorkspaceSettings
-    workspace_settings: Optional[WorkspaceSettings] = None
-    # Path to the workspace directory
+    # Path to the "workspace" directory inside the workspace root
     _workspace_dir_path: Optional[Path] = None
     # Timestamp of when this workspace was created on the users machine
     create_ts: datetime.datetime = current_datetime_utc()
+    # WorkspaceSchema: This field indicates that the workspace is synced with the api
+    ws_schema: Optional[WorkspaceSchema] = None
 
+    # Values loaded from the files in the workspace_dir_path
+    # WorkspaceSettings
+    workspace_settings: Optional[WorkspaceSettings] = None
     # List of DockerResourceGroup
     docker_resource_groups: Optional[List[Any]] = None
     # List of K8sResourceGroup
@@ -50,25 +51,33 @@ class WorkspaceConfig(BaseModel):
     def validate_workspace_settings(self, obj: Any) -> bool:
         if not isinstance(obj, WorkspaceSettings):
             raise Exception("WorkspaceSettings must be of type WorkspaceSettings")
-        # if self.ws_root_path is not None and obj.ws_root is not None:
-        #     if obj.ws_root != self.ws_root_path:
-        #         raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
-        # if obj.workspace_dir is not None:
-        #     if self.workspace_dir_path is not None:
-        #         if self.ws_root_path is None:
-        #             raise Exception("Workspace root not set")
-        #         workspace_dir = self.ws_root_path.joinpath(obj.workspace_dir)
-        #         if workspace_dir != self.workspace_dir_path:
-        #             raise Exception(
-        #                 f"WorkspaceSettings.workspace_dir ({workspace_dir}) must match {self.workspace_dir_path}"  # noqa
-        #             )
+
+        if self.ws_root_path is not None and obj.ws_root is not None:
+            if obj.ws_root != self.ws_root_path:
+                raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
+        if obj.workspace_dir is not None:
+            if self.workspace_dir_path is not None:
+                if self.ws_root_path is None:
+                    raise Exception("Workspace root not set")
+                workspace_dir = self.ws_root_path.joinpath(obj.workspace_dir)
+                if workspace_dir != self.workspace_dir_path:
+                    raise Exception(
+                        f"WorkspaceSettings.workspace_dir ({workspace_dir}) must match {self.workspace_dir_path}"  # noqa
+                    )
         return True
 
     def load(self) -> bool:
         if self.ws_root_path is None:
-            raise Exception("Workspace root not set")
+            logger.debug("WorkspaceConfig.ws_root_path is None")
+            return False
 
         logger.debug("**--> Loading WorkspaceConfig")
+        logger.debug("**--> Clearing existing values")
+        self.workspace_settings = None
+        self.docker_resource_groups = None
+        self.k8s_resource_groups = None
+        self.aws_resource_groups = None
+
         from sys import path as sys_path
         from phi.utils.load_env import load_env
         from phi.utils.py_io import get_python_objects_from_module
@@ -121,7 +130,6 @@ class WorkspaceConfig(BaseModel):
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
                 _obj_type = obj.__class__.__name__
-                logger.debug(f"Adding {obj_name} | Type: {_obj_type}")
                 if _obj_type == "WorkspaceSettings":
                     if self.validate_workspace_settings(obj):
                         self.workspace_settings = obj
@@ -137,6 +145,7 @@ class WorkspaceConfig(BaseModel):
                     if self.aws_resource_groups is None:
                         self.aws_resource_groups = []
                     self.aws_resource_groups.append(obj)
+                logger.debug(f"Loaded {_obj_type}: {obj_name}")
 
         logger.debug("**--> WorkspaceConfig loaded")
         return True
@@ -153,9 +162,6 @@ class WorkspaceConfig(BaseModel):
             WORKSPACE_DIR_ENV_VAR,
         )
 
-        if self.ws_name is not None:
-            environ[WORKSPACE_NAME_ENV_VAR] = str(self.ws_name)
-
         if self.ws_root_path is not None:
             environ[WORKSPACE_ROOT_ENV_VAR] = str(self.ws_root_path)
 
@@ -164,6 +170,8 @@ class WorkspaceConfig(BaseModel):
                 environ[WORKSPACE_DIR_ENV_VAR] = str(workspace_dir_path)
 
             if self.workspace_settings is not None:
+                environ[WORKSPACE_NAME_ENV_VAR] = str(self.workspace_settings.ws_name)
+
                 scripts_dir = self.ws_root_path.joinpath(self.workspace_settings.scripts_dir)
                 environ[SCRIPTS_DIR_ENV_VAR] = str(scripts_dir)
 
@@ -178,6 +186,7 @@ class WorkspaceConfig(BaseModel):
     ) -> List[InfraResourceGroup]:
         # Get all resource groups
         all_resource_groups: List[InfraResourceGroup] = []
+        logger.debug(f"Getting resource groups for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
             if self.docker_resource_groups is not None:
                 all_resource_groups.extend(self.docker_resource_groups)

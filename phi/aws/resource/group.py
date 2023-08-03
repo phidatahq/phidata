@@ -13,10 +13,9 @@ class AwsResourceGroup(InfraResourceGroup):
     apps: Optional[List[AwsApp]] = None
     resources: Optional[List[AwsResource]] = None
 
+    # -*- Cached Data
     _aws_region: Optional[str] = None
     _aws_profile: Optional[str] = None
-
-    # -*- Cached Data
     _api_client: Optional[AwsApiClient] = None
 
     @property
@@ -89,7 +88,6 @@ class AwsResourceGroup(InfraResourceGroup):
         from phi.aws.resource.types import AwsResourceInstallOrder
 
         logger.debug("-*- Creating AwsResources")
-
         # Build a list of AwsResources to create
         resources_to_create: List[AwsResource] = []
         if self.resources is not None:
@@ -120,7 +118,7 @@ class AwsResourceGroup(InfraResourceGroup):
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, AwsResource) and app_resource.should_create(
-                            name_filter=name_filter, type_filter=type_filter
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_create.append(app_resource)
 
@@ -264,7 +262,7 @@ class AwsResourceGroup(InfraResourceGroup):
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, AwsResource) and app_resource.should_delete(
-                            name_filter=name_filter, type_filter=type_filter
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_delete.append(app_resource)
 
@@ -417,7 +415,7 @@ class AwsResourceGroup(InfraResourceGroup):
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, AwsResource) and app_resource.should_update(
-                            name_filter=name_filter, type_filter=type_filter
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_update.append(app_resource)
 

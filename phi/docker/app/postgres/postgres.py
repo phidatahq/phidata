@@ -1,7 +1,7 @@
 from typing import Optional, Dict
 
 from phi.infra.app.db_app import DbApp
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, AppVolumeType, ContainerContext  # noqa: F401
+from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
 
 class PostgresDb(DockerApp, DbApp):
@@ -61,7 +61,7 @@ class PostgresDb(DockerApp, DbApp):
     def get_db_port(self) -> Optional[int]:
         return self.container_port
 
-    def build_container_env_docker(self, container_context: ContainerContext) -> Dict[str, str]:
+    def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         # Container Environment
         container_env: Dict[str, str] = self.container_env or {}
 

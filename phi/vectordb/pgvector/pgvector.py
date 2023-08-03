@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 
 try:
     from sqlalchemy.dialects import postgresql
@@ -6,7 +6,7 @@ try:
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text
+    from sqlalchemy.sql.expression import text, func, select
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -20,7 +20,10 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
+from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
+import hashlib
+import math
 
 
 class PgVector(VectorDb):
@@ -31,6 +34,7 @@ class PgVector(VectorDb):
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
+        index: Optional[Union[Ivfflat, HNSW]] = None,
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -52,6 +56,9 @@ class PgVector(VectorDb):
         self.embedder: Embedder = embedder or OpenAIEmbedder()
         self.dimensions: int = self.embedder.dimensions
 
+        # Index for the collection
+        self.index: Optional[Union[Ivfflat, HNSW]] = index or Ivfflat()
+
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
 
@@ -69,6 +76,7 @@ class PgVector(VectorDb):
             Column("usage", postgresql.JSONB),
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
+            Column("content_hash", String),
             extend_existing=True,
         )
 
@@ -97,20 +105,15 @@ class PgVector(VectorDb):
 
         Args:
             document (Document): Document to validate
-
-        TODO: Currently the logic is checking the doc name exists or not,
-        this can be expanded to validate meta_data
         """
-        from sqlalchemy.sql.expression import select
-
-        columns = [
-            self.table.c.name,
-        ]
+        columns = [self.table.c.name, self.table.c.content_hash]
         with self.Session() as sess:
             with sess.begin():
-                stmt = select(*columns).where(self.table.c.name == document.name)
+                cleaned_content = document.content.replace("\x00", "\uFFFD")
+                stmt = select(*columns).where(
+                    self.table.c.content_hash == hashlib.md5(cleaned_content.encode()).hexdigest()
+                )
                 result = sess.execute(stmt).first()
-                # logger.debug(f"*is the table exists {result} for {document.name}")
                 return result is None
 
     def insert(self, documents: List[Document]) -> None:
@@ -125,6 +128,7 @@ class PgVector(VectorDb):
                         content=cleaned_content,
                         embedding=document.embedding,
                         usage=document.usage,
+                        content_hash=hashlib.md5(cleaned_content.encode()).hexdigest(),
                     )
                     sess.execute(stmt)
                     logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
@@ -161,8 +165,6 @@ class PgVector(VectorDb):
                     logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
 
     def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
-        from sqlalchemy.sql.expression import select
-
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -211,3 +213,37 @@ class PgVector(VectorDb):
 
     def exists(self) -> bool:
         return self.table_exists()
+
+    def get_count(self) -> int:
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = select(func.count(self.table.c.name)).select_from(self.table)
+                result = sess.execute(stmt).scalar()
+                if result is not None:
+                    return int(result)
+                return 0
+
+    def optimize(self) -> None:
+        if isinstance(self.index, Ivfflat):
+            est_list = self.index.nlist
+            if not self.index.dynamic_list:
+                total_records = self.get_count()
+                logger.debug(f"Total Number of records {total_records}")
+                if est_list < 10:
+                    est_list = 10
+                if est_list > 1000000:
+                    est_list = int(math.sqrt(total_records))
+
+            with self.Session() as sess:
+                with sess.begin():
+                    logger.debug(
+                        f"Creating Index with appropriate number of lists {est_list} \
+                            and probes {self.index.probes} with distance metric {self.index.distance_metric}"
+                    )
+                    sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
+                    sess.execute(
+                        text(
+                            f"CREATE INDEX ON {self.table} USING ivfflat (embedding \
+                                {self.index.distance_metric}) WITH (lists = {est_list});"
+                        )
+                    )

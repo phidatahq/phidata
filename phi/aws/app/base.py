@@ -3,12 +3,13 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType, AppVolumeType  # noqa: F401
+from phi.infra.app.base import InfraApp, WorkspaceVolumeType  # noqa: F401
 from phi.infra.app.context import ContainerContext
 from phi.aws.app.context import AwsBuildContext
 from phi.utils.log import logger
 
 if TYPE_CHECKING:
+    from phi.aws.resource.base import AwsResource
     from phi.aws.resource.ec2.security_group import SecurityGroup
     from phi.aws.resource.ecs.cluster import EcsCluster
     from phi.aws.resource.ecs.container import EcsContainer
@@ -111,9 +112,7 @@ class AwsApp(InfraApp):
         # If create_target_group is False, then create a target group if create_load_balancer is True
         return info.data.get("create_load_balancer", None)
 
-    def get_container_env_ecs(
-        self, container_context: ContainerContext, build_context: AwsBuildContext
-    ) -> Dict[str, str]:
+    def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
         from phi.constants import (
             PYTHONPATH_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
@@ -401,6 +400,7 @@ class AwsApp(InfraApp):
                     name=f"{self.get_app_name()}-redirect-listener",
                     port=80,
                     protocol="HTTP",
+                    load_balancer=load_balancer,
                     default_actions=[
                         {
                             "Type": "redirect",
@@ -435,7 +435,7 @@ class AwsApp(InfraApp):
         else:
             raise Exception(f"Invalid Listener: {self.listeners} - Must be of type List[Listener]")
 
-    def get_container_command_aws(self) -> Optional[List[str]]:
+    def get_container_command(self) -> Optional[List[str]]:
         if isinstance(self.command, str):
             return self.command.strip().split(" ")
         return self.command
@@ -452,13 +452,13 @@ class AwsApp(InfraApp):
     def get_ecs_container(self, container_context: ContainerContext, build_context: AwsBuildContext) -> "EcsContainer":
         from phi.aws.resource.ecs.container import EcsContainer
 
-        # -*- Build Container Environment
-        container_env: Dict[str, str] = self.get_container_env_ecs(
+        # -*- Get Container Environment
+        container_env: Dict[str, str] = self.get_container_env(
             container_context=container_context, build_context=build_context
         )
 
-        # -*- Build Container Command
-        container_cmd: Optional[List[str]] = self.get_container_command_aws()
+        # -*- Get Container Command
+        container_cmd: Optional[List[str]] = self.get_container_command()
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
@@ -546,7 +546,7 @@ class AwsApp(InfraApp):
             }
         return ecs_service
 
-    def build_resources(self, build_context: AwsBuildContext) -> Optional[Any]:
+    def build_resources(self, build_context: AwsBuildContext) -> List["AwsResource"]:
         from phi.aws.resource.base import AwsResource
         from phi.aws.resource.ec2.security_group import SecurityGroup
         from phi.aws.resource.ecs.cluster import EcsCluster
@@ -558,39 +558,36 @@ class AwsApp(InfraApp):
         from phi.aws.resource.ecs.service import EcsService
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
-        # -*- Build ContainerContext
-        container_context: Optional[ContainerContext] = self.build_container_context()
+        # -*- Get Container Context
+        container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
-        # -*- List of AWS Resources created by this App
-        app_resources: List[AwsResource] = []
-
-        # -*- Build Security Groups
+        # -*- Get Security Groups
         security_groups: Optional[List[SecurityGroup]] = self.get_all_security_groups()
 
-        # -*- Build ECS cluster
+        # -*- Get ECS cluster
         ecs_cluster: EcsCluster = self.get_ecs_cluster()
 
-        # -*- Build Load Balancer
+        # -*- Get Load Balancer
         load_balancer: Optional[LoadBalancer] = self.get_load_balancer()
 
-        # -*- Build Target Group
+        # -*- Get Target Group
         target_group: Optional[TargetGroup] = self.get_target_group()
 
-        # -*- Build Listener
+        # -*- Get Listener
         listeners: Optional[List[Listener]] = self.get_listeners(load_balancer=load_balancer, target_group=target_group)
 
-        # -*- Build ECSContainer
+        # -*- Get ECSContainer
         ecs_container: EcsContainer = self.get_ecs_container(
             container_context=container_context, build_context=build_context
         )
 
-        # -*- Build ECS Task Definition
+        # -*- Get ECS Task Definition
         ecs_task_definition: EcsTaskDefinition = self.get_ecs_task_definition(ecs_container=ecs_container)
 
-        # -*- Build ECS Service
+        # -*- Get ECS Service
         ecs_service: Optional[EcsService] = self.get_ecs_service(
             ecs_cluster=ecs_cluster,
             ecs_task_definition=ecs_task_definition,
@@ -598,6 +595,8 @@ class AwsApp(InfraApp):
             ecs_container=ecs_container,
         )
 
+        # -*- List of AwsResources created by this App
+        app_resources: List[AwsResource] = []
         if security_groups:
             app_resources.extend(security_groups)
         if load_balancer:

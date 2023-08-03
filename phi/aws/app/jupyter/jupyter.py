@@ -3,7 +3,7 @@ from typing import Optional, Union, List, Dict, Any
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, AppVolumeType, ContainerContext  # noqa: F401
+from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
 
 class Jupyter(AwsApp):
@@ -48,7 +48,7 @@ class Jupyter(AwsApp):
 
         return v
 
-    def build_container_command_docker(self) -> Optional[List[str]]:
+    def get_container_command(self) -> Optional[List[str]]:
         container_cmd: List[str]
         if isinstance(self.command, str):
             container_cmd = self.command.split(" ")
@@ -62,7 +62,7 @@ class Jupyter(AwsApp):
 
         if self.notebook_dir is None:
             if self.mount_workspace:
-                container_context: Optional[ContainerContext] = self.build_container_context()
+                container_context: Optional[ContainerContext] = self.get_container_context()
                 if container_context is not None and container_context.workspace_root is not None:
                     container_cmd.append(f"--notebook-dir={str(container_context.workspace_root)}")
             else:

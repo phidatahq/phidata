@@ -24,7 +24,7 @@ async def log_monitor_event(monitor: MonitorEventSchema, workspace: WorkspaceSch
             if response_json is None:
                 return None
 
-            logger.info(response_json)
+            # logger.info(response_json)
             try:
                 monitor_response: MonitorResponseSchema = MonitorResponseSchema.model_validate(response_json)
                 if monitor_response is not None:

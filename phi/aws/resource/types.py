@@ -30,7 +30,7 @@ from phi.aws.resource.rds.db_subnet_group import DbSubnetGroup
 from phi.aws.resource.elasticache.cluster import CacheCluster
 from phi.aws.resource.elasticache.subnet_group import CacheSubnetGroup
 
-# Use this as a type for an object which can hold any Aws Resource
+# Use this as a type for an object which can hold any AwsResource
 AwsResourceType = Union[
     AcmCertificate,
     CloudFormationStack,
@@ -60,7 +60,7 @@ AwsResourceType = Union[
     Listener,
 ]
 
-# Use this as an ordered list to iterate over all Aws Resource Classes
+# Use this as an ordered list to iterate over all AwsResource Classes
 # This list is the order in which resources should be installed as well.
 AwsResourceTypeList: List[Type[AwsResource]] = [
     Subnet,

@@ -1,17 +1,20 @@
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType, AppVolumeType  # noqa: F401
+from phi.infra.app.base import InfraApp, WorkspaceVolumeType
 from phi.infra.app.context import ContainerContext
 from phi.docker.app.context import DockerBuildContext
 from phi.utils.log import logger
+
+if TYPE_CHECKING:
+    from phi.docker.resource.base import DockerResource
 
 
 class DockerApp(InfraApp):
     # -*- App Volume
     # Create a volume for container storage
     create_volume: bool = False
-    # If volume_host_path is provided, mount this directory relative to the workspace_root
-    # from host machine to container
+    # If volume_dir is provided, mount this directory
+    # RELATIVE to the workspace_root from host machine to container
     volume_dir: Optional[str] = None
     # Otherwise, mount a volume named volume_name to the container
     # If volume_name is not provided, use {app-name}-volume
@@ -83,10 +86,10 @@ class DockerApp(InfraApp):
     #     For example, {'1111/tcp': [1234, 4567]}.
     container_ports: Optional[Dict[str, Any]] = None
 
-    def get_container_name(self):
+    def get_container_name(self) -> str:
         return self.container_name or self.get_app_name()
 
-    def build_container_env_docker(self, container_context: ContainerContext) -> Dict[str, str]:
+    def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
             PYTHONPATH_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
@@ -149,7 +152,7 @@ class DockerApp(InfraApp):
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
 
-    def build_container_volumes_docker(self, container_context: ContainerContext) -> Dict[str, dict]:
+    def get_container_volumes(self, container_context: ContainerContext) -> Dict[str, dict]:
         from phi.utils.defaults import get_default_volume_name
 
         if self.workspace_root is None:
@@ -216,7 +219,7 @@ class DockerApp(InfraApp):
 
         return container_volumes
 
-    def build_container_ports_docker(self) -> Dict[str, int]:
+    def get_container_ports(self) -> Dict[str, int]:
         # container_ports is a dictionary which configures the ports to bind
         # inside the container. The key is the port to bind inside the container
         #   either as an integer or a string in the form port/protocol
@@ -230,38 +233,38 @@ class DockerApp(InfraApp):
 
         return container_ports
 
-    def build_container_command_docker(self) -> Optional[List[str]]:
+    def get_container_command(self) -> Optional[List[str]]:
         if isinstance(self.command, str):
             return self.command.strip().split(" ")
         return self.command
 
-    def build_resources(self, build_context: DockerBuildContext) -> Optional[Any]:
+    def build_resources(self, build_context: DockerBuildContext) -> List["DockerResource"]:
         from phi.docker.resource.base import DockerResource
         from phi.docker.resource.network import DockerNetwork
         from phi.docker.resource.container import DockerContainer
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
-        # -*- Build Container Paths
-        container_context: Optional[ContainerContext] = self.build_container_context()
+        # -*- Get Container Context
+        container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
         logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
-        # -*- Build Container Environment
-        container_env: Dict[str, str] = self.build_container_env_docker(container_context=container_context)
+        # -*- Get Container Environment
+        container_env: Dict[str, str] = self.get_container_env(container_context=container_context)
 
-        # -*- Build Container Volumes
-        container_volumes = self.build_container_volumes_docker(container_context=container_context)
+        # -*- Get Container Volumes
+        container_volumes = self.get_container_volumes(container_context=container_context)
 
-        # -*- Build Container Ports
-        container_ports: Dict[str, int] = self.build_container_ports_docker()
+        # -*- Get Container Ports
+        container_ports: Dict[str, int] = self.get_container_ports()
 
-        # -*- Build Container Command
-        container_cmd: Optional[List[str]] = self.build_container_command_docker()
+        # -*- Get Container Command
+        container_cmd: Optional[List[str]] = self.get_container_command()
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
-        # -*- Create DockerContainer
+        # -*- Build the DockerContainer for this App
         docker_container = DockerContainer(
             name=self.get_container_name(),
             image=self.get_image_str(),
@@ -288,7 +291,7 @@ class DockerApp(InfraApp):
             use_cache=self.use_cache,
         )
 
-        # -*- Create app_resources list
+        # -*- List of DockerResources created by this App
         app_resources: List[DockerResource] = []
         if self.image:
             app_resources.append(self.image)

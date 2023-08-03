@@ -12,14 +12,6 @@ class WorkspaceVolumeType(str, Enum):
     EmptyDir = "EmptyDir"
 
 
-class AppVolumeType(str, Enum):
-    HostPath = "HostPath"
-    EmptyDir = "EmptyDir"
-    AwsEbs = "AwsEbs"
-    AwsEfs = "AwsEfs"
-    PersistentVolume = "PersistentVolume"
-
-
 class InfraApp(PhiBase):
     # -*- App Name (required)
     name: str
@@ -77,8 +69,10 @@ class InfraApp(PhiBase):
     # -*- App Ports
     # Open a container port if open_container_port=True
     open_container_port: bool = False
-    # Port number on the container
+    # Port number to open
     container_port: int = 80
+    # Port name for the opened port
+    container_port_name: str = "http"
     # Host port to map to the container port
     host_port: int = 80
 
@@ -110,7 +104,7 @@ class InfraApp(PhiBase):
         else:
             return ""
 
-    def build_container_context(self) -> Optional[ContainerContext]:
+    def get_container_context(self) -> Optional[ContainerContext]:
         logger.debug("Building ContainerContext")
 
         if self.container_context is not None:
@@ -241,8 +235,11 @@ class InfraApp(PhiBase):
             # If workspace_settings on resource is not set, use app level workspace_settings (if set on app)
             if resource.workspace_settings is None and self.workspace_settings is not None:
                 resource.set_workspace_settings(self.workspace_settings)
+            # If group on resource is not set, use app level group (if set on app)
+            if resource.group is None and app_group is not None:
+                resource.group = app_group
 
-            resource.group = app_group
+            # Always set output_dir on resource to app level output_dir
             resource.output_dir = app_output_dir
 
             app_dependencies = self.get_dependencies()
@@ -271,10 +268,9 @@ class InfraApp(PhiBase):
     def matches_filters(self, group_filter: Optional[str] = None) -> bool:
         if group_filter is not None:
             group_name = self.get_group_name()
-            logger.debug(f"Checking {group_filter} in {group_name}")
-            if group_name is not None:
-                if group_filter not in group_name:
-                    return False
+            logger.debug(f"{self.get_app_name()}: Checking {group_filter} in {group_name}")
+            if group_name is None or group_filter not in group_name:
+                return False
         return True
 
     def should_create(self, group_filter: Optional[str] = None) -> bool:

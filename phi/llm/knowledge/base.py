@@ -48,9 +48,9 @@ class LLMKnowledgeBase(BaseModel):
         if recreate:
             logger.debug("Deleting collection")
             self.vector_db.delete()
-            # Create the db only if its deleted
-            logger.debug("Creating collection")
-            self.vector_db.create()
+
+        logger.debug("Creating collection")
+        self.vector_db.create()
 
         logger.info("Loading knowledge base")
         num_documents = 0
@@ -63,6 +63,10 @@ class LLMKnowledgeBase(BaseModel):
             self.vector_db.insert(documents=document_list)
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")
+
+        if num_documents > 0:
+            logger.debug("Optimizing Vector DB")
+            self.vector_db.optimize()
 
     def exists(self) -> bool:
         """Returns True if the knowledge base exists"""

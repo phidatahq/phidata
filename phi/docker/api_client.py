@@ -4,11 +4,12 @@ from phi.utils.log import logger
 
 
 class DockerApiClient:
-    def __init__(self, base_url: Optional[str] = None):
+    def __init__(self, base_url: Optional[str] = None, timeout: int = 30):
         super().__init__()
         self.base_url: Optional[str] = base_url
+        self.timeout: int = timeout
 
-        # Type: docker.DockerClient
+        # DockerClient
         self._api_client: Optional[Any] = None
         logger.debug("**-+-** DockerApiClient created")
 
@@ -17,17 +18,16 @@ class DockerApiClient:
         import docker
 
         logger.debug("Creating docker.DockerClient")
-        api_client = None
         try:
             if self.base_url is None:
-                api_client = docker.from_env(timeout=30)
+                self._api_client = docker.from_env(timeout=self.timeout)
             else:
-                api_client = docker.DockerClient(base_url=self.base_url)
+                self._api_client = docker.DockerClient(base_url=self.base_url, timeout=self.timeout)
         except Exception as e:
             logger.error("Could not connect to docker. Please confirm docker is installed and running")
             logger.error(e)
             exit(0)
-        return api_client
+        return self._api_client
 
     @property
     def api_client(self) -> Optional[Any]:

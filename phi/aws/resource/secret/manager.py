@@ -89,7 +89,6 @@ class SecretsManager(AwsResource):
 
         # Step 3: Build secret_string
         secret_string: Optional[str] = json.dumps(secret_dict) if len(secret_dict) > 0 else None
-        # logger.debug(f"secret_string: {secret_string}")
 
         # Step 4: Build SecretsManager configuration
         # create a dict of args which are not null, otherwise aws type validation fails
@@ -192,18 +191,23 @@ class SecretsManager(AwsResource):
         """Update SecretsManager"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        # Step 1: Read secrets from files
-        secret_dict: Dict[str, Any] = self.read_secrets_from_files()
+        # Initialize final secret_dict
+        secret_dict: Dict[str, Any] = {}
 
-        # Step 2: Add secret_string is provided
+        # Step 1: Read secrets from AWS SecretsManager
+        existing_secret_dict = self.get_secrets_as_dict()
+        # logger.debug(f"existing_secret_dict: {existing_secret_dict}")
+        if existing_secret_dict is not None:
+            secret_dict.update(existing_secret_dict)
+
+        # Step 2: Read secrets from files
+        new_secret_dict: Dict[str, Any] = self.read_secrets_from_files()
+        if len(new_secret_dict) > 0:
+            secret_dict.update(new_secret_dict)
+
+        # Step 3: Add secret_string is provided
         if self.secret_string is not None:
             secret_dict.update(json.loads(self.secret_string))
-
-        # Step 3: Read secrets from AWS SecretsManager
-        aws_secrets = self.get_secrets_as_dict()
-        logger.debug(f"aws_secrets: {aws_secrets}")
-        if aws_secrets is not None:
-            secret_dict.update(aws_secrets)
 
         # Step 3: Update AWS SecretsManager
         service_client = self.get_service_client(aws_client)

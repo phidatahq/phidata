@@ -50,18 +50,18 @@ class WorkspaceConfig(BaseModel):
     def validate_workspace_settings(self, obj: Any) -> bool:
         if not isinstance(obj, WorkspaceSettings):
             raise Exception("WorkspaceSettings must be of type WorkspaceSettings")
-        if self.ws_root_path is not None and obj.ws_root is not None:
-            if obj.ws_root != self.ws_root_path:
-                raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
-        if obj.workspace_dir is not None:
-            if self.workspace_dir_path is not None:
-                if self.ws_root_path is None:
-                    raise Exception("Workspace root not set")
-                workspace_dir = self.ws_root_path.joinpath(obj.workspace_dir)
-                if workspace_dir != self.workspace_dir_path:
-                    raise Exception(
-                        f"WorkspaceSettings.workspace_dir ({workspace_dir}) must match {self.workspace_dir_path}"  # noqa
-                    )
+        # if self.ws_root_path is not None and obj.ws_root is not None:
+        #     if obj.ws_root != self.ws_root_path:
+        #         raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
+        # if obj.workspace_dir is not None:
+        #     if self.workspace_dir_path is not None:
+        #         if self.ws_root_path is None:
+        #             raise Exception("Workspace root not set")
+        #         workspace_dir = self.ws_root_path.joinpath(obj.workspace_dir)
+        #         if workspace_dir != self.workspace_dir_path:
+        #             raise Exception(
+        #                 f"WorkspaceSettings.workspace_dir ({workspace_dir}) must match {self.workspace_dir_path}"  # noqa
+        #             )
         return True
 
     def load(self) -> bool:
@@ -105,7 +105,7 @@ class WorkspaceConfig(BaseModel):
                             "AwsResourceGroup",
                         ]:
                             workspace_objects[obj_name] = obj
-                except Exception as e:
+                except Exception:
                     parent_dir = resource_file.parent.name
                     parent_parent_dir = resource_file.parent.parent.name
                     # Ignore errors in resources and tests subdirectories
@@ -115,8 +115,8 @@ class WorkspaceConfig(BaseModel):
                     ):
                         pass
                     else:
-                        logger.warning(f"Error in {resource_file}: {e}")
-                    pass
+                        logger.warning(f"Error in {resource_file}")
+                        raise
 
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():

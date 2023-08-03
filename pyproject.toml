@@ -66,7 +66,7 @@ extend-exclude = '''
 line-length = 120
 exclude = [
   "phienv*",
-  "phidata",
+  "phidata"
 ]
 # Ignore `F401` (import violations) in all `__init__.py` files
 [tool.ruff.per-file-ignores]
@@ -92,6 +92,7 @@ module = [
   "openai.*",
   "pgvector.*",
   "pypdf.*",
+  "kubernetes.*",
   "sqlalchemy.*",
   "setuptools.*",
 ]

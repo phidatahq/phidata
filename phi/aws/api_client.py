@@ -19,21 +19,22 @@ class AwsApiClient:
 
     def create_boto3_session(self) -> Optional[Any]:
         """Create a boto3 session"""
-        from boto3 import session as boto3_session
+        import boto3
 
         logger.debug("Creating boto3.Session")
-        session = None
         try:
-            session = boto3_session.Session(
+            self._boto3_session = boto3.Session(
                 region_name=self.aws_region,
                 profile_name=self.aws_profile,
             )
             logger.debug("**-+-** boto3.Session created")
-            logger.debug(f"\taws_region: {session.region_name}")
-            logger.debug(f"\taws_profile: {session.profile_name}")
-        except Exception:
-            raise
-        return session
+            logger.debug(f"\taws_region: {self._boto3_session.region_name}")
+            logger.debug(f"\taws_profile: {self._boto3_session.profile_name}")
+        except Exception as e:
+            logger.error("Could not connect to aws. Please confirm aws cli is installed and configured")
+            logger.error(e)
+            exit(0)
+        return self._boto3_session
 
     @property
     def boto3_session(self) -> Optional[Any]:

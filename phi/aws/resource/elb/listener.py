@@ -61,8 +61,11 @@ class Listener(AwsResource):
             not_null_args["SslPolicy"] = self.ssl_policy
         if self.alpn_policy is not None:
             not_null_args["AlpnPolicy"] = self.alpn_policy
-        if self.tags is not None:
-            not_null_args["Tags"] = self.tags
+
+        # listener tags container a name for the listener
+        listener_tags = self.get_listener_tags()
+        if listener_tags is not None:
+            not_null_args["Tags"] = listener_tags
 
         if self.default_actions is not None:
             not_null_args["DefaultActions"] = self.default_actions
@@ -117,7 +120,17 @@ class Listener(AwsResource):
             resource_list = describe_response.get("Listeners", None)
 
             if resource_list is not None and isinstance(resource_list, list):
-                self.active_resource = resource_list[0] if len(resource_list) > 0 else None
+                # We identify the current listener by the port and protocol
+                current_listener_port = self.get_listener_port()
+                current_listener_protocol = self.get_listener_protocol()
+                for resource in resource_list:
+                    if (
+                        resource.get("Port", None) == current_listener_port
+                        and resource.get("Protocol", None) == current_listener_protocol
+                    ):
+                        logger.debug(f"Found {self.get_resource_type()}: {self.get_resource_name()}")
+                        self.active_resource = resource
+                        break
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -250,3 +263,11 @@ class Listener(AwsResource):
                 certificates.append({"CertificateArn": cert.get_certificate_arn(aws_client)})
 
         return certificates
+
+    def get_listener_tags(self):
+        tags = self.tags
+        if tags is None:
+            tags = []
+        tags.append({"Key": "Name", "Value": self.get_resource_name()})
+
+        return tags

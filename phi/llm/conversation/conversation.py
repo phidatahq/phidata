@@ -165,7 +165,7 @@ class Conversation(BaseModel):
         if row.updated_at is not None:
             self.updated_at = row.updated_at
 
-    def load_from_storage(self) -> Optional[ConversationRow]:
+    def read_from_storage(self) -> Optional[ConversationRow]:
         """Load the conversation from storage"""
         if self.storage is not None and self.id is not None:
             self.conversation_row = self.storage.read(conversation_id=self.id)
@@ -175,7 +175,7 @@ class Conversation(BaseModel):
                 logger.debug(f"Loaded conversation: {self.id}")
         return self.conversation_row
 
-    def save_to_storage(self) -> Optional[ConversationRow]:
+    def write_to_storage(self) -> Optional[ConversationRow]:
         """Save the conversation to the storage"""
         if self.storage is not None:
             return self.storage.upsert(conversation=self.to_conversation_row())
@@ -194,7 +194,7 @@ class Conversation(BaseModel):
             # If the conversation ID is available, read the conversation from the database
             if self.id is not None:
                 logger.debug(f"Reading conversation: {self.id}")
-                self.load_from_storage()
+                self.read_from_storage()
 
             # If the conversation ID is not available
             # OR the conversation is not found in the database
@@ -205,7 +205,7 @@ class Conversation(BaseModel):
                     self.storage.create()
                 if self.introduction is not None:
                     self.history.add_chat_history([Message(role="assistant", content=self.introduction)])
-                self.conversation_row = self.save_to_storage()
+                self.conversation_row = self.write_to_storage()
                 if self.conversation_row is None:
                     raise Exception("Failed to create conversation")
                 logger.debug(f"Created conversation: {self.conversation_row.id}")
@@ -328,7 +328,7 @@ class Conversation(BaseModel):
         logger.debug(f"Reviewing: {question}")
 
         # Load the conversation from the database if available
-        self.load_from_storage()
+        self.read_from_storage()
 
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
@@ -390,7 +390,7 @@ class Conversation(BaseModel):
             self.usage_data["questions"] = 1
 
         # Save conversation to storage
-        self.save_to_storage()
+        self.write_to_storage()
 
         # Monitor conversation
         self.monitor()
@@ -399,7 +399,7 @@ class Conversation(BaseModel):
         logger.debug("Sending prompt request")
 
         # If needed, load the conversation from the database
-        self.load_from_storage()
+        self.read_from_storage()
 
         # Add user question to the history - this is added to the chat history
         if user_question:
@@ -437,16 +437,16 @@ class Conversation(BaseModel):
             self.usage_data["questions"] = 1
 
         # Save conversation to storage
-        self.save_to_storage()
+        self.write_to_storage()
 
         # Monitor conversation
         self.monitor()
 
     def rename(self, name: str) -> None:
         """Rename the conversation"""
-        self.load_from_storage()
+        self.read_from_storage()
         self.name = name
-        self.save_to_storage()
+        self.write_to_storage()
 
     def generate_name(self) -> str:
         """Generate a name for the conversation using chat history"""
@@ -465,11 +465,11 @@ class Conversation(BaseModel):
 
     def auto_rename(self) -> None:
         """Automatically rename the conversation"""
-        self.load_from_storage()
+        self.read_from_storage()
         generated_name = self.generate_name()
         logger.debug(f"Generated name: {generated_name}")
         self.name = generated_name
-        self.save_to_storage()
+        self.write_to_storage()
 
     def monitor(self):
         logger.debug("Sending monitoring request")

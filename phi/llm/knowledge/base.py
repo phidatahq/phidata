@@ -39,7 +39,10 @@ class LLMKnowledgeBase(BaseModel):
         return self.vector_db.search(query=query, relevant_documents=_num_documents)
 
     def load(self, recreate: bool = False) -> None:
-        """Load the knowledge base to vector db"""
+        """Load the knowledge base to vector db
+
+        TODO: Use upsert instead of insert
+        """
 
         if self.vector_db is None:
             logger.warning("No vector db provided")
@@ -56,9 +59,9 @@ class LLMKnowledgeBase(BaseModel):
         num_documents = 0
 
         for document_list in self.document_lists:
-            # Filter out documents which are already uploaded
+            # Filter out documents which already exist in the vector db
             if not recreate:
-                document_list = [document for document in document_list if self.vector_db.is_doc_exists(document)]
+                document_list = [document for document in document_list if self.vector_db.doc_exists(document)]
 
             self.vector_db.insert(documents=document_list)
             num_documents += len(document_list)

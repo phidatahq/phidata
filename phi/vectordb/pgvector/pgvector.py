@@ -1,4 +1,5 @@
 from typing import Optional, List, Union
+from hashlib import md5
 
 try:
     from sqlalchemy.dialects import postgresql
@@ -22,8 +23,6 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
-import hashlib
-import math
 
 
 class PgVector(VectorDb):
@@ -99,9 +98,9 @@ class PgVector(VectorDb):
             logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
 
-    def is_doc_exists(self, document: Document) -> bool:
+    def doc_exists(self, document: Document) -> bool:
         """
-        Validating if the doc exists or not
+        Validating if the document exists or not
 
         Args:
             document (Document): Document to validate
@@ -110,9 +109,7 @@ class PgVector(VectorDb):
         with self.Session() as sess:
             with sess.begin():
                 cleaned_content = document.content.replace("\x00", "\uFFFD")
-                stmt = select(*columns).where(
-                    self.table.c.content_hash == hashlib.md5(cleaned_content.encode()).hexdigest()
-                )
+                stmt = select(*columns).where(self.table.c.content_hash == md5(cleaned_content.encode()).hexdigest())
                 result = sess.execute(stmt).first()
                 return result is None
 
@@ -128,7 +125,7 @@ class PgVector(VectorDb):
                         content=cleaned_content,
                         embedding=document.embedding,
                         usage=document.usage,
-                        content_hash=hashlib.md5(cleaned_content.encode()).hexdigest(),
+                        content_hash=md5(cleaned_content.encode()).hexdigest(),
                     )
                     sess.execute(stmt)
                     logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
@@ -139,23 +136,24 @@ class PgVector(VectorDb):
 
         Args:
             documents (List[Document]): List of documents to upsert
-
-        TODO: This is not working as expected. Need to fix.
         """
         with self.Session() as sess:
             with sess.begin():
                 for document in documents:
                     document.embed(embedder=self.embedder)
+                    cleaned_content = document.content.replace("\x00", "\uFFFD")
                     stmt = postgresql.insert(self.table).values(
                         name=document.name,
                         meta_data=document.meta_data,
-                        content=document.content,
+                        content=cleaned_content,
                         embedding=document.embedding,
                         usage=document.usage,
+                        content_hash=md5(cleaned_content.encode()).hexdigest(),
                     )
                     stmt = stmt.on_conflict_do_update(
-                        index_elements=["name", "meta_data"],
+                        index_elements=["name", "content_hash"],
                         set_=dict(
+                            meta_data=document.meta_data,
                             content=stmt.excluded.content,
                             embedding=stmt.excluded.embedding,
                             usage=stmt.excluded.usage,
@@ -224,15 +222,17 @@ class PgVector(VectorDb):
                 return 0
 
     def optimize(self) -> None:
+        from math import sqrt
+
         if isinstance(self.index, Ivfflat):
             est_list = self.index.nlist
             if not self.index.dynamic_list:
                 total_records = self.get_count()
-                logger.debug(f"Total Number of records {total_records}")
+                logger.debug(f"Total Number of records: {total_records}")
                 if est_list < 10:
                     est_list = 10
                 if est_list > 1000000:
-                    est_list = int(math.sqrt(total_records))
+                    est_list = int(sqrt(total_records))
 
             with self.Session() as sess:
                 with sess.begin():

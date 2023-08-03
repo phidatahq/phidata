@@ -32,3 +32,9 @@ class ConversationRow(BaseModel):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    def serializable_dict(self):
+        _dict = self.model_dump(exclude={"created_at", "updated_at"})
+        _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
+        _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
+        return _dict

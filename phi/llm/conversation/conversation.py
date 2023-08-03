@@ -473,4 +473,22 @@ class Conversation(BaseModel):
 
     def monitor(self):
         logger.debug("Sending monitoring request")
-        pass
+        # from phi.api.monitor import log_monitor_event, MonitorEventSchema, WorkspaceSchema
+        # from asyncio import run
+        #
+        # run(
+        #     log_monitor_event(
+        #         monitor=MonitorEventSchema(
+        #             event_type="conversation_history",
+        #             event_status="update",
+        #             object_name="conversation",
+        #             event_data=self.conversation_row.serializable_dict() if self.conversation_row else None,
+        #             object_data=self.conversation_row.model_dump(include={"id", "name"})
+        #             if self.conversation_row
+        #             else None,
+        #         ),
+        #         workspace=WorkspaceSchema(
+        #             id_workspace=2,
+        #         ),
+        #     )
+        # )

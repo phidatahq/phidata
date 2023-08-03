@@ -71,13 +71,13 @@ class WorkspaceConfig(BaseModel):
             logger.debug("WorkspaceConfig.ws_root_path is None")
             return False
 
-        logger.debug("**--> Clearing WorkspaceConfig")
+        logger.debug("**--> Loading WorkspaceConfig")
+        logger.debug("**--> Clearing existing values")
         self.workspace_settings = None
         self.docker_resource_groups = None
         self.k8s_resource_groups = None
         self.aws_resource_groups = None
 
-        logger.debug("**--> Loading WorkspaceConfig")
         from sys import path as sys_path
         from phi.utils.load_env import load_env
         from phi.utils.py_io import get_python_objects_from_module

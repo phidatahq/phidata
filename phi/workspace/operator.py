@@ -270,7 +270,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
     ######################################################
     # 1.4 Load workspace and set as active
     ######################################################
-    # Load the workspace config
+    # Load and save the workspace config
     ws_config.load()
     # Get the workspace dir name
     ws_dir_name = ws_config.ws_dir_name
@@ -486,7 +486,7 @@ async def start_workspace(
             user=phi_config.user,
             workspace_event=WorkspaceEvent(
                 id_workspace=ws_config.ws_schema.id_workspace,
-                event_type="workspace_start",
+                event_type="start",
                 event_status=workspace_event_status,
                 event_data={
                     "target_env": target_env,
@@ -577,7 +577,7 @@ async def stop_workspace(
             user=phi_config.user,
             workspace_event=WorkspaceEvent(
                 id_workspace=ws_config.ws_schema.id_workspace,
-                event_type="workspace_stop",
+                event_type="stop",
                 event_status=workspace_event_status,
                 event_data={
                     "target_env": target_env,
@@ -668,7 +668,7 @@ async def update_workspace(
             user=phi_config.user,
             workspace_event=WorkspaceEvent(
                 id_workspace=ws_config.ws_schema.id_workspace,
-                event_type="workspace_update",
+                event_type="update",
                 event_status=workspace_event_status,
                 event_data={
                     "target_env": target_env,

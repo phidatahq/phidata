@@ -58,6 +58,7 @@ class PhiCliConfig:
     @active_ws_dir.setter
     def active_ws_dir(self, ws_dir_name: Optional[str]) -> None:
         if ws_dir_name is not None:
+            logger.debug(f"Setting active workspace to: {ws_dir_name}")
             self._active_ws_dir = ws_dir_name
             self.save_config()
 
@@ -109,34 +110,28 @@ class PhiCliConfig:
         # By this point there should be a WorkspaceConfig object for this ws_name
         existing_ws_config: Optional[WorkspaceConfig] = self.ws_config_map.get(ws_dir_name, None)
         if existing_ws_config is None:
-            logger.error("Something went wrong. Please try again.")
+            logger.error(f"Could not find workspace at directory: {ws_dir_name}, please try again.")
             return None
 
-        # Make a new WorkspaceConfig using new fields where provided and fields from the existing_ws_config where not
-        updated_ws_config: WorkspaceConfig = WorkspaceConfig(
-            ws_dir_name=(ws_dir_name or existing_ws_config.ws_dir_name),
-            ws_schema=(ws_schema or existing_ws_config.ws_schema),
-            ws_root_path=(ws_root_path or existing_ws_config.ws_root_path),
-            create_ts=existing_ws_config.create_ts,
-        )
+        # Load the workspace config if the ws_root_path has changed
+        load_ws_config = False
 
-        # Point the ws_config in ws_config_map and path_to_ws_config_map to updated_ws_config
-        # 1. Pop the existing object from the self.ws_config_map
-        if ws_dir_name in self.ws_config_map:
-            self.ws_config_map.pop(ws_dir_name)
-            logger.debug(f"Removed {ws_dir_name} from ws_config_map")
-        self.ws_config_map[ws_dir_name] = updated_ws_config
+        # Update ws_dir_name, ws_root_path, ws_schema if provided and do not match the existing values
+        if ws_dir_name is not None and existing_ws_config.ws_dir_name != ws_dir_name:
+            existing_ws_config.ws_dir_name = ws_dir_name
+        if ws_root_path is not None and existing_ws_config.ws_root_path != ws_root_path:
+            existing_ws_config.ws_root_path = ws_root_path
+            load_ws_config = True
+        if ws_schema is not None and existing_ws_config.ws_schema != ws_schema:
+            existing_ws_config.ws_schema = ws_schema
 
-        # 2. Pop the existing object from the self.path_to_ws_config_map
-        if updated_ws_config.ws_root_path is not None:
-            if updated_ws_config.ws_root_path in self.path_to_ws_config_map:
-                self.path_to_ws_config_map.pop(updated_ws_config.ws_root_path)
-                logger.debug(f"Removed {updated_ws_config.ws_root_path} from path_to_ws_config_map")
-            self.path_to_ws_config_map[updated_ws_config.ws_root_path] = self.ws_config_map[ws_dir_name]
+        if load_ws_config:
+            existing_ws_config.load()
+
         logger.debug(f"Workspace updated: {ws_dir_name}")
 
         # Return the updated_ws_config
-        return updated_ws_config
+        return existing_ws_config
 
     ######################################################
     # END

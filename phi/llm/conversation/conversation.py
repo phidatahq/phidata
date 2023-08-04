@@ -62,7 +62,7 @@ class Conversation(BaseModel):
     # -*- Conversation Storage
     storage: Optional[ConversationStorage] = None
     # Create table if it doesn't exist
-    create_storage: bool = False
+    create_storage: bool = True
     # Conversation row in the database
     conversation_row: Optional[ConversationRow] = None
 

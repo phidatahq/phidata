@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "2.0.0.dev14"
-description = "OSS Toolkit for AI Engineers"
+version = "2.0.0.dev15"
+description = "Toolkit for AI Engineers"
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [

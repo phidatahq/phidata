@@ -329,7 +329,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
             if ws_schema is not None:
                 ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=ws_schema)
             else:
-                logger.warning("Failed to sync workspace with api. Please setup again")
+                logger.debug("Failed to sync workspace with api. Please setup again")
 
         ######################################################
         # 2.2 Set workspace as primary if needed
@@ -353,7 +353,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
                 # Update the ws_schema for this workspace.
                 ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
             else:
-                logger.warning("Failed to sync workspace with api. Please setup again")
+                logger.debug("Failed to sync workspace with api. Please setup again")
 
         ######################################################
         # 2.3 Update WorkspaceSchema if git_url has changed
@@ -378,7 +378,7 @@ async def setup_workspace(ws_root_path: Path) -> None:
                 # Update the ws_schema for this workspace.
                 ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
             else:
-                logger.warning("Failed to sync workspace with api. Please setup again")
+                logger.debug("Failed to sync workspace with api. Please setup again")
 
     if ws_config is not None:
         # logger.debug("Workspace Config: {}".format(ws_config.model_dump_json(indent=2)))

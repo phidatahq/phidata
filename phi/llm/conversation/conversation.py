@@ -476,16 +476,15 @@ class Conversation(BaseModel):
         # from phi.api.monitor import log_monitor_event, MonitorEventSchema, WorkspaceSchema
         # from asyncio import run
         #
+        # conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
         # run(
         #     log_monitor_event(
         #         monitor=MonitorEventSchema(
         #             event_type="conversation_history",
         #             event_status="update",
         #             object_name="conversation",
-        #             event_data=self.conversation_row.serializable_dict() if self.conversation_row else None,
-        #             object_data=self.conversation_row.model_dump(include={"id", "name"})
-        #             if self.conversation_row
-        #             else None,
+        #             event_data=conversation_row.serializable_dict(),
+        #             object_data=conversation_row.model_dump(include={"id", "name"}),
         #         ),
         #         workspace=WorkspaceSchema(
         #             id_workspace=2,

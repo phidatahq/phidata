@@ -40,7 +40,8 @@ class PhiCliConfig:
     def user(self) -> Optional[UserSchema]:
         return self._user
 
-    async def set_user(self, user: Optional[UserSchema]) -> None:
+    @user.setter
+    def user(self, user: Optional[UserSchema]) -> None:
         """Sets the user"""
         if user is not None:
             logger.debug(f"Setting user to: {user.email}")
@@ -168,7 +169,7 @@ class PhiCliConfig:
         self.save_config()
         return ws_config
 
-    async def delete_ws(self, ws_dir_name: str) -> None:
+    def delete_ws(self, ws_dir_name: str) -> None:
         """Handles Deleting a workspace from the PhiCliConfig and api"""
 
         print_heading(f"Deleting record for directory: {ws_dir_name}")
@@ -196,7 +197,7 @@ class PhiCliConfig:
 
             from phi.api.workspace import delete_workspace_for_user
 
-            await delete_workspace_for_user(
+            delete_workspace_for_user(
                 user=self.user,
                 workspace=WorkspaceDelete(
                     id_workspace=ws_config.ws_schema.id_workspace, ws_name=ws_config.ws_schema.ws_name

@@ -32,28 +32,28 @@ class Api:
                 self._authenticated_headers[phi_cli_settings.auth_token_header] = token
         return self._authenticated_headers
 
-    def Client(self) -> Client:
+    def Client(self):
         return Client(
             base_url=phi_cli_settings.api_url,
             headers=self.headers,
             timeout=60,
         )
 
-    def AuthenticatedClient(self) -> Client:
+    def AuthenticatedClient(self):
         return Client(
             base_url=phi_cli_settings.api_url,
             headers=self.authenticated_headers,
             timeout=60,
         )
 
-    def AsyncClient(self) -> Client:
+    def AsyncClient(self):
         return AsyncClient(
             base_url=phi_cli_settings.api_url,
             headers=self.headers,
             timeout=60,
         )
 
-    def AuthenticatedAsyncClient(self) -> Client:
+    def AuthenticatedAsyncClient(self):
         return AsyncClient(
             base_url=phi_cli_settings.api_url,
             headers=self.authenticated_headers,

@@ -2,7 +2,6 @@
 
 This is the entrypoint for the `phi ws` application.
 """
-from asyncio import run as aiorun
 from pathlib import Path
 from typing import Optional, cast
 
@@ -75,7 +74,7 @@ def create(
 
     from phi.workspace.operator import create_workspace
 
-    aiorun(create_workspace(name=name, template=template, url=url))
+    create_workspace(name=name, template=template, url=url)
 
 
 @ws_cli.command(short_help="Setup workspace from the current directory")
@@ -110,8 +109,7 @@ def setup(
     # If the user provides a path, use that to setup the workspace
     if path is not None:
         ws_root_path = Path(".").joinpath(path).resolve()
-
-    aiorun(setup_workspace(ws_root_path=ws_root_path))
+    setup_workspace(ws_root_path=ws_root_path)
 
 
 @ws_cli.command(short_help="Create resources for the active workspace")
@@ -267,19 +265,17 @@ def up(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     print_heading("Starting workspace: {}\n".format(active_ws_config.ws_dir_name))
-    aiorun(
-        start_workspace(
-            phi_config=phi_config,
-            ws_config=active_ws_config,
-            target_env=target_env,
-            target_infra=target_infra,
-            target_group=target_group,
-            target_name=target_name,
-            target_type=target_type,
-            dry_run=dry_run,
-            auto_confirm=auto_confirm,
-            force=force,
-        )
+    start_workspace(
+        phi_config=phi_config,
+        ws_config=active_ws_config,
+        target_env=target_env,
+        target_infra=target_infra,
+        target_group=target_group,
+        target_name=target_name,
+        target_type=target_type,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        force=force,
     )
 
 
@@ -434,19 +430,17 @@ def down(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_dir_name))
-    aiorun(
-        stop_workspace(
-            phi_config=phi_config,
-            ws_config=active_ws_config,
-            target_env=target_env,
-            target_infra=target_infra,
-            target_group=target_group,
-            target_name=target_name,
-            target_type=target_type,
-            dry_run=dry_run,
-            auto_confirm=auto_confirm,
-            force=force,
-        )
+    stop_workspace(
+        phi_config=phi_config,
+        ws_config=active_ws_config,
+        target_env=target_env,
+        target_infra=target_infra,
+        target_group=target_group,
+        target_name=target_name,
+        target_type=target_type,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        force=force,
     )
 
 
@@ -599,19 +593,17 @@ def patch(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     print_heading("Updating workspace: {}\n".format(active_ws_config.ws_dir_name))
-    aiorun(
-        update_workspace(
-            phi_config=phi_config,
-            ws_config=active_ws_config,
-            target_env=target_env,
-            target_infra=target_infra,
-            target_group=target_group,
-            target_name=target_name,
-            target_type=target_type,
-            dry_run=dry_run,
-            auto_confirm=auto_confirm,
-            force=force,
-        )
+    update_workspace(
+        phi_config=phi_config,
+        ws_config=active_ws_config,
+        target_env=target_env,
+        target_infra=target_infra,
+        target_group=target_group,
+        target_name=target_name,
+        target_type=target_type,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        force=force,
     )
 
 
@@ -791,4 +783,4 @@ def delete(
             if phi_config.active_ws_dir is not None:
                 ws_to_delete.append(phi_config.active_ws_dir)
 
-    aiorun(delete_workspace(phi_config, ws_to_delete))
+    delete_workspace(phi_config, ws_to_delete)

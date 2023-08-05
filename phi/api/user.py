@@ -1,4 +1,4 @@
-from typing import Optional, Union, Dict, Any, List
+from typing import Optional, Union, Dict, List
 
 from httpx import Response, codes
 
@@ -10,7 +10,7 @@ from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 
-async def user_ping() -> bool:
+def user_ping() -> bool:
     if not phi_cli_settings.api_enabled:
         return False
 
@@ -25,11 +25,10 @@ async def user_ping() -> bool:
                 return True
         except Exception as e:
             logger.debug(f"Could not ping user api: {e}")
+    return False
 
 
-async def authenticate_and_get_user(
-    tmp_auth_token: str, existing_user: Optional[UserSchema] = None
-) -> Optional[UserSchema]:
+def authenticate_and_get_user(tmp_auth_token: str, existing_user: Optional[UserSchema] = None) -> Optional[UserSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
@@ -48,7 +47,7 @@ async def authenticate_and_get_user(
             }
     with api.Client() as api_client:
         try:
-            r: Response = api_client.post(ApiRoutes.USER_CLI_AUTH, header=auth_header, json=anon_user)
+            r: Response = api_client.post(ApiRoutes.USER_CLI_AUTH, headers=auth_header, json=anon_user)
             if invalid_response(r):
                 return None
 
@@ -70,7 +69,7 @@ async def authenticate_and_get_user(
     return None
 
 
-async def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSchema]:
+def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
@@ -101,7 +100,7 @@ async def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSc
     return None
 
 
-async def user_is_authenticated() -> bool:
+def user_is_authenticated() -> bool:
     if not phi_cli_settings.api_enabled:
         return False
 
@@ -121,18 +120,18 @@ async def user_is_authenticated() -> bool:
             if invalid_response(r):
                 return False
 
-            response_data: Union[Dict[Any, Any], List[Any]] = r.json()
-            if response_data is None or not isinstance(response_data, dict):
+            response_json: Union[Dict, List] = r.json()
+            if response_json is None or not isinstance(response_json, dict):
                 logger.error("Could not parse response")
                 return False
-            if response_data.get("status") == "success":
+            if response_json.get("status") == "success":
                 return True
         except Exception as e:
             logger.debug(f"Could not check if user is authenticated: {e}")
     return False
 
 
-async def create_anon_user() -> Optional[UserSchema]:
+def create_anon_user() -> Optional[UserSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 

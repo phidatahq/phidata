@@ -127,14 +127,14 @@ class Conversation(BaseModel):
         if self.is_active is None and row.is_active is not None:
             self.is_active = row.is_active
 
-        # Update llm usage_date from the ConversationRow
+        # Update llm metrics from the ConversationRow
         if row.llm is not None:
-            llm_usage = row.llm.get("usage_data")
-            if llm_usage is not None and isinstance(llm_usage, dict):
+            llm_metrics = row.llm.get("metrics")
+            if llm_metrics is not None and isinstance(llm_metrics, dict):
                 try:
-                    self.llm.usage_data = llm_usage
+                    self.llm.metrics = llm_metrics
                 except Exception as e:
-                    logger.error(f"Failed to load llm usage_data: {e}")
+                    logger.error(f"Failed to load llm metrics: {e}")
 
         # Update conversation history from the ConversationRow
         if row.history is not None:
@@ -321,7 +321,7 @@ class Conversation(BaseModel):
         _user_prompt = cast(str, remove_indent(_user_prompt))
         return _user_prompt
 
-    def review(self, question: str) -> Iterator[str]:
+    def review(self, question: str, stream: bool = True) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
         # Load the conversation from the database if available
@@ -362,11 +362,13 @@ class Conversation(BaseModel):
             logger.debug(f"{message.role.upper()}: {message.content}")
 
         # Generate response
-        response = ""
-        response_tokens = 0
-        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in messages]):
-            response += delta
-            response_tokens += 1
+        if stream:
+            response = ""
+            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+                response += delta
+                yield response
+        else:
+            response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
             yield response
 
         logger.debug(f"Response: {response}")
@@ -374,17 +376,66 @@ class Conversation(BaseModel):
         # Add response to the history - this is added to the chat and llm history
         self.history.add_llm_response(message=Message(role="assistant", content=response))
 
-        # Add response tokens to usage data
-        if "response_tokens" in self.usage_data:
-            self.usage_data["response_tokens"] += response_tokens
-        else:
-            self.usage_data["response_tokens"] = response_tokens
+        # Save conversation to storage
+        self.write_to_storage()
 
-        # Add question to usage data
-        if "questions" in self.usage_data:
-            self.usage_data["questions"] += 1
+        # Monitor conversation
+        self.monitor()
+
+    def chat(self, question: str, stream: bool = True) -> Iterator[str]:
+        logger.debug(f"Reviewing: {question}")
+
+        # Load the conversation from the database if available
+        self.read_from_storage()
+
+        # -*- Build the system prompt
+        system_prompt = self.get_system_prompt()
+
+        # -*- Build the user prompt
+        references = self.get_references(question=question)
+        chat_history = self.get_chat_history() if self.add_history_to_prompt else None
+        user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
+
+        # -*- Build messages to send to the LLM
+        # Create system message
+        system_message = Message(role="system", content=system_prompt)
+        # Create user message
+        user_message = Message(role="user", content=user_prompt)
+        # Create message list
+        messages: List[Message] = [system_message]
+        if self.add_history_to_messages:
+            messages += self.history.chat_history
+        messages += [user_message]
+
+        # Add messages to the history
+        # Add the system prompt to the history - added only if this is the first message to the LLM
+        self.history.add_system_prompt(message=system_message)
+        # Add user question to the history - this is added to the chat history
+        self.history.add_user_question(message=Message(role="user", content=question))
+        # Add user prompt to the history - this is added to the llm history
+        self.history.add_user_prompt(message=user_message)
+        # Add references to the history
+        if references:
+            self.history.add_references(references=References(question=question, references=references))
+
+        # Log messages
+        for message in messages:
+            logger.debug(f"{message.role.upper()}: {message.content}")
+
+        # Generate response
+        if stream:
+            response = ""
+            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+                response += delta
+                yield response
         else:
-            self.usage_data["questions"] = 1
+            response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
+            yield response
+
+        logger.debug(f"Response: {response}")
+
+        # Add response to the history - this is added to the chat and llm history
+        self.history.add_llm_response(message=Message(role="assistant", content=response))
 
         # Save conversation to storage
         self.write_to_storage()
@@ -410,28 +461,14 @@ class Conversation(BaseModel):
 
         # Generate response
         response = ""
-        response_tokens = 0
-        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in messages]):
+        for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
             response += delta
-            response_tokens += 1
             yield response
 
         logger.debug(f"Response: {response}")
 
         # Add response to the history - this is added to the chat and llm history
         self.history.add_llm_response(message=Message(role="assistant", content=response))
-
-        # Add response tokens to usage data
-        if "response_tokens" in self.usage_data:
-            self.usage_data["response_tokens"] += response_tokens
-        else:
-            self.usage_data["response_tokens"] = response_tokens
-
-        # Add question to usage data
-        if "questions" in self.usage_data:
-            self.usage_data["questions"] += 1
-        else:
-            self.usage_data["questions"] = 1
 
         # Save conversation to storage
         self.write_to_storage()

@@ -68,8 +68,6 @@ class PgConversationStorage(ConversationStorage):
             Column("llm", postgresql.JSONB),
             # -*- Conversation history
             Column("history", postgresql.JSONB),
-            # Usage data for this conversation.
-            Column("usage_data", postgresql.JSONB),
             # Extra data associated with this conversation.
             Column("extra_data", postgresql.JSONB),
             # The timestamp of when this conversation was created.
@@ -158,9 +156,9 @@ class PgConversationStorage(ConversationStorage):
                         "name": conversation.name,
                         "user_name": conversation.user_name,
                         "user_persona": conversation.user_persona,
-                        "history": conversation.history,
+                        "is_active": conversation.is_active,
                         "llm": conversation.llm,
-                        "usage_data": conversation.usage_data,
+                        "history": conversation.history,
                         "extra_data": conversation.extra_data,
                     }
 
@@ -180,12 +178,12 @@ class PgConversationStorage(ConversationStorage):
                         values_to_update["user_name"] = conversation.user_name
                     if conversation.user_persona is not None:
                         values_to_update["user_persona"] = conversation.user_persona
-                    if conversation.history is not None:
-                        values_to_update["history"] = conversation.history
+                    if conversation.is_active is not None:
+                        values_to_update["is_active"] = conversation.is_active
                     if conversation.llm is not None:
                         values_to_update["llm"] = conversation.llm
-                    if conversation.usage_data is not None:
-                        values_to_update["usage_data"] = conversation.usage_data
+                    if conversation.history is not None:
+                        values_to_update["history"] = conversation.history
                     if conversation.extra_data is not None:
                         values_to_update["extra_data"] = conversation.extra_data
 

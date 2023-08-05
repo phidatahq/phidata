@@ -9,10 +9,10 @@ authors = [
 ]
 
 dependencies = [
-  "aiohttp",
   "boto3",
   "docker",
   "gitpython",
+  "httpx",
   "kubernetes",
   "pydantic",
   "pydantic-settings",
@@ -21,7 +21,7 @@ dependencies = [
   "rich",
   "tomli",
   "typer",
-  "typing-extensions",
+  "typing-extensions"
 ]
 
 [project.optional-dependencies]
@@ -30,10 +30,10 @@ dev = [
     "black",
     "pytest",
     "ruff",
-    "types-pyyaml",
+    "types-pyyaml"
 ]
 aws = [
-    "boto3",
+    "boto3"
 ]
 
 [project.scripts]
@@ -81,7 +81,7 @@ no_implicit_optional = true
 warn_unused_configs = true
 exclude = [
   "phienv*",
-  "phidata",
+  "phidata"
 ]
 
 [[tool.mypy.overrides]]
@@ -89,12 +89,12 @@ module = [
   "boto3.*",
   "botocore.*",
   "docker.*",
+  "kubernetes.*",
   "openai.*",
   "pgvector.*",
   "psycopg.*",
   "pypdf.*",
-  "kubernetes.*",
-  "sqlalchemy.*",
   "setuptools.*",
+  "sqlalchemy.*"
 ]
 ignore_missing_imports = true

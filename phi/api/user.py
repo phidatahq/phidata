@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Optional, Union, Dict, Any, List
 
-from phi.api.client import api_client, invalid_response
+from httpx import Response, codes
+
+from phi.api.api import api, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.user import UserSchema, EmailPasswordAuthSchema
 from phi.cli.config import PhiCliConfig
@@ -13,19 +15,16 @@ async def user_ping() -> bool:
         return False
 
     logger.debug("--o-o-- Ping user api")
-    try:
-        async with api_client.Session() as api:
-            async with api.get(ApiRoutes.USER_HEALTH) as response:
-                if invalid_response(response):
-                    return False
-
-                response_json = await response.json()
-                if response_json is not None and response_json.get("status") == "success":
-                    return True
+    with api.Client() as api_client:
+        try:
+            r: Response = api_client.get(ApiRoutes.USER_HEALTH)
+            if invalid_response(r):
                 return False
-    except Exception as e:
-        logger.debug(f"Could not ping user api: {e}")
-    return False
+
+            if r.status_code == codes.OK:
+                return True
+        except Exception as e:
+            logger.debug(f"Could not ping user api: {e}")
 
 
 async def authenticate_and_get_user(
@@ -37,6 +36,7 @@ async def authenticate_and_get_user(
     from phi.cli.credentials import save_auth_token, read_auth_token
 
     logger.debug("--o-o-- Getting user")
+    auth_header = {phi_cli_settings.auth_token_header: tmp_auth_token}
     anon_user = None
     if existing_user is not None:
         if existing_user.email == "anon":
@@ -46,32 +46,27 @@ async def authenticate_and_get_user(
                 "id_user": existing_user.id_user,
                 "auth_token": read_auth_token() or "",
             }
-    try:
-        headers = api_client.headers.copy()
-        headers[phi_cli_settings.auth_token_header] = tmp_auth_token
-
-        async with api_client.Session() as api:
-            async with api.post(ApiRoutes.USER_CLI_AUTH, headers=headers, json=anon_user) as response:
-                if invalid_response(response):
-                    return None
-
-                new_auth_token = response.headers.get(phi_cli_settings.auth_token_header)
-                if new_auth_token is None:
-                    logger.error("Could not authenticate user")
-                    return None
-
-                response_json = await response.json()
-                if response_json is None:
-                    return None
-
-                current_user: UserSchema = UserSchema.model_validate(response_json)
-                if current_user is not None:
-                    save_auth_token(new_auth_token)
-                    return current_user
+    with api.Client() as api_client:
+        try:
+            r: Response = api_client.post(ApiRoutes.USER_CLI_AUTH, header=auth_header, json=anon_user)
+            if invalid_response(r):
                 return None
 
-    except Exception as e:
-        logger.debug(f"Could not authenticate user: {e}")
+            new_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
+            if new_auth_token is None:
+                logger.error("Could not authenticate user")
+                return None
+
+            user_data = r.json()
+            if not isinstance(user_data, dict):
+                return None
+
+            current_user: UserSchema = UserSchema.model_validate(user_data)
+            if current_user is not None:
+                save_auth_token(new_auth_token)
+                return current_user
+        except Exception as e:
+            logger.debug(f"Could not authenticate user: {e}")
     return None
 
 
@@ -82,28 +77,27 @@ async def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSc
     from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Signing in user")
-    try:
-        async with api_client.Session() as api:
-            async with api.post(ApiRoutes.USER_SIGN_IN, json=sign_in_data.model_dump()) as response:
-                if invalid_response(response):
-                    return None
-
-                phidata_auth_token = response.headers.get(phi_cli_settings.auth_token_header)
-                if phidata_auth_token is None:
-                    logger.error("Could not authenticate user")
-                    return None
-
-                response_json = await response.json()
-                if response_json is None:
-                    return None
-
-                current_user: UserSchema = UserSchema.model_validate(response_json)
-                if current_user is not None:
-                    save_auth_token(phidata_auth_token)
-                    return current_user
+    with api.Client() as api_client:
+        try:
+            r: Response = api_client.post(ApiRoutes.USER_SIGN_IN, json=sign_in_data.model_dump())
+            if invalid_response(r):
                 return None
-    except Exception as e:
-        logger.debug(f"Could not sign in user: {e}")
+
+            phidata_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
+            if phidata_auth_token is None:
+                logger.error("Could not authenticate user")
+                return None
+
+            user_data = r.json()
+            if not isinstance(user_data, dict):
+                return None
+
+            current_user: UserSchema = UserSchema.model_validate(user_data)
+            if current_user is not None:
+                save_auth_token(phidata_auth_token)
+                return current_user
+        except Exception as e:
+            logger.debug(f"Could not sign in user: {e}")
     return None
 
 
@@ -112,27 +106,29 @@ async def user_is_authenticated() -> bool:
         return False
 
     logger.debug("--o-o-- Checking if user is authenticated")
-    try:
-        phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-        if phi_config is None:
-            return False
-        user: Optional[UserSchema] = phi_config.user
-        if user is None:
-            return False
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if phi_config is None:
+        return False
+    user: Optional[UserSchema] = phi_config.user
+    if user is None:
+        return False
 
-        async with api_client.Session() as api:
-            async with api.get(
+    with api.AuthenticatedClient() as api_client:
+        try:
+            r: Response = api_client.post(
                 ApiRoutes.USER_AUTHENTICATE, json=user.model_dump(include={"id_user", "email"})
-            ) as response:
-                if invalid_response(response):
-                    return False
-
-                response_json = await response.json()
-                if response_json is not None and response_json.get("status") == "success":
-                    return True
+            )
+            if invalid_response(r):
                 return False
-    except Exception as e:
-        logger.debug(f"Could not check if user is authenticated: {e}")
+
+            response_data: Union[Dict[Any, Any], List[Any]] = r.json()
+            if response_data is None or not isinstance(response_data, dict):
+                logger.error("Could not parse response")
+                return False
+            if response_data.get("status") == "success":
+                return True
+        except Exception as e:
+            logger.debug(f"Could not check if user is authenticated: {e}")
     return False
 
 
@@ -143,27 +139,27 @@ async def create_anon_user() -> Optional[UserSchema]:
     from phi.cli.credentials import save_auth_token
 
     logger.debug("--o-o-- Creating anon user")
-    try:
-        async with api_client.Session() as api:
-            async with api.post(
+    with api.Client() as api_client:
+        try:
+            r: Response = api_client.post(
                 ApiRoutes.USER_CREATE, json={"email": "anon", "username": "anon", "is_bot": True}
-            ) as response:
-                if invalid_response(response):
-                    return None
+            )
+            if invalid_response(r):
+                return None
 
-                phidata_auth_token = response.headers.get(phi_cli_settings.auth_token_header)
-                if phidata_auth_token is None:
-                    logger.error("Could not authenticate user")
-                    return None
+            phidata_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
+            if phidata_auth_token is None:
+                logger.error("Could not authenticate user")
+                return None
 
-                response_json = await response.json()
-                if response_json is None:
-                    return None
+            user_data = r.json()
+            if not isinstance(user_data, dict):
+                return None
 
-                current_user: UserSchema = UserSchema.model_validate(response_json)
-                if current_user is not None:
-                    save_auth_token(phidata_auth_token)
-                    return current_user
-    except Exception as e:
-        logger.debug(f"Could not create anon user: {e}")
+            current_user: UserSchema = UserSchema.model_validate(user_data)
+            if current_user is not None:
+                save_auth_token(phidata_auth_token)
+                return current_user
+        except Exception as e:
+            logger.debug(f"Could not create anon user: {e}")
     return None

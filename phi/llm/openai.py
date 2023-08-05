@@ -1,6 +1,7 @@
 from typing import Optional, List, Iterator
 
 from phi.llm.base import LLM
+from phi.utils.log import logger
 
 
 class OpenAIChat(LLM):
@@ -30,6 +31,7 @@ class OpenAIChat(LLM):
         except ImportError:
             raise ImportError("`openai` not installed")
 
+        response_tokens = 0
         for delta in ChatCompletion.create(
             model=self.model,
             messages=messages,
@@ -37,4 +39,6 @@ class OpenAIChat(LLM):
             temperature=self.temperature,
             stream=True,
         ):
+            lo
+            response_tokens += 1
             yield delta.choices[0].delta.get("content", "")

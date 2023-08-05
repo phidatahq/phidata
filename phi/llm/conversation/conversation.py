@@ -41,8 +41,6 @@ class Conversation(BaseModel):
     debug_logs: bool = False
     # Monitor conversations on phidata.com
     monitoring: bool = False
-    # Usage data
-    usage_data: Dict[str, Any] = {}
     # Extra data
     extra_data: Optional[Dict[str, Any]] = None
     # The timestamp of when this conversation was created in the database
@@ -63,7 +61,7 @@ class Conversation(BaseModel):
     storage: Optional[ConversationStorage] = None
     # Create table if it doesn't exist
     create_storage: bool = True
-    # Conversation row in the database
+    # Conversation row from the database
     conversation_row: Optional[ConversationRow] = None
 
     # Function to build references for the user prompt
@@ -99,7 +97,7 @@ class Conversation(BaseModel):
         return v
 
     def to_conversation_row(self) -> ConversationRow:
-        """Return the conversation row"""
+        """Create a ConversationRow for the current conversation (usually to save to the database)"""
 
         return ConversationRow(
             id=self.id,
@@ -107,26 +105,17 @@ class Conversation(BaseModel):
             user_name=self.user_name,
             user_persona=self.user_persona,
             is_active=self.is_active,
-            llm={
-                "type": self.llm.__class__.__name__,
-                "config": self.llm.model_dump(exclude_none=True),
-            },
+            llm=self.llm.model_dump(exclude_none=True),
             history=self.history.model_dump(include={"chat_history", "llm_history", "references"}),
-            usage_data=self.usage_data,
             extra_data=self.extra_data,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
 
     def from_conversation_row(self, row: ConversationRow):
-        """Load the existing conversation from a database row
+        """Load the existing conversation from a ConversationRow (usually from the database)"""
 
-        Note:
-            - Parameters updated from the database: id, name, user_name, user_persona, history, usage_data, extra_data
-            - Parameters not updated from the database: LLM, is_active, created_at, updated_at
-        """
-
-        # Values that are overwritten from the database if they are not set in the conversation
+        # Values that are overwritten from the ConversationRow if they are not set in the conversation
         if self.id is None and row.id is not None:
             self.id = row.id
         if self.name is None and row.name is not None:
@@ -138,24 +127,31 @@ class Conversation(BaseModel):
         if self.is_active is None and row.is_active is not None:
             self.is_active = row.is_active
 
-        # Update conversation history from database regardless of whether it is set in the conversation
+        # Update llm usage_date from the ConversationRow
+        if row.llm is not None:
+            llm_usage = row.llm.get("usage_data")
+            if llm_usage is not None and isinstance(llm_usage, dict):
+                try:
+                    self.llm.usage_data = llm_usage
+                except Exception as e:
+                    logger.error(f"Failed to load llm usage_data: {e}")
+
+        # Update conversation history from the ConversationRow
         if row.history is not None:
             try:
                 self.history = self.history.__class__.model_validate(row.history)
             except Exception as e:
                 logger.error(f"Failed to load conversation history: {e}")
 
-        # Update usage data from database regardless of whether it is set in the conversation
-        if row.usage_data is not None:
-            self.usage_data = row.usage_data
-
-        # If extra data is set in the conversation, merge it with the database extra data
-        # The conversation extra data takes precedence
-        if self.extra_data is not None and row.extra_data is not None:
-            self.extra_data = {**row.extra_data, **self.extra_data}
-        # If extra data is not set in the conversation, use the database extra data
-        if self.extra_data is None and row.extra_data is not None:
-            self.extra_data = row.extra_data
+        # Update extra data from the ConversationRow
+        if row.extra_data is not None:
+            # If extra data is set in the conversation,
+            # merge it with the database extra data. The conversation extra data takes precedence
+            if self.extra_data is not None and row.extra_data is not None:
+                self.extra_data = {**row.extra_data, **self.extra_data}
+            # If extra data is not set in the conversation, use the database extra data
+            if self.extra_data is None and row.extra_data is not None:
+                self.extra_data = row.extra_data
 
         # Update the timestamp of when this conversation was created in the database
         if row.created_at is not None:
@@ -217,6 +213,7 @@ class Conversation(BaseModel):
         """End the conversation"""
         if self.storage is not None and self.id is not None:
             self.storage.end(conversation_id=self.id)
+        self.is_active = False
 
     def get_system_prompt(self) -> str:
         """Return the system prompt for the conversation"""

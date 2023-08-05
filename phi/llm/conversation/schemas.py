@@ -22,8 +22,6 @@ class ConversationRow(BaseModel):
     llm: Optional[Dict[str, Any]] = None
     # -*- Conversation history
     history: Optional[Dict[str, Any]] = None
-    # Usage data for this conversation.
-    usage_data: Optional[Dict[str, Any]] = None
     # Extra data associated with this conversation
     extra_data: Optional[Dict[str, Any]] = None
     # The timestamp of when this conversation was created

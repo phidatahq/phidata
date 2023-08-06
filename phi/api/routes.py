@@ -26,3 +26,7 @@ class ApiRoutes:
     # monitor paths
     MONITOR_HEALTH: str = "/v1/monitor/health"
     MONITOR_EVENT: str = "/v1/monitor/event"
+
+    # conversation paths
+    CONVERSATION_HEALTH: str = "/v1/conversation/health"
+    CONVERSATION_EVENT: str = "/v1/conversation/event/create"

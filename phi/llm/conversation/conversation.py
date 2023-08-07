@@ -12,6 +12,7 @@ from phi.llm.history.base import LLMHistory
 from phi.llm.history.simple import SimpleConversationHistory
 from phi.llm.knowledge.base import LLMKnowledgeBase
 from phi.llm.openai import OpenAIChat
+from phi.utils.timer import Timer
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.format_str import remove_indent
 
@@ -379,11 +380,8 @@ class Conversation(BaseModel):
         # Save conversation to storage
         self.write_to_storage()
 
-        # Monitor conversation
-        self.monitor()
-
-    def chat(self, question: str, stream: bool = True) -> Iterator[str]:
-        logger.debug(f"Reviewing: {question}")
+    def chat(self, question: str, stream: bool = True, stream_delta: bool = False) -> Iterator[str]:
+        logger.debug(f"Answering: {question}")
 
         # Load the conversation from the database if available
         self.read_from_storage()
@@ -391,9 +389,17 @@ class Conversation(BaseModel):
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
 
-        # -*- Build the user prompt
+        # -*- Get references to add to the user prompt
+        reference_timer = Timer()
+        reference_timer.start()
         references = self.get_references(question=question)
+        reference_timer.stop()
+        logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+
+        # -*- Get chat history to add to the user prompt
         chat_history = self.get_chat_history() if self.add_history_to_prompt else None
+
+        # -*- Build the user prompt
         user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
 
         # -*- Build messages to send to the LLM
@@ -407,7 +413,28 @@ class Conversation(BaseModel):
             messages += self.history.chat_history
         messages += [user_message]
 
-        # Add messages to the history
+        # -*- Log messages for debugging
+        for message in messages:
+            logger.debug(f"{message.role.upper()}: {message.content}")
+
+        # -*- Generate response
+        response_timer = Timer()
+        response_timer.start()
+        if stream:
+            llm_response = ""
+            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+                llm_response += delta
+                if stream_delta:
+                    yield delta
+                else:
+                    yield llm_response
+        else:
+            llm_response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
+            yield llm_response
+        response_timer.stop()
+        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+
+        # -*- Add messages to the history
         # Add the system prompt to the history - added only if this is the first message to the LLM
         self.history.add_system_prompt(message=system_message)
         # Add user question to the history - this is added to the chat history
@@ -416,32 +443,22 @@ class Conversation(BaseModel):
         self.history.add_user_prompt(message=user_message)
         # Add references to the history
         if references:
-            self.history.add_references(references=References(question=question, references=references))
-
-        # Log messages
-        for message in messages:
-            logger.debug(f"{message.role.upper()}: {message.content}")
-
-        # Generate response
-        if stream:
-            response = ""
-            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
-                response += delta
-                yield response
-        else:
-            response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
-            yield response
-
-        logger.debug(f"Response: {response}")
-
+            self.history.add_references(
+                references=References(question=question, references=references, perf=round(reference_timer.elapsed, 4))
+            )
         # Add response to the history - this is added to the chat and llm history
-        self.history.add_llm_response(message=Message(role="assistant", content=response))
+        self.history.add_llm_response(
+            message=Message(role="assistant", content=llm_response, perf=round(response_timer.elapsed, 4))
+        )
 
-        # Save conversation to storage
+        # -*- Log response for debugging
+        logger.debug(f"Response: {llm_response}")
+
+        # -*- Save conversation to storage
         self.write_to_storage()
 
-        # Monitor conversation
-        self.monitor()
+        # -*- Monitor chat
+        self.monitor_chat()
 
     def prompt(self, messages: List[Message], user_question: Optional[str] = None) -> Iterator[str]:
         logger.debug("Sending prompt request")
@@ -473,9 +490,6 @@ class Conversation(BaseModel):
         # Save conversation to storage
         self.write_to_storage()
 
-        # Monitor conversation
-        self.monitor()
-
     def rename(self, name: str) -> None:
         """Rename the conversation"""
         self.read_from_storage()
@@ -505,8 +519,8 @@ class Conversation(BaseModel):
         self.name = generated_name
         self.write_to_storage()
 
-    def monitor(self):
-        logger.debug("Sending monitoring request")
+    def monitor_chat(self):
+        logger.debug("Sending chat monitoring request")
         # from phi.api.monitor import log_monitor_event, MonitorEventSchema, WorkspaceSchema
         # from asyncio import run
         #

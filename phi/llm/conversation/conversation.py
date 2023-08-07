@@ -520,22 +520,20 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
     def monitor_chat(self):
-        logger.debug("Sending chat monitoring request")
-        # from phi.api.monitor import log_monitor_event, MonitorEventSchema, WorkspaceSchema
-        # from asyncio import run
-        #
-        # conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
-        # run(
-        #     log_monitor_event(
-        #         monitor=MonitorEventSchema(
-        #             event_type="conversation_history",
-        #             event_status="update",
-        #             object_name="conversation",
-        #             event_data=conversation_row.serializable_dict(),
-        #             object_data=conversation_row.model_dump(include={"id", "name"}),
-        #         ),
-        #         workspace=WorkspaceSchema(
-        #             id_workspace=2,
-        #         ),
-        #     )
-        # )
+        logger.debug("Sending monitoring request")
+        from phi.api.conversation import log_conversation_event, ConversationEventSchema, WorkspaceSchema
+        from asyncio import run
+
+        conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
+        logger.debug(f"Conversation row: {conversation_row}")
+        log_conversation_event(
+                conversation=ConversationEventSchema(
+                    conversation_key=str(self.id),
+                    conversation_data={"name": "test", "id": 0},
+                    event_type="chat",
+                    event_data=conversation_row.serializable_dict(),
+                ),
+                workspace=WorkspaceSchema(
+                    id_workspace=2,
+                ),
+        )

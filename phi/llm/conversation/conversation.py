@@ -519,46 +519,21 @@ class Conversation(BaseModel):
         self.name = generated_name
         self.write_to_storage()
 
-    def monitor(self):
+    def monitor_chat(self):
         logger.debug("Sending monitoring request")
         from phi.api.conversation import log_conversation_event, ConversationEventSchema, WorkspaceSchema
         from asyncio import run
 
         conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
         logger.debug(f"Conversation row: {conversation_row}")
-        run(
-            log_conversation_event(
-                monitor=ConversationEventSchema(
-                    id_user=conversation_row.user_name,
-                    conversation_key=0,
-                    conversation_data="placeholder",
-                    event_type="conversation_history",
+        log_conversation_event(
+                conversation=ConversationEventSchema(
+                    conversation_key=str(self.id),
+                    conversation_data={"name": "test", "id": 0},
+                    event_type="chat",
                     event_data=conversation_row.serializable_dict(),
-                    # object_data=conversation_row.model_dump(include={"id", "name"}),
                 ),
                 workspace=WorkspaceSchema(
                     id_workspace=2,
                 ),
-            )
         )
-    def monitor_chat(self):
-        logger.debug("Sending chat monitoring request")
-        # from phi.api.monitor import log_monitor_event, MonitorEventSchema, WorkspaceSchema
-        # from asyncio import run
-        #
-        # run(
-        #     log_monitor_event(
-        #         monitor=MonitorEventSchema(
-        #             event_type="conversation_history",
-        #             event_status="update",
-        #             object_name="conversation",
-        #             event_data=self.conversation_row.serializable_dict() if self.conversation_row else None,
-        #             object_data=self.conversation_row.model_dump(include={"id", "name"})
-        #             if self.conversation_row
-        #             else None,
-        #         ),
-        #         workspace=WorkspaceSchema(
-        #             id_workspace=2,
-        #         ),
-        #     )
-        # )

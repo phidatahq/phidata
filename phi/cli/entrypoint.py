@@ -2,8 +2,6 @@
 
 This is the entrypoint for the `phi` cli application.
 """
-import sys
-from asyncio import run as aiorun
 from typing import Optional
 
 import typer
@@ -57,7 +55,7 @@ def init(
 
     from phi.cli.operator import initialize_phi
 
-    aiorun(initialize_phi(reset=reset, login=login))
+    initialize_phi(reset=reset, login=login)
 
 
 @phi_cli.command(short_help="Reset phi installation")
@@ -79,7 +77,7 @@ def reset(
 
     from phi.cli.operator import initialize_phi
 
-    aiorun(initialize_phi(reset=True))
+    initialize_phi(reset=True)
 
 
 @phi_cli.command(short_help="Authenticate with phidata.com")
@@ -100,7 +98,7 @@ def auth(
 
     from phi.cli.operator import authenticate_user
 
-    aiorun(authenticate_user())
+    authenticate_user()
 
 
 @phi_cli.command(short_help="Log in from the cli", hidden=True)
@@ -125,7 +123,7 @@ def login(
 
     from phi.cli.operator import sign_in_using_cli
 
-    aiorun(sign_in_using_cli())
+    sign_in_using_cli()
 
 
 @phi_cli.command(short_help="Ping phidata servers")
@@ -144,7 +142,7 @@ def ping(
     from phi.api.user import user_ping
     from phi.cli.console import print_info
 
-    ping_success = aiorun(user_ping())
+    ping_success = user_ping()
     if ping_success:
         print_info("Ping successful")
     else:
@@ -208,7 +206,7 @@ def set(
     if print_debug_log:
         set_log_level_to_debug()
 
-    aiorun(set_workspace_as_active(ws_dir_name=ws_name))
+    set_workspace_as_active(ws_dir_name=ws_name)
 
 
 # @phi_cli.command(short_help="Start resources defined in a resources.py file")
@@ -668,8 +666,3 @@ def set(
 phi_cli.add_typer(ws_cli)
 # phi_cli.add_typer(k8s_app)
 # phi_cli.add_typer(wf_app)
-
-if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith("win"):
-    from asyncio import set_event_loop_policy, WindowsSelectorEventLoopPolicy
-
-    set_event_loop_policy(WindowsSelectorEventLoopPolicy())

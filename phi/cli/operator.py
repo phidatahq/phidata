@@ -15,14 +15,7 @@ def delete_phidata_conf() -> None:
     delete_from_fs(PHI_CLI_DIR)
 
 
-async def ping_user_api() -> bool:
-    """Ping the user api to check if the user is authenticated"""
-    from phi.api.user import user_ping
-
-    return await user_ping()
-
-
-async def authenticate_user() -> None:
+def authenticate_user() -> None:
     """Authenticate the user using credentials from phidata.com
     Steps:
     1. Authenticate the user by opening the phidata sign-in url
@@ -56,7 +49,7 @@ async def authenticate_user() -> None:
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     existing_user: Optional[UserSchema] = phi_config.user if phi_config is not None else None
     try:
-        user: Optional[UserSchema] = await authenticate_and_get_user(
+        user: Optional[UserSchema] = authenticate_and_get_user(
             tmp_auth_token=tmp_auth_token, existing_user=existing_user
         )
     except Exception as e:
@@ -71,12 +64,12 @@ async def authenticate_user() -> None:
     if phi_config is None:
         phi_config = PhiCliConfig(user)
     else:
-        await phi_config.set_user(user)
+        phi_config.user = user
 
     print_info("Welcome {}".format(user.email))
 
 
-async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
+def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     """Initialize phi on the users machine.
 
     Steps:
@@ -120,11 +113,11 @@ async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
 
     # Authenticate user
     if login:
-        await authenticate_user()
+        authenticate_user()
     else:
-        anon_user = await create_anon_user()
+        anon_user = create_anon_user()
         if anon_user is not None and phi_config is not None:
-            await phi_config.set_user(anon_user)
+            phi_config.user = anon_user
 
     if phi_config is not None:
         logger.debug("Phidata initialized")
@@ -134,7 +127,7 @@ async def initialize_phi(reset: bool = False, login: bool = False) -> bool:
         return False
 
 
-async def sign_in_using_cli() -> None:
+def sign_in_using_cli() -> None:
     from getpass import getpass
     from phi.api.user import sign_in_user
     from phi.api.schemas.user import UserSchema, EmailPasswordAuthSchema
@@ -147,7 +140,7 @@ async def sign_in_using_cli() -> None:
         logger.error("Incorrect email or password")
 
     try:
-        user: Optional[UserSchema] = await sign_in_user(EmailPasswordAuthSchema(email=email_raw, password=pass_raw))
+        user: Optional[UserSchema] = sign_in_user(EmailPasswordAuthSchema(email=email_raw, password=pass_raw))
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
@@ -161,7 +154,7 @@ async def sign_in_using_cli() -> None:
     if phi_config is None:
         phi_config = PhiCliConfig(user)
     else:
-        await phi_config.set_user(user)
+        phi_config.user = user
 
     print_info("Welcome {}".format(user.email))
 

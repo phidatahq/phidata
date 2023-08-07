@@ -12,6 +12,7 @@ from phi.llm.history.base import LLMHistory
 from phi.llm.history.simple import SimpleConversationHistory
 from phi.llm.knowledge.base import LLMKnowledgeBase
 from phi.llm.openai import OpenAIChat
+from phi.utils.timer import Timer
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.format_str import remove_indent
 
@@ -41,8 +42,6 @@ class Conversation(BaseModel):
     debug_logs: bool = False
     # Monitor conversations on phidata.com
     monitoring: bool = False
-    # Usage data
-    usage_data: Dict[str, Any] = {}
     # Extra data
     extra_data: Optional[Dict[str, Any]] = None
     # The timestamp of when this conversation was created in the database
@@ -62,8 +61,8 @@ class Conversation(BaseModel):
     # -*- Conversation Storage
     storage: Optional[ConversationStorage] = None
     # Create table if it doesn't exist
-    create_storage: bool = False
-    # Conversation row in the database
+    create_storage: bool = True
+    # Conversation row from the database
     conversation_row: Optional[ConversationRow] = None
 
     # Function to build references for the user prompt
@@ -99,7 +98,7 @@ class Conversation(BaseModel):
         return v
 
     def to_conversation_row(self) -> ConversationRow:
-        """Return the conversation row"""
+        """Create a ConversationRow for the current conversation (usually to save to the database)"""
 
         return ConversationRow(
             id=self.id,
@@ -107,26 +106,17 @@ class Conversation(BaseModel):
             user_name=self.user_name,
             user_persona=self.user_persona,
             is_active=self.is_active,
-            llm={
-                "type": self.llm.__class__.__name__,
-                "config": self.llm.model_dump(exclude_none=True),
-            },
+            llm=self.llm.model_dump(exclude_none=True),
             history=self.history.model_dump(include={"chat_history", "llm_history", "references"}),
-            usage_data=self.usage_data,
             extra_data=self.extra_data,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
 
     def from_conversation_row(self, row: ConversationRow):
-        """Load the existing conversation from a database row
+        """Load the existing conversation from a ConversationRow (usually from the database)"""
 
-        Note:
-            - Parameters updated from the database: id, name, user_name, user_persona, history, usage_data, extra_data
-            - Parameters not updated from the database: LLM, is_active, created_at, updated_at
-        """
-
-        # Values that are overwritten from the database if they are not set in the conversation
+        # Values that are overwritten from the ConversationRow if they are not set in the conversation
         if self.id is None and row.id is not None:
             self.id = row.id
         if self.name is None and row.name is not None:
@@ -138,24 +128,31 @@ class Conversation(BaseModel):
         if self.is_active is None and row.is_active is not None:
             self.is_active = row.is_active
 
-        # Update conversation history from database regardless of whether it is set in the conversation
+        # Update llm metrics from the ConversationRow
+        if row.llm is not None:
+            llm_metrics = row.llm.get("metrics")
+            if llm_metrics is not None and isinstance(llm_metrics, dict):
+                try:
+                    self.llm.metrics = llm_metrics
+                except Exception as e:
+                    logger.error(f"Failed to load llm metrics: {e}")
+
+        # Update conversation history from the ConversationRow
         if row.history is not None:
             try:
                 self.history = self.history.__class__.model_validate(row.history)
             except Exception as e:
                 logger.error(f"Failed to load conversation history: {e}")
 
-        # Update usage data from database regardless of whether it is set in the conversation
-        if row.usage_data is not None:
-            self.usage_data = row.usage_data
-
-        # If extra data is set in the conversation, merge it with the database extra data
-        # The conversation extra data takes precedence
-        if self.extra_data is not None and row.extra_data is not None:
-            self.extra_data = {**row.extra_data, **self.extra_data}
-        # If extra data is not set in the conversation, use the database extra data
-        if self.extra_data is None and row.extra_data is not None:
-            self.extra_data = row.extra_data
+        # Update extra data from the ConversationRow
+        if row.extra_data is not None:
+            # If extra data is set in the conversation,
+            # merge it with the database extra data. The conversation extra data takes precedence
+            if self.extra_data is not None and row.extra_data is not None:
+                self.extra_data = {**row.extra_data, **self.extra_data}
+            # If extra data is not set in the conversation, use the database extra data
+            if self.extra_data is None and row.extra_data is not None:
+                self.extra_data = row.extra_data
 
         # Update the timestamp of when this conversation was created in the database
         if row.created_at is not None:
@@ -217,6 +214,7 @@ class Conversation(BaseModel):
         """End the conversation"""
         if self.storage is not None and self.id is not None:
             self.storage.end(conversation_id=self.id)
+        self.is_active = False
 
     def get_system_prompt(self) -> str:
         """Return the system prompt for the conversation"""
@@ -324,7 +322,7 @@ class Conversation(BaseModel):
         _user_prompt = cast(str, remove_indent(_user_prompt))
         return _user_prompt
 
-    def review(self, question: str) -> Iterator[str]:
+    def review(self, question: str, stream: bool = True) -> Iterator[str]:
         logger.debug(f"Reviewing: {question}")
 
         # Load the conversation from the database if available
@@ -365,11 +363,13 @@ class Conversation(BaseModel):
             logger.debug(f"{message.role.upper()}: {message.content}")
 
         # Generate response
-        response = ""
-        response_tokens = 0
-        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in messages]):
-            response += delta
-            response_tokens += 1
+        if stream:
+            response = ""
+            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+                response += delta
+                yield response
+        else:
+            response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
             yield response
 
         logger.debug(f"Response: {response}")
@@ -377,23 +377,88 @@ class Conversation(BaseModel):
         # Add response to the history - this is added to the chat and llm history
         self.history.add_llm_response(message=Message(role="assistant", content=response))
 
-        # Add response tokens to usage data
-        if "response_tokens" in self.usage_data:
-            self.usage_data["response_tokens"] += response_tokens
-        else:
-            self.usage_data["response_tokens"] = response_tokens
-
-        # Add question to usage data
-        if "questions" in self.usage_data:
-            self.usage_data["questions"] += 1
-        else:
-            self.usage_data["questions"] = 1
-
         # Save conversation to storage
         self.write_to_storage()
 
-        # Monitor conversation
-        self.monitor()
+    def chat(self, question: str, stream: bool = True, stream_delta: bool = False) -> Iterator[str]:
+        logger.debug(f"Answering: {question}")
+
+        # Load the conversation from the database if available
+        self.read_from_storage()
+
+        # -*- Build the system prompt
+        system_prompt = self.get_system_prompt()
+
+        # -*- Get references to add to the user prompt
+        reference_timer = Timer()
+        reference_timer.start()
+        references = self.get_references(question=question)
+        reference_timer.stop()
+        logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+
+        # -*- Get chat history to add to the user prompt
+        chat_history = self.get_chat_history() if self.add_history_to_prompt else None
+
+        # -*- Build the user prompt
+        user_prompt = self.get_user_prompt(question=question, references=references, chat_history=chat_history)
+
+        # -*- Build messages to send to the LLM
+        # Create system message
+        system_message = Message(role="system", content=system_prompt)
+        # Create user message
+        user_message = Message(role="user", content=user_prompt)
+        # Create message list
+        messages: List[Message] = [system_message]
+        if self.add_history_to_messages:
+            messages += self.history.chat_history
+        messages += [user_message]
+
+        # -*- Log messages for debugging
+        for message in messages:
+            logger.debug(f"{message.role.upper()}: {message.content}")
+
+        # -*- Generate response
+        response_timer = Timer()
+        response_timer.start()
+        if stream:
+            llm_response = ""
+            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+                llm_response += delta
+                if stream_delta:
+                    yield delta
+                else:
+                    yield llm_response
+        else:
+            llm_response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
+            yield llm_response
+        response_timer.stop()
+        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+
+        # -*- Add messages to the history
+        # Add the system prompt to the history - added only if this is the first message to the LLM
+        self.history.add_system_prompt(message=system_message)
+        # Add user question to the history - this is added to the chat history
+        self.history.add_user_question(message=Message(role="user", content=question))
+        # Add user prompt to the history - this is added to the llm history
+        self.history.add_user_prompt(message=user_message)
+        # Add references to the history
+        if references:
+            self.history.add_references(
+                references=References(question=question, references=references, perf=round(reference_timer.elapsed, 4))
+            )
+        # Add response to the history - this is added to the chat and llm history
+        self.history.add_llm_response(
+            message=Message(role="assistant", content=llm_response, perf=round(response_timer.elapsed, 4))
+        )
+
+        # -*- Log response for debugging
+        logger.debug(f"Response: {llm_response}")
+
+        # -*- Save conversation to storage
+        self.write_to_storage()
+
+        # -*- Monitor chat
+        self.monitor_chat()
 
     def prompt(self, messages: List[Message], user_question: Optional[str] = None) -> Iterator[str]:
         logger.debug("Sending prompt request")
@@ -413,10 +478,8 @@ class Conversation(BaseModel):
 
         # Generate response
         response = ""
-        response_tokens = 0
-        for delta in self.llm.streaming_response(messages=[m.model_dump(exclude_none=True) for m in messages]):
+        for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
             response += delta
-            response_tokens += 1
             yield response
 
         logger.debug(f"Response: {response}")
@@ -424,23 +487,8 @@ class Conversation(BaseModel):
         # Add response to the history - this is added to the chat and llm history
         self.history.add_llm_response(message=Message(role="assistant", content=response))
 
-        # Add response tokens to usage data
-        if "response_tokens" in self.usage_data:
-            self.usage_data["response_tokens"] += response_tokens
-        else:
-            self.usage_data["response_tokens"] = response_tokens
-
-        # Add question to usage data
-        if "questions" in self.usage_data:
-            self.usage_data["questions"] += 1
-        else:
-            self.usage_data["questions"] = 1
-
         # Save conversation to storage
         self.write_to_storage()
-
-        # Monitor conversation
-        self.monitor()
 
     def rename(self, name: str) -> None:
         """Rename the conversation"""
@@ -471,8 +519,8 @@ class Conversation(BaseModel):
         self.name = generated_name
         self.write_to_storage()
 
-    def monitor(self):
-        logger.debug("Sending monitoring request")
+    def monitor_chat(self):
+        logger.debug("Sending chat monitoring request")
         # from phi.api.monitor import log_monitor_event, MonitorEventSchema, WorkspaceSchema
         # from asyncio import run
         #

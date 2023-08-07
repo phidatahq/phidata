@@ -44,7 +44,5 @@ class WorkspaceSchema(BaseModel):
     ws_name: Optional[str] = None
     is_active: Optional[bool] = None
     git_url: Optional[str] = None
-    visibility: Optional[str] = None
-    created_by_id_user: Optional[int] = None
     ws_hash: Optional[str] = None
     ws_data: Optional[Dict[str, Any]] = None

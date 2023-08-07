@@ -2,6 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from phi.api.schemas.workspace import WorkspaceSchema
+
 
 class ContainerContext(BaseModel):
     workspace_name: Optional[str] = None
@@ -13,4 +15,5 @@ class ContainerContext(BaseModel):
     storage_dir: Optional[str] = None
     workflows_dir: Optional[str] = None
     workspace_dir: Optional[str] = None
+    workspace_schema: Optional[WorkspaceSchema] = None
     requirements_file: Optional[str] = None

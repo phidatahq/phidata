@@ -12,7 +12,7 @@ def get_logger(logger_name: str) -> logging.Logger:
     rich_handler = RichHandler(
         show_time=False,
         rich_tracebacks=False,
-        show_path=True if phi_cli_settings.runtime == "dev" else False,
+        show_path=True if phi_cli_settings.api_runtime == "dev" else False,
         tracebacks_show_locals=False,
     )
     rich_handler.setFormatter(

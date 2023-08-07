@@ -114,32 +114,43 @@ class AwsApp(InfraApp):
 
     def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
         from phi.constants import (
-            PYTHONPATH_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
+            PYTHONPATH_ENV_VAR,
+            REQUIREMENTS_FILE_PATH_ENV_VAR,
             SCRIPTS_DIR_ENV_VAR,
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
-            WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
-            REQUIREMENTS_FILE_PATH_ENV_VAR,
+            WORKSPACE_HASH_ENV_VAR,
+            WORKSPACE_ID_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
         )
 
         # Container Environment
         container_env: Dict[str, str] = self.container_env or {}
         container_env.update(
             {
+                "INSTALL_REQUIREMENTS": str(self.install_requirements),
+                "MOUNT_WORKSPACE": str(self.mount_workspace),
+                "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
                 PHI_RUNTIME_ENV_VAR: "ecs",
+                REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
                 SCRIPTS_DIR_ENV_VAR: container_context.scripts_dir or "",
                 STORAGE_DIR_ENV_VAR: container_context.storage_dir or "",
                 WORKFLOWS_DIR_ENV_VAR: container_context.workflows_dir or "",
                 WORKSPACE_DIR_ENV_VAR: container_context.workspace_dir or "",
                 WORKSPACE_ROOT_ENV_VAR: container_context.workspace_root or "",
-                "INSTALL_REQUIREMENTS": str(self.install_requirements),
-                REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
-                "MOUNT_WORKSPACE": str(self.mount_workspace),
-                "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
             }
         )
+
+        try:
+            if container_context.workspace_schema is not None:
+                if container_context.workspace_schema.id_workspace is not None:
+                    container_env[WORKSPACE_ID_ENV_VAR] = str(container_context.workspace_schema.id_workspace) or ""
+                if container_context.workspace_schema.ws_hash is not None:
+                    container_env[WORKSPACE_HASH_ENV_VAR] = container_context.workspace_schema.ws_hash
+        except Exception:
+            pass
 
         if self.set_python_path:
             python_path = self.python_path

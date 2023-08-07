@@ -150,6 +150,9 @@ class InfraApp(PhiBase):
                 f"{workspace_volume_container_path}/{self.workspace_settings.workspace_dir}"
             )
 
+        if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
+            self.container_context.workspace_schema = self.workspace_settings.ws_schema
+
         if self.requirements_file is not None:
             self.container_context.requirements_file = f"{workspace_volume_container_path}/{self.requirements_file}"
 

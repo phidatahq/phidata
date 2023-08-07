@@ -9,7 +9,7 @@ def isinstanceany(obj: Any, class_list: List[Type]) -> bool:
     return False
 
 
-def str_to_int(inp: str) -> Optional[int]:
+def str_to_int(inp: Optional[str]) -> Optional[int]:
     """
     Safely converts a string value to integer.
     Args:
@@ -17,6 +17,9 @@ def str_to_int(inp: str) -> Optional[int]:
 
     Returns: input string as int if possible, None if not
     """
+    if inp is None:
+        return None
+
     try:
         val = int(inp)
         return val

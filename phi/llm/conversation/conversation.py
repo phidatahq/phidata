@@ -175,8 +175,8 @@ class Conversation(BaseModel):
     def write_to_storage(self) -> Optional[ConversationRow]:
         """Save the conversation to the storage"""
         if self.storage is not None:
-            return self.storage.upsert(conversation=self.to_conversation_row())
-        return None
+            self.conversation_row = self.storage.upsert(conversation=self.to_conversation_row())
+        return self.conversation_row
 
     def start(self) -> Optional[int]:
         """Starts the conversation and returns the conversation ID
@@ -520,20 +520,32 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
     def monitor_chat(self):
-        logger.debug("Sending monitoring request")
-        from phi.api.conversation import log_conversation_event, ConversationEventSchema, WorkspaceSchema
-        from asyncio import run
+        from os import getenv
+        from phi.api.conversation import log_conversation_event, ConversationEventCreate, ConversationWorkspace
+        from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR
+        from phi.utils.common import str_to_int
 
-        conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
-        logger.debug(f"Conversation row: {conversation_row}")
-        log_conversation_event(
-                conversation=ConversationEventSchema(
+        logger.debug("Sending conversation event")
+        try:
+            workspace_id = str_to_int(getenv(WORKSPACE_ID_ENV_VAR))
+            if workspace_id is None:
+                logger.debug(f"Could not log conversation. {WORKSPACE_ID_ENV_VAR} invalid: {workspace_id}")
+                return
+
+            workspace_hash = getenv(WORKSPACE_HASH_ENV_VAR)
+            conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
+            conversation_data = conversation_row.model_dump(
+                include={"id", "name", "user_name", "user_persona", "is_active", "extra_data"}
+            )
+
+            log_conversation_event(
+                conversation=ConversationEventCreate(
                     conversation_key=str(self.id),
-                    conversation_data={"name": "test", "id": 0},
+                    conversation_data=conversation_data,
                     event_type="chat",
                     event_data=conversation_row.serializable_dict(),
                 ),
-                workspace=WorkspaceSchema(
-                    id_workspace=2,
-                ),
-        )
+                workspace=ConversationWorkspace(id_workspace=workspace_id, ws_hash=workspace_hash),
+            )
+        except Exception as e:
+            logger.debug(f"Could not log conversation event: {e}")

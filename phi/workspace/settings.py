@@ -5,6 +5,8 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from pydantic_core.core_schema import FieldValidationInfo
 
+from phi.api.schemas.workspace import WorkspaceSchema
+
 
 class WorkspaceSettings(BaseSettings):
     """
@@ -175,6 +177,8 @@ class WorkspaceSettings(BaseSettings):
     # -*- Other Settings
     #
     use_cache: bool = True
+    # WorkspaceSchema provided by the api
+    ws_schema: Optional[WorkspaceSchema] = None
 
     @field_validator("dev_key", mode="before")
     def set_dev_key(cls, dev_key, info: FieldValidationInfo):

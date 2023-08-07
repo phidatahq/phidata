@@ -23,7 +23,7 @@ class PhiCliSettings(BaseSettings):
     prd_signin_url: str = "https://phidata.com/signin"
     prd_api_url: str = "https://api.phidata.com"
 
-    runtime: str = "prd"
+    api_runtime: str = "prd"
     auth_token_cookie: str = "__phi_session"
     auth_token_header: str = "X-PHIDATA-AUTH-TOKEN"
     signin_url: str = Field("https://phidata.com/signin", validate_default=True)
@@ -32,20 +32,20 @@ class PhiCliSettings(BaseSettings):
     # Feature Gates
     api_enabled: bool = False
 
-    model_config = SettingsConfigDict(env_prefix="PHI_CLI_")
+    model_config = SettingsConfigDict(env_prefix="PHI_")
 
     @field_validator("signin_url", mode="before")
     def update_signin_url(cls, v, info: FieldValidationInfo):
         dev_signin_url = info.data.get("dev_signin_url", "http://localhost:3000/signin")
         prd_signin_url = info.data.get("prd_signin_url", "https://phidata.com/signin")
-        signin_url = dev_signin_url if info.data["runtime"] == "dev" else prd_signin_url
+        signin_url = dev_signin_url if info.data["api_runtime"] == "dev" else prd_signin_url
         return signin_url
 
     @field_validator("api_url", mode="before")
     def update_api_url(cls, v, info: FieldValidationInfo):
         dev_api_url = info.data.get("dev_api_url", "http://localhost:8000")
         prd_api_url = info.data.get("prd_api_url", "https://api.phidata.com")
-        api_url = dev_api_url if info.data["runtime"] == "dev" else prd_api_url
+        api_url = dev_api_url if info.data["api_runtime"] == "dev" else prd_api_url
         return api_url
 
 

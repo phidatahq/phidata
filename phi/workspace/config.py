@@ -130,9 +130,13 @@ class WorkspaceConfig(BaseModel):
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
                 _obj_type = obj.__class__.__name__
+                logger.debug(f"Loading {_obj_type}: {obj_name}")
                 if _obj_type == "WorkspaceSettings":
                     if self.validate_workspace_settings(obj):
                         self.workspace_settings = obj
+                        if self.ws_schema is not None and self.workspace_settings is not None:
+                            self.workspace_settings.ws_schema = self.ws_schema
+                            logger.debug("Added WorkspaceSchema to WorkspaceSettings")
                 elif _obj_type == "DockerResourceGroup":
                     if self.docker_resource_groups is None:
                         self.docker_resource_groups = []
@@ -145,7 +149,6 @@ class WorkspaceConfig(BaseModel):
                     if self.aws_resource_groups is None:
                         self.aws_resource_groups = []
                     self.aws_resource_groups.append(obj)
-                logger.debug(f"Loaded {_obj_type}: {obj_name}")
 
         logger.debug("**--> WorkspaceConfig loaded")
         return True
@@ -160,6 +163,8 @@ class WorkspaceConfig(BaseModel):
             WORKSPACE_NAME_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
+            WORKSPACE_ID_ENV_VAR,
+            WORKSPACE_HASH_ENV_VAR,
         )
 
         if self.ws_root_path is not None:
@@ -180,6 +185,12 @@ class WorkspaceConfig(BaseModel):
 
                 workflows_dir = self.ws_root_path.joinpath(self.workspace_settings.workflows_dir)
                 environ[WORKFLOWS_DIR_ENV_VAR] = str(workflows_dir)
+
+        if self.ws_schema is not None:
+            if self.ws_schema.id_workspace is not None:
+                environ[WORKSPACE_ID_ENV_VAR] = str(self.ws_schema.id_workspace)
+            if self.ws_schema.ws_hash is not None:
+                environ[WORKSPACE_HASH_ENV_VAR] = self.ws_schema.ws_hash
 
     def get_resource_groups(
         self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"

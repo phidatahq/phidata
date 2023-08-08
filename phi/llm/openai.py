@@ -1,6 +1,7 @@
 from typing import Optional, List, Iterator
 
 from phi.llm.base import LLM
+from phi.llm.schemas import Message, Function
 from phi.utils.log import logger
 
 
@@ -10,7 +11,7 @@ class OpenAIChat(LLM):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
 
-    def response(self, messages: List) -> str:
+    def response(self, messages: List[Message]) -> str:
         try:
             from openai import ChatCompletion  # noqa: F401
         except ImportError:
@@ -18,9 +19,11 @@ class OpenAIChat(LLM):
 
         response = ChatCompletion.create(
             model=self.model,
-            messages=messages,
+            messages=[m.model_dump(exclude_none=True) for m in messages],
             max_tokens=self.max_tokens,
             temperature=self.temperature,
+            # functions=[f.model_dump(exclude_none=True) for f in self.functions],
+            # function_call=self.function_call,
         )
         # logger.debug(f"OpenAI response type: {type(response)}")
         # logger.debug(f"OpenAI response: {response}")
@@ -51,7 +54,7 @@ class OpenAIChat(LLM):
         # Return response
         return response["choices"][0]["message"]["content"]
 
-    def response_stream(self, messages: List) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[str]:
         try:
             from openai import ChatCompletion  # noqa: F401
         except ImportError:
@@ -60,7 +63,7 @@ class OpenAIChat(LLM):
         completion_tokens = 0
         for delta in ChatCompletion.create(
             model=self.model,
-            messages=messages,
+            messages=[m.model_dump(exclude_none=True) for m in messages],
             max_tokens=self.max_tokens,
             temperature=self.temperature,
             stream=True,

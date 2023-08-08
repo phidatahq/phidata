@@ -65,6 +65,11 @@ class Conversation(BaseModel):
     # Conversation row from the database
     conversation_row: Optional[ConversationRow] = None
 
+    # -*- Function Calls
+    autonomous: bool = False
+    add_conversation_functions: bool = True
+    function_call_limit: int = 5
+
     # Function to build references for the user prompt
     # Signature:
     # def references(conversation: Conversation, question: str) -> Optional[str]:
@@ -365,11 +370,11 @@ class Conversation(BaseModel):
         # Generate response
         if stream:
             response = ""
-            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+            for delta in self.llm.response_stream(messages=messages):
                 response += delta
                 yield response
         else:
-            response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
+            response = self.llm.response(messages=messages)
             yield response
 
         logger.debug(f"Response: {response}")
@@ -422,14 +427,14 @@ class Conversation(BaseModel):
         response_timer.start()
         if stream:
             llm_response = ""
-            for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+            for delta in self.llm.response_stream(messages=messages):
                 llm_response += delta
                 if stream_delta:
                     yield delta
                 else:
                     yield llm_response
         else:
-            llm_response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
+            llm_response = self.llm.response(messages=messages)
             yield llm_response
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
@@ -478,7 +483,7 @@ class Conversation(BaseModel):
 
         # Generate response
         response = ""
-        for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
+        for delta in self.llm.response_stream(messages=messages):
             response += delta
             yield response
 

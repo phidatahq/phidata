@@ -3,6 +3,11 @@ from typing import Optional, Dict, Any
 from pydantic import BaseModel
 
 
+class ConversationWorkspace(BaseModel):
+    id_workspace: int
+    ws_hash: Optional[str] = None
+
+
 class ConversationEventCreate(BaseModel):
     """Data sent to API to create a new conversation event"""
 
@@ -13,11 +18,6 @@ class ConversationEventCreate(BaseModel):
     event_data: Optional[Dict[str, Any]] = None
 
 
-class ConversationWorkspace(BaseModel):
-    id_workspace: int
-    ws_hash: Optional[str] = None
-
-
-class ConversationResponseSchema(BaseModel):
+class ConversationEventCreateResopnse(BaseModel):
     id_event: Optional[int] = None
     id_conversation: Optional[int] = None

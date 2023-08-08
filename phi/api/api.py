@@ -1,6 +1,6 @@
 from typing import Optional
 
-from httpx import Client, AsyncClient, Response
+from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
 
 from phi.cli.settings import phi_cli_settings
 from phi.cli.credentials import read_auth_token
@@ -14,6 +14,10 @@ class Api:
             "Content-Type": "application/json",
         }
         self._authenticated_headers = None
+        self._client = None
+        self._async_client = None
+        self._authenticated_client = None
+        self._authenticated_async_client = None
 
     @property
     def auth_token(self) -> Optional[str]:
@@ -32,33 +36,41 @@ class Api:
                 self._authenticated_headers[phi_cli_settings.auth_token_header] = token
         return self._authenticated_headers
 
-    def Client(self):
-        return Client(
-            base_url=phi_cli_settings.api_url,
-            headers=self.headers,
-            timeout=60,
-        )
+    def Client(self) -> HttpxClient:
+        if self._client is None:
+            self._client = HttpxClient(
+                base_url=phi_cli_settings.api_url,
+                headers=self.headers,
+                timeout=60,
+            )
+        return self._client
 
-    def AuthenticatedClient(self):
-        return Client(
-            base_url=phi_cli_settings.api_url,
-            headers=self.authenticated_headers,
-            timeout=60,
-        )
+    def AuthenticatedClient(self) -> HttpxClient:
+        if self._authenticated_client is None:
+            self._authenticated_client = HttpxClient(
+                base_url=phi_cli_settings.api_url,
+                headers=self.authenticated_headers,
+                timeout=60,
+            )
+        return self._authenticated_client
 
     def AsyncClient(self):
-        return AsyncClient(
-            base_url=phi_cli_settings.api_url,
-            headers=self.headers,
-            timeout=60,
-        )
+        if self._async_client is None:
+            self._async_client = HttpxAsyncClient(
+                base_url=phi_cli_settings.api_url,
+                headers=self.headers,
+                timeout=60,
+            )
+        return self._async_client
 
     def AuthenticatedAsyncClient(self):
-        return AsyncClient(
-            base_url=phi_cli_settings.api_url,
-            headers=self.authenticated_headers,
-            timeout=60,
-        )
+        if self._authenticated_async_client is None:
+            self._authenticated_async_client = HttpxAsyncClient(
+                base_url=phi_cli_settings.api_url,
+                headers=self.authenticated_headers,
+                timeout=60,
+            )
+        return self._authenticated_async_client
 
 
 api = Api()

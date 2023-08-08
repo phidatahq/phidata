@@ -19,7 +19,7 @@ def log_conversation_event(
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.CONVERSATION_EVENT,
+                ApiRoutes.CONVERSATION_EVENT_CREATE,
                 json={
                     "event": conversation.model_dump(exclude_none=True),
                     "workspace": workspace.model_dump(exclude_none=True),

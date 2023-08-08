@@ -18,15 +18,13 @@ class ApiRoutes:
     WORKSPACE_CREATE: str = "/v1/workspace/create"
     WORKSPACE_UPDATE: str = "/v1/workspace/update"
     WORKSPACE_DELETE: str = "/v1/workspace/delete"
-    WORKSPACE_EVENT: str = "/v1/workspace/event"
+    WORKSPACE_EVENT_CREATE: str = "/v1/workspace/event/create"
     WORKSPACE_UPDATE_PRIMARY: str = "/v1/workspace/update/primary"
     WORKSPACE_READ_PRIMARY: str = "/v1/workspace/read/primary"
     WORKSPACE_READ_AVAILABLE: str = "/v1/workspace/read/available"
 
     # monitor paths
-    MONITOR_HEALTH: str = "/v1/monitor/health"
-    MONITOR_EVENT: str = "/v1/monitor/event"
+    MONITOR_EVENT_CREATE: str = "/v1/monitor/event/create"
 
     # conversation paths
-    CONVERSATION_HEALTH: str = "/v1/conversation/health"
-    CONVERSATION_EVENT: str = "/v1/conversation/event/create"
+    CONVERSATION_EVENT_CREATE: str = "/v1/conversation/event/create"

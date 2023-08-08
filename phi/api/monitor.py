@@ -18,7 +18,7 @@ def log_monitor_event(monitor: MonitorEventSchema, workspace: WorkspaceSchema) -
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.MONITOR_EVENT,
+                ApiRoutes.MONITOR_EVENT_CREATE,
                 json={
                     "monitor": monitor.model_dump(exclude_none=True),
                     "workspace": workspace.model_dump(include={"id_workspace"}),

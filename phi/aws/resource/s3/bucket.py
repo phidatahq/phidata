@@ -1,8 +1,9 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
+from phi.aws.resource.s3.object import S3Object
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
@@ -16,7 +17,7 @@ class S3Bucket(AwsResource):
     resource_type: str = "s3"
     service_name: str = "s3"
 
-    # name of bucket
+    # Name of the bucket
     name: str
     # The canned ACL to apply to the bucket.
     acl: Optional[Literal["private", "public-read", "public-read-write", "authenticated-read"]] = None
@@ -27,6 +28,25 @@ class S3Bucket(AwsResource):
     grant_write_ACP: Optional[str] = None
     object_lock_enabled_for_bucket: Optional[bool] = None
     object_ownership: Optional[Literal["BucketOwnerPreferred", "ObjectWriter", "BucketOwnerEnforced"]] = None
+
+    @property
+    def uri(self) -> str:
+        """Returns the URI of the s3.Bucket
+
+        Returns:
+            str: The URI of the s3.Bucket
+        """
+        return f"s3://{self.name}"
+
+    def get_resource(self, aws_client: Optional[AwsApiClient] = None) -> Optional[Any]:
+        """Returns the s3.Bucket
+
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+        client: AwsApiClient = aws_client or self.get_aws_client()
+        service_resource = self.get_service_resource(client)
+        return service_resource.Bucket(name=self.name)
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the s3.Bucket
@@ -39,7 +59,7 @@ class S3Bucket(AwsResource):
         # Step 1: Build bucket configuration
         # Bucket names are GLOBALLY unique!
         # AWS will give you the IllegalLocationConstraintException if you collide
-        # with an already existing bucket and you've specified a region different than
+        # with an already existing bucket if you've specified a region different than
         # the region of the already existing bucket. If you happen to guess the correct region of the
         # existing bucket it will give you the BucketAlreadyExists exception.
         bucket_configuration = None
@@ -68,18 +88,17 @@ class S3Bucket(AwsResource):
             not_null_args["ObjectOwnership"] = self.object_ownership
 
         # Step 2: Create Bucket
-        service_resource = self.get_service_resource(aws_client)
+        service_client = self.get_service_client(aws_client)
         try:
-            bucket = service_resource.create_bucket(Bucket=self.name, **not_null_args)
-            logger.debug(f"Bucket: {bucket}")
-
-            # Validate Bucket creation
-            bucket.load()
-            creation_date = bucket.creation_date
-            logger.debug(f"creation_date: {creation_date}")
-            if creation_date is not None:
-                print_info(f"Bucket created: {bucket.name}")
-                self.active_resource = bucket
+            response = service_client.create_bucket(
+                Bucket=self.name,
+                **not_null_args,
+            )
+            logger.debug(f"Response: {response}")
+            bucket_location = response.get("Location")
+            if bucket_location is not None:
+                logger.debug(f"Bucket created: {bucket_location}")
+                self.active_resource = response
                 return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be created.")
@@ -114,16 +133,18 @@ class S3Bucket(AwsResource):
 
         from botocore.exceptions import ClientError
 
-        service_resource = self.get_service_resource(aws_client)
         try:
+            service_resource = self.get_service_resource(aws_client)
             bucket = service_resource.Bucket(name=self.name)
-
             bucket.load()
             creation_date = bucket.creation_date
             logger.debug(f"Bucket creation_date: {creation_date}")
             if creation_date is not None:
                 logger.debug(f"Bucket found: {bucket.name}")
-                self.active_resource = bucket
+                self.active_resource = {
+                    "name": bucket.name,
+                    "creation_date": creation_date,
+                }
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
         except Exception as e:
@@ -139,26 +160,38 @@ class S3Bucket(AwsResource):
         """
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
+        service_client = self.get_service_client(aws_client)
         self.active_resource = None
         try:
-            bucket = self._read(aws_client)
-            logger.debug(f"Bucket: {bucket}")
-            if bucket is None:
-                logger.warning(f"No {self.get_resource_type()} to delete")
-                return True
-
-            bucket.delete()
-            print_info(f"Bucket deleted: {bucket}")
+            response = service_client.delete_bucket(Bucket=self.name)
+            logger.debug(f"Response: {response}")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")
+            logger.error("Please try again or delete resources manually.")
             logger.error(e)
         return False
 
-    def get_uri(self) -> str:
-        """Returns the URI of the s3.Bucket
+    def get_objects(self, aws_client: Optional[AwsApiClient] = None) -> List[Any]:
+        """Returns a list of s3.Object objects for the s3.Bucket
 
-        Returns:
-            str: The URI of the s3.Bucket
+        Args:
+            aws_client: The AwsApiClient for the current cluster
         """
-        return f"s3://{self.name}"
+        bucket = self.get_resource(aws_client)
+        if bucket is None:
+            logger.warning(f"Could not get bucket: {self.name}")
+            return []
+
+        logger.debug(f"Getting objects for bucket: {bucket.name}")
+        # Get all objects in bucket
+        object_summaries = bucket.objects.all()
+        all_objects: List[S3Object] = []
+        for object_summary in object_summaries:
+            all_objects.append(
+                S3Object(
+                    bucket_name=bucket.name,
+                    name=object_summary.key,
+                )
+            )
+        return all_objects

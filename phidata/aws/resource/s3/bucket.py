@@ -9,13 +9,14 @@ from phidata.utils.log import logger
 
 class S3Bucket(AwsResource):
     """
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#service-resource
+    Reference:
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#service-resource
     """
 
     resource_type: str = "s3"
     service_name: str = "s3"
 
-    # name of bucket
+    # Name of the bucket
     name: str
     # The canned ACL to apply to the bucket.
     acl: Optional[
@@ -42,7 +43,7 @@ class S3Bucket(AwsResource):
         # Step 1: Build bucket configuration
         # Bucket names are GLOBALLY unique!
         # AWS will give you the IllegalLocationConstraintException if you collide
-        # with an already existing bucket and you've specified a region different than
+        # with an already existing bucket if you've specified a region different than
         # the region of the already existing bucket. If you happen to guess the correct region of the
         # existing bucket it will give you the BucketAlreadyExists exception.
         bucket_configuration = None
@@ -73,18 +74,17 @@ class S3Bucket(AwsResource):
             not_null_args["ObjectOwnership"] = self.object_ownership
 
         # Step 2: Create Bucket
-        service_resource = self.get_service_resource(aws_client)
+        service_client = self.get_service_client(aws_client)
         try:
-            bucket = service_resource.create_bucket(Bucket=self.name, **not_null_args)
-            logger.debug(f"Bucket: {bucket}")
-
-            # Validate Bucket creation
-            bucket.load()
-            creation_date = bucket.creation_date
-            logger.debug(f"creation_date: {creation_date}")
-            if creation_date is not None:
-                print_info(f"Bucket created: {bucket.name}")
-                self.active_resource = bucket
+            response = service_client.create_bucket(
+                Bucket=self.name,
+                **not_null_args,
+            )
+            logger.debug(f"Response: {response}")
+            bucket_location = response.get("Location")
+            if bucket_location is not None:
+                print_info(f"Bucket created: {bucket_location}")
+                self.active_resource = response
                 return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be created.")
@@ -144,19 +144,15 @@ class S3Bucket(AwsResource):
         """
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
+        service_client = self.get_service_client(aws_client)
         self.active_resource = None
         try:
-            bucket = self._read(aws_client)
-            logger.debug(f"Bucket: {bucket}")
-            if bucket is None:
-                logger.warning(f"No {self.get_resource_type()} to delete")
-                return True
-
-            bucket.delete()
-            print_info(f"Bucket deleted: {bucket}")
+            response = service_client.delete_bucket(Bucket=self.name)
+            logger.debug(f"Response: {response}")
             return True
         except Exception as e:
             print_error(f"{self.get_resource_type()} could not be deleted.")
+            print_error("Please try again or delete resources manually.")
             print_error(e)
         return False
 

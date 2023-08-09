@@ -61,10 +61,7 @@ class AwsResource(InfraResource):
 
         if self.service_client is None:
             boto3_session: session = aws_client.boto3_session
-            self.service_client = boto3_session.client(
-                service_name=self.service_name,
-                # region_name=aws_client.aws_region
-            )
+            self.service_client = boto3_session.client(service_name=self.service_name)
         return self.service_client
 
     def get_service_resource(self, aws_client: AwsApiClient):
@@ -72,10 +69,7 @@ class AwsResource(InfraResource):
 
         if self.service_resource is None:
             boto3_session: session = aws_client.boto3_session
-            self.service_resource = boto3_session.resource(
-                service_name=self.service_name,
-                # region_name=aws_client.aws_region
-            )
+            self.service_resource = boto3_session.resource(service_name=self.service_name)
         return self.service_resource
 
     def get_aws_client(self) -> AwsApiClient:
@@ -105,8 +99,8 @@ class AwsResource(InfraResource):
 
     def is_active(self, aws_client: AwsApiClient) -> bool:
         """Returns True if the resource is active on Aws"""
-        self.active_resource = self.read(aws_client=aws_client)
-        return True if self.active_resource is not None else False
+        _resource = self.read(aws_client=aws_client)
+        return True if _resource is not None else False
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         logger.warning(f"@_create method not defined for {self.get_resource_name()}")

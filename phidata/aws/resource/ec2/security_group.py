@@ -11,7 +11,7 @@ from phidata.utils.log import logger
 class InboundRule(AwsObject):
     """
     Reference:
-        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/authorize_security_group_ingress.html
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/authorize_security_group_ingress.html
     """
 
     # What to enable ingress for.
@@ -43,7 +43,7 @@ class InboundRule(AwsObject):
 class OutboundRule(AwsObject):
     """
     Reference:
-        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/authorize_security_group_ingress.html
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/authorize_security_group_ingress.html
     """
 
     # What to enable egress for.
@@ -75,8 +75,8 @@ class OutboundRule(AwsObject):
 class SecurityGroup(AwsResource):
     """
     Reference:
-        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/securitygroup/index.html
-        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/create_security_group.html
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/securitygroup/index.html
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/create_security_group.html
     """
 
     resource_type = "SecurityGroup"

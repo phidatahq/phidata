@@ -142,9 +142,6 @@ class DockerApp(InfraApp):
             if python_path is not None:
                 container_env[PYTHONPATH_ENV_VAR] = python_path
 
-        # Set aws region and profile
-        self.set_aws_env_vars(env_dict=container_env)
-
         # Update the container env using env_file
         env_data_from_file = self.get_env_file_data()
         if env_data_from_file is not None:

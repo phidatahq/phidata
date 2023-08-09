@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Any, Optional, Dict, Iterator, Callable, cast
+from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -41,7 +41,7 @@ class Conversation(BaseModel):
     # Set log level to debug
     debug_logs: bool = False
     # Monitor conversations on phidata.com
-    monitoring: bool = False
+    monitor: bool = False
     # Extra data
     extra_data: Optional[Dict[str, Any]] = None
     # The timestamp of when this conversation was created in the database
@@ -380,7 +380,7 @@ class Conversation(BaseModel):
         # Save conversation to storage
         self.write_to_storage()
 
-    def chat(self, question: str, stream: bool = True, stream_delta: bool = False) -> Iterator[str]:
+    def chat(self, question: str, stream: bool = True) -> Union[Iterator[str], str]:
         logger.debug(f"Answering: {question}")
 
         # Load the conversation from the database if available
@@ -424,13 +424,9 @@ class Conversation(BaseModel):
             llm_response = ""
             for delta in self.llm.response_stream(messages=[m.model_dump(exclude_none=True) for m in messages]):
                 llm_response += delta
-                if stream_delta:
-                    yield delta
-                else:
-                    yield llm_response
+                yield delta
         else:
             llm_response = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in messages])
-            yield llm_response
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -459,6 +455,8 @@ class Conversation(BaseModel):
 
         # -*- Monitor chat
         self.monitor_chat()
+
+        return llm_response
 
     def prompt(self, messages: List[Message], user_question: Optional[str] = None) -> Iterator[str]:
         logger.debug("Sending prompt request")
@@ -519,7 +517,10 @@ class Conversation(BaseModel):
         self.name = generated_name
         self.write_to_storage()
 
-    def monitor_chat(self):
+    def monitor_chat(self) -> None:
+        if not self.monitor:
+            return
+
         from os import getenv
         from phi.api.conversation import log_conversation_event, ConversationEventCreate, ConversationWorkspace
         from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR

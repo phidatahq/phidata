@@ -464,7 +464,7 @@ class Conversation(BaseModel):
         )
         user_message = Message(role="user", content=_conv)
         generate_name_message = [system_message, user_message]
-        generate_name = self.llm.response(messages=[m.model_dump(exclude_none=True) for m in generate_name_message])
+        generate_name = self.llm.response(messages=generate_name_message)
         return generate_name.replace('"', "").strip()
 
     def auto_rename(self) -> None:

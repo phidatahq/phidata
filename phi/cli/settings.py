@@ -49,7 +49,7 @@ class PhiCliSettings(BaseSettings):
     def update_api_url(cls, v, info: FieldValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
-            return "http://localhost:8000"
+            return "http://localhost:7070"
         elif api_runtime == "stg":
             return "https://api.stgphi.com"
         else:

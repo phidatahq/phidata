@@ -13,12 +13,12 @@ class LLMHistory(BaseModel):
     # References from the vector database.
     references: List[References] = []
 
+    def add_user_message(self, message: Message) -> None:
+        self.chat_history.append(message)
+
     def add_system_prompt(self, message: Message) -> None:
         if len(self.llm_history) == 0:
             self.llm_history.append(message)
-
-    def add_user_question(self, message: Message) -> None:
-        self.chat_history.append(message)
 
     def add_user_prompt(self, message: Message) -> None:
         self.llm_history.append(message)

@@ -16,9 +16,9 @@ class Streamlit(DockerApp):
     # Open a container port if open_container_port=True
     open_container_port: bool = True
     # Port number on the container
-    container_port: int = 9095
+    container_port: int = 8501
     # Host port to map to the container port
-    host_port: int = 9095
+    host_port: int = 8501
 
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container

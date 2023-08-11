@@ -6,8 +6,8 @@
 #
 annotated-types==0.5.0
 anyio==3.7.1
-boto3==1.28.20
-botocore==1.31.20
+boto3==1.28.24
+botocore==1.31.24
 cachetools==5.3.1
 certifi==2023.7.22
 charset-normalizer==3.2.0
@@ -32,7 +32,7 @@ pyasn1-modules==0.3.0
 pydantic==2.1.1
 pydantic-core==2.4.0
 pydantic-settings==2.0.2
-pygments==2.15.1
+pygments==2.16.1
 python-dateutil==2.8.2
 python-dotenv==1.0.0
 pyyaml==6.0.1

@@ -9,7 +9,7 @@ from phidata.utils.log import logger
 class Subnet(AwsResource):
     """
     Reference:
-        - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#subnet
+    - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#subnet
     """
 
     resource_type = "Subnet"

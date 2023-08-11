@@ -162,9 +162,7 @@ class AwsApp(InfraApp):
                 container_env[PYTHONPATH_ENV_VAR] = python_path
 
         # Set aws region and profile
-        self.set_aws_env_vars(
-            env_dict=container_env, aws_region=build_context.aws_region, aws_profile=build_context.aws_profile
-        )
+        self.set_aws_env_vars(env_dict=container_env, aws_region=build_context.aws_region)
 
         # Update the container env using env_file
         env_data_from_file = self.get_env_file_data()

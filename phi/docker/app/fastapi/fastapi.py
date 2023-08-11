@@ -16,9 +16,9 @@ class FastApi(DockerApp):
     # Open a container port if open_container_port=True
     open_container_port: bool = True
     # Port number on the container
-    container_port: int = 9090
+    container_port: int = 8000
     # Host port to map to the container port
-    host_port: int = 9090
+    host_port: int = 8000
 
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container

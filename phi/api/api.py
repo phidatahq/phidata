@@ -1,6 +1,6 @@
 from typing import Optional
 
-from httpx import Client, AsyncClient, Response
+from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
 
 from phi.cli.settings import phi_cli_settings
 from phi.cli.credentials import read_auth_token
@@ -32,29 +32,29 @@ class Api:
                 self._authenticated_headers[phi_cli_settings.auth_token_header] = token
         return self._authenticated_headers
 
-    def Client(self):
-        return Client(
+    def Client(self) -> HttpxClient:
+        return HttpxClient(
             base_url=phi_cli_settings.api_url,
             headers=self.headers,
             timeout=60,
         )
 
-    def AuthenticatedClient(self):
-        return Client(
+    def AuthenticatedClient(self) -> HttpxClient:
+        return HttpxClient(
             base_url=phi_cli_settings.api_url,
             headers=self.authenticated_headers,
             timeout=60,
         )
 
-    def AsyncClient(self):
-        return AsyncClient(
+    def AsyncClient(self) -> HttpxAsyncClient:
+        return HttpxAsyncClient(
             base_url=phi_cli_settings.api_url,
             headers=self.headers,
             timeout=60,
         )
 
-    def AuthenticatedAsyncClient(self):
-        return AsyncClient(
+    def AuthenticatedAsyncClient(self) -> HttpxAsyncClient:
+        return HttpxAsyncClient(
             base_url=phi_cli_settings.api_url,
             headers=self.authenticated_headers,
             timeout=60,

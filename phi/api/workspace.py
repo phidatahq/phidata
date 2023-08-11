@@ -195,7 +195,7 @@ def log_workspace_event(user: UserSchema, workspace_event: WorkspaceEvent) -> bo
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_EVENT,
+                ApiRoutes.WORKSPACE_EVENT_CREATE,
                 json={
                     "user": user.model_dump(include={"id_user", "email"}),
                     "event": workspace_event.model_dump(exclude_none=True),

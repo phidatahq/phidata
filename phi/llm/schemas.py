@@ -25,7 +25,7 @@ class References(BaseModel):
     """Pydantic model for holding LLM references"""
 
     # The question asked by the user.
-    question: str
+    query: str
     # The references from the vector database.
     references: str
     # Performance in seconds.

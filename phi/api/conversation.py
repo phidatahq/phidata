@@ -39,7 +39,7 @@ def update_conversation(
                 return None
 
             conversation_schema: Optional[ConversationSchema] = ConversationSchema.model_validate(response_json)
-            logger.debug(f"Conversation: {ConversationSchema}")
+            # logger.debug(f"Conversation: {conversation_schema}")
             return conversation_schema
         except Exception as e:
             logger.debug(f"Could not update conversation: {e}")
@@ -72,7 +72,7 @@ def log_conversation_event(
             conversation_event_response: ConversationEventCreateResopnse = (
                 ConversationEventCreateResopnse.model_validate(response_json)
             )
-            logger.debug(f"Conversation response: {conversation_event_response}")
+            # logger.debug(f"Conversation response: {conversation_event_response}")
             return conversation_event_response
         except Exception as e:
             logger.debug(f"Could not log conversation event: {e}")

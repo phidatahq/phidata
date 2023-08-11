@@ -450,17 +450,23 @@ class Conversation(BaseModel):
         """Rename the conversation"""
         self.read_from_storage()
         self.name = name
+
+        # -*- Save conversation to storage
         self.write_to_storage()
+
+        # -*- Update conversation
+        self._api_update_conversation()
 
     def generate_name(self) -> str:
         """Generate a name for the conversation using chat history"""
         _conv = ""
-        for message in self.history.chat_history[1:4]:
-            _conv += f"{message.role.upper()}: {message.content}\n"
+        for message in self.history.chat_history[1:6]:
+            if message.role == "user":
+                _conv += f"{message.role.upper()}: {message.content}\n"
 
         system_message = Message(
             role="system",
-            content="Please provide a suitable name for the conversation in maximum 5 words.",
+            content="Please provide a suitable name for the following conversation in maximum 5 words.",
         )
         user_message = Message(role="user", content=_conv)
         generate_name_message = [system_message, user_message]
@@ -473,7 +479,12 @@ class Conversation(BaseModel):
         generated_name = self.generate_name()
         logger.debug(f"Generated name: {generated_name}")
         self.name = generated_name
+
+        # -*- Save conversation to storage
         self.write_to_storage()
+
+        # -*- Update conversation
+        self._api_update_conversation()
 
     def _api_update_conversation(self):
         if not self.monitor:

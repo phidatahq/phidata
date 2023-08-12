@@ -1,8 +1,28 @@
-from typing import Optional, List, Iterator
+from typing import Optional, List, Iterator, Dict, Any
 
 from phi.llm.base import LLM
-from phi.llm.schemas import Message, Function
+from phi.llm.schemas import Message
 from phi.utils.log import logger
+
+try:
+    from openai import ChatCompletion  # noqa: F401
+    from openai.openai_object import OpenAIObject  # noqa: F401
+except ImportError:
+    raise ImportError("`openai` not installed")
+
+conversation_function = {
+    "name": "get_chat_history",
+    "description": "Returns the chat history as a list of dictionaries.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "num_messages": {
+                "type": "integer",
+                "description": "number of messages to return",
+            },
+        },
+    },
+}
 
 
 class OpenAIChat(LLM):
@@ -11,22 +31,27 @@ class OpenAIChat(LLM):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
 
-    def response(self, messages: List[Message]) -> str:
-        try:
-            from openai import ChatCompletion  # noqa: F401
-        except ImportError:
-            raise ImportError("`openai` not installed")
+    def api_kwargs(self) -> dict:
+        kwargs: Dict[str, Any] = {}
+        if self.max_tokens:
+            kwargs["max_tokens"] = self.max_tokens
+        if self.temperature:
+            kwargs["temperature"] = self.temperature
+        kwargs["functions"] = [conversation_function]
+        # if self.functions:
+        #     kwargs["functions"] = [f.model_dump(exclude_none=True) for f in self.functions]
+        #     if self.function_call:
+        #         kwargs["function_call"] = self.function_call
+        return kwargs
 
+    def response(self, messages: List[Message]) -> OpenAIObject:
         response = ChatCompletion.create(
             model=self.model,
             messages=[m.model_dump(exclude_none=True) for m in messages],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            # functions=[f.model_dump(exclude_none=True) for f in self.functions],
-            # function_call=self.function_call,
+            **self.api_kwargs(),
         )
-        # logger.debug(f"OpenAI response type: {type(response)}")
-        # logger.debug(f"OpenAI response: {response}")
+        logger.debug(f"OpenAI response type: {type(response)}")
+        logger.debug(f"OpenAI response: {response}")
 
         # Update metrics
         usage = response["usage"]
@@ -52,26 +77,22 @@ class OpenAIChat(LLM):
             self.metrics["prompts"] = 1
 
         # Return response
-        return response["choices"][0]["message"]["content"]
+        # return response["choices"][0]["message"]["content"]
+        return response
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
-        try:
-            from openai import ChatCompletion  # noqa: F401
-        except ImportError:
-            raise ImportError("`openai` not installed")
-
+    def response_stream(self, messages: List[Message]) -> Iterator[OpenAIObject]:
         completion_tokens = 0
-        for delta in ChatCompletion.create(
+        for response in ChatCompletion.create(
             model=self.model,
             messages=[m.model_dump(exclude_none=True) for m in messages],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
             stream=True,
+            **self.api_kwargs(),
         ):
-            # logger.debug(f"OpenAI response type: {type(delta)}")
-            # logger.debug(f"OpenAI response: {delta}")
+            logger.debug(f"OpenAI response type: {type(response)}")
+            logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1
-            yield delta.choices[0].delta.get("content", "")
+            yield response
+            # yield delta.choices[0].delta.get("content", "")
 
         logger.debug(f"Estimated completion tokens: {completion_tokens}")
         # Update metrics

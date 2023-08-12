@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
-from phi.llm.knowledge.base import LLMKnowledgeBase
+from phi.knowledge.base import KnowledgeBase
 
 
-class PDFKnowledgeBase(LLMKnowledgeBase):
+class PDFKnowledgeBase(KnowledgeBase):
     path: Union[str, Path]
     reader: PDFReader = PDFReader()
 

@@ -8,7 +8,7 @@ from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
 
-class LLMKnowledgeBase(BaseModel):
+class KnowledgeBase(BaseModel):
     """Base class for LLM knowledge base"""
 
     # Reader to read the documents

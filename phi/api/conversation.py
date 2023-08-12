@@ -15,13 +15,13 @@ from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 
-def update_conversation(
+def upsert_conversation(
     conversation: ConversationUpdate, workspace: ConversationWorkspace
 ) -> Optional[ConversationSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Conversation update")
+    logger.debug("--o-o-- Conversation upsert")
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(

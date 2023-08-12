@@ -1,10 +1,10 @@
 from typing import Optional, List
 
-from phi.llm.history.base import LLMHistory
+from phi.conversation.history.base import ConversationHistory
 from phi.llm.schemas import Message
 
 
-class SimpleConversationHistory(LLMHistory):
+class SimpleConversationHistory(ConversationHistory):
     max_messages: int = 6
     max_tokens: Optional[int] = None
     include_assistant_responses: bool = True

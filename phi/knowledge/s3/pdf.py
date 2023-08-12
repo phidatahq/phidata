@@ -4,10 +4,10 @@ from phi.document import Document
 from phi.aws.resource.s3.bucket import S3Bucket
 from phi.aws.resource.s3.object import S3Object
 from phi.document.reader.s3.pdf import S3PDFReader
-from phi.llm.knowledge.base import LLMKnowledgeBase
+from phi.knowledge.base import KnowledgeBase
 
 
-class S3PDFKnowledgeBase(LLMKnowledgeBase):
+class S3PDFKnowledgeBase(KnowledgeBase):
     key: Optional[str] = None
     bucket_name: Optional[str] = None
     bucket: Optional[S3Bucket] = None

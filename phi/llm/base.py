@@ -10,12 +10,12 @@ class LLM(BaseModel):
     name: Optional[str] = None
     metrics: Dict[str, Any] = {}
     functions: Optional[List[Function]] = None
-    function_call: Optional[str] = None
+    function_call: str = "none"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> Any:
         raise NotImplementedError
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[Any]:
         raise NotImplementedError

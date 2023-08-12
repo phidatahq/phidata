@@ -1,11 +1,11 @@
 from typing import List, Iterator
 
 from phi.document import Document
-from phi.llm.knowledge.base import LLMKnowledgeBase
+from phi.knowledge.base import KnowledgeBase
 
 
-class CombinedKnowledgeBase(LLMKnowledgeBase):
-    sources: List[LLMKnowledgeBase]
+class CombinedKnowledgeBase(KnowledgeBase):
+    sources: List[KnowledgeBase]
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:

@@ -3,18 +3,18 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from phi.conversation.history.base import ConversationHistory
+from phi.conversation.history.simple import SimpleConversationHistory
+from phi.conversation.schemas import ConversationRow
+from phi.conversation.storage.base import ConversationStorage
 from phi.document import Document
+from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
-from phi.llm.schemas import Message, References
-from phi.llm.conversation.schemas import ConversationRow
-from phi.llm.conversation.storage.base import ConversationStorage
-from phi.llm.history.base import LLMHistory
-from phi.llm.history.simple import SimpleConversationHistory
-from phi.llm.knowledge.base import LLMKnowledgeBase
 from phi.llm.openai import OpenAIChat
-from phi.utils.timer import Timer
-from phi.utils.log import logger, set_log_level_to_debug
+from phi.llm.schemas import Message, References
 from phi.utils.format_str import remove_indent
+from phi.utils.log import logger, set_log_level_to_debug
+from phi.utils.timer import Timer
 
 
 class Conversation(BaseModel):
@@ -50,13 +50,13 @@ class Conversation(BaseModel):
     updated_at: Optional[datetime] = None
 
     # -*- Conversation history
-    history: LLMHistory = SimpleConversationHistory()
+    history: ConversationHistory = SimpleConversationHistory()
     # Add history to the prompt
     add_history_to_prompt: bool = True
     add_history_to_messages: bool = False
 
     # -*- Conversation Knowledge Base
-    knowledge_base: Optional[LLMKnowledgeBase] = None
+    knowledge_base: Optional[KnowledgeBase] = None
 
     # -*- Conversation Storage
     storage: Optional[ConversationStorage] = None
@@ -212,6 +212,7 @@ class Conversation(BaseModel):
                     raise Exception("Failed to create conversation")
                 logger.debug(f"Created conversation: {self.conversation_row.id}")
                 self.from_conversation_row(row=self.conversation_row)
+                self._api_upsert_conversation()
 
         return self.id
 
@@ -325,7 +326,7 @@ class Conversation(BaseModel):
         _user_prompt = cast(str, remove_indent(_user_prompt))
         return _user_prompt
 
-    def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
+    def _chat(self, message: str, stream: bool = True) -> Iterator[str]:
         logger.debug("-*- Conversation chat request")
         # Load the conversation from the database if available
         self.read_from_storage()
@@ -364,13 +365,35 @@ class Conversation(BaseModel):
         # -*- Generate response
         response_timer = Timer()
         response_timer.start()
+        llm_response = ""
         if stream:
-            llm_response = ""
-            for delta in self.llm.response_stream(messages=messages):
-                llm_response += delta
-                yield delta
+            for response in self.llm.response_stream(messages=messages):
+                content = response.choices[0].delta.get("content")
+                function_call = response.choices[0].delta.get("function_call")
+                if content:
+                    llm_response += content
+                    yield content
+                if function_call:
+                    logger.debug(f"Function call type: {type(function_call)}")
+                    logger.debug(f"Function call: {function_call}")
+                    function_call_name = function_call.get("name")
+                    if function_call_name:
+                        llm_response += f"Running function: {function_call_name}"
+                        yield llm_response
         else:
-            llm_response = self.llm.response(messages=messages)
+            response = self.llm.response(messages=messages)
+            content = response.choices[0].message.get("content")
+            function_call = response.choices[0].message.get("function_call")
+            if content:
+                llm_response += content
+                yield content
+            if function_call:
+                logger.debug(f"Function call type: {type(function_call)}")
+                logger.debug(f"Function call: {function_call}")
+                function_call_name = function_call.get("name")
+                if function_call_name:
+                    llm_response += f"Running function: {function_call_name}"
+                    yield llm_response
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -400,11 +423,16 @@ class Conversation(BaseModel):
         # -*- Send conversation event
         self._api_send_conversation(event_type="chat")
 
-        return llm_response
+    def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
+        resp = self._chat(message=message, stream=stream)
+        if stream:
+            return resp
+        else:
+            return next(resp)
 
-    def prompt(
+    def _prompt(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
-    ) -> Union[Iterator[str], str]:
+    ) -> Iterator[str]:
         logger.debug("-*- Conversation prompt request")
         # Load the conversation from the database if available
         self.read_from_storage()
@@ -422,13 +450,27 @@ class Conversation(BaseModel):
         # -*- Generate response
         response_timer = Timer()
         response_timer.start()
+        llm_response = ""
         if stream:
-            llm_response = ""
-            for delta in self.llm.response_stream(messages=messages):
-                llm_response += delta
-                yield delta
+            for response in self.llm.response_stream(messages=messages):
+                content = response.choices[0].delta.get("content")
+                function_call = response.choices[0].delta.get("function_call")
+                if content:
+                    llm_response += content
+                    yield content
+                if function_call:
+                    logger.debug(f"Function call: {function_call}")
+                    yield function_call
         else:
-            llm_response = self.llm.response(messages=messages)
+            response = self.llm.response(messages=messages)
+            content = response.choices[0].message.get("content")
+            function_call = response.choices[0].message.get("function_call")
+            if content:
+                llm_response += content
+                yield content
+            if function_call:
+                logger.debug(f"Function call: {function_call}")
+                yield function_call
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -444,7 +486,14 @@ class Conversation(BaseModel):
         # -*- Send conversation event
         self._api_send_conversation(event_type="prompt")
 
-        return llm_response
+    def prompt(
+        self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
+    ) -> Union[Iterator[str], str]:
+        resp = self._prompt(messages=messages, user_message=user_message, stream=stream)
+        if stream:
+            return resp
+        else:
+            return next(resp)
 
     def rename(self, name: str) -> None:
         """Rename the conversation"""
@@ -455,7 +504,7 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
         # -*- Update conversation
-        self._api_update_conversation()
+        self._api_upsert_conversation()
 
     def generate_name(self) -> str:
         """Generate a name for the conversation using chat history"""
@@ -484,14 +533,14 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
         # -*- Update conversation
-        self._api_update_conversation()
+        self._api_upsert_conversation()
 
-    def _api_update_conversation(self):
+    def _api_upsert_conversation(self):
         if not self.monitor:
             return
 
         from os import getenv
-        from phi.api.conversation import update_conversation, ConversationWorkspace, ConversationUpdate
+        from phi.api.conversation import upsert_conversation, ConversationWorkspace, ConversationUpdate
         from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR
         from phi.utils.common import str_to_int
 
@@ -508,7 +557,7 @@ class Conversation(BaseModel):
                 include={"id", "name", "user_name", "user_persona", "is_active", "extra_data"}
             )
 
-            update_conversation(
+            upsert_conversation(
                 conversation=ConversationUpdate(
                     conversation_key=str(self.id),
                     conversation_data=conversation_data,

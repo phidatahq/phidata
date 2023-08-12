@@ -17,8 +17,8 @@ try:
 except ImportError:
     raise ImportError("`psycopg` not installed")
 
-from phi.llm.conversation.schemas import ConversationRow
-from phi.llm.conversation.storage.base import ConversationStorage
+from phi.conversation.schemas import ConversationRow
+from phi.conversation.storage.base import ConversationStorage
 from phi.utils.log import logger
 
 

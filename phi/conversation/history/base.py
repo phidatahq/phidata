@@ -60,3 +60,6 @@ class ConversationHistory(BaseModel):
                 history += "\n---\n"
             history += f"{message.role.upper()}: {message.content}\n"
         return history
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump(include={"chat_history", "llm_history", "references"})

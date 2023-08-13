@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from phi.conversation.history.base import ConversationHistory
 from phi.conversation.history.simple import SimpleConversationHistory
@@ -12,6 +12,7 @@ from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
 from phi.llm.schemas import Message, References
+from phi.llm.function.registry import FunctionRegistry, default_registry
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.timer import Timer
@@ -65,10 +66,10 @@ class Conversation(BaseModel):
     # Conversation row from the database
     conversation_row: Optional[ConversationRow] = None
 
-    # -*- Function Calls
-    autonomous: bool = False
-    add_conversation_functions: bool = True
-    function_call_limit: int = 5
+    # -*- Enable Function Calls
+    function_calls: bool = False
+    default_functions: bool = True
+    function_registries: List[FunctionRegistry] = []
 
     # Function to build references for the user prompt
     # Signature:
@@ -102,6 +103,25 @@ class Conversation(BaseModel):
             logger.debug("Debug logs enabled")
         return v
 
+    @model_validator(mode="after")
+    def update_llm_functions(self) -> "Conversation":
+        if self.function_calls:
+            # Add default_registry to function_registries
+            if self.default_functions:
+                self.function_registries.append(default_registry)
+
+            # Update LLM functions
+            if self.llm.functions is None:
+                self.llm.functions = []
+            for registry in self.function_registries:
+                logger.debug(f"Adding functions from {registry.name}")
+                self.llm.functions.extend(registry.get_functions())
+
+            # Set function call to auto if it is not set
+            if self.llm.function_call is None:
+                self.llm.function_call = "auto"
+        return self
+
     def to_conversation_row(self) -> ConversationRow:
         """Create a ConversationRow for the current conversation (usually to save to the database)"""
 
@@ -111,8 +131,8 @@ class Conversation(BaseModel):
             user_name=self.user_name,
             user_persona=self.user_persona,
             is_active=self.is_active,
-            llm=self.llm.model_dump(exclude_none=True),
-            history=self.history.model_dump(include={"chat_history", "llm_history", "references"}),
+            llm=self.llm.to_dict(),
+            history=self.history.to_dict(),
             extra_data=self.extra_data,
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -337,7 +357,7 @@ class Conversation(BaseModel):
         # -*- Get references to add to the user prompt
         reference_timer = Timer()
         reference_timer.start()
-        references = self.get_references(query=message)
+        user_prompt_references = self.get_references(query=message)
         reference_timer.stop()
         logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
 
@@ -345,18 +365,20 @@ class Conversation(BaseModel):
         chat_history = self.get_chat_history() if self.add_history_to_prompt else None
 
         # -*- Build the user prompt
-        user_prompt = self.get_user_prompt(message=message, references=references, chat_history=chat_history)
+        user_prompt = self.get_user_prompt(
+            message=message, references=user_prompt_references, chat_history=chat_history
+        )
 
         # -*- Build messages to send to the LLM
         # Create system message
-        system_message = Message(role="system", content=system_prompt)
+        system_prompt_message = Message(role="system", content=system_prompt)
         # Create user message
-        user_message = Message(role="user", content=user_prompt)
+        user_prompt_message = Message(role="user", content=user_prompt)
         # Create message list
-        messages: List[Message] = [system_message]
+        messages: List[Message] = [system_prompt_message]
         if self.add_history_to_messages:
             messages += self.history.chat_history
-        messages += [user_message]
+        messages += [user_prompt_message]
 
         # -*- Log messages for debugging
         for m in messages:
@@ -367,52 +389,32 @@ class Conversation(BaseModel):
         response_timer.start()
         llm_response = ""
         if stream:
-            for response in self.llm.response_stream(messages=messages):
-                content = response.choices[0].delta.get("content")
-                function_call = response.choices[0].delta.get("function_call")
-                if content:
-                    llm_response += content
-                    yield content
-                if function_call:
-                    logger.debug(f"Function call type: {type(function_call)}")
-                    logger.debug(f"Function call: {function_call}")
-                    function_call_name = function_call.get("name")
-                    if function_call_name:
-                        llm_response += f"Running function: {function_call_name}"
-                        yield llm_response
+            for response_chunk in self.llm.response_stream(messages=messages):
+                llm_response += response_chunk
+                yield response_chunk
         else:
-            response = self.llm.response(messages=messages)
-            content = response.choices[0].message.get("content")
-            function_call = response.choices[0].message.get("function_call")
-            if content:
-                llm_response += content
-                yield content
-            if function_call:
-                logger.debug(f"Function call type: {type(function_call)}")
-                logger.debug(f"Function call: {function_call}")
-                function_call_name = function_call.get("name")
-                if function_call_name:
-                    llm_response += f"Running function: {function_call_name}"
-                    yield llm_response
+            llm_response = self.llm.response(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Add messages to the history
         # Add the system prompt to the history - added only if this is the first message to the LLM
-        self.history.add_system_prompt(message=system_message)
+        self.history.add_system_prompt(message=system_prompt_message)
         # Add user question to the history - this is added to the chat history
-        self.history.add_user_message(message=Message(role="user", content=message))
+        user_message = Message(role="user", content=message)
+        self.history.add_user_message(message=user_message)
         # Add user prompt to the history - this is added to the llm history
-        self.history.add_user_prompt(message=user_message)
+        self.history.add_user_prompt(message=user_prompt_message)
         # Add references to the history
-        if references:
-            self.history.add_references(
-                references=References(query=message, references=references, perf=round(reference_timer.elapsed, 4))
+        references = None
+        if user_prompt_references:
+            references = References(
+                query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
             )
+            self.history.add_references(references=references)
         # Add response to the history - this is added to the chat and llm history
-        self.history.add_llm_response(
-            message=Message(role="assistant", content=llm_response, perf=round(response_timer.elapsed, 4))
-        )
+        llm_response_message = Message(role="assistant", content=llm_response, time=round(response_timer.elapsed, 4))
+        self.history.add_llm_response(message=llm_response_message)
 
         # -*- Log response for debugging
         logger.debug(f"Response: {llm_response}")
@@ -421,7 +423,15 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
         # -*- Send conversation event
-        self._api_send_conversation(event_type="chat")
+        event_data = {
+            "system_prompt": system_prompt_message.model_dump(exclude_none=True),
+            "user_message": user_message.model_dump(exclude_none=True),
+            "user_prompt": user_prompt_message.model_dump(exclude_none=True),
+            "llm_response": llm_response_message.model_dump(exclude_none=True),
+            "references": references.model_dump(exclude_none=True) if references else None,
+        }
+        self._api_send_conversation_event(event_type="chat", event_data=event_data)
+        yield llm_response
 
     def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
         resp = self._chat(message=message, stream=stream)
@@ -438,8 +448,10 @@ class Conversation(BaseModel):
         self.read_from_storage()
 
         # -*- Add user message to the history - this is added to the chat history
+        user_request_message = None
         if user_message:
-            self.history.add_user_message(message=Message(role="user", content=user_message))
+            user_request_message = Message(role="user", content=user_message)
+            self.history.add_user_message(user_request_message)
 
         # -*- Add prompts to the history - these are added to the llm history
         for message in messages:
@@ -452,25 +464,11 @@ class Conversation(BaseModel):
         response_timer.start()
         llm_response = ""
         if stream:
-            for response in self.llm.response_stream(messages=messages):
-                content = response.choices[0].delta.get("content")
-                function_call = response.choices[0].delta.get("function_call")
-                if content:
-                    llm_response += content
-                    yield content
-                if function_call:
-                    logger.debug(f"Function call: {function_call}")
-                    yield function_call
+            for response_chunk in self.llm.response_stream(messages=messages):
+                llm_response += response_chunk
+                yield response_chunk
         else:
-            response = self.llm.response(messages=messages)
-            content = response.choices[0].message.get("content")
-            function_call = response.choices[0].message.get("function_call")
-            if content:
-                llm_response += content
-                yield content
-            if function_call:
-                logger.debug(f"Function call: {function_call}")
-                yield function_call
+            llm_response = self.llm.response(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -478,13 +476,20 @@ class Conversation(BaseModel):
         logger.debug(f"Response: {llm_response}")
 
         # -*- Add response to the history - this is added to the chat and llm history
-        self.history.add_llm_response(message=Message(role="assistant", content=llm_response))
+        llm_response_message = Message(role="assistant", content=llm_response, time=round(response_timer.elapsed, 4))
+        self.history.add_llm_response(message=llm_response_message)
 
         # -*- Save conversation to storage
         self.write_to_storage()
 
         # -*- Send conversation event
-        self._api_send_conversation(event_type="prompt")
+        event_data = {
+            "user_message": user_request_message.model_dump(exclude_none=True) if user_request_message else None,
+            "user_prompts": [m.model_dump(exclude_none=True) for m in messages],
+            "llm_response": llm_response_message.model_dump(exclude_none=True),
+        }
+        self._api_send_conversation_event(event_type="prompt", event_data=event_data)
+        yield llm_response
 
     def prompt(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
@@ -553,21 +558,20 @@ class Conversation(BaseModel):
 
             workspace_hash = getenv(WORKSPACE_HASH_ENV_VAR)
             conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
-            conversation_data = conversation_row.model_dump(
-                include={"id", "name", "user_name", "user_persona", "is_active", "extra_data"}
-            )
 
             upsert_conversation(
                 conversation=ConversationUpdate(
-                    conversation_key=str(self.id),
-                    conversation_data=conversation_data,
+                    conversation_key=conversation_row.conversation_key(),
+                    conversation_data=conversation_row.conversation_data(),
                 ),
                 workspace=ConversationWorkspace(id_workspace=workspace_id, ws_hash=workspace_hash),
             )
         except Exception as e:
             logger.debug(f"Could not log conversation event: {e}")
 
-    def _api_send_conversation(self, event_type: str = "chat") -> None:
+    def _api_send_conversation_event(
+        self, event_type: str = "chat", event_data: Optional[Dict[str, Any]] = None
+    ) -> None:
         if not self.monitor:
             return
 
@@ -585,16 +589,13 @@ class Conversation(BaseModel):
 
             workspace_hash = getenv(WORKSPACE_HASH_ENV_VAR)
             conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
-            conversation_data = conversation_row.model_dump(
-                include={"id", "name", "user_name", "user_persona", "is_active", "extra_data"}
-            )
 
             log_conversation_event(
                 conversation=ConversationEventCreate(
-                    conversation_key=str(self.id),
-                    conversation_data=conversation_data,
+                    conversation_key=conversation_row.conversation_key(),
+                    conversation_data=conversation_row.conversation_data(),
                     event_type=event_type,
-                    event_data=conversation_row.serializable_dict(),
+                    event_data=event_data,
                 ),
                 workspace=ConversationWorkspace(id_workspace=workspace_id, ws_hash=workspace_hash),
             )

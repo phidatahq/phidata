@@ -36,3 +36,21 @@ class ConversationRow(BaseModel):
         _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
         _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
         return _dict
+
+    def conversation_data(self) -> Dict[str, Any]:
+        """Returns the conversation data as a dictionary."""
+        _dict = self.model_dump(exclude={"history", "created_at", "updated_at"})
+        _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
+        _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
+        return _dict
+
+    def conversation_key(self) -> str:
+        """Returns the conversation key."""
+        keys = []
+        if self.user_name:
+            keys.append(self.user_name)
+        if self.user_persona:
+            keys.append(self.user_persona)
+        if self.id:
+            keys.append(str(self.id))
+        return "::".join(keys)

@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from pydantic import BaseModel
 
@@ -44,9 +44,15 @@ class ConversationHistory(BaseModel):
         """Adds references to the references list."""
         self.references.append(references)
 
-    def get_chat_history(self) -> List[Dict[str, Any]]:
-        """Returns the chat history as a list of dictionaries."""
-        return [message.model_dump(exclude_none=True) for message in self.chat_history]
+    def get_chat_history(self, num_messages: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Returns the chat history as a list of dictionaries.
+
+        :param num_messages: The number of messages to return from the end of the conversation.
+            If None, returns all messages.
+        :return: A list of dictionaries representing the chat history.
+        """
+        _history = self.chat_history[-num_messages:] if num_messages else self.chat_history
+        return [message.model_dump(exclude_none=True) for message in _history]
 
     def get_llm_history(self) -> List[Dict[str, Any]]:
         """Returns the LLM history as a list of dictionaries."""

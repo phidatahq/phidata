@@ -1,5 +1,7 @@
-from typing import Optional, Any, Dict, Callable
-from pydantic import BaseModel
+from typing import Optional, Any, Dict, Callable, get_type_hints
+from pydantic import BaseModel, validate_call
+
+from phi.utils.log import logger
 
 
 class Message(BaseModel):
@@ -47,3 +49,64 @@ class Function(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True, exclude={"entrypoint"})
+
+    @classmethod
+    def from_callable(cls, c: Callable) -> "Function":
+        from inspect import getdoc
+        from phi.utils.json_schema import get_json_schema
+
+        parameters = {"type": "object", "properties": {}}
+        try:
+            type_hints = get_type_hints(c)
+            parameters = get_json_schema(type_hints)
+            # logger.debug(f"Type hints for {c.__name__}: {type_hints}")
+        except Exception as e:
+            logger.warning(f"Could not parse args for {c.__name__}: {e}")
+
+        return cls(
+            name=c.__name__,
+            description=getdoc(c),
+            parameters=parameters,
+            entrypoint=validate_call(c),
+        )
+
+
+class FunctionCall(BaseModel):
+    """Pydantic model for holding LLM function calls"""
+
+    # The function to be called.
+    function: Function
+    # The arguments to call the function with.
+    arguments: Optional[Dict[str, Any]] = None
+    # The result of the function call.
+    result: Optional[Any] = None
+
+    def get_call_str(self) -> str:
+        """Returns a string representation of the function call."""
+        if self.arguments is None:
+            return f"Calling function: {self.function.name}()"
+        return f"Calling function: {self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
+
+    def run(self) -> bool:
+        """Runs the function call.
+
+        @return: True if the function call was successful, False otherwise.
+        """
+        if self.function.entrypoint is None:
+            return False
+
+        logger.info(self.get_call_str())
+
+        # Call the function with no arguments if none are provided.
+        if self.arguments is None:
+            self.result = self.function.entrypoint()
+            return True
+
+        # Validate the arguments if provided.
+        # try:
+        #     from jsonschema import validate
+        # except ImportError:
+        #     raise ImportError("`jsonschema` is required for LLM functions, install using `pip install jsonschema`")
+
+        self.result = self.function.entrypoint(**self.arguments)
+        return True

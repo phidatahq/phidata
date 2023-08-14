@@ -58,6 +58,7 @@ class Conversation(BaseModel):
 
     # -*- Conversation Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
+    add_references_to_prompt: bool = False
 
     # -*- Conversation Storage
     storage: Optional[ConversationStorage] = None
@@ -106,16 +107,21 @@ class Conversation(BaseModel):
     @model_validator(mode="after")
     def update_llm_functions(self) -> "Conversation":
         if self.function_calls:
-            # Add default_registry to function_registries
             if self.default_functions:
+                # Add functions to default_registry
+                # Add function to get conversation chat history
+                default_registry.register(self.get_conversation_chat_history)
+                # Add function to search knowledge base
+                default_registry.register(self.search_knowledge_base)
+                # Add default_registry to function_registries
                 self.function_registries.append(default_registry)
 
             # Update LLM functions
             if self.llm.functions is None:
-                self.llm.functions = []
+                self.llm.functions = {}
             for registry in self.function_registries:
-                logger.debug(f"Adding functions from {registry.name}")
-                self.llm.functions.extend(registry.get_functions())
+                self.llm.functions.update(registry.functions)
+                logger.debug(f"Functions from {registry.name} added to LLM")
 
             # Set function call to auto if it is not set
             if self.llm.function_call is None:
@@ -201,6 +207,8 @@ class Conversation(BaseModel):
         """Save the conversation to the storage"""
         if self.storage is not None:
             self.conversation_row = self.storage.upsert(conversation=self.to_conversation_row())
+            if self.id is None and self.conversation_row is not None:
+                self.id = self.conversation_row.id
         return self.conversation_row
 
     def start(self) -> Optional[int]:
@@ -223,8 +231,7 @@ class Conversation(BaseModel):
             # create a new conversation in the database
             if self.conversation_row is None:
                 logger.debug("Creating new conversation")
-                if self.create_storage:
-                    self.storage.create()
+                # TODO: Add introduction through a separate function
                 if self.introduction is not None:
                     self.history.add_chat_history([Message(role="assistant", content=self.introduction)])
                 self.conversation_row = self.write_to_storage()
@@ -288,8 +295,8 @@ class Conversation(BaseModel):
             relevant_info += "---\n"
         return relevant_info
 
-    def get_chat_history(self) -> Optional[str]:
-        """Return the chat history to use in the user prompt"""
+    def get_formatted_chat_history(self) -> Optional[str]:
+        """Returns a formatted chat history to use in the user prompt"""
 
         if self.chat_history_function is not None:
             return remove_indent(self.chat_history_function(self))
@@ -355,18 +362,22 @@ class Conversation(BaseModel):
         system_prompt = self.get_system_prompt()
 
         # -*- Get references to add to the user prompt
-        reference_timer = Timer()
-        reference_timer.start()
-        user_prompt_references = self.get_references(query=message)
-        reference_timer.stop()
-        logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+        user_prompt_references = None
+        if self.add_references_to_prompt:
+            reference_timer = Timer()
+            reference_timer.start()
+            user_prompt_references = self.get_references(query=message)
+            reference_timer.stop()
+            logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
 
         # -*- Get chat history to add to the user prompt
-        chat_history = self.get_chat_history() if self.add_history_to_prompt else None
+        formatted_chat_history = None
+        if self.add_history_to_prompt:
+            formatted_chat_history = self.get_formatted_chat_history()
 
         # -*- Build the user prompt
         user_prompt = self.get_user_prompt(
-            message=message, references=user_prompt_references, chat_history=chat_history
+            message=message, references=user_prompt_references, chat_history=formatted_chat_history
         )
 
         # -*- Build messages to send to the LLM
@@ -431,7 +442,10 @@ class Conversation(BaseModel):
             "references": references.model_dump(exclude_none=True) if references else None,
         }
         self._api_send_conversation_event(event_type="chat", event_data=event_data)
-        yield llm_response
+
+        # -*- Return final response if not streaming
+        if not stream:
+            yield llm_response
 
     def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
         resp = self._chat(message=message, stream=stream)
@@ -489,7 +503,10 @@ class Conversation(BaseModel):
             "llm_response": llm_response_message.model_dump(exclude_none=True),
         }
         self._api_send_conversation_event(event_type="prompt", event_data=event_data)
-        yield llm_response
+
+        # -*- Return final response if not streaming
+        if not stream:
+            yield llm_response
 
     def prompt(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
@@ -539,6 +556,10 @@ class Conversation(BaseModel):
 
         # -*- Update conversation
         self._api_upsert_conversation()
+
+    ###########################################################################
+    # Api functions
+    ###########################################################################
 
     def _api_upsert_conversation(self):
         if not self.monitor:
@@ -601,3 +622,40 @@ class Conversation(BaseModel):
             )
         except Exception as e:
             logger.debug(f"Could not log conversation event: {e}")
+
+    ###########################################################################
+    # LLM functions
+    ###########################################################################
+
+    def get_conversation_chat_history(self, num_chats: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Returns the conversation chat history as a list of dictionaries.
+
+        :param num_chats: The number of chats to return.
+            Each chat can contain multiple messages (one from the user and one from the assistant).
+            If None, returns all messages.
+        :return: A list of dictionaries representing the chat history.
+        """
+        history = []
+        chats_added = 0
+        current_chat: List[Message] = []
+        for m in self.history.chat_history[::-1]:
+            if m.role == "user":
+                current_chat.insert(0, m)
+            if m.role == "assistant":
+                current_chat.append(m)
+
+            if len(current_chat) == 2:
+                history.extend(current_chat)
+                current_chat = []
+                chats_added += 1
+                if num_chats is not None and chats_added >= num_chats:
+                    break
+        return [m.model_dump(exclude_none=True) for m in history]
+
+    def search_knowledge_base(self, query: str) -> Optional[str]:
+        """Search the knowledge base for information about a users query.
+
+        :param query: The query to search for.
+        :return: A string containing the response from the knowledge base.
+        """
+        return self.get_references(query=query)

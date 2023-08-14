@@ -5,11 +5,12 @@ from phi.llm.schemas import Message
 
 
 class SimpleConversationHistory(ConversationHistory):
+    """DO NOT USE: TO BE DEPRECATED"""
     max_messages: int = 6
     max_tokens: Optional[int] = None
     include_assistant_responses: bool = True
 
-    def get_formatted_history(self) -> str:
+    def get_formatted_history(self, last_n: Optional[int] = None) -> str:
         """Returns a formatted chat history for the LLM prompt"""
 
         history = ""

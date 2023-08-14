@@ -4,7 +4,6 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from phi.conversation.history.base import ConversationHistory
-from phi.conversation.history.simple import SimpleConversationHistory
 from phi.conversation.schemas import ConversationRow
 from phi.conversation.storage.base import ConversationStorage
 from phi.document import Document
@@ -51,10 +50,11 @@ class Conversation(BaseModel):
     updated_at: Optional[datetime] = None
 
     # -*- Conversation history
-    history: ConversationHistory = SimpleConversationHistory()
+    history: ConversationHistory = ConversationHistory()
     # Add history to the prompt
-    add_history_to_prompt: bool = True
+    add_history_to_prompt: bool = False
     add_history_to_messages: bool = False
+    num_history_messages: int = 6
 
     # -*- Conversation Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
@@ -70,6 +70,7 @@ class Conversation(BaseModel):
     # -*- Enable Function Calls
     function_calls: bool = False
     default_functions: bool = True
+    show_function_calls: bool = False
     function_registries: List[FunctionRegistry] = []
 
     # Function to build references for the user prompt
@@ -126,6 +127,10 @@ class Conversation(BaseModel):
             # Set function call to auto if it is not set
             if self.llm.function_call is None:
                 self.llm.function_call = "auto"
+
+            # Set show_function_calls if it is not set on the llm
+            if self.llm.show_function_calls is None:
+                self.llm.show_function_calls = self.show_function_calls
         return self
 
     def to_conversation_row(self) -> ConversationRow:
@@ -206,6 +211,8 @@ class Conversation(BaseModel):
     def write_to_storage(self) -> Optional[ConversationRow]:
         """Save the conversation to the storage"""
         if self.storage is not None:
+            if self.create_storage:
+                self.storage.create()
             self.conversation_row = self.storage.upsert(conversation=self.to_conversation_row())
             if self.id is None and self.conversation_row is not None:
                 self.id = self.conversation_row.id
@@ -255,18 +262,21 @@ class Conversation(BaseModel):
         if self.system_prompt:
             return "\n".join([line.strip() for line in self.system_prompt.split("\n")])
 
-        _system_prompt = ""
-        if self.llm.name:
-            _system_prompt += f"You are a chatbot named '{self.llm.name}'"
-        else:
-            _system_prompt += "You are a chatbot "
+        _system_prompt = "You are a chatbot "
 
         if self.user_persona:
             _system_prompt += f"that is designed to help a '{self.user_persona}' with their work.\n"
         else:
             _system_prompt += "that is designed to help a user with their work.\n"
 
-        _system_prompt += "If you don't know the answer, say 'I don't know'. You can ask follow up questions if needed."
+        if self.knowledge_base is not None:
+            _system_prompt += "You have access to a knowledge base that you can search for information.\n"
+            _system_prompt += (
+                "If you cannot find the answer in the knowledge base, "
+                "say that you cannot find the answer in the knowledge base.\n"
+            )
+
+        _system_prompt += "If you don't know the answer, say 'I don't know'"
 
         # Return the system prompt after removing newlines and indenting
         _system_prompt = cast(str, remove_indent(_system_prompt))
@@ -301,7 +311,7 @@ class Conversation(BaseModel):
         if self.chat_history_function is not None:
             return remove_indent(self.chat_history_function(self))
 
-        return remove_indent(self.history.get_formatted_history())
+        return remove_indent(self.history.get_formatted_history(last_n=self.num_history_messages))
 
     def get_user_prompt(
         self, message: str, references: Optional[str] = None, chat_history: Optional[str] = None
@@ -321,11 +331,11 @@ class Conversation(BaseModel):
         if self.user_persona:
             _user_prompt += f" from a '{self.user_persona}'"
         # Add question to the prompt
-        _user_prompt += f":\nUSER: {message}\n"
+        _user_prompt += f":\nUSER: {message}"
 
         # Add references to prompt
         if references:
-            _user_prompt += f"""
+            _user_prompt += f"""\n
                 You can use the following information if it helps respond to the message.
                 START OF INFORMATION
                 ```
@@ -336,7 +346,7 @@ class Conversation(BaseModel):
 
         # Add chat_history to prompt
         if chat_history:
-            _user_prompt += f"""
+            _user_prompt += f"""\n
                 You can use the following chat history to reference past messages.
                 START OF CHAT HISTORY
                 ```
@@ -345,8 +355,9 @@ class Conversation(BaseModel):
                 END OF CHAT HISTORY
                 """
 
-        _user_prompt += "\nRemember, your task is to respond to the following message in the best way possible."
-        _user_prompt += f"\nUSER: {message}"
+        if references or chat_history:
+            _user_prompt += "\nRemember, your task is to respond to the following message in the best way possible."
+            _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "
 
         # Return the user prompt after removing newlines and indenting
@@ -354,7 +365,7 @@ class Conversation(BaseModel):
         return _user_prompt
 
     def _chat(self, message: str, stream: bool = True) -> Iterator[str]:
-        logger.debug("-*- Conversation chat request")
+        logger.debug("*********** Conversation Chat Start ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
 
@@ -363,12 +374,16 @@ class Conversation(BaseModel):
 
         # -*- Get references to add to the user prompt
         user_prompt_references = None
+        references = None
+        reference_timer = Timer()
+        reference_timer.start()
         if self.add_references_to_prompt:
-            reference_timer = Timer()
-            reference_timer.start()
             user_prompt_references = self.get_references(query=message)
-            reference_timer.stop()
+            references = References(
+                query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+            )
             logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+        reference_timer.stop()
 
         # -*- Get chat history to add to the user prompt
         formatted_chat_history = None
@@ -388,12 +403,8 @@ class Conversation(BaseModel):
         # Create message list
         messages: List[Message] = [system_prompt_message]
         if self.add_history_to_messages:
-            messages += self.history.chat_history
+            messages += self.history.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
-
-        # -*- Log messages for debugging
-        for m in messages:
-            logger.debug(f"{m.role.upper()}: {m.content}")
 
         # -*- Generate response
         response_timer = Timer()
@@ -411,19 +422,19 @@ class Conversation(BaseModel):
         # -*- Add messages to the history
         # Add the system prompt to the history - added only if this is the first message to the LLM
         self.history.add_system_prompt(message=system_prompt_message)
+
         # Add user question to the history - this is added to the chat history
         user_message = Message(role="user", content=message)
         self.history.add_user_message(message=user_message)
+
         # Add user prompt to the history - this is added to the llm history
         self.history.add_user_prompt(message=user_prompt_message)
+
         # Add references to the history
-        references = None
-        if user_prompt_references:
-            references = References(
-                query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-            )
+        if references:
             self.history.add_references(references=references)
-        # Add response to the history - this is added to the chat and llm history
+
+        # Add llm response to the history - this is added to the chat and llm history
         llm_response_message = Message(role="assistant", content=llm_response, time=round(response_timer.elapsed, 4))
         self.history.add_llm_response(message=llm_response_message)
 
@@ -446,6 +457,7 @@ class Conversation(BaseModel):
         # -*- Return final response if not streaming
         if not stream:
             yield llm_response
+        logger.debug("*********** Conversation Chat End ***********")
 
     def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
         resp = self._chat(message=message, stream=stream)
@@ -470,8 +482,6 @@ class Conversation(BaseModel):
         # -*- Add prompts to the history - these are added to the llm history
         for message in messages:
             self.history.add_user_prompt(message=message)
-            # Log messages
-            logger.debug(f"{message.role.upper()}: {message.content}")
 
         # -*- Generate response
         response_timer = Timer()
@@ -627,30 +637,31 @@ class Conversation(BaseModel):
     # LLM functions
     ###########################################################################
 
-    def get_conversation_chat_history(self, num_chats: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Returns the conversation chat history as a list of dictionaries.
+    def get_conversation_chat_history(self, num_chats: Optional[int] = None) -> str:
+        """Returns the conversation chat history in reverse chronological order i.e. the last chat first.
 
-        :param num_chats: The number of chats to return.
-            Each chat can contain multiple messages (one from the user and one from the assistant).
-            If None, returns all messages.
+        :param num_chats: The number of chats to return in reverse chronological order.
+            Each chat contain one message from the user and one from the assistant.
+            To get all chats, use num_chats=None.
         :return: A list of dictionaries representing the chat history.
         """
-        history = []
-        chats_added = 0
-        current_chat: List[Message] = []
-        for m in self.history.chat_history[::-1]:
-            if m.role == "user":
-                current_chat.insert(0, m)
-            if m.role == "assistant":
-                current_chat.append(m)
+        import json
 
-            if len(current_chat) == 2:
-                history.extend(current_chat)
-                current_chat = []
-                chats_added += 1
-                if num_chats is not None and chats_added >= num_chats:
-                    break
-        return [m.model_dump(exclude_none=True) for m in history]
+        history: List[Dict[str, Any]] = []
+        all_chats = self.history.get_chats()
+        if len(all_chats) == 0:
+            return ""
+
+        chats_added = 0
+        reversed_chats = all_chats[::-1]
+        for chat in reversed_chats:
+            history.insert(0, chat[1].model_dump(exclude_none=True))
+            history.insert(0, chat[0].model_dump(exclude_none=True))
+            chats_added += 1
+            if num_chats is not None and chats_added >= num_chats:
+                break
+
+        return json.dumps(history)
 
     def search_knowledge_base(self, query: str) -> Optional[str]:
         """Search the knowledge base for information about a users query.
@@ -659,3 +670,31 @@ class Conversation(BaseModel):
         :return: A string containing the response from the knowledge base.
         """
         return self.get_references(query=query)
+
+    ###########################################################################
+    # Print Response
+    ###########################################################################
+
+    def print_response(self, message: str, stream: bool = True) -> None:
+        from phi.cli.console import console
+        from rich.live import Live
+        from rich.table import Table
+
+        if stream:
+            response = ""
+            with Live() as live_log:
+                for resp in self.chat(message, stream=True):
+                    response += resp
+
+                    table = Table()
+                    table.add_column("Message")
+                    table.add_column(message)
+                    table.add_row("Response", response)
+                    live_log.update(table)
+        else:
+            response = self.chat(message, stream=False)  # type: ignore
+            table = Table()
+            table.add_column("Message")
+            table.add_column(message)
+            table.add_row("Response", response)
+            console.print(table)

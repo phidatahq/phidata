@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel
 
@@ -44,28 +44,62 @@ class ConversationHistory(BaseModel):
         """Adds references to the references list."""
         self.references.append(references)
 
-    def get_chat_history(self, num_messages: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_chat_history(self) -> List[Dict[str, Any]]:
         """Returns the chat history as a list of dictionaries.
 
-        :param num_messages: The number of messages to return from the end of the conversation.
-            If None, returns all messages.
         :return: A list of dictionaries representing the chat history.
         """
-        _history = self.chat_history[-num_messages:] if num_messages else self.chat_history
-        return [message.model_dump(exclude_none=True) for message in _history]
+        return [message.model_dump(exclude_none=True) for message in self.chat_history]
+
+    def get_last_n_messages(self, last_n: Optional[int] = None) -> List[Message]:
+        """Returns the last n messages in the chat history.
+
+        :param last_n: The number of messages to return from the end of the conversation.
+            If None, returns all messages.
+        :return: A list of Messages in the chat history.
+        """
+        return self.chat_history[-last_n:] if last_n else self.chat_history
 
     def get_llm_history(self) -> List[Dict[str, Any]]:
         """Returns the LLM history as a list of dictionaries."""
         return [message.model_dump(exclude_none=True) for message in self.llm_history]
 
-    def get_formatted_history(self) -> str:
+    def get_formatted_history(self, last_n: Optional[int] = None) -> str:
         """Returns a formatted chat history"""
-        history = ""
-        for message in self.chat_history:
+        history = "---\n"
+        for message in self.get_last_n_messages(last_n):
             if message.role == "user":
                 history += "\n---\n"
             history += f"{message.role.upper()}: {message.content}\n"
+        history += "\n---\n"
         return history
+
+    def get_chats(self) -> List[Tuple[Message, Message]]:
+        """Returns a list of tuples of user messages and assistant responses."""
+
+        all_chats: List[Tuple[Message, Message]] = []
+        current_chat: List[Message] = []
+
+        # Make a copy of the chat history and remove all system messages from the beginning.
+        chat_history = self.chat_history.copy()
+        while len(chat_history) > 0 and chat_history[0].role in ("system", "assistant"):
+            chat_history = chat_history[1:]
+
+        for m in chat_history:
+            if m.role == "system":
+                continue
+            if m.role == "user":
+                # This is a new chat record
+                if len(current_chat) == 2:
+                    all_chats.append((current_chat[0], current_chat[1]))
+                    current_chat = []
+                current_chat.append(m)
+            if m.role == "assistant":
+                current_chat.append(m)
+
+        if len(current_chat) >= 1:
+            all_chats.append((current_chat[0], current_chat[1]))
+        return all_chats
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(include={"chat_history", "llm_history", "references"})

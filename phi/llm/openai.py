@@ -30,9 +30,14 @@ class OpenAIChat(LLM):
         return kwargs
 
     def response(self, messages: List[Message]) -> str:
+        logger.debug("---------- OpenAI Response Start ----------")
+        # -*- Log messages for debugging
+        for m in messages:
+            logger.debug(f"{m.role.upper()}: {m.content}")
+
         response: OpenAIObject = ChatCompletion.create(
             model=self.model,
-            messages=[m.model_dump(exclude_none=True) for m in messages],
+            messages=[m.to_dict() for m in messages],
             **self.api_kwargs(),
         )
         # logger.debug(f"OpenAI response type: {type(response)}")
@@ -82,27 +87,43 @@ class OpenAIChat(LLM):
                 self.function_call_stack.append(function_call)
                 function_call.run()
                 next_message = Message(
-                    role="system",
-                    content=f"""
-                    You can use the result of the following function call to continue the conversation:
-                    function_call = {response_function_call}
-                    function_call_result = {function_call.result}
-                    """,
+                    role="function",
+                    name=function_call.function.name,
+                    content=function_call.result,
+                    # function_call={
+                    #     "name": _function_name,
+                    #     "arguments": _function_arguments_str,
+                    # }
+                    # content=remove_indent(
+                    #     f"""
+                    # You can use the result of the following function call to continue the conversation:
+                    # function_call = {function_call.get_call_str()}
+                    # function_call_result = {function_call.result}
+                    # """
+                    # ),
                 )
                 messages.append(next_message)
-                logger.debug("--------------------------")
-                logger.debug(f"new messages: {messages}")
-                return self.response(messages=messages)
+                final_response = ""
+                if self.show_function_calls:
+                    final_response += f"Running function: {function_call.get_call_str()}\n\n"
+                final_response += self.response(messages=messages)
+                return final_response
+
+        logger.debug("---------- OpenAI Response End ----------")
         return "Something went wrong, please try again."
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
+        logger.debug("---------- OpenAI Response Start ----------")
+        # -*- Log messages for debugging
+        for m in messages:
+            logger.debug(f"{m.role.upper()}: {m.content}")
+
         _function_name = ""
         _function_arguments_str = ""
-
         completion_tokens = 0
         for response in ChatCompletion.create(
             model=self.model,
-            messages=[m.model_dump(exclude_none=True) for m in messages],
+            messages=[m.to_dict() for m in messages],
             stream=True,
             **self.api_kwargs(),
         ):
@@ -145,5 +166,22 @@ class OpenAIChat(LLM):
             if self.function_call_stack is None:
                 self.function_call_stack = []
             self.function_call_stack.append(function_call)
-            yield function_call.get_call_str()
-            # ... call function here ...
+            if self.show_function_calls:
+                yield f"Running function: {function_call.get_call_str()}\n\n"
+            function_call.run()
+            next_message = Message(
+                role="function",
+                name=function_call.function.name,
+                content=function_call.result,
+                # role="system",
+                # content=remove_indent(
+                #     f"""
+                # You can use the result of the following function call to continue the conversation:
+                # function_call = {function_call.get_call_str()}
+                # function_call_result = {function_call.result}
+                # """
+                # ),
+            )
+            messages.append(next_message)
+            yield from self.response_stream(messages=messages)
+        logger.debug("---------- OpenAI Response End ----------")

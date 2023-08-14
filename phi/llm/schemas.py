@@ -22,6 +22,9 @@ class Message(BaseModel):
     # Performance in seconds.
     time: Optional[float] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump(exclude_none=True, exclude={"time"})
+
 
 class References(BaseModel):
     """Pydantic model for holding LLM references"""
@@ -84,8 +87,8 @@ class FunctionCall(BaseModel):
     def get_call_str(self) -> str:
         """Returns a string representation of the function call."""
         if self.arguments is None:
-            return f"Calling function: {self.function.name}()"
-        return f"Calling function: {self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
+            return f"{self.function.name}()"
+        return f"{self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
 
     def run(self) -> bool:
         """Runs the function call.
@@ -95,18 +98,25 @@ class FunctionCall(BaseModel):
         if self.function.entrypoint is None:
             return False
 
-        logger.info(self.get_call_str())
+        logger.debug(f"Running function: {self.get_call_str()}")
 
         # Call the function with no arguments if none are provided.
         if self.arguments is None:
-            self.result = self.function.entrypoint()
-            return True
+            try:
+                self.result = self.function.entrypoint()
+                return True
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}: {e}")
+                return False
 
         # Validate the arguments if provided.
         # try:
         #     from jsonschema import validate
         # except ImportError:
         #     raise ImportError("`jsonschema` is required for LLM functions, install using `pip install jsonschema`")
-
-        self.result = self.function.entrypoint(**self.arguments)
-        return True
+        try:
+            self.result = self.function.entrypoint(**self.arguments)
+            return True
+        except Exception as e:
+            logger.warning(f"Could not run function {self.get_call_str()}: {e}")
+            return False

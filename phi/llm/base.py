@@ -16,6 +16,7 @@ class LLM(BaseModel):
     function_call: Optional[str] = None
     function_call_limit: int = 5
     function_call_stack: Optional[List[FunctionCall]] = None
+    show_function_calls: Optional[bool] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -33,6 +34,7 @@ class LLM(BaseModel):
         return _dict
 
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
+        logger.debug(f"Getting function call for {name}, args:{arguments}")
         if self.functions is None:
             return None
 
@@ -47,9 +49,27 @@ class LLM(BaseModel):
         if arguments is not None and arguments != "":
             try:
                 _arguments = json.loads(arguments)
-                function_call.arguments = _arguments
+                if not isinstance(_arguments, dict):
+                    logger.error(f"Function arguments {arguments} is not a valid JSON object")
+                    return None
+
+                clean_arguments: Dict[str, Any] = {}
+                for k, v in _arguments.items():
+                    if isinstance(v, str):
+                        if v == "None":
+                            clean_arguments[k] = None
+                        elif v == "True":
+                            clean_arguments[k] = True
+                        elif v == "False":
+                            clean_arguments[k] = False
+                        else:
+                            clean_arguments[k] = v.strip()
+                    else:
+                        clean_arguments[k] = v
+
+                function_call.arguments = clean_arguments
             except Exception as e:
-                logger.error(f"Unable not decode function arguments {arguments}: {e}")
+                logger.error(f"Unable to decode function arguments {arguments}: {e}")
                 return None
 
         return function_call

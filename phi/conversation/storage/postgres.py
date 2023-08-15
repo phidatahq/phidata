@@ -114,34 +114,40 @@ class PgConversationStorage(ConversationStorage):
 
     def get_all_conversation_ids(self, user_name: str) -> List[int]:
         conversation_ids: List[int] = []
-        with self.Session() as sess:
-            with sess.begin():
-                # get all conversation ids for this user
-                stmt = select(self.table).where(self.table.c.user_name == user_name)
-                # order by id desc
-                stmt = stmt.order_by(self.table.c.id.desc())
-                # execute query
-                rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row is not None and row.id is not None:
-                        conversation_ids.append(row.id)
-
+        try:
+            with self.Session() as sess:
+                with sess.begin():
+                    # get all conversation ids for this user
+                    stmt = select(self.table).where(self.table.c.user_name == user_name)
+                    # order by id desc
+                    stmt = stmt.order_by(self.table.c.id.desc())
+                    # execute query
+                    rows = sess.execute(stmt).fetchall()
+                    for row in rows:
+                        if row is not None and row.id is not None:
+                            conversation_ids.append(row.id)
+        except UndefinedTable:
+            logger.debug(f"Table does not exist: {self.table.name}")
+            pass
         return conversation_ids
 
     def get_all_conversations(self, user_name: str) -> List[ConversationRow]:
         conversation_ids: List[ConversationRow] = []
-        with self.Session() as sess:
-            with sess.begin():
-                # get all conversation ids for this user
-                stmt = select(self.table).where(self.table.c.user_name == user_name)
-                # order by id desc
-                stmt = stmt.order_by(self.table.c.id.desc())
-                # execute query
-                rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row.id is not None:
-                        conversation_ids.append(ConversationRow.model_validate(row))
-
+        try:
+            with self.Session() as sess:
+                with sess.begin():
+                    # get all conversation ids for this user
+                    stmt = select(self.table).where(self.table.c.user_name == user_name)
+                    # order by id desc
+                    stmt = stmt.order_by(self.table.c.id.desc())
+                    # execute query
+                    rows = sess.execute(stmt).fetchall()
+                    for row in rows:
+                        if row.id is not None:
+                            conversation_ids.append(ConversationRow.model_validate(row))
+        except UndefinedTable:
+            logger.debug(f"Table does not exist: {self.table.name}")
+            pass
         return conversation_ids
 
     def upsert(self, conversation: ConversationRow) -> Optional[ConversationRow]:

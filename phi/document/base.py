@@ -25,3 +25,8 @@ class Document(BaseModel):
             raise ValueError("No embedder provided")
 
         self.embedding, self.usage = _embedder.get_embedding_and_usage(self.content)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Returns a dictionary representation of the document"""
+
+        return self.model_dump(include={"name", "meta_data", "content"})

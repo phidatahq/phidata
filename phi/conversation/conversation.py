@@ -305,19 +305,9 @@ class Conversation(BaseModel):
         if self.knowledge_base is None:
             return None
 
+        import json
         relevant_docs: List[Document] = self.knowledge_base.search(query=query)
-        relevant_info = ""
-        for doc in relevant_docs:
-            relevant_info += f"---\n{doc.content}\n"
-            doc_name = doc.name
-            doc_page = doc.meta_data.get("page")
-            if doc_name:
-                ref = f"Title: {doc_name}"
-                if doc_page:
-                    ref += f", Page: {doc_page}"
-                relevant_info += f"Reference: {ref}\n"
-            relevant_info += "---\n"
-        return relevant_info
+        return json.dumps([doc.to_dict() for doc in relevant_docs])
 
     def get_formatted_chat_history(self) -> Optional[str]:
         """Returns a formatted chat history to use in the user prompt"""
@@ -549,10 +539,12 @@ class Conversation(BaseModel):
 
     def generate_name(self) -> str:
         """Generate a name for the conversation using chat history"""
-        _conv = ""
+        _conv = "Please provide a suitable name for the following conversation in maximum 5 words.\n" \
+                "Remember, do not exceed 5 words.\n\n"
         for message in self.history.chat_history[1:6]:
-            if message.role == "user":
-                _conv += f"{message.role.upper()}: {message.content}\n"
+            _conv += f"{message.role.upper()}: {message.content}\n"
+
+        _conv += "\n\nConversation Name:"
 
         system_message = Message(
             role="system",
@@ -560,8 +552,11 @@ class Conversation(BaseModel):
         )
         user_message = Message(role="user", content=_conv)
         generate_name_message = [system_message, user_message]
-        generate_name = self.llm.response(messages=generate_name_message)
-        return generate_name.replace('"', "").strip()
+        generated_name = self.llm.response(messages=generate_name_message)
+        if len(generated_name.split()) > 15:
+            logger.error("Generated name is too long. Trying again.")
+            return self.generate_name()
+        return generated_name.replace('"', "").strip()
 
     def auto_rename(self) -> None:
         """Automatically rename the conversation"""

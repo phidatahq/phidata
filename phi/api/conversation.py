@@ -25,7 +25,7 @@ def upsert_conversation(
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.CONVERSATION_UPDATE,
+                ApiRoutes.CONVERSATION_UPSERT,
                 json={
                     "conversation": conversation.model_dump(exclude_none=True),
                     "workspace": workspace.model_dump(exclude_none=True),

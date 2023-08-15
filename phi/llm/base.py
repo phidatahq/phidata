@@ -1,5 +1,5 @@
 import json
-from typing import List, Iterator, Optional, Dict, Any
+from typing import List, Iterator, Optional, Dict, Any, Callable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -14,7 +14,7 @@ class LLM(BaseModel):
 
     functions: Optional[Dict[str, Function]] = None
     function_call: Optional[str] = None
-    function_call_limit: int = 5
+    function_call_limit: int = 50
     function_call_stack: Optional[List[FunctionCall]] = None
     show_function_calls: Optional[bool] = None
 
@@ -33,6 +33,13 @@ class LLM(BaseModel):
             _dict["function_call_limit"] = self.function_call_limit
         return _dict
 
+    def add_function(self, f: Callable) -> None:
+        func = Function.from_callable(f)
+        if self.functions is None:
+            self.functions = {}
+        self.functions[func.name] = func
+        logger.debug(f"Added function {func.name} to LLM: {func.to_dict()}")
+
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
         logger.debug(f"Getting function {name}. Args: {arguments}")
         if self.functions is None:
@@ -48,6 +55,12 @@ class LLM(BaseModel):
         function_call = FunctionCall(function=function_to_call)
         if arguments is not None and arguments != "":
             try:
+                if "None" in arguments:
+                    arguments = arguments.replace("None", "null")
+                if "True" in arguments:
+                    arguments = arguments.replace("True", "true")
+                if "False" in arguments:
+                    arguments = arguments.replace("False", "false")
                 _arguments = json.loads(arguments)
             except Exception as e:
                 logger.error(f"Unable to decode function arguments {arguments}: {e}")
@@ -61,11 +74,12 @@ class LLM(BaseModel):
                 clean_arguments: Dict[str, Any] = {}
                 for k, v in _arguments.items():
                     if isinstance(v, str):
-                        if v == "None":
+                        _v = v.strip().lower()
+                        if _v in ("none", "null"):
                             clean_arguments[k] = None
-                        elif v == "True":
+                        elif _v == "true":
                             clean_arguments[k] = True
-                        elif v == "False":
+                        elif _v == "false":
                             clean_arguments[k] = False
                         else:
                             clean_arguments[k] = v.strip()

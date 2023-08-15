@@ -10,7 +10,7 @@ from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
-from phi.llm.schemas import Message, References, Function
+from phi.llm.schemas import Message, References
 from phi.llm.function.registry import FunctionRegistry
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger, set_log_level_to_debug
@@ -33,6 +33,7 @@ class Conversation(BaseModel):
     # -*- Conversation settings
     # Database ID/Primary key for this conversation.
     # This is set after the conversation is started and saved to the database.
+    # If there is no database, this is set to a unique ID.
     id: Optional[int] = None
     # Conversation name
     name: Optional[str] = None
@@ -107,31 +108,27 @@ class Conversation(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def update_llm_functions(self) -> "Conversation":
+    def set_llm_functions(self) -> "Conversation":
         if self.function_calls:
-            # Create LLM functions dict if it doesn't exist
-            if self.llm.functions is None:
-                self.llm.functions = {}
-
             if self.default_functions:
                 default_func_list: List[Callable] = [
-                    self.get_conversation_chat_history,
+                    self.get_last_n_chats,
                     self.search_knowledge_base,
                 ]
                 for func in default_func_list:
-                    f = Function.from_callable(func)
-                    self.llm.functions[f.name] = f
-                    logger.debug(f"Added function {f.name} to LLM: {f.to_dict()}")
+                    self.llm.add_function(func)
 
             # Add functions from self.functions
             if self.functions is not None:
                 for func in self.functions:
-                    f = Function.from_callable(func)
-                    self.llm.functions[f.name] = f
-                    logger.debug(f"Added function {f.name} to LLM: {f.to_dict()}")
+                    self.llm.add_function(func)
 
             # Add functions from registries
             if self.function_registries is not None:
+                # Create LLM functions dict if it doesn't exist
+                if self.llm.functions is None:
+                    self.llm.functions = {}
+
                 for registry in self.function_registries:
                     self.llm.functions.update(registry.functions)
                     logger.debug(f"Functions from {registry.name} added to LLM")
@@ -143,6 +140,16 @@ class Conversation(BaseModel):
             # Set show_function_calls if it is not set on the llm
             if self.llm.show_function_calls is None:
                 self.llm.show_function_calls = self.show_function_calls
+        return self
+
+    @model_validator(mode="after")
+    def set_id(self) -> "Conversation":
+        if self.storage is None:
+            import random
+
+            # Generate random integer ID
+            self.id = random.randint(1000000000000000, 9999999999999999)
+            logger.debug(f"Conversation ID set to {self.id}")
         return self
 
     def to_conversation_row(self) -> ConversationRow:
@@ -419,8 +426,8 @@ class Conversation(BaseModel):
         messages += [user_prompt_message]
 
         # -*- Generate response
-        response_timer = Timer()
-        response_timer.start()
+        # response_timer = Timer()
+        # response_timer.start()
         llm_response = ""
         if stream:
             for response_chunk in self.llm.response_stream(messages=messages):
@@ -428,8 +435,8 @@ class Conversation(BaseModel):
                 yield response_chunk
         else:
             llm_response = self.llm.response(messages=messages)
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        # response_timer.stop()
+        # logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Add messages to the history
         # Add the system prompt to the history - added only if this is the first message to the LLM
@@ -446,8 +453,7 @@ class Conversation(BaseModel):
             self.history.add_references(references=references)
 
         # Add llm response to the history - this is added to the chat and llm history
-        llm_response_message = Message(role="assistant", content=llm_response, time=round(response_timer.elapsed, 4))
-        self.history.add_llm_response(message=llm_response_message)
+        self.history.add_llm_response(message=Message(role="assistant", content=llm_response))
 
         # -*- Log response for debugging
         logger.debug(f"Response: {llm_response}")
@@ -459,7 +465,7 @@ class Conversation(BaseModel):
         event_data = {
             "user_message": message,
             "llm_response": llm_response,
-            "llm_messages": [m.model_dump(exclude_none=True) for m in messages],
+            "messages": [m.model_dump(exclude_none=True) for m in messages],
             "references": references.model_dump(exclude_none=True) if references else None,
         }
         self._api_send_conversation_event(event_type="chat", event_data=event_data)
@@ -479,15 +485,13 @@ class Conversation(BaseModel):
     def _prompt(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
     ) -> Iterator[str]:
-        logger.debug("-*- Conversation prompt request")
+        logger.debug("*********** Conversation Prompt Start ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
 
         # -*- Add user message to the history - this is added to the chat history
-        user_request_message = None
         if user_message:
-            user_request_message = Message(role="user", content=user_message)
-            self.history.add_user_message(user_request_message)
+            self.history.add_user_message(Message(role="user", content=user_message))
 
         # -*- Add prompts to the history - these are added to the llm history
         for message in messages:
@@ -518,9 +522,9 @@ class Conversation(BaseModel):
 
         # -*- Send conversation event
         event_data = {
-            "user_message": user_request_message.model_dump(exclude_none=True) if user_request_message else None,
-            "user_prompts": [m.model_dump(exclude_none=True) for m in messages],
-            "llm_response": llm_response_message.model_dump(exclude_none=True),
+            "user_message": user_message,
+            "llm_response": llm_response,
+            "messages": [m.model_dump(exclude_none=True) for m in messages],
         }
         self._api_send_conversation_event(event_type="prompt", event_data=event_data)
 
@@ -647,16 +651,15 @@ class Conversation(BaseModel):
     # LLM functions
     ###########################################################################
 
-    def get_conversation_chat_history(self, num_chats: Optional[int] = None) -> str:
-        """Returns the conversation chat history in reverse chronological order i.e. the last chat first.
+    def get_last_n_chats(self, num_chats: Optional[int] = None) -> str:
+        """Returns the last n chats between the user and assistant.
         Example:
-            - To get the last chat, use num_chats=1 and pick the first message.
+            - To get the last chat, use num_chats=1.
             - To get the last 5 chats, use num_chats=5.
             - To get all chats, use num_chats=None.
-            - To get the first chat, use num_chats=None and pick the last message.
-        :param num_chats: The number of chats to return in reverse chronological order.
-            Each chat contain one message from the user and one from the assistant.
-            To get all chats, use num_chats=None.
+            - To get the first chat, use num_chats=None and pick the first message.
+        :param num_chats: The number of chats to return.
+            Each chat contains 2 messages. One from the user and one from the assistant.
         :return: A list of dictionaries representing the chat history.
         """
         import json
@@ -667,14 +670,12 @@ class Conversation(BaseModel):
             return ""
 
         chats_added = 0
-        reversed_chats = all_chats[::-1]
-        for chat in reversed_chats:
-            history.insert(0, chat[1].model_dump(exclude_none=True))
-            history.insert(0, chat[0].model_dump(exclude_none=True))
+        for chat in all_chats[::-1]:
+            history.insert(0, chat[1].to_dict())
+            history.insert(0, chat[0].to_dict())
             chats_added += 1
             if num_chats is not None and chats_added >= num_chats:
                 break
-
         return json.dumps(history)
 
     def search_knowledge_base(self, query: str) -> Optional[str]:

@@ -34,7 +34,7 @@ class LLM(BaseModel):
         return _dict
 
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
-        logger.debug(f"Getting function for {name}. Args: {arguments}")
+        logger.debug(f"Getting function {name}. Args: {arguments}")
         if self.functions is None:
             return None
 
@@ -49,10 +49,15 @@ class LLM(BaseModel):
         if arguments is not None and arguments != "":
             try:
                 _arguments = json.loads(arguments)
-                if not isinstance(_arguments, dict):
-                    logger.error(f"Function arguments {arguments} is not a valid JSON object")
-                    return None
+            except Exception as e:
+                logger.error(f"Unable to decode function arguments {arguments}: {e}")
+                return None
 
+            if not isinstance(_arguments, dict):
+                logger.error(f"Function arguments {arguments} is not a valid JSON object")
+                return None
+
+            try:
                 clean_arguments: Dict[str, Any] = {}
                 for k, v in _arguments.items():
                     if isinstance(v, str):
@@ -69,7 +74,7 @@ class LLM(BaseModel):
 
                 function_call.arguments = clean_arguments
             except Exception as e:
-                logger.error(f"Unable to decode function arguments {arguments}: {e}")
+                logger.error(f"Unable to parse function arguments {arguments}: {e}")
                 return None
 
         return function_call

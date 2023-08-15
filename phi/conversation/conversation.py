@@ -643,10 +643,10 @@ class Conversation(BaseModel):
     def get_conversation_chat_history(self, num_chats: Optional[int] = None) -> str:
         """Returns the conversation chat history in reverse chronological order i.e. the last chat first.
         Example:
-            - To get the last chat, use num_chats=1.
+            - To get the last chat, use num_chats=1 and pick the first message.
             - To get the last 5 chats, use num_chats=5.
             - To get all chats, use num_chats=None.
-            - To get the first chat, use num_chats=None.
+            - To get the first chat, use num_chats=None and pick the last message.
         :param num_chats: The number of chats to return in reverse chronological order.
             Each chat contain one message from the user and one from the assistant.
             To get all chats, use num_chats=None.

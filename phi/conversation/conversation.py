@@ -10,8 +10,8 @@ from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
-from phi.llm.schemas import Message, References
-from phi.llm.function.registry import FunctionRegistry, default_registry
+from phi.llm.schemas import Message, References, Function
+from phi.llm.function.registry import FunctionRegistry
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.timer import Timer
@@ -71,7 +71,8 @@ class Conversation(BaseModel):
     function_calls: bool = False
     default_functions: bool = True
     show_function_calls: bool = False
-    function_registries: List[FunctionRegistry] = []
+    functions: Optional[List[Callable]] = None
+    function_registries: Optional[List[FunctionRegistry]] = None
 
     # Function to build references for the user prompt
     # Signature:
@@ -108,21 +109,25 @@ class Conversation(BaseModel):
     @model_validator(mode="after")
     def update_llm_functions(self) -> "Conversation":
         if self.function_calls:
-            if self.default_functions:
-                # Add functions to default_registry
-                # Add function to get conversation chat history
-                default_registry.register(self.get_conversation_chat_history)
-                # Add function to search knowledge base
-                default_registry.register(self.search_knowledge_base)
-                # Add default_registry to function_registries
-                self.function_registries.append(default_registry)
-
             # Update LLM functions
             if self.llm.functions is None:
                 self.llm.functions = {}
-            for registry in self.function_registries:
-                self.llm.functions.update(registry.functions)
-                logger.debug(f"Functions from {registry.name} added to LLM")
+
+            if self.default_functions:
+                default_func_list: List[Callable] = [
+                    self.get_conversation_chat_history,
+                    self.search_knowledge_base,
+                ]
+                for func in default_func_list:
+                    f = Function.from_callable(func)
+                    self.llm.functions[f.name] = f
+                    logger.debug(f"Added function {f.name} to LLM: {f.to_dict()}")
+
+            # Add functions from registries
+            if self.function_registries is not None:
+                for registry in self.function_registries:
+                    self.llm.functions.update(registry.functions)
+                    logger.debug(f"Functions from {registry.name} added to LLM")
 
             # Set function call to auto if it is not set
             if self.llm.function_call is None:
@@ -423,9 +428,8 @@ class Conversation(BaseModel):
         # Add the system prompt to the history - added only if this is the first message to the LLM
         self.history.add_system_prompt(message=system_prompt_message)
 
-        # Add user question to the history - this is added to the chat history
-        user_message = Message(role="user", content=message)
-        self.history.add_user_message(message=user_message)
+        # Add user message to the history - this is added to the chat history
+        self.history.add_user_message(message=Message(role="user", content=message))
 
         # Add user prompt to the history - this is added to the llm history
         self.history.add_user_prompt(message=user_prompt_message)
@@ -446,10 +450,9 @@ class Conversation(BaseModel):
 
         # -*- Send conversation event
         event_data = {
-            "system_prompt": system_prompt_message.model_dump(exclude_none=True),
-            "user_message": user_message.model_dump(exclude_none=True),
-            "user_prompt": user_prompt_message.model_dump(exclude_none=True),
-            "llm_response": llm_response_message.model_dump(exclude_none=True),
+            "user_message": message,
+            "llm_response": llm_response,
+            "llm_messages": [m.model_dump(exclude_none=True) for m in messages],
             "references": references.model_dump(exclude_none=True) if references else None,
         }
         self._api_send_conversation_event(event_type="chat", event_data=event_data)
@@ -639,7 +642,11 @@ class Conversation(BaseModel):
 
     def get_conversation_chat_history(self, num_chats: Optional[int] = None) -> str:
         """Returns the conversation chat history in reverse chronological order i.e. the last chat first.
-
+        Example:
+            - To get the last chat, use num_chats=1.
+            - To get the last 5 chats, use num_chats=5.
+            - To get all chats, use num_chats=None.
+            - To get the first chat, use num_chats=None.
         :param num_chats: The number of chats to return in reverse chronological order.
             Each chat contain one message from the user and one from the assistant.
             To get all chats, use num_chats=None.

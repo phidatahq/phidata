@@ -1,7 +1,7 @@
 from typing import Optional, List, Iterator, Dict, Any
 
 from phi.llm.base import LLM
-from phi.llm.schemas import Message
+from phi.llm.schemas import Message, FunctionCall
 from phi.utils.log import logger
 
 try:
@@ -33,7 +33,11 @@ class OpenAIChat(LLM):
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
-            logger.debug(f"{m.role.upper()}: {m.content}")
+            if m.role == "function":
+                logger.debug(f"{m.role.upper()}: {m.name}")
+                logger.debug(f"{m.content}")
+            else:
+                logger.debug(f"{m.role.upper()}: {m.content or m.function_call}")
 
         response: OpenAIObject = ChatCompletion.create(
             model=self.model,
@@ -43,7 +47,7 @@ class OpenAIChat(LLM):
         # logger.debug(f"OpenAI response type: {type(response)}")
         # logger.debug(f"OpenAI response: {response}")
 
-        # Update metrics
+        # -*- Update usage metrics
         usage = response["usage"]
         prompt_tokens = usage["prompt_tokens"]
         completion_tokens = usage["completion_tokens"]
@@ -66,12 +70,26 @@ class OpenAIChat(LLM):
         else:
             self.metrics["prompts"] = 1
 
-        response_content = response.choices[0].message.get("content")
-        response_function_call = response.choices[0].message.get("function_call")
+        # -*- Parse response
+        response_message = response.choices[0].message
+        response_role = response_message.get("role")
+        response_content = response_message.get("content")
+        response_function_call = response_message.get("function_call")
+        assistant_message = Message(
+            role=response_role or "assistant",
+            content=response_content,
+        )
+        if response_function_call is not None and isinstance(response_function_call, OpenAIObject):
+            assistant_message.function_call = response_function_call.to_dict()
+        messages.append(assistant_message)
+
+        # -*- Return content if present, otherwise run function call
         if response_content is not None:
             # logger.debug(f"response_content type: {type(response_content)}")
             # logger.debug(f"response_content: {response_content}")
             return response_content
+
+        # -*- Parse and run function call
         if response_function_call is not None:
             # logger.debug(f"response_function_call type: {type(response_function_call)}")
             # logger.debug(f"response_function_call: {response_function_call}")
@@ -84,25 +102,22 @@ class OpenAIChat(LLM):
 
                 if self.function_call_stack is None:
                     self.function_call_stack = []
+
+                # -*- Check function call limit
+                if len(self.function_call_stack) > self.function_call_limit:
+                    return f"Function call limit ({self.function_call_limit}) exceeded."
+
+                # -*- Run function call
                 self.function_call_stack.append(function_call)
                 function_call.run()
-                next_message = Message(
+                function_call_message = Message(
                     role="function",
                     name=function_call.function.name,
                     content=function_call.result,
-                    # function_call={
-                    #     "name": _function_name,
-                    #     "arguments": _function_arguments_str,
-                    # }
-                    # content=remove_indent(
-                    #     f"""
-                    # You can use the result of the following function call to continue the conversation:
-                    # function_call = {function_call.get_call_str()}
-                    # function_call_result = {function_call.result}
-                    # """
-                    # ),
                 )
-                messages.append(next_message)
+                messages.append(function_call_message)
+
+                # -*- Get new response using result of function call
                 final_response = ""
                 if self.show_function_calls:
                     final_response += f"Running function: {function_call.get_call_str()}\n\n"
@@ -116,7 +131,14 @@ class OpenAIChat(LLM):
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
-            logger.debug(f"{m.role.upper()}: {m.content}")
+            if m.role == "function":
+                logger.debug(f"{m.role.upper()}: {m.name}")
+                logger.debug(f"{m.content}")
+            else:
+                logger.debug(f"{m.role.upper()}: {m.content or m.function_call}")
+
+        assistant_message = Message(role="assistant", content="")
+        messages.append(assistant_message)
 
         _function_name = ""
         _function_arguments_str = ""
@@ -131,13 +153,20 @@ class OpenAIChat(LLM):
             # logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1
 
-            response_content = response.choices[0].delta.get("content")
-            response_function_call = response.choices[0].delta.get("function_call")
-            if response_content:
+            # -*- Parse response
+            response_delta = response.choices[0].delta
+            response_content = response_delta.get("content")
+            response_function_call = response_delta.get("function_call")
+
+            # -*- Return content if present, otherwise get function call
+            if response_content is not None:
                 # logger.debug(f"response_content type: {type(response_content)}")
                 # logger.debug(f"response_content: {response_content}")
+                assistant_message.content += response_content
                 yield response_content
-            if response_function_call:
+
+            # -*- Parse function call
+            if response_function_call is not None:
                 # logger.debug(f"response_function_call type: {type(response_function_call)}")
                 # logger.debug(f"response_function_call: {response_function_call}")
                 _function_name_stream = response_function_call.get("name")
@@ -148,7 +177,7 @@ class OpenAIChat(LLM):
                     _function_arguments_str += _function_args_stream
 
         logger.debug(f"Estimated completion tokens: {completion_tokens}")
-        # Update metrics
+        # -*- Update usage metrics
         if "completion_tokens" in self.metrics:
             self.metrics["completion_tokens"] += completion_tokens
         else:
@@ -158,30 +187,42 @@ class OpenAIChat(LLM):
         else:
             self.metrics["prompts"] = 1
 
+        # -*- Parse and run function call
         if _function_name is not None and _function_name != "":
-            function_call = self.get_function_call(name=_function_name, arguments=_function_arguments_str)
+            # Update assistant message to reflect function call
+            if assistant_message.content == "":
+                assistant_message.content = None
+            assistant_message.function_call = {
+                "name": _function_name,
+                "arguments": _function_arguments_str,
+            }
+
+            # Get function call
+            function_call: Optional[FunctionCall] = self.get_function_call(
+                name=_function_name, arguments=_function_arguments_str
+            )
             if function_call is None:
                 return "Something went wrong, please try again."
 
             if self.function_call_stack is None:
                 self.function_call_stack = []
+
+            # -*- Check function call limit
+            if len(self.function_call_stack) > self.function_call_limit:
+                return f"Function call limit ({self.function_call_limit}) exceeded."
+
+            # -*- Run function call
             self.function_call_stack.append(function_call)
             if self.show_function_calls:
                 yield f"Running function: {function_call.get_call_str()}\n\n"
             function_call.run()
-            next_message = Message(
+            function_call_message = Message(
                 role="function",
                 name=function_call.function.name,
                 content=function_call.result,
-                # role="system",
-                # content=remove_indent(
-                #     f"""
-                # You can use the result of the following function call to continue the conversation:
-                # function_call = {function_call.get_call_str()}
-                # function_call_result = {function_call.result}
-                # """
-                # ),
             )
-            messages.append(next_message)
+            messages.append(function_call_message)
+
+            # -*- Yield new response using result of function call
             yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")

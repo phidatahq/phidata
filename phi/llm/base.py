@@ -34,7 +34,7 @@ class LLM(BaseModel):
         return _dict
 
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
-        logger.debug(f"Getting function call for {name}, args:{arguments}")
+        logger.debug(f"Getting function for {name}. Args: {arguments}")
         if self.functions is None:
             return None
 

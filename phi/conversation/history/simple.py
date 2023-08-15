@@ -5,7 +5,8 @@ from phi.llm.schemas import Message
 
 
 class SimpleConversationHistory(ConversationHistory):
-    """DO NOT USE: TO BE DEPRECATED"""
+    """DO NOT USE: DEPRECATED"""
+
     max_messages: int = 6
     max_tokens: Optional[int] = None
     include_assistant_responses: bool = True

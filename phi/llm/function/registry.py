@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from typing import Callable, Dict
-from functools import wraps
 
 from phi.llm.schemas import Function
 from phi.utils.log import logger
@@ -23,13 +22,3 @@ class FunctionRegistry:
 
 
 default_registry = FunctionRegistry()
-
-
-def llm_function(func):
-    default_registry.register(func)
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    return wrapper

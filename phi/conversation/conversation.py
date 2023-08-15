@@ -109,7 +109,7 @@ class Conversation(BaseModel):
     @model_validator(mode="after")
     def update_llm_functions(self) -> "Conversation":
         if self.function_calls:
-            # Update LLM functions
+            # Create LLM functions dict if it doesn't exist
             if self.llm.functions is None:
                 self.llm.functions = {}
 
@@ -119,6 +119,13 @@ class Conversation(BaseModel):
                     self.search_knowledge_base,
                 ]
                 for func in default_func_list:
+                    f = Function.from_callable(func)
+                    self.llm.functions[f.name] = f
+                    logger.debug(f"Added function {f.name} to LLM: {f.to_dict()}")
+
+            # Add functions from self.functions
+            if self.functions is not None:
+                for func in self.functions:
                     f = Function.from_callable(func)
                     self.llm.functions[f.name] = f
                     logger.debug(f"Added function {f.name} to LLM: {f.to_dict()}")

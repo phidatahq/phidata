@@ -4,6 +4,7 @@ from typing import List, Iterator, Optional, Dict, Any, Callable
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.schemas import Message, Function, FunctionCall
+from phi.llm.function.registry import FunctionRegistry
 from phi.utils.log import logger
 
 
@@ -39,6 +40,13 @@ class LLM(BaseModel):
             self.functions = {}
         self.functions[func.name] = func
         logger.debug(f"Added function {func.name} to LLM: {func.to_dict()}")
+
+    def add_function_registry(self, registry: FunctionRegistry) -> None:
+        if self.functions is None:
+            self.functions = {}
+
+        self.functions.update(registry.functions)
+        logger.debug(f"Functions from {registry.name} added to LLM")
 
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
         logger.debug(f"Getting function {name}. Args: {arguments}")

@@ -20,5 +20,8 @@ class FunctionRegistry:
             logger.warning(f"Failed to create Function for: {function.__name__}")
             raise e
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__} name={self.name} functions={list(self.functions.keys())}>"
 
-default_registry = FunctionRegistry()
+    def __str__(self):
+        return self.__repr__()

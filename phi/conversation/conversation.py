@@ -125,13 +125,8 @@ class Conversation(BaseModel):
 
             # Add functions from registries
             if self.function_registries is not None:
-                # Create LLM functions dict if it doesn't exist
-                if self.llm.functions is None:
-                    self.llm.functions = {}
-
                 for registry in self.function_registries:
-                    self.llm.functions.update(registry.functions)
-                    logger.debug(f"Functions from {registry.name} added to LLM")
+                    self.llm.add_function_registry(registry)
 
             # Set function call to auto if it is not set
             if self.llm.function_call is None:

@@ -316,7 +316,10 @@ class Conversation(BaseModel):
         if self.chat_history_function is not None:
             return remove_indent(self.chat_history_function(self))
 
-        return remove_indent(self.history.get_formatted_history(last_n=self.num_history_messages))
+        formatted_history = self.history.get_formatted_history(last_n=self.num_history_messages)
+        if formatted_history == "":
+            return None
+        return remove_indent(formatted_history)
 
     def get_user_prompt(
         self, message: str, references: Optional[str] = None, chat_history: Optional[str] = None
@@ -412,8 +415,6 @@ class Conversation(BaseModel):
         messages += [user_prompt_message]
 
         # -*- Generate response
-        # response_timer = Timer()
-        # response_timer.start()
         llm_response = ""
         if stream:
             for response_chunk in self.llm.response_stream(messages=messages):
@@ -421,8 +422,6 @@ class Conversation(BaseModel):
                 yield response_chunk
         else:
             llm_response = self.llm.response(messages=messages)
-        # response_timer.stop()
-        # logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Add messages to the history
         # Add the system prompt to the history - added only if this is the first message to the LLM
@@ -440,9 +439,6 @@ class Conversation(BaseModel):
 
         # Add llm response to the history - this is added to the chat and llm history
         self.history.add_llm_response(message=Message(role="assistant", content=llm_response))
-
-        # -*- Log response for debugging
-        logger.debug(f"Response: {llm_response}")
 
         # -*- Save conversation to storage
         self.write_to_storage()
@@ -484,8 +480,6 @@ class Conversation(BaseModel):
             self.history.add_user_prompt(message=message)
 
         # -*- Generate response
-        response_timer = Timer()
-        response_timer.start()
         llm_response = ""
         if stream:
             for response_chunk in self.llm.response_stream(messages=messages):
@@ -493,15 +487,9 @@ class Conversation(BaseModel):
                 yield response_chunk
         else:
             llm_response = self.llm.response(messages=messages)
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-
-        # -*- Log response for debugging
-        logger.debug(f"Response: {llm_response}")
 
         # -*- Add response to the history - this is added to the chat and llm history
-        llm_response_message = Message(role="assistant", content=llm_response, time=round(response_timer.elapsed, 4))
-        self.history.add_llm_response(message=llm_response_message)
+        self.history.add_llm_response(Message(role="assistant", content=llm_response))
 
         # -*- Save conversation to storage
         self.write_to_storage()
@@ -517,6 +505,7 @@ class Conversation(BaseModel):
         # -*- Return final response if not streaming
         if not stream:
             yield llm_response
+        logger.debug("*********** Conversation Prompt End ***********")
 
     def prompt(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True

@@ -117,7 +117,7 @@ class OpenAIChat(LLM):
                 # -*- Get new response using result of function call
                 final_response = ""
                 if self.show_function_calls:
-                    final_response += f"Running function: {function_call.get_call_str()}\n\n"
+                    final_response += f"Running: {function_call.get_call_str()}\n\n"
                 final_response += self.response(messages=messages)
                 return final_response
         logger.debug("---------- OpenAI Response End ----------")
@@ -203,7 +203,7 @@ class OpenAIChat(LLM):
             # -*- Run function call
             self.function_call_stack.append(function_call)
             if self.show_function_calls:
-                yield f"Running function: {function_call.get_call_str()}\n\n"
+                yield f"Running: {function_call.get_call_str()}\n\n"
             function_call_timer = Timer()
             function_call_timer.start()
             function_call.run()

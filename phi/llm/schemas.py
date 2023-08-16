@@ -124,7 +124,7 @@ class FunctionCall(BaseModel):
         if self.function.entrypoint is None:
             return False
 
-        logger.debug(f"Running function: {self.get_call_str()}")
+        logger.debug(f"Running: {self.get_call_str()}")
 
         # Call the function with no arguments if none are provided.
         if self.arguments is None:

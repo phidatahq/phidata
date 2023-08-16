@@ -107,7 +107,7 @@ class Conversation(BaseModel):
             logger.debug("Debug logs enabled")
         return v
 
-    @model_validator(mode="after")
+    @model_validator(mode="after")  # type: ignore
     def set_llm_functions(self) -> "Conversation":
         if self.function_calls:
             if self.default_functions:
@@ -135,9 +135,9 @@ class Conversation(BaseModel):
             # Set show_function_calls if it is not set on the llm
             if self.llm.show_function_calls is None:
                 self.llm.show_function_calls = self.show_function_calls
-        return self
+        return self  # type: ignore
 
-    @model_validator(mode="after")
+    @model_validator(mode="after")  # type: ignore
     def set_id(self) -> "Conversation":
         if self.storage is None:
             import random
@@ -145,7 +145,7 @@ class Conversation(BaseModel):
             # Generate random integer ID
             self.id = random.randint(1000000000000000, 9999999999999999)
             logger.debug(f"Conversation ID set to {self.id}")
-        return self
+        return self  # type: ignore
 
     def to_conversation_row(self) -> ConversationRow:
         """Create a ConversationRow for the current conversation (usually to save to the database)"""
@@ -306,6 +306,7 @@ class Conversation(BaseModel):
             return None
 
         import json
+
         relevant_docs: List[Document] = self.knowledge_base.search(query=query)
         return json.dumps([doc.to_dict() for doc in relevant_docs])
 
@@ -539,8 +540,10 @@ class Conversation(BaseModel):
 
     def generate_name(self) -> str:
         """Generate a name for the conversation using chat history"""
-        _conv = "Please provide a suitable name for the following conversation in maximum 5 words.\n" \
-                "Remember, do not exceed 5 words.\n\n"
+        _conv = (
+            "Please provide a suitable name for the following conversation in maximum 5 words.\n"
+            "Remember, do not exceed 5 words.\n\n"
+        )
         for message in self.history.chat_history[1:6]:
             _conv += f"{message.role.upper()}: {message.content}\n"
 

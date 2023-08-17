@@ -13,8 +13,8 @@ class Django(DockerApp):
     command: Optional[Union[str, List[str]]] = "python manage.py runserver 0.0.0.0:8000"
 
     # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = True
+    # Open a container port if open_port=True
+    open_port: bool = True
     # Port number on the container
     container_port: int = 8000
     # Host port to map to the container port

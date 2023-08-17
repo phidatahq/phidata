@@ -13,7 +13,7 @@ class Streamlit(K8sApp):
     command: Optional[Union[str, List[str]]] = "streamlit hello"
 
     # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = True
+    # Open a container port if open_port=True
+    open_port: bool = True
     # Port number on the container
     container_port: int = 9095

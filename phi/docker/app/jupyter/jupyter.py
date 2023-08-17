@@ -16,8 +16,8 @@ class Jupyter(DockerApp):
     command: Optional[Union[str, List[str]]] = "jupyter lab"
 
     # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = True
+    # Open a container port if open_port=True
+    open_port: bool = True
     # Port number on the container
     container_port: int = 8888
     # Host port to map to the container port
@@ -44,12 +44,12 @@ class Jupyter(DockerApp):
     # Defaults to the workspace_root if mount_workspace = True else "/",
     notebook_dir: Optional[str] = None
 
-    # Set validate_default=True so update_container_env is always called
+    # Set validate_default=True so set_container_env is always called
     container_env: Optional[Dict[str, Any]] = Field(None, validate_default=True)
 
     @field_validator("container_env", mode="before")
-    def update_container_env(cls, v, info: FieldValidationInfo):
-        jupyter_config_file = info.data.get("jupyter_config_file", None)
+    def set_container_env(cls, v, info: FieldValidationInfo):
+        jupyter_config_file = info.data.get("jupyter_config_file")
         if jupyter_config_file is not None:
             v = v or {}
             v["JUPYTER_CONFIG_FILE"] = jupyter_config_file

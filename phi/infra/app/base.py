@@ -1,6 +1,9 @@
 from enum import Enum
 from typing import Optional, Dict, Any, Union, List
 
+from pydantic import field_validator, Field
+from pydantic_core.core_schema import FieldValidationInfo
+
 from phi.base import PhiBase
 from phi.infra.app.context import ContainerContext
 from phi.infra.resource.base import InfraResource
@@ -67,14 +70,19 @@ class InfraApp(PhiBase):
     git_sync_wait: int = 1
 
     # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = False
-    # Port number to open
-    container_port: int = 80
+    # Open a container port if open_port=True
+    open_port: bool = False
+    # If open_port=True, port_number is used to set the
+    # container_port if container_port is None and host_port if host_port is None
+    port_number: int = 80
+    # Port number on the Container to open
+    # Preferred over port_number if both are set
+    container_port: Optional[int] = Field(None, validate_default=True)
     # Port name for the opened port
     container_port_name: str = "http"
-    # Host port to map to the container port
-    host_port: int = 80
+    # Port number on the Host to map to the Container port
+    # Preferred over port_number if both are set
+    host_port: Optional[int] = Field(None, validate_default=True)
 
     # -*- Extra Resources created "before" the App resources
     resources: Optional[List[InfraResource]] = None
@@ -88,6 +96,20 @@ class InfraApp(PhiBase):
 
     # -*- Cached Data
     cached_resources: Optional[List[Any]] = None
+
+    @field_validator("container_port", mode="before")
+    def set_container_port(cls, v, info: FieldValidationInfo):
+        port_number = info.data.get("port_number")
+        if v is None and port_number is not None:
+            v = port_number
+        return v
+
+    @field_validator("host_port", mode="before")
+    def set_host_port(cls, v, info: FieldValidationInfo):
+        port_number = info.data.get("port_number")
+        if v is None and port_number is not None:
+            v = port_number
+        return v
 
     def get_app_name(self) -> str:
         return self.name

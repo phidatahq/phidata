@@ -13,8 +13,8 @@ class PostgresDb(DockerApp, DbApp):
     image_tag: str = "15.3"
 
     # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = True
+    # Open a container port if open_port=True
+    open_port: bool = True
     # Port number on the container
     container_port: int = 5432
     # Host port to map to the container port

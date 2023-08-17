@@ -669,7 +669,7 @@ class K8sApp(InfraApp):
                 raise ValueError(f"{self.get_app_name()}: volume_type: {self.volume_type} not supported")
 
         # -*- Get Container Ports
-        if self.open_container_port:
+        if self.open_port:
             container_port = CreatePort(
                 name=self.container_port_name,
                 container_port=self.container_port,

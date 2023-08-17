@@ -239,7 +239,7 @@ class DockerApp(InfraApp):
         #   {'2222/tcp': 3333} will expose port 2222 inside the container as port 3333 on the host.
         container_ports: Dict[str, int] = self.container_ports or {}
 
-        if self.open_container_port:
+        if self.open_port:
             container_ports[str(self.container_port)] = self.host_port
 
         return container_ports

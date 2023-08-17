@@ -16,8 +16,8 @@ class Jupyter(AwsApp):
     command: Optional[Union[str, List[str]]] = "jupyter lab"
 
     # -*- App Ports
-    # Open a container port if open_container_port=True
-    open_container_port: bool = True
+    # Open a container port if open_port=True
+    open_port: bool = True
     # Port number on the container
     container_port: int = 8888
 

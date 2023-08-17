@@ -13,6 +13,18 @@ class Reader(BaseModel):
     def read(self, obj: Any) -> List[Document]:
         raise NotImplementedError
 
+    def clean_text(self, text: str) -> str:
+        """Clean the text by replacing multiple occurrences of the separators with a single separator"""
+        import re
+
+        # Join the separators with the '|' symbol to create a regex pattern
+        regex_pattern = "|".join(map(re.escape, self.separators))
+
+        # Replace multiple occurrences of the separators with a single separator
+        cleaned_text = re.sub(regex_pattern, self.separators[0], text)
+
+        return cleaned_text
+
     def chunk_text(self, text: str) -> List[str]:
         import re
 

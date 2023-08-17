@@ -25,7 +25,7 @@ class TextReader(Reader):
             logger.info(f"Reading: {path}")
             doc_name = path.name.split(".")[0]
             doc_content = textract.process(path)
-            logger.debug(f"Content: {doc_content[:100]}")
+            logger.debug(f"Content: {doc_content[:1000]}")
             documents = [
                 Document(
                     name=doc_name,

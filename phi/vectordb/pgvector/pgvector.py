@@ -113,22 +113,51 @@ class PgVector(VectorDb):
                 result = sess.execute(stmt).first()
                 return result is None
 
-    def insert(self, documents: List[Document]) -> None:
+    # def insert(self, documents: List[Document]) -> None:
+    #     with self.Session() as sess:
+    #         with sess.begin():
+    #             for document in documents:
+    #                 document.embed(embedder=self.embedder)
+    #                 cleaned_content = document.content.replace("\x00", "\uFFFD")
+    #                 stmt = postgresql.insert(self.table).values(
+    #                     name=document.name,
+    #                     meta_data=document.meta_data,
+    #                     content=cleaned_content,
+    #                     embedding=document.embedding,
+    #                     usage=document.usage,
+    #                     content_hash=md5(cleaned_content.encode()).hexdigest(),
+    #                 )
+    #                 sess.execute(stmt)
+    #                 logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
+    def insert(self, documents: List[Document], commit_every: int = 10) -> None:
         with self.Session() as sess:
-            with sess.begin():
-                for document in documents:
-                    document.embed(embedder=self.embedder)
-                    cleaned_content = document.content.replace("\x00", "\uFFFD")
-                    stmt = postgresql.insert(self.table).values(
-                        name=document.name,
-                        meta_data=document.meta_data,
-                        content=cleaned_content,
-                        embedding=document.embedding,
-                        usage=document.usage,
-                        content_hash=md5(cleaned_content.encode()).hexdigest(),
-                    )
-                    sess.execute(stmt)
-                    logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
+            counter = 0
+
+            for document in documents:
+                document.embed(embedder=self.embedder)
+                cleaned_content = document.content.replace("\x00", "\uFFFD")
+                stmt = postgresql.insert(self.table).values(
+                    name=document.name,
+                    meta_data=document.meta_data,
+                    content=cleaned_content,
+                    embedding=document.embedding,
+                    usage=document.usage,
+                    content_hash=md5(cleaned_content.encode()).hexdigest(),
+                )
+                sess.execute(stmt)
+                counter += 1
+                logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
+
+                # Commit every `commit_every` documents
+                if counter >= commit_every:
+                    sess.commit()
+                    logger.debug(f"Committed {counter} documents")
+                    counter = 0
+
+            # Commit any remaining documents
+            if counter > 0:
+                sess.commit()
+                logger.debug(f"Committed {counter} documents")
 
     def upsert(self, documents: List[Document]) -> None:
         """

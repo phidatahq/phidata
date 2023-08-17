@@ -17,8 +17,8 @@ class WebsiteRegistry(FunctionRegistry):
         :return: The result from Google.
         """
         logger.info(f"Parsing website: {url}")
-        self.knowledge_base.urls = [url]
-        self.knowledge_base.load(recreate=False)
+        # self.knowledge_base.urls = [url]
+        # self.knowledge_base.load(recreate=False)
         return "Sorry, this capability is not available yet."
 
     def search_website_knowledge_base(self, query: str) -> str:
@@ -28,5 +28,5 @@ class WebsiteRegistry(FunctionRegistry):
         :return: The result from Google.
         """
         logger.info(f"Searching website for: {query}")
-        self.knowledge_base.search(query)
+        # self.knowledge_base.search(query)
         return "Sorry, this capability is not available yet."

@@ -1,14 +1,13 @@
-from pathlib import Path
 from typing import List, Iterator
 
 from phi.document import Document
-from phi.document.reader.json import JSONReader
+from phi.document.reader.website import WebsiteReader
 from phi.knowledge.base import KnowledgeBase
 
 
 class WebsiteKnowledgeBase(KnowledgeBase):
     urls: List[str] = []
-    reader: JSONReader = JSONReader()
+    reader: WebsiteReader = WebsiteReader()
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -19,10 +18,5 @@ class WebsiteKnowledgeBase(KnowledgeBase):
             Iterator[List[Document]]: Iterator yielding list of documents
         """
 
-        _json_path: Path = Path(self.path) if isinstance(self.path, str) else self.path
-
-        if _json_path.exists() and _json_path.is_dir():
-            for _pdf in _json_path.glob("*.json"):
-                yield self.reader.read(path=_pdf)
-        elif _json_path.exists() and _json_path.is_file() and _json_path.suffix == ".pdf":
-            yield self.reader.read(path=_json_path)
+        for _url in self.urls:
+            yield self.reader.read(url=_url)

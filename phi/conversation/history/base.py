@@ -66,12 +66,15 @@ class ConversationHistory(BaseModel):
 
     def get_formatted_history(self, last_n: Optional[int] = None) -> str:
         """Returns a formatted chat history"""
-        history = "---\n"
+        messages = self.get_last_n_messages(last_n)
+        if len(messages) == 0:
+            return ""
+
+        history = ""
         for message in self.get_last_n_messages(last_n):
             if message.role == "user":
                 history += "\n---\n"
             history += f"{message.role.upper()}: {message.content}\n"
-        history += "\n---\n"
         return history
 
     def get_chats(self) -> List[Tuple[Message, Message]]:

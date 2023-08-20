@@ -341,12 +341,12 @@ class Conversation(BaseModel):
         # Add references to prompt
         if references:
             _user_prompt += f"""\n
-                You can use the following information if it helps respond to the message.
-                START OF INFORMATION
+                You can use the following information from the knowledge base if it helps respond to the message.
+                START OF KNOWLEDGE BASE INFORMATION
                 ```
                 {references}
                 ```
-                END OF INFORMATION
+                END OF KNOWLEDGE BASE INFORMATION
                 """
 
         # Add chat_history to prompt

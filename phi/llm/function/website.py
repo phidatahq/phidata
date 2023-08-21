@@ -1,5 +1,9 @@
-from phi.llm.function.registry import FunctionRegistry
+import json
+from typing import List
+
+from phi.document import Document
 from phi.knowledge.website import WebsiteKnowledgeBase
+from phi.llm.function.registry import FunctionRegistry
 from phi.utils.log import logger
 
 
@@ -7,7 +11,7 @@ class WebsiteRegistry(FunctionRegistry):
     def __init__(self, knowledge_base: WebsiteKnowledgeBase):
         super().__init__(name="website_registry")
         self.knowledge_base: WebsiteKnowledgeBase = knowledge_base
-        self.register(self.add_website_to_knowledge_base)
+        # self.register(self.add_website_to_knowledge_base)
         self.register(self.search_website_knowledge_base)
 
     def add_website_to_knowledge_base(self, url: str) -> str:
@@ -16,9 +20,10 @@ class WebsiteRegistry(FunctionRegistry):
         :param url: The url of the website to add.
         :return: The result from Google.
         """
+
         logger.info(f"Parsing website: {url}")
-        # self.knowledge_base.urls = [url]
-        # self.knowledge_base.load(recreate=False)
+        self.knowledge_base.urls = [url]
+        self.knowledge_base.load(recreate=False)
         return "Sorry, this capability is not available yet."
 
     def search_website_knowledge_base(self, query: str) -> str:
@@ -28,5 +33,5 @@ class WebsiteRegistry(FunctionRegistry):
         :return: The result from Google.
         """
         logger.info(f"Searching website for: {query}")
-        # self.knowledge_base.search(query)
-        return "Sorry, this capability is not available yet."
+        relevant_docs: List[Document] = self.knowledge_base.search(query=query)
+        return json.dumps([doc.to_dict() for doc in relevant_docs])

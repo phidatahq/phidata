@@ -1,4 +1,4 @@
-from typing import List, Iterator
+from typing import Iterator, List
 
 from phi.document import Document
 from phi.document.reader.website import WebsiteReader
@@ -6,8 +6,12 @@ from phi.knowledge.base import KnowledgeBase
 
 
 class WebsiteKnowledgeBase(KnowledgeBase):
-    urls: List[str] = []
+    urls: List[str] = [
+        "https://www.phidata.com/",
+        "https://www.dataengineeringweekly.com/p/data-engineering-weekly-143",
+    ]
     reader: WebsiteReader = WebsiteReader()
+
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -19,4 +23,4 @@ class WebsiteKnowledgeBase(KnowledgeBase):
         """
 
         for _url in self.urls:
-            yield self.reader.read(url=_url)
+            yield self.reader.read(_url)

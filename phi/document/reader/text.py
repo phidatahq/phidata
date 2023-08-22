@@ -23,15 +23,11 @@ class TextReader(Reader):
 
         try:
             logger.info(f"Reading: {path}")
-            doc_name = path.name.split(".")[0]
+            doc_name = path.name.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
             doc_content = textract.process(path)
-            logger.debug(f"Content: {doc_content[:5000]}")
-            cleaned_content = self.clean_text(doc_content.decode("utf-8"))
-            logger.debug(f"Cleaned content: {cleaned_content[:5000]}")
             documents = [
                 Document(
                     name=doc_name,
-                    meta_data={"page": 1},
                     content=doc_content.decode("utf-8"),
                 )
             ]
@@ -41,5 +37,6 @@ class TextReader(Reader):
                     chunked_documents.extend(self.chunk_document(document))
                 return chunked_documents
             return documents
-        except Exception:
-            raise
+        except Exception as e:
+            logger.error(f"Error reading: {path}: {e}")
+        return []

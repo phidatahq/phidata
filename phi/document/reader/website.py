@@ -162,8 +162,8 @@ class WebsiteReader(Reader):
             while start < content_length:
                 end = start + self.chunk_size
 
-                # Ensure we're not breaking words in half
-                if end < content_length:  # check if not the last possible character
+                # Ensure we're not splitting a word in half
+                if end < content_length:
                     while end > start and content[end] not in [" ", "\n"]:
                         end -= 1
 

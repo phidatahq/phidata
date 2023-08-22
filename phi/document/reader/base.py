@@ -7,8 +7,8 @@ from phi.document.base import Document
 
 class Reader(BaseModel):
     chunk: bool = True
-    chunk_size: int = 500
-    separators: List[str] = ["\n", "\n\n", "\r", "\r\n", "\n\r", "\W"]
+    chunk_size: int = 2048
+    separators: List[str] = ["\n", "\n\n", "\r", "\r\n", "\n\r", "\t", " ", "  "]
 
     def read(self, obj: Any) -> List[Document]:
         raise NotImplementedError
@@ -32,57 +32,100 @@ class Reader(BaseModel):
 
         return cleaned_text
 
-    def chunk_text(self, text: str) -> List[str]:
-        import re
-
-        # Join the separators with the '|' symbol to create a regex pattern
-        regex_pattern = "|".join(map(re.escape, self.separators))
-
-        # Split the text using the regex pattern
-        chunks = re.split(regex_pattern, text)
-
-        return chunks
-
     def chunk_document(self, document: Document) -> List[Document]:
-        # Chunk the document content
-        chunks = self.chunk_text(document.content)
-
-        # Create a list of chunked documents
+        """Chunk the document content into smaller documents"""
+        content = document.content
+        cleaned_content = self.clean_text(content)
+        content_length = len(cleaned_content)
         chunked_documents: List[Document] = []
-
-        chunk_size = 0
         chunk_number = 1
-        chunked_text = ""
         chunk_meta_data = document.meta_data
-        for chunk in chunks:
-            chunk_size += len(chunk)
-            if chunk_size > self.chunk_size:
-                meta_data = chunk_meta_data.copy()
-                meta_data["chunk"] = chunk_number
-                meta_data["chunk_size"] = chunk_size
-                chunked_documents.append(
-                    Document(
-                        content=chunked_text,
-                        name=document.name,
-                        meta_data=meta_data,
-                    )
-                )
-                chunk_number += 1
-                chunked_text = ""
-                chunk_size = 0
-            else:
-                chunked_text += chunk
 
-        # Get the last chunk
-        if chunked_text:
+        start = 0
+        while start < content_length:
+            end = start + self.chunk_size
+
+            # Ensure we're not splitting a word in half
+            if end < content_length:
+                while end > start and cleaned_content[end] not in [" ", "\n", "\r", "\t"]:
+                    end -= 1
+
+            # If the entire chunk is a word, then just split it at self.chunk_size
+            if end == start:
+                end = start + self.chunk_size
+
+            # If the end is greater than the content length, then set it to the content length
+            if end > content_length:
+                end = content_length
+
+            chunk = cleaned_content[start:end]
             meta_data = chunk_meta_data.copy()
             meta_data["chunk"] = chunk_number
-            meta_data["chunk_size"] = chunk_size
+            meta_data["chunk_size"] = len(chunk)
             chunked_documents.append(
                 Document(
-                    content=chunked_text,
+                    content=chunk,
                     name=document.name,
                     meta_data=meta_data,
                 )
             )
+            chunk_number += 1
+            start = end
         return chunked_documents
+
+    # def chunk_text(self, text: str) -> List[str]:
+    #     """Split the text into chunks based on the separators"""
+    #     import re
+    #
+    #     # Join the separators with the '|' symbol to create a regex pattern
+    #     regex_pattern = "|".join(map(re.escape, self.separators))
+    #
+    #     # Split the text using the regex pattern
+    #     chunks = re.split(regex_pattern, text)
+    #     return chunks
+
+    # def chunk_document(self, document: Document) -> List[Document]:
+    #     # Chunk the document content
+    #     chunks = self.chunk_text(document.content)
+    #
+    #     # Create a list of chunked documents
+    #     chunked_documents: List[Document] = []
+    #
+    #     chunk_size = 0
+    #     chunk_number = 1
+    #     chunked_text = ""
+    #     chunk_meta_data = document.meta_data
+    #     for chunk in chunks:
+    #         if chunk == "":
+    #             continue
+    #         chunk_size += len(chunk)
+    #         if chunk_size > self.chunk_size:
+    #             meta_data = chunk_meta_data.copy()
+    #             meta_data["chunk"] = chunk_number
+    #             meta_data["chunk_size"] = chunk_size
+    #             chunked_documents.append(
+    #                 Document(
+    #                     content=chunked_text,
+    #                     name=document.name,
+    #                     meta_data=meta_data,
+    #                 )
+    #             )
+    #             chunk_number += 1
+    #             chunked_text = ""
+    #             chunk_size = 0
+    #         else:
+    #             chunked_text += chunk
+    #
+    #     # Get the last chunk
+    #     if chunked_text:
+    #         meta_data = chunk_meta_data.copy()
+    #         meta_data["chunk"] = chunk_number
+    #         meta_data["chunk_size"] = chunk_size
+    #         chunked_documents.append(
+    #             Document(
+    #                 content=chunked_text,
+    #                 name=document.name,
+    #                 meta_data=meta_data,
+    #             )
+    #         )
+    #     return chunked_documents

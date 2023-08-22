@@ -243,12 +243,14 @@ class PgVector(VectorDb):
 
         if isinstance(self.index, Ivfflat):
             est_list = self.index.nlist
-            if not self.index.dynamic_list:
+            if self.index.dynamic_list:
                 total_records = self.get_count()
                 logger.debug(f"Number of records: {total_records}")
-                if est_list < 10:
+                if est_list < 10000:
                     est_list = 10
-                if est_list > 1000000:
+                elif est_list < 1000000:
+                    est_list = int(total_records / 1000)
+                elif est_list > 1000000:
                     est_list = int(sqrt(total_records))
 
             with self.Session() as sess:
@@ -264,3 +266,4 @@ class PgVector(VectorDb):
                                 {self.index.distance_metric}) WITH (lists = {est_list});"
                         )
                     )
+        logger.debug("Optimized Vector DB")

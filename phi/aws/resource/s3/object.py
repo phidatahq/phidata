@@ -1,9 +1,11 @@
+from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import Field
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
+from phi.utils.log import logger
 
 
 class S3Object(AwsResource):
@@ -44,3 +46,16 @@ class S3Object(AwsResource):
             bucket_name=self.bucket_name,
             key=self.name,
         )
+
+    def download(self, path: Path, aws_client: Optional[AwsApiClient] = None) -> None:
+        """Downloads the s3.Object to the specified path
+
+        Args:
+            path: The path to download the s3.Object to
+            aws_client: The AwsApiClient for the current cluster
+        """
+        logger.info(f"Downloading {self.uri} to {path}")
+        object_resource = self.get_resource(aws_client=aws_client)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open(mode="wb") as f:
+            object_resource.download_fileobj(f)

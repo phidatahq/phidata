@@ -21,10 +21,10 @@ class WebsiteRegistry(FunctionRegistry):
         :return: The result from Google.
         """
 
-        logger.info(f"Parsing website: {url}")
+        logger.info(f"Adding to knowledge base: {url}")
         self.knowledge_base.urls = [url]
         self.knowledge_base.load(recreate=False)
-        return "Sorry, this capability is not available yet."
+        return "done."
 
     def search_website_knowledge_base(self, query: str) -> str:
         """Searches the website's knowledge base for a query.

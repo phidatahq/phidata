@@ -9,7 +9,8 @@ try:
     from openai import ChatCompletion  # noqa: F401
     from openai.openai_object import OpenAIObject  # noqa: F401
 except ImportError:
-    raise ImportError("`openai` not installed")
+    logger.error("`openai` not installed")
+    raise
 
 
 class OpenAIChat(LLM):

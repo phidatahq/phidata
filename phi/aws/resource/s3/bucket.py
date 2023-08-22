@@ -172,11 +172,12 @@ class S3Bucket(AwsResource):
             logger.error(e)
         return False
 
-    def get_objects(self, aws_client: Optional[AwsApiClient] = None) -> List[Any]:
+    def get_objects(self, aws_client: Optional[AwsApiClient] = None, prefix: Optional[str] = None) -> List[Any]:
         """Returns a list of s3.Object objects for the s3.Bucket
 
         Args:
             aws_client: The AwsApiClient for the current cluster
+            prefix: Prefix to filter objects by
         """
         bucket = self.get_resource(aws_client)
         if bucket is None:
@@ -188,6 +189,8 @@ class S3Bucket(AwsResource):
         object_summaries = bucket.objects.all()
         all_objects: List[S3Object] = []
         for object_summary in object_summaries:
+            if prefix is not None and not object_summary.key.startswith(prefix):
+                continue
             all_objects.append(
                 S3Object(
                     bucket_name=bucket.name,

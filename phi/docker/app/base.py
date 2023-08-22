@@ -240,7 +240,9 @@ class DockerApp(InfraApp):
         container_ports: Dict[str, int] = self.container_ports or {}
 
         if self.open_port:
-            container_ports[str(self.container_port)] = self.host_port
+            _container_port = self.container_port or self.port_number
+            _host_port = self.host_port or self.port_number
+            container_ports[str(_container_port)] = _host_port
 
         return container_ports
 

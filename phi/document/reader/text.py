@@ -35,15 +35,6 @@ class TextReader(Reader):
                     content=doc_content.decode("utf-8"),
                 )
             ]
-
-            # documents = [
-            #     Document(
-            #         name=doc_name,
-            #         meta_data={"page": page_number},
-            #         content=page.extract_text(),
-            #     )
-            #     for page_number, page in enumerate(doc_reader.pages, start=1)
-            # ]
             if self.chunk:
                 chunked_documents = []
                 for document in documents:

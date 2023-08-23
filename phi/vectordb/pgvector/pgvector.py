@@ -21,6 +21,7 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
+from phi.vectordb.distance import DistanceMetric
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
 
@@ -32,8 +33,9 @@ class PgVector(VectorDb):
         schema: Optional[str] = None,
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
-        embedder: Optional[Embedder] = None,
-        index: Optional[Union[Ivfflat, HNSW]] = None,
+        embedder: Embedder = OpenAIEmbedder(),
+        distance_metric: DistanceMetric = DistanceMetric.cosine,
+        index: Optional[Union[Ivfflat, HNSW]] = Ivfflat(),
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -52,11 +54,14 @@ class PgVector(VectorDb):
         self.metadata: MetaData = MetaData(schema=self.schema)
 
         # Embedder for embedding the document contents
-        self.embedder: Embedder = embedder or OpenAIEmbedder()
+        self.embedder: Embedder = embedder
         self.dimensions: int = self.embedder.dimensions
 
+        # Distance metric
+        self.distance_metric: DistanceMetric = distance_metric
+
         # Index for the collection
-        self.index: Optional[Union[Ivfflat, HNSW]] = index or Ivfflat()
+        self.index: Optional[Union[Ivfflat, HNSW]] = index
 
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
@@ -174,7 +179,7 @@ class PgVector(VectorDb):
                     sess.execute(stmt)
                     logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
 
-    def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -188,11 +193,15 @@ class PgVector(VectorDb):
             self.table.c.usage,
         ]
 
-        stmt = (
-            select(*columns)
-            .order_by(self.table.c.embedding.max_inner_product(query_embedding))
-            .limit(relevant_documents)
-        )
+        stmt = select(*columns)
+        if self.distance_metric == DistanceMetric.l2:
+            stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
+        if self.distance_metric == DistanceMetric.cosine:
+            stmt = stmt.order_by(self.table.c.embedding.cosine_distance(query_embedding))
+        if self.distance_metric == DistanceMetric.max_inner_product:
+            stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
+
+        stmt = stmt.limit(limit=limit)
         logger.debug(f"Query: {stmt}")
 
         # Get neighbors
@@ -242,28 +251,34 @@ class PgVector(VectorDb):
             return
 
         if isinstance(self.index, Ivfflat):
-            est_list = self.index.nlist
-            if self.index.dynamic_list:
+            num_lists = self.index.lists
+            if self.index.dynamic_lists:
                 total_records = self.get_count()
                 logger.debug(f"Number of records: {total_records}")
-                if est_list < 10000:
-                    est_list = 10
-                elif est_list < 1000000:
-                    est_list = int(total_records / 1000)
-                elif est_list > 1000000:
-                    est_list = int(sqrt(total_records))
+                if total_records < 1000000:
+                    num_lists = int(total_records / 1000)
+                elif total_records > 1000000:
+                    num_lists = int(sqrt(total_records))
 
+            index_distance_metric = "vector_cosine_ops"
+            if self.distance_metric == DistanceMetric.l2:
+                index_distance_metric = "vector_l2_ops"
+            if self.distance_metric == DistanceMetric.max_inner_product:
+                index_distance_metric = "vector_ip_ops"
             with self.Session() as sess:
                 with sess.begin():
+                    logger.debug(f"Setting configuration: {self.index.configuration}")
+                    for key, value in self.index.configuration.items():
+                        sess.execute(text(f"SET {key} = '{value}';"))
                     logger.debug(
-                        f"Creating Index with lists: {est_list}, probes: {self.index.probes} "
-                        f"and distance metric: {self.index.distance_metric}"
+                        f"Creating Index with lists: {num_lists}, probes: {self.index.probes} "
+                        f"and distance metric: {index_distance_metric}"
                     )
                     sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
                     sess.execute(
                         text(
                             f"CREATE INDEX ON {self.table} USING ivfflat (embedding \
-                                {self.index.distance_metric}) WITH (lists = {est_list});"
+                                {index_distance_metric}) WITH (lists = {num_lists});"
                         )
                     )
         logger.debug("Optimized Vector DB")

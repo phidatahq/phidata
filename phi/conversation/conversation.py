@@ -55,7 +55,7 @@ class Conversation(BaseModel):
     # Add history to the prompt
     add_history_to_prompt: bool = False
     add_history_to_messages: bool = False
-    num_history_messages: int = 6
+    num_history_messages: int = 8
 
     # -*- Conversation Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
@@ -79,12 +79,12 @@ class Conversation(BaseModel):
     # Signature:
     # def references(conversation: Conversation, question: str) -> Optional[str]:
     #    ...
-    references_function: Optional[Callable[["Conversation", str], Optional[str]]] = None
+    references_function: Optional[Callable[..., Optional[str]]] = None
     # Function to build the chat history for the user prompt
     # Signature:
     # def chat_history(conversation: Conversation) -> str:
     #    ...
-    chat_history_function: Optional[Callable[["Conversation"], Optional[str]]] = None
+    chat_history_function: Optional[Callable[..., Optional[str]]] = None
     # Functions to build the user prompt
     # Uses the references function to get references
     # Signature:
@@ -96,7 +96,7 @@ class Conversation(BaseModel):
     # ) -> str:
     #     """Build the user prompt for a student given a question, references and chat_history"""
     #     ...
-    user_prompt_function: Optional[Callable[["Conversation", str, Optional[str], Optional[str]], str]] = None
+    user_prompt_function: Optional[Callable[..., str]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -300,7 +300,8 @@ class Conversation(BaseModel):
         """Return relevant information from the knowledge base"""
 
         if self.references_function is not None:
-            return remove_indent(self.references_function(self, query))
+            reference_kwargs = {"query": query, "conversation": self}
+            return remove_indent(self.references_function(**reference_kwargs))
 
         if self.knowledge_base is None:
             return None
@@ -314,7 +315,8 @@ class Conversation(BaseModel):
         """Returns a formatted chat history to use in the user prompt"""
 
         if self.chat_history_function is not None:
-            return remove_indent(self.chat_history_function(self))
+            chat_history_kwargs = {"conversation": self}
+            return remove_indent(self.chat_history_function(**chat_history_kwargs))
 
         formatted_history = self.history.get_formatted_history(last_n=self.num_history_messages)
         if formatted_history == "":
@@ -327,8 +329,14 @@ class Conversation(BaseModel):
         """Build the user prompt given a message, references and chat_history"""
 
         if self.user_prompt_function is not None:
+            user_prompt_kwargs = {
+                "references": references,
+                "chat_history": chat_history,
+                "conversation": self,
+            }
             _user_prompt_from_function = remove_indent(
-                self.user_prompt_function(self, message, references, chat_history)
+                self.user_prompt_function(message=message, **user_prompt_kwargs)
+                # self.user_prompt_function(self, message, references, chat_history)
             )
             if _user_prompt_from_function is not None:
                 return _user_prompt_from_function
@@ -380,27 +388,29 @@ class Conversation(BaseModel):
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
 
+        # -*- References to send to the api
+        references: Optional[References] = None
+
         # -*- Get references to add to the user prompt
         user_prompt_references = None
-        references = None
-        reference_timer = Timer()
-        reference_timer.start()
         if self.add_references_to_prompt:
+            reference_timer = Timer()
+            reference_timer.start()
             user_prompt_references = self.get_references(query=message)
+            reference_timer.stop()
             references = References(
                 query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
             )
             logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-        reference_timer.stop()
 
         # -*- Get chat history to add to the user prompt
-        formatted_chat_history = None
+        user_prompt_chat_history = None
         if self.add_history_to_prompt:
-            formatted_chat_history = self.get_formatted_chat_history()
+            user_prompt_chat_history = self.get_formatted_chat_history()
 
         # -*- Build the user prompt
         user_prompt = self.get_user_prompt(
-            message=message, references=user_prompt_references, chat_history=formatted_chat_history
+            message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
         )
 
         # -*- Build messages to send to the LLM

@@ -38,7 +38,7 @@ class KnowledgeBase(BaseModel):
 
         _num_documents = relevant_documents or self.relevant_documents
         logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
-        return self.vector_db.search(query=query, relevant_documents=_num_documents)
+        return self.vector_db.search(query=query, limit=_num_documents)
 
     def load(self, recreate: bool = False) -> None:
         """Load the knowledge base to vector db

@@ -12,10 +12,7 @@ class Qdrant(DockerApp):
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = True
-    # Port number on the container
-    container_port: int = 6333
-    # Host port to map to the container port
-    host_port: int = 6333
+    port_number: int = 6333
 
     # -*- Qdrant Volume
     # Create a volume for qdrant storage

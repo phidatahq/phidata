@@ -24,7 +24,7 @@ class VectorDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def search(self, query: str, relevant_documents: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
     @abstractmethod

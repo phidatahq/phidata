@@ -15,10 +15,7 @@ class Django(DockerApp):
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = True
-    # Port number on the container
-    container_port: int = 8000
-    # Host port to map to the container port
-    host_port: int = 8000
+    port_number: int = 8000
 
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container

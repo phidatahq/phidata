@@ -1,15 +1,21 @@
+from typing import Dict, Any
+
 from pydantic import BaseModel
 
 
 class Ivfflat(BaseModel):
-    distance_metric: str = "vector_l2_ops"
-    nlist: int = 100
-    dynamic_list: bool = True
+    lists: int = 100
     probes: int = 10
+    dynamic_lists: bool = True
+    configuration: Dict[str, Any] = {
+        "maintenance_work_mem": "2GB",
+    }
 
 
 class HNSW(BaseModel):
-    distance_metric: str = "cosine"
-    ef_construction: int = 200
-    ef: int = 50
     m: int = 16
+    ef: int = 50
+    ef_construction: int = 200
+    configuration: Dict[str, Any] = {
+        "maintenance_work_mem": "2GB",
+    }

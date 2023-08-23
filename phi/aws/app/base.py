@@ -40,7 +40,9 @@ class AwsApp(InfraApp):
     ecs_service_connect_protocol: Optional[str] = None
     ecs_service_connect_namespace: str = "default"
     assign_public_ip: Optional[bool] = None
-    ecs_enable_exec: bool = True
+    ecs_exec_access: bool = True
+    ecs_secret_access: bool = True
+    ecs_s3_access: bool = True
 
     # -*- Security Group Configuration
     # List of security groups for the ECS Service. Type: SecurityGroup
@@ -505,8 +507,10 @@ class AwsApp(InfraApp):
             memory=self.ecs_task_memory,
             containers=[ecs_container],
             requires_compatibilities=[self.ecs_launch_type],
-            add_ecs_exec_policy=self.ecs_enable_exec,
-            add_ecs_secret_policy=True,
+            add_exec_access_to_task=self.ecs_exec_access,
+            add_secret_access_to_ecs=self.ecs_secret_access,
+            add_secret_access_to_task=self.ecs_secret_access,
+            add_s3_access_to_task=self.ecs_s3_access,
         )
 
     def get_ecs_service(
@@ -535,7 +539,7 @@ class AwsApp(InfraApp):
             force_delete=True,
             # Force a new deployment of the service on update.
             force_new_deployment=True,
-            enable_execute_command=self.ecs_enable_exec,
+            enable_execute_command=self.ecs_exec_access,
         )
         if self.ecs_enable_service_connect:
             # namespace is used from the cluster

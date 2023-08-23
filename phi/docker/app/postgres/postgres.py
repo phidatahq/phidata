@@ -15,10 +15,7 @@ class PostgresDb(DockerApp, DbApp):
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = True
-    # Port number on the container
-    container_port: int = 5432
-    # Host port to map to the container port
-    host_port: int = 5432
+    port_number: int = 5432
 
     # -*- Postgres Configuration
     # Provide POSTGRES_USER as db_user or POSTGRES_USER in secrets_file

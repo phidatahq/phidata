@@ -18,10 +18,7 @@ class Jupyter(DockerApp):
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = True
-    # Port number on the container
-    container_port: int = 8888
-    # Host port to map to the container port
-    host_port: int = 8888
+    port_number: int = 8888
 
     # -*- Workspace Volume
     # Mount the workspace directory from host machine to the container

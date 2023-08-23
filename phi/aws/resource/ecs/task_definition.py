@@ -50,6 +50,11 @@ class EcsTaskDefinition(AwsResource):
 
     # Amazon ECS IAM roles
     # The short name or full Amazon Resource Name (ARN) of the IAM role that containers in this task can assume.
+    # The permissions granted in this IAM role are assumed by the containers running in the task.
+    # For permissions that Amazon ECS needs to pull container images, see execution_role_arn
+    # If your containerized applications need to call AWS APIs, they must sign their
+    # AWS API requests with AWS credentials, and a task IAM role provides a strategy for managing credentials
+    # for your applications to use
     task_role_arn: Optional[str] = None
     # If task_role_arn is None, a default role is created if create_task_role is True
     create_task_role: bool = True
@@ -60,7 +65,11 @@ class EcsTaskDefinition(AwsResource):
     # Provide a list of IamPolicy to attach to the task role
     add_policies_to_task_role: Optional[List[IamPolicy]] = None
     # Add ecs_exec_policy to task role
-    add_ecs_exec_policy: bool = False
+    add_exec_access_to_task: bool = False
+    # Add secret access to task role
+    add_secret_access_to_task: bool = False
+    # Add s3 access to task role
+    add_s3_access_to_task: bool = False
 
     # The Amazon Resource Name (ARN) of the task execution role that grants the Amazon ECS container agent permission
     # to make Amazon Web Services API calls on your behalf. The task execution IAM role is required depending on the
@@ -75,7 +84,7 @@ class EcsTaskDefinition(AwsResource):
     # Provide a list of IamPolicy to attach to the execution role
     add_policies_to_execution_role: Optional[List[IamPolicy]] = None
     # Add policy to read secrets to execution role
-    add_ecs_secret_policy: bool = False
+    add_secret_access_to_ecs: bool = False
 
     def get_task_family(self):
         return self.family or self.name
@@ -246,31 +255,35 @@ class EcsTaskDefinition(AwsResource):
         if self.add_policy_arns_to_task_role is not None and isinstance(self.add_policy_arns_to_task_role, list):
             policy_arns.extend(self.add_policy_arns_to_task_role)
 
-        ecs_exec_policy = IamPolicy(
-            name=f"{self.name}-ecs-exec-policy",
-            policy_document=dedent(
-                """\
-            {
-               "Version": "2012-10-17",
-               "Statement": [
-                   {
-                   "Effect": "Allow",
-                   "Action": [
-                        "ssmmessages:CreateControlChannel",
-                        "ssmmessages:CreateDataChannel",
-                        "ssmmessages:OpenControlChannel",
-                        "ssmmessages:OpenDataChannel"
-                   ],
-                  "Resource": "*"
-                  }
-               ]
-            }
-            """
-            ),
-        )
         policies = []
-        if self.add_ecs_exec_policy:
+        if self.add_exec_access_to_task:
+            ecs_exec_policy = IamPolicy(
+                name=f"{self.name}-task-exec-policy",
+                policy_document=dedent(
+                    """\
+                {
+                   "Version": "2012-10-17",
+                   "Statement": [
+                       {
+                       "Effect": "Allow",
+                       "Action": [
+                            "ssmmessages:CreateControlChannel",
+                            "ssmmessages:CreateDataChannel",
+                            "ssmmessages:OpenControlChannel",
+                            "ssmmessages:OpenDataChannel"
+                       ],
+                      "Resource": "*"
+                      }
+                   ]
+                }
+                """
+                ),
+            )
             policies.append(ecs_exec_policy)
+        if self.add_secret_access_to_task:
+            policy_arns.append("arn:aws:iam::aws:policy/SecretsManagerReadWrite")
+        if self.add_s3_access_to_task:
+            policy_arns.append("arn:aws:iam::aws:policy/AmazonS3FullAccess")
         if self.add_policies_to_task_role:
             policies.extend(self.add_policies_to_task_role)
 
@@ -306,29 +319,29 @@ class EcsTaskDefinition(AwsResource):
         ):
             policy_arns.extend(self.add_policy_arns_to_execution_role)
 
-        ecs_secret_policy = IamPolicy(
-            name=f"{self.name}-ecs-secret-policy",
-            policy_document=dedent(
-                """\
-            {
-               "Version": "2012-10-17",
-               "Statement": [
-                   {
-                   "Effect": "Allow",
-                   "Action": [
-                        "secretsmanager:GetSecretValue",
-                        "secretsmanager:DescribeSecret",
-                        "secretsmanager:ListSecretVersionIds"
-                   ],
-                  "Resource": "*"
-                  }
-               ]
-            }
-            """
-            ),
-        )
         policies = []
-        if self.add_ecs_secret_policy:
+        if self.add_secret_access_to_ecs:
+            ecs_secret_policy = IamPolicy(
+                name=f"{self.name}-ecs-secret-policy",
+                policy_document=dedent(
+                    """\
+                {
+                   "Version": "2012-10-17",
+                   "Statement": [
+                       {
+                       "Effect": "Allow",
+                       "Action": [
+                            "secretsmanager:GetSecretValue",
+                            "secretsmanager:DescribeSecret",
+                            "secretsmanager:ListSecretVersionIds"
+                       ],
+                      "Resource": "*"
+                      }
+                   ]
+                }
+                """
+                ),
+            )
             policies.append(ecs_secret_policy)
         if self.add_policies_to_execution_role:
             policies.extend(self.add_policies_to_execution_role)

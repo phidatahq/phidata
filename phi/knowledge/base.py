@@ -18,7 +18,7 @@ class KnowledgeBase(BaseModel):
     # Number of relevant documents to return on search
     relevant_documents: int = 5
     # Number of documents to optimize the vector db on
-    optimize_on: int = 1000
+    optimize_on: Optional[int] = 1000
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -69,7 +69,7 @@ class KnowledgeBase(BaseModel):
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")
 
-        if num_documents > self.optimize_on:
+        if self.optimize_on is not None and num_documents > self.optimize_on:
             logger.debug("Optimizing Vector DB")
             self.vector_db.optimize()
 

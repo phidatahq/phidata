@@ -196,7 +196,7 @@ class DockerApp(InfraApp):
             elif self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
                 workspace_volume_name = self.workspace_volume_name
                 if workspace_volume_name is None:
-                    workspace_volume_name = get_default_volume_name(container_context.workspace_name or "ws")
+                    workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-workspace")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"      to: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {

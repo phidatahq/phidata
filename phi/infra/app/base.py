@@ -90,8 +90,13 @@ class InfraApp(PhiBase):
     #  -*- Other args
     print_env_on_load: bool = False
 
-    # -*- App specific args (updated by subclasses)
+    # -*- App specific args. Not to be set by the user.
+    # Container Environment that can be set by subclasses
+    # which is used as a starting point for building the container_env
+    # Any variables set in container_env will be overriden by values
+    # in the env_vars dict or env_file
     container_env: Optional[Dict[str, Any]] = None
+    # Variable used to cache the container context
     container_context: Optional[ContainerContext] = None
 
     # -*- Cached Data

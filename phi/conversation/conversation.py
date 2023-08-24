@@ -334,10 +334,7 @@ class Conversation(BaseModel):
                 "chat_history": chat_history,
                 "conversation": self,
             }
-            _user_prompt_from_function = remove_indent(
-                self.user_prompt_function(message=message, **user_prompt_kwargs)
-                # self.user_prompt_function(self, message, references, chat_history)
-            )
+            _user_prompt_from_function = remove_indent(self.user_prompt_function(message=message, **user_prompt_kwargs))
             if _user_prompt_from_function is not None:
                 return _user_prompt_from_function
             else:

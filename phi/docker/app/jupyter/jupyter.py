@@ -1,7 +1,4 @@
-from typing import Optional, Union, List, Dict, Any
-
-from pydantic import field_validator, Field
-from pydantic_core.core_schema import FieldValidationInfo
+from typing import Optional, Union, List, Dict
 
 from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
@@ -41,17 +38,13 @@ class Jupyter(DockerApp):
     # Defaults to the workspace_root if mount_workspace = True else "/",
     notebook_dir: Optional[str] = None
 
-    # Set validate_default=True so set_container_env is always called
-    container_env: Optional[Dict[str, Any]] = Field(None, validate_default=True)
+    def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
+        container_env: Dict[str, str] = super().get_container_env(container_context=container_context)
 
-    @field_validator("container_env", mode="before")
-    def set_container_env(cls, v, info: FieldValidationInfo):
-        jupyter_config_file = info.data.get("jupyter_config_file")
-        if jupyter_config_file is not None:
-            v = v or {}
-            v["JUPYTER_CONFIG_FILE"] = jupyter_config_file
+        if self.jupyter_config_file is not None:
+            container_env["JUPYTER_CONFIG_FILE"] = self.jupyter_config_file
 
-        return v
+        return container_env
 
     def get_container_command(self) -> Optional[List[str]]:
         container_cmd: List[str]

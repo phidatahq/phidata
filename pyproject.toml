@@ -98,5 +98,6 @@ module = [
   "setuptools.*",
   "sqlalchemy.*",
   "textract.*",
+  "arxiv.*"
 ]
 ignore_missing_imports = true

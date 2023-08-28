@@ -1,14 +1,14 @@
 from typing import Iterator, List
 
 from phi.document import Document
-from phi.document.reader.website import WebsiteReader
 from phi.knowledge.base import KnowledgeBase
+import wikipedia
 from phi.utils.log import logger
 
 
-class WebsiteKnowledgeBase(KnowledgeBase):
-    urls: List[str]
-    reader: WebsiteReader = WebsiteReader()
+
+class WikiKnowledgeBase(KnowledgeBase):
+    topics: List[str]
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -19,6 +19,9 @@ class WebsiteKnowledgeBase(KnowledgeBase):
             Iterator[List[Document]]: Iterator yielding list of documents
         """
 
-        for _url in self.urls:
-            logger.debug(self.reader.read(url=_url))
-            yield self.reader.read(url=_url)
+        for topic in self.topics:
+            yield [Document(
+                name=topic,
+                meta_data={"topic": topic},
+                content=wikipedia.summary(topic),
+            )]

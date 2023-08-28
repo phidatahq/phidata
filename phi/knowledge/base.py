@@ -60,7 +60,11 @@ class KnowledgeBase(BaseModel):
         logger.info("Loading knowledge base")
         num_documents = 0
 
+        # logger.debug(self.document_lists)
+
         for document_list in self.document_lists:
+            # logger.debug("Inserting documents")
+            # logger.debug(document_list)
             # Filter out documents which already exist in the vector db
             if not recreate:
                 document_list = [document for document in document_list if self.vector_db.doc_exists(document)]

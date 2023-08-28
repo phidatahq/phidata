@@ -49,3 +49,4 @@ typer==0.9.0
 typing-extensions==4.7.1
 urllib3==1.26.16
 websocket-client==1.6.1
+arxiv==1.4.8

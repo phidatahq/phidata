@@ -98,6 +98,7 @@ module = [
   "pypdf.*",
   "setuptools.*",
   "sqlalchemy.*",
-  "textract.*"
+  "textract.*",
+  "wikipedia.*",
 ]
 ignore_missing_imports = true

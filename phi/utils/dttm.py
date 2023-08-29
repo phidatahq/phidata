@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 
 
+def current_datetime() -> datetime:
+    return datetime.now()
+
+
 def current_datetime_utc() -> datetime:
     return datetime.now(timezone.utc)
 

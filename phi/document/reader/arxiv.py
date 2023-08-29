@@ -1,8 +1,15 @@
 from typing import List
 
-import arxiv
 from phi.document.base import Document
 from phi.document.reader.base import Reader
+
+try:
+    import arxiv  # noqa: F401
+except ImportError:
+    raise ImportError(
+        "The `arxiv` package is not installed. "
+        "Please install it via `pip install arxiv`."
+    )
 
 
 class ArxivReader(Reader):
@@ -11,12 +18,12 @@ class ArxivReader(Reader):
 
     def read(self, query: str) -> List[Document]:
         """
-        search a query from arxiv's database
+        Search a query from arxiv's database
 
         This function gets the top_k articles based on a user's query, sorted by relevance from arxiv
 
         @param query:
-        @return:
+        @return: List of documents
         """
 
         documents = []

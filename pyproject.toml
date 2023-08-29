@@ -86,6 +86,7 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = [
+  "arxiv.*",
   "boto3.*",
   "botocore.*",
   "bs4.*",
@@ -97,7 +98,6 @@ module = [
   "pypdf.*",
   "setuptools.*",
   "sqlalchemy.*",
-  "textract.*",
-  "arxiv.*"
+  "textract.*"
 ]
 ignore_missing_imports = true

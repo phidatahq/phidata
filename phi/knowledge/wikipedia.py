@@ -2,13 +2,15 @@ from typing import Iterator, List
 
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
-import wikipedia
-from phi.utils.log import logger
 
+try:
+    import wikipedia  # noqa: F401
+except ImportError:
+    raise ImportError("The `wikipedia` package is not installed. " "Please install it via `pip install wikipedia`.")
 
 
 class WikiKnowledgeBase(KnowledgeBase):
-    topics: List[str]
+    topics: List[str] = []
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -20,8 +22,10 @@ class WikiKnowledgeBase(KnowledgeBase):
         """
 
         for topic in self.topics:
-            yield [Document(
-                name=topic,
-                meta_data={"topic": topic},
-                content=wikipedia.summary(topic),
-            )]
+            yield [
+                Document(
+                    name=topic,
+                    meta_data={"topic": topic},
+                    content=wikipedia.summary(topic),
+                )
+            ]

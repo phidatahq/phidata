@@ -13,8 +13,7 @@ try:
     from bs4 import BeautifulSoup  # noqa: F401
 except ImportError:
     raise ImportError(
-        "The `bs4` package is not installed. "
-        "Please install it via `pip install pip install beautifulsoup4`."
+        "The `bs4` package is not installed. " "Please install it via `pip install pip install beautifulsoup4`."
     )
 
 

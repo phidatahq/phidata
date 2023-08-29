@@ -6,7 +6,7 @@ from phi.knowledge.base import KnowledgeBase
 
 
 class ArxivKnowledgeBase(KnowledgeBase):
-    queries: List[str]
+    queries: List[str] = []
     reader: ArxivReader = ArxivReader()
 
     @property

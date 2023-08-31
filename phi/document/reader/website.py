@@ -12,8 +12,9 @@ import httpx
 try:
     from bs4 import BeautifulSoup  # noqa: F401
 except ImportError:
-    logger.error("`BeautifulSoup` not installed")
-    raise
+    raise ImportError(
+        "The `bs4` package is not installed. " "Please install it via `pip install pip install beautifulsoup4`."
+    )
 
 
 class WebsiteReader(Reader):

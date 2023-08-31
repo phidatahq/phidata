@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.website import WebsiteKnowledgeBase
@@ -8,30 +8,42 @@ from phi.utils.log import logger
 
 
 class WebsiteRegistry(FunctionRegistry):
-    def __init__(self, knowledge_base: WebsiteKnowledgeBase):
+    def __init__(self, knowledge_base: Optional[WebsiteKnowledgeBase] = None):
         super().__init__(name="website_registry")
-        self.knowledge_base: WebsiteKnowledgeBase = knowledge_base
-        # self.register(self.add_website_to_knowledge_base)
-        self.register(self.search_website_knowledge_base)
+        self.knowledge_base: Optional[WebsiteKnowledgeBase] = knowledge_base
+
+        if self.knowledge_base is not None and isinstance(self.knowledge_base, WebsiteKnowledgeBase):
+            self.register(self.add_website_to_knowledge_base)
+        else:
+            self.register(self.read_website)
 
     def add_website_to_knowledge_base(self, url: str) -> str:
-        """Adds the content of a website to the knowledge base.
+        """This function adds a websites content to the knowledge base.
+
+        USE THIS FUNCTION TO GET INFORMATION ABOUT PRODUCTS FROM THE INTERNET.
 
         :param url: The url of the website to add.
-        :return: The result from Google.
+        :return: 'Success' if the website was added to the knowledge base.
         """
+        if self.knowledge_base is None:
+            return "Knowledge base not provided"
 
-        logger.info(f"Adding to knowledge base: {url}")
-        self.knowledge_base.urls = [url]
+        logger.debug(f"Adding to knowledge base: {url}")
+        self.knowledge_base.urls.append(url)
+        logger.debug("Loading knowledge base.")
         self.knowledge_base.load(recreate=False)
-        return "done."
+        return "Success"
 
-    def search_website_knowledge_base(self, query: str) -> str:
-        """Searches the website's knowledge base for a query.
+    def read_website(self, url: str) -> str:
+        """This function reads a website and returns the content.
 
-        :param query: The query to search for.
-        :return: The result from Google.
+        :param url: The url of the website to read.
+        :return: Relevant documents from the website.
         """
-        logger.info(f"Searching website for: {query}")
-        relevant_docs: List[Document] = self.knowledge_base.search(query=query)
+        from phi.document.reader.website import WebsiteReader
+
+        website = WebsiteReader()
+
+        logger.debug(f"Reading website: {url}")
+        relevant_docs: List[Document] = website.read(url=url)
         return json.dumps([doc.to_dict() for doc in relevant_docs])

@@ -145,60 +145,60 @@ class WebsiteReader(Reader):
         logger.debug(f"Reading: {url}")
         crawler_result = self.crawl(url)
         documents = []
-        for current_url, content in crawler_result.items():
-            content_length = len(content)
-            if content_length <= self.chunk_size or not self.chunk:
-                logger.debug(f"Content: {len(content)} \n {content}\n{'-' * 50}\n")
+        for crawled_url, crawled_content in crawler_result.items():
+            if self.chunk:
+                documents.extend(
+                    self.chunk_document(
+                        Document(name=url, meta_data={"url": str(crawled_url)}, content=crawled_content)
+                    )
+                )
+            else:
                 documents.append(
                     Document(
                         name=url,
-                        meta_data={"url": str(current_url)},
-                        content=str(content),
+                        meta_data={"url": str(crawled_url)},
+                        content=crawled_content,
                     )
                 )
-                continue
-
-            # Chunk the content
-            start = 0
-            while start < content_length:
-                end = start + self.chunk_size
-
-                # Ensure we're not splitting a word in half
-                if end < content_length:
-                    while end > start and content[end] not in [" ", "\n"]:
-                        end -= 1
-
-                # If the entire chunk is a word, then just split it at self.chunk_size
-                if end == start:
-                    end = start + self.chunk_size
-
-                chunk = content[start:end]
-                logger.debug(f"Content: {len(chunk)} \n {chunk}\n{'-' * 50}\n")
-                documents.append(
-                    Document(
-                        name=url,
-                        meta_data={"url": str(current_url)},
-                        content=str(chunk),
-                    )
-                )
-                start = end
-
         return documents
 
-        # TODO: implement logic for automatic chunking
-        # for crawled_url, crawled_content in crawler_result.items():
-        #     if self.chunk:
-        #         documents.extend(
-        #             self.chunk_document(
-        #                 Document(name=url, meta_data={"url": str(crawled_url)}, content=crawled_content)
-        #             )
-        #         )
-        #     else:
+        # for current_url, content in crawler_result.items():
+        #     content_length = len(content)
+        #     if content_length <= self.chunk_size or not self.chunk:
+        #         # logger.debug(f"Content: {len(content)} \n {content}\n{'-' * 50}\n")
         #         documents.append(
         #             Document(
         #                 name=url,
-        #                 meta_data={"url": str(crawled_url)},
-        #                 content=crawled_content,
+        #                 meta_data={"url": str(current_url)},
+        #                 content=str(content),
         #             )
         #         )
+        #         continue
+        #
+        #     # Chunk the content
+        #     start = 0
+        #     while start < content_length:
+        #         end = start + self.chunk_size
+        #
+        #         # Ensure we're not splitting a word in half
+        #         if end < content_length:
+        #             while end > start and content[end] not in [" ", "\n"]:
+        #                 end -= 1
+        #
+        #         # If the entire chunk is a word, then just split it at self.chunk_size
+        #         if end == start:
+        #             end = start + self.chunk_size
+        #
+        #         chunk = content[start:end]
+        #         # logger.debug(f"Content: {len(chunk)} \n {chunk}\n{'-' * 50}\n")
+        #         documents.append(
+        #             Document(
+        #                 name=url,
+        #                 meta_data={"url": str(current_url)},
+        #                 content=str(chunk),
+        #             )
+        #         )
+        #         start = end
+        #
         # return documents
+        #

@@ -9,7 +9,7 @@ except ImportError:
     raise ImportError("The `wikipedia` package is not installed. Please install it via `pip install wikipedia`.")
 
 
-class WikiKnowledgeBase(KnowledgeBase):
+class WikipediaKnowledgeBase(KnowledgeBase):
     topics: List[str] = []
 
     @property

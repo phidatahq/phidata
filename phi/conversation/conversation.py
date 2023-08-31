@@ -683,6 +683,7 @@ class Conversation(BaseModel):
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
+        from rich.markdown import Markdown
 
         if stream:
             response = ""
@@ -693,12 +694,14 @@ class Conversation(BaseModel):
                     table = Table()
                     table.add_column("Message")
                     table.add_column(message)
-                    table.add_row("Response", response)
+                    md_response = Markdown(response)
+                    table.add_row("Response", md_response)
                     live_log.update(table)
         else:
             response = self.chat(message, stream=False)  # type: ignore
+            md_response = Markdown(response)
             table = Table()
             table.add_column("Message")
             table.add_column(message)
-            table.add_row("Response", response)
+            table.add_row("Response", md_response)
             console.print(table)

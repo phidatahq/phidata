@@ -3,10 +3,11 @@ from typing import Iterator, List
 from phi.document import Document
 from phi.document.reader.website import WebsiteReader
 from phi.knowledge.base import KnowledgeBase
+from phi.utils.log import logger
 
 
 class WebsiteKnowledgeBase(KnowledgeBase):
-    urls: List[str]
+    urls: List[str] = []
     reader: WebsiteReader = WebsiteReader()
 
     @property
@@ -20,3 +21,47 @@ class WebsiteKnowledgeBase(KnowledgeBase):
 
         for _url in self.urls:
             yield self.reader.read(url=_url)
+
+    def load(self, recreate: bool = False) -> None:
+        """Load the website contents to the vector db
+
+        TODO: Use upsert instead of insert
+        """
+
+        if self.vector_db is None:
+            logger.warning("No vector db provided")
+            return
+
+        if recreate:
+            logger.debug("Deleting collection")
+            self.vector_db.delete()
+
+        logger.debug("Creating collection")
+        self.vector_db.create()
+
+        logger.info("Loading knowledge base")
+        num_documents = 0
+
+        # Given that the crawler needs to parse the URL before existence can be checked
+        # We check if the website url exists in the vector db
+        urls_to_read = self.urls.copy()
+        if not recreate:
+            for url in urls_to_read:
+                logger.debug(f"Checking if {url} exists in the vector db")
+                if self.vector_db.name_exists(name=url):
+                    logger.debug(f"Skipping {url} as it exists in the vector db")
+                    urls_to_read.remove(url)
+
+        for url in urls_to_read:
+            document_list = self.reader.read(url=url)
+            # Filter out documents which already exist in the vector db
+            if not recreate:
+                document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]
+
+            self.vector_db.insert(documents=document_list)
+            num_documents += len(document_list)
+            logger.info(f"Loaded {num_documents} documents to knowledge base")
+
+        if num_documents > self.optimize_on:
+            logger.debug("Optimizing Vector DB")
+            self.vector_db.optimize()

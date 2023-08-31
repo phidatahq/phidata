@@ -16,6 +16,10 @@ class VectorDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def name_exists(self, name: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def insert(self, documents: List[Document]) -> None:
         raise NotImplementedError
 

@@ -1,9 +1,10 @@
 from enum import Enum
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 from pathlib import Path
 
 from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 from phi.infra.app.db_app import DbApp
+from phi.utils.common import str_to_int
 from phi.utils.log import logger
 
 
@@ -139,7 +140,7 @@ class AirflowBase(DockerApp):
         return self.db_host or self.get_secret_from_file("DATABASE_HOST")
 
     def get_db_port(self) -> Optional[int]:
-        return self.db_port or self.get_secret_from_file("DATABASE_PORT")
+        return self.db_port or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
 
     def get_redis_password(self) -> Optional[str]:
         return self.redis_password or self.get_secret_from_file("REDIS_PASSWORD")
@@ -151,7 +152,7 @@ class AirflowBase(DockerApp):
         return self.redis_host or self.get_secret_from_file("REDIS_HOST")
 
     def get_redis_port(self) -> Optional[int]:
-        return self.redis_port or self.get_secret_from_file("REDIS_PORT")
+        return self.redis_port or str_to_int(self.get_secret_from_file("REDIS_PORT"))
 
     def get_redis_driver(self) -> Optional[str]:
         return self.redis_driver or self.get_secret_from_file("REDIS_DRIVER")
@@ -233,7 +234,7 @@ class AirflowBase(DockerApp):
         self.set_aws_env_vars(env_dict=container_env)
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if self.mount_workspace and self.use_workflows_as_airflow_dags:
+        if self.mount_workspace and self.use_workflows_as_airflow_dags and container_context.workflows_dir:
             container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = container_context.workflows_dir
         elif self.airflow_dags_path is not None:
             container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = self.airflow_dags_path
@@ -274,7 +275,7 @@ class AirflowBase(DockerApp):
             if db_host is None:
                 db_host = self.db_app.get_db_host()
             if db_port is None:
-                db_port = str(self.db_app.get_db_port())
+                db_port = self.db_app.get_db_port()
             if db_driver is None:
                 db_driver = self.db_app.get_db_driver()
         db_connection_url = f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
@@ -317,7 +318,7 @@ class AirflowBase(DockerApp):
                 if redis_host is None:
                     redis_host = self.redis_app.get_db_host()
                 if redis_port is None:
-                    redis_port = str(self.redis_app.get_db_port())
+                    redis_port = self.redis_app.get_db_port()
                 if redis_driver is None:
                     redis_driver = self.redis_app.get_db_driver()
 

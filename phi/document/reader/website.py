@@ -20,9 +20,8 @@ except ImportError:
 class WebsiteReader(Reader):
     """Reader for Websites"""
 
-    chunk: bool = True
-    chunk_size: int = 2000
     max_depth: int = 3
+    max_links: int = 10
 
     _visited: Set[str] = set()
     _urls_to_crawl: List[Tuple[str, int]] = []
@@ -86,6 +85,7 @@ class WebsiteReader(Reader):
         The crawler will also respect the `max_depth` attribute of the WebCrawler class, ensuring it does not
         crawl deeper than the specified depth.
         """
+        num_links = 0
         crawler_result: Dict[str, str] = {}
         primary_domain = self._get_primary_domain(url)
         # Add starting URL with its depth to the global list
@@ -94,11 +94,16 @@ class WebsiteReader(Reader):
             # Unpack URL and depth from the global list
             current_url, current_depth = self._urls_to_crawl.pop(0)
 
-            # If URL is already visited, or does not end with the primary domain, or exceeds max depth, skip
+            # Skip if
+            # - URL is already visited
+            # - does not end with the primary domain,
+            # - exceeds max depth
+            # - exceeds max links
             if (
                 current_url in self._visited
                 or not urlparse(current_url).netloc.endswith(primary_domain)
                 or current_depth > self.max_depth
+                or num_links >= self.max_links
             ):
                 continue
 
@@ -114,6 +119,7 @@ class WebsiteReader(Reader):
                 main_content = self._extract_main_content(soup)
                 if main_content:
                     crawler_result[current_url] = main_content
+                    num_links += 1
 
                 # Add found URLs to the global list, with incremented depth
                 for link in soup.find_all("a", href=True):
@@ -161,44 +167,3 @@ class WebsiteReader(Reader):
                     )
                 )
         return documents
-
-        # for current_url, content in crawler_result.items():
-        #     content_length = len(content)
-        #     if content_length <= self.chunk_size or not self.chunk:
-        #         # logger.debug(f"Content: {len(content)} \n {content}\n{'-' * 50}\n")
-        #         documents.append(
-        #             Document(
-        #                 name=url,
-        #                 meta_data={"url": str(current_url)},
-        #                 content=str(content),
-        #             )
-        #         )
-        #         continue
-        #
-        #     # Chunk the content
-        #     start = 0
-        #     while start < content_length:
-        #         end = start + self.chunk_size
-        #
-        #         # Ensure we're not splitting a word in half
-        #         if end < content_length:
-        #             while end > start and content[end] not in [" ", "\n"]:
-        #                 end -= 1
-        #
-        #         # If the entire chunk is a word, then just split it at self.chunk_size
-        #         if end == start:
-        #             end = start + self.chunk_size
-        #
-        #         chunk = content[start:end]
-        #         # logger.debug(f"Content: {len(chunk)} \n {chunk}\n{'-' * 50}\n")
-        #         documents.append(
-        #             Document(
-        #                 name=url,
-        #                 meta_data={"url": str(current_url)},
-        #                 content=str(chunk),
-        #             )
-        #         )
-        #         start = end
-        #
-        # return documents
-        #

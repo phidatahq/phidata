@@ -68,7 +68,7 @@ class MySQLDb(DockerApp, DbApp):
         if db_schema is not None:
             container_env["MYSQL_DATABASE"] = db_schema
         if self.root_password is not None:
-            container_env["MYSQL_ROOT_PASSWORD"] = self.args.mysql_root_password
+            container_env["MYSQL_ROOT_PASSWORD"] = self.root_password
 
         # Set aws region and profile
         self.set_aws_env_vars(env_dict=container_env)

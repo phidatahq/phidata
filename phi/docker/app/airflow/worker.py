@@ -42,6 +42,6 @@ class AirflowWorker(AirflowBase):
         # if open_worker_log_port = True, open the worker_log_port_number
         if self.open_worker_log_port and self.worker_log_host_port is not None:
             # Open the port
-            container_ports[str(self.worker_log_port_number)] = self.worker_log_host_port
+            container_ports[str(self.worker_log_port)] = self.worker_log_host_port
 
         return container_ports

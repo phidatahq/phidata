@@ -1,4 +1,6 @@
-from typing import Iterator, List
+from typing import Iterator, List, Optional
+
+from pydantic import model_validator
 
 from phi.document import Document
 from phi.document.reader.website import WebsiteReader
@@ -8,7 +10,17 @@ from phi.utils.log import logger
 
 class WebsiteKnowledgeBase(KnowledgeBase):
     urls: List[str] = []
-    reader: WebsiteReader = WebsiteReader()
+    reader: Optional[WebsiteReader] = None
+
+    # WebsiteReader parameters
+    max_depth: int = 3
+    max_links: int = 10
+
+    @model_validator(mode="after")  # type: ignore
+    def set_reader(self) -> "WebsiteKnowledgeBase":
+        if self.reader is None:
+            self.reader = WebsiteReader(max_depth=self.max_depth, max_links=self.max_links)
+        return self  # type: ignore
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -18,18 +30,21 @@ class WebsiteKnowledgeBase(KnowledgeBase):
         Returns:
             Iterator[List[Document]]: Iterator yielding list of documents
         """
+        if self.reader is None:
+            return iter([])
 
         for _url in self.urls:
             yield self.reader.read(url=_url)
 
     def load(self, recreate: bool = False) -> None:
-        """Load the website contents to the vector db
-
-        TODO: Use upsert instead of insert
-        """
+        """Load the website contents to the vector db"""
 
         if self.vector_db is None:
             logger.warning("No vector db provided")
+            return
+
+        if self.reader is None:
+            logger.warning("No reader provided")
             return
 
         if recreate:
@@ -43,7 +58,7 @@ class WebsiteKnowledgeBase(KnowledgeBase):
         num_documents = 0
 
         # Given that the crawler needs to parse the URL before existence can be checked
-        # We check if the website url exists in the vector db
+        # We check if the website url exists in the vector db if recreate is False
         urls_to_read = self.urls.copy()
         if not recreate:
             for url in urls_to_read:
@@ -62,6 +77,6 @@ class WebsiteKnowledgeBase(KnowledgeBase):
             num_documents += len(document_list)
             logger.info(f"Loaded {num_documents} documents to knowledge base")
 
-        if num_documents > self.optimize_on:
+        if self.optimize_on is not None and num_documents > self.optimize_on:
             logger.debug("Optimizing Vector DB")
             self.vector_db.optimize()

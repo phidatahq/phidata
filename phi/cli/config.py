@@ -45,8 +45,21 @@ class PhiCliConfig:
         """Sets the user"""
         if user is not None:
             logger.debug(f"Setting user to: {user.email}")
+            clear_user_cache = (
+                self._user is not None and self._user.email != "anon" and user.id_user != self._user.id_user
+            )
             self._user = user
+            if clear_user_cache:
+                self.clear_user_cache()
             self.save_config()
+
+    def clear_user_cache(self) -> None:
+        """Clears the user cache"""
+        logger.debug("Clearing user cache")
+        self.ws_config_map.clear()
+        self.path_to_ws_config_map.clear()
+        self._active_ws_dir = None
+        logger.info("Workspaces cleared, please setup again using `phi ws setup`")
 
     ######################################################
     ## Workspace functions
@@ -271,7 +284,8 @@ class PhiCliConfig:
         if self.active_ws_dir:
             print_heading(f"Active workspace directory: {self.active_ws_dir}\n")
         else:
-            print_info("* No active workspace, run `phi ws create` or `phi ws set`")
+            print_info("No active workspace found.")
+            print_info("Please create using `phi ws create` or setup existing workspace using `phi ws setup`")
 
         if show_all and len(self.ws_config_map) > 0:
             print_heading("Available workspaces:\n")

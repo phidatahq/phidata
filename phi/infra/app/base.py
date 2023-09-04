@@ -190,7 +190,9 @@ class InfraApp(PhiBase):
         return None
 
     def get_dependencies(self) -> Optional[List[InfraResource]]:
-        return self.depends_on
+        return (
+            [dep for dep in self.depends_on if isinstance(dep, InfraResource)] if self.depends_on is not None else None
+        )
 
     def add_app_properties_to_resources(self, resources: List[InfraResource]) -> List[InfraResource]:
         updated_resources = []

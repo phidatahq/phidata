@@ -575,7 +575,7 @@ class AwsApp(InfraApp):
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
-        logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
+        # logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
         # -*- Get Security Groups
         security_groups: Optional[List[SecurityGroup]] = self.get_all_security_groups()

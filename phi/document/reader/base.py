@@ -7,7 +7,7 @@ from phi.document.base import Document
 
 class Reader(BaseModel):
     chunk: bool = True
-    chunk_size: int = 2048
+    chunk_size: int = 3000
     separators: List[str] = ["\n", "\n\n", "\r", "\r\n", "\n\r", "\t", " ", "  "]
 
     def read(self, obj: Any) -> List[Document]:

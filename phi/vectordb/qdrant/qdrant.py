@@ -68,9 +68,8 @@ class Qdrant(VectorDb):
         return False
 
     def name_exists(self, name: str) -> bool:
-        print("********* NAME EXISTS **********")
-        return True
-
+        pass
+    
     def insert(self, documents: List[Document], batch_size: int = 10) -> UpdateStatus:
         logger.debug(f"Inserting {len(documents)} documents")
         points = []

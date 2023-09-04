@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.0.0.dev28"
+version = "2.0.0.dev29"
 description = "Toolkit for AI Engineers"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -13,7 +13,6 @@ dependencies = [
   "docker",
   "gitpython",
   "httpx",
-  "kubernetes",
   "pydantic",
   "pydantic-settings",
   "python-dotenv",
@@ -34,6 +33,9 @@ dev = [
 ]
 aws = [
     "boto3"
+]
+k8s = [
+    "kubernetes"
 ]
 
 [project.scripts]
@@ -98,6 +100,7 @@ module = [
   "pypdf.*",
   "setuptools.*",
   "sqlalchemy.*",
-  "textract.*"
+  "textract.*",
+  "wikipedia.*",
 ]
 ignore_missing_imports = true

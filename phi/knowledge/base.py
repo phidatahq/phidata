@@ -18,7 +18,7 @@ class KnowledgeBase(BaseModel):
     # Number of relevant documents to return on search
     relevant_documents: int = 5
     # Number of documents to optimize the vector db on
-    optimize_on: int = 1000
+    optimize_on: Optional[int] = 1000
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -41,7 +41,7 @@ class KnowledgeBase(BaseModel):
         return self.vector_db.search(query=query, limit=_num_documents)
 
     def load(self, recreate: bool = False) -> None:
-        """Load the knowledge base to vector db
+        """Load the knowledge base to the vector db
 
         TODO: Use upsert instead of insert
         """
@@ -63,13 +63,13 @@ class KnowledgeBase(BaseModel):
         for document_list in self.document_lists:
             # Filter out documents which already exist in the vector db
             if not recreate:
-                document_list = [document for document in document_list if self.vector_db.doc_exists(document)]
+                document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]
 
             self.vector_db.insert(documents=document_list)
             num_documents += len(document_list)
         logger.info(f"Loaded {num_documents} documents to knowledge base")
 
-        if num_documents > self.optimize_on:
+        if self.optimize_on is not None and num_documents > self.optimize_on:
             logger.debug("Optimizing Vector DB")
             self.vector_db.optimize()
 

@@ -116,7 +116,21 @@ class PgVector(VectorDb):
                 cleaned_content = document.content.replace("\x00", "\uFFFD")
                 stmt = select(*columns).where(self.table.c.content_hash == md5(cleaned_content.encode()).hexdigest())
                 result = sess.execute(stmt).first()
-                return result is None
+                return result is not None
+
+    def name_exists(self, name: str) -> bool:
+        """
+        Validate if a row with this name exists or not
+
+        Args:
+            name (str): Name to validate
+        """
+        columns = [self.table.c.name]
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = select(*columns).where(self.table.c.name == name)
+                result = sess.execute(stmt).first()
+                return result is not None
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
         with self.Session() as sess:

@@ -6,10 +6,10 @@ from phi.knowledge.base import KnowledgeBase
 try:
     import wikipedia  # noqa: F401
 except ImportError:
-    raise ImportError("The `wikipedia` package is not installed. " "Please install it via `pip install wikipedia`.")
+    raise ImportError("The `wikipedia` package is not installed. Please install it via `pip install wikipedia`.")
 
 
-class WikiKnowledgeBase(KnowledgeBase):
+class WikipediaKnowledgeBase(KnowledgeBase):
     topics: List[str] = []
 
     @property

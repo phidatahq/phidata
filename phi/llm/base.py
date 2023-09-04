@@ -39,14 +39,14 @@ class LLM(BaseModel):
         if self.functions is None:
             self.functions = {}
         self.functions[func.name] = func
-        logger.debug(f"Added function {func.name} to LLM: {func.to_dict()}")
+        logger.debug(f"Added function {func.name} to LLM.")
 
     def add_function_registry(self, registry: FunctionRegistry) -> None:
         if self.functions is None:
             self.functions = {}
 
         self.functions.update(registry.functions)
-        logger.debug(f"Functions from {registry.name} added to LLM")
+        logger.debug(f"Functions from {registry.name} added to LLM.")
 
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
         logger.debug(f"Getting function {name}. Args: {arguments}")

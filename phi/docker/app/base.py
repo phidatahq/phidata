@@ -196,7 +196,7 @@ class DockerApp(InfraApp):
             elif self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
                 workspace_volume_name = self.workspace_volume_name
                 if workspace_volume_name is None:
-                    workspace_volume_name = get_default_volume_name(container_context.workspace_name or "ws")
+                    workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-workspace")
                 logger.debug(f"Mounting: {workspace_volume_name}")
                 logger.debug(f"      to: {workspace_volume_container_path_str}")
                 container_volumes[workspace_volume_name] = {
@@ -212,7 +212,7 @@ class DockerApp(InfraApp):
             if self.volume_dir is not None:
                 volume_host = str(self.workspace_root.joinpath(self.volume_dir))
             logger.debug(f"Mounting: {volume_host}")
-            logger.debug(f"\tto: {self.volume_container_path}")
+            logger.debug(f"      to: {self.volume_container_path}")
             container_volumes[volume_host] = {
                 "bind": self.volume_container_path,
                 "mode": "rw",
@@ -261,7 +261,7 @@ class DockerApp(InfraApp):
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
-        logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
+        # logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
         # -*- Get Container Environment
         container_env: Dict[str, str] = self.get_container_env(container_context=container_context)

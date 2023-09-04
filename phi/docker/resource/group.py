@@ -66,6 +66,20 @@ class DockerResourceGroup(InfraResourceGroup):
                 app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(build_context=DockerBuildContext(network=self.network))
                 if len(app_resources) > 0:
+                    # If the app has dependencies, add the resources from the
+                    # dependencies first to the list of resources to create
+                    if app.depends_on is not None:
+                        for dep in app.depends_on:
+                            if isinstance(dep, DockerApp):
+                                dep.set_workspace_settings(workspace_settings=workspace_settings)
+                                dep_resources = dep.get_resources(
+                                    build_context=DockerBuildContext(network=self.network)
+                                )
+                                if len(dep_resources) > 0:
+                                    for dep_resource in dep_resources:
+                                        if isinstance(dep_resource, DockerResource):
+                                            resources_to_create.append(dep_resource)
+                    # Add the resources from the app to the list of resources to create
                     for app_resource in app_resources:
                         if isinstance(app_resource, DockerResource) and app_resource.should_create(
                             group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
@@ -202,11 +216,25 @@ class DockerResourceGroup(InfraResourceGroup):
                 app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(build_context=DockerBuildContext(network=self.network))
                 if len(app_resources) > 0:
+                    # Add the resources from the app to the list of resources to delete
                     for app_resource in app_resources:
                         if isinstance(app_resource, DockerResource) and app_resource.should_delete(
                             group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_delete.append(app_resource)
+                    # If the app has dependencies, add the resources from the
+                    # dependencies to the list of resources to delete
+                    if app.depends_on is not None:
+                        for dep in app.depends_on:
+                            if isinstance(dep, DockerApp):
+                                dep.set_workspace_settings(workspace_settings=workspace_settings)
+                                dep_resources = dep.get_resources(
+                                    build_context=DockerBuildContext(network=self.network)
+                                )
+                                if len(dep_resources) > 0:
+                                    for dep_resource in dep_resources:
+                                        if isinstance(dep_resource, DockerResource):
+                                            resources_to_delete.append(dep_resource)
 
         # Sort the DockerResources in install order
         resources_to_delete.sort(key=lambda x: DockerResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True)
@@ -348,6 +376,20 @@ class DockerResourceGroup(InfraResourceGroup):
                 app.set_workspace_settings(workspace_settings=workspace_settings)
                 app_resources = app.get_resources(build_context=DockerBuildContext(network=self.network))
                 if len(app_resources) > 0:
+                    # If the app has dependencies, add the resources from the
+                    # dependencies first to the list of resources to update
+                    if app.depends_on is not None:
+                        for dep in app.depends_on:
+                            if isinstance(dep, DockerApp):
+                                dep.set_workspace_settings(workspace_settings=workspace_settings)
+                                dep_resources = dep.get_resources(
+                                    build_context=DockerBuildContext(network=self.network)
+                                )
+                                if len(dep_resources) > 0:
+                                    for dep_resource in dep_resources:
+                                        if isinstance(dep_resource, DockerResource):
+                                            resources_to_update.append(dep_resource)
+                    # Add the resources from the app to the list of resources to update
                     for app_resource in app_resources:
                         if isinstance(app_resource, DockerResource) and app_resource.should_update(
                             group_filter=group_filter, name_filter=name_filter, type_filter=type_filter

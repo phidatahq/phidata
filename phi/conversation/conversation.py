@@ -33,10 +33,14 @@ class Conversation(BaseModel):
     # -*- Conversation settings
     # Database ID/Primary key for this conversation.
     # This is set after the conversation is started and saved to the database.
-    # If there is no database, this is set to a unique ID.
+    # If there is no database, this is set to a unique 16 digit integer.
     id: Optional[int] = None
     # Conversation name
     name: Optional[str] = None
+    # Conversation type. Eg RAG, AUTO, etc.
+    type: Optional[str] = None
+    # Conversation tags
+    tags: Optional[List[str]] = None
     # True if this conversation is active i.e. not ended
     is_active: bool = True
     # Set log level to debug
@@ -334,10 +338,7 @@ class Conversation(BaseModel):
                 "chat_history": chat_history,
                 "conversation": self,
             }
-            _user_prompt_from_function = remove_indent(
-                self.user_prompt_function(message=message, **user_prompt_kwargs)
-                # self.user_prompt_function(self, message, references, chat_history)
-            )
+            _user_prompt_from_function = remove_indent(self.user_prompt_function(message=message, **user_prompt_kwargs))
             if _user_prompt_from_function is not None:
                 return _user_prompt_from_function
             else:
@@ -581,27 +582,16 @@ class Conversation(BaseModel):
         if not self.monitor:
             return
 
-        from os import getenv
-        from phi.api.conversation import upsert_conversation, ConversationWorkspace, ConversationUpdate
-        from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR
-        from phi.utils.common import str_to_int
+        from phi.api.conversation import upsert_conversation, ConversationUpdate
 
         logger.debug("Sending conversation event")
         try:
-            workspace_id = str_to_int(getenv(WORKSPACE_ID_ENV_VAR))
-            if workspace_id is None:
-                logger.debug(f"Could not log conversation. {WORKSPACE_ID_ENV_VAR} invalid: {workspace_id}")
-                return
-
-            workspace_hash = getenv(WORKSPACE_HASH_ENV_VAR)
             conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
-
             upsert_conversation(
                 conversation=ConversationUpdate(
                     conversation_key=conversation_row.conversation_key(),
                     conversation_data=conversation_row.conversation_data(),
                 ),
-                workspace=ConversationWorkspace(id_workspace=workspace_id, ws_hash=workspace_hash),
             )
         except Exception as e:
             logger.debug(f"Could not log conversation event: {e}")
@@ -612,21 +602,11 @@ class Conversation(BaseModel):
         if not self.monitor:
             return
 
-        from os import getenv
-        from phi.api.conversation import log_conversation_event, ConversationEventCreate, ConversationWorkspace
-        from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR
-        from phi.utils.common import str_to_int
+        from phi.api.conversation import log_conversation_event, ConversationEventCreate
 
         logger.debug("Sending conversation event")
         try:
-            workspace_id = str_to_int(getenv(WORKSPACE_ID_ENV_VAR))
-            if workspace_id is None:
-                logger.debug(f"Could not log conversation. {WORKSPACE_ID_ENV_VAR} invalid: {workspace_id}")
-                return
-
-            workspace_hash = getenv(WORKSPACE_HASH_ENV_VAR)
             conversation_row: ConversationRow = self.conversation_row or self.to_conversation_row()
-
             log_conversation_event(
                 conversation=ConversationEventCreate(
                     conversation_key=conversation_row.conversation_key(),
@@ -634,7 +614,6 @@ class Conversation(BaseModel):
                     event_type=event_type,
                     event_data=event_data,
                 ),
-                workspace=ConversationWorkspace(id_workspace=workspace_id, ws_hash=workspace_hash),
             )
         except Exception as e:
             logger.debug(f"Could not log conversation event: {e}")
@@ -686,6 +665,7 @@ class Conversation(BaseModel):
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
+        from rich.markdown import Markdown
 
         if stream:
             response = ""
@@ -696,12 +676,14 @@ class Conversation(BaseModel):
                     table = Table()
                     table.add_column("Message")
                     table.add_column(message)
-                    table.add_row("Response", response)
+                    md_response = Markdown(response)
+                    table.add_row("Response", md_response)
                     live_log.update(table)
         else:
             response = self.chat(message, stream=False)  # type: ignore
+            md_response = Markdown(response)
             table = Table()
             table.add_column("Message")
             table.add_column(message)
-            table.add_row("Response", response)
+            table.add_row("Response", md_response)
             console.print(table)

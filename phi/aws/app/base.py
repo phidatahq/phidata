@@ -98,6 +98,13 @@ class AwsApp(InfraApp):
     healthy_threshold_count: Optional[int] = None
     unhealthy_threshold_count: Optional[int] = None
 
+    # -*- Add NGINX reverse proxy
+    enable_nginx: bool = False
+    nginx_image: Optional[Any] = None
+    nginx_image_name: str = "nginx"
+    nginx_image_tag: str = "1.25.2-alpine"
+    nginx_container_port: int = 80
+
     @field_validator("create_listeners", mode="before")
     def update_create_listeners(cls, create_listeners, info: FieldValidationInfo):
         if create_listeners:
@@ -569,6 +576,9 @@ class AwsApp(InfraApp):
         from phi.aws.resource.ecs.container import EcsContainer
         from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
         from phi.aws.resource.ecs.service import EcsService
+        from phi.aws.resource.ecs.volume import EcsVolume
+        from phi.docker.resource.image import DockerImage
+        from phi.utils.defaults import get_default_volume_name
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Get Container Context
@@ -588,6 +598,13 @@ class AwsApp(InfraApp):
 
         # -*- Get Target Group
         target_group: Optional[TargetGroup] = self.get_target_group()
+        # Point the target group to the nginx container port if:
+        # - nginx is enabled
+        # - user provided target_group is None
+        # - user provided target_group_port is None
+        if self.enable_nginx and self.target_group is None and self.target_group_port is None:
+            if target_group is not None:
+                target_group.port = self.nginx_container_port
 
         # -*- Get Listener
         listeners: Optional[List[Listener]] = self.get_listeners(load_balancer=load_balancer, target_group=target_group)
@@ -596,9 +613,65 @@ class AwsApp(InfraApp):
         ecs_container: EcsContainer = self.get_ecs_container(
             container_context=container_context, build_context=build_context
         )
+        # -*- Add nginx container if nginx is enabled
+        nginx_container: Optional[EcsContainer] = None
+        nginx_shared_volume: Optional[EcsVolume] = None
+        if self.enable_nginx and ecs_container is not None:
+            nginx_container_name = f"{self.get_app_name()}-nginx"
+            nginx_shared_volume = EcsVolume(name=get_default_volume_name(self.get_app_name()))
+            nginx_image_str = f"{self.nginx_image_name}:{self.nginx_image_tag}"
+            if self.nginx_image and isinstance(self.nginx_image, DockerImage):
+                nginx_image_str = self.nginx_image.get_image_str()
+
+            nginx_container = EcsContainer(
+                name=nginx_container_name,
+                image=nginx_image_str,
+                essential=True,
+                port_mappings=[{"containerPort": self.nginx_container_port}],
+                environment=ecs_container.environment,
+                log_configuration={
+                    "logDriver": "awslogs",
+                    "options": {
+                        "awslogs-group": self.get_app_name(),
+                        "awslogs-region": build_context.aws_region
+                        or (self.workspace_settings.aws_region if self.workspace_settings else None),
+                        "awslogs-create-group": "true",
+                        "awslogs-stream-prefix": nginx_container_name,
+                    },
+                },
+                mount_points=[
+                    {
+                        "sourceVolume": nginx_shared_volume.name,
+                        "containerPath": container_context.workspace_root,
+                    }
+                ],
+                linux_parameters=ecs_container.linux_parameters,
+                env_from_secrets=ecs_container.env_from_secrets,
+                save_output=ecs_container.save_output,
+                output_dir=ecs_container.output_dir,
+                skip_create=ecs_container.skip_create,
+                skip_delete=ecs_container.skip_delete,
+                wait_for_create=ecs_container.wait_for_create,
+                wait_for_delete=ecs_container.wait_for_delete,
+            )
+
+            # Add shared volume to ecs_container
+            ecs_container.mount_points = nginx_container.mount_points
 
         # -*- Get ECS Task Definition
         ecs_task_definition: EcsTaskDefinition = self.get_ecs_task_definition(ecs_container=ecs_container)
+        # -*- Add nginx container to ecs_task_definition if nginx is enabled
+        if self.enable_nginx:
+            if ecs_task_definition is not None:
+                if nginx_container is not None:
+                    if ecs_task_definition.containers:
+                        ecs_task_definition.containers.append(nginx_container)
+                    else:
+                        logger.error("While adding Nginx container, found TaskDefinition.containers to be None")
+                else:
+                    logger.error("While adding Nginx container, found nginx_container to be None")
+                if nginx_shared_volume:
+                    ecs_task_definition.volumes = [nginx_shared_volume]
 
         # -*- Get ECS Service
         ecs_service: Optional[EcsService] = self.get_ecs_service(
@@ -607,6 +680,14 @@ class AwsApp(InfraApp):
             target_group=target_group,
             ecs_container=ecs_container,
         )
+        # -*- Add nginx container as target_container if nginx is enabled
+        if self.enable_nginx:
+            if ecs_service is not None:
+                if nginx_container is not None:
+                    ecs_service.target_container_name = nginx_container.name
+                    ecs_service.target_container_port = self.nginx_container_port
+                else:
+                    logger.error("While adding Nginx container as target_container, found nginx_container to be None")
 
         # -*- List of AwsResources created by this App
         app_resources: List[AwsResource] = []

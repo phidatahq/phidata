@@ -1,10 +1,6 @@
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict
 
-from pydantic import field_validator, Field
-from pydantic_core.core_schema import FieldValidationInfo
-
-
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext, AwsBuildContext  # noqa: F401
 
 
 class FastApi(AwsApp):
@@ -35,34 +31,28 @@ class FastApi(AwsApp):
     uvicorn_log_level: Optional[str] = None
     web_concurrency: Optional[int] = None
 
-    # Set validate_default=True so set_container_env is always called
-    container_env: Optional[Dict[str, Any]] = Field(None, validate_default=True)
+    def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
+        container_env: Dict[str, str] = super().get_container_env(
+            container_context=container_context, build_context=build_context
+        )
 
-    @field_validator("container_env", mode="before")
-    def set_container_env(cls, v, info: FieldValidationInfo):
-        v = v or {}
+        if self.uvicorn_host is not None:
+            container_env["UVICORN_HOST"] = self.uvicorn_host
 
-        uvicorn_host = info.data.get("uvicorn_host")
-        if uvicorn_host is not None:
-            v["UVICORN_HOST"] = uvicorn_host
-
-        uvicorn_port = info.data.get("uvicorn_port")
+        uvicorn_port = self.uvicorn_port
         if uvicorn_port is None:
-            port_number = info.data.get("port_number")
-            if port_number is not None:
-                uvicorn_port = port_number
+            if self.port_number is not None:
+                uvicorn_port = self.port_number
         if uvicorn_port is not None:
-            v["UVICORN_PORT"] = uvicorn_port
+            container_env["UVICORN_PORT"] = str(uvicorn_port)
 
-        uvicorn_reload = info.data.get("uvicorn_reload")
-        if uvicorn_reload is not None:
-            v["UVICORN_RELOAD"] = uvicorn_reload
+        if self.uvicorn_reload is not None:
+            container_env["UVICORN_RELOAD"] = str(self.uvicorn_reload)
 
-        uvicorn_log_level = info.data.get("uvicorn_log_level")
-        if uvicorn_log_level is not None:
-            v["UVICORN_LOG_LEVEL"] = uvicorn_log_level
+        if self.uvicorn_log_level is not None:
+            container_env["UVICORN_LOG_LEVEL"] = self.uvicorn_log_level
 
-        web_concurrency = info.data.get("web_concurrency")
-        if web_concurrency is not None:
-            v["WEB_CONCURRENCY"] = web_concurrency
-        return v
+        if self.web_concurrency is not None:
+            container_env["WEB_CONCURRENCY"] = str(self.web_concurrency)
+
+        return container_env

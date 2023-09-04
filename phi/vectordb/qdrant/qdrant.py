@@ -64,8 +64,12 @@ class Qdrant(VectorDb):
                 collection_name=self.collection,
                 ids=[cleaned_content],
             )
-            return len(collection_points) == 0
+            return len(collection_points) > 0
         return False
+
+    def name_exists(self, name: str) -> bool:
+        print("********* NAME EXISTS **********")
+        return True
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> UpdateStatus:
         logger.debug(f"Inserting {len(documents)} documents")
@@ -98,6 +102,7 @@ class Qdrant(VectorDb):
         Args:
             documents (List[Document]): List of documents to upsert
         """
+        logger.debug("Upserting, redirecting the request to insert")
         return self.insert(documents)
 
     def search(self, query: str, limit: int = 5) -> List[Document]:

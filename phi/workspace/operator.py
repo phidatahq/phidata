@@ -34,13 +34,13 @@ TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.snowflake_data_platform: "snowflake-data-platform",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.api_app: "https://github.com/phihq/api-app.git",
-    WorkspaceStarterTemplate.llm_app: "https://github.com/phihq/llm-app.git",
-    WorkspaceStarterTemplate.django_app: "https://github.com/phihq/django-app.git",
-    WorkspaceStarterTemplate.streamlit_app: "https://github.com/phihq/streamlit-app.git",
-    WorkspaceStarterTemplate.data_platform: "https://github.com/phihq/data-platform.git",
-    WorkspaceStarterTemplate.spark_data_platform: "https://github.com/phihq/spark-data-platform.git",
-    WorkspaceStarterTemplate.snowflake_data_platform: "https://github.com/phihq/snowflake-data-platform.git",
+    WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
+    WorkspaceStarterTemplate.llm_app: "https://github.com/phidatahq/llm-app.git",
+    WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
+    WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
+    WorkspaceStarterTemplate.data_platform: "https://github.com/phidatahq/data-platform.git",
+    WorkspaceStarterTemplate.spark_data_platform: "https://github.com/phidatahq/spark-data-platform.git",
+    WorkspaceStarterTemplate.snowflake_data_platform: "https://github.com/phidatahq/snowflake-data-platform.git",
 }
 
 
@@ -438,9 +438,13 @@ def start_workspace(
         infra=target_infra,
         order="create",
     )
-    num_rgs_to_create = len(resource_groups_to_create)
+
+    # Track number of resource groups created
     num_rgs_created = 0
+    num_rgs_to_create = len(resource_groups_to_create)
+    # Track number of resources created
     num_resources_created = 0
+    num_resources_to_create = 0
 
     if num_rgs_to_create == 0:
         print_info("No resources to create")
@@ -448,7 +452,7 @@ def start_workspace(
 
     logger.debug(f"Deploying {num_rgs_to_create} resource groups")
     for rg in resource_groups_to_create:
-        num_resources_created += rg.create_resources(
+        _num_resources_created, _num_resources_to_create = rg.create_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
@@ -457,9 +461,10 @@ def start_workspace(
             force=force,
             workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_created += 1
-        # print white space between runs
-        print_info("")
+        if _num_resources_created > 0:
+            num_rgs_created += 1
+        num_resources_created += _num_resources_created
+        num_resources_to_create += _num_resources_to_create
         logger.debug(f"Deployed {num_resources_created} resources in {num_rgs_created} resource groups")
 
     if dry_run:
@@ -468,14 +473,13 @@ def start_workspace(
     if num_resources_created == 0:
         return
 
-    print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
+    print_heading(f"\n--**-- ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
 
     workspace_event_status = "in_progress"
-    if num_rgs_to_create == num_rgs_created:
-        print_subheading("Workspace started")
+    if num_resources_created == num_resources_to_create:
         workspace_event_status = "success"
     else:
-        logger.error("Workspace start failed")
+        logger.error("Some resources failed to create, please check logs")
         workspace_event_status = "failed"
 
     if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
@@ -529,9 +533,13 @@ def stop_workspace(
         infra=target_infra,
         order="delete",
     )
-    num_rgs_to_delete = len(resource_groups_to_delete)
+
+    # Track number of resource groups deleted
     num_rgs_deleted = 0
+    num_rgs_to_delete = len(resource_groups_to_delete)
+    # Track number of resources deleted
     num_resources_deleted = 0
+    num_resources_to_delete = 0
 
     if num_rgs_to_delete == 0:
         print_info("No resources to delete")
@@ -539,7 +547,7 @@ def stop_workspace(
 
     logger.debug(f"Deleting {num_rgs_to_delete} resource groups")
     for rg in resource_groups_to_delete:
-        num_resources_deleted += rg.delete_resources(
+        _num_resources_deleted, _num_resources_to_delete = rg.delete_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
@@ -548,9 +556,10 @@ def stop_workspace(
             force=force,
             workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_deleted += 1
-        # print white space between runs
-        print_info("")
+        if _num_resources_deleted > 0:
+            num_rgs_deleted += 1
+        num_resources_deleted += _num_resources_deleted
+        num_resources_to_delete += _num_resources_to_delete
         logger.debug(f"Deleted {num_resources_deleted} resources in {num_rgs_deleted} resource groups")
 
     if dry_run:
@@ -559,14 +568,13 @@ def stop_workspace(
     if num_resources_deleted == 0:
         return
 
-    print_info(f"# ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
+    print_heading(f"\n--**-- ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
 
     workspace_event_status = "in_progress"
-    if num_rgs_to_delete == num_rgs_deleted:
-        print_subheading("Workspace stopped")
+    if num_resources_to_delete == num_resources_deleted:
         workspace_event_status = "success"
     else:
-        logger.error("Workspace stop failed")
+        logger.error("Some resources failed to delete, please check logs")
         workspace_event_status = "failed"
 
     if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
@@ -620,9 +628,12 @@ def update_workspace(
         infra=target_infra,
         order="create",
     )
-    num_rgs_to_update = len(resource_groups_to_update)
+    # Track number of resource groups updated
     num_rgs_updated = 0
+    num_rgs_to_update = len(resource_groups_to_update)
+    # Track number of resources updated
     num_resources_updated = 0
+    num_resources_to_update = 0
 
     if num_rgs_to_update == 0:
         print_info("No resources to update")
@@ -630,7 +641,7 @@ def update_workspace(
 
     logger.debug(f"Updating {num_rgs_to_update} resource groups")
     for rg in resource_groups_to_update:
-        num_resources_updated += rg.update_resources(
+        _num_resources_updated, _num_resources_to_update = rg.update_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
@@ -639,9 +650,10 @@ def update_workspace(
             force=force,
             workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_updated += 1
-        # print white space between runs
-        print_info("")
+        if _num_resources_updated > 0:
+            num_rgs_updated += 1
+        num_resources_updated += _num_resources_updated
+        num_resources_to_update += _num_resources_to_update
         logger.debug(f"Updated {num_resources_updated} resources in {num_rgs_updated} resource groups")
 
     if dry_run:
@@ -650,14 +662,13 @@ def update_workspace(
     if num_resources_updated == 0:
         return
 
-    print_info(f"# ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
+    print_heading(f"\n--**-- ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
 
     workspace_event_status = "in_progress"
-    if num_rgs_to_update == num_rgs_updated:
-        print_subheading("Workspace updated")
+    if num_resources_updated == num_resources_to_update:
         workspace_event_status = "success"
     else:
-        logger.error("Workspace update failed")
+        logger.error("Some resources failed to update, please check logs")
         workspace_event_status = "failed"
 
     if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:

@@ -11,6 +11,9 @@ from phi.workspace.settings import WorkspaceSettings
 from phi.utils.dttm import current_datetime_utc
 from phi.utils.log import logger
 
+# List of directories to ignore when loading the workspace
+ignored_dirs = ["ignore", "tests", "config"]
+
 
 class WorkspaceConfig(BaseModel):
     """The WorkspaceConfig stores data for a phidata workspace."""
@@ -101,6 +104,14 @@ class WorkspaceConfig(BaseModel):
             for resource_file in resource_files:
                 if resource_file.name == "__init__.py":
                     continue
+
+                resource_file_parts = resource_file.parts
+                workspace_dir_path_parts = workspace_dir_path.parts
+                resource_file_parts_after_ws = resource_file_parts[len(workspace_dir_path_parts) :]
+                # Check if file in ignored directory
+                if any([ignored_dir in resource_file_parts_after_ws for ignored_dir in ignored_dirs]):
+                    logger.debug(f"Skipping file in ignored directory: {resource_file}")
+                    continue
                 logger.debug(f"Reading file: {resource_file}")
                 try:
                     python_objects = get_python_objects_from_module(resource_file)
@@ -115,17 +126,8 @@ class WorkspaceConfig(BaseModel):
                         ]:
                             workspace_objects[obj_name] = obj
                 except Exception:
-                    parent_dir = resource_file.parent.name
-                    parent_parent_dir = resource_file.parent.parent.name
-                    # Ignore errors in resources and tests subdirectories
-                    if parent_dir in ("resources", "tests") or parent_parent_dir in (
-                        "resources",
-                        "tests",
-                    ):
-                        pass
-                    else:
-                        logger.warning(f"Error in {resource_file}")
-                        raise
+                    logger.warning(f"Error in {resource_file}")
+                    raise
 
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
@@ -138,14 +140,23 @@ class WorkspaceConfig(BaseModel):
                             self.workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
                 elif _obj_type == "DockerResourceGroup":
+                    if not obj.enabled:
+                        logger.debug(f"Skipping {obj_name}: disabled")
+                        continue
                     if self.docker_resource_groups is None:
                         self.docker_resource_groups = []
                     self.docker_resource_groups.append(obj)
                 elif _obj_type == "K8sResourceGroup":
+                    if not obj.enabled:
+                        logger.debug(f"Skipping {obj_name}: disabled")
+                        continue
                     if self.k8s_resource_groups is None:
                         self.k8s_resource_groups = []
                     self.k8s_resource_groups.append(obj)
                 elif _obj_type == "AwsResourceGroup":
+                    if not obj.enabled:
+                        logger.debug(f"Skipping {obj_name}: disabled")
+                        continue
                     if self.aws_resource_groups is None:
                         self.aws_resource_groups = []
                     self.aws_resource_groups.append(obj)

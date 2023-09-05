@@ -17,11 +17,11 @@ class FastApi(DockerApp):
     open_port: bool = True
     port_number: int = 8000
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/app"
 
     # -*- Uvicorn Configuration
     uvicorn_host: str = "0.0.0.0"

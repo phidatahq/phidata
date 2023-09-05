@@ -264,7 +264,7 @@ def up(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Starting workspace: {}\n".format(active_ws_config.ws_dir_name))
+    print_heading("Starting workspace: {}".format(active_ws_config.ws_dir_name))
     start_workspace(
         phi_config=phi_config,
         ws_config=active_ws_config,
@@ -429,7 +429,7 @@ def down(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Stopping workspace: {}\n".format(active_ws_config.ws_dir_name))
+    print_heading("Stopping workspace: {}".format(active_ws_config.ws_dir_name))
     stop_workspace(
         phi_config=phi_config,
         ws_config=active_ws_config,
@@ -592,7 +592,7 @@ def patch(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Updating workspace: {}\n".format(active_ws_config.ws_dir_name))
+    print_heading("Updating workspace: {}".format(active_ws_config.ws_dir_name))
     update_workspace(
         phi_config=phi_config,
         ws_config=active_ws_config,

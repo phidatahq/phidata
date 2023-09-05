@@ -184,13 +184,13 @@ class DockerApp(InfraApp):
 
         # Create Workspace Volume
         if self.mount_workspace:
-            workspace_volume_container_path_str = container_context.workspace_root
+            workspace_dir_container_path_str = container_context.workspace_root
             if self.workspace_volume_type is None or self.workspace_volume_type == WorkspaceVolumeType.HostPath:
                 workspace_volume_host_path = str(self.workspace_root)
                 logger.debug(f"Mounting: {workspace_volume_host_path}")
-                logger.debug(f"      to: {workspace_volume_container_path_str}")
+                logger.debug(f"      to: {workspace_dir_container_path_str}")
                 container_volumes[workspace_volume_host_path] = {
-                    "bind": workspace_volume_container_path_str,
+                    "bind": workspace_dir_container_path_str,
                     "mode": "rw",
                 }
             elif self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
@@ -198,9 +198,9 @@ class DockerApp(InfraApp):
                 if workspace_volume_name is None:
                     workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-workspace")
                 logger.debug(f"Mounting: {workspace_volume_name}")
-                logger.debug(f"      to: {workspace_volume_container_path_str}")
+                logger.debug(f"      to: {workspace_dir_container_path_str}")
                 container_volumes[workspace_volume_name] = {
-                    "bind": workspace_volume_container_path_str,
+                    "bind": workspace_dir_container_path_str,
                     "mode": "rw",
                 }
             else:

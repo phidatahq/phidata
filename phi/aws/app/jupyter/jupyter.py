@@ -18,6 +18,10 @@ class Jupyter(AwsApp):
     # Port number on the container
     container_port: int = 8888
 
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/jupyter"
+
     # -*- ECS Configuration
     ecs_task_cpu: str = "1024"
     ecs_task_memory: str = "2048"

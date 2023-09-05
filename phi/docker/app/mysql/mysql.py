@@ -28,8 +28,8 @@ class MySQLDb(DockerApp, DbApp):
     db_schema: Optional[str] = None
     db_driver: str = "mysql"
 
-    # -*- Postgres Volume
-    # Create a volume for postgres storage
+    # -*- MySQL Volume
+    # Create a volume for mysql storage
     create_volume: bool = True
     # Path to mount the volume inside the container
     volume_container_path: str = "/var/lib/mysql"

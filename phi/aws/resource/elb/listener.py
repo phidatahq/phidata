@@ -168,7 +168,7 @@ class Listener(AwsResource):
         """Update EcsService"""
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        listener_arn = self.get_arn
+        listener_arn = self.get_arn(aws_client)
         if listener_arn is None:
             logger.error(f"Listener {self.get_resource_name()} not found.")
             return True

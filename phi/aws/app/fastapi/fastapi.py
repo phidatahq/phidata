@@ -12,6 +12,10 @@ class FastApi(AwsApp):
     image_tag: str = "0.96"
     command: Optional[Union[str, List[str]]] = "uvicorn main:app --reload --host 0.0.0.0 --port 9090"
 
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
+
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = True

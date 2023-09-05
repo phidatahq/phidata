@@ -17,11 +17,11 @@ class Streamlit(DockerApp):
     open_port: bool = True
     port_number: int = 8501
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/app"
 
     # -*- Streamlit Configuration
     # Server settings

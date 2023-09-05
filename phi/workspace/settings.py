@@ -19,10 +19,10 @@ class WorkspaceSettings(BaseSettings):
 
     # Workspace name: used for naming cloud resources
     ws_name: str
-    # Workspace git repo url: used to git-sync DAGs and Charts
-    ws_repo: Optional[str] = None
     # Path to the workspace root
     ws_root: Path
+    # Workspace git repo url: used to git-sync DAGs and Charts
+    ws_repo: Optional[str] = None
     # Path to important directories relative to the ws_root
     scripts_dir: str = "scripts"
     storage_dir: str = "storage"

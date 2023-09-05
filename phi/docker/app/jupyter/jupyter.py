@@ -17,11 +17,11 @@ class Jupyter(DockerApp):
     open_port: bool = True
     port_number: int = 8888
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/jupyter"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/jupyter"
 
     # -*- Resources Volume
     # Mount a read-only directory from host machine to the container
@@ -32,8 +32,8 @@ class Jupyter(DockerApp):
     # -*- Jupyter Configuration
     # Absolute path to JUPYTER_CONFIG_FILE
     # Used to set the JUPYTER_CONFIG_FILE env var and is added to the command using `--config`
-    # Defaults to /resources/jupyter_lab_config.py which is added in the "phidata/jupyter" image
-    jupyter_config_file: str = "/resources/jupyter_lab_config.py"
+    # Defaults to /jupyter_lab_config.py which is added in the "phidata/jupyter" image
+    jupyter_config_file: str = "/jupyter_lab_config.py"
     # Absolute path to the notebook directory,
     # Defaults to the workspace_root if mount_workspace = True else "/",
     notebook_dir: Optional[str] = None

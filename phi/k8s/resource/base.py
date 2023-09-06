@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field, BaseModel, ConfigDict
 
-from phi.infra.resource.base import InfraResource
+from phi.resource.base import ResourceBase
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.constants import DEFAULT_K8S_NAMESPACE
 from phi.k8s.enums.api_version import ApiVersion
@@ -23,7 +23,7 @@ class K8sObject(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
 
 
-class K8sResource(InfraResource, K8sObject):
+class K8sResource(ResourceBase, K8sObject):
     """Base class for K8s Resources"""
 
     # Common fields for all K8s Resources

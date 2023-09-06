@@ -4,7 +4,7 @@ from typing import Optional, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.infra.enums import InfraType
+from phi.infra.type import InfraType
 from phi.infra.resource.group import InfraResourceGroup
 from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings

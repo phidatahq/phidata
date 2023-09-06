@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType
-from phi.infra.app.context import ContainerContext
+from phi.app.base import AppBase, WorkspaceVolumeType
+from phi.app.context import ContainerContext
 from phi.docker.app.context import DockerBuildContext
 from phi.utils.log import logger
 
@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from phi.docker.resource.base import DockerResource
 
 
-class DockerApp(InfraApp):
+class DockerApp(AppBase):
     # -*- App Volume
     # Create a volume for container storage
     create_volume: bool = False

@@ -11,7 +11,7 @@ from phi.cli.console import (
     print_subheading,
     log_config_not_available_msg,
 )
-from phi.infra.enums import InfraType
+from phi.infra.type import InfraType
 from phi.infra.resource.group import InfraResourceGroup
 from phi.api.schemas.workspace import (
     WorkspaceSchema,

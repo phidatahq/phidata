@@ -1,9 +1,9 @@
 from typing import Optional
 
-from phi.infra.app.base import InfraApp, ContainerContext, InfraResource  # noqa: F401
+from phi.app.base import AppBase, ContainerContext, ResourceBase  # noqa: F401
 
 
-class DbApp(InfraApp):
+class DbApp(AppBase):
     db_user: Optional[str] = None
     db_password: Optional[str] = None
     db_schema: Optional[str] = None

@@ -1,6 +1,6 @@
 from typing import Optional, Dict
 
-from phi.infra.app.db_app import DbApp
+from phi.app.db_app import DbApp
 from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
 
 

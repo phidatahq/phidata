@@ -5,8 +5,8 @@ from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
 
 from phi.base import PhiBase
-from phi.infra.app.context import ContainerContext
-from phi.infra.resource.base import InfraResource
+from phi.app.context import ContainerContext
+from phi.resource.base import ResourceBase
 from phi.utils.log import logger
 
 
@@ -15,7 +15,7 @@ class WorkspaceVolumeType(str, Enum):
     EmptyDir = "EmptyDir"
 
 
-class InfraApp(PhiBase):
+class AppBase(PhiBase):
     # -*- App Name (required)
     name: str
 
@@ -85,7 +85,7 @@ class InfraApp(PhiBase):
     host_port: Optional[int] = Field(None, validate_default=True)
 
     # -*- Extra Resources created "before" the App resources
-    resources: Optional[List[InfraResource]] = None
+    resources: Optional[List[ResourceBase]] = None
 
     #  -*- Other args
     print_env_on_load: bool = False
@@ -189,12 +189,12 @@ class InfraApp(PhiBase):
         logger.debug(f"@build_resource_group not defined for {self.get_app_name()}")
         return None
 
-    def get_dependencies(self) -> Optional[List[InfraResource]]:
+    def get_dependencies(self) -> Optional[List[ResourceBase]]:
         return (
-            [dep for dep in self.depends_on if isinstance(dep, InfraResource)] if self.depends_on is not None else None
+            [dep for dep in self.depends_on if isinstance(dep, ResourceBase)] if self.depends_on is not None else None
         )
 
-    def add_app_properties_to_resources(self, resources: List[InfraResource]) -> List[InfraResource]:
+    def add_app_properties_to_resources(self, resources: List[ResourceBase]) -> List[ResourceBase]:
         updated_resources = []
         app_properties = self.model_dump(exclude_defaults=True)
         app_group = self.get_group_name()
@@ -284,7 +284,7 @@ class InfraApp(PhiBase):
             updated_resources.append(resource)
         return updated_resources
 
-    def get_resources(self, build_context: Any) -> List[InfraResource]:
+    def get_resources(self, build_context: Any) -> List[ResourceBase]:
         if self.cached_resources is not None and len(self.cached_resources) > 0:
             return self.cached_resources
 

@@ -3,8 +3,8 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType  # noqa: F401
-from phi.infra.app.context import ContainerContext
+from phi.app.base import AppBase, WorkspaceVolumeType  # noqa: F401
+from phi.app.context import ContainerContext
 from phi.aws.app.context import AwsBuildContext
 from phi.utils.log import logger
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from phi.aws.resource.elb.target_group import TargetGroup
 
 
-class AwsApp(InfraApp):
+class AwsApp(AppBase):
     # -*- Networking Configuration
     # List of subnets for the app: Type: Union[str, Subnet]
     # Added to the load balancer, target group, and ECS service

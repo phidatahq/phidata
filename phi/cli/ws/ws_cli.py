@@ -15,7 +15,7 @@ from phi.cli.console import (
     print_available_workspaces,
 )
 from phi.utils.log import logger, set_log_level_to_debug
-from phi.infra.enums import InfraType
+from phi.infra.type import InfraType
 
 ws_cli = typer.Typer(
     name="ws",

@@ -1,55 +1,56 @@
+from enum import Enum
 from typing import Optional, Dict
 
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.k8s.app.base import K8sApp, WorkspaceVolumeType, ContainerContext, AppVolumeType, ImagePullPolicy  # noqa: F401
 from phi.app.db_app import DbApp
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
 
 
-class SupersetBase(DockerApp):
+class AirflowLogsVolumeType(str, Enum):
+    HostPath = "HostPath"
+    EmptyDir = "EmptyDir"
+
+
+class AirflowBase(K8sApp):
     # -*- App Name
-    name: str = "superset"
+    name: str = "airflow"
 
     # -*- Image Configuration
-    image_name: str = "phidata/superset"
-    image_tag: str = "2.1.0"
-
-    # -*- Python Configuration
-    # Set the PYTHONPATH env var
-    set_python_path: bool = True
+    image_name: str = "phidata/airflow"
+    image_tag: str = "2.7.0"
 
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = False
-    port_number: int = 8088
+    port_number: int = 8080
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/workspace"
 
-    # -*- Resources Volume
-    # Mount a read-only directory from host machine to the container
-    mount_resources: bool = False
-    # Resources directory relative to the workspace_root
-    resources_dir: str = "workspace/superset/resources"
-    # Path to mount the resources_dir
-    resources_dir_container_path: str = "/app/docker"
+    # -*- Airflow Configuration
+    # airflow_env sets the AIRFLOW_ENV env var and can be used by
+    # DAGs to separate dev/stg/prd code
+    airflow_env: Optional[str] = None
+    # Set the AIRFLOW_HOME env variable
+    # Defaults to: /usr/local/airflow
+    airflow_home: Optional[str] = None
+    # Set the AIRFLOW__CORE__DAGS_FOLDER env variable to the workspace_root/{airflow_dags_dir}
+    # By default, airflow_dags_dir is set to the "dags" folder in the workspace
+    airflow_dags_dir: str = "dags"
+    # Creates an airflow admin with username: admin, pass: admin
+    create_airflow_admin_user: bool = False
+    # Airflow Executor
+    executor: str = "SequentialExecutor"
 
-    # -*- Superset Configuration
-    # Set the SUPERSET_CONFIG_PATH env var
-    superset_config_path: Optional[str] = None
-    # Set the FLASK_ENV env var
-    flask_env: str = "production"
-    # Set the SUPERSET_ENV env var
-    superset_env: str = "production"
-    # Set the SUPERSET_LOAD_EXAMPLES env var to "yes"
-    load_examples: bool = False
-
-    # -*- Superset Database Configuration
-    # Set as True to wait for db before starting the app
+    # -*- Airflow Database Configuration
+    # Set as True to wait for db before starting airflow
     wait_for_db: bool = False
+    # Set as True to delay start by 60 seconds so that the db can be initialized
+    wait_for_db_init: bool = False
     # Connect to the database using a DbApp
     db_app: Optional[DbApp] = None
     # Provide database connection details manually
@@ -70,7 +71,13 @@ class SupersetBase(DockerApp):
     db_port: Optional[int] = None
     # db_driver can be provided here or as the
     # DATABASE_DRIVER env var in the secrets_file
-    db_driver: str = "postgresql+psycopg"
+    db_driver: str = "postgresql+psycopg2"
+    db_result_backend_driver: str = "db+postgresql"
+    # Airflow db connections in the format { conn_id: conn_url }
+    # converted to env var: AIRFLOW_CONN__conn_id = conn_url
+    db_connections: Optional[Dict] = None
+    # Set as True to migrate (initialize/upgrade) the airflow_db
+    db_migrate: bool = False
 
     # -*- Airflow Redis Configuration
     # Set as True to wait for redis before starting airflow
@@ -93,6 +100,9 @@ class SupersetBase(DockerApp):
     # redis_driver can be provided here or as the
     # REDIS_DRIVER env var in the secrets_file
     redis_driver: str = "redis"
+
+    #  -*- Other args
+    load_examples: bool = True
 
     def get_db_user(self) -> Optional[str]:
         return self.db_user or self.get_secret_from_file("DATABASE_USER")
@@ -127,6 +137,9 @@ class SupersetBase(DockerApp):
     def get_redis_driver(self) -> Optional[str]:
         return self.redis_driver or self.get_secret_from_file("REDIS_DRIVER")
 
+    def get_airflow_home(self) -> str:
+        return self.airflow_home or "/usr/local/airflow"
+
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
             PHI_RUNTIME_ENV_VAR,
@@ -139,6 +152,12 @@ class SupersetBase(DockerApp):
             WORKSPACE_HASH_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
+            INIT_AIRFLOW_ENV_VAR,
+            AIRFLOW_ENV_ENV_VAR,
+            AIRFLOW_HOME_ENV_VAR,
+            AIRFLOW_DAGS_FOLDER_ENV_VAR,
+            AIRFLOW_EXECUTOR_ENV_VAR,
+            AIRFLOW_DB_CONN_URL_ENV_VAR,
         )
 
         # Container Environment
@@ -146,19 +165,25 @@ class SupersetBase(DockerApp):
         container_env.update(
             {
                 "INSTALL_REQUIREMENTS": str(self.install_requirements),
-                "MOUNT_RESOURCES": str(self.mount_resources),
                 "MOUNT_WORKSPACE": str(self.mount_workspace),
                 "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
-                "RESOURCES_DIR_CONTAINER_PATH": str(self.resources_dir_container_path),
-                PHI_RUNTIME_ENV_VAR: "docker",
+                PHI_RUNTIME_ENV_VAR: "kubernetes",
                 REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
                 SCRIPTS_DIR_ENV_VAR: container_context.scripts_dir or "",
                 STORAGE_DIR_ENV_VAR: container_context.storage_dir or "",
                 WORKFLOWS_DIR_ENV_VAR: container_context.workflows_dir or "",
                 WORKSPACE_DIR_ENV_VAR: container_context.workspace_dir or "",
                 WORKSPACE_ROOT_ENV_VAR: container_context.workspace_root or "",
-                # Env variables used by Superset
-                "SUPERSET_LOAD_EXAMPLES": "yes" if self.load_examples else "no",
+                # Env variables used by Airflow
+                # INIT_AIRFLOW env var is required for phidata to generate DAGs from workflows
+                INIT_AIRFLOW_ENV_VAR: str(True),
+                "DB_MIGRATE": str(self.db_migrate),
+                "WAIT_FOR_DB": str(self.wait_for_db),
+                "WAIT_FOR_DB_INIT": str(self.wait_for_db_init),
+                "WAIT_FOR_REDIS": str(self.wait_for_redis),
+                "CREATE_AIRFLOW_ADMIN_USER": str(self.create_airflow_admin_user),
+                AIRFLOW_EXECUTOR_ENV_VAR: str(self.executor),
+                "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.load_examples),
             }
         )
 
@@ -174,9 +199,7 @@ class SupersetBase(DockerApp):
         if self.set_python_path:
             python_path = self.python_path
             if python_path is None:
-                python_path = f"/app/pythonpath:{container_context.workspace_root}"
-                if self.mount_resources and self.resources_dir_container_path is not None:
-                    python_path = "{}:{}/pythonpath_dev".format(python_path, self.resources_dir_container_path)
+                python_path = f"{container_context.workspace_root}:{self.get_airflow_home()}"
                 if self.add_python_paths is not None:
                     python_path = "{}:{}".format(python_path, ":".join(self.add_python_paths))
             if python_path is not None:
@@ -185,16 +208,28 @@ class SupersetBase(DockerApp):
         # Set aws region and profile
         self.set_aws_env_vars(env_dict=container_env)
 
-        if self.superset_config_path is not None:
-            container_env["SUPERSET_CONFIG_PATH"] = self.superset_config_path
+        # Set the AIRFLOW__CORE__DAGS_FOLDER
+        container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = f"{container_context.workspace_root}/{self.airflow_dags_dir}"
 
-        if self.flask_env is not None:
-            container_env["FLASK_ENV"] = self.flask_env
+        # Set the AIRFLOW_ENV
+        if self.airflow_env is not None:
+            container_env[AIRFLOW_ENV_ENV_VAR] = self.airflow_env
 
-        if self.superset_env is not None:
-            container_env["SUPERSET_ENV"] = self.superset_env
+        # Set the AIRFLOW_HOME
+        if self.airflow_home is not None:
+            container_env[AIRFLOW_HOME_ENV_VAR] = self.get_airflow_home()
 
-        # Superset db connection
+        # Set the AIRFLOW__CONN_ variables
+        if self.db_connections is not None:
+            for conn_id, conn_url in self.db_connections.items():
+                try:
+                    af_conn_id = str("AIRFLOW_CONN_{}".format(conn_id)).upper()
+                    container_env[af_conn_id] = conn_url
+                except Exception as e:
+                    logger.exception(e)
+                    continue
+
+        # Airflow db connection
         db_user = self.get_db_user()
         db_password = self.get_db_password()
         db_schema = self.get_db_schema()
@@ -215,51 +250,66 @@ class SupersetBase(DockerApp):
                 db_port = self.db_app.get_db_port()
             if db_driver is None:
                 db_driver = self.db_app.get_db_driver()
+        db_connection_url = f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
 
-        if db_user is not None:
-            container_env["DATABASE_USER"] = db_user
-        # Ideally we don't want the password in the env
-        # But the superset image expects it :(
-        if db_password is not None:
-            container_env["DATABASE_PASSWORD"] = db_password
-        if db_schema is not None:
-            container_env["DATABASE_DB"] = db_schema
+        # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+        if "None" not in db_connection_url:
+            logger.debug(f"AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: {db_connection_url}")
+            container_env[AIRFLOW_DB_CONN_URL_ENV_VAR] = db_connection_url
+
+        # Set the database connection details in the container env
         if db_host is not None:
             container_env["DATABASE_HOST"] = db_host
         if db_port is not None:
             container_env["DATABASE_PORT"] = str(db_port)
-        if db_driver is not None:
-            container_env["DATABASE_DIALECT"] = db_driver
 
-        # Superset redis connection
-        redis_host = self.get_redis_host()
-        redis_port = self.get_redis_port()
-        redis_driver = self.get_redis_driver()
-        if self.redis_app is not None and isinstance(self.redis_app, DbApp):
-            logger.debug(f"Reading redis connection details from: {self.redis_app.name}")
-            if redis_host is None:
-                redis_host = self.redis_app.get_db_host()
-            if redis_port is None:
-                redis_port = self.redis_app.get_db_port()
-            if redis_driver is None:
-                redis_driver = self.redis_app.get_db_driver()
+        # Airflow redis connection
+        if self.executor == "CeleryExecutor":
+            # Airflow celery result backend
+            celery_result_backend_driver = self.db_result_backend_driver or db_driver
+            celery_result_backend_url = (
+                f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
+            )
+            # Set the AIRFLOW__CELERY__RESULT_BACKEND
+            if "None" not in celery_result_backend_url:
+                container_env["AIRFLOW__CELERY__RESULT_BACKEND"] = celery_result_backend_url
 
-        if redis_host is not None:
-            container_env["REDIS_HOST"] = redis_host
-        if redis_port is not None:
-            container_env["REDIS_PORT"] = str(redis_port)
-        if redis_driver is not None:
-            container_env["REDIS_DRIVER"] = str(redis_driver)
+            # Airflow celery broker url
+            _redis_pass = self.get_redis_password()
+            redis_password = f"{_redis_pass}@" if _redis_pass else ""
+            redis_schema = self.get_redis_schema()
+            redis_host = self.get_redis_host()
+            redis_port = self.get_redis_port()
+            redis_driver = self.get_redis_driver()
+            if self.redis_app is not None and isinstance(self.redis_app, DbApp):
+                logger.debug(f"Reading redis connection details from: {self.redis_app.name}")
+                if redis_password is None:
+                    redis_password = self.redis_app.get_db_password()
+                if redis_schema is None:
+                    redis_schema = self.redis_app.get_db_schema() or "0"
+                if redis_host is None:
+                    redis_host = self.redis_app.get_db_host()
+                if redis_port is None:
+                    redis_port = self.redis_app.get_db_port()
+                if redis_driver is None:
+                    redis_driver = self.redis_app.get_db_driver()
+
+            # Set the AIRFLOW__CELERY__RESULT_BACKEND
+            celery_broker_url = f"{redis_driver}://{redis_password}{redis_host}:{redis_port}/{redis_schema}"
+            if "None" not in celery_broker_url:
+                logger.debug(f"AIRFLOW__CELERY__BROKER_URL: {celery_broker_url}")
+                container_env["AIRFLOW__CELERY__BROKER_URL"] = celery_broker_url
+
+            # Set the redis connection details in the container env
+            if redis_host is not None:
+                container_env["REDIS_HOST"] = redis_host
+            if redis_port is not None:
+                container_env["REDIS_PORT"] = str(redis_port)
 
         # Update the container env using env_file
         env_data_from_file = self.get_env_file_data()
         if env_data_from_file is not None:
             container_env.update({k: str(v) for k, v in env_data_from_file.items() if v is not None})
-
-        # Update the container env using secrets_file
-        secret_data_from_file = self.get_secret_file_data()
-        if secret_data_from_file is not None:
-            container_env.update({k: str(v) for k, v in secret_data_from_file.items() if v is not None})
 
         # Update the container env with user provided env_vars
         # this overwrites any existing variables with the same key

@@ -5,7 +5,7 @@ from phi.base import PhiBase
 from phi.utils.log import logger
 
 
-class InfraResource(PhiBase):
+class ResourceBase(PhiBase):
     # Resource name is required
     name: str
     # Resource type
@@ -151,7 +151,7 @@ class InfraResource(PhiBase):
         return hash(f"{self.get_resource_type()}:{self.get_resource_name()}")
 
     def __eq__(self, other):
-        if isinstance(other, InfraResource):
+        if isinstance(other, ResourceBase):
             if other.get_resource_type() == self.get_resource_type():
                 return self.get_resource_name() == other.get_resource_name()
         return False

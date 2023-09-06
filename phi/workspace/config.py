@@ -176,6 +176,7 @@ class WorkspaceConfig(BaseModel):
             WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_HASH_ENV_VAR,
+            AWS_REGION_ENV_VAR,
         )
 
         if self.ws_root_path is not None:
@@ -202,6 +203,11 @@ class WorkspaceConfig(BaseModel):
                 environ[WORKSPACE_ID_ENV_VAR] = str(self.ws_schema.id_workspace)
             if self.ws_schema.ws_hash is not None:
                 environ[WORKSPACE_HASH_ENV_VAR] = self.ws_schema.ws_hash
+
+        if environ.get(AWS_REGION_ENV_VAR) is None:
+            if self.workspace_settings is not None:
+                if self.workspace_settings.aws_region is not None:
+                    environ[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
 
     def get_resource_groups(
         self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"

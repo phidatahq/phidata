@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Optional, Dict, Any, Union, Tuple
 
 from pydantic import Field, field_validator, FieldValidationInfo
@@ -93,6 +94,9 @@ class K8sResourceGroup(InfraResourceGroup):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_create(
@@ -104,6 +108,7 @@ class K8sResourceGroup(InfraResourceGroup):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.create()
                                 if _k8s_resource is not None:
+                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_create(
@@ -113,6 +118,7 @@ class K8sResourceGroup(InfraResourceGroup):
                                     ):
                                         resources_to_create.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_create(
@@ -124,6 +130,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 elif isinstance(r, CreateK8sResource):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
+                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_create(
@@ -278,6 +285,9 @@ class K8sResourceGroup(InfraResourceGroup):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_delete(
@@ -289,6 +299,7 @@ class K8sResourceGroup(InfraResourceGroup):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.create()
                                 if _k8s_resource is not None:
+                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_delete(
@@ -298,6 +309,7 @@ class K8sResourceGroup(InfraResourceGroup):
                                     ):
                                         resources_to_delete.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_delete(
@@ -309,6 +321,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 elif isinstance(r, CreateK8sResource):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
+                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_delete(
@@ -473,6 +486,9 @@ class K8sResourceGroup(InfraResourceGroup):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_update(
@@ -484,6 +500,7 @@ class K8sResourceGroup(InfraResourceGroup):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.create()
                                 if _k8s_resource is not None:
+                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_update(
@@ -493,6 +510,7 @@ class K8sResourceGroup(InfraResourceGroup):
                                     ):
                                         resources_to_update.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_update(
@@ -504,6 +522,7 @@ class K8sResourceGroup(InfraResourceGroup):
                 elif isinstance(r, CreateK8sResource):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
+                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_update(
@@ -634,3 +653,189 @@ class K8sResourceGroup(InfraResourceGroup):
                 f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"
             )  # noqa: E501
         return num_resources_updated, num_resources_to_update
+
+    def save_resources(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        workspace_settings: Optional[WorkspaceSettings] = None,
+    ) -> Tuple[int, int]:
+        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.k8s.resource.types import K8sResourceInstallOrder
+        from phi.utils.filesystem import delete_files_in_dir
+
+        logger.debug("-*- Saving K8sResources")
+
+        # --- get as param
+        ws_root: Optional[Path] = workspace_settings.ws_root
+        if ws_root is None:
+            raise Exception("ws_root is None")
+
+        manifests_dir: Path = ws_root.joinpath(workspace_settings.workspace_dir).joinpath("k8s", "manifests")
+        # delete directory to save resources if needed
+        if manifests_dir.exists():
+            print_info(f"Deleting {str(manifests_dir)}")
+            if manifests_dir.is_file():
+                manifests_dir.unlink()
+            elif manifests_dir.is_dir():
+                delete_files_in_dir(manifests_dir)
+        print_info(f"Saving to {str(manifests_dir)}")
+        manifests_dir.mkdir(exist_ok=True, parents=True)
+        # --- get as param
+
+        # Build a list of K8sResources to save
+        resources_to_save: List[K8sResource] = []
+        if self.resources is not None:
+            for r in self.resources:
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, K8sResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_create(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_save.append(resource_from_resource_group)
+                            elif isinstance(resource_from_resource_group, CreateK8sResource):
+                                _k8s_resource = resource_from_resource_group.save()
+                                if _k8s_resource is not None:
+                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                                    if _k8s_resource.group is None and self.name is not None:
+                                        _k8s_resource.group = self.name
+                                    if _k8s_resource.should_create(
+                                        group_filter=group_filter,
+                                        name_filter=name_filter,
+                                        type_filter=type_filter,
+                                    ):
+                                        resources_to_save.append(_k8s_resource)
+                elif isinstance(r, K8sResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_create(
+                        group_filter=group_filter,
+                        name_filter=name_filter,
+                        type_filter=type_filter,
+                    ):
+                        resources_to_save.append(r)
+                elif isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.save()
+                    if _k8s_resource is not None:
+                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                        if _k8s_resource.group is None and self.name is not None:
+                            _k8s_resource.group = self.name
+                        if _k8s_resource.should_create(
+                            group_filter=group_filter,
+                            name_filter=name_filter,
+                            type_filter=type_filter,
+                        ):
+                            resources_to_save.append(_k8s_resource)
+
+        # Build a list of K8sApps to save
+        apps_to_save: List[K8sApp] = []
+        if self.apps is not None:
+            for app in self.apps:
+                if isinstance(app, AppGroup):
+                    apps_from_app_group = app.get_apps()
+                    if len(apps_from_app_group) > 0:
+                        for app_from_app_group in apps_from_app_group:
+                            if isinstance(app_from_app_group, K8sApp):
+                                if app_from_app_group.group is None and self.name is not None:
+                                    app_from_app_group.group = self.name
+                                if app_from_app_group.should_create(group_filter=group_filter):
+                                    apps_to_save.append(app_from_app_group)
+                elif isinstance(app, K8sApp):
+                    if app.group is None and self.name is not None:
+                        app.group = self.name
+                    if app.should_create(group_filter=group_filter):
+                        apps_to_save.append(app)
+
+        # Get the list of K8sResources from the K8sApps
+        if len(apps_to_save) > 0:
+            logger.debug(f"Found {len(apps_to_save)} apps to save")
+            for app in apps_to_save:
+                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app_resources = app.get_resources(build_context=K8sBuildContext())
+                if len(app_resources) > 0:
+                    for app_resource in app_resources:
+                        if isinstance(app_resource, K8sResource) and app_resource.should_create(
+                            group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
+                        ):
+                            resources_to_save.append(app_resource)
+                        elif isinstance(app_resource, CreateK8sResource):
+                            _k8s_resource = app_resource.save()
+                            if _k8s_resource is not None and _k8s_resource.should_create(
+                                group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
+                            ):
+                                resources_to_save.append(_k8s_resource)
+
+        # Sort the K8sResources in install order
+        resources_to_save.sort(key=lambda x: K8sResourceInstallOrder.get(x.__class__.__name__, 5000))
+
+        # Deduplicate K8sResources
+        deduped_resources_to_save: List[K8sResource] = []
+        for r in resources_to_save:
+            if r not in deduped_resources_to_save:
+                deduped_resources_to_save.append(r)
+
+        # Implement dependency sorting
+        final_k8s_resources: List[K8sResource] = []
+        logger.debug("-*- Building K8sResources dependency graph")
+        for k8s_resource in deduped_resources_to_save:
+            # Logic to follow if resource has dependencies
+            if k8s_resource.depends_on is not None:
+                # Add the dependencies before the resource itself
+                for dep in k8s_resource.depends_on:
+                    if isinstance(dep, K8sResource):
+                        if dep not in final_k8s_resources:
+                            logger.debug(f"-*- Adding {dep.name}, dependency of {k8s_resource.name}")
+                            final_k8s_resources.append(dep)
+
+                # Add the resource to be saved after its dependencies
+                if k8s_resource not in final_k8s_resources:
+                    logger.debug(f"-*- Adding {k8s_resource.name}")
+                    final_k8s_resources.append(k8s_resource)
+            else:
+                # Add the resource to be saved if it has no dependencies
+                if k8s_resource not in final_k8s_resources:
+                    logger.debug(f"-*- Adding {k8s_resource.name}")
+                    final_k8s_resources.append(k8s_resource)
+
+        # Track the total number of K8sResources to save for validation
+        num_resources_to_save: int = len(final_k8s_resources)
+        num_resources_saved: int = 0
+        if num_resources_to_save == 0:
+            return 0, 0
+
+        for resource in final_k8s_resources:
+            print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
+            # logger.debug(resource)
+            try:
+                # _resource_saved = resource.save(k8s_client=self.k8s_client)
+                # _resource_saved = resource.save(k8s_client=self.k8s_client)
+                resource_name = resource.get_resource_name()
+                resource_file: Path = manifests_dir.joinpath(f"{resource_name}.yaml")
+                manifest_yaml = resource.get_k8s_manifest_yaml(default_flow_style=False)
+                if manifest_yaml is not None:
+                    logger.debug(f"Writing {str(resource_file)}")
+                    resource_file.write_text(manifest_yaml)
+                    num_resources_saved += 1
+            except Exception as e:
+                logger.error(f"Failed to save {resource.get_resource_type()}: {resource.get_resource_name()}")
+                logger.error(e)
+                logger.error("Please fix and try again...")
+
+        print_heading(f"\n--**-- Resources saved: {num_resources_saved}/{num_resources_to_save}")
+        if num_resources_to_save != num_resources_saved:
+            logger.error(
+                f"Resources saved: {num_resources_saved} do not match resources required: {num_resources_to_save}"
+            )  # noqa: E501
+        return num_resources_saved, num_resources_to_save

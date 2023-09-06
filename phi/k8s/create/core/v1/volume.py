@@ -34,7 +34,8 @@ class CreateVolume(CreateK8sObject):
         """Creates the Volume resource"""
 
         volume_name = self.volume_name
-        # logger.debug(f"Init Volume resource: {volume_name}")
+        logger.debug(f"Init Volume resource: {volume_name}")
+        logger.debug(f"self.volume_type: {self.volume_type}")
 
         volume = Volume(name=volume_name)
 
@@ -87,4 +88,5 @@ class CreateVolume(CreateK8sObject):
             else:
                 logger.error(f"Volume {self.volume_type.value} selected but HostPathVolumeSource not provided.")
 
+        logger.debug(f"Created Volume resource: {volume}")
         return volume

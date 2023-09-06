@@ -1,8 +1,7 @@
-from phidata.app.postgres.postgres_db import (
+from phi.k8s.app.postgres.postgres_db import (
     PostgresDb,
-    PostgresDbArgs,
     ServiceType,
-    PostgresVolumeType,
+    AppVolumeType,
     ImagePullPolicy,
     RestartPolicy,
 )

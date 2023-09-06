@@ -27,7 +27,7 @@ class AppVolumeType(str, Enum):
 class K8sApp(AppBase):
     # -*- App Volume
     # Create a volume for container storage
-    # Used for mounting app data like notebooks, models, etc.
+    # Used for mounting app data like database, notebooks, models, etc.
     create_volume: bool = False
     volume_name: Optional[str] = None
     volume_type: AppVolumeType = AppVolumeType.EmptyDir
@@ -42,6 +42,8 @@ class K8sApp(AppBase):
     ebs_volume: Optional[Any] = None
     ebs_volume_region: Optional[str] = None
     ebs_volume_az: Optional[str] = None
+    # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
     # -*- If volume_type=AppVolumeType.AwsEfs
     # Provide Efs Volume-id manually
     efs_volume_id: Optional[str] = None
@@ -62,9 +64,6 @@ class K8sApp(AppBase):
     pv_reclaim_policy: Optional[str] = None
     pv_storage_class: str = ""
     pv_labels: Optional[Dict[str, str]] = None
-
-    # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
-    schedule_pods_in_ebs_topology: bool = True
 
     # -*- Container Configuration
     container_name: Optional[str] = None
@@ -610,6 +609,7 @@ class K8sApp(AppBase):
                         _aws_region_from_ebs_volume = self.ebs_volume.get_aws_region()
                         if _aws_region_from_ebs_volume is not None:
                             ebs_volume_region = _aws_region_from_ebs_volume
+                    # Derive the aws_region from this App if needed
 
                     # Derive the availability_zone from self.ebs_volume if needed
                     if ebs_volume_az is None and self.ebs_volume is not None:
@@ -691,6 +691,33 @@ class K8sApp(AppBase):
                 target_port=self.service_target_port or self.container_port_name,
             )
             ports.append(container_port)
+
+            # Validate NODE_PORT before adding it to the container_port
+            # If ServiceType == NODE_PORT then validate self.service_node_port is available
+            if self.service_type == ServiceType.NODE_PORT:
+                if self.service_node_port is None or self.service_node_port < 30000 or self.service_node_port > 32767:
+                    raise ValueError(f"NodePort: {self.service_node_port} invalid for ServiceType: {self.service_type}")
+                else:
+                    container_port.node_port = self.service_node_port
+            # If ServiceType == LOAD_BALANCER then validate self.service_node_port only IF available
+            elif self.service_type == ServiceType.LOAD_BALANCER:
+                if self.service_node_port is not None:
+                    if self.service_node_port < 30000 or self.service_node_port > 32767:
+                        logger.warning(
+                            f"NodePort: {self.service_node_port} invalid for ServiceType: {self.service_type}"
+                        )
+                        logger.warning("NodePort value will be ignored")
+                        self.service_node_port = None
+                    else:
+                        container_port.node_port = self.service_node_port
+            # else validate self.service_node_port is NOT available
+            elif self.service_node_port is not None:
+                logger.warning(
+                    f"NodePort: {self.service_node_port} provided without specifying "
+                    f"ServiceType as NODE_PORT or LOAD_BALANCER"
+                )
+                logger.warning("NodePort value will be ignored")
+                self.service_node_port = None
 
         # -*- Get Container Labels
         container_labels: Dict[str, str] = self.get_container_labels(common_labels)

@@ -99,6 +99,9 @@ class AwsResourceGroup(InfraResourceGroup):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, AwsResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_create(
@@ -108,6 +111,7 @@ class AwsResourceGroup(InfraResourceGroup):
                                 ):
                                     resources_to_create.append(resource_from_resource_group)
                 elif isinstance(r, AwsResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_create(
@@ -284,6 +288,9 @@ class AwsResourceGroup(InfraResourceGroup):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, AwsResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_delete(
@@ -293,6 +300,7 @@ class AwsResourceGroup(InfraResourceGroup):
                                 ):
                                     resources_to_delete.append(resource_from_resource_group)
                 elif isinstance(r, AwsResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_delete(
@@ -462,6 +470,9 @@ class AwsResourceGroup(InfraResourceGroup):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, AwsResource):
+                                resource_from_resource_group.set_workspace_settings(
+                                    workspace_settings=workspace_settings
+                                )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_update(
@@ -471,6 +482,7 @@ class AwsResourceGroup(InfraResourceGroup):
                                 ):
                                     resources_to_update.append(resource_from_resource_group)
                 elif isinstance(r, AwsResource):
+                    r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_update(

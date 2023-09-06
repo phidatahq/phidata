@@ -7,8 +7,8 @@ from typing import Optional
 import typer
 
 from phi.cli.ws.ws_cli import ws_cli
+from phi.cli.k.k_app import k_app
 
-# from phi.cli.k8s.k8s_app import k8s_app
 # from phi.cli.wf.wf_app import wf_app
 from phi.utils.log import set_log_level_to_debug
 
@@ -664,5 +664,5 @@ def set(
 
 
 phi_cli.add_typer(ws_cli)
-# phi_cli.add_typer(k8s_app)
+phi_cli.add_typer(k_app)
 # phi_cli.add_typer(wf_app)

@@ -45,3 +45,12 @@ class InfraResourceGroup(PhiBase):
         workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError
+
+    def save_resources(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        workspace_settings: Optional[WorkspaceSettings] = None,
+    ) -> Tuple[int, int]:
+        raise NotImplementedError

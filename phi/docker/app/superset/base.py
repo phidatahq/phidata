@@ -23,11 +23,11 @@ class SupersetBase(DockerApp):
     open_port: bool = False
     port_number: int = 8088
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/workspace"
 
     # -*- Resources Volume
     # Mount a read-only directory from host machine to the container

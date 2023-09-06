@@ -26,11 +26,11 @@ class AirflowBase(DockerApp):
     open_port: bool = False
     port_number: int = 8080
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/workspace"
 
     # -*- Airflow Configuration
     # airflow_env sets the AIRFLOW_ENV env var and can be used by
@@ -39,23 +39,15 @@ class AirflowBase(DockerApp):
     # Set the AIRFLOW_HOME env variable
     # Defaults to: /usr/local/airflow
     airflow_home: Optional[str] = None
-    # If use_workflows_as_airflow_dags = True
-    # set the AIRFLOW__CORE__DAGS_FOLDER to the workflows_dir
-    use_workflows_as_airflow_dags: bool = True
-    # If use_workflows_as_airflow_dags = False
-    # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path
-    # airflow_dags_path is the directory in the container containing the airflow dags
-    airflow_dags_path: Optional[str] = None
+    # Set the AIRFLOW__CORE__DAGS_FOLDER env variable to the workspace_root/{airflow_dags_dir}
+    # By default, airflow_dags_dir is set to the "dags" folder in the workspace
+    airflow_dags_dir: str = "dags"
     # Creates an airflow admin with username: admin, pass: admin
     create_airflow_admin_user: bool = False
     # Airflow Executor
     executor: str = "SequentialExecutor"
 
     # -*- Airflow Database Configuration
-    # Set as True to initialize the airflow_db
-    init_airflow_db: bool = False
-    # Set as True to upgrade the airflow db
-    upgrade_airflow_db: bool = False
     # Set as True to wait for db before starting airflow
     wait_for_db: bool = False
     # Set as True to delay start by 60 seconds so that the db can be initialized
@@ -80,11 +72,13 @@ class AirflowBase(DockerApp):
     db_port: Optional[int] = None
     # db_driver can be provided here or as the
     # DATABASE_DRIVER env var in the secrets_file
-    db_driver: str = "postgresql+psycopg"
+    db_driver: str = "postgresql+psycopg2"
     db_result_backend_driver: str = "db+postgresql"
     # Airflow db connections in the format { conn_id: conn_url }
     # converted to env var: AIRFLOW_CONN__conn_id = conn_url
     db_connections: Optional[Dict] = None
+    # Set as True to migrate (initialize/upgrade) the airflow_db
+    db_migrate: bool = False
 
     # -*- Airflow Redis Configuration
     # Set as True to wait for redis before starting airflow
@@ -123,6 +117,9 @@ class AirflowBase(DockerApp):
     # Host path to mount the postgres volume
     # If volume_type = PostgresVolumeType.HOST_PATH
     logs_volume_host_path: Optional[Path] = None
+
+    #  -*- Other args
+    load_examples: bool = True
 
     def get_db_user(self) -> Optional[str]:
         return self.db_user or self.get_secret_from_file("DATABASE_USER")
@@ -200,13 +197,13 @@ class AirflowBase(DockerApp):
                 "MOUNT_LOGS": str(self.mount_logs),
                 # INIT_AIRFLOW env var is required for phidata to generate DAGs from workflows
                 INIT_AIRFLOW_ENV_VAR: str(True),
+                "DB_MIGRATE": str(self.db_migrate),
                 "WAIT_FOR_DB": str(self.wait_for_db),
                 "WAIT_FOR_DB_INIT": str(self.wait_for_db_init),
-                "INIT_AIRFLOW_DB": str(self.init_airflow_db),
-                "UPGRADE_AIRFLOW_DB": str(self.upgrade_airflow_db),
                 "WAIT_FOR_REDIS": str(self.wait_for_redis),
                 "CREATE_AIRFLOW_ADMIN_USER": str(self.create_airflow_admin_user),
                 AIRFLOW_EXECUTOR_ENV_VAR: str(self.executor),
+                "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.load_examples),
             }
         )
 
@@ -234,10 +231,7 @@ class AirflowBase(DockerApp):
         self.set_aws_env_vars(env_dict=container_env)
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if self.mount_workspace and self.use_workflows_as_airflow_dags and container_context.workflows_dir:
-            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = container_context.workflows_dir
-        elif self.airflow_dags_path is not None:
-            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = self.airflow_dags_path
+        container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = f"{container_context.workspace_root}/{self.airflow_dags_dir}"
 
         # Set the AIRFLOW_ENV
         if self.airflow_env is not None:

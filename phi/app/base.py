@@ -46,13 +46,13 @@ class AppBase(PhiBase):
     # If python_path is provided, this value is ignored
     add_python_paths: Optional[List[str]] = None
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/mnt/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/mnt/workspace"
     # -*- If workspace_volume_type is None or WorkspaceVolumeType.HostPath
-    # Mount the workspace_root to workspace_volume_container_path
+    # Mount the workspace_root to workspace_dir_container_path
     workspace_volume_type: Optional[WorkspaceVolumeType] = None
     # -*- If workspace_volume_type=WorkspaceVolumeType.EmptyDir
     # Create an empty volume with the name workspace_volume_name
@@ -142,46 +142,42 @@ class AppBase(PhiBase):
             logger.warning("Invalid workspace_name")
             return None
 
-        workspace_volume_container_path: str = self.workspace_volume_container_path
-        if workspace_volume_container_path is None:
-            logger.warning("Invalid workspace_volume_container_path")
+        workspace_dir_container_path: str = self.workspace_dir_container_path
+        if workspace_dir_container_path is None:
+            logger.warning("Invalid workspace_dir_container_path")
             return None
 
-        workspace_parent_paths = workspace_volume_container_path.split("/")[0:-1]
+        workspace_parent_paths = workspace_dir_container_path.split("/")[0:-1]
         workspace_parent = "/".join(workspace_parent_paths)
 
         self.container_context = ContainerContext(
             workspace_name=workspace_name,
-            workspace_root=workspace_volume_container_path,
+            workspace_root=workspace_dir_container_path,
             # Required for git-sync and K8s volume mounts
             workspace_parent=workspace_parent,
         )
 
         if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
-            self.container_context.scripts_dir = (
-                f"{workspace_volume_container_path}/{self.workspace_settings.scripts_dir}"
-            )
+            self.container_context.scripts_dir = f"{workspace_dir_container_path}/{self.workspace_settings.scripts_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
-            self.container_context.storage_dir = (
-                f"{workspace_volume_container_path}/{self.workspace_settings.storage_dir}"
-            )
+            self.container_context.storage_dir = f"{workspace_dir_container_path}/{self.workspace_settings.storage_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
             self.container_context.workflows_dir = (
-                f"{workspace_volume_container_path}/{self.workspace_settings.workflows_dir}"
+                f"{workspace_dir_container_path}/{self.workspace_settings.workflows_dir}"
             )
 
         if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
             self.container_context.workspace_dir = (
-                f"{workspace_volume_container_path}/{self.workspace_settings.workspace_dir}"
+                f"{workspace_dir_container_path}/{self.workspace_settings.workspace_dir}"
             )
 
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
             self.container_context.workspace_schema = self.workspace_settings.ws_schema
 
         if self.requirements_file is not None:
-            self.container_context.requirements_file = f"{workspace_volume_container_path}/{self.requirements_file}"
+            self.container_context.requirements_file = f"{workspace_dir_container_path}/{self.requirements_file}"
 
         return self.container_context
 

@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
 from phi.api.schemas.workspace import WorkspaceSchema
@@ -47,21 +47,14 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Dev Apps
     #
-    dev_airbyte_enabled: bool = False
     dev_airflow_enabled: bool = False
     dev_api_enabled: bool = False
     dev_app_enabled: bool = False
-    dev_assistant_enabled: bool = False
-    dev_databox_enabled: bool = False
     dev_db_enabled: bool = False
-    dev_grafana_enabled: bool = False
     dev_jupyter_enabled: bool = False
-    dev_prometheus_enabled: bool = False
     dev_redis_enabled: bool = False
-    dev_spark_enabled: bool = False
     dev_superset_enabled: bool = False
     dev_traefik_enabled: bool = False
-    dev_vectordb_enabled: bool = False
     #
     # -*- Staging settings
     #
@@ -77,22 +70,15 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Staging Apps
     #
-    stg_airbyte_enabled: bool = False
     stg_airflow_enabled: bool = False
     stg_api_enabled: bool = False
     stg_app_enabled: bool = False
-    stg_assistant_enabled: bool = False
-    stg_databox_enabled: bool = False
     stg_db_enabled: bool = False
-    stg_grafana_enabled: bool = False
     stg_jupyter_enabled: bool = False
-    stg_prometheus_enabled: bool = False
     stg_redis_enabled: bool = False
-    stg_spark_enabled: bool = False
     stg_superset_enabled: bool = False
     stg_traefik_enabled: bool = False
     stg_whoami_enabled: bool = False
-    stg_vectordb_enabled: bool = False
     #
     # -*- Production settings
     #
@@ -108,22 +94,15 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Production Apps
     #
-    prd_airbyte_enabled: bool = False
     prd_airflow_enabled: bool = False
     prd_api_enabled: bool = False
     prd_app_enabled: bool = False
-    prd_assistant_enabled: bool = False
-    prd_databox_enabled: bool = False
     prd_db_enabled: bool = False
-    prd_grafana_enabled: bool = False
     prd_jupyter_enabled: bool = False
-    prd_prometheus_enabled: bool = False
     prd_redis_enabled: bool = False
-    prd_spark_enabled: bool = False
     prd_superset_enabled: bool = False
     prd_traefik_enabled: bool = False
     prd_whoami_enabled: bool = False
-    prd_vectordb_enabled: bool = False
     #
     # -*- AWS settings
     #
@@ -179,6 +158,8 @@ class WorkspaceSettings(BaseSettings):
     use_cache: bool = True
     # WorkspaceSchema provided by the api
     ws_schema: Optional[WorkspaceSchema] = None
+
+    model_config = SettingsConfigDict(extra="allow")
 
     @field_validator("dev_key", mode="before")
     def set_dev_key(cls, dev_key, info: FieldValidationInfo):

@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any, Union, Tuple
 from pydantic import Field, field_validator, FieldValidationInfo
 
 from phi.app.group import AppGroup
+from phi.resource.group import ResourceGroup
 from phi.k8s.app.base import K8sApp
 from phi.k8s.app.context import K8sBuildContext
 from phi.k8s.api_client import K8sApiClient
@@ -15,7 +16,7 @@ from phi.utils.log import logger
 
 class K8sResourceGroup(InfraResourceGroup):
     apps: Optional[List[Union[K8sApp, AppGroup]]] = None
-    resources: Optional[List[Union[K8sResource, CreateK8sResource]]] = None
+    resources: Optional[List[Union[K8sResource, CreateK8sResource, ResourceGroup]]] = None
 
     # K8s namespace to use
     namespace: str = "default"
@@ -87,22 +88,50 @@ class K8sResourceGroup(InfraResourceGroup):
         resources_to_create: List[K8sResource] = []
         if self.resources is not None:
             for r in self.resources:
-                if isinstance(r, K8sResource) and r.should_create(
-                    group_filter=group_filter,
-                    name_filter=name_filter,
-                    type_filter=type_filter,
-                ):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
-                    resources_to_create.append(r)
-                if isinstance(r, CreateK8sResource):
-                    _k8s_resource = r.create()
-                    if _k8s_resource is not None and _k8s_resource.should_create(
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, K8sResource):
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_create(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_create.append(resource_from_resource_group)
+                            elif isinstance(resource_from_resource_group, CreateK8sResource):
+                                _k8s_resource = resource_from_resource_group.create()
+                                if _k8s_resource is not None:
+                                    if _k8s_resource.group is None and self.name is not None:
+                                        _k8s_resource.group = self.name
+                                    if _k8s_resource.should_create(
+                                        group_filter=group_filter,
+                                        name_filter=name_filter,
+                                        type_filter=type_filter,
+                                    ):
+                                        resources_to_create.append(_k8s_resource)
+                elif isinstance(r, K8sResource):
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_create(
                         group_filter=group_filter,
                         name_filter=name_filter,
                         type_filter=type_filter,
                     ):
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
-                        resources_to_create.append(_k8s_resource)
+                        resources_to_create.append(r)
+                elif isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.create()
+                    if _k8s_resource is not None:
+                        if _k8s_resource.group is None and self.name is not None:
+                            _k8s_resource.group = self.name
+                        if _k8s_resource.should_create(
+                            group_filter=group_filter,
+                            name_filter=name_filter,
+                            type_filter=type_filter,
+                        ):
+                            resources_to_create.append(_k8s_resource)
 
         # Build a list of K8sApps to create
         apps_to_create: List[K8sApp] = []
@@ -135,6 +164,12 @@ class K8sResourceGroup(InfraResourceGroup):
                             group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_create.append(app_resource)
+                        elif isinstance(app_resource, CreateK8sResource):
+                            _k8s_resource = app_resource.create()
+                            if _k8s_resource is not None and _k8s_resource.should_create(
+                                group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
+                            ):
+                                resources_to_create.append(_k8s_resource)
 
         # Sort the K8sResources in install order
         resources_to_create.sort(key=lambda x: K8sResourceInstallOrder.get(x.__class__.__name__, 5000))
@@ -238,22 +273,50 @@ class K8sResourceGroup(InfraResourceGroup):
         resources_to_delete: List[K8sResource] = []
         if self.resources is not None:
             for r in self.resources:
-                if isinstance(r, K8sResource) and r.should_delete(
-                    group_filter=group_filter,
-                    name_filter=name_filter,
-                    type_filter=type_filter,
-                ):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
-                    resources_to_delete.append(r)
-                if isinstance(r, CreateK8sResource):
-                    _k8s_resource = r.create()
-                    if _k8s_resource is not None and _k8s_resource.should_delete(
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, K8sResource):
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_delete(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_delete.append(resource_from_resource_group)
+                            elif isinstance(resource_from_resource_group, CreateK8sResource):
+                                _k8s_resource = resource_from_resource_group.create()
+                                if _k8s_resource is not None:
+                                    if _k8s_resource.group is None and self.name is not None:
+                                        _k8s_resource.group = self.name
+                                    if _k8s_resource.should_delete(
+                                        group_filter=group_filter,
+                                        name_filter=name_filter,
+                                        type_filter=type_filter,
+                                    ):
+                                        resources_to_delete.append(_k8s_resource)
+                elif isinstance(r, K8sResource):
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_delete(
                         group_filter=group_filter,
                         name_filter=name_filter,
                         type_filter=type_filter,
                     ):
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
-                        resources_to_delete.append(_k8s_resource)
+                        resources_to_delete.append(r)
+                elif isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.create()
+                    if _k8s_resource is not None:
+                        if _k8s_resource.group is None and self.name is not None:
+                            _k8s_resource.group = self.name
+                        if _k8s_resource.should_delete(
+                            group_filter=group_filter,
+                            name_filter=name_filter,
+                            type_filter=type_filter,
+                        ):
+                            resources_to_delete.append(_k8s_resource)
 
         # Build a list of K8sApps to delete
         apps_to_delete: List[K8sApp] = []
@@ -266,7 +329,7 @@ class K8sResourceGroup(InfraResourceGroup):
                             if isinstance(app_from_app_group, K8sApp):
                                 if app_from_app_group.group is None and self.name is not None:
                                     app_from_app_group.group = self.name
-                                if app_from_app_group.should_create(group_filter=group_filter):
+                                if app_from_app_group.should_delete(group_filter=group_filter):
                                     apps_to_delete.append(app_from_app_group)
                 elif isinstance(app, K8sApp):
                     if app.group is None and self.name is not None:
@@ -286,6 +349,12 @@ class K8sResourceGroup(InfraResourceGroup):
                             group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_delete.append(app_resource)
+                        elif isinstance(app_resource, CreateK8sResource):
+                            _k8s_resource = app_resource.create()
+                            if _k8s_resource is not None and _k8s_resource.should_delete(
+                                group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
+                            ):
+                                resources_to_delete.append(_k8s_resource)
 
         # Sort the K8sResources in install order
         resources_to_delete.sort(key=lambda x: K8sResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True)
@@ -399,22 +468,50 @@ class K8sResourceGroup(InfraResourceGroup):
         resources_to_update: List[K8sResource] = []
         if self.resources is not None:
             for r in self.resources:
-                if isinstance(r, K8sResource) and r.should_update(
-                    group_filter=group_filter,
-                    name_filter=name_filter,
-                    type_filter=type_filter,
-                ):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
-                    resources_to_update.append(r)
-                if isinstance(r, CreateK8sResource):
-                    _k8s_resource = r.create()
-                    if _k8s_resource is not None and _k8s_resource.should_update(
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, K8sResource):
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_update(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_update.append(resource_from_resource_group)
+                            elif isinstance(resource_from_resource_group, CreateK8sResource):
+                                _k8s_resource = resource_from_resource_group.create()
+                                if _k8s_resource is not None:
+                                    if _k8s_resource.group is None and self.name is not None:
+                                        _k8s_resource.group = self.name
+                                    if _k8s_resource.should_update(
+                                        group_filter=group_filter,
+                                        name_filter=name_filter,
+                                        type_filter=type_filter,
+                                    ):
+                                        resources_to_update.append(_k8s_resource)
+                elif isinstance(r, K8sResource):
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_update(
                         group_filter=group_filter,
                         name_filter=name_filter,
                         type_filter=type_filter,
                     ):
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
-                        resources_to_update.append(_k8s_resource)
+                        resources_to_update.append(r)
+                elif isinstance(r, CreateK8sResource):
+                    _k8s_resource = r.create()
+                    if _k8s_resource is not None:
+                        if _k8s_resource.group is None and self.name is not None:
+                            _k8s_resource.group = self.name
+                        if _k8s_resource.should_update(
+                            group_filter=group_filter,
+                            name_filter=name_filter,
+                            type_filter=type_filter,
+                        ):
+                            resources_to_update.append(_k8s_resource)
 
         # Build a list of K8sApps to update
         apps_to_update: List[K8sApp] = []
@@ -427,7 +524,7 @@ class K8sResourceGroup(InfraResourceGroup):
                             if isinstance(app_from_app_group, K8sApp):
                                 if app_from_app_group.group is None and self.name is not None:
                                     app_from_app_group.group = self.name
-                                if app_from_app_group.should_create(group_filter=group_filter):
+                                if app_from_app_group.should_update(group_filter=group_filter):
                                     apps_to_update.append(app_from_app_group)
                 elif isinstance(app, K8sApp):
                     if app.group is None and self.name is not None:
@@ -447,6 +544,12 @@ class K8sResourceGroup(InfraResourceGroup):
                             group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
                         ):
                             resources_to_update.append(app_resource)
+                        elif isinstance(app_resource, CreateK8sResource):
+                            _k8s_resource = app_resource.create()
+                            if _k8s_resource is not None and _k8s_resource.should_update(
+                                group_filter=group_filter, name_filter=name_filter, type_filter=type_filter
+                            ):
+                                resources_to_update.append(_k8s_resource)
 
         # Sort the K8sResources in install order
         resources_to_update.sort(key=lambda x: K8sResourceInstallOrder.get(x.__class__.__name__, 5000), reverse=True)

@@ -136,24 +136,24 @@ class EbsVolume(AwsResource):
             not_null_args["ClientToken"] = self.client_token
 
         # Step 2: Create Volume
-        service_resource = self.get_service_resource(aws_client)
+        service_client = self.get_service_client(aws_client)
         try:
-            created_resource = service_resource.create_volume(
+            create_response = service_client.create_volume(
                 AvailabilityZone=self.availability_zone,
                 Size=self.size,
                 **not_null_args,
             )
-            logger.debug(f"EbsVolume: {created_resource}")
+            logger.debug(f"create_response: {create_response}")
 
             # Validate Volume creation
-            create_time = created_resource.create_time
-            self.volume_id = created_resource.volume_id
-            logger.debug(f"create_time: {create_time}")
-            logger.debug(f"volume_id: {self.volume_id}")
-            if create_time is not None:
-                print_info(f"EbsVolume created: {self.name}")
-                self.active_resource = created_resource
-                return True
+            if create_response is not None:
+                create_time = create_response.get("CreateTime", None)
+                self.volume_id = create_response.get("VolumeId", None)
+                logger.debug(f"create_time: {create_time}")
+                logger.debug(f"volume_id: {self.volume_id}")
+                if create_time is not None:
+                    self.active_resource = create_response
+                    return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be created.")
             logger.error(e)
@@ -190,13 +190,20 @@ class EbsVolume(AwsResource):
 
         from botocore.exceptions import ClientError
 
-        service_resource = self.get_service_resource(aws_client)
+        service_client = self.get_service_client(aws_client)
         try:
             volume = None
-            for _volume in service_resource.volumes.all():
-                _volume_tags = _volume.tags
-                # logger.debug(f"Found volume: {_volume}")
-                # logger.debug(f"Tags: {_volume_tags}")
+            describe_volumes = service_client.describe_volumes(
+                Filters=[
+                    {
+                        "Name": "tag:" + self.name_tag,
+                        "Values": [self.name],
+                    },
+                ],
+            )
+            logger.debug(f"describe_volumes: {describe_volumes}")
+            for _volume in describe_volumes.get("Volumes", []):
+                _volume_tags = _volume.get("Tags", None)
                 if _volume_tags is not None and isinstance(_volume_tags, list):
                     for _tag in _volume_tags:
                         if _tag["Key"] == self.name_tag and _tag["Value"] == self.name:
@@ -206,17 +213,11 @@ class EbsVolume(AwsResource):
                 if volume is not None:
                     break
 
-            if volume is None:
-                logger.debug("No EbsVolume found")
-                return None
-
-            volume.load()
-            create_time = volume.create_time
-            self.volume_id = volume.volume_id
-            logger.debug(f"create_time: {create_time}")
-            logger.debug(f"volume_id: {self.volume_id}")
-            if create_time is not None:
-                logger.debug(f"EbsVolume found: {self.name}")
+            if volume is not None:
+                create_time = volume.get("CreateTime", None)
+                logger.debug(f"create_time: {create_time}")
+                self.volume_id = volume.get("VolumeId", None)
+                logger.debug(f"volume_id: {self.volume_id}")
                 self.active_resource = volume
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
@@ -234,30 +235,93 @@ class EbsVolume(AwsResource):
         print_info(f"Deleting {self.get_resource_type()}: {self.get_resource_name()}")
 
         self.active_resource = None
+        service_client = self.get_service_client(aws_client)
         try:
             volume = self._read(aws_client)
             logger.debug(f"EbsVolume: {volume}")
-            if volume is None:
+            if volume is None or self.volume_id is None:
                 logger.warning(f"No {self.get_resource_type()} to delete")
                 return True
 
             # detach the volume from all instances
-            for attachment in volume.attachments:
+            for attachment in volume.get("Attachments", []):
                 device = attachment.get("Device", None)
                 instance_id = attachment.get("InstanceId", None)
                 print_info(f"Detaching volume from device: {device}, instance_id: {instance_id}")
-                volume.detach_from_instance(
+                service_client.detach_volume(
                     Device=device,
                     InstanceId=instance_id,
+                    VolumeId=self.volume_id,
                 )
 
             # delete volume
-            volume.delete()
-            print_info(f"EbsVolume deleted: {self.name}")
+            service_client.delete_volume(VolumeId=self.volume_id)
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")
             logger.error("Please try again or delete resources manually.")
+            logger.error(e)
+        return False
+
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Updates the EbsVolume
+
+        Args:
+            aws_client: The AwsApiClient for the current volume
+        """
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        # Step 1: Build Volume configuration
+        # Add name as a tag because volumes do not have names
+        tags = {self.name_tag: self.name}
+        if self.tags is not None and isinstance(self.tags, dict):
+            tags.update(self.tags)
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if self.iops:
+            not_null_args["Iops"] = self.iops
+        if self.volume_type:
+            not_null_args["VolumeType"] = self.volume_type
+        if self.dry_run:
+            not_null_args["DryRun"] = self.dry_run
+        if tags:
+            not_null_args["TagSpecifications"] = [
+                {
+                    "ResourceType": "volume",
+                    "Tags": [{"Key": k, "Value": v} for k, v in tags.items()],
+                },
+            ]
+        if self.multi_attach_enabled:
+            not_null_args["MultiAttachEnabled"] = self.multi_attach_enabled
+        if self.throughput:
+            not_null_args["Throughput"] = self.throughput
+
+        service_client = self.get_service_client(aws_client)
+        try:
+            volume = self._read(aws_client)
+            logger.debug(f"EbsVolume: {volume}")
+            if volume is None or self.volume_id is None:
+                logger.warning(f"No {self.get_resource_type()} to update")
+                return True
+
+            # update volume
+            update_response = service_client.modify_volume(
+                VolumeId=self.volume_id,
+                **not_null_args,
+            )
+            logger.debug(f"update_response: {update_response}")
+
+            # Validate Volume update
+            volume_modification = update_response.get("VolumeModification", None)
+            if volume_modification is not None:
+                volume_id_after_modification = volume_modification.get("VolumeId", None)
+                logger.debug(f"volume_id: {volume_id_after_modification}")
+                if volume_id_after_modification is not None:
+                    return True
+        except Exception as e:
+            logger.error(f"{self.get_resource_type()} could not be updated.")
+            logger.error("Please try again or update resources manually.")
             logger.error(e)
         return False
 

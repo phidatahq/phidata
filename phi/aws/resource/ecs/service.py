@@ -330,7 +330,12 @@ class EcsService(AwsResource):
         return True
 
     def _update(self, aws_client: AwsApiClient) -> bool:
-        """Update EcsService"""
+        """Updates the EcsService
+
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
         # create a dict of args which are not null, otherwise aws type validation fails
@@ -392,23 +397,22 @@ class EcsService(AwsResource):
         if self.service_registries is not None:
             not_null_args["serviceRegistries"] = self.service_registries
 
-        # Update EcsService
-        service_client = self.get_service_client(aws_client)
         try:
+            # Update EcsService
+            service_client = self.get_service_client(aws_client)
             update_response = service_client.update_service(
                 service=self.get_ecs_service_name(),
                 taskDefinition=self.get_ecs_task_definition(),
                 **not_null_args,
             )
-            logger.debug(f"EcsService: {update_response}")
-            resource_dict = update_response.get("service", {})
+            logger.debug(f"update_response: {update_response}")
 
-            # Validate resource creation
-            if resource_dict is not None:
-                print_info(f"EcsService updated: {self.get_resource_name()}")
-                self.active_resource = update_response
+            self.active_resource = update_response.get("service", None)
+            if self.active_resource is not None:
+                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} updated")
                 return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be updated.")
+            logger.error("Please try again or update resources manually.")
             logger.error(e)
         return False

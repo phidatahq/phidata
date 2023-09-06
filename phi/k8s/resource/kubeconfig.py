@@ -3,8 +3,6 @@ from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from phi.k8s.enums.api_version import ApiVersion
-from phi.k8s.enums.kind import Kind
 from phi.utils.log import logger
 
 
@@ -35,7 +33,7 @@ class KubeconfigContextSpec(BaseModel):
 
     cluster: Optional[str]
     user: Optional[str]
-    namespace: Optional[str]
+    namespace: Optional[str] = None
 
 
 class KubeconfigContext(BaseModel):
@@ -64,8 +62,8 @@ class Kubeconfig(BaseModel):
         * Go Doc: https://godoc.org/k8s.io/client-go/tools/clientcmd/api#Config
     """
 
-    api_version: ApiVersion = Field(ApiVersion.CORE_V1, alias="apiVersion")
-    kind: Optional[Kind] = Kind.CONFIG
+    api_version: str = Field("v1", alias="apiVersion")
+    kind: str = "Config"
     clusters: List[KubeconfigCluster] = []
     users: List[KubeconfigUser] = []
     contexts: List[KubeconfigContext] = []

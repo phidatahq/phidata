@@ -1,6 +1,9 @@
 from enum import Enum
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 
+from pydantic import field_validator, Field
+from pydantic_core.core_schema import FieldValidationInfo
+
 from phi.infra.app.base import InfraApp, WorkspaceVolumeType
 from phi.infra.app.context import ContainerContext
 from phi.k8s.app.context import K8sBuildContext
@@ -39,6 +42,11 @@ class K8sApp(InfraApp):
     ebs_volume: Optional[Any] = None
     ebs_volume_region: Optional[str] = None
     ebs_volume_az: Optional[str] = None
+    # -*- If volume_type=AppVolumeType.AwsEfs
+    # Provide Efs Volume-id manually
+    efs_volume_id: Optional[str] = None
+    # OR derive the volume_id from an EfsVolume resource
+    efs_volume: Optional[Any] = None
     # -*- If volume_type=AppVolumeType.PersistentVolume
     # AccessModes is a list of ways the volume can be mounted.
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes
@@ -54,8 +62,6 @@ class K8sApp(InfraApp):
     pv_reclaim_policy: Optional[str] = None
     pv_storage_class: str = ""
     pv_labels: Optional[Dict[str, str]] = None
-    # -*- If volume_type=AppVolumeType.AwsEfs
-    efs_volume_id: Optional[str] = None
 
     # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
     schedule_pods_in_ebs_topology: bool = True
@@ -94,7 +100,8 @@ class K8sApp(InfraApp):
     service_name: Optional[str] = None
     service_type: Optional[ServiceType] = None
     # The port exposed by the service
-    service_port: int = 8000
+    # Preferred over port_number if both are set
+    service_port: Optional[int] = Field(None, validate_default=True)
     # The node_port exposed by the service if service_type = ServiceType.NODE_PORT
     service_node_port: Optional[int] = None
     # The target_port is the port to access on the pods targeted by the service.
@@ -168,6 +175,13 @@ class K8sApp(InfraApp):
     # Type: CreateCustomResourceDefinition
     extra_crds: Optional[List[Any]] = None
 
+    @field_validator("service_port", mode="before")
+    def set_host_port(cls, v, info: FieldValidationInfo):
+        port_number = info.data.get("port_number")
+        if v is None and port_number is not None:
+            v = port_number
+        return v
+
     def get_cr_name(self) -> str:
         from phi.utils.defaults import get_default_cr_name
 
@@ -208,7 +222,7 @@ class K8sApp(InfraApp):
 
         return self.service_name or get_default_service_name(self.name)
 
-    def get_service_port(self) -> int:
+    def get_service_port(self) -> Optional[int]:
         return self.service_port
 
     def get_cr_policy_rules(self) -> List[Any]:

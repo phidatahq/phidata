@@ -14,7 +14,7 @@ from phi.aws.resource.ecs.service import EcsService
 from phi.aws.resource.eks.fargate_profile import EksFargateProfile
 from phi.aws.resource.eks.node_group import EksNodeGroup
 
-# from phi.aws.resource.eks.kubeconfig import EksKubeconfig
+from phi.aws.resource.eks.kubeconfig import EksKubeconfig
 from phi.aws.resource.elb.load_balancer import LoadBalancer
 from phi.aws.resource.elb.target_group import TargetGroup
 from phi.aws.resource.elb.listener import Listener
@@ -36,9 +36,9 @@ AwsResourceType = Union[
     CloudFormationStack,
     EbsVolume,
     EksCluster,
+    EksKubeconfig,
     EksFargateProfile,
     EksNodeGroup,
-    # EksKubeconfig,
     IamRole,
     IamPolicy,
     GlueCrawler,
@@ -85,7 +85,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
     EcsTaskDefinition,
     EcsService,
     EksCluster,
-    # EksKubeconfig,
+    EksKubeconfig,
     EksFargateProfile,
     EksNodeGroup,
     EmrCluster,

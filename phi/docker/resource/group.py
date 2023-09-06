@@ -1,6 +1,7 @@
 from typing import List, Optional, Union, Tuple
 
 from phi.app.group import AppGroup
+from phi.resource.group import ResourceGroup
 from phi.docker.app.base import DockerApp
 from phi.docker.app.context import DockerBuildContext
 from phi.docker.api_client import DockerApiClient
@@ -16,7 +17,7 @@ class DockerResourceGroup(InfraResourceGroup):
     base_url: Optional[str] = None
 
     apps: Optional[List[Union[DockerApp, AppGroup]]] = None
-    resources: Optional[List[DockerResource]] = None
+    resources: Optional[List[Union[DockerResource, ResourceGroup]]] = None
 
     # -*- Cached Data
     _api_client: Optional[DockerApiClient] = None
@@ -45,13 +46,29 @@ class DockerResourceGroup(InfraResourceGroup):
         resources_to_create: List[DockerResource] = []
         if self.resources is not None:
             for r in self.resources:
-                if r.should_create(
-                    group_filter=group_filter,
-                    name_filter=name_filter,
-                    type_filter=type_filter,
-                ):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
-                    resources_to_create.append(r)
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, DockerResource):
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_create(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_create.append(resource_from_resource_group)
+                elif isinstance(r, DockerResource):
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_create(
+                        group_filter=group_filter,
+                        name_filter=name_filter,
+                        type_filter=type_filter,
+                    ):
+                        r.set_workspace_settings(workspace_settings=workspace_settings)
+                        resources_to_create.append(r)
 
         # Build a list of DockerApps to create
         apps_to_create: List[DockerApp] = []
@@ -204,13 +221,29 @@ class DockerResourceGroup(InfraResourceGroup):
         resources_to_delete: List[DockerResource] = []
         if self.resources is not None:
             for r in self.resources:
-                if r.should_delete(
-                    group_filter=group_filter,
-                    name_filter=name_filter,
-                    type_filter=type_filter,
-                ):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
-                    resources_to_delete.append(r)
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, DockerResource):
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_delete(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_delete.append(resource_from_resource_group)
+                elif isinstance(r, DockerResource):
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_delete(
+                        group_filter=group_filter,
+                        name_filter=name_filter,
+                        type_filter=type_filter,
+                    ):
+                        r.set_workspace_settings(workspace_settings=workspace_settings)
+                        resources_to_delete.append(r)
 
         # Build a list of DockerApps to delete
         apps_to_delete: List[DockerApp] = []
@@ -223,7 +256,7 @@ class DockerResourceGroup(InfraResourceGroup):
                             if isinstance(app_from_app_group, DockerApp):
                                 if app_from_app_group.group is None and self.name is not None:
                                     app_from_app_group.group = self.name
-                                if app_from_app_group.should_create(group_filter=group_filter):
+                                if app_from_app_group.should_delete(group_filter=group_filter):
                                     apps_to_delete.append(app_from_app_group)
                 elif isinstance(app, DockerApp):
                     if app.group is None and self.name is not None:
@@ -375,13 +408,29 @@ class DockerResourceGroup(InfraResourceGroup):
         resources_to_update: List[DockerResource] = []
         if self.resources is not None:
             for r in self.resources:
-                if r.should_update(
-                    group_filter=group_filter,
-                    name_filter=name_filter,
-                    type_filter=type_filter,
-                ):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
-                    resources_to_update.append(r)
+                if isinstance(r, ResourceGroup):
+                    resources_from_resource_group = r.get_resources()
+                    if len(resources_from_resource_group) > 0:
+                        for resource_from_resource_group in resources_from_resource_group:
+                            if isinstance(resource_from_resource_group, DockerResource):
+                                if resource_from_resource_group.group is None and self.name is not None:
+                                    resource_from_resource_group.group = self.name
+                                if resource_from_resource_group.should_update(
+                                    group_filter=group_filter,
+                                    name_filter=name_filter,
+                                    type_filter=type_filter,
+                                ):
+                                    resources_to_update.append(resource_from_resource_group)
+                elif isinstance(r, DockerResource):
+                    if r.group is None and self.name is not None:
+                        r.group = self.name
+                    if r.should_update(
+                        group_filter=group_filter,
+                        name_filter=name_filter,
+                        type_filter=type_filter,
+                    ):
+                        r.set_workspace_settings(workspace_settings=workspace_settings)
+                        resources_to_update.append(r)
 
         # Build a list of DockerApps to update
         apps_to_update: List[DockerApp] = []
@@ -394,7 +443,7 @@ class DockerResourceGroup(InfraResourceGroup):
                             if isinstance(app_from_app_group, DockerApp):
                                 if app_from_app_group.group is None and self.name is not None:
                                     app_from_app_group.group = self.name
-                                if app_from_app_group.should_create(group_filter=group_filter):
+                                if app_from_app_group.should_update(group_filter=group_filter):
                                     apps_to_update.append(app_from_app_group)
                 elif isinstance(app, DockerApp):
                     if app.group is None and self.name is not None:

@@ -1,16 +1,11 @@
 from enum import Enum
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 
-<<<<<<< Updated upstream
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType
-from phi.infra.app.context import ContainerContext
-=======
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
 
 from phi.app.base import AppBase, WorkspaceVolumeType
 from phi.app.context import ContainerContext
->>>>>>> Stashed changes
 from phi.k8s.app.context import K8sBuildContext
 from phi.k8s.enums.restart_policy import RestartPolicy
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy

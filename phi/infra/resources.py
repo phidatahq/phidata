@@ -4,9 +4,7 @@ from phi.base import PhiBase
 from phi.workspace.settings import WorkspaceSettings
 
 
-class InfraResourceGroup(PhiBase):
-    env: Optional[str] = None
-
+class InfraResources(PhiBase):
     apps: Optional[List[Any]] = None
     resources: Optional[List[Any]] = None
 

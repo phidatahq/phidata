@@ -6,12 +6,12 @@ from phi.docker.app.base import DockerApp
 from phi.docker.app.context import DockerBuildContext
 from phi.docker.api_client import DockerApiClient
 from phi.docker.resource.base import DockerResource
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.resources import InfraResources
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
-class DockerResourceGroup(InfraResourceGroup):
+class DockerResources(InfraResources):
     network: str = "bridge"
     # URL for the Docker server. For example, unix:///var/run/docker.sock or tcp://127.0.0.1:1234
     base_url: Optional[str] = None
@@ -578,3 +578,12 @@ class DockerResourceGroup(InfraResourceGroup):
                 f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"
             )  # noqa: E501
         return num_resources_updated, num_resources_to_update
+
+    def save_resources(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        workspace_settings: Optional[WorkspaceSettings] = None,
+    ) -> Tuple[int, int]:
+        raise NotImplementedError

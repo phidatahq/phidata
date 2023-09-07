@@ -10,6 +10,7 @@ class PhiBase(BaseModel):
     name: Optional[str] = None
     group: Optional[str] = None
     version: Optional[str] = None
+    env: Optional[str] = None
     enabled: bool = True
 
     #  -*- Resource Control

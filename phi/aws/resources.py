@@ -6,12 +6,12 @@ from phi.aws.app.base import AwsApp
 from phi.aws.app.context import AwsBuildContext
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.resources import InfraResources
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
-class AwsResourceGroup(InfraResourceGroup):
+class AwsResources(InfraResources):
     apps: Optional[List[Union[AwsApp, AppGroup]]] = None
     resources: Optional[List[Union[AwsResource, ResourceGroup]]] = None
 
@@ -618,3 +618,12 @@ class AwsResourceGroup(InfraResourceGroup):
                 f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"
             )  # noqa: E501
         return num_resources_updated, num_resources_to_update
+
+    def save_resources(
+        self,
+        group_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        workspace_settings: Optional[WorkspaceSettings] = None,
+    ) -> Tuple[int, int]:
+        raise NotImplementedError

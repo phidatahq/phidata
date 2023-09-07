@@ -10,12 +10,12 @@ from phi.k8s.app.context import K8sBuildContext
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.resource.base import K8sResource
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.resources import InfraResources
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
-class K8sResourceGroup(InfraResourceGroup):
+class K8sResources(InfraResources):
     apps: Optional[List[Union[K8sApp, AppGroup]]] = None
     resources: Optional[List[Union[K8sResource, CreateK8sResource, ResourceGroup]]] = None
 
@@ -226,7 +226,7 @@ class K8sResourceGroup(InfraResourceGroup):
 
         # Validate resources to be created
         if not auto_confirm:
-            print_heading("--**-- Confirm resources to create:")
+            print_heading("\n--**-- Confirm resources to create:")
             for resource in final_k8s_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
@@ -426,7 +426,7 @@ class K8sResourceGroup(InfraResourceGroup):
 
         # Validate resources to be deleted
         if not auto_confirm:
-            print_heading("--**-- Confirm resources to delete:")
+            print_heading("\n--**-- Confirm resources to delete:")
             for resource in final_k8s_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
@@ -618,7 +618,7 @@ class K8sResourceGroup(InfraResourceGroup):
 
         # Validate resources to be updated
         if not auto_confirm:
-            print_heading("--**-- Confirm resources to update:")
+            print_heading("\n--**-- Confirm resources to update:")
             for resource in final_k8s_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
@@ -661,7 +661,7 @@ class K8sResourceGroup(InfraResourceGroup):
         type_filter: Optional[str] = None,
         workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import print_info, print_heading
         from phi.k8s.resource.types import K8sResourceInstallOrder
         from phi.utils.filesystem import delete_files_in_dir
 

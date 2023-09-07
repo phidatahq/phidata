@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import Field, BaseModel, ConfigDict, field_serializer
 
 from phi.resource.base import ResourceBase
 from phi.k8s.api_client import K8sApiClient
@@ -20,7 +20,7 @@ class K8sObject(BaseModel):
         """
         logger.error("@get_k8s_object method not defined")
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
 
 class K8sResource(ResourceBase, K8sObject):
@@ -55,6 +55,14 @@ class K8sResource(ResourceBase, K8sObject):
     fields_for_k8s_manifest: List[str] = []
 
     k8s_client: Optional[K8sApiClient] = None
+
+    @field_serializer("api_version")
+    def get_api_version_value(self, v) -> str:
+        return v.value
+
+    @field_serializer("kind")
+    def get_kind_value(self, v) -> str:
+        return v.value
 
     def get_resource_name(self) -> str:
         return self.name or self.metadata.name or self.__class__.__name__

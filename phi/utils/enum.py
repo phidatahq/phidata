@@ -1,8 +1,8 @@
-import enum
+from enum import Enum
 from typing import Any, List, Optional
 
 
-class ExtendedEnum(enum.Enum):
+class ExtendedEnum(Enum):
     @classmethod
     def values_list(cls: Any) -> List[Any]:
         return list(map(lambda c: c.value, cls))

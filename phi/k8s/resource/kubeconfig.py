@@ -10,7 +10,7 @@ class KubeconfigClusterConfig(BaseModel):
     server: str
     certificate_authority_data: str = Field(..., alias="certificate-authority-data")
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
 
 class KubeconfigCluster(BaseModel):
@@ -70,7 +70,7 @@ class Kubeconfig(BaseModel):
     current_context: Optional[str] = Field(None, alias="current-context")
     preferences: dict = {}
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @classmethod
     def read_from_file(cls: Any, file_path: Path, create_if_not_exists: bool = True) -> Optional[Any]:

@@ -1,10 +1,9 @@
-from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, List
 
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import print_heading, print_info
 from phi.infra.type import InfraType
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.resources import InfraResources
 from phi.workspace.config import WorkspaceConfig
 from phi.utils.log import logger
 
@@ -29,7 +28,7 @@ def save_resources(
     ws_config.set_local_env()
 
     # Get resource groups to deploy
-    resource_groups_to_save: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_save: List[InfraResources] = ws_config.get_resource_groups(
         env=target_env,
         infra=InfraType.k8s,
         order="create",

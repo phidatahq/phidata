@@ -1,7 +1,7 @@
 from phi.utils.enum import ExtendedEnum
 
 
-class ApiGroup(ExtendedEnum):
+class ApiGroup(str, ExtendedEnum):
     CORE = ""
     APPS = "app"
     RBAC_AUTH = "rbac.authorization.k8s.io"

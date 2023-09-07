@@ -5,7 +5,7 @@ from typing import Optional, List, Any
 from pydantic import BaseModel, ConfigDict
 
 from phi.infra.type import InfraType
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.resources import InfraResources
 from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.dttm import current_datetime_utc
@@ -33,11 +33,11 @@ class WorkspaceConfig(BaseModel):
     # Values loaded from the files in the workspace_dir_path
     # WorkspaceSettings
     workspace_settings: Optional[WorkspaceSettings] = None
-    # List of DockerResourceGroup
+    # List of DockerResources
     docker_resource_groups: Optional[List[Any]] = None
-    # List of K8sResourceGroup
+    # List of K8sResources
     k8s_resource_groups: Optional[List[Any]] = None
-    # List of AwsResourceGroup
+    # List of AwsResources
     aws_resource_groups: Optional[List[Any]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -120,9 +120,9 @@ class WorkspaceConfig(BaseModel):
                         _type_name = obj.__class__.__name__
                         if _type_name in [
                             "WorkspaceSettings",
-                            "DockerResourceGroup",
-                            "K8sResourceGroup",
-                            "AwsResourceGroup",
+                            "DockerResources",
+                            "K8sResources",
+                            "AwsResources",
                         ]:
                             workspace_objects[obj_name] = obj
                 except Exception:
@@ -139,21 +139,21 @@ class WorkspaceConfig(BaseModel):
                         if self.ws_schema is not None and self.workspace_settings is not None:
                             self.workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
-                elif _obj_type == "DockerResourceGroup":
+                elif _obj_type == "DockerResources":
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
                         continue
                     if self.docker_resource_groups is None:
                         self.docker_resource_groups = []
                     self.docker_resource_groups.append(obj)
-                elif _obj_type == "K8sResourceGroup":
+                elif _obj_type == "K8sResources":
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
                         continue
                     if self.k8s_resource_groups is None:
                         self.k8s_resource_groups = []
                     self.k8s_resource_groups.append(obj)
-                elif _obj_type == "AwsResourceGroup":
+                elif _obj_type == "AwsResources":
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
                         continue
@@ -211,9 +211,9 @@ class WorkspaceConfig(BaseModel):
 
     def get_resource_groups(
         self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"
-    ) -> List[InfraResourceGroup]:
+    ) -> List[InfraResources]:
         # Get all resource groups
-        all_resource_groups: List[InfraResourceGroup] = []
+        all_resource_groups: List[InfraResources] = []
         logger.debug(f"Getting resource groups for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
             if self.docker_resource_groups is not None:
@@ -239,7 +239,7 @@ class WorkspaceConfig(BaseModel):
                 all_resource_groups.extend(self.aws_resource_groups)
 
         # Filter by env
-        filtered_resource_groups: List[InfraResourceGroup] = []
+        filtered_resource_groups: List[InfraResources] = []
         if env is None:
             filtered_resource_groups = all_resource_groups
         else:

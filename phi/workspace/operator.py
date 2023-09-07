@@ -12,7 +12,7 @@ from phi.cli.console import (
     log_config_not_available_msg,
 )
 from phi.infra.type import InfraType
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.resources import InfraResources
 from phi.api.schemas.workspace import (
     WorkspaceSchema,
     WorkspaceCreate,
@@ -433,7 +433,7 @@ def start_workspace(
     ws_config.set_local_env()
 
     # Get resource groups to deploy
-    resource_groups_to_create: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_create: List[InfraResources] = ws_config.get_resource_groups(
         env=target_env,
         infra=target_infra,
         order="create",
@@ -528,7 +528,7 @@ def stop_workspace(
     ws_config.set_local_env()
 
     # Get resource groups to delete
-    resource_groups_to_delete: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_delete: List[InfraResources] = ws_config.get_resource_groups(
         env=target_env,
         infra=target_infra,
         order="delete",
@@ -623,7 +623,7 @@ def update_workspace(
     ws_config.set_local_env()
 
     # Get resource groups to update
-    resource_groups_to_update: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_update: List[InfraResources] = ws_config.get_resource_groups(
         env=target_env,
         infra=target_infra,
         order="create",

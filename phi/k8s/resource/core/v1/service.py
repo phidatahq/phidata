@@ -1,5 +1,7 @@
 from typing import Dict, List, Optional, Union
 
+from pydantic import Field, field_serializer
+
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_service import V1Service
 from kubernetes.client.models.v1_service_list import V1ServiceList
@@ -7,7 +9,6 @@ from kubernetes.client.models.v1_service_port import V1ServicePort
 from kubernetes.client.models.v1_service_spec import V1ServiceSpec
 from kubernetes.client.models.v1_service_status import V1ServiceStatus
 from kubernetes.client.models.v1_status import V1Status
-from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.resource.base import K8sResource, K8sObject
@@ -52,6 +53,10 @@ class ServicePort(K8sObject):
     # The application protocol for this port. This field follows standard Kubernetes label syntax.
     app_protocol: Optional[str] = Field(None, alias="appProtocol")
 
+    @field_serializer("protocol")
+    def get_protocol_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
     def get_k8s_object(self) -> V1ServicePort:
         # logger.info(f"Building {self.get_resource_type()} : {self.get_resource_name()}")
 
@@ -74,7 +79,7 @@ class ServicePort(K8sObject):
             name=self.name,
             node_port=self.node_port,
             port=self.port,
-            protocol=self.protocol,
+            protocol=self.protocol.value if self.protocol else None,
             target_port=target_port,
             app_protocol=self.app_protocol,
         )
@@ -182,6 +187,10 @@ class ServiceSpec(K8sObject):
     # sessionAffinityConfig contains the configurations of session affinity.
     # session_affinity_config: Optional[SessionAffinityConfig] = Field(None, alias="sessionAffinityConfig")
 
+    @field_serializer("type")
+    def get_type_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
     def get_k8s_object(self) -> V1ServiceSpec:
         # Return a V1ServiceSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service_spec.py
@@ -192,7 +201,7 @@ class ServiceSpec(K8sObject):
                 _ports.append(_port.get_k8s_object())
 
         _v1_service_spec = V1ServiceSpec(
-            type=self.type,
+            type=self.type.value if self.type else None,
             allocate_load_balancer_node_ports=self.allocate_load_balancer_node_ports,
             cluster_ip=self.cluster_ip,
             cluster_i_ps=self.cluster_ips,
@@ -241,8 +250,8 @@ class Service(K8sResource):
         # Return a V1Service object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service.py
         _v1_service = V1Service(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             spec=self.spec.get_k8s_object(),
         )

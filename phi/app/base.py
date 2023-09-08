@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Optional, Dict, Any, Union, List
 
 from pydantic import field_validator, Field
@@ -8,11 +7,6 @@ from phi.base import PhiBase
 from phi.app.context import ContainerContext
 from phi.resource.base import ResourceBase
 from phi.utils.log import logger
-
-
-class WorkspaceVolumeType(str, Enum):
-    HostPath = "HostPath"
-    EmptyDir = "EmptyDir"
 
 
 class AppBase(PhiBase):
@@ -45,29 +39,6 @@ class AppBase(PhiBase):
     # Add paths to the PYTHONPATH env var
     # If python_path is provided, this value is ignored
     add_python_paths: Optional[List[str]] = None
-
-    # -*- Workspace Configuration
-    # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/mnt/workspace"
-    # Mount the workspace directory from host machine to the container
-    mount_workspace: bool = False
-    # -*- If workspace_volume_type is None or WorkspaceVolumeType.HostPath
-    # Mount the workspace_root to workspace_dir_container_path
-    workspace_volume_type: Optional[WorkspaceVolumeType] = None
-    # -*- If workspace_volume_type=WorkspaceVolumeType.EmptyDir
-    # Create an empty volume with the name workspace_volume_name
-    workspace_volume_name: Optional[str] = None
-    # Then we can load the workspace from git using a git-sync sidecar
-    create_git_sync_sidecar: bool = False
-    # Use an init-container to create an initial copy of the workspace
-    create_git_sync_init_container: bool = True
-    git_sync_image_name: str = "k8s.gcr.io/git-sync"
-    git_sync_image_tag: str = "v3.1.1"
-    # Repository to sync
-    git_sync_repo: Optional[str] = None
-    # Branch to sync
-    git_sync_branch: Optional[str] = None
-    git_sync_wait: int = 1
 
     # -*- App Ports
     # Open a container port if open_port=True
@@ -130,56 +101,6 @@ class AppBase(PhiBase):
             return f"{self.image_name}:latest"
         else:
             return ""
-
-    def get_container_context(self) -> Optional[ContainerContext]:
-        logger.debug("Building ContainerContext")
-
-        if self.container_context is not None:
-            return self.container_context
-
-        workspace_name = self.workspace_name
-        if workspace_name is None:
-            logger.warning("Invalid workspace_name")
-            return None
-
-        workspace_dir_container_path: str = self.workspace_dir_container_path
-        if workspace_dir_container_path is None:
-            logger.warning("Invalid workspace_dir_container_path")
-            return None
-
-        workspace_parent_paths = workspace_dir_container_path.split("/")[0:-1]
-        workspace_parent = "/".join(workspace_parent_paths)
-
-        self.container_context = ContainerContext(
-            workspace_name=workspace_name,
-            workspace_root=workspace_dir_container_path,
-            # Required for git-sync and K8s volume mounts
-            workspace_parent=workspace_parent,
-        )
-
-        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
-            self.container_context.scripts_dir = f"{workspace_dir_container_path}/{self.workspace_settings.scripts_dir}"
-
-        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
-            self.container_context.storage_dir = f"{workspace_dir_container_path}/{self.workspace_settings.storage_dir}"
-
-        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
-            self.container_context.workflows_dir = (
-                f"{workspace_dir_container_path}/{self.workspace_settings.workflows_dir}"
-            )
-
-        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
-            self.container_context.workspace_dir = (
-                f"{workspace_dir_container_path}/{self.workspace_settings.workspace_dir}"
-            )
-
-        if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
-            self.container_context.workspace_schema = self.workspace_settings.ws_schema
-
-        if self.requirements_file is not None:
-            self.container_context.requirements_file = f"{workspace_dir_container_path}/{self.requirements_file}"
-
-        return self.container_context
 
     def build_resources(self, build_context: Any) -> Optional[Any]:
         logger.debug(f"@build_resource_group not defined for {self.get_app_name()}")

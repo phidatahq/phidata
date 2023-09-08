@@ -201,7 +201,7 @@ class EbsVolume(AwsResource):
                     },
                 ],
             )
-            logger.debug(f"describe_volumes: {describe_volumes}")
+            # logger.debug(f"describe_volumes: {describe_volumes}")
             for _volume in describe_volumes.get("Volumes", []):
                 _volume_tags = _volume.get("Tags", None)
                 if _volume_tags is not None and isinstance(_volume_tags, list):

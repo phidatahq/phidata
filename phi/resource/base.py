@@ -36,6 +36,30 @@ class ResourceBase(PhiBase):
             type_list.append(self.get_resource_type().lower())
         return type_list
 
+    def get_input_file_path(self) -> Optional[Path]:
+        workspace_dir: Optional[Path] = self.workspace_dir
+        if workspace_dir is None:
+            from phi.workspace.helpers import get_workspace_dir_from_env
+
+            workspace_dir = get_workspace_dir_from_env()
+        if workspace_dir is not None:
+            resource_name: str = self.get_resource_name()
+            if resource_name is not None:
+                input_file_name = f"{resource_name}.json"
+                input_dir_path = workspace_dir
+                if self.input_dir is not None:
+                    input_dir_path = input_dir_path.joinpath(self.input_dir)
+                else:
+                    input_dir_path = input_dir_path.joinpath("input")
+                    if self.env is not None:
+                        input_dir_path = input_dir_path.joinpath(self.env)
+                    if self.group is not None:
+                        input_dir_path = input_dir_path.joinpath(self.group)
+                    if self.get_resource_type() is not None:
+                        input_dir_path = input_dir_path.joinpath(self.get_resource_type().lower())
+                return input_dir_path.joinpath(input_file_name)
+        return None
+
     def get_output_file_path(self) -> Optional[Path]:
         workspace_dir: Optional[Path] = self.workspace_dir
         if workspace_dir is None:
@@ -46,8 +70,18 @@ class ResourceBase(PhiBase):
             resource_name: str = self.get_resource_name()
             if resource_name is not None:
                 output_file_name = f"{resource_name}.json"
-                output_dir = self.output_dir or self.get_resource_type()
-                return workspace_dir.joinpath("output", output_dir.lower(), output_file_name)
+                output_dir_path = workspace_dir
+                if self.output_dir is not None:
+                    output_dir_path = output_dir_path.joinpath(self.output_dir)
+                else:
+                    output_dir_path = output_dir_path.joinpath("output")
+                    if self.env is not None:
+                        output_dir_path = output_dir_path.joinpath(self.env)
+                    if self.group is not None:
+                        output_dir_path = output_dir_path.joinpath(self.group)
+                    if self.get_resource_type() is not None:
+                        output_dir_path = output_dir_path.joinpath(self.get_resource_type().lower())
+                return output_dir_path.joinpath(output_file_name)
         return None
 
     def save_output_file(self) -> bool:

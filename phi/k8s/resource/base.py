@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pydantic import Field, BaseModel, ConfigDict, field_serializer
@@ -259,4 +260,26 @@ class K8sResource(ResourceBase, K8sObject):
 
         if k8s_manifest_dict is not None:
             return json.dumps(k8s_manifest_dict, **kwargs)
+        return None
+
+    def save_manifests(self, **kwargs) -> Optional[Path]:
+        """Saves the K8s Manifests for this Object to the input file
+
+        Returns:
+            Path: The path to the input file
+        """
+        input_file_path: Optional[Path] = self.get_input_file_path()
+        if input_file_path is None:
+            return None
+
+        input_file_path_parent: Optional[Path] = input_file_path.parent
+        # Create parent directory if needed
+        if input_file_path_parent is not None and not input_file_path_parent.exists():
+            input_file_path_parent.mkdir(parents=True, exist_ok=True)
+
+        manifest_yaml = self.get_k8s_manifest_yaml(**kwargs)
+        if manifest_yaml is not None:
+            logger.debug(f"Writing {str(input_file_path)}")
+            input_file_path.write_text(manifest_yaml)
+            return input_file_path
         return None

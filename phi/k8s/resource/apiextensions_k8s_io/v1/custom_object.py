@@ -40,8 +40,8 @@ class CustomObject(K8sResource):
         """Creates a body for this CustomObject"""
 
         _v1_custom_object = {
-            "apiVersion": self.api_version,
-            "kind": self.kind,
+            "apiVersion": self.api_version.value,
+            "kind": self.kind.value,
             "metadata": self.metadata.get_k8s_object().to_dict(),
             "spec": self.spec,
         }

@@ -1,1 +1,1 @@
-from phi.aws.app.jupyter.jupyter import Jupyter, WorkspaceVolumeType
+from phi.aws.app.jupyter.jupyter import Jupyter

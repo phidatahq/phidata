@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict
 
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext, AwsBuildContext  # noqa: F401
+from phi.aws.app.base import AwsApp, ContainerContext, AwsBuildContext  # noqa: F401
 
 
 class Jupyter(AwsApp):
@@ -60,12 +60,9 @@ class Jupyter(AwsApp):
             container_cmd.append(f"--config={str(self.jupyter_config_file)}")
 
         if self.notebook_dir is None:
-            if self.mount_workspace:
-                container_context: Optional[ContainerContext] = self.get_container_context()
-                if container_context is not None and container_context.workspace_root is not None:
-                    container_cmd.append(f"--notebook-dir={str(container_context.workspace_root)}")
-            else:
-                container_cmd.append("--notebook-dir=/")
+            container_context: Optional[ContainerContext] = self.get_container_context()
+            if container_context is not None and container_context.workspace_root is not None:
+                container_cmd.append(f"--notebook-dir={str(container_context.workspace_root)}")
         else:
             container_cmd.append(f"--notebook-dir={str(self.notebook_dir)}")
         return container_cmd

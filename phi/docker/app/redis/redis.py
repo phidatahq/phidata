@@ -1,7 +1,7 @@
 from typing import Optional
 
 from phi.app.db_app import DbApp
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
 
 
 class Redis(DockerApp, DbApp):

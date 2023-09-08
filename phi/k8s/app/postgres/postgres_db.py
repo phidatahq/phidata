@@ -3,7 +3,6 @@ from typing import Optional, Dict, List, Any
 from phi.app.db_app import DbApp
 from phi.k8s.app.base import (
     K8sApp,
-    WorkspaceVolumeType,  # noqa: F401
     ContainerContext,
     ServiceType,  # noqa: F401
     RestartPolicy,  # noqa: F401

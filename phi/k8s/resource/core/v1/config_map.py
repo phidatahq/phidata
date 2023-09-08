@@ -35,8 +35,8 @@ class ConfigMap(K8sResource):
         # Return a V1ConfigMap object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_config_map.py
         _v1_config_map = V1ConfigMap(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             data=self.data,
         )

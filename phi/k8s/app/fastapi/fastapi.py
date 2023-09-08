@@ -1,6 +1,6 @@
 from typing import Optional, Union, List
 
-from phi.k8s.app.base import K8sApp, WorkspaceVolumeType, ContainerContext, AppVolumeType  # noqa: F401
+from phi.k8s.app.base import K8sApp, ContainerContext, AppVolumeType  # noqa: F401
 
 
 class FastApi(K8sApp):

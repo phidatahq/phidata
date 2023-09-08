@@ -1,6 +1,6 @@
 from typing import Optional, Union, List
 
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
 
 
 class Django(DockerApp):

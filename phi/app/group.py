@@ -18,6 +18,7 @@ class AppGroup(BaseModel):
     def get_apps(self) -> List[AppBase]:
         if self.enabled and self.apps is not None:
             for app in self.apps:
-                app.group = self.name
+                if app.group is None and self.name is not None:
+                    app.group = self.name
             return self.apps
         return []

@@ -54,8 +54,8 @@ class StorageClass(K8sResource):
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_storage_class.py
         _v1_storage_class = V1StorageClass(
             allow_volume_expansion=self.allow_volume_expansion,
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             mount_options=self.mount_options,
             provisioner=self.provisioner,

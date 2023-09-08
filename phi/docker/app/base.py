@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 
-from phi.app.base import AppBase, WorkspaceVolumeType
+from phi.app.base import AppBase
 from phi.app.context import ContainerContext
 from phi.docker.app.context import DockerBuildContext
 from phi.utils.log import logger
@@ -10,11 +10,17 @@ if TYPE_CHECKING:
 
 
 class DockerApp(AppBase):
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
+    # Mount the workspace directory from host machine to the container
+    mount_workspace: bool = False
+
     # -*- App Volume
     # Create a volume for container storage
     create_volume: bool = False
-    # If volume_dir is provided, mount this directory
-    # RELATIVE to the workspace_root from host machine to container
+    # If volume_dir is provided, mount this directory RELATIVE to the workspace_root
+    # from the host machine to the volume_container_path
     volume_dir: Optional[str] = None
     # Otherwise, mount a volume named volume_name to the container
     # If volume_name is not provided, use {app-name}-volume
@@ -88,6 +94,55 @@ class DockerApp(AppBase):
 
     def get_container_name(self) -> str:
         return self.container_name or self.get_app_name()
+
+    def get_container_context(self) -> Optional[ContainerContext]:
+        logger.debug("Building ContainerContext")
+
+        if self.container_context is not None:
+            return self.container_context
+
+        workspace_name = self.workspace_name
+        if workspace_name is None:
+            logger.warning("Invalid workspace_name")
+            return None
+
+        workspace_root_in_container = self.workspace_dir_container_path
+        if workspace_root_in_container is None:
+            logger.warning("Invalid workspace_dir_container_path")
+            return None
+
+        workspace_parent_paths = workspace_root_in_container.split("/")[0:-1]
+        workspace_parent_in_container = "/".join(workspace_parent_paths)
+
+        self.container_context = ContainerContext(
+            workspace_name=workspace_name,
+            workspace_root=workspace_root_in_container,
+            workspace_parent=workspace_parent_in_container,
+        )
+
+        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
+            self.container_context.scripts_dir = f"{workspace_root_in_container}/{self.workspace_settings.scripts_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
+            self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
+            self.container_context.workflows_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
+            self.container_context.workspace_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
+            self.container_context.workspace_schema = self.workspace_settings.ws_schema
+
+        if self.requirements_file is not None:
+            self.container_context.requirements_file = f"{workspace_root_in_container}/{self.requirements_file}"
+
+        return self.container_context
 
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
@@ -184,27 +239,14 @@ class DockerApp(AppBase):
 
         # Create Workspace Volume
         if self.mount_workspace:
-            workspace_dir_container_path_str = container_context.workspace_root
-            if self.workspace_volume_type is None or self.workspace_volume_type == WorkspaceVolumeType.HostPath:
-                workspace_volume_host_path = str(self.workspace_root)
-                logger.debug(f"Mounting: {workspace_volume_host_path}")
-                logger.debug(f"      to: {workspace_dir_container_path_str}")
-                container_volumes[workspace_volume_host_path] = {
-                    "bind": workspace_dir_container_path_str,
-                    "mode": "rw",
-                }
-            elif self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
-                workspace_volume_name = self.workspace_volume_name
-                if workspace_volume_name is None:
-                    workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-workspace")
-                logger.debug(f"Mounting: {workspace_volume_name}")
-                logger.debug(f"      to: {workspace_dir_container_path_str}")
-                container_volumes[workspace_volume_name] = {
-                    "bind": workspace_dir_container_path_str,
-                    "mode": "rw",
-                }
-            else:
-                logger.error(f"{self.workspace_volume_type.value} not supported")
+            workspace_root_in_container = container_context.workspace_root
+            workspace_root_on_host = str(self.workspace_root)
+            logger.debug(f"Mounting: {workspace_root_on_host}")
+            logger.debug(f"      to: {workspace_root_in_container}")
+            container_volumes[workspace_root_on_host] = {
+                "bind": workspace_root_in_container,
+                "mode": "rw",
+            }
 
         # Create App Volume
         if self.create_volume:
@@ -261,7 +303,7 @@ class DockerApp(AppBase):
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
-        # logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
+        logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
         # -*- Get Container Environment
         container_env: Dict[str, str] = self.get_container_env(container_context=container_context)

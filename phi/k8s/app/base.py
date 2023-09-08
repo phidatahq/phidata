@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.app.base import AppBase, WorkspaceVolumeType
+from phi.app.base import AppBase
 from phi.app.context import ContainerContext
 from phi.k8s.app.context import K8sBuildContext
 from phi.k8s.enums.restart_policy import RestartPolicy
@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from phi.k8s.resource.base import K8sResource
 
 
+class K8sWorkspaceVolumeType(str, Enum):
+    HostPath = "HostPath"
+    EmptyDir = "EmptyDir"
+
+
 class AppVolumeType(str, Enum):
     HostPath = "HostPath"
     EmptyDir = "EmptyDir"
@@ -25,6 +30,40 @@ class AppVolumeType(str, Enum):
 
 
 class K8sApp(AppBase):
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    # Defaults to {workspace_parent_dir_container_path}/{workspace_name} if not provided
+    # NOTE: Either workspace_dir_container_path or workspace_parent_dir_container_path must be provided
+    workspace_dir_container_path: Optional[str] = None
+    # Path to the parent directory of the workspace inside the container
+    # When using git-sync, the git repo is cloned inside this directory
+    #   i.e. this is the parent directory of the workspace
+    workspace_parent_dir_container_path: Optional[str] = None
+
+    # Mount the workspace directory inside the container
+    mount_workspace: bool = False
+    # -*- If workspace_volume_type is None or K8sWorkspaceVolumeType.EmptyDir
+    #   Create an empty volume with the name workspace_volume_name
+    #   which is mounted to workspace_parent_dir_container_path
+    # -*- If workspace_volume_type is K8sWorkspaceVolumeType.HostPath
+    #   Mount the workspace_root to workspace_dir_container_path
+    #   i.e. {workspace_parent_dir_container_path}/{workspace_name}
+    workspace_volume_type: Optional[K8sWorkspaceVolumeType] = None
+    workspace_volume_name: Optional[str] = None
+    # Load the workspace from git using a git-sync sidecar
+    enable_gitsync: bool = False
+    # Use an init-container to create an initial copy of the workspace
+    create_gitsync_init_container: bool = True
+    gitsync_image_name: str = "registry.k8s.io/git-sync/git-sync"
+    gitsync_image_tag: str = "v4.0.0"
+    # Repository to sync
+    gitsync_repo: Optional[str] = None
+    # Branch to sync
+    gitsync_ref: Optional[str] = None
+    gitsync_period: Optional[str] = None
+    # Add configuration using env vars to the gitsync container
+    gitsync_env: Optional[Dict[str, str]] = None
+
     # -*- App Volume
     # Create a volume for container storage
     # Used for mounting app data like database, notebooks, models, etc.
@@ -247,6 +286,60 @@ class K8sApp(AppBase):
             ),
         ]
 
+    def get_container_context(self) -> Optional[ContainerContext]:
+        logger.debug("Building ContainerContext")
+
+        if self.container_context is not None:
+            return self.container_context
+
+        workspace_name = self.workspace_name
+        if workspace_name is None:
+            logger.warning("Invalid workspace_name")
+            return None
+
+        workspace_root_in_container: Optional[str] = self.workspace_dir_container_path
+        workspace_parent_in_container: Optional[str] = self.workspace_parent_dir_container_path
+        if workspace_root_in_container is None and workspace_parent_in_container is not None:
+            workspace_root_in_container = f"{self.workspace_parent_dir_container_path}/{workspace_name}"
+
+        if workspace_root_in_container is None:
+            logger.warning("Could not determine the workspace_root in container")
+            return None
+
+        if workspace_parent_in_container is None:
+            workspace_parent_paths = workspace_root_in_container.split("/")[0:-1]
+            workspace_parent_in_container = "/".join(workspace_parent_paths)
+
+        self.container_context = ContainerContext(
+            workspace_name=workspace_name,
+            workspace_root=workspace_root_in_container,
+            workspace_parent=workspace_parent_in_container,
+        )
+
+        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
+            self.container_context.scripts_dir = f"{workspace_root_in_container}/{self.workspace_settings.scripts_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
+            self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
+            self.container_context.workflows_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
+            self.container_context.workspace_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
+            self.container_context.workspace_schema = self.workspace_settings.ws_schema
+
+        if self.requirements_file is not None:
+            self.container_context.requirements_file = f"{workspace_root_in_container}/{self.requirements_file}"
+
+        return self.container_context
+
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
             PHI_RUNTIME_ENV_VAR,
@@ -434,7 +527,7 @@ class K8sApp(AppBase):
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
-        # logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
+        logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
         # -*- Get Container Environment
         container_env: Dict[str, str] = self.get_container_env(container_context=container_context)
@@ -466,79 +559,77 @@ class K8sApp(AppBase):
             # Build workspace_volume_name
             workspace_volume_name = self.workspace_volume_name
             if workspace_volume_name is None:
-                if container_context.workspace_name is not None:
-                    workspace_volume_name = get_default_volume_name(
-                        f"{self.get_app_name()}-{container_context.workspace_name}-ws"
-                    )
-                else:
-                    workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-ws")
+                workspace_volume_name = get_default_volume_name(
+                    f"{self.get_app_name()}-{container_context.workspace_name}-ws"
+                )
 
             # If workspace_volume_type is None or EmptyDir
-            if self.workspace_volume_type is None or self.workspace_volume_type == WorkspaceVolumeType.EmptyDir:
-                workspace_parent_container_path_str = container_context.workspace_parent
+            if self.workspace_volume_type is None or self.workspace_volume_type == K8sWorkspaceVolumeType.EmptyDir:
                 logger.debug("Creating EmptyDir")
-                logger.debug(f"    at: {workspace_parent_container_path_str}")
+                logger.debug(f"    at: {container_context.workspace_parent}")
                 workspace_volume = CreateVolume(
                     volume_name=workspace_volume_name,
                     app_name=self.get_app_name(),
-                    mount_path=workspace_parent_container_path_str,
+                    mount_path=container_context.workspace_parent,
                     volume_type=VolumeType.EMPTY_DIR,
                 )
                 volumes.append(workspace_volume)
 
-                if self.create_git_sync_sidecar:
-                    if self.git_sync_repo is not None:
-                        git_sync_env = {
-                            "GIT_SYNC_REPO": self.git_sync_repo,
-                            "GIT_SYNC_ROOT": workspace_parent_container_path_str,
-                            "GIT_SYNC_DEST": container_context.workspace_name,
+                if self.enable_gitsync:
+                    if self.gitsync_repo is not None:
+                        git_sync_env: Dict[str, str] = {
+                            "GITSYNC_REPO": self.gitsync_repo,
+                            "GITSYNC_ROOT": container_context.workspace_parent,
+                            "GITSYNC_LINK": container_context.workspace_name,
                         }
-                        if self.git_sync_branch is not None:
-                            git_sync_env["GIT_SYNC_BRANCH"] = self.git_sync_branch
-                        if self.git_sync_wait is not None:
-                            git_sync_env["GIT_SYNC_WAIT"] = str(self.git_sync_wait)
-                        git_sync_container = CreateContainer(
+                        if self.gitsync_ref is not None:
+                            git_sync_env["GITSYNC_REF"] = self.gitsync_ref
+                        if self.gitsync_period is not None:
+                            git_sync_env["GITSYNC_PERIOD"] = self.gitsync_period
+                        if self.gitsync_env is not None:
+                            git_sync_env.update(self.gitsync_env)
+                        gitsync_container = CreateContainer(
                             container_name="git-sync",
                             app_name=self.get_app_name(),
-                            image_name=self.git_sync_image_name,
-                            image_tag=self.git_sync_image_tag,
+                            image_name=self.gitsync_image_name,
+                            image_tag=self.gitsync_image_tag,
                             env_vars=git_sync_env,
                             envs_from_configmap=[cm.cm_name for cm in config_maps] if len(config_maps) > 0 else None,
                             envs_from_secret=[secret.secret_name for secret in secrets] if len(secrets) > 0 else None,
                             volumes=[workspace_volume],
                         )
-                        containers.append(git_sync_container)
+                        containers.append(gitsync_container)
 
-                        if self.create_git_sync_init_container:
-                            git_sync_init_env: Dict[str, Any] = {"GIT_SYNC_ONE_TIME": True}
+                        if self.create_gitsync_init_container:
+                            git_sync_init_env: Dict[str, str] = {"GITSYNC_ONE_TIME": "True"}
                             git_sync_init_env.update(git_sync_env)
                             _git_sync_init_container = CreateContainer(
                                 container_name="git-sync-init",
-                                app_name=git_sync_container.app_name,
-                                image_name=git_sync_container.image_name,
-                                image_tag=git_sync_container.image_tag,
+                                app_name=gitsync_container.app_name,
+                                image_name=gitsync_container.image_name,
+                                image_tag=gitsync_container.image_tag,
                                 env_vars=git_sync_init_env,
-                                envs_from_configmap=git_sync_container.envs_from_configmap,
-                                envs_from_secret=git_sync_container.envs_from_secret,
-                                volumes=git_sync_container.volumes,
+                                envs_from_configmap=gitsync_container.envs_from_configmap,
+                                envs_from_secret=gitsync_container.envs_from_secret,
+                                volumes=gitsync_container.volumes,
                             )
                             init_containers.append(_git_sync_init_container)
                     else:
-                        logger.error("GIT_SYNC_REPO invalid")
+                        logger.error("GITSYNC_REPO invalid")
 
             # If workspace_volume_type is HostPath
-            elif self.workspace_volume_type == WorkspaceVolumeType.HostPath:
-                workspace_root_path_str = str(self.workspace_root)
-                workspace_root_container_path_str = container_context.workspace_root
-                logger.debug(f"Mounting: {workspace_root_path_str}")
-                logger.debug(f"      to: {workspace_root_container_path_str}")
+            elif self.workspace_volume_type == K8sWorkspaceVolumeType.HostPath:
+                workspace_root_in_container = container_context.workspace_root
+                workspace_root_on_host = str(self.workspace_root)
+                logger.debug(f"Mounting: {workspace_root_on_host}")
+                logger.debug(f"      to: {workspace_root_in_container}")
                 workspace_volume = CreateVolume(
                     volume_name=workspace_volume_name,
                     app_name=self.get_app_name(),
-                    mount_path=workspace_root_container_path_str,
+                    mount_path=workspace_root_in_container,
                     volume_type=VolumeType.HOST_PATH,
                     host_path=HostPathVolumeSource(
-                        path=workspace_root_path_str,
+                        path=workspace_root_on_host,
                     ),
                 )
                 volumes.append(workspace_volume)
@@ -549,10 +640,7 @@ class K8sApp(AppBase):
             # Build volume_name
             volume_name = self.volume_name
             if volume_name is None:
-                if container_context.workspace_name is not None:
-                    volume_name = get_default_volume_name(f"{self.get_app_name()}-{container_context.workspace_name}")
-                else:
-                    volume_name = get_default_volume_name(self.get_app_name())
+                volume_name = get_default_volume_name(f"{self.get_app_name()}-{container_context.workspace_name}")
 
             # If volume_type is AwsEbs
             if self.volume_type == AppVolumeType.AwsEbs:

@@ -1,1 +1,1 @@
-from phi.docker.app.redis.redis import Redis, WorkspaceVolumeType
+from phi.docker.app.redis.redis import Redis

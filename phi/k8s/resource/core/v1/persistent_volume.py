@@ -1,12 +1,13 @@
 from typing import List, Optional, Dict
 from typing_extensions import Literal
 
+from pydantic import Field, field_serializer
+
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_persistent_volume import V1PersistentVolume
 from kubernetes.client.models.v1_persistent_volume_list import V1PersistentVolumeList
 from kubernetes.client.models.v1_persistent_volume_spec import V1PersistentVolumeSpec
 from kubernetes.client.models.v1_status import V1Status
-from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.enums.pv import PVAccessMode
@@ -85,13 +86,17 @@ class PersistentVolumeSpec(K8sObject):
     # More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#binding
     claim_ref: Optional[ClaimRef] = Field(None, alias="claimRef")
 
+    @field_serializer("access_modes")
+    def get_access_modes_value(self, v) -> List[str]:
+        return [access_mode.value for access_mode in v]
+
     def get_k8s_object(
         self,
     ) -> V1PersistentVolumeSpec:
         # Return a V1PersistentVolumeSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_persistent_volume_spec.py
         _v1_persistent_volume_spec = V1PersistentVolumeSpec(
-            access_modes=self.access_modes,
+            access_modes=[access_mode.value for access_mode in self.access_modes],
             capacity=self.capacity,
             mount_options=self.mount_options,
             persistent_volume_reclaim_policy=self.persistent_volume_reclaim_policy,
@@ -144,8 +149,8 @@ class PersistentVolume(K8sResource):
         # Return a V1PersistentVolume object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_persistent_volume.py
         _v1_persistent_volume = V1PersistentVolume(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             spec=self.spec.get_k8s_object(),
         )

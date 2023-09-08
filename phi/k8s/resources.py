@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List, Optional, Dict, Any, Union, Tuple
 
 from pydantic import Field, field_validator, FieldValidationInfo
@@ -663,26 +662,8 @@ class K8sResources(InfraResources):
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading
         from phi.k8s.resource.types import K8sResourceInstallOrder
-        from phi.utils.filesystem import delete_files_in_dir
 
         logger.debug("-*- Saving K8sResources")
-
-        # --- get as param
-        ws_root: Optional[Path] = workspace_settings.ws_root
-        if ws_root is None:
-            raise Exception("ws_root is None")
-
-        manifests_dir: Path = ws_root.joinpath(workspace_settings.workspace_dir).joinpath("k8s", "manifests")
-        # delete directory to save resources if needed
-        if manifests_dir.exists():
-            print_info(f"Deleting {str(manifests_dir)}")
-            if manifests_dir.is_file():
-                manifests_dir.unlink()
-            elif manifests_dir.is_dir():
-                delete_files_in_dir(manifests_dir)
-        print_info(f"Saving to {str(manifests_dir)}")
-        manifests_dir.mkdir(exist_ok=True, parents=True)
-        # --- get as param
 
         # Build a list of K8sResources to save
         resources_to_save: List[K8sResource] = []
@@ -693,6 +674,7 @@ class K8sResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
+                                resource_from_resource_group.env = self.env
                                 resource_from_resource_group.set_workspace_settings(
                                     workspace_settings=workspace_settings
                                 )
@@ -707,6 +689,7 @@ class K8sResources(InfraResources):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.save()
                                 if _k8s_resource is not None:
+                                    _k8s_resource.env = self.env
                                     _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
@@ -717,6 +700,7 @@ class K8sResources(InfraResources):
                                     ):
                                         resources_to_save.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
+                    r.env = self.env
                     r.set_workspace_settings(workspace_settings=workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
@@ -727,8 +711,9 @@ class K8sResources(InfraResources):
                     ):
                         resources_to_save.append(r)
                 elif isinstance(r, CreateK8sResource):
-                    _k8s_resource = r.save()
+                    _k8s_resource = r.create()
                     if _k8s_resource is not None:
+                        _k8s_resource.env = self.env
                         _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
@@ -817,16 +802,10 @@ class K8sResources(InfraResources):
 
         for resource in final_k8s_resources:
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
-            # logger.debug(resource)
             try:
-                # _resource_saved = resource.save(k8s_client=self.k8s_client)
-                # _resource_saved = resource.save(k8s_client=self.k8s_client)
-                resource_name = resource.get_resource_name()
-                resource_file: Path = manifests_dir.joinpath(f"{resource_name}.yaml")
-                manifest_yaml = resource.get_k8s_manifest_yaml(default_flow_style=False)
-                if manifest_yaml is not None:
-                    logger.debug(f"Writing {str(resource_file)}")
-                    resource_file.write_text(manifest_yaml)
+                _resource_path = resource.save_manifests(default_flow_style=False)
+                if _resource_path is not None:
+                    print_info(f"Saved to: {_resource_path}")
                     num_resources_saved += 1
             except Exception as e:
                 logger.error(f"Failed to save {resource.get_resource_type()}: {resource.get_resource_name()}")

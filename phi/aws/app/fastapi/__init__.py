@@ -1,1 +1,1 @@
-from phi.aws.app.fastapi.fastapi import FastApi, WorkspaceVolumeType
+from phi.aws.app.fastapi.fastapi import FastApi

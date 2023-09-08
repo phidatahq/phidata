@@ -30,8 +30,8 @@ class ObjectReference(K8sResource):
         # Return a V1ObjectReference object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_object_reference.py
         _v1_object_reference = V1ObjectReference(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             name=self.name,
             namespace=self.namespace,
             resource_version=self.resource_version,

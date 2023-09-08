@@ -116,7 +116,7 @@ class CloudFormationStack(AwsResource):
                 return True
 
             stack.delete()
-            print_info("Stack deleted")
+            # print_info("Stack deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

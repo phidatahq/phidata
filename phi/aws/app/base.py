@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.app.base import AppBase, WorkspaceVolumeType  # noqa: F401
+from phi.app.base import AppBase  # noqa: F401
 from phi.app.context import ContainerContext
 from phi.aws.app.context import AwsBuildContext
 from phi.utils.log import logger
@@ -21,6 +21,10 @@ if TYPE_CHECKING:
 
 
 class AwsApp(AppBase):
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
+
     # -*- Networking Configuration
     # List of subnets for the app: Type: Union[str, Subnet]
     # Added to the load balancer, target group, and ECS service
@@ -121,6 +125,55 @@ class AwsApp(AppBase):
         # If create_target_group is False, then create a target group if create_load_balancer is True
         return info.data.get("create_load_balancer", None)
 
+    def get_container_context(self) -> Optional[ContainerContext]:
+        logger.debug("Building ContainerContext")
+
+        if self.container_context is not None:
+            return self.container_context
+
+        workspace_name = self.workspace_name
+        if workspace_name is None:
+            logger.warning("Invalid workspace_name")
+            return None
+
+        workspace_root_in_container = self.workspace_dir_container_path
+        if workspace_root_in_container is None:
+            logger.warning("Invalid workspace_dir_container_path")
+            return None
+
+        workspace_parent_paths = workspace_root_in_container.split("/")[0:-1]
+        workspace_parent_in_container = "/".join(workspace_parent_paths)
+
+        self.container_context = ContainerContext(
+            workspace_name=workspace_name,
+            workspace_root=workspace_root_in_container,
+            workspace_parent=workspace_parent_in_container,
+        )
+
+        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
+            self.container_context.scripts_dir = f"{workspace_root_in_container}/{self.workspace_settings.scripts_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
+            self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
+            self.container_context.workflows_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
+            self.container_context.workspace_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
+            self.container_context.workspace_schema = self.workspace_settings.ws_schema
+
+        if self.requirements_file is not None:
+            self.container_context.requirements_file = f"{workspace_root_in_container}/{self.requirements_file}"
+
+        return self.container_context
+
     def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
         from phi.constants import (
             PHI_RUNTIME_ENV_VAR,
@@ -140,7 +193,6 @@ class AwsApp(AppBase):
         container_env.update(
             {
                 "INSTALL_REQUIREMENTS": str(self.install_requirements),
-                "MOUNT_WORKSPACE": str(self.mount_workspace),
                 "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
                 PHI_RUNTIME_ENV_VAR: "ecs",
                 REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
@@ -585,7 +637,7 @@ class AwsApp(AppBase):
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
-        # logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
+        logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
         # -*- Get Security Groups
         security_groups: Optional[List[SecurityGroup]] = self.get_all_security_groups()

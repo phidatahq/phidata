@@ -49,7 +49,9 @@ class PhiBase(BaseModel):
     #  -*- Save to output directory
     # If True, save output to json files
     save_output: bool = False
-    # The directory for the output files
+    # The directory for the input files in the workspace directory
+    input_dir: Optional[str] = None
+    # The directory for the output files in the workspace directory
     output_dir: Optional[str] = None
 
     #  -*- Dependencies

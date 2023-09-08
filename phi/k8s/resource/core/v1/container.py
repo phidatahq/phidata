@@ -1,5 +1,7 @@
 from typing import Any, List, Optional
 
+from pydantic import Field, field_serializer
+
 from kubernetes.client.models.v1_config_map_env_source import V1ConfigMapEnvSource
 from kubernetes.client.models.v1_config_map_key_selector import V1ConfigMapKeySelector
 from kubernetes.client.models.v1_container import V1Container
@@ -13,7 +15,6 @@ from kubernetes.client.models.v1_resource_field_selector import V1ResourceFieldS
 from kubernetes.client.models.v1_secret_env_source import V1SecretEnvSource
 from kubernetes.client.models.v1_secret_key_selector import V1SecretKeySelector
 from kubernetes.client.models.v1_volume_mount import V1VolumeMount
-from pydantic import Field
 
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy
 from phi.k8s.enums.protocol import Protocol
@@ -310,11 +311,15 @@ class ContainerPort(K8sObject):
     host_port: Optional[int] = Field(None, alias="hostPort")
     protocol: Optional[Protocol] = None
 
+    @field_serializer("protocol")
+    def get_protocol_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
     def get_k8s_object(self) -> V1ContainerPort:
         _v1_container_port = V1ContainerPort(
             container_port=self.container_port,
             name=self.name,
-            protocol=self.protocol,
+            protocol=self.protocol.value if self.protocol else None,
             host_ip=self.host_ip,
             host_port=self.host_port,
         )
@@ -395,6 +400,10 @@ class Container(K8sObject):
     volume_mounts: Optional[List[VolumeMount]] = Field(None, alias="volumeMounts")
     working_dir: Optional[str] = Field(None, alias="workingDir")
 
+    @field_serializer("image_pull_policy")
+    def get_image_pull_policy_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
     def get_k8s_object(self) -> V1Container:
         # Return a V1Container object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_container.py
@@ -420,7 +429,7 @@ class Container(K8sObject):
             env=_env,
             env_from=_env_from,
             image=self.image,
-            image_pull_policy=self.image_pull_policy,
+            image_pull_policy=self.image_pull_policy.value if self.image_pull_policy else None,
             name=self.name,
             ports=_ports,
             readiness_probe=self.readiness_probe.get_k8s_object() if self.readiness_probe else None,

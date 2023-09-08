@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional, Dict
 
-from phi.k8s.app.base import K8sApp, WorkspaceVolumeType, ContainerContext, AppVolumeType, ImagePullPolicy  # noqa: F401
+from phi.k8s.app.base import K8sApp, ContainerContext, AppVolumeType, ImagePullPolicy  # noqa: F401
 from phi.app.db_app import DbApp
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
@@ -26,8 +26,10 @@ class AirflowBase(K8sApp):
     port_number: int = 8080
 
     # -*- Workspace Configuration
-    # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/workspace"
+    # Path to the parent directory of the workspace inside the container
+    # When using git-sync, the git repo is cloned inside this directory
+    #   i.e. this is the parent directory of the workspace
+    workspace_parent_dir_container_path: str = "/usr/local/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
 
@@ -184,6 +186,8 @@ class AirflowBase(K8sApp):
                 "CREATE_AIRFLOW_ADMIN_USER": str(self.create_airflow_admin_user),
                 AIRFLOW_EXECUTOR_ENV_VAR: str(self.executor),
                 "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.load_examples),
+                # Airflow Navbar color
+                "AIRFLOW__WEBSERVER__NAVBAR_COLOR": "#d1fae5",
             }
         )
 

@@ -1,6 +1,6 @@
 from typing import Optional, Union, List
 
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.aws.app.base import AwsApp, ContainerContext  # noqa: F401
 
 
 class Django(AwsApp):

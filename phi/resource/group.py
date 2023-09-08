@@ -18,6 +18,7 @@ class ResourceGroup(BaseModel):
     def get_resources(self) -> List[ResourceBase]:
         if self.enabled and self.resources is not None:
             for resource in self.resources:
-                resource.group = self.name
+                if resource.group is None and self.name is not None:
+                    resource.group = self.name
             return self.resources
         return []

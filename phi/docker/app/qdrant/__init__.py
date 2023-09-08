@@ -1,1 +1,1 @@
-from phi.docker.app.qdrant.qdrant import Qdrant, WorkspaceVolumeType
+from phi.docker.app.qdrant.qdrant import Qdrant

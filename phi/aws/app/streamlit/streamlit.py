@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict
 
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext, AwsBuildContext  # noqa: F401
+from phi.aws.app.base import AwsApp, ContainerContext, AwsBuildContext  # noqa: F401
 
 
 class Streamlit(AwsApp):

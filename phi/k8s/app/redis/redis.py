@@ -36,14 +36,14 @@ class Redis(K8sApp, DbApp):
     # -*- Service Configuration
     create_service: bool = True
 
-    # -*- Postgres Volume
-    # Create a volume for postgres storage
+    # -*- Redis Volume
+    # Create a volume for redis storage
     create_volume: bool = True
     volume_type: AppVolumeType = AppVolumeType.EmptyDir
     # Path to mount the volume inside the container
     # should be the parent directory of pgdata defined above
     volume_container_path: str = "/data"
-    # Host path to mount the postgres volume
+    # Host path to mount the redis volume
     # -*- If volume_type is HostPath
     volume_host_path: Optional[str] = None
     # -*- If volume_type is AwsEbs

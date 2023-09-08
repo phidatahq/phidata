@@ -27,8 +27,8 @@ class Redis(DockerApp, DbApp):
     redis_driver: str = "redis"
     logging_level: str = "debug"
 
-    # -*- Postgres Volume
-    # Create a volume for postgres storage
+    # -*- Redis Volume
+    # Create a volume for redis storage
     create_volume: bool = True
     # Path to mount the volume inside the container
     volume_container_path: str = "/data"

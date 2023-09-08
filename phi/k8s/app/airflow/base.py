@@ -18,7 +18,7 @@ class AirflowBase(K8sApp):
 
     # -*- Image Configuration
     image_name: str = "phidata/airflow"
-    image_tag: str = "2.7.0"
+    image_tag: str = "2.7.1"
 
     # -*- App Ports
     # Open a container port if open_port=True
@@ -30,8 +30,6 @@ class AirflowBase(K8sApp):
     # When using git-sync, the git repo is cloned inside this directory
     #   i.e. this is the parent directory of the workspace
     workspace_parent_dir_container_path: str = "/usr/local/workspace"
-    # Mount the workspace directory from host machine to the container
-    mount_workspace: bool = False
 
     # -*- Airflow Configuration
     # airflow_env sets the AIRFLOW_ENV env var and can be used by

@@ -201,7 +201,7 @@ class ServiceSpec(K8sObject):
                 _ports.append(_port.get_k8s_object())
 
         _v1_service_spec = V1ServiceSpec(
-            type=self.type.value if self.type else None,
+            # type=self.type.value if self.type else None,
             allocate_load_balancer_node_ports=self.allocate_load_balancer_node_ports,
             cluster_ip=self.cluster_ip,
             cluster_i_ps=self.cluster_ips,

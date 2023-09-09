@@ -1,5 +1,8 @@
+from collections import OrderedDict
 from enum import Enum
+from pathlib import Path
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
+from typing_extensions import Literal
 
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
@@ -29,12 +32,17 @@ class AppVolumeType(str, Enum):
     PersistentVolume = "PersistentVolume"
 
 
+class LoadBalancerProvider(str, Enum):
+    AWS = "AWS"
+
+
 class K8sApp(AppBase):
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    # Defaults to {workspace_parent_dir_container_path}/{workspace_name} if not provided
-    # NOTE: Either workspace_dir_container_path or workspace_parent_dir_container_path must be provided
-    workspace_dir_container_path: Optional[str] = None
+    # NOTE: if workspace_parent_dir_container_path is provided
+    #   workspace_dir_container_path is ignored and
+    #   derived using {workspace_parent_dir_container_path}/{workspace_name}
+    workspace_dir_container_path: str = "/usr/local/app"
     # Path to the parent directory of the workspace inside the container
     # When using git-sync, the git repo is cloned inside this directory
     #   i.e. this is the parent directory of the workspace
@@ -123,7 +131,7 @@ class K8sApp(AppBase):
     replicas: int = 1
     deploy_name: Optional[str] = None
     image_pull_policy: Optional[ImagePullPolicy] = None
-    deploy_restart_policy: Optional[RestartPolicy] = None
+    restart_policy: Optional[RestartPolicy] = None
     deploy_labels: Optional[Dict[str, Any]] = None
     termination_grace_period_seconds: Optional[int] = None
     # Key to spread the pods across a topology
@@ -156,14 +164,58 @@ class K8sApp(AppBase):
     service_load_balancer_ip: Optional[str] = None
     service_load_balancer_source_ranges: Optional[List[str]] = None
     service_allocate_load_balancer_node_ports: Optional[bool] = None
+    # If ServiceType == ServiceType.EXTERNAL_NAME
+    service_external_traffic_policy: Optional[str] = None
+
+    # -*- LoadBalancer configuration
+    # On cloud providers which support external load balancers,
+    # setting the service_type field to LoadBalancer provisions a load balancer.
+    # The actual creation of the load balancer happens asynchronously
+    # NOTE: load_balancer_provider is required if service_type == ServiceType.LOAD_BALANCER
+    load_balancer_provider: Optional[LoadBalancerProvider] = None
+
+    # -*- AWS LoadBalancer configuration
+    use_nlb: bool = False
+    # Specifies the target type to configure for NLB. You can choose between instance and ip.
+    # `instance` mode will route traffic to all EC2 instances within cluster on the NodePort opened for your service.
+    #       service must be of type NodePort or LoadBalancer for instance targets
+    #       for k8s 1.22 and later if spec.allocateLoadBalancerNodePorts is set to false,
+    #       NodePort must be allocated manually
+    # `ip` mode will route traffic directly to the pod IP.
+    #       network plugin must use native AWS VPC networking configuration for pod IP,
+    #       for example Amazon VPC CNI plugin.
+    nlb_target_type: Literal["instance", "ip"] = "ip"
+    # Write Access Logs to s3
+    access_logs_to_s3: bool = False
+    # The name of the aws S3 bucket where the access logs are stored
+    access_logs_s3_bucket: Optional[str] = None
+    # The logical hierarchy you created for your aws S3 bucket, for example `my-bucket-prefix/prod`
+    access_logs_s3_bucket_prefix: Optional[str] = None
+    # If provided, TLS termination is added to the LB
+    acm_certificate_arn: Optional[str] = None
+    acm_certificate_summary_file: Optional[Path] = None
+    https_service_port: int = 443
+    load_balancer_ip: Optional[str] = None
+    # If None, default is internal.
+    load_balancer_scheme: Optional[Literal["internal", "internet-facing"]] = None
+    # Limit the IPs that can access this endpoint
+    # You can provide the load_balancer_source_ranges as a list here
+    # or as LOAD_BALANCER_SOURCE_RANGES in the secrets_file
+    # Using the secrets_file is recommended
+    load_balancer_source_ranges: Optional[List[str]] = None
+    allocate_load_balancer_node_ports: Optional[bool] = None
+    enable_load_balancer_proxy_protocol: bool = True
+    enable_cross_zone_load_balancing: bool = True
+    load_balancer_subnets: Optional[List[str]] = None
 
     # -*- Ingress Configuration
     create_ingress: bool = False
     ingress_name: Optional[str] = None
+    ingress_class_name: Literal["alb", "nlb"] = "alb"
     ingress_annotations: Optional[Dict[str, str]] = None
 
     # -*- RBAC Configuration
-    use_rbac: bool = False
+    create_rbac: bool = False
     # Create a Namespace with name ns_name & default values
     ns_name: Optional[str] = None
     # or Provide the full Namespace definition
@@ -187,34 +239,26 @@ class K8sApp(AppBase):
 
     # -*- Add additional Kubernetes resources to the App
     # Type: CreateSecret
-    extra_secrets: Optional[List[Any]] = None
+    add_secrets: Optional[List[Any]] = None
     # Type: CreateConfigMap
-    extra_configmaps: Optional[List[Any]] = None
+    add_configmaps: Optional[List[Any]] = None
     # Type: CreateService
-    extra_services: Optional[List[Any]] = None
+    add_services: Optional[List[Any]] = None
     # Type: CreateDeployment
-    extra_deployments: Optional[List[Any]] = None
-    # Type: CreatePersistentVolume
-    extra_pvs: Optional[List[Any]] = None
-    # Type: CreatePVC
-    extra_pvcs: Optional[List[Any]] = None
+    add_deployments: Optional[List[Any]] = None
     # Type: CreateContainer
-    extra_containers: Optional[List[Any]] = None
+    add_containers: Optional[List[Any]] = None
     # Type: CreateContainer
-    extra_init_containers: Optional[List[Any]] = None
+    add_init_containers: Optional[List[Any]] = None
     # Type: CreatePort
-    extra_ports: Optional[List[Any]] = None
+    add_ports: Optional[List[Any]] = None
     # Type: CreateVolume
-    extra_volumes: Optional[List[Any]] = None
-    # Type: CreateStorageClass
-    extra_storage_classes: Optional[List[Any]] = None
-    # Type: CreateCustomObject
-    extra_custom_objects: Optional[List[Any]] = None
-    # Type: CreateCustomResourceDefinition
-    extra_crds: Optional[List[Any]] = None
+    add_volumes: Optional[List[Any]] = None
+    # Type: K8sResource or CreateK8sResource
+    add_resources: Optional[List[Any]] = None
 
     @field_validator("service_port", mode="before")
-    def set_host_port(cls, v, info: FieldValidationInfo):
+    def set_service_port(cls, v, info: FieldValidationInfo):
         port_number = info.data.get("port_number")
         if v is None and port_number is not None:
             v = port_number
@@ -263,6 +307,138 @@ class K8sApp(AppBase):
     def get_service_port(self) -> Optional[int]:
         return self.service_port
 
+    def get_service_annotations(self) -> Optional[Dict[str, str]]:
+        service_annotations = self.service_annotations
+
+        # Configure AWS LoadBalancer
+        if self.load_balancer_provider == LoadBalancerProvider.AWS:
+            if service_annotations is None:
+                service_annotations = OrderedDict()
+            # https://kubernetes.io/docs/concepts/services-networking/service/#aws-nlb-support
+            if self.use_nlb:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-type"] = "nlb"
+            if self.nlb_target_type is not None:
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"
+                ] = self.nlb_target_type
+
+            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes
+            # Deprecated docs: # https://kubernetes.io/docs/concepts/services-networking/service/#elb-access-logs-on-aws
+            if self.access_logs_to_s3:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-access-log-enabled"] = "true"
+                lb_attributes = "access_logs.s3.enabled=true"
+                if self.access_logs_s3_bucket is not None:
+                    lb_attributes += f",access_logs.s3.bucket={self.access_logs_s3_bucket}"
+                if self.access_logs_s3_bucket_prefix is not None:
+                    lb_attributes += f",access_logs.s3.prefix={self.access_logs_s3_bucket_prefix}"
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-attributes"] = lb_attributes
+
+            if self.load_balancer_scheme is not None:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] = self.load_balancer_scheme
+                if self.load_balancer_scheme == "internal":
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-internal"] = "true"
+
+            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
+            # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
+            if self.acm_certificate_arn is not None:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = self.acm_certificate_arn
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(
+                    self.https_service_port
+                )
+            # if acm_certificate_summary_file is provided, use that
+            if self.acm_certificate_summary_file is not None and isinstance(self.acm_certificate_summary_file, Path):
+                if self.acm_certificate_summary_file.exists() and self.acm_certificate_summary_file.is_file():
+                    from phi.aws.resource.acm.certificate import CertificateSummary
+
+                    file_contents = self.acm_certificate_summary_file.read_text()
+                    cert_summary = CertificateSummary.model_validate(file_contents)
+                    certificate_arn = cert_summary.CertificateArn
+                    logger.debug(f"CertificateArn: {certificate_arn}")
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = certificate_arn
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(
+                        self.https_service_port
+                    )
+                else:
+                    logger.warning(f"Does not exist: {self.acm_certificate_summary_file}")
+
+            # Enable proxy protocol for NLB
+            if self.enable_load_balancer_proxy_protocol:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-proxy-protocol"] = "*"
+
+            # Enable cross-zone load balancing
+            if self.enable_cross_zone_load_balancing:
+                service_annotations[
+                    "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled"
+                ] = "true"
+
+            # Add subnets to NLB
+            if self.load_balancer_subnets is not None and isinstance(self.load_balancer_subnets, list):
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-subnets"] = ", ".join(
+                    self.load_balancer_subnets
+                )
+
+        return service_annotations
+
+    def get_ingress_name(self) -> str:
+        from phi.utils.defaults import get_default_ingress_name
+
+        return self.ingress_name or get_default_ingress_name(self.name)
+
+    def get_ingress_annotations(self) -> Optional[Dict[str, str]]:
+        ingress_annotations = {"alb.ingress.kubernetes.io/load-balancer-name": self.get_ingress_name()}
+
+        if self.load_balancer_scheme == "internal":
+            ingress_annotations["alb.ingress.kubernetes.io/scheme"] = "internal"
+        else:
+            ingress_annotations["alb.ingress.kubernetes.io/scheme"] = "internet-facing"
+
+        if self.load_balancer_subnets is not None and isinstance(self.load_balancer_subnets, list):
+            ingress_annotations["alb.ingress.kubernetes.io/subnets"] = ", ".join(self.load_balancer_subnets)
+
+        if self.ingress_annotations is not None:
+            ingress_annotations.update(self.ingress_annotations)
+
+        return ingress_annotations
+
+    def get_ingress_rules(self) -> List[Any]:
+        from kubernetes.client.models.v1_ingress_rule import V1IngressRule
+        from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
+        from kubernetes.client.models.v1_ingress_service_backend import V1IngressServiceBackend
+        from kubernetes.client.models.v1_http_ingress_path import V1HTTPIngressPath
+        from kubernetes.client.models.v1_http_ingress_rule_value import V1HTTPIngressRuleValue
+        from kubernetes.client.models.v1_service_port import V1ServicePort
+
+        return [
+            V1IngressRule(
+                http=V1HTTPIngressRuleValue(
+                    paths=[
+                        V1HTTPIngressPath(
+                            path="/",
+                            path_type="Prefix",
+                            backend=V1IngressBackend(
+                                service=V1IngressServiceBackend(
+                                    name=self.get_service_name(),
+                                    port=V1ServicePort(
+                                        name=self.container_port_name,
+                                        port=self.get_service_port(),
+                                    ),
+                                )
+                            ),
+                        ),
+                    ]
+                ),
+            )
+        ]
+
+    def get_load_balancer_source_ranges(self) -> Optional[List[str]]:
+        if self.service_load_balancer_source_ranges is not None:
+            return self.service_load_balancer_source_ranges
+
+        load_balancer_source_ranges = self.get_secret_from_file("LOAD_BALANCER_SOURCE_RANGES")
+        if isinstance(load_balancer_source_ranges, str):
+            return [load_balancer_source_ranges]
+        return load_balancer_source_ranges
+
     def get_cr_policy_rules(self) -> List[Any]:
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
             PolicyRule,
@@ -294,18 +470,20 @@ class K8sApp(AppBase):
 
         workspace_name = self.workspace_name
         if workspace_name is None:
-            logger.warning("Invalid workspace_name")
-            return None
+            raise Exception("Could not determine workspace_name")
 
-        workspace_root_in_container: Optional[str] = self.workspace_dir_container_path
+        workspace_root_in_container: str = self.workspace_dir_container_path
+        # if workspace_parent_dir_container_path is provided
+        # derive workspace_root_in_container from workspace_parent_dir_container_path
         workspace_parent_in_container: Optional[str] = self.workspace_parent_dir_container_path
-        if workspace_root_in_container is None and workspace_parent_in_container is not None:
+        if workspace_parent_in_container is not None:
             workspace_root_in_container = f"{self.workspace_parent_dir_container_path}/{workspace_name}"
 
         if workspace_root_in_container is None:
-            logger.warning("Could not determine the workspace_root in container")
-            return None
+            raise Exception("Could not determine workspace_root in container")
 
+        # if workspace_parent_in_container is not provided
+        # derive workspace_parent_in_container from workspace_root_in_container
         if workspace_parent_in_container is None:
             workspace_parent_paths = workspace_root_in_container.split("/")[0:-1]
             workspace_parent_in_container = "/".join(workspace_parent_paths)
@@ -405,6 +583,11 @@ class K8sApp(AppBase):
         # logger.debug("Container Environment: {}".format(container_env))
         return container_env
 
+    def get_container_args(self) -> Optional[List[str]]:
+        if isinstance(self.command, str):
+            return self.command.strip().split(" ")
+        return self.command
+
     def get_container_labels(self, common_labels: Optional[Dict[str, str]]) -> Dict[str, str]:
         labels: Dict[str, str] = common_labels or {}
         if self.container_labels is not None and isinstance(self.container_labels, dict):
@@ -423,21 +606,40 @@ class K8sApp(AppBase):
             labels.update(self.container_labels)
         return labels
 
-    def get_container_args(self) -> Optional[List[str]]:
-        if isinstance(self.command, str):
-            return self.command.strip().split(" ")
-        return self.command
+    def get_secrets(self) -> List[Any]:
+        return self.add_secrets or []
+
+    def get_configmaps(self) -> List[Any]:
+        return self.add_configmaps or []
+
+    def get_services(self) -> List[Any]:
+        return self.add_services or []
+
+    def get_deployments(self) -> List[Any]:
+        return self.add_deployments or []
+
+    def get_containers(self) -> List[Any]:
+        return self.add_containers or []
+
+    def get_volumes(self) -> List[Any]:
+        return self.add_volumes or []
+
+    def get_ports(self) -> List[Any]:
+        return self.add_ports or []
+
+    def get_init_containers(self) -> List[Any]:
+        return self.add_init_containers or []
+
+    def add_app_resources(self, namespace: str, service_account_name: Optional[str]) -> List[Any]:
+        return self.add_resources or []
 
     def build_resources(self, build_context: K8sBuildContext) -> List["K8sResource"]:
-        from phi.k8s.create.apiextensions_k8s_io.v1.custom_object import CreateCustomObject
-        from phi.k8s.create.apiextensions_k8s_io.v1.custom_resource_definition import CreateCustomResourceDefinition
         from phi.k8s.create.apps.v1.deployment import CreateDeployment
+        from phi.k8s.create.base import CreateK8sResource
         from phi.k8s.create.common.port import CreatePort
         from phi.k8s.create.core.v1.config_map import CreateConfigMap
         from phi.k8s.create.core.v1.container import CreateContainer
         from phi.k8s.create.core.v1.namespace import CreateNamespace
-        from phi.k8s.create.core.v1.persistent_volume import CreatePersistentVolume
-        from phi.k8s.create.core.v1.persistent_volume_claim import CreatePVC
         from phi.k8s.create.core.v1.secret import CreateSecret
         from phi.k8s.create.core.v1.service import CreateService
         from phi.k8s.create.core.v1.service_account import CreateServiceAccount
@@ -447,9 +649,9 @@ class K8sApp(AppBase):
             AwsElasticBlockStoreVolumeSource,
             VolumeType,
         )
+        from phi.k8s.create.networking_k8s_io.v1.ingress import CreateIngress
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import CreateClusterRoleBinding
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import CreateClusterRole
-        from phi.k8s.create.storage_k8s_io.v1.storage_class import CreateStorageClass
         from phi.utils.defaults import get_default_volume_name, get_default_sa_name
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
@@ -458,33 +660,29 @@ class K8sApp(AppBase):
         sa: Optional[CreateServiceAccount] = self.service_account
         cr: Optional[CreateClusterRole] = self.cluster_role
         crb: Optional[CreateClusterRoleBinding] = self.cluster_role_binding
-        secrets: List[CreateSecret] = self.extra_secrets or []
-        config_maps: List[CreateConfigMap] = self.extra_configmaps or []
-        services: List[CreateService] = self.extra_services or []
-        deployments: List[CreateDeployment] = self.extra_deployments or []
-        pvs: List[CreatePersistentVolume] = self.extra_pvs or []
-        pvcs: List[CreatePVC] = self.extra_pvcs or []
-        containers: List[CreateContainer] = self.extra_containers or []
-        init_containers: List[CreateContainer] = self.extra_init_containers or []
-        ports: List[CreatePort] = self.extra_ports or []
-        volumes: List[CreateVolume] = self.extra_volumes or []
-        storage_classes: List[CreateStorageClass] = self.extra_storage_classes or []
-        custom_objects: List[CreateCustomObject] = self.extra_custom_objects or []
-        crds: List[CreateCustomResourceDefinition] = self.extra_crds or []
+        secrets: List[CreateSecret] = self.get_secrets()
+        config_maps: List[CreateConfigMap] = self.get_configmaps()
+        services: List[CreateService] = self.get_services()
+        deployments: List[CreateDeployment] = self.get_deployments()
+        containers: List[CreateContainer] = self.get_containers()
+        init_containers: List[CreateContainer] = self.get_init_containers()
+        ports: List[CreatePort] = self.get_ports()
+        volumes: List[CreateVolume] = self.get_volumes()
 
-        # -*- Namespace to use for this App
-        # Use the Namespace provided by the App or the default from the build_context
+        # -*- Namespace name for this App
+        # Use the Namespace name provided by the App or the default from the build_context
+        # If self.create_rbac is True, the Namespace is created by the App if self.namespace is None
         ns_name: str = self.ns_name or build_context.namespace
 
-        # -*- Service Account to use for this App
+        # -*- Service Account name for this App
         # Use the Service Account provided by the App or the default from the build_context
         sa_name: Optional[str] = self.sa_name or build_context.service_account_name
 
         # Use the labels from the build_context as common labels for all resources
         common_labels: Optional[Dict[str, str]] = build_context.labels
 
-        # -*- Build separate RBAC when use_rbac is True
-        if self.use_rbac:
+        # -*- Build separate RBAC when create_rbac is True
+        if self.create_rbac:
             # Create Namespace
             if ns is None:
                 ns = CreateNamespace(
@@ -666,7 +864,8 @@ class K8sApp(AppBase):
 
                     logger.debug(f"ebs_volume_id: {ebs_volume_id}")
                     if ebs_volume_id is None:
-                        raise ValueError("ebs_volume_id is None and could not be derived")
+                        logger.error(f"{self.get_app_name()}: ebs_volume_id not available, skipping app")
+                        return []
 
                     logger.debug(f"Mounting: {volume_name}")
                     logger.debug(f"      to: {self.volume_container_path}")
@@ -861,7 +1060,7 @@ class K8sApp(AppBase):
             containers=containers,
             init_containers=init_containers if len(init_containers) > 0 else None,
             pod_node_selector=pod_node_selector,
-            restart_policy=self.deploy_restart_policy or RestartPolicy.ALWAYS,
+            restart_policy=self.restart_policy or RestartPolicy.ALWAYS,
             termination_grace_period_seconds=self.termination_grace_period_seconds,
             volumes=volumes if len(volumes) > 0 else None,
             labels=deploy_labels,
@@ -875,7 +1074,8 @@ class K8sApp(AppBase):
 
         # -*- Create the Service
         if self.create_service:
-            service_labels: Dict[str, str] = self.get_service_labels(common_labels)
+            service_labels = self.get_service_labels(common_labels)
+            service_annotations = self.get_service_annotations()
             service = CreateService(
                 service_name=self.get_service_name(),
                 app_name=self.get_app_name(),
@@ -885,8 +1085,28 @@ class K8sApp(AppBase):
                 deployment=deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
+                external_traffic_policy=self.service_external_traffic_policy,
+                annotations=service_annotations,
+                load_balancer_ip=self.service_load_balancer_ip,
+                load_balancer_source_ranges=self.get_load_balancer_source_ranges(),
+                allocate_load_balancer_node_ports=self.service_allocate_load_balancer_node_ports,
             )
             services.append(service)
+
+        # -*- Create the Ingress
+        ingress: Optional[CreateIngress] = None
+        if self.create_ingress:
+            ingress_annotations = self.get_ingress_annotations()
+            ingress_rules = self.get_ingress_rules()
+            ingress = CreateIngress(
+                ingress_name=self.get_ingress_name(),
+                app_name=self.get_app_name(),
+                namespace=ns_name,
+                service_account_name=sa_name,
+                annotations=ingress_annotations,
+                ingress_class_name=self.ingress_class_name,
+                rules=ingress_rules,
+            )
 
         # -*- List of K8sResources created by this App
         app_resources: List[K8sResource] = []
@@ -902,20 +1122,29 @@ class K8sApp(AppBase):
             app_resources.extend([secret.create() for secret in secrets])
         if len(config_maps) > 0:
             app_resources.extend([cm.create() for cm in config_maps])
-        if len(storage_classes) > 0:
-            app_resources.extend([sc.create() for sc in storage_classes])
         if len(services) > 0:
             app_resources.extend([service.create() for service in services])
         if len(deployments) > 0:
             app_resources.extend([deployment.create() for deployment in deployments])
-        if len(custom_objects) > 0:
-            app_resources.extend([co.create() for co in custom_objects])
-        if len(crds) > 0:
-            app_resources.extend([crd.create() for crd in crds])
-        if len(pvs) > 0:
-            app_resources.extend([pv.create() for pv in pvs])
-        if len(pvcs) > 0:
-            app_resources.extend([pvc.create() for pvc in pvcs])
+        if ingress is not None:
+            app_resources.append(ingress.create())
+        if self.add_resources is not None and isinstance(self.add_resources, list):
+            for resource in self.add_resources:
+                if isinstance(resource, CreateK8sResource):
+                    app_resources.append(resource.create())
+                elif isinstance(resource, K8sResource):
+                    app_resources.append(resource)
+                else:
+                    logger.error(f"Resource not of type K8sResource or CreateK8sResource: {resource}")
+        add_app_resources = self.add_app_resources(namespace=ns_name, service_account_name=sa_name)
+        if len(add_app_resources) > 0:
+            for r in add_app_resources:
+                if isinstance(r, CreateK8sResource):
+                    add_app_resources.append(r.create())
+                elif isinstance(r, K8sResource):
+                    add_app_resources.append(r)
+                else:
+                    logger.error(f"Resource not of type K8sResource or CreateK8sResource: {r}")
 
         logger.debug(f"------------ {self.get_app_name()} Built ------------")
         return app_resources

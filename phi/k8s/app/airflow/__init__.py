@@ -1,7 +1,9 @@
 from phi.k8s.app.airflow.base import (
     AirflowBase,
-    AirflowLogsVolumeType,
+    AppVolumeType,
     ContainerContext,
+    ServiceType,
+    RestartPolicy,
     ImagePullPolicy,
 )
 from phi.k8s.app.airflow.webserver import AirflowWebserver

@@ -1,6 +1,13 @@
 from typing import Optional, Union, List, Dict
 
-from phi.k8s.app.base import K8sApp, ContainerContext, AppVolumeType  # noqa: F401
+from phi.k8s.app.base import (
+    K8sApp,
+    AppVolumeType,  # noqa: F401
+    ContainerContext,
+    ServiceType,  # noqa: F401
+    RestartPolicy,  # noqa: F401
+    ImagePullPolicy,  # noqa: F401
+)
 
 
 class FastApi(K8sApp):

@@ -232,12 +232,12 @@ class K8sResource(ResourceBase, K8sObject):
         from itertools import chain
 
         k8s_manifest: Dict[str, Any] = {}
-        all_attributes: Dict[str, Any] = self.model_dump(exclude_defaults=True, by_alias=True)
+        all_attributes: Dict[str, Any] = self.model_dump(exclude_defaults=True, by_alias=True, exclude_none=True)
         # logger.debug("All Attributes: {}".format(all_attributes))
         for attr_name in chain(self.fields_for_k8s_manifest_base, self.fields_for_k8s_manifest):
             if attr_name in all_attributes:
                 k8s_manifest[attr_name] = all_attributes[attr_name]
-        logger.debug(f"k8s_manifest:\n{k8s_manifest}")
+        # logger.debug(f"k8s_manifest:\n{k8s_manifest}")
         return k8s_manifest
 
     def get_k8s_manifest_yaml(self, **kwargs) -> Optional[str]:

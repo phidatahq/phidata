@@ -9,6 +9,7 @@ from phi.k8s.resource.apiextensions_k8s_io.v1.custom_resource_definition import 
     CustomResourceDefinitionSpec,
     CustomResourceDefinitionNames,
     CustomResourceDefinitionVersion,
+    V1JSONSchemaProps,  # noqa: F401
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta

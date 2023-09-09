@@ -163,7 +163,14 @@ class K8sResources(InfraResources):
             logger.debug(f"Found {len(apps_to_create)} apps to create")
             for app in apps_to_create:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=K8sBuildContext())
+                app_resources = app.get_resources(
+                    build_context=K8sBuildContext(
+                        namespace=self.namespace,
+                        context=self.context,
+                        service_account_name=self.service_account_name,
+                        labels=self.common_labels,
+                    )
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_create(
@@ -354,7 +361,14 @@ class K8sResources(InfraResources):
             logger.debug(f"Found {len(apps_to_delete)} apps to delete")
             for app in apps_to_delete:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=K8sBuildContext())
+                app_resources = app.get_resources(
+                    build_context=K8sBuildContext(
+                        namespace=self.namespace,
+                        context=self.context,
+                        service_account_name=self.service_account_name,
+                        labels=self.common_labels,
+                    )
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_delete(
@@ -555,7 +569,14 @@ class K8sResources(InfraResources):
             logger.debug(f"Found {len(apps_to_update)} apps to update")
             for app in apps_to_update:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=K8sBuildContext())
+                app_resources = app.get_resources(
+                    build_context=K8sBuildContext(
+                        namespace=self.namespace,
+                        context=self.context,
+                        service_account_name=self.service_account_name,
+                        labels=self.common_labels,
+                    )
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_update(
@@ -748,7 +769,14 @@ class K8sResources(InfraResources):
             logger.debug(f"Found {len(apps_to_save)} apps to save")
             for app in apps_to_save:
                 app.set_workspace_settings(workspace_settings=workspace_settings)
-                app_resources = app.get_resources(build_context=K8sBuildContext())
+                app_resources = app.get_resources(
+                    build_context=K8sBuildContext(
+                        namespace=self.namespace,
+                        context=self.context,
+                        service_account_name=self.service_account_name,
+                        labels=self.common_labels,
+                    )
+                )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
                         if isinstance(app_resource, K8sResource) and app_resource.should_create(

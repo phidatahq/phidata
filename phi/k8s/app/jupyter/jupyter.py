@@ -1,15 +1,22 @@
-from typing import Optional, Union, List, Dict
+from typing import Optional, Dict, List, Any, Union
 
-from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
+from phi.k8s.app.base import (
+    K8sApp,
+    AppVolumeType,
+    ContainerContext,
+    ServiceType,  # noqa: F401
+    RestartPolicy,  # noqa: F401
+    ImagePullPolicy,  # noqa: F401
+)
 
 
-class Jupyter(DockerApp):
+class Jupyter(K8sApp):
     # -*- App Name
     name: str = "jupyter"
 
     # -*- Image Configuration
     image_name: str = "phidata/jupyter"
-    image_tag: str = "3.6.3"
+    image_tag: str = "4.0.5"
     command: Optional[Union[str, List[str]]] = "jupyter lab"
 
     # -*- App Ports
@@ -17,17 +24,14 @@ class Jupyter(DockerApp):
     open_port: bool = True
     port_number: int = 8888
 
-    # -*- Workspace Configuration
-    # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/jupyter"
-    # Mount the workspace directory from host machine to the container
-    mount_workspace: bool = False
+    # -*- Service Configuration
+    create_service: bool = True
 
-    # -*- Resources Volume
-    # Mount a read-only directory from host machine to the container
-    mount_resources: bool = False
-    # Resources directory relative to the workspace_root
-    resources_dir: str = "workspace/jupyter/resources"
+    # -*- Workspace Configuration
+    # Path to the parent directory of the workspace inside the container
+    # When using git-sync, the git repo is cloned inside this directory
+    #   i.e. this is the parent directory of the workspace
+    workspace_parent_dir_container_path: str = "/usr/local/workspace"
 
     # -*- Jupyter Configuration
     # Absolute path to JUPYTER_CONFIG_FILE
@@ -35,8 +39,19 @@ class Jupyter(DockerApp):
     # Defaults to /jupyter_lab_config.py which is added in the "phidata/jupyter" image
     jupyter_config_file: str = "/jupyter_lab_config.py"
     # Absolute path to the notebook directory
-    # Defaults to the workspace_root if mount_workspace = True else "/"
     notebook_dir: Optional[str] = None
+
+    # -*- Jupyter Volume
+    # Create a volume for jupyter storage
+    create_volume: bool = True
+    volume_type: AppVolumeType = AppVolumeType.EmptyDir
+    # Path to mount the volume inside the container
+    # should be the parent directory of pgdata defined above
+    volume_container_path: str = "/mnt"
+    # -*- If volume_type is AwsEbs
+    ebs_volume: Optional[Any] = None
+    # Add NodeSelectors to Pods, so they are scheduled in the same region and zone as the ebs_volume
+    schedule_pods_in_ebs_topology: bool = True
 
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         container_env: Dict[str, str] = super().get_container_env(container_context=container_context)
@@ -46,7 +61,7 @@ class Jupyter(DockerApp):
 
         return container_env
 
-    def get_container_command(self) -> Optional[List[str]]:
+    def get_container_args(self) -> Optional[List[str]]:
         container_cmd: List[str]
         if isinstance(self.command, str):
             container_cmd = self.command.split(" ")

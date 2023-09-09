@@ -32,7 +32,7 @@ class AppBase(PhiBase):
     # Path to the requirements.txt file relative to the workspace_root
     requirements_file: str = "requirements.txt"
     # Set the PYTHONPATH env var
-    set_python_path: bool = False
+    set_python_path: bool = True
     # Manually provide the PYTHONPATH.
     # If None, PYTHONPATH is set to workspace_root
     python_path: Optional[str] = None

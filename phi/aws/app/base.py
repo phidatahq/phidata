@@ -133,13 +133,11 @@ class AwsApp(AppBase):
 
         workspace_name = self.workspace_name
         if workspace_name is None:
-            logger.warning("Invalid workspace_name")
-            return None
+            raise Exception("Could not determine workspace_name")
 
         workspace_root_in_container = self.workspace_dir_container_path
         if workspace_root_in_container is None:
-            logger.warning("Invalid workspace_dir_container_path")
-            return None
+            raise Exception("Could not determine workspace_root in container")
 
         workspace_parent_paths = workspace_root_in_container.split("/")[0:-1]
         workspace_parent_in_container = "/".join(workspace_parent_paths)

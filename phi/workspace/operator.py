@@ -30,8 +30,6 @@ TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.django_app: "django-app",
     WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
     WorkspaceStarterTemplate.data_platform: "data-platform",
-    WorkspaceStarterTemplate.spark_data_platform: "spark-data-platform",
-    WorkspaceStarterTemplate.snowflake_data_platform: "snowflake-data-platform",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
@@ -39,8 +37,6 @@ TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
     WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
     WorkspaceStarterTemplate.data_platform: "https://github.com/phidatahq/data-platform.git",
-    WorkspaceStarterTemplate.spark_data_platform: "https://github.com/phidatahq/spark-data-platform.git",
-    WorkspaceStarterTemplate.snowflake_data_platform: "https://github.com/phidatahq/snowflake-data-platform.git",
 }
 
 

@@ -17,6 +17,12 @@ class PostgresDb(DockerApp, DbApp):
     open_port: bool = True
     port_number: int = 5432
 
+    # -*- Postgres Volume
+    # Create a volume for postgres storage
+    create_volume: bool = True
+    # Path to mount the volume inside the container
+    volume_container_path: str = "/var/lib/postgresql/data"
+
     # -*- Postgres Configuration
     # Provide POSTGRES_USER as db_user or POSTGRES_USER in secrets_file
     db_user: Optional[str] = None
@@ -33,12 +39,6 @@ class PostgresDb(DockerApp, DbApp):
     postgres_user_file: Optional[str] = None
     postgres_db_file: Optional[str] = None
     postgres_initdb_args_file: Optional[str] = None
-
-    # -*- Postgres Volume
-    # Create a volume for postgres storage
-    create_volume: bool = True
-    # Path to mount the volume inside the container
-    volume_container_path: str = "/var/lib/postgresql/data"
 
     def get_db_user(self) -> Optional[str]:
         return self.db_user or self.get_secret_from_file("POSTGRES_USER")

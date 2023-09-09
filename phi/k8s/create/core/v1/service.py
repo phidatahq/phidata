@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from typing_extensions import Literal
 
 from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.create.apps.v1.deployment import CreateDeployment
@@ -27,7 +28,7 @@ class CreateService(CreateK8sResource):
     ## type == ExternalName
     external_ips: Optional[List[str]] = None
     external_name: Optional[str] = None
-    external_traffic_policy: Optional[str] = None
+    external_traffic_policy: Optional[Literal["Cluster", "Local"]] = None
     ## type == LoadBalancer
     health_check_node_port: Optional[int] = None
     internal_taffic_policy: Optional[str] = None

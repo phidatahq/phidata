@@ -1,7 +1,7 @@
 from phi.utils.enum import ExtendedEnum
 
 
-class PVAccessMode(ExtendedEnum):
+class PVAccessMode(str, ExtendedEnum):
     # the volume can be mounted as read-write by a single node.
     # ReadWriteOnce access mode still can allow multiple pods to access the volume
     # when the pods are running on the same node.

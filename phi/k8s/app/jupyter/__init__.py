@@ -1,5 +1,5 @@
-from phi.k8s.app.redis.redis import (
-    Redis,
+from phi.k8s.app.jupyter.jupyter import (
+    Jupyter,
     AppVolumeType,
     ContainerContext,
     ServiceType,

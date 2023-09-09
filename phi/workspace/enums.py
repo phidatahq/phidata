@@ -7,5 +7,3 @@ class WorkspaceStarterTemplate(str, Enum):
     django_app = "django-app"
     streamlit_app = "streamlit-app"
     data_platform = "data-platform"
-    spark_data_platform = "spark-data-platform"
-    snowflake_data_platform = "snowflake-data-platform"

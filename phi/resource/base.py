@@ -45,7 +45,7 @@ class ResourceBase(PhiBase):
         if workspace_dir is not None:
             resource_name: str = self.get_resource_name()
             if resource_name is not None:
-                input_file_name = f"{resource_name}.json"
+                input_file_name = f"{resource_name}.yaml"
                 input_dir_path = workspace_dir
                 if self.input_dir is not None:
                     input_dir_path = input_dir_path.joinpath(self.input_dir)
@@ -69,7 +69,7 @@ class ResourceBase(PhiBase):
         if workspace_dir is not None:
             resource_name: str = self.get_resource_name()
             if resource_name is not None:
-                output_file_name = f"{resource_name}.json"
+                output_file_name = f"{resource_name}.yaml"
                 output_dir_path = workspace_dir
                 if self.output_dir is not None:
                     output_dir_path = output_dir_path.joinpath(self.output_dir)
@@ -88,12 +88,12 @@ class ResourceBase(PhiBase):
         output_file_path: Optional[Path] = self.get_output_file_path()
         if output_file_path is not None:
             try:
-                from phi.utils.json_io import write_json_file
+                from phi.utils.yaml_io import write_yaml_file
 
                 if not output_file_path.exists():
                     output_file_path.parent.mkdir(parents=True, exist_ok=True)
                     output_file_path.touch(exist_ok=True)
-                write_json_file(output_file_path, self.active_resource)
+                write_yaml_file(output_file_path, self.active_resource)
                 logger.info(f"Resource saved to: {str(output_file_path)}")
                 return True
             except Exception as e:
@@ -104,10 +104,10 @@ class ResourceBase(PhiBase):
         output_file_path: Optional[Path] = self.get_output_file_path()
         if output_file_path is not None:
             try:
-                from phi.utils.json_io import read_json_file
+                from phi.utils.yaml_io import read_yaml_file
 
                 if output_file_path.exists() and output_file_path.is_file():
-                    data_from_file = read_json_file(output_file_path)
+                    data_from_file = read_yaml_file(output_file_path)
                     if data_from_file is not None and isinstance(data_from_file, dict):
                         return data_from_file
                     else:

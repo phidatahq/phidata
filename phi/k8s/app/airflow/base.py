@@ -1,15 +1,16 @@
-from enum import Enum
 from typing import Optional, Dict
 
-from phi.k8s.app.base import K8sApp, ContainerContext, AppVolumeType, ImagePullPolicy  # noqa: F401
 from phi.app.db_app import DbApp
+from phi.k8s.app.base import (
+    K8sApp,
+    AppVolumeType,  # noqa: F401
+    ContainerContext,
+    ServiceType,  # noqa: F401
+    RestartPolicy,  # noqa: F401
+    ImagePullPolicy,  # noqa: F401
+)
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
-
-
-class AirflowLogsVolumeType(str, Enum):
-    HostPath = "HostPath"
-    EmptyDir = "EmptyDir"
 
 
 class AirflowBase(K8sApp):
@@ -49,8 +50,8 @@ class AirflowBase(K8sApp):
     # -*- Airflow Database Configuration
     # Set as True to wait for db before starting airflow
     wait_for_db: bool = False
-    # Set as True to delay start by 60 seconds so that the db can be initialized
-    wait_for_db_init: bool = False
+    # Set as True to delay start by 60 seconds to wait for db migrations
+    wait_for_db_migrate: bool = False
     # Connect to the database using a DbApp
     db_app: Optional[DbApp] = None
     # Provide database connection details manually
@@ -102,7 +103,7 @@ class AirflowBase(K8sApp):
     redis_driver: str = "redis"
 
     #  -*- Other args
-    load_examples: bool = True
+    load_examples: bool = False
 
     def get_db_user(self) -> Optional[str]:
         return self.db_user or self.get_secret_from_file("DATABASE_USER")
@@ -179,7 +180,7 @@ class AirflowBase(K8sApp):
                 INIT_AIRFLOW_ENV_VAR: str(True),
                 "DB_MIGRATE": str(self.db_migrate),
                 "WAIT_FOR_DB": str(self.wait_for_db),
-                "WAIT_FOR_DB_INIT": str(self.wait_for_db_init),
+                "WAIT_FOR_DB_MIGRATE": str(self.wait_for_db_migrate),
                 "WAIT_FOR_REDIS": str(self.wait_for_redis),
                 "CREATE_AIRFLOW_ADMIN_USER": str(self.create_airflow_admin_user),
                 AIRFLOW_EXECUTOR_ENV_VAR: str(self.executor),

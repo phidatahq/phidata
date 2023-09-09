@@ -17,6 +17,12 @@ class Redis(DockerApp, DbApp):
     open_port: bool = True
     port_number: int = 6379
 
+    # -*- Redis Volume
+    # Create a volume for redis storage
+    create_volume: bool = True
+    # Path to mount the volume inside the container
+    volume_container_path: str = "/data"
+
     # -*- Redis Configuration
     # Provide REDIS_USER as redis_user or REDIS_USER in secrets_file
     redis_user: Optional[str] = None
@@ -26,12 +32,6 @@ class Redis(DockerApp, DbApp):
     redis_schema: Optional[str] = None
     redis_driver: str = "redis"
     logging_level: str = "debug"
-
-    # -*- Redis Volume
-    # Create a volume for redis storage
-    create_volume: bool = True
-    # Path to mount the volume inside the container
-    volume_container_path: str = "/data"
 
     def get_db_user(self) -> Optional[str]:
         return self.db_user or self.get_secret_from_file("REDIS_USER")

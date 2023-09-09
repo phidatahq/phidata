@@ -34,6 +34,14 @@ class TraefikRouter(K8sApp):
     image_name: str = "traefik"
     image_tag: str = "v2.10"
 
+    # -*- RBAC Configuration
+    # Create RBAC for Traefik
+    create_rbac: bool = True
+
+    # -*- Install traefik CRDs
+    # See: https://doc.traefik.io/traefik/providers/kubernetes-crd/#configuration-requirements
+    install_crds: bool = True
+
     # -*- Traefik Configuration
     domain_name: Optional[str] = None
     # Enable Access Logs
@@ -82,10 +90,6 @@ class TraefikRouter(K8sApp):
     # Using the secrets_file is recommended
     dashboard_auth_users: Optional[str] = None
     insecure_api_access: bool = False
-
-    # Install traefik CRDs
-    # See: https://doc.traefik.io/traefik/providers/kubernetes-crd/#configuration-requirements
-    install_crds: bool = True
 
     def get_dashboard_auth_users(self) -> Optional[str]:
         return self.dashboard_auth_users or self.get_secret_from_file("DASHBOARD_AUTH_USERS")

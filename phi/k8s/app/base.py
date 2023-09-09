@@ -171,7 +171,7 @@ class K8sApp(AppBase):
     # On cloud providers which support external load balancers,
     # setting the service_type field to LoadBalancer provisions a load balancer.
     # The actual creation of the load balancer happens asynchronously
-    # NOTE: load_balancer_provider is required if service_type == ServiceType.LOAD_BALANCER
+    # NOTE: load_balancer_provider must be set if service_type == ServiceType.LOAD_BALANCER
     load_balancer_provider: Optional[LoadBalancerProvider] = None
 
     # -*- AWS LoadBalancer configuration
@@ -310,7 +310,7 @@ class K8sApp(AppBase):
     def get_service_annotations(self) -> Optional[Dict[str, str]]:
         service_annotations = self.service_annotations
 
-        # Configure AWS LoadBalancer
+        # Add annotations for AWS LoadBalancer
         if self.load_balancer_provider == LoadBalancerProvider.AWS:
             if service_annotations is None:
                 service_annotations = OrderedDict()

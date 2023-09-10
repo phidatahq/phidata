@@ -1,5 +1,6 @@
 from phi.base import PhiBase
 from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.utils.log import logger
 
 
 class CreateK8sObject(PhiBase):
@@ -29,6 +30,7 @@ class CreateK8sResource(PhiBase):
 
     def create(self) -> K8sResource:
         _resource = self._create()
+        # logger.debug(f"Created resource: {self.__class__.__name__}")
         if _resource is None:
             raise ValueError(f"Failed to create resource: {self.__class__.__name__}")
 
@@ -41,4 +43,5 @@ class CreateK8sResource(PhiBase):
         updated_resource = _resource.model_copy(update=diff_fields)
         # logger.debug(f"Created resource: {updated_resource.__class__.__name__}: {updated_resource.model_dump()}")
 
+        logger.debug(f"Created: {updated_resource.__class__.__name__} | {updated_resource.get_resource_name()}")
         return updated_resource

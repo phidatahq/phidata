@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Optional, Dict, List, Any
 
 from phi.k8s.app.base import (
@@ -8,34 +7,22 @@ from phi.k8s.app.base import (
     ServiceType,
     RestartPolicy,  # noqa: F401
     ImagePullPolicy,  # noqa: F401
+    LoadBalancerProvider,  # noqa: F401
 )
-from phi.k8s.app.traefik.crds import (
-    ingressroute_crd,
-    ingressroutetcp_crd,
-    ingressrouteudp_crd,
-    middleware_crd,
-    middlewaretcp_crd,
-    serverstransport_crd,
-    tlsoption_crd,
-    tlsstore_crd,
-    traefikservice_crd,
-)
-
-
-class LoadBalancerProvider(str, Enum):
-    AWS = "AWS"
+from phi.k8s.app.traefik.crds import ingressroute_crd, middleware_crd
+from phi.utils.log import logger
 
 
 class TraefikRouter(K8sApp):
     # -*- App Name
-    name: str = "airflow"
+    name: str = "traefik"
 
     # -*- Image Configuration
     image_name: str = "traefik"
     image_tag: str = "v2.10"
 
     # -*- RBAC Configuration
-    # Create RBAC for Traefik
+    # Create a ServiceAccount, ClusterRole, and ClusterRoleBinding
     create_rbac: bool = True
 
     # -*- Install traefik CRDs
@@ -111,12 +98,12 @@ class TraefikRouter(K8sApp):
                 verbs=["get", "list", "watch"],
             ),
             PolicyRule(
-                api_groups=["extensions"],
+                api_groups=["extensions", "networking.k8s.io"],
                 resources=["ingresses/status"],
                 verbs=["update"],
             ),
             PolicyRule(
-                api_groups=["traefik.containo.us"],
+                api_groups=["traefik.io", "traefik.containo.us"],
                 resources=[
                     "middlewares",
                     "middlewaretcps",
@@ -230,7 +217,7 @@ class TraefikRouter(K8sApp):
         app_resources = self.add_resources or []
 
         if self.http_enabled:
-            web_ingressroute = CreateCustomObject(
+            http_ingressroute = CreateCustomObject(
                 name=self.http_ingress_name,
                 crd=ingressroute_crd,
                 spec={
@@ -240,10 +227,11 @@ class TraefikRouter(K8sApp):
                 app_name=self.get_app_name(),
                 namespace=namespace,
             )
-            app_resources.append(web_ingressroute)
+            app_resources.append(http_ingressroute)
+            logger.debug(f"Added IngressRoute: {http_ingressroute.name}")
 
         if self.https_enabled:
-            websecure_ingressroute = CreateCustomObject(
+            https_ingressroute = CreateCustomObject(
                 name=self.https_ingress_name,
                 crd=ingressroute_crd,
                 spec={
@@ -253,7 +241,8 @@ class TraefikRouter(K8sApp):
                 app_name=self.get_app_name(),
                 namespace=namespace,
             )
-            app_resources.append(websecure_ingressroute)
+            app_resources.append(https_ingressroute)
+            logger.debug(f"Added IngressRoute: {https_ingressroute.name}")
 
         if self.add_headers:
             headers_middleware = CreateCustomObject(
@@ -266,6 +255,7 @@ class TraefikRouter(K8sApp):
                 namespace=namespace,
             )
             app_resources.append(headers_middleware)
+            logger.debug(f"Added Middleware: {headers_middleware.name}")
 
         if self.dashboard_enabled:
             # create dashboard_auth_middleware if auth provided
@@ -282,6 +272,7 @@ class TraefikRouter(K8sApp):
                     string_data={"users": dashboard_auth_users},
                 )
                 app_resources.append(dashboard_auth_secret)
+                logger.debug(f"Added Secret: {dashboard_auth_secret.secret_name}")
 
                 dashboard_auth_middleware = CreateCustomObject(
                     name="dashboard-auth-middleware",
@@ -291,6 +282,7 @@ class TraefikRouter(K8sApp):
                     namespace=namespace,
                 )
                 app_resources.append(dashboard_auth_middleware)
+                logger.debug(f"Added Middleware: {dashboard_auth_middleware.name}")
 
             dashboard_routes = self.dashboard_routes
             # use default dashboard routes
@@ -329,20 +321,19 @@ class TraefikRouter(K8sApp):
                 namespace=namespace,
             )
             app_resources.append(dashboard_ingressroute)
+            logger.debug(f"Added IngressRoute: {dashboard_ingressroute.name}")
 
         if self.install_crds:
-            app_resources.extend(
-                [
-                    ingressroute_crd,
-                    ingressroutetcp_crd,
-                    ingressrouteudp_crd,
-                    middleware_crd,
-                    middlewaretcp_crd,
-                    serverstransport_crd,
-                    tlsoption_crd,
-                    tlsstore_crd,
-                    traefikservice_crd,
-                ]
+            from phi.k8s.resource.yaml import YamlResource
+
+            if self.yaml_resources is None:
+                self.yaml_resources = []
+            self.yaml_resources.append(
+                YamlResource(
+                    name="traefik-crds",
+                    url="https://raw.githubusercontent.com/traefik/traefik/v2.10/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml",
+                )
             )
+            logger.debug("Added CRD yaml")
 
         return app_resources

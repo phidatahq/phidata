@@ -5,4 +5,5 @@ from phi.k8s.app.traefik.router import (
     ServiceType,
     RestartPolicy,
     ImagePullPolicy,
+    LoadBalancerProvider,
 )

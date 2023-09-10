@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 from typing_extensions import Literal
 
-from pydantic import field_validator, Field
+from pydantic import field_validator, Field, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
 from phi.app.base import AppBase
@@ -135,16 +135,19 @@ class K8sApp(AppBase):
     deploy_labels: Optional[Dict[str, Any]] = None
     termination_grace_period_seconds: Optional[int] = None
     # Key to spread the pods across a topology
-    topology_spread_key: Optional[str] = None
+    topology_spread_key: str = "kubernetes.io/hostname"
     # The degree to which pods may be unevenly distributed
-    topology_spread_max_skew: Optional[int] = None
+    topology_spread_max_skew: int = 2
     # How to deal with a pod if it doesn't satisfy the spread constraint.
-    topology_spread_when_unsatisfiable: Optional[str] = None
+    topology_spread_when_unsatisfiable: Literal["DoNotSchedule", "ScheduleAnyway"] = "ScheduleAnyway"
 
     # -*- Service Configuration
     create_service: bool = False
     service_name: Optional[str] = None
     service_type: Optional[ServiceType] = None
+    # -*- Enable HTTPS on the Service if service_type = ServiceType.LOAD_BALANCER
+    # Must provide an ACM Certificate ARN or ACM Certificate Summary File to work
+    enable_https: bool = False
     # The port exposed by the service
     # Preferred over port_number if both are set
     service_port: Optional[int] = Field(None, validate_default=True)
@@ -153,29 +156,30 @@ class K8sApp(AppBase):
     # The target_port is the port to access on the pods targeted by the service.
     # It can be the port number or port name on the pod.
     service_target_port: Optional[Union[str, int]] = None
-    # Extra ports exposed by the webserver service. Type: List[CreatePort]
+    # Extra ports exposed by the service. Type: List[CreatePort]
     service_ports: Optional[List[Any]] = None
+    # Labels to add to the service
     service_labels: Optional[Dict[str, Any]] = None
+    # Annotations to add to the service
     service_annotations: Optional[Dict[str, str]] = None
-    # If ServiceType == ServiceType.LoadBalancer
-    service_health_check_node_port: Optional[int] = None
-    service_internal_traffic_policy: Optional[str] = None
-    service_load_balancer_class: Optional[str] = None
-    service_load_balancer_ip: Optional[str] = None
-    service_load_balancer_source_ranges: Optional[List[str]] = None
-    service_allocate_load_balancer_node_ports: Optional[bool] = None
-    # If ServiceType == ServiceType.EXTERNAL_NAME
-    service_external_traffic_policy: Optional[str] = None
 
     # -*- LoadBalancer configuration
-    # On cloud providers which support external load balancers,
-    # setting the service_type field to LoadBalancer provisions a load balancer.
-    # The actual creation of the load balancer happens asynchronously
-    # NOTE: load_balancer_provider must be set if service_type == ServiceType.LOAD_BALANCER
-    load_balancer_provider: Optional[LoadBalancerProvider] = None
+    health_check_node_port: Optional[int] = None
+    internal_traffic_policy: Optional[str] = None
+    load_balancer_ip: Optional[str] = None
+    # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/service/nlb/
+    load_balancer_class: Optional[str] = None
+    # Limit the IPs that can access this endpoint
+    # You can provide the load_balancer_source_ranges as a list here
+    # or as LOAD_BALANCER_SOURCE_RANGES in the secrets_file
+    # Using the secrets_file is recommended
+    load_balancer_source_ranges: Optional[List[str]] = None
+    allocate_load_balancer_node_ports: Optional[bool] = None
 
     # -*- AWS LoadBalancer configuration
-    use_nlb: bool = False
+    # If ServiceType == ServiceType.LoadBalancer, the load balancer is created using the AWS LoadBalancer Controller
+    # and the following configuration are added as annotations to the service
+    use_nlb: bool = True
     # Specifies the target type to configure for NLB. You can choose between instance and ip.
     # `instance` mode will route traffic to all EC2 instances within cluster on the NodePort opened for your service.
     #       service must be of type NodePort or LoadBalancer for instance targets
@@ -185,27 +189,21 @@ class K8sApp(AppBase):
     #       network plugin must use native AWS VPC networking configuration for pod IP,
     #       for example Amazon VPC CNI plugin.
     nlb_target_type: Literal["instance", "ip"] = "ip"
+    # If None, default is "internet-facing"
+    load_balancer_scheme: Literal["internal", "internet-facing"] = "internet-facing"
     # Write Access Logs to s3
-    access_logs_to_s3: bool = False
+    write_access_logs_to_s3: bool = False
     # The name of the aws S3 bucket where the access logs are stored
     access_logs_s3_bucket: Optional[str] = None
     # The logical hierarchy you created for your aws S3 bucket, for example `my-bucket-prefix/prod`
     access_logs_s3_bucket_prefix: Optional[str] = None
-    # If provided, TLS termination is added to the LB
     acm_certificate_arn: Optional[str] = None
     acm_certificate_summary_file: Optional[Path] = None
-    https_service_port: int = 443
-    load_balancer_ip: Optional[str] = None
-    # If None, default is internal.
-    load_balancer_scheme: Optional[Literal["internal", "internet-facing"]] = None
-    # Limit the IPs that can access this endpoint
-    # You can provide the load_balancer_source_ranges as a list here
-    # or as LOAD_BALANCER_SOURCE_RANGES in the secrets_file
-    # Using the secrets_file is recommended
-    load_balancer_source_ranges: Optional[List[str]] = None
-    allocate_load_balancer_node_ports: Optional[bool] = None
+    # Enable proxy protocol for NLB
     enable_load_balancer_proxy_protocol: bool = True
+    # Enable cross-zone load balancing
     enable_cross_zone_load_balancing: bool = True
+    # Manually specify the subnets to use for the load balancer
     load_balancer_subnets: Optional[List[str]] = None
 
     # -*- Ingress Configuration
@@ -214,23 +212,33 @@ class K8sApp(AppBase):
     ingress_class_name: Literal["alb", "nlb"] = "alb"
     ingress_annotations: Optional[Dict[str, str]] = None
 
-    # -*- RBAC Configuration
-    create_rbac: bool = False
+    # -*- Namespace Configuration
+    create_namespace: bool = False
     # Create a Namespace with name ns_name & default values
     ns_name: Optional[str] = None
     # or Provide the full Namespace definition
     # Type: CreateNamespace
     namespace: Optional[Any] = None
+
+    # -*- RBAC Configuration
+    # If create_rbac = True, create a ServiceAccount, ClusterRole, and ClusterRoleBinding
+    create_rbac: bool = False
+    # -*- ServiceAccount Configuration
+    create_service_account: Optional[bool] = Field(None, validate_default=True)
     # Create a ServiceAccount with name sa_name & default values
     sa_name: Optional[str] = None
     # or Provide the full ServiceAccount definition
     # Type: CreateServiceAccount
     service_account: Optional[Any] = None
+    # -*- ClusterRole Configuration
+    create_cluster_role: Optional[bool] = Field(None, validate_default=True)
     # Create a ClusterRole with name cr_name & default values
     cr_name: Optional[str] = None
     # or Provide the full ClusterRole definition
     # Type: CreateClusterRole
     cluster_role: Optional[Any] = None
+    # -*- ClusterRoleBinding Configuration
+    create_cluster_role_binding: Optional[bool] = Field(None, validate_default=True)
     # Create a ClusterRoleBinding with name crb_name & default values
     crb_name: Optional[str] = None
     # or Provide the full ClusterRoleBinding definition
@@ -257,12 +265,54 @@ class K8sApp(AppBase):
     # Type: K8sResource or CreateK8sResource
     add_resources: Optional[List[Any]] = None
 
+    # -*- Add additional YAML resources to the App
+    # Type: YamlResource
+    yaml_resources: Optional[List[Any]] = None
+
     @field_validator("service_port", mode="before")
     def set_service_port(cls, v, info: FieldValidationInfo):
         port_number = info.data.get("port_number")
-        if v is None and port_number is not None:
-            v = port_number
+        service_type: Optional[ServiceType] = info.data.get("service_type")
+        enable_https = info.data.get("enable_https")
+        if v is None:
+            if service_type == ServiceType.LOAD_BALANCER:
+                if enable_https:
+                    v = 443
+                else:
+                    v = 80
+            elif port_number is not None:
+                v = port_number
         return v
+
+    @field_validator("create_service_account", mode="before")
+    def set_create_service_account(cls, v, info: FieldValidationInfo):
+        create_rbac = info.data.get("create_rbac")
+        if v is None and create_rbac:
+            v = create_rbac
+        return v
+
+    @field_validator("create_cluster_role", mode="before")
+    def set_create_cluster_role(cls, v, info: FieldValidationInfo):
+        create_rbac = info.data.get("create_rbac")
+        if v is None and create_rbac:
+            v = create_rbac
+        return v
+
+    @field_validator("create_cluster_role_binding", mode="before")
+    def set_create_cluster_role_binding(cls, v, info: FieldValidationInfo):
+        create_rbac = info.data.get("create_rbac")
+        if v is None and create_rbac:
+            v = create_rbac
+        return v
+
+    @model_validator(mode="after")
+    def validate_model(self) -> "K8sApp":
+        if self.enable_https:
+            if self.acm_certificate_arn is None and self.acm_certificate_summary_file is None:
+                raise ValueError(
+                    "Must provide an ACM Certificate ARN or ACM Certificate Summary File if enable_https=True"
+                )
+        return self
 
     def get_cr_name(self) -> str:
         from phi.utils.defaults import get_default_cr_name
@@ -310,56 +360,64 @@ class K8sApp(AppBase):
     def get_service_annotations(self) -> Optional[Dict[str, str]]:
         service_annotations = self.service_annotations
 
-        # Add annotations for AWS LoadBalancer
-        if self.load_balancer_provider == LoadBalancerProvider.AWS:
+        # Add annotations to create an AWS LoadBalancer
+        # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.5/guide/service/nlb/
+        if self.service_type == ServiceType.LOAD_BALANCER:
             if service_annotations is None:
                 service_annotations = OrderedDict()
-            # https://kubernetes.io/docs/concepts/services-networking/service/#aws-nlb-support
             if self.use_nlb:
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-type"] = "nlb"
-            if self.nlb_target_type is not None:
                 service_annotations[
                     "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"
                 ] = self.nlb_target_type
-
-            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes
-            # Deprecated docs: # https://kubernetes.io/docs/concepts/services-networking/service/#elb-access-logs-on-aws
-            if self.access_logs_to_s3:
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-access-log-enabled"] = "true"
-                lb_attributes = "access_logs.s3.enabled=true"
-                if self.access_logs_s3_bucket is not None:
-                    lb_attributes += f",access_logs.s3.bucket={self.access_logs_s3_bucket}"
-                if self.access_logs_s3_bucket_prefix is not None:
-                    lb_attributes += f",access_logs.s3.prefix={self.access_logs_s3_bucket_prefix}"
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-attributes"] = lb_attributes
 
             if self.load_balancer_scheme is not None:
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] = self.load_balancer_scheme
                 if self.load_balancer_scheme == "internal":
                     service_annotations["service.beta.kubernetes.io/aws-load-balancer-internal"] = "true"
 
-            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
-            # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
-            if self.acm_certificate_arn is not None:
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = self.acm_certificate_arn
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(
-                    self.https_service_port
-                )
-            # if acm_certificate_summary_file is provided, use that
-            if self.acm_certificate_summary_file is not None and isinstance(self.acm_certificate_summary_file, Path):
-                if self.acm_certificate_summary_file.exists() and self.acm_certificate_summary_file.is_file():
-                    from phi.aws.resource.acm.certificate import CertificateSummary
+            # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#load-balancer-attributes
+            # Deprecated docs: # https://kubernetes.io/docs/concepts/services-networking/service/#elb-access-logs-on-aws
+            if self.write_access_logs_to_s3:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-access-log-enabled"] = "true"
+                lb_attributes = "access_logs.s3.enabled=true"
+                if self.access_logs_s3_bucket is not None:
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name"
+                    ] = self.access_logs_s3_bucket
+                    lb_attributes += f",access_logs.s3.bucket={self.access_logs_s3_bucket}"
+                if self.access_logs_s3_bucket_prefix is not None:
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-prefix"
+                    ] = self.access_logs_s3_bucket_prefix
+                    lb_attributes += f",access_logs.s3.prefix={self.access_logs_s3_bucket_prefix}"
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-attributes"] = lb_attributes
 
-                    file_contents = self.acm_certificate_summary_file.read_text()
-                    cert_summary = CertificateSummary.model_validate(file_contents)
-                    certificate_arn = cert_summary.CertificateArn
-                    logger.debug(f"CertificateArn: {certificate_arn}")
-                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = certificate_arn
-                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(
-                        self.https_service_port
-                    )
-                else:
-                    logger.warning(f"Does not exist: {self.acm_certificate_summary_file}")
+            # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
+            if self.enable_https:
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(
+                    self.get_service_port()
+                )
+
+                # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
+                if self.acm_certificate_arn is not None:
+                    service_annotations[
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
+                    ] = self.acm_certificate_arn
+                # if acm_certificate_summary_file is provided, use that
+                if self.acm_certificate_summary_file is not None and isinstance(
+                    self.acm_certificate_summary_file, Path
+                ):
+                    if self.acm_certificate_summary_file.exists() and self.acm_certificate_summary_file.is_file():
+                        from phi.aws.resource.acm.certificate import CertificateSummary
+
+                        file_contents = self.acm_certificate_summary_file.read_text()
+                        cert_summary = CertificateSummary.model_validate(file_contents)
+                        certificate_arn = cert_summary.CertificateArn
+                        logger.debug(f"CertificateArn: {certificate_arn}")
+                        service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = certificate_arn
+                    else:
+                        logger.warning(f"Does not exist: {self.acm_certificate_summary_file}")
 
             # Enable proxy protocol for NLB
             if self.enable_load_balancer_proxy_protocol:
@@ -431,8 +489,8 @@ class K8sApp(AppBase):
         ]
 
     def get_load_balancer_source_ranges(self) -> Optional[List[str]]:
-        if self.service_load_balancer_source_ranges is not None:
-            return self.service_load_balancer_source_ranges
+        if self.load_balancer_source_ranges is not None:
+            return self.load_balancer_source_ranges
 
         load_balancer_source_ranges = self.get_secret_from_file("LOAD_BALANCER_SOURCE_RANGES")
         if isinstance(load_balancer_source_ranges, str):
@@ -652,6 +710,8 @@ class K8sApp(AppBase):
         from phi.k8s.create.networking_k8s_io.v1.ingress import CreateIngress
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluste_role_binding import CreateClusterRoleBinding
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import CreateClusterRole
+        from phi.k8s.resource.base import K8sResource
+        from phi.k8s.resource.yaml import YamlResource
         from phi.utils.defaults import get_default_volume_name, get_default_sa_name
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
@@ -681,9 +741,8 @@ class K8sApp(AppBase):
         # Use the labels from the build_context as common labels for all resources
         common_labels: Optional[Dict[str, str]] = build_context.labels
 
-        # -*- Build separate RBAC when create_rbac is True
-        if self.create_rbac:
-            # Create Namespace
+        # -*- Create Namespace
+        if self.create_namespace:
             if ns is None:
                 ns = CreateNamespace(
                     ns=ns_name,
@@ -692,7 +751,8 @@ class K8sApp(AppBase):
                 )
             ns_name = ns.ns
 
-            # Create Service Account
+        # -*- Create Service Account
+        if self.create_service_account:
             if sa is None:
                 sa = CreateServiceAccount(
                     sa_name=sa_name or get_default_sa_name(self.get_app_name()),
@@ -701,7 +761,8 @@ class K8sApp(AppBase):
                 )
             sa_name = sa.sa_name
 
-            # Create Cluster Role
+        # -*- Create Cluster Role
+        if self.create_cluster_role:
             if cr is None:
                 cr = CreateClusterRole(
                     cr_name=self.get_cr_name(),
@@ -710,8 +771,21 @@ class K8sApp(AppBase):
                     labels=common_labels,
                 )
 
-            # Create ClusterRoleBinding
+        # -*- Create ClusterRoleBinding
+        if self.create_cluster_role_binding:
             if crb is None:
+                if cr is None:
+                    logger.error(
+                        "ClusterRoleBinding requires a ClusterRole. "
+                        "Please set create_cluster_role = True or provide a ClusterRole"
+                    )
+                    return []
+                if sa is None:
+                    logger.error(
+                        "ClusterRoleBinding requires a ServiceAccount. "
+                        "Please set create_service_account = True or provide a ServiceAccount"
+                    )
+                    return []
                 crb = CreateClusterRoleBinding(
                     crb_name=self.get_crb_name(),
                     cr_name=cr.cr_name,
@@ -1085,11 +1159,15 @@ class K8sApp(AppBase):
                 deployment=deployment,
                 ports=ports if len(ports) > 0 else None,
                 labels=service_labels,
-                external_traffic_policy=self.service_external_traffic_policy,
                 annotations=service_annotations,
-                load_balancer_ip=self.service_load_balancer_ip,
+                # If ServiceType == ServiceType.LoadBalancer
+                health_check_node_port=self.health_check_node_port,
+                internal_traffic_policy=self.internal_traffic_policy,
+                load_balancer_class=self.load_balancer_class,
+                load_balancer_ip=self.load_balancer_ip,
                 load_balancer_source_ranges=self.get_load_balancer_source_ranges(),
-                allocate_load_balancer_node_ports=self.service_allocate_load_balancer_node_ports,
+                allocate_load_balancer_node_ports=self.allocate_load_balancer_node_ports,
+                protocol="https" if self.enable_https else "http",
             )
             services.append(service)
 
@@ -1129,6 +1207,7 @@ class K8sApp(AppBase):
         if ingress is not None:
             app_resources.append(ingress.create())
         if self.add_resources is not None and isinstance(self.add_resources, list):
+            logger.debug(f"Adding {len(self.add_resources)} Resources")
             for resource in self.add_resources:
                 if isinstance(resource, CreateK8sResource):
                     app_resources.append(resource.create())
@@ -1138,13 +1217,19 @@ class K8sApp(AppBase):
                     logger.error(f"Resource not of type K8sResource or CreateK8sResource: {resource}")
         add_app_resources = self.add_app_resources(namespace=ns_name, service_account_name=sa_name)
         if len(add_app_resources) > 0:
+            logger.debug(f"Adding {len(add_app_resources)} App Resources")
             for r in add_app_resources:
                 if isinstance(r, CreateK8sResource):
-                    add_app_resources.append(r.create())
+                    app_resources.append(r.create())
                 elif isinstance(r, K8sResource):
-                    add_app_resources.append(r)
+                    app_resources.append(r)
                 else:
                     logger.error(f"Resource not of type K8sResource or CreateK8sResource: {r}")
+        if self.yaml_resources is not None and len(self.yaml_resources) > 0:
+            logger.debug(f"Adding {len(self.yaml_resources)} YAML Resources")
+            for yaml_resource in self.yaml_resources:
+                if isinstance(yaml_resource, YamlResource):
+                    app_resources.append(yaml_resource)
 
         logger.debug(f"------------ {self.get_app_name()} Built ------------")
         return app_resources

@@ -29,7 +29,7 @@ class CreateCustomResourceDefinition(CreateK8sResource):
         """Creates a CustomResourceDefinition resource"""
 
         crd_name = self.crd_name
-        # logger.debug(f"Init CRD resource: {crd_name}")
+        # logger.debug(f"Creating CRD resource: {crd_name}")
 
         crd_labels = create_component_labels_dict(
             component_name=crd_name,
@@ -62,5 +62,5 @@ class CreateCustomResourceDefinition(CreateK8sResource):
             ),
         )
 
-        # logger.debug(f"CRD {crd_name}:\n{crd.json(exclude_defaults=True, indent=2)}")
+        # logger.debug(f"CRD {crd_name} created")
         return crd

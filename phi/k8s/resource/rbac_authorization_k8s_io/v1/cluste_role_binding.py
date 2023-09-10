@@ -43,7 +43,7 @@ class Subject(K8sObject):
 
     @field_serializer("api_group")
     def get_api_group_value(self, v) -> Optional[str]:
-        return v.value
+        return v.value if v else None
 
     @field_serializer("kind")
     def get_kind_value(self, v) -> str:

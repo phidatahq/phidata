@@ -26,3 +26,4 @@ class Kind(str, ExtendedEnum):
     USER = "User"
     GROUP = "Group"
     VOLUME = "Volume"
+    YAML = "yaml"

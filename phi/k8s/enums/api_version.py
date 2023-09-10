@@ -12,3 +12,4 @@ class ApiVersion(str, ExtendedEnum):
     CLIENT_AUTHENTICATION_V1BETA1 = "client.authentication.k8s.io/v1beta1"
     # CRDs for Traefik
     TRAEFIK_CONTAINO_US_V1ALPHA1 = "traefik.containo.us/v1alpha1"
+    NA = "NA"

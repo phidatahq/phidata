@@ -11,4 +11,4 @@ class SupersetInit(SupersetBase):
     entrypoint: Optional[Union[str, List]] = "/scripts/init-superset.sh"
 
     # -*- Deployment Configuration
-    deploy_restart_policy: Optional[RestartPolicy] = RestartPolicy.ON_FAILURE
+    restart_policy: Optional[RestartPolicy] = RestartPolicy.ON_FAILURE

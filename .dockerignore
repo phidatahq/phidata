@@ -1,8 +1,5 @@
-docs
 .git
 config.json
-Pipfile
-Pipfile.lock
 
 # Cache
 .mypy_cache
@@ -15,7 +12,6 @@ Pipfile.lock
 # Machine specific
 .idea
 .vscode
-cloud_sql_proxy
 
 # Ignore .env files
 .env

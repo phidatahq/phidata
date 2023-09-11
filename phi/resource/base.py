@@ -71,16 +71,13 @@ class ResourceBase(PhiBase):
             if resource_name is not None:
                 output_file_name = f"{resource_name}.yaml"
                 output_dir_path = workspace_dir
+                output_dir_path = output_dir_path.joinpath("output")
+                if self.env is not None:
+                    output_dir_path = output_dir_path.joinpath(self.env)
                 if self.output_dir is not None:
                     output_dir_path = output_dir_path.joinpath(self.output_dir)
-                else:
-                    output_dir_path = output_dir_path.joinpath("output")
-                    if self.env is not None:
-                        output_dir_path = output_dir_path.joinpath(self.env)
-                    if self.group is not None:
-                        output_dir_path = output_dir_path.joinpath(self.group)
-                    if self.get_resource_type() is not None:
-                        output_dir_path = output_dir_path.joinpath(self.get_resource_type().lower())
+                elif self.get_resource_type() is not None:
+                    output_dir_path = output_dir_path.joinpath(self.get_resource_type().lower())
                 return output_dir_path.joinpath(output_file_name)
         return None
 

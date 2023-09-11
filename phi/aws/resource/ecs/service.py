@@ -98,6 +98,8 @@ class EcsService(AwsResource):
     # to roll Fargate tasks onto a newer platform version.
     force_new_deployment: Optional[bool] = None
 
+    wait_for_create: bool = False
+
     def get_ecs_service_name(self):
         return self.ecs_service_name or self.name
 
@@ -226,7 +228,7 @@ class EcsService(AwsResource):
             try:
                 cluster_name = self.get_ecs_cluster_name()
                 if cluster_name is not None:
-                    print_info(f"Waiting for {self.get_resource_type()} to be stable.")
+                    print_info(f"Waiting for {self.get_resource_type()} to be available.")
                     waiter = self.get_service_client(aws_client).get_waiter("services_stable")
                     waiter.wait(
                         cluster=cluster_name,

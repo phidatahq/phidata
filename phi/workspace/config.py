@@ -238,7 +238,6 @@ class WorkspaceConfig(BaseModel):
         logger.debug("**--> WorkspaceConfig loaded")
         logger.debug(f"Removing {self.ws_root_path} from path")
         sys_path.remove(str(self.ws_root_path))
-        logger.debug(f"Sys path: {sys_path}")
 
         # Resources filtered by infra
         filtered_infra_resources: List[InfraResources] = []

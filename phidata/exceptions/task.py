@@ -1,2 +1,0 @@
-class TaskFailure(Exception):
-    pass

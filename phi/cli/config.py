@@ -127,20 +127,13 @@ class PhiCliConfig:
             logger.error(f"Could not find workspace at directory: {ws_dir_name}, please try again.")
             return None
 
-        # Load the workspace config if the ws_root_path has changed
-        load_ws_config = False
-
         # Update ws_dir_name, ws_root_path, ws_schema if provided and do not match the existing values
         if ws_dir_name is not None and existing_ws_config.ws_dir_name != ws_dir_name:
             existing_ws_config.ws_dir_name = ws_dir_name
         if ws_root_path is not None and existing_ws_config.ws_root_path != ws_root_path:
             existing_ws_config.ws_root_path = ws_root_path
-            load_ws_config = True
         if ws_schema is not None and existing_ws_config.ws_schema != ws_schema:
             existing_ws_config.ws_schema = ws_schema
-
-        if load_ws_config:
-            existing_ws_config.load()
 
         logger.debug(f"Workspace updated: {ws_dir_name}")
 
@@ -249,12 +242,9 @@ class PhiCliConfig:
             return self.ws_config_map[ws_dir_name].ws_root_path
         return None
 
-    def get_active_ws_config(self, load: bool = True) -> Optional[WorkspaceConfig]:
+    def get_active_ws_config(self) -> Optional[WorkspaceConfig]:
         if self.active_ws_dir is not None and self.active_ws_dir in self.ws_config_map:
-            active_ws_config: WorkspaceConfig = self.ws_config_map[self.active_ws_dir]
-            if load:
-                active_ws_config.load()
-            return active_ws_config
+            return self.ws_config_map[self.active_ws_dir]
         return None
 
     ######################################################
@@ -293,12 +283,6 @@ class PhiCliConfig:
             for k, v in self.ws_config_map.items():
                 print_info(f"  {c}. Directory: {v.ws_dir_name}")
                 print_info(f"     Path: {v.ws_root_path}")
-                if v.docker_resource_groups:
-                    print_info("     Docker Envs: {}".format([drg.env for drg in v.docker_resource_groups]))
-                if v.k8s_resource_groups:
-                    print_info("     K8s Envs: {}".format([krg.env for krg in v.k8s_resource_groups]))
-                if v.aws_resource_groups:
-                    print_info("     AWS Envs: {}".format([awsg.env for awsg in v.aws_resource_groups]))
                 if v.ws_schema and v.ws_schema.ws_name:
                     print_info(f"     Name: {v.ws_schema.ws_name}")
                 c += 1

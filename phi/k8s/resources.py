@@ -10,7 +10,6 @@ from phi.k8s.api_client import K8sApiClient
 from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.resource.base import K8sResource
 from phi.infra.resources import InfraResources
-from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
@@ -78,7 +77,6 @@ class K8sResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
@@ -94,7 +92,7 @@ class K8sResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -107,7 +105,7 @@ class K8sResources(InfraResources):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.create()
                                 if _k8s_resource is not None:
-                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                                    _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_create(
@@ -117,7 +115,7 @@ class K8sResources(InfraResources):
                                     ):
                                         resources_to_create.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_create(
@@ -129,7 +127,7 @@ class K8sResources(InfraResources):
                 elif isinstance(r, CreateK8sResource):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                        _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_create(
@@ -162,7 +160,7 @@ class K8sResources(InfraResources):
         if len(apps_to_create) > 0:
             logger.debug(f"Found {len(apps_to_create)} apps to create")
             for app in apps_to_create:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=K8sBuildContext(
                         namespace=self.namespace,
@@ -254,7 +252,7 @@ class K8sResources(InfraResources):
                 if _resource_created:
                     num_resources_created += 1
                 else:
-                    if workspace_settings is not None and not workspace_settings.continue_on_create_failure:
+                    if self.workspace_settings is not None and not self.workspace_settings.continue_on_create_failure:
                         return num_resources_created, num_resources_to_create
             except Exception as e:
                 logger.error(f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -276,7 +274,6 @@ class K8sResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
@@ -292,7 +289,7 @@ class K8sResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -305,7 +302,7 @@ class K8sResources(InfraResources):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.create()
                                 if _k8s_resource is not None:
-                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                                    _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_delete(
@@ -315,7 +312,7 @@ class K8sResources(InfraResources):
                                     ):
                                         resources_to_delete.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_delete(
@@ -327,7 +324,7 @@ class K8sResources(InfraResources):
                 elif isinstance(r, CreateK8sResource):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                        _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_delete(
@@ -360,7 +357,7 @@ class K8sResources(InfraResources):
         if len(apps_to_delete) > 0:
             logger.debug(f"Found {len(apps_to_delete)} apps to delete")
             for app in apps_to_delete:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=K8sBuildContext(
                         namespace=self.namespace,
@@ -461,7 +458,7 @@ class K8sResources(InfraResources):
                 if _resource_deleted:
                     num_resources_deleted += 1
                 else:
-                    if workspace_settings is not None and not workspace_settings.continue_on_delete_failure:
+                    if self.workspace_settings is not None and not self.workspace_settings.continue_on_delete_failure:
                         return num_resources_deleted, num_resources_to_delete
             except Exception as e:
                 logger.error(f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -483,7 +480,6 @@ class K8sResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
@@ -500,7 +496,7 @@ class K8sResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -513,7 +509,7 @@ class K8sResources(InfraResources):
                             elif isinstance(resource_from_resource_group, CreateK8sResource):
                                 _k8s_resource = resource_from_resource_group.create()
                                 if _k8s_resource is not None:
-                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                                    _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_update(
@@ -523,7 +519,7 @@ class K8sResources(InfraResources):
                                     ):
                                         resources_to_update.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_update(
@@ -535,7 +531,7 @@ class K8sResources(InfraResources):
                 elif isinstance(r, CreateK8sResource):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                        _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_update(
@@ -568,7 +564,7 @@ class K8sResources(InfraResources):
         if len(apps_to_update) > 0:
             logger.debug(f"Found {len(apps_to_update)} apps to update")
             for app in apps_to_update:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=K8sBuildContext(
                         namespace=self.namespace,
@@ -660,7 +656,7 @@ class K8sResources(InfraResources):
                 if _resource_updated:
                     num_resources_updated += 1
                 else:
-                    if workspace_settings is not None and not workspace_settings.continue_on_patch_failure:
+                    if self.workspace_settings is not None and not self.workspace_settings.continue_on_patch_failure:
                         return num_resources_updated, num_resources_to_update
             except Exception as e:
                 logger.error(f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -679,7 +675,6 @@ class K8sResources(InfraResources):
         group_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading
         from phi.k8s.resource.types import K8sResourceInstallOrder
@@ -697,7 +692,7 @@ class K8sResources(InfraResources):
                             if isinstance(resource_from_resource_group, K8sResource):
                                 resource_from_resource_group.env = self.env
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -711,7 +706,7 @@ class K8sResources(InfraResources):
                                 _k8s_resource = resource_from_resource_group.save()
                                 if _k8s_resource is not None:
                                     _k8s_resource.env = self.env
-                                    _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                                    _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                                     if _k8s_resource.group is None and self.name is not None:
                                         _k8s_resource.group = self.name
                                     if _k8s_resource.should_create(
@@ -722,7 +717,7 @@ class K8sResources(InfraResources):
                                         resources_to_save.append(_k8s_resource)
                 elif isinstance(r, K8sResource):
                     r.env = self.env
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_create(
@@ -735,7 +730,7 @@ class K8sResources(InfraResources):
                     _k8s_resource = r.create()
                     if _k8s_resource is not None:
                         _k8s_resource.env = self.env
-                        _k8s_resource.set_workspace_settings(workspace_settings=workspace_settings)
+                        _k8s_resource.set_workspace_settings(workspace_settings=self.workspace_settings)
                         if _k8s_resource.group is None and self.name is not None:
                             _k8s_resource.group = self.name
                         if _k8s_resource.should_create(
@@ -768,7 +763,7 @@ class K8sResources(InfraResources):
         if len(apps_to_save) > 0:
             logger.debug(f"Found {len(apps_to_save)} apps to save")
             for app in apps_to_save:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=K8sBuildContext(
                         namespace=self.namespace,

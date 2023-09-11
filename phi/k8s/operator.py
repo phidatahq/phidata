@@ -20,15 +20,12 @@ def save_resources(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to deploy
-    resource_groups_to_save: List[InfraResources] = ws_config.get_resource_groups(
+    resource_groups_to_save: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=InfraType.k8s,
         order="create",
@@ -51,7 +48,6 @@ def save_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
-            workspace_settings=ws_config.workspace_settings,
         )
         if _num_resources_saved > 0:
             num_rgs_saved += 1

@@ -30,7 +30,7 @@ class PgVector(VectorDb):
     def __init__(
         self,
         collection: str,
-        schema: Optional[str] = None,
+        schema: Optional[str] = "llm",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
@@ -46,9 +46,9 @@ class PgVector(VectorDb):
 
         # Collection attributes
         self.collection: str = collection
+        self.schema: Optional[str] = schema
 
         # Database attributes
-        self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
@@ -99,6 +99,7 @@ class PgVector(VectorDb):
                     logger.debug("Creating extension: vector")
                     sess.execute(text("create extension if not exists vector;"))
                     if self.schema is not None:
+                        logger.debug(f"Creating schema: {self.schema}")
                         sess.execute(text(f"create schema if not exists {self.schema};"))
             logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)

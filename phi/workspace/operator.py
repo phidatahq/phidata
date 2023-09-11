@@ -265,7 +265,7 @@ def setup_workspace(ws_root_path: Path) -> None:
     # 1.4 Load workspace and set as active
     ######################################################
     # Load and save the workspace config
-    ws_config.load()
+    # ws_config.load()
     # Get the workspace dir name
     ws_dir_name = ws_config.ws_dir_name
     # Set the workspace as active if it is not already
@@ -421,15 +421,12 @@ def start_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to deploy
-    resource_groups_to_create: List[InfraResources] = ws_config.get_resource_groups(
+    resource_groups_to_create: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=target_infra,
         order="create",
@@ -455,7 +452,6 @@ def start_workspace(
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
-            workspace_settings=ws_config.workspace_settings,
         )
         if _num_resources_created > 0:
             num_rgs_created += 1
@@ -516,15 +512,12 @@ def stop_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to delete
-    resource_groups_to_delete: List[InfraResources] = ws_config.get_resource_groups(
+    resource_groups_to_delete: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=target_infra,
         order="delete",
@@ -550,7 +543,6 @@ def stop_workspace(
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
-            workspace_settings=ws_config.workspace_settings,
         )
         if _num_resources_deleted > 0:
             num_rgs_deleted += 1
@@ -611,15 +603,12 @@ def update_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to update
-    resource_groups_to_update: List[InfraResources] = ws_config.get_resource_groups(
+    resource_groups_to_update: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=target_infra,
         order="create",
@@ -644,7 +633,6 @@ def update_workspace(
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
-            workspace_settings=ws_config.workspace_settings,
         )
         if _num_resources_updated > 0:
             num_rgs_updated += 1
@@ -754,13 +742,13 @@ def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> No
         return
 
     print_heading(f"Setting workspace {active_ws_config.ws_dir_name} as active")
-    if load:
-        try:
-            active_ws_config.load()
-        except Exception as e:
-            logger.error("Could not load workspace config, please fix errors and try again")
-            logger.error(e)
-            return
+    # if load:
+    #     try:
+    #         active_ws_config.load()
+    #     except Exception as e:
+    #         logger.error("Could not load workspace config, please fix errors and try again")
+    #         logger.error(e)
+    #         return
 
     ######################################################
     # 1.4 Make api request if updating active workspace

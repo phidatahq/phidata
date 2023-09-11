@@ -7,7 +7,6 @@ from phi.aws.app.context import AwsBuildContext
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
 from phi.infra.resources import InfraResources
-from phi.workspace.settings import WorkspaceSettings
 from phi.utils.log import logger
 
 
@@ -84,7 +83,6 @@ class AwsResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.aws.resource.types import AwsResourceInstallOrder
@@ -100,7 +98,7 @@ class AwsResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, AwsResource):
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -111,7 +109,7 @@ class AwsResources(InfraResources):
                                 ):
                                     resources_to_create.append(resource_from_resource_group)
                 elif isinstance(r, AwsResource):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_create(
@@ -119,7 +117,7 @@ class AwsResources(InfraResources):
                         name_filter=name_filter,
                         type_filter=type_filter,
                     ):
-                        r.set_workspace_settings(workspace_settings=workspace_settings)
+                        r.set_workspace_settings(workspace_settings=self.workspace_settings)
                         resources_to_create.append(r)
 
         # Build a list of AwsApps to create
@@ -145,7 +143,7 @@ class AwsResources(InfraResources):
         if len(apps_to_create) > 0:
             logger.debug(f"Found {len(apps_to_create)} apps to create")
             for app in apps_to_create:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
                 )
@@ -155,7 +153,7 @@ class AwsResources(InfraResources):
                     if app.depends_on is not None:
                         for dep in app.depends_on:
                             if isinstance(dep, AwsApp):
-                                dep.set_workspace_settings(workspace_settings=workspace_settings)
+                                dep.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 dep_resources = dep.get_resources(
                                     build_context=AwsBuildContext(
                                         aws_region=self.aws_region, aws_profile=self.aws_profile
@@ -250,7 +248,7 @@ class AwsResources(InfraResources):
                 if _resource_created:
                     num_resources_created += 1
                 else:
-                    if workspace_settings is not None and not workspace_settings.continue_on_create_failure:
+                    if self.workspace_settings is not None and not self.workspace_settings.continue_on_create_failure:
                         return num_resources_created, num_resources_to_create
             except Exception as e:
                 logger.error(f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -272,7 +270,6 @@ class AwsResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.aws.resource.types import AwsResourceInstallOrder
@@ -289,7 +286,7 @@ class AwsResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, AwsResource):
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -300,7 +297,7 @@ class AwsResources(InfraResources):
                                 ):
                                     resources_to_delete.append(resource_from_resource_group)
                 elif isinstance(r, AwsResource):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_delete(
@@ -308,7 +305,7 @@ class AwsResources(InfraResources):
                         name_filter=name_filter,
                         type_filter=type_filter,
                     ):
-                        r.set_workspace_settings(workspace_settings=workspace_settings)
+                        r.set_workspace_settings(workspace_settings=self.workspace_settings)
                         resources_to_delete.append(r)
 
         # Build a list of AwsApps to delete
@@ -334,7 +331,7 @@ class AwsResources(InfraResources):
         if len(apps_to_delete) > 0:
             logger.debug(f"Found {len(apps_to_delete)} apps to delete")
             for app in apps_to_delete:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
                 )
@@ -432,7 +429,7 @@ class AwsResources(InfraResources):
                 if _resource_deleted:
                     num_resources_deleted += 1
                 else:
-                    if workspace_settings is not None and not workspace_settings.continue_on_delete_failure:
+                    if self.workspace_settings is not None and not self.workspace_settings.continue_on_delete_failure:
                         return num_resources_deleted, num_resources_to_delete
             except Exception as e:
                 logger.error(f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -454,7 +451,6 @@ class AwsResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.aws.resource.types import AwsResourceInstallOrder
@@ -471,7 +467,7 @@ class AwsResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, AwsResource):
                                 resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=workspace_settings
+                                    workspace_settings=self.workspace_settings
                                 )
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
@@ -482,7 +478,7 @@ class AwsResources(InfraResources):
                                 ):
                                     resources_to_update.append(resource_from_resource_group)
                 elif isinstance(r, AwsResource):
-                    r.set_workspace_settings(workspace_settings=workspace_settings)
+                    r.set_workspace_settings(workspace_settings=self.workspace_settings)
                     if r.group is None and self.name is not None:
                         r.group = self.name
                     if r.should_update(
@@ -490,7 +486,7 @@ class AwsResources(InfraResources):
                         name_filter=name_filter,
                         type_filter=type_filter,
                     ):
-                        r.set_workspace_settings(workspace_settings=workspace_settings)
+                        r.set_workspace_settings(workspace_settings=self.workspace_settings)
                         resources_to_update.append(r)
 
         # Build a list of AwsApps to update
@@ -516,7 +512,7 @@ class AwsResources(InfraResources):
         if len(apps_to_update) > 0:
             logger.debug(f"Found {len(apps_to_update)} apps to update")
             for app in apps_to_update:
-                app.set_workspace_settings(workspace_settings=workspace_settings)
+                app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
                     build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
                 )
@@ -605,7 +601,7 @@ class AwsResources(InfraResources):
                 if _resource_updated:
                     num_resources_updated += 1
                 else:
-                    if workspace_settings is not None and not workspace_settings.continue_on_patch_failure:
+                    if self.workspace_settings is not None and not self.workspace_settings.continue_on_patch_failure:
                         return num_resources_updated, num_resources_to_update
             except Exception as e:
                 logger.error(f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}")
@@ -624,6 +620,5 @@ class AwsResources(InfraResources):
         group_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError

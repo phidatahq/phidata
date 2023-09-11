@@ -1,7 +1,8 @@
 from typing import Optional, List, Any, Tuple
 
 from phi.base import PhiBase
-from phi.workspace.settings import WorkspaceSettings
+
+# from phi.workspace.settings import WorkspaceSettings
 
 
 class InfraResources(PhiBase):
@@ -16,7 +17,6 @@ class InfraResources(PhiBase):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError
 
@@ -28,7 +28,6 @@ class InfraResources(PhiBase):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError
 
@@ -40,7 +39,6 @@ class InfraResources(PhiBase):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError
 
@@ -49,6 +47,5 @@ class InfraResources(PhiBase):
         group_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
-        workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError

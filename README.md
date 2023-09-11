@@ -29,7 +29,7 @@
 
 ---
 
-### Phidata is a toolkit for building LLM Apps, Web Apps and AI platforms using open source tools.
+### Phidata is a toolkit for building LLM Apps, Web Apps and AI platforms.
 
 - Phidata makes it easy to run tools like FastApi, Django, Jupyter, Streamlit, Airflow and Superset.
 - Use these tools to build LLM Apps, Web Apps and Data Platforms.

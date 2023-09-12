@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.0.1"
+version = "2.0.2"
 description = "AI Toolkit for Engineers"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -49,8 +49,8 @@ documentation = "https://docs.phidata.com"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["phi"]
+[tool.setuptools.packages.find]
+include = ["phi*"]
 
 [tool.setuptools.package-data]
 phi = ["py.typed"]

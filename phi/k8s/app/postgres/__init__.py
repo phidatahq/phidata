@@ -1,4 +1,4 @@
-from phi.k8s.app.postgres.postgres_db import (
+from phi.k8s.app.postgres.postgres import (
     PostgresDb,
     AppVolumeType,
     ContainerContext,
@@ -6,3 +6,5 @@ from phi.k8s.app.postgres.postgres_db import (
     RestartPolicy,
     ImagePullPolicy,
 )
+
+from phi.k8s.app.postgres.pgvector import PgVectorDb

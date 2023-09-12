@@ -52,7 +52,7 @@ class Redis(K8sApp, DbApp):
     def get_db_password(self) -> Optional[str]:
         return self.redis_password or self.get_secret_from_file("REDIS_PASSWORD")
 
-    def get_db_schema(self) -> Optional[str]:
+    def get_db_database(self) -> Optional[str]:
         return self.redis_schema or self.get_secret_from_file("REDIS_SCHEMA")
 
     def get_db_driver(self) -> Optional[str]:
@@ -67,7 +67,7 @@ class Redis(K8sApp, DbApp):
     def get_db_connection(self) -> Optional[str]:
         password = self.get_db_password()
         password_str = f"{password}@" if password else ""
-        schema = self.get_db_schema()
+        schema = self.get_db_database()
         driver = self.get_db_driver()
         host = self.get_db_host()
         port = self.get_db_port()
@@ -76,7 +76,7 @@ class Redis(K8sApp, DbApp):
     def get_db_connection_local(self) -> Optional[str]:
         password = self.get_db_password()
         password_str = f"{password}@" if password else ""
-        schema = self.get_db_schema()
+        schema = self.get_db_database()
         driver = self.get_db_driver()
         host = self.get_db_host_local()
         port = self.get_db_port_local()

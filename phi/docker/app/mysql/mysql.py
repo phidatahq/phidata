@@ -18,14 +18,14 @@ class MySQLDb(DockerApp, DbApp):
     port_number: int = 3306
 
     # -*- MySQL Configuration
-    # Provide MYSQL_USER as db_user or MYSQL_USER in secrets_file
-    db_user: Optional[str] = None
-    # Provide MYSQL_PASSWORD as db_password or MYSQL_PASSWORD in secrets_file
-    db_password: Optional[str] = None
+    # Provide MYSQL_USER as mysql_user or MYSQL_USER in secrets_file
+    mysql_user: Optional[str] = None
+    # Provide MYSQL_PASSWORD as mysql_password or MYSQL_PASSWORD in secrets_file
+    mysql_password: Optional[str] = None
     # Provide MYSQL_ROOT_PASSWORD as root_password or MYSQL_ROOT_PASSWORD in secrets_file
     root_password: Optional[str] = None
-    # Provide MYSQL_DATABASE as db_schema or MYSQL_DATABASE in secrets_file
-    db_schema: Optional[str] = None
+    # Provide MYSQL_DATABASE as mysql_database or MYSQL_DATABASE in secrets_file
+    mysql_database: Optional[str] = None
     db_driver: str = "mysql"
 
     # -*- MySQL Volume
@@ -35,13 +35,13 @@ class MySQLDb(DockerApp, DbApp):
     volume_container_path: str = "/var/lib/mysql"
 
     def get_db_user(self) -> Optional[str]:
-        return self.db_user or self.get_secret_from_file("MYSQL_USER")
+        return self.mysql_user or self.get_secret_from_file("MYSQL_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return self.db_password or self.get_secret_from_file("MYSQL_PASSWORD")
+        return self.mysql_password or self.get_secret_from_file("MYSQL_PASSWORD")
 
-    def get_db_schema(self) -> Optional[str]:
-        return self.db_schema or self.get_secret_from_file("MYSQL_DATABASE")
+    def get_db_database(self) -> Optional[str]:
+        return self.mysql_database or self.get_secret_from_file("MYSQL_DATABASE")
 
     def get_db_driver(self) -> Optional[str]:
         return self.db_driver
@@ -64,9 +64,9 @@ class MySQLDb(DockerApp, DbApp):
             db_password = self.get_db_password()
             if db_password is not None:
                 container_env["MYSQL_PASSWORD"] = db_password
-        db_schema = self.get_db_schema()
-        if db_schema is not None:
-            container_env["MYSQL_DATABASE"] = db_schema
+        db_database = self.get_db_database()
+        if db_database is not None:
+            container_env["MYSQL_DATABASE"] = db_database
         if self.root_password is not None:
             container_env["MYSQL_ROOT_PASSWORD"] = self.root_password
 

@@ -52,23 +52,23 @@ class SupersetBase(K8sApp):
     db_app: Optional[DbApp] = None
     # Provide database connection details manually
     # db_user can be provided here or as the
-    # DATABASE_USER env var in the secrets_file
+    # DATABASE_USER or DB_USER env var in the secrets_file
     db_user: Optional[str] = None
     # db_password can be provided here or as the
-    # DATABASE_PASSWORD env var in the secrets_file
+    # DATABASE_PASSWORD or DB_PASSWORD env var in the secrets_file
     db_password: Optional[str] = None
-    # db_schema can be provided here or as the
-    # DATABASE_DB env var in the secrets_file
-    db_schema: Optional[str] = None
+    # db_database can be provided here or as the
+    # DATABASE_DB or DB_DATABASE env var in the secrets_file
+    db_database: Optional[str] = None
     # db_host can be provided here or as the
-    # DATABASE_HOST env var in the secrets_file
+    # DATABASE_HOST or DB_HOST env var in the secrets_file
     db_host: Optional[str] = None
     # db_port can be provided here or as the
-    # DATABASE_PORT env var in the secrets_file
+    # DATABASE_PORT or DB_PORT env var in the secrets_file
     db_port: Optional[int] = None
     # db_driver can be provided here or as the
-    # DATABASE_DIALECT env var in the secrets_file
-    db_dialect: Optional[str] = None
+    # DATABASE_DIALECT or DB_DRIVER env var in the secrets_file
+    db_driver: str = "postgresql+psycopg"
 
     # -*- Superset Redis Configuration
     wait_for_redis: bool = False
@@ -88,22 +88,30 @@ class SupersetBase(K8sApp):
     load_examples: bool = False
 
     def get_db_user(self) -> Optional[str]:
-        return self.db_user or self.get_secret_from_file("DATABASE_USER")
+        return self.db_user or self.get_secret_from_file("DATABASE_USER") or self.get_secret_from_file("DB_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return self.db_password or self.get_secret_from_file("DATABASE_PASSWORD")
+        return (
+            self.db_password
+            or self.get_secret_from_file("DATABASE_PASSWORD")
+            or self.get_secret_from_file("DB_PASSWORD")
+        )
 
-    def get_db_schema(self) -> Optional[str]:
-        return self.db_schema or self.get_secret_from_file("DATABASE_DB")
+    def get_db_database(self) -> Optional[str]:
+        return self.db_database or self.get_secret_from_file("DATABASE_DB") or self.get_secret_from_file("DB_DATABASE")
 
-    def get_db_dialect(self) -> Optional[str]:
-        return self.db_dialect or self.get_secret_from_file("DATABASE_DIALECT")
+    def get_db_driver(self) -> Optional[str]:
+        return self.db_driver or self.get_secret_from_file("DATABASE_DIALECT") or self.get_secret_from_file("DB_DRIVER")
 
     def get_db_host(self) -> Optional[str]:
-        return self.db_host or self.get_secret_from_file("DATABASE_HOST")
+        return self.db_host or self.get_secret_from_file("DATABASE_HOST") or self.get_secret_from_file("DB_HOST")
 
     def get_db_port(self) -> Optional[int]:
-        return self.db_port or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
+        return (
+            self.db_port
+            or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
+            or str_to_int(self.get_secret_from_file("DB_PORT"))
+        )
 
     def get_redis_host(self) -> Optional[str]:
         return self.redis_host or self.get_secret_from_file("REDIS_HOST")
@@ -191,24 +199,24 @@ class SupersetBase(K8sApp):
         # Superset db connection
         db_user = self.get_db_user()
         db_password = self.get_db_password()
-        db_schema = self.get_db_schema()
+        db_database = self.get_db_database()
         db_host = self.get_db_host()
         db_port = self.get_db_port()
-        db_dialect = self.get_db_dialect()
+        db_driver = self.get_db_driver()
         if self.db_app is not None and isinstance(self.db_app, DbApp):
             logger.debug(f"Reading db connection details from: {self.db_app.name}")
             if db_user is None:
                 db_user = self.db_app.get_db_user()
             if db_password is None:
                 db_password = self.db_app.get_db_password()
-            if db_schema is None:
-                db_schema = self.db_app.get_db_schema()
+            if db_database is None:
+                db_database = self.db_app.get_db_database()
             if db_host is None:
                 db_host = self.db_app.get_db_host()
             if db_port is None:
                 db_port = self.db_app.get_db_port()
-            if db_dialect is None:
-                db_dialect = self.db_app.get_db_driver()
+            if db_driver is None:
+                db_driver = self.db_app.get_db_driver()
 
         if db_user is not None:
             container_env["DATABASE_USER"] = db_user
@@ -216,10 +224,10 @@ class SupersetBase(K8sApp):
             container_env["DATABASE_HOST"] = db_host
         if db_port is not None:
             container_env["DATABASE_PORT"] = str(db_port)
-        if db_schema is not None:
-            container_env["DATABASE_DB"] = db_schema
-        if db_dialect is not None:
-            container_env["DATABASE_DIALECT"] = db_dialect
+        if db_database is not None:
+            container_env["DATABASE_DB"] = db_database
+        if db_driver is not None:
+            container_env["DATABASE_DIALECT"] = db_driver
         # Ideally we don't want the password in the env
         # But the superset image expects it.
         if db_password is not None:

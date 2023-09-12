@@ -6,7 +6,7 @@ from phi.app.base import AppBase, ContainerContext, ResourceBase  # noqa: F401
 class DbApp(AppBase):
     db_user: Optional[str] = None
     db_password: Optional[str] = None
-    db_schema: Optional[str] = None
+    db_database: Optional[str] = None
     db_driver: Optional[str] = None
 
     def get_db_user(self) -> Optional[str]:
@@ -15,8 +15,8 @@ class DbApp(AppBase):
     def get_db_password(self) -> Optional[str]:
         return self.db_password or self.get_secret_from_file("DB_PASSWORD")
 
-    def get_db_schema(self) -> Optional[str]:
-        return self.db_schema or self.get_secret_from_file("DB_SCHEMA")
+    def get_db_database(self) -> Optional[str]:
+        return self.db_database or self.get_secret_from_file("DB_DATABASE")
 
     def get_db_driver(self) -> Optional[str]:
         return self.db_driver or self.get_secret_from_file("DB_DRIVER")
@@ -30,11 +30,11 @@ class DbApp(AppBase):
     def get_db_connection(self) -> Optional[str]:
         user = self.get_db_user()
         password = self.get_db_password()
-        schema = self.get_db_schema()
+        database = self.get_db_database()
         driver = self.get_db_driver()
         host = self.get_db_host()
         port = self.get_db_port()
-        return f"{driver}://{user}:{password}@{host}:{port}/{schema}"
+        return f"{driver}://{user}:{password}@{host}:{port}/{database}"
 
     def get_db_host_local(self) -> Optional[str]:
         return "localhost"
@@ -45,8 +45,8 @@ class DbApp(AppBase):
     def get_db_connection_local(self) -> Optional[str]:
         user = self.get_db_user()
         password = self.get_db_password()
-        schema = self.get_db_schema()
+        database = self.get_db_database()
         driver = self.get_db_driver()
         host = self.get_db_host_local()
         port = self.get_db_port_local()
-        return f"{driver}://{user}:{password}@{host}:{port}/{schema}"
+        return f"{driver}://{user}:{password}@{host}:{port}/{database}"

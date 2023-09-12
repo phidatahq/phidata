@@ -42,13 +42,13 @@ class PostgresDb(K8sApp, DbApp):
     schedule_pods_in_ebs_topology: bool = True
 
     # -*- Postgres Configuration
-    # Provide POSTGRES_USER as db_user or POSTGRES_USER in secrets_file
-    db_user: Optional[str] = None
-    # Provide POSTGRES_PASSWORD as db_password or POSTGRES_PASSWORD in secrets_file
-    db_password: Optional[str] = None
-    # Provide POSTGRES_DB as db_schema or POSTGRES_DB in secrets_file
-    db_schema: Optional[str] = None
-    db_driver: str = "postgresql+psycopg"
+    # Provide POSTGRES_USER as pg_user or POSTGRES_USER in secrets_file
+    pg_user: Optional[str] = None
+    # Provide POSTGRES_PASSWORD as pg_password or POSTGRES_PASSWORD in secrets_file
+    pg_password: Optional[str] = None
+    # Provide POSTGRES_DB as pg_database or POSTGRES_DB in secrets_file
+    pg_database: Optional[str] = None
+    pg_driver: str = "postgresql+psycopg"
     pgdata: Optional[str] = "/var/lib/postgresql/data/pgdata"
     postgres_initdb_args: Optional[str] = None
     postgres_initdb_waldir: Optional[str] = None
@@ -59,16 +59,16 @@ class PostgresDb(K8sApp, DbApp):
     postgres_initdb_args_file: Optional[str] = None
 
     def get_db_user(self) -> Optional[str]:
-        return self.db_user or self.get_secret_from_file("POSTGRES_USER")
+        return self.pg_user or self.get_secret_from_file("POSTGRES_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return self.db_password or self.get_secret_from_file("POSTGRES_PASSWORD")
+        return self.pg_password or self.get_secret_from_file("POSTGRES_PASSWORD")
 
-    def get_db_schema(self) -> Optional[str]:
-        return self.db_schema or self.get_secret_from_file("POSTGRES_DB")
+    def get_db_database(self) -> Optional[str]:
+        return self.pg_database or self.get_secret_from_file("POSTGRES_DB")
 
     def get_db_driver(self) -> Optional[str]:
-        return self.db_driver
+        return self.pg_driver
 
     def get_db_host(self) -> Optional[str]:
         return self.get_service_name()
@@ -88,9 +88,9 @@ class PostgresDb(K8sApp, DbApp):
         db_password = self.get_db_password()
         if db_password:
             container_env["POSTGRES_PASSWORD"] = db_password
-        db_schema = self.get_db_schema()
-        if db_schema:
-            container_env["POSTGRES_DB"] = db_schema
+        db_database = self.get_db_database()
+        if db_database:
+            container_env["POSTGRES_DB"] = db_database
         if self.pgdata:
             container_env["PGDATA"] = self.pgdata
         if self.postgres_initdb_args:

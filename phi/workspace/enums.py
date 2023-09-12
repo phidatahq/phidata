@@ -6,4 +6,4 @@ class WorkspaceStarterTemplate(str, Enum):
     llm_app = "llm-app"
     django_app = "django-app"
     streamlit_app = "streamlit-app"
-    data_platform = "data-platform"
+    ai_platform = "ai-platform"

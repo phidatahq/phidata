@@ -49,13 +49,11 @@ documentation = "https://docs.phidata.com"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["phi*"]
+[tool.setuptools]
+packages = ["phi"]
 
-[tool.setuptools.package_data]
-phi = [
-  "py.typed",
-]
+[tool.setuptools.package-data]
+phi = ["py.typed"]
 
 [tool.black]
 line-length = 120

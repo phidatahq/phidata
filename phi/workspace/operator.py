@@ -25,15 +25,15 @@ from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.api_app: "api-app",
     WorkspaceStarterTemplate.llm_app: "llm-app",
+    WorkspaceStarterTemplate.api_app: "api-app",
     WorkspaceStarterTemplate.django_app: "django-app",
     WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
     WorkspaceStarterTemplate.ai_platform: "ai-platform",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
     WorkspaceStarterTemplate.llm_app: "https://github.com/phidatahq/llm-app.git",
+    WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
     WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
     WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
     WorkspaceStarterTemplate.ai_platform: "https://github.com/phidatahq/ai-platform.git",
@@ -95,7 +95,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
             if template_inp is not None:
                 template_inp_idx = template_inp - 1
-                ws_template = WorkspaceStarterTemplate[templates[template_inp_idx]]
+                ws_template = WorkspaceStarterTemplate(templates[template_inp_idx])
             logger.debug("Selected: {}".format(ws_template.value))
         elif template.lower() in WorkspaceStarterTemplate.__members__.values():
             ws_template = WorkspaceStarterTemplate[template]
@@ -125,7 +125,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     # Check if a workspace with the same name exists
     existing_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
     if existing_ws_config is not None:
-        logger.error(f"Found existing record for a workspace at: {ws_dir_name}")
+        logger.error(f"Found existing record for workspace: {ws_dir_name}")
         delete_existing_ws_config = typer.confirm("Replace existing record?", default=True)
         if delete_existing_ws_config:
             phi_config.delete_ws(ws_dir_name)

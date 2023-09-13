@@ -21,7 +21,7 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
-from phi.vectordb.distance import DistanceMetric
+from phi.vectordb.distance import Distance
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
 
@@ -34,7 +34,7 @@ class PgVector(VectorDb):
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
-        distance_metric: DistanceMetric = DistanceMetric.cosine,
+        distance: Distance = Distance.cosine,
         index: Optional[Union[Ivfflat, HNSW]] = Ivfflat(),
     ):
         _engine: Optional[Engine] = db_engine
@@ -58,7 +58,7 @@ class PgVector(VectorDb):
         self.dimensions: int = self.embedder.dimensions
 
         # Distance metric
-        self.distance_metric: DistanceMetric = distance_metric
+        self.distance: Distance = distance
 
         # Index for the collection
         self.index: Optional[Union[Ivfflat, HNSW]] = index
@@ -209,11 +209,11 @@ class PgVector(VectorDb):
         ]
 
         stmt = select(*columns)
-        if self.distance_metric == DistanceMetric.l2:
+        if self.distance == Distance.l2:
             stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
-        if self.distance_metric == DistanceMetric.cosine:
+        if self.distance == Distance.cosine:
             stmt = stmt.order_by(self.table.c.embedding.cosine_distance(query_embedding))
-        if self.distance_metric == DistanceMetric.max_inner_product:
+        if self.distance == Distance.max_inner_product:
             stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
 
         stmt = stmt.limit(limit=limit)
@@ -275,11 +275,11 @@ class PgVector(VectorDb):
                 elif total_records > 1000000:
                     num_lists = int(sqrt(total_records))
 
-            index_distance_metric = "vector_cosine_ops"
-            if self.distance_metric == DistanceMetric.l2:
-                index_distance_metric = "vector_l2_ops"
-            if self.distance_metric == DistanceMetric.max_inner_product:
-                index_distance_metric = "vector_ip_ops"
+            index_distance = "vector_cosine_ops"
+            if self.distance == Distance.l2:
+                index_distance = "vector_l2_ops"
+            if self.distance == Distance.max_inner_product:
+                index_distance = "vector_ip_ops"
             with self.Session() as sess:
                 with sess.begin():
                     logger.debug(f"Setting configuration: {self.index.configuration}")
@@ -287,13 +287,13 @@ class PgVector(VectorDb):
                         sess.execute(text(f"SET {key} = '{value}';"))
                     logger.debug(
                         f"Creating Index with lists: {num_lists}, probes: {self.index.probes} "
-                        f"and distance metric: {index_distance_metric}"
+                        f"and distance metric: {index_distance}"
                     )
                     sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
                     sess.execute(
                         text(
                             f"CREATE INDEX ON {self.table} USING ivfflat (embedding \
-                                {index_distance_metric}) WITH (lists = {num_lists});"
+                                {index_distance}) WITH (lists = {num_lists});"
                         )
                     )
         logger.debug("Optimized Vector DB")

@@ -1,11 +1,9 @@
-import os
 from hashlib import md5
-from typing import List
+from typing import List, Optional
 
 try:
     from qdrant_client import QdrantClient  # noqa: F401
     from qdrant_client.http import models
-    from qdrant_client.http.models import CollectionStatus, PointStruct, UpdateResult, UpdateStatus
 except ImportError:
     raise ImportError(
         "The `qdrant-client` package is not installed. "
@@ -16,7 +14,7 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
-from phi.vectordb.distance import DistanceMetric
+from phi.vectordb.distance import Distance
 from phi.utils.log import logger
 
 
@@ -25,7 +23,19 @@ class Qdrant(VectorDb):
         self,
         collection: str,
         embedder: Embedder = OpenAIEmbedder(),
-        distance_metric: DistanceMetric = DistanceMetric.cosine,
+        distance: Distance = Distance.cosine,
+        location: Optional[str] = None,
+        url: Optional[str] = None,
+        port: Optional[int] = 6333,
+        grpc_port: int = 6334,
+        prefer_grpc: bool = False,
+        https: Optional[bool] = None,
+        api_key: Optional[str] = None,
+        prefix: Optional[str] = None,
+        timeout: Optional[float] = None,
+        host: Optional[str] = None,
+        path: Optional[str] = None,
+        **kwargs,
     ):
         # Collection attributes
         self.collection: str = collection
@@ -35,20 +45,60 @@ class Qdrant(VectorDb):
         self.dimensions: int = self.embedder.dimensions
 
         # Distance metric
-        self.distance_metric: DistanceMetric = distance_metric
+        self.distance: Distance = distance
 
-        # qdrant client
-        self.client: QdrantClient = None
-        # self.create()
+        # Qdrant client instance
+        self._client: Optional[QdrantClient] = None
+
+        # Qdrant client arguments
+        self.location: Optional[str] = location
+        self.url: Optional[str] = url
+        self.port: Optional[int] = port
+        self.grpc_port: int = grpc_port
+        self.prefer_grpc: bool = prefer_grpc
+        self.https: Optional[bool] = https
+        self.api_key: Optional[str] = api_key
+        self.prefix: Optional[str] = prefix
+        self.timeout: Optional[float] = timeout
+        self.host: Optional[str] = host
+        self.path: Optional[str] = path
+
+        # Qdrant client kwargs
+        self.kwargs = kwargs
+
+    @property
+    def client(self) -> Optional[QdrantClient]:
+        if self._client is None:
+            logger.debug("Creating Qdrant Client")
+            self._client = QdrantClient(
+                location=self.location,
+                url=self.url,
+                port=self.port,
+                grpc_port=self.grpc_port,
+                prefer_grpc=self.prefer_grpc,
+                https=self.https,
+                api_key=self.api_key,
+                prefix=self.prefix,
+                timeout=self.timeout,
+                host=self.host,
+                path=self.path,
+                **self.kwargs,
+            )
+        return self._client
 
     def create(self) -> None:
-        logger.debug("Creating Qdrant Client")
-        if not self.client:
-            root_dir = os.path.abspath(os.curdir)
-            self.client = QdrantClient(path=f"{root_dir}/.qdrant_db/", prefer_grpc=True)
-            self.client.recreate_collection(
+        # Collection distance
+        _distance = models.Distance.COSINE
+        if self.distance == Distance.l2:
+            _distance = models.Distance.EUCLID
+        elif self.distance == Distance.max_inner_product:
+            _distance = models.Distance.DOT
+
+        if not self.exists():
+            logger.debug(f"Creating collection: {self.collection}")
+            self.client.create_collection(
                 collection_name=self.collection,
-                vectors_config=models.VectorParams(size=1536, distance=models.Distance.COSINE),
+                vectors_config=models.VectorParams(size=self.dimensions, distance=_distance),
             )
 
     def doc_exists(self, document: Document) -> bool:
@@ -70,7 +120,7 @@ class Qdrant(VectorDb):
     def name_exists(self, name: str) -> bool:
         raise NotImplementedError
 
-    def insert(self, documents: List[Document], batch_size: int = 10) -> UpdateStatus:
+    def insert(self, documents: List[Document], batch_size: int = 10) -> None:
         logger.debug(f"Inserting {len(documents)} documents")
         points = []
         for document in documents:
@@ -78,7 +128,7 @@ class Qdrant(VectorDb):
             cleaned_content = document.content.replace("\x00", "\uFFFD")
             doc_id = md5(cleaned_content.encode()).hexdigest()
             points.append(
-                PointStruct(
+                models.PointStruct(
                     id=doc_id,
                     vector=document.embedding,
                     payload={
@@ -90,11 +140,11 @@ class Qdrant(VectorDb):
                 )
             )
             logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
-        response: UpdateResult = self.client.upsert(collection_name=self.collection, wait=False, points=points)
+        response: models.UpdateResult = self.client.upsert(collection_name=self.collection, wait=False, points=points)
         logger.debug(f"Upsert {len(points)} documents")
         return response.status
 
-    def upsert(self, documents: List[Document]) -> UpdateStatus:
+    def upsert(self, documents: List[Document]) -> models.UpdateStatus:
         """
         Upsert documents into the database.
 
@@ -140,13 +190,16 @@ class Qdrant(VectorDb):
             self.client.delete_collection(self.collection)
 
     def exists(self) -> bool:
-        if self.client:
-            collection_info = self.client.get_collection(collection_name=self.collection)
-            return collection_info.status == CollectionStatus.GREEN
         return False
+        # # TODO: this is failing
+        # if self.client:
+        #     collection_info = self.client.get_collection(collection_name=self.collection)
+        #     return collection_info.status == models.CollectionStatus.GREEN
+        # return False
 
     def get_count(self) -> int:
-        return self.client.count(collection_name=self.collection, exact=True)
+        count_result: models.CountResult = self.client.count(collection_name=self.collection, exact=True)
+        return count_result.count
 
     def optimize(self) -> None:
         pass

@@ -55,6 +55,7 @@ class WorkspaceSettings(BaseSettings):
     dev_redis_enabled: bool = False
     dev_superset_enabled: bool = False
     dev_traefik_enabled: bool = False
+    dev_qdrant_enabled: bool = False
     #
     # -*- Staging settings
     #

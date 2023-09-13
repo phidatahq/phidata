@@ -67,7 +67,7 @@ class Qdrant(VectorDb):
         self.kwargs = kwargs
 
     @property
-    def client(self) -> Optional[QdrantClient]:
+    def client(self) -> QdrantClient:
         if self._client is None:
             logger.debug("Creating Qdrant Client")
             self._client = QdrantClient(
@@ -110,9 +110,10 @@ class Qdrant(VectorDb):
         """
         if self.client:
             cleaned_content = document.content.replace("\x00", "\uFFFD")
+            doc_id = md5(cleaned_content.encode()).hexdigest()
             collection_points = self.client.retrieve(
                 collection_name=self.collection,
-                ids=[cleaned_content],
+                ids=[doc_id],
             )
             return len(collection_points) > 0
         return False
@@ -140,19 +141,19 @@ class Qdrant(VectorDb):
                 )
             )
             logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
-        response: models.UpdateResult = self.client.upsert(collection_name=self.collection, wait=False, points=points)
+        if len(points) > 0:
+            self.client.upsert(collection_name=self.collection, wait=False, points=points)
         logger.debug(f"Upsert {len(points)} documents")
-        return response.status
 
-    def upsert(self, documents: List[Document]) -> models.UpdateStatus:
+    def upsert(self, documents: List[Document]) -> None:
         """
         Upsert documents into the database.
 
         Args:
             documents (List[Document]): List of documents to upsert
         """
-        logger.debug("Upserting, redirecting the request to insert")
-        return self.insert(documents)
+        logger.debug("Redirecting the request to insert")
+        self.insert(documents)
 
     def search(self, query: str, limit: int = 5) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
@@ -171,6 +172,8 @@ class Qdrant(VectorDb):
         # Build search results
         search_results: List[Document] = []
         for result in results:
+            if result.payload is None:
+                continue
             search_results.append(
                 Document(
                     name=result.payload["name"],
@@ -190,12 +193,14 @@ class Qdrant(VectorDb):
             self.client.delete_collection(self.collection)
 
     def exists(self) -> bool:
+        if self.client:
+            collections_response: models.CollectionsResponse = self.client.get_collections()
+            collections: List[models.CollectionDescription] = collections_response.collections
+            for collection in collections:
+                if collection.name == self.collection:
+                    # collection.status == models.CollectionStatus.GREEN
+                    return True
         return False
-        # # TODO: this is failing
-        # if self.client:
-        #     collection_info = self.client.get_collection(collection_name=self.collection)
-        #     return collection_info.status == models.CollectionStatus.GREEN
-        # return False
 
     def get_count(self) -> int:
         count_result: models.CountResult = self.client.count(collection_name=self.collection, exact=True)

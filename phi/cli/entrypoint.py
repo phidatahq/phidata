@@ -7,19 +7,17 @@ from typing import Optional
 import typer
 
 from phi.cli.ws.ws_cli import ws_cli
-from phi.cli.k.k_app import k_app
-
-# from phi.cli.wf.wf_app import wf_app
+from phi.cli.k.k_cli import k_cli
 from phi.utils.log import set_log_level_to_debug
 
 phi_cli = typer.Typer(
     help="""\b
-Phidata is a toolkit for building applications using open source software.
+Phidata is an AI toolkit for engineers.
 \b
 Usage:
-1. Run `phi ws create` to create a new application
-2. Run `phi ws up` to start the application
-3. Run `phi ws down` to stop the application
+1. Run `phi ws create` to create a new workspace
+2. Run `phi ws up` to start the workspace
+3. Run `phi ws down` to stop the workspace
 """,
     no_args_is_help=True,
     add_completion=False,
@@ -207,6 +205,68 @@ def set(
         set_log_level_to_debug()
 
     set_workspace_as_active(ws_dir_name=ws_name)
+
+
+@phi_cli.command(short_help="Chat with Phi AI", options_metavar="")
+def ai(
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+):
+    """
+    Chat with Phi AI
+
+    \b
+    Examples:
+    $ `phi ai`      -> Start a conversation with Phi AI
+    """
+
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from pathlib import Path
+    from phi.cli.config import PhiCliConfig
+    from phi.cli.console import (
+        print_info,
+        log_config_not_available_msg,
+        log_active_workspace_not_available,
+        print_available_workspaces,
+    )
+    from phi.workspace.config import WorkspaceConfig
+    from phi.cli.ai.operator import start_conversation
+
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        log_config_not_available_msg()
+        return
+
+    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+    if active_ws_config is None:
+        log_active_workspace_not_available()
+        avl_ws = phi_config.available_ws
+        if avl_ws:
+            print_available_workspaces(avl_ws)
+        return
+
+    current_path: Path = Path(".").resolve()
+    if active_ws_config.ws_root_path != current_path:
+        ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
+        if ws_at_current_path is not None:
+            print_info(
+                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
+            )
+            update_active_workspace = typer.confirm(
+                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
+            )
+            if update_active_workspace:
+                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
+                active_ws_config = ws_at_current_path
+
+    start_conversation(phi_config=phi_config, ws_config=active_ws_config)
 
 
 # @phi_cli.command(short_help="Start resources defined in a resources.py file")
@@ -664,5 +724,4 @@ def set(
 
 
 phi_cli.add_typer(ws_cli)
-phi_cli.add_typer(k_app)
-# phi_cli.add_typer(wf_app)
+phi_cli.add_typer(k_cli)

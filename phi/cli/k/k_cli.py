@@ -15,7 +15,7 @@ from phi.cli.console import (
 )
 from phi.utils.log import logger, set_log_level_to_debug
 
-k_app = typer.Typer(
+k_cli = typer.Typer(
     name="k",
     short_help="Manage kubernetes resources",
     help="""\b
@@ -25,12 +25,12 @@ Run `phi k [COMMAND] --help` for more info.
     no_args_is_help=True,
     add_completion=False,
     invoke_without_command=True,
-    options_metavar="\b",
+    options_metavar="",
     subcommand_metavar="[COMMAND] [OPTIONS]",
 )
 
 
-@k_app.command(short_help="Save your K8s Resources")
+@k_cli.command(short_help="Save your K8s Resources")
 def save(
     resource_filter: Optional[str] = typer.Argument(
         None,

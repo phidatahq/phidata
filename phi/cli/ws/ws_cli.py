@@ -27,7 +27,7 @@ Run `phi ws [COMMAND] --help` for more info.
     no_args_is_help=True,
     add_completion=False,
     invoke_without_command=True,
-    options_metavar="\b",
+    options_metavar="",
     subcommand_metavar="[COMMAND] [OPTIONS]",
 )
 

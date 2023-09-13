@@ -29,3 +29,6 @@ class ApiRoutes:
     # conversation paths
     CONVERSATION_UPSERT: str = "/v1/conversation/upsert"
     CONVERSATION_EVENT_CREATE: str = "/v1/conversation/event/create"
+
+    # ai paths
+    AI_CONVERSATION_CREATE: str = "/v1/ai/conversation/create"

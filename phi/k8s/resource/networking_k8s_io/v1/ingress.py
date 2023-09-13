@@ -146,8 +146,8 @@ class Ingress(K8sResource):
         # Return a V1Ingress object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_ingress.py
         _v1_ingress = V1Ingress(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             spec=self.spec.get_k8s_object(),
         )

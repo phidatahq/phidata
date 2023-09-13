@@ -2,8 +2,8 @@ from enum import Enum
 from typing import Optional, Dict
 from pathlib import Path
 
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
-from phi.infra.app.db_app import DbApp
+from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
+from phi.app.db_app import DbApp
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
 
@@ -19,18 +19,18 @@ class AirflowBase(DockerApp):
 
     # -*- Image Configuration
     image_name: str = "phidata/airflow"
-    image_tag: str = "2.7.0"
+    image_tag: str = "2.7.1"
 
     # -*- App Ports
     # Open a container port if open_port=True
     open_port: bool = False
     port_number: int = 8080
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/workspace"
 
     # -*- Airflow Configuration
     # airflow_env sets the AIRFLOW_ENV env var and can be used by
@@ -39,23 +39,15 @@ class AirflowBase(DockerApp):
     # Set the AIRFLOW_HOME env variable
     # Defaults to: /usr/local/airflow
     airflow_home: Optional[str] = None
-    # If use_workflows_as_airflow_dags = True
-    # set the AIRFLOW__CORE__DAGS_FOLDER to the workflows_dir
-    use_workflows_as_airflow_dags: bool = True
-    # If use_workflows_as_airflow_dags = False
-    # set the AIRFLOW__CORE__DAGS_FOLDER to the airflow_dags_path
-    # airflow_dags_path is the directory in the container containing the airflow dags
-    airflow_dags_path: Optional[str] = None
+    # Set the AIRFLOW__CORE__DAGS_FOLDER env variable to the workspace_root/{airflow_dags_dir}
+    # By default, airflow_dags_dir is set to the "dags" folder in the workspace
+    airflow_dags_dir: str = "dags"
     # Creates an airflow admin with username: admin, pass: admin
     create_airflow_admin_user: bool = False
     # Airflow Executor
     executor: str = "SequentialExecutor"
 
     # -*- Airflow Database Configuration
-    # Set as True to initialize the airflow_db
-    init_airflow_db: bool = False
-    # Set as True to upgrade the airflow db
-    upgrade_airflow_db: bool = False
     # Set as True to wait for db before starting airflow
     wait_for_db: bool = False
     # Set as True to delay start by 60 seconds so that the db can be initialized
@@ -64,27 +56,29 @@ class AirflowBase(DockerApp):
     db_app: Optional[DbApp] = None
     # Provide database connection details manually
     # db_user can be provided here or as the
-    # DATABASE_USER env var in the secrets_file
+    # DB_USER env var in the secrets_file
     db_user: Optional[str] = None
     # db_password can be provided here or as the
-    # DATABASE_PASSWORD env var in the secrets_file
+    # DB_PASSWORD env var in the secrets_file
     db_password: Optional[str] = None
-    # db_schema can be provided here or as the
-    # DATABASE_SCHEMA env var in the secrets_file
-    db_schema: Optional[str] = None
+    # db_database can be provided here or as the
+    # DB_DATABASE env var in the secrets_file
+    db_database: Optional[str] = None
     # db_host can be provided here or as the
-    # DATABASE_HOST env var in the secrets_file
+    # DB_HOST env var in the secrets_file
     db_host: Optional[str] = None
     # db_port can be provided here or as the
-    # DATABASE_PORT env var in the secrets_file
+    # DB_PORT env var in the secrets_file
     db_port: Optional[int] = None
     # db_driver can be provided here or as the
-    # DATABASE_DRIVER env var in the secrets_file
-    db_driver: str = "postgresql+psycopg"
+    # DB_DRIVER env var in the secrets_file
+    db_driver: str = "postgresql+psycopg2"
     db_result_backend_driver: str = "db+postgresql"
     # Airflow db connections in the format { conn_id: conn_url }
     # converted to env var: AIRFLOW_CONN__conn_id = conn_url
     db_connections: Optional[Dict] = None
+    # Set as True to migrate (initialize/upgrade) the airflow_db
+    db_migrate: bool = False
 
     # -*- Airflow Redis Configuration
     # Set as True to wait for redis before starting airflow
@@ -124,23 +118,26 @@ class AirflowBase(DockerApp):
     # If volume_type = PostgresVolumeType.HOST_PATH
     logs_volume_host_path: Optional[Path] = None
 
+    #  -*- Other args
+    load_examples: bool = False
+
     def get_db_user(self) -> Optional[str]:
-        return self.db_user or self.get_secret_from_file("DATABASE_USER")
+        return self.db_user or self.get_secret_from_file("DB_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return self.db_password or self.get_secret_from_file("DATABASE_PASSWORD")
+        return self.db_password or self.get_secret_from_file("DB_PASSWORD")
 
-    def get_db_schema(self) -> Optional[str]:
-        return self.db_schema or self.get_secret_from_file("DATABASE_SCHEMA")
+    def get_db_database(self) -> Optional[str]:
+        return self.db_database or self.get_secret_from_file("DB_DATABASE")
 
     def get_db_driver(self) -> Optional[str]:
-        return self.db_driver or self.get_secret_from_file("DATABASE_DRIVER")
+        return self.db_driver or self.get_secret_from_file("DB_DRIVER")
 
     def get_db_host(self) -> Optional[str]:
-        return self.db_host or self.get_secret_from_file("DATABASE_HOST")
+        return self.db_host or self.get_secret_from_file("DB_HOST")
 
     def get_db_port(self) -> Optional[int]:
-        return self.db_port or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
+        return self.db_port or str_to_int(self.get_secret_from_file("DB_PORT"))
 
     def get_redis_password(self) -> Optional[str]:
         return self.redis_password or self.get_secret_from_file("REDIS_PASSWORD")
@@ -200,13 +197,13 @@ class AirflowBase(DockerApp):
                 "MOUNT_LOGS": str(self.mount_logs),
                 # INIT_AIRFLOW env var is required for phidata to generate DAGs from workflows
                 INIT_AIRFLOW_ENV_VAR: str(True),
+                "DB_MIGRATE": str(self.db_migrate),
                 "WAIT_FOR_DB": str(self.wait_for_db),
                 "WAIT_FOR_DB_INIT": str(self.wait_for_db_init),
-                "INIT_AIRFLOW_DB": str(self.init_airflow_db),
-                "UPGRADE_AIRFLOW_DB": str(self.upgrade_airflow_db),
                 "WAIT_FOR_REDIS": str(self.wait_for_redis),
                 "CREATE_AIRFLOW_ADMIN_USER": str(self.create_airflow_admin_user),
                 AIRFLOW_EXECUTOR_ENV_VAR: str(self.executor),
+                "AIRFLOW__CORE__LOAD_EXAMPLES": str(self.load_examples),
             }
         )
 
@@ -234,10 +231,7 @@ class AirflowBase(DockerApp):
         self.set_aws_env_vars(env_dict=container_env)
 
         # Set the AIRFLOW__CORE__DAGS_FOLDER
-        if self.mount_workspace and self.use_workflows_as_airflow_dags and container_context.workflows_dir:
-            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = container_context.workflows_dir
-        elif self.airflow_dags_path is not None:
-            container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = self.airflow_dags_path
+        container_env[AIRFLOW_DAGS_FOLDER_ENV_VAR] = f"{container_context.workspace_root}/{self.airflow_dags_dir}"
 
         # Set the AIRFLOW_ENV
         if self.airflow_env is not None:
@@ -260,7 +254,7 @@ class AirflowBase(DockerApp):
         # Airflow db connection
         db_user = self.get_db_user()
         db_password = self.get_db_password()
-        db_schema = self.get_db_schema()
+        db_database = self.get_db_database()
         db_host = self.get_db_host()
         db_port = self.get_db_port()
         db_driver = self.get_db_driver()
@@ -270,15 +264,15 @@ class AirflowBase(DockerApp):
                 db_user = self.db_app.get_db_user()
             if db_password is None:
                 db_password = self.db_app.get_db_password()
-            if db_schema is None:
-                db_schema = self.db_app.get_db_schema()
+            if db_database is None:
+                db_database = self.db_app.get_db_database()
             if db_host is None:
                 db_host = self.db_app.get_db_host()
             if db_port is None:
                 db_port = self.db_app.get_db_port()
             if db_driver is None:
                 db_driver = self.db_app.get_db_driver()
-        db_connection_url = f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
+        db_connection_url = f"{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
 
         # Set the AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
         if "None" not in db_connection_url:
@@ -296,7 +290,7 @@ class AirflowBase(DockerApp):
             # Airflow celery result backend
             celery_result_backend_driver = self.db_result_backend_driver or db_driver
             celery_result_backend_url = (
-                f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_schema}"
+                f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
             )
             # Set the AIRFLOW__CELERY__RESULT_BACKEND
             if "None" not in celery_result_backend_url:
@@ -314,7 +308,7 @@ class AirflowBase(DockerApp):
                 if redis_password is None:
                     redis_password = self.redis_app.get_db_password()
                 if redis_schema is None:
-                    redis_schema = self.redis_app.get_db_schema() or "0"
+                    redis_schema = self.redis_app.get_db_database() or "0"
                 if redis_host is None:
                     redis_host = self.redis_app.get_db_host()
                 if redis_port is None:

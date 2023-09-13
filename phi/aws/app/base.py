@@ -3,8 +3,8 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.infra.app.base import InfraApp, WorkspaceVolumeType  # noqa: F401
-from phi.infra.app.context import ContainerContext
+from phi.app.base import AppBase  # noqa: F401
+from phi.app.context import ContainerContext
 from phi.aws.app.context import AwsBuildContext
 from phi.utils.log import logger
 
@@ -20,7 +20,11 @@ if TYPE_CHECKING:
     from phi.aws.resource.elb.target_group import TargetGroup
 
 
-class AwsApp(InfraApp):
+class AwsApp(AppBase):
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
+
     # -*- Networking Configuration
     # List of subnets for the app: Type: Union[str, Subnet]
     # Added to the load balancer, target group, and ECS service
@@ -98,6 +102,13 @@ class AwsApp(InfraApp):
     healthy_threshold_count: Optional[int] = None
     unhealthy_threshold_count: Optional[int] = None
 
+    # -*- Add NGINX reverse proxy
+    enable_nginx: bool = False
+    nginx_image: Optional[Any] = None
+    nginx_image_name: str = "nginx"
+    nginx_image_tag: str = "1.25.2-alpine"
+    nginx_container_port: int = 80
+
     @field_validator("create_listeners", mode="before")
     def update_create_listeners(cls, create_listeners, info: FieldValidationInfo):
         if create_listeners:
@@ -113,6 +124,53 @@ class AwsApp(InfraApp):
 
         # If create_target_group is False, then create a target group if create_load_balancer is True
         return info.data.get("create_load_balancer", None)
+
+    def get_container_context(self) -> Optional[ContainerContext]:
+        logger.debug("Building ContainerContext")
+
+        if self.container_context is not None:
+            return self.container_context
+
+        workspace_name = self.workspace_name
+        if workspace_name is None:
+            raise Exception("Could not determine workspace_name")
+
+        workspace_root_in_container = self.workspace_dir_container_path
+        if workspace_root_in_container is None:
+            raise Exception("Could not determine workspace_root in container")
+
+        workspace_parent_paths = workspace_root_in_container.split("/")[0:-1]
+        workspace_parent_in_container = "/".join(workspace_parent_paths)
+
+        self.container_context = ContainerContext(
+            workspace_name=workspace_name,
+            workspace_root=workspace_root_in_container,
+            workspace_parent=workspace_parent_in_container,
+        )
+
+        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
+            self.container_context.scripts_dir = f"{workspace_root_in_container}/{self.workspace_settings.scripts_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
+            self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
+
+        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
+            self.container_context.workflows_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
+            self.container_context.workspace_dir = (
+                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
+            )
+
+        if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
+            self.container_context.workspace_schema = self.workspace_settings.ws_schema
+
+        if self.requirements_file is not None:
+            self.container_context.requirements_file = f"{workspace_root_in_container}/{self.requirements_file}"
+
+        return self.container_context
 
     def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
         from phi.constants import (
@@ -133,7 +191,6 @@ class AwsApp(InfraApp):
         container_env.update(
             {
                 "INSTALL_REQUIREMENTS": str(self.install_requirements),
-                "MOUNT_WORKSPACE": str(self.mount_workspace),
                 "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
                 PHI_RUNTIME_ENV_VAR: "ecs",
                 REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
@@ -569,13 +626,16 @@ class AwsApp(InfraApp):
         from phi.aws.resource.ecs.container import EcsContainer
         from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
         from phi.aws.resource.ecs.service import EcsService
+        from phi.aws.resource.ecs.volume import EcsVolume
+        from phi.docker.resource.image import DockerImage
+        from phi.utils.defaults import get_default_volume_name
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Get Container Context
         container_context: Optional[ContainerContext] = self.get_container_context()
         if container_context is None:
             raise Exception("Could not build ContainerContext")
-        # logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
+        logger.debug(f"ContainerContext: {container_context.model_dump_json(indent=2)}")
 
         # -*- Get Security Groups
         security_groups: Optional[List[SecurityGroup]] = self.get_all_security_groups()
@@ -588,6 +648,13 @@ class AwsApp(InfraApp):
 
         # -*- Get Target Group
         target_group: Optional[TargetGroup] = self.get_target_group()
+        # Point the target group to the nginx container port if:
+        # - nginx is enabled
+        # - user provided target_group is None
+        # - user provided target_group_port is None
+        if self.enable_nginx and self.target_group is None and self.target_group_port is None:
+            if target_group is not None:
+                target_group.port = self.nginx_container_port
 
         # -*- Get Listener
         listeners: Optional[List[Listener]] = self.get_listeners(load_balancer=load_balancer, target_group=target_group)
@@ -596,9 +663,65 @@ class AwsApp(InfraApp):
         ecs_container: EcsContainer = self.get_ecs_container(
             container_context=container_context, build_context=build_context
         )
+        # -*- Add nginx container if nginx is enabled
+        nginx_container: Optional[EcsContainer] = None
+        nginx_shared_volume: Optional[EcsVolume] = None
+        if self.enable_nginx and ecs_container is not None:
+            nginx_container_name = f"{self.get_app_name()}-nginx"
+            nginx_shared_volume = EcsVolume(name=get_default_volume_name(self.get_app_name()))
+            nginx_image_str = f"{self.nginx_image_name}:{self.nginx_image_tag}"
+            if self.nginx_image and isinstance(self.nginx_image, DockerImage):
+                nginx_image_str = self.nginx_image.get_image_str()
+
+            nginx_container = EcsContainer(
+                name=nginx_container_name,
+                image=nginx_image_str,
+                essential=True,
+                port_mappings=[{"containerPort": self.nginx_container_port}],
+                environment=ecs_container.environment,
+                log_configuration={
+                    "logDriver": "awslogs",
+                    "options": {
+                        "awslogs-group": self.get_app_name(),
+                        "awslogs-region": build_context.aws_region
+                        or (self.workspace_settings.aws_region if self.workspace_settings else None),
+                        "awslogs-create-group": "true",
+                        "awslogs-stream-prefix": nginx_container_name,
+                    },
+                },
+                mount_points=[
+                    {
+                        "sourceVolume": nginx_shared_volume.name,
+                        "containerPath": container_context.workspace_root,
+                    }
+                ],
+                linux_parameters=ecs_container.linux_parameters,
+                env_from_secrets=ecs_container.env_from_secrets,
+                save_output=ecs_container.save_output,
+                output_dir=ecs_container.output_dir,
+                skip_create=ecs_container.skip_create,
+                skip_delete=ecs_container.skip_delete,
+                wait_for_create=ecs_container.wait_for_create,
+                wait_for_delete=ecs_container.wait_for_delete,
+            )
+
+            # Add shared volume to ecs_container
+            ecs_container.mount_points = nginx_container.mount_points
 
         # -*- Get ECS Task Definition
         ecs_task_definition: EcsTaskDefinition = self.get_ecs_task_definition(ecs_container=ecs_container)
+        # -*- Add nginx container to ecs_task_definition if nginx is enabled
+        if self.enable_nginx:
+            if ecs_task_definition is not None:
+                if nginx_container is not None:
+                    if ecs_task_definition.containers:
+                        ecs_task_definition.containers.append(nginx_container)
+                    else:
+                        logger.error("While adding Nginx container, found TaskDefinition.containers to be None")
+                else:
+                    logger.error("While adding Nginx container, found nginx_container to be None")
+                if nginx_shared_volume:
+                    ecs_task_definition.volumes = [nginx_shared_volume]
 
         # -*- Get ECS Service
         ecs_service: Optional[EcsService] = self.get_ecs_service(
@@ -607,6 +730,14 @@ class AwsApp(InfraApp):
             target_group=target_group,
             ecs_container=ecs_container,
         )
+        # -*- Add nginx container as target_container if nginx is enabled
+        if self.enable_nginx:
+            if ecs_service is not None:
+                if nginx_container is not None:
+                    ecs_service.target_container_name = nginx_container.name
+                    ecs_service.target_container_port = self.nginx_container_port
+                else:
+                    logger.error("While adding Nginx container as target_container, found nginx_container to be None")
 
         # -*- List of AwsResources created by this App
         app_resources: List[AwsResource] = []

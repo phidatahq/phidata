@@ -1,8 +1,9 @@
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import Field, BaseModel, ConfigDict, field_serializer
 
-from phi.infra.resource.base import InfraResource
+from phi.resource.base import ResourceBase
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.constants import DEFAULT_K8S_NAMESPACE
 from phi.k8s.enums.api_version import ApiVersion
@@ -20,10 +21,10 @@ class K8sObject(BaseModel):
         """
         logger.error("@get_k8s_object method not defined")
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
 
-class K8sResource(InfraResource, K8sObject):
+class K8sResource(ResourceBase, K8sObject):
     """Base class for K8s Resources"""
 
     # Common fields for all K8s Resources
@@ -55,6 +56,14 @@ class K8sResource(InfraResource, K8sObject):
     fields_for_k8s_manifest: List[str] = []
 
     k8s_client: Optional[K8sApiClient] = None
+
+    @field_serializer("api_version")
+    def get_api_version_value(self, v) -> str:
+        return v.value
+
+    @field_serializer("kind")
+    def get_kind_value(self, v) -> str:
+        return v.value
 
     def get_resource_name(self) -> str:
         return self.name or self.metadata.name or self.__class__.__name__
@@ -223,12 +232,12 @@ class K8sResource(InfraResource, K8sObject):
         from itertools import chain
 
         k8s_manifest: Dict[str, Any] = {}
-        all_attributes: Dict[str, Any] = self.model_dump(exclude_defaults=True, by_alias=True)
+        all_attributes: Dict[str, Any] = self.model_dump(exclude_defaults=True, by_alias=True, exclude_none=True)
         # logger.debug("All Attributes: {}".format(all_attributes))
         for attr_name in chain(self.fields_for_k8s_manifest_base, self.fields_for_k8s_manifest):
             if attr_name in all_attributes:
                 k8s_manifest[attr_name] = all_attributes[attr_name]
-        logger.debug(f"k8s_manifest:\n{k8s_manifest}")
+        # logger.debug(f"k8s_manifest:\n{k8s_manifest}")
         return k8s_manifest
 
     def get_k8s_manifest_yaml(self, **kwargs) -> Optional[str]:
@@ -251,4 +260,26 @@ class K8sResource(InfraResource, K8sObject):
 
         if k8s_manifest_dict is not None:
             return json.dumps(k8s_manifest_dict, **kwargs)
+        return None
+
+    def save_manifests(self, **kwargs) -> Optional[Path]:
+        """Saves the K8s Manifests for this Object to the input file
+
+        Returns:
+            Path: The path to the input file
+        """
+        input_file_path: Optional[Path] = self.get_input_file_path()
+        if input_file_path is None:
+            return None
+
+        input_file_path_parent: Optional[Path] = input_file_path.parent
+        # Create parent directory if needed
+        if input_file_path_parent is not None and not input_file_path_parent.exists():
+            input_file_path_parent.mkdir(parents=True, exist_ok=True)
+
+        manifest_yaml = self.get_k8s_manifest_yaml(**kwargs)
+        if manifest_yaml is not None:
+            logger.debug(f"Writing {str(input_file_path)}")
+            input_file_path.write_text(manifest_yaml)
+            return input_file_path
         return None

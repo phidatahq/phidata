@@ -1,12 +1,12 @@
 from typing import Any, Optional
 
-from phi.infra.resource.base import InfraResource
+from phi.resource.base import ResourceBase
 from phi.aws.api_client import AwsApiClient
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
 
-class AwsResource(InfraResource):
+class AwsResource(ResourceBase):
     service_name: str
     service_client: Optional[Any] = None
     service_resource: Optional[Any] = None

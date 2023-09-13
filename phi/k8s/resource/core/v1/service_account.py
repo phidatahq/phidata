@@ -63,8 +63,8 @@ class ServiceAccount(K8sResource):
                 _secrets.append(s.get_k8s_object())
 
         _v1_service_account = V1ServiceAccount(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             automount_service_account_token=self.automount_service_account_token,
             image_pull_secrets=_image_pull_secrets,

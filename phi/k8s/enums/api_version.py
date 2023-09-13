@@ -1,7 +1,7 @@
 from phi.utils.enum import ExtendedEnum
 
 
-class ApiVersion(ExtendedEnum):
+class ApiVersion(str, ExtendedEnum):
     CORE_V1 = "v1"
     APPS_V1 = "apps/v1"
     RBAC_AUTH_V1 = "rbac.authorization.k8s.io/v1"
@@ -12,3 +12,4 @@ class ApiVersion(ExtendedEnum):
     CLIENT_AUTHENTICATION_V1BETA1 = "client.authentication.k8s.io/v1beta1"
     # CRDs for Traefik
     TRAEFIK_CONTAINO_US_V1ALPHA1 = "traefik.containo.us/v1alpha1"
+    NA = "NA"

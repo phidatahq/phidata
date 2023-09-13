@@ -1,1 +1,1 @@
-from phi.aws.app.streamlit.streamlit import Streamlit, WorkspaceVolumeType
+from phi.aws.app.streamlit.streamlit import Streamlit

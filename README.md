@@ -2,7 +2,7 @@
   phidata
 </h1>
 <p align="center">
-    <em>Run open source tools using python</em>
+    <em>AI Toolkit for Engineers</em>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 
 ---
 
-### Phidata is a toolkit for building applications with open source tools.
+### Phidata is a toolkit for building LLM Apps, Web Apps and AI platforms.
 
 - Phidata makes it easy to run tools like FastApi, Django, Jupyter, Streamlit, Airflow and Superset.
 - Use these tools to build LLM Apps, Web Apps and Data Platforms.

@@ -1,4 +1,7 @@
 from typing import Dict, List, Optional, Union
+from typing_extensions import Literal
+
+from pydantic import Field, field_serializer
 
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_service import V1Service
@@ -7,7 +10,6 @@ from kubernetes.client.models.v1_service_port import V1ServicePort
 from kubernetes.client.models.v1_service_spec import V1ServiceSpec
 from kubernetes.client.models.v1_service_status import V1ServiceStatus
 from kubernetes.client.models.v1_status import V1Status
-from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.resource.base import K8sResource, K8sObject
@@ -52,6 +54,10 @@ class ServicePort(K8sObject):
     # The application protocol for this port. This field follows standard Kubernetes label syntax.
     app_protocol: Optional[str] = Field(None, alias="appProtocol")
 
+    @field_serializer("protocol")
+    def get_protocol_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
     def get_k8s_object(self) -> V1ServicePort:
         # logger.info(f"Building {self.get_resource_type()} : {self.get_resource_name()}")
 
@@ -74,7 +80,7 @@ class ServicePort(K8sObject):
             name=self.name,
             node_port=self.node_port,
             port=self.port,
-            protocol=self.protocol,
+            protocol=self.protocol.value if self.protocol else None,
             target_port=target_port,
             app_protocol=self.app_protocol,
         )
@@ -146,7 +152,7 @@ class ServiceSpec(K8sObject):
     # "Cluster" routes internal traffic to a Service to all endpoints.
     # "Local" routes traffic to node-local endpoints only, traffic is dropped if no node-local endpoints are ready.
     # The default value is "Cluster".
-    internal_taffic_policy: Optional[str] = Field(None, alias="internalTrafficPolicy")
+    internal_traffic_policy: Optional[str] = Field(None, alias="internalTrafficPolicy")
     # loadBalancerClass is the class of the load balancer implementation this Service belongs to.
     # If specified, the value of this field must be a label-style identifier, with an optional prefix,
     # e.g. "internal-vip" or "example.com/internal-vip". Unprefixed names are reserved for end-users.
@@ -182,6 +188,10 @@ class ServiceSpec(K8sObject):
     # sessionAffinityConfig contains the configurations of session affinity.
     # session_affinity_config: Optional[SessionAffinityConfig] = Field(None, alias="sessionAffinityConfig")
 
+    @field_serializer("type")
+    def get_type_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
     def get_k8s_object(self) -> V1ServiceSpec:
         # Return a V1ServiceSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service_spec.py
@@ -192,7 +202,7 @@ class ServiceSpec(K8sObject):
                 _ports.append(_port.get_k8s_object())
 
         _v1_service_spec = V1ServiceSpec(
-            type=self.type,
+            type=self.type.value if self.type else None,
             allocate_load_balancer_node_ports=self.allocate_load_balancer_node_ports,
             cluster_ip=self.cluster_ip,
             cluster_i_ps=self.cluster_ips,
@@ -200,7 +210,7 @@ class ServiceSpec(K8sObject):
             external_name=self.external_name,
             external_traffic_policy=self.external_traffic_policy,
             health_check_node_port=self.health_check_node_port,
-            internal_traffic_policy=self.internal_taffic_policy,
+            internal_traffic_policy=self.internal_traffic_policy,
             load_balancer_class=self.load_balancer_class,
             load_balancer_ip=self.load_balancer_ip,
             load_balancer_source_ranges=self.load_balancer_source_ranges,
@@ -232,6 +242,9 @@ class Service(K8sResource):
 
     spec: ServiceSpec
 
+    # Only used to print the LoadBalancer DNS
+    protocol: Optional[Literal["http", "https"]] = None
+
     # List of attributes to include in the K8s manifest
     fields_for_k8s_manifest: List[str] = ["spec"]
 
@@ -241,8 +254,8 @@ class Service(K8sResource):
         # Return a V1Service object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service.py
         _v1_service = V1Service(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             spec=self.spec.get_k8s_object(),
         )
@@ -293,6 +306,36 @@ class Service(K8sResource):
             return True
         logger.error("Service could not be created")
         return False
+
+    def post_create(self, k8s_client: K8sApiClient) -> bool:
+        from time import sleep
+
+        if self.spec.type == ServiceType.LOAD_BALANCER:
+            logger.info("Waiting for LoadBalancer DNS to be available")
+            attempts = 0
+            lb_dns = None
+            while attempts < 10:
+                attempts += 1
+                svc: Optional[V1Service] = self._read(k8s_client=k8s_client)
+                try:
+                    if svc is not None:
+                        if svc.status is not None:
+                            if svc.status.load_balancer is not None:
+                                if svc.status.load_balancer.ingress is not None:
+                                    if svc.status.load_balancer.ingress[0] is not None:
+                                        lb_dns = svc.status.load_balancer.ingress[0].hostname
+                                        break
+                    sleep(1)
+                except AttributeError:
+                    pass
+            if lb_dns is None:
+                logger.info("LoadBalancer DNS could not be found, please check the AWS console")
+                return False
+            else:
+                if self.protocol is not None:
+                    lb_dns = f"{self.protocol}://{lb_dns}"
+                logger.info(f"LoadBalancer DNS: {lb_dns}")
+        return True
 
     def _read(self, k8s_client: K8sApiClient) -> Optional[V1Service]:
         """Returns the "Active" Service from the cluster"""

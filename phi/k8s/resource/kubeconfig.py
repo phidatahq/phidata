@@ -3,8 +3,6 @@ from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from phi.k8s.enums.api_version import ApiVersion
-from phi.k8s.enums.kind import Kind
 from phi.utils.log import logger
 
 
@@ -12,7 +10,7 @@ class KubeconfigClusterConfig(BaseModel):
     server: str
     certificate_authority_data: str = Field(..., alias="certificate-authority-data")
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
 
 class KubeconfigCluster(BaseModel):
@@ -35,7 +33,7 @@ class KubeconfigContextSpec(BaseModel):
 
     cluster: Optional[str]
     user: Optional[str]
-    namespace: Optional[str]
+    namespace: Optional[str] = None
 
 
 class KubeconfigContext(BaseModel):
@@ -64,15 +62,15 @@ class Kubeconfig(BaseModel):
         * Go Doc: https://godoc.org/k8s.io/client-go/tools/clientcmd/api#Config
     """
 
-    api_version: ApiVersion = Field(ApiVersion.CORE_V1, alias="apiVersion")
-    kind: Optional[Kind] = Kind.CONFIG
+    api_version: str = Field("v1", alias="apiVersion")
+    kind: str = "Config"
     clusters: List[KubeconfigCluster] = []
     users: List[KubeconfigUser] = []
     contexts: List[KubeconfigContext] = []
     current_context: Optional[str] = Field(None, alias="current-context")
     preferences: dict = {}
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @classmethod
     def read_from_file(cls: Any, file_path: Path, create_if_not_exists: bool = True) -> Optional[Any]:

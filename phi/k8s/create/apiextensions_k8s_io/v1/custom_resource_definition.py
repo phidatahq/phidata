@@ -9,6 +9,7 @@ from phi.k8s.resource.apiextensions_k8s_io.v1.custom_resource_definition import 
     CustomResourceDefinitionSpec,
     CustomResourceDefinitionNames,
     CustomResourceDefinitionVersion,
+    V1JSONSchemaProps,  # noqa: F401
 )
 from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
@@ -28,7 +29,7 @@ class CreateCustomResourceDefinition(CreateK8sResource):
         """Creates a CustomResourceDefinition resource"""
 
         crd_name = self.crd_name
-        # logger.debug(f"Init CRD resource: {crd_name}")
+        # logger.debug(f"Creating CRD resource: {crd_name}")
 
         crd_labels = create_component_labels_dict(
             component_name=crd_name,
@@ -61,5 +62,5 @@ class CreateCustomResourceDefinition(CreateK8sResource):
             ),
         )
 
-        # logger.debug(f"CRD {crd_name}:\n{crd.json(exclude_defaults=True, indent=2)}")
+        # logger.debug(f"CRD {crd_name} created")
         return crd

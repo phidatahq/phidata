@@ -1,9 +1,10 @@
 from typing import List, Optional, Any, Dict
 
+from pydantic import Field, field_serializer
+
 from kubernetes.client.models.v1_container import V1Container
 from kubernetes.client.models.v1_pod_spec import V1PodSpec
 from kubernetes.client.models.v1_volume import V1Volume
-from pydantic import Field
 
 from phi.k8s.enums.restart_policy import RestartPolicy
 from phi.k8s.resource.base import K8sObject
@@ -89,6 +90,10 @@ class PodSpec(K8sObject):
     # More info: https://kubernetes.io/docs/concepts/storage/volumes
     volumes: Optional[List[Volume]] = None
 
+    @field_serializer("restart_policy")
+    def get_restart_policy_value(self, v) -> Optional[str]:
+        return v.value if v is not None else None
+
     def get_k8s_object(self) -> V1PodSpec:
         # Set and return a V1PodSpec object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_pod_spec.py
@@ -128,7 +133,7 @@ class PodSpec(K8sObject):
             init_containers=_init_containers,
             node_name=self.node_name,
             node_selector=self.node_selector,
-            restart_policy=self.restart_policy,
+            restart_policy=self.restart_policy.value if self.restart_policy else None,
             service_account_name=self.service_account_name,
             termination_grace_period_seconds=self.termination_grace_period_seconds,
             volumes=_volumes,

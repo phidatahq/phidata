@@ -1,1 +1,1 @@
-from phi.docker.app.django.django import Django, WorkspaceVolumeType
+from phi.docker.app.django.django import Django

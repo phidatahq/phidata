@@ -62,8 +62,8 @@ class ClusterRole(K8sResource):
         # Return a V1ClusterRole object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_cluster_role.py
         _v1_cluster_role = V1ClusterRole(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             rules=rules_list,
         )

@@ -26,7 +26,7 @@ class PgConversationStorage(ConversationStorage):
     def __init__(
         self,
         table_name: str,
-        schema: Optional[str] = None,
+        schema: Optional[str] = "llm",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
     ):

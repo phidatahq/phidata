@@ -92,8 +92,8 @@ class Deployment(K8sResource):
         # Return a V1Deployment object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_deployment.py
         _v1_deployment = V1Deployment(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             spec=self.spec.get_k8s_object(),
         )

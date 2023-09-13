@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict
 
-from phi.docker.app.base import DockerApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
 
 
 class Streamlit(DockerApp):
@@ -17,11 +17,11 @@ class Streamlit(DockerApp):
     open_port: bool = True
     port_number: int = 8501
 
-    # -*- Workspace Volume
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/app"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
-    # Path to mount the workspace volume inside the container
-    workspace_volume_container_path: str = "/usr/local/app"
 
     # -*- Streamlit Configuration
     # Server settings
@@ -30,8 +30,8 @@ class Streamlit(DockerApp):
     streamlit_server_headless: bool = True
     streamlit_server_run_on_save: Optional[bool] = None
     streamlit_server_max_upload_size: Optional[bool] = None
+    streamlit_browser_gather_usage_stats: bool = False
     # Browser settings
-    streamlit_browser_gather_usage_stats: Optional[bool] = None
     streamlit_browser_server_port: Optional[str] = None
     streamlit_browser_server_address: Optional[str] = None
 

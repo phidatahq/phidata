@@ -33,10 +33,7 @@ class CreateVolume(CreateK8sObject):
     def _create(self) -> Volume:
         """Creates the Volume resource"""
 
-        volume_name = self.volume_name
-        # logger.debug(f"Init Volume resource: {volume_name}")
-
-        volume = Volume(name=volume_name)
+        volume = Volume(name=self.volume_name)
 
         if self.volume_type == VolumeType.EMPTY_DIR:
             if self.empty_dir is not None and isinstance(self.empty_dir, EmptyDirVolumeSource):
@@ -87,4 +84,5 @@ class CreateVolume(CreateK8sObject):
             else:
                 logger.error(f"Volume {self.volume_type.value} selected but HostPathVolumeSource not provided.")
 
+        # logger.debug(f"Created Volume resource: {volume}")
         return volume

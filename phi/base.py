@@ -10,6 +10,7 @@ class PhiBase(BaseModel):
     name: Optional[str] = None
     group: Optional[str] = None
     version: Optional[str] = None
+    env: Optional[str] = None
     enabled: bool = True
 
     #  -*- Resource Control
@@ -48,7 +49,9 @@ class PhiBase(BaseModel):
     #  -*- Save to output directory
     # If True, save output to json files
     save_output: bool = False
-    # The directory for the output files
+    # The directory for the input files in the workspace directory
+    input_dir: Optional[str] = None
+    # The directory for the output files in the workspace directory
     output_dir: Optional[str] = None
 
     #  -*- Dependencies
@@ -61,7 +64,7 @@ class PhiBase(BaseModel):
     cached_env_file_data: Optional[Dict[str, Any]] = None
     cached_secret_file_data: Optional[Dict[str, Any]] = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True, populate_by_name=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     def get_group_name(self) -> Optional[str]:
         return self.group or self.name

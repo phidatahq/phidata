@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from typing_extensions import Literal
 
 from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.create.apps.v1.deployment import CreateDeployment
@@ -21,22 +22,24 @@ class CreateService(CreateK8sResource):
     deployment: CreateDeployment
     # Ports to expose using this service
     ports: Optional[List[CreatePort]] = None
-    ## type == ClusterIP
+    labels: Optional[Dict[str, str]] = None
+    annotations: Optional[Dict[str, str]] = None
+    # If ServiceType == ClusterIP
     cluster_ip: Optional[str] = None
     cluster_ips: Optional[List[str]] = None
-    ## type == ExternalName
+    # If ServiceType == ExternalName
     external_ips: Optional[List[str]] = None
     external_name: Optional[str] = None
-    external_traffic_policy: Optional[str] = None
-    ## type == LoadBalancer
+    external_traffic_policy: Optional[Literal["Cluster", "Local"]] = None
+    # If ServiceType == ServiceType.LoadBalancer
     health_check_node_port: Optional[int] = None
-    internal_taffic_policy: Optional[str] = None
+    internal_traffic_policy: Optional[str] = None
     load_balancer_class: Optional[str] = None
     load_balancer_ip: Optional[str] = None
     load_balancer_source_ranges: Optional[List[str]] = None
     allocate_load_balancer_node_ports: Optional[bool] = None
-    labels: Optional[Dict[str, str]] = None
-    annotations: Optional[Dict[str, str]] = None
+    # Only used to print the LoadBalancer DNS
+    protocol: Optional[str] = None
 
     def _create(self) -> Service:
         """Creates a Service resource"""
@@ -89,7 +92,7 @@ class CreateService(CreateK8sResource):
                 external_name=self.external_name,
                 external_traffic_policy=self.external_traffic_policy,
                 health_check_node_port=self.health_check_node_port,
-                internal_taffic_policy=self.internal_taffic_policy,
+                internal_traffic_policy=self.internal_traffic_policy,
                 load_balancer_class=self.load_balancer_class,
                 load_balancer_ip=self.load_balancer_ip,
                 load_balancer_source_ranges=self.load_balancer_source_ranges,
@@ -97,6 +100,7 @@ class CreateService(CreateK8sResource):
                 ports=service_ports,
                 selector=target_pod_labels,
             ),
+            protocol=self.protocol,
         )
 
         # logger.debug(

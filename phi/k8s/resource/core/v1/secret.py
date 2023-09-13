@@ -1,10 +1,11 @@
 from typing import Dict, List, Optional
 
+from pydantic import Field
+
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_secret import V1Secret
 from kubernetes.client.models.v1_secret_list import V1SecretList
 from kubernetes.client.models.v1_status import V1Status
-from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.resource.base import K8sResource
@@ -33,8 +34,8 @@ class Secret(K8sResource):
         # Return a V1Secret object to create a ClusterRole
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_secret.py
         _v1_secret = V1Secret(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             data=self.data,
             string_data=self.string_data,

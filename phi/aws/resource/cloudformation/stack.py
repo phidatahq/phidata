@@ -46,7 +46,6 @@ class CloudFormationStack(AwsResource):
             creation_time = stack.creation_time
             logger.debug(f"creation_time: {creation_time}")
             if creation_time is not None:
-                print_info("Stack created")
                 self.active_resource = stack
                 return True
         except Exception as e:
@@ -117,7 +116,7 @@ class CloudFormationStack(AwsResource):
                 return True
 
             stack.delete()
-            print_info("Stack deleted")
+            # print_info("Stack deleted")
             return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")

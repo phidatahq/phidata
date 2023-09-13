@@ -1,7 +1,7 @@
 from phi.utils.enum import ExtendedEnum
 
 
-class VolumeType(ExtendedEnum):
+class VolumeType(str, ExtendedEnum):
     AWS_EBS = "AWS_EBS"
     EMPTY_DIR = "EMPTY_DIR"
     PERSISTENT_VOLUME_CLAIM = "PERSISTENT_VOLUME_CLAIM"

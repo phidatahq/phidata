@@ -1,7 +1,7 @@
 from phi.utils.enum import ExtendedEnum
 
 
-class Kind(ExtendedEnum):
+class Kind(str, ExtendedEnum):
     CLUSTERROLE = "ClusterRole"
     CLUSTERROLEBINDING = "ClusterRoleBinding"
     CONFIG = "Config"
@@ -26,3 +26,4 @@ class Kind(ExtendedEnum):
     USER = "User"
     GROUP = "Group"
     VOLUME = "Volume"
+    YAML = "yaml"

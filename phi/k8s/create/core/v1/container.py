@@ -41,7 +41,7 @@ class CreateContainer(CreateK8sObject):
     args: Optional[List[str]] = None
     command: Optional[List[str]] = None
     image_pull_policy: Optional[ImagePullPolicy] = ImagePullPolicy.IF_NOT_PRESENT
-    env: Optional[Dict[str, str]] = None
+    env_vars: Optional[Dict[str, str]] = None
     envs_from_configmap: Optional[List[str]] = None
     envs_from_secret: Optional[List[str]] = None
     env_vars_from_secret: Optional[List[CreateEnvVarFromSecret]] = None
@@ -81,10 +81,10 @@ class CreateContainer(CreateK8sObject):
                 env_from.append(EnvFromSource(secret_ref=SecretEnvSource(name=_secretenvs)))
 
         env: Optional[List[EnvVar]] = None
-        if self.env is not None and isinstance(self.env, dict):
+        if self.env_vars is not None and isinstance(self.env_vars, dict):
             if env is None:
                 env = []
-            for key, value in self.env.items():
+            for key, value in self.env_vars.items():
                 env.append(
                     EnvVar(
                         name=key,

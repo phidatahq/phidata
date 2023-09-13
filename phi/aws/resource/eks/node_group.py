@@ -399,6 +399,7 @@ class EksNodeGroup(AwsResource):
             "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
             "arn:aws:iam::aws:policy/AmazonS3FullAccess",
             "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
+            "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy",
         ]
         if self.add_policy_arns is not None and isinstance(self.add_policy_arns, list):
             policy_arns.extend(self.add_policy_arns)

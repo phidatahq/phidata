@@ -1,12 +1,12 @@
 from typing import Any, Optional, Dict
 
-from phi.infra.resource.base import InfraResource
+from phi.resource.base import ResourceBase
 from phi.docker.api_client import DockerApiClient
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
 
-class DockerResource(InfraResource):
+class DockerResource(ResourceBase):
     """Base class for Docker Resources."""
 
     # Fields received from the DockerApiClient

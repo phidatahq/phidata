@@ -79,7 +79,7 @@ class EksCluster(AwsResource):
     encryption_config: Optional[List[Dict[str, Union[List[str], Dict[str, str]]]]] = None
 
     # EKS Addons
-    addons: List[Union[str, EksAddon]] = ["aws-ebs-csi-driver", "vpc-cni", "coredns"]
+    addons: List[Union[str, EksAddon]] = ["aws-ebs-csi-driver", "aws-efs-csi-driver", "vpc-cni", "coredns"]
 
     # Kubeconfig
     # If True, updates the kubeconfig on create/delete
@@ -447,6 +447,34 @@ class EksCluster(AwsResource):
             resources_vpc_config["publicAccessCidrs"] = self.public_access_cidrs
 
         return resources_vpc_config
+
+    def get_subnets_in_order(self, aws_client: AwsApiClient) -> List[str]:
+        """
+        Returns the subnet_ids in the following order:
+            - User provided subnets
+            - Private subnets from the VPC stack
+            - Public subnets from the VPC stack
+        """
+        # Option 1: Get subnets from the resources_vpc_config provided by the user
+        if self.resources_vpc_config is not None and "subnetIds" in self.resources_vpc_config:
+            subnet_ids = self.resources_vpc_config["subnetIds"]
+            if not isinstance(subnet_ids, list):
+                raise TypeError(f"resources_vpc_config.subnetIds must be a list of strings, not {type(subnet_ids)}")
+            return subnet_ids
+
+        # Option 2: Get private subnets from the VPC stack
+        vpc_stack = self.get_vpc_stack()
+        if self.use_private_subnets:
+            private_subnets: Optional[List[str]] = vpc_stack.get_private_subnets(aws_client)
+            if private_subnets is not None:
+                return private_subnets
+
+        # Option 3: Get public subnets from the VPC stack
+        if self.use_public_subnets:
+            public_subnets: Optional[List[str]] = vpc_stack.get_public_subnets(aws_client)
+            if public_subnets is not None:
+                return public_subnets
+        return []
 
     def get_kubeconfig_cluster_name(self) -> str:
         return self.kubeconfig_cluster_name or self.name

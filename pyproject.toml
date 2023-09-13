@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "2.0.0.dev29"
-description = "Toolkit for AI Engineers"
+version = "2.0.4"
+description = "AI Toolkit for Engineers"
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [
@@ -50,8 +50,10 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["phidata*", "phi*"]
-namespaces = false
+include = ["phi*"]
+
+[tool.setuptools.package-data]
+phi = ["py.typed"]
 
 [tool.black]
 line-length = 120
@@ -68,11 +70,11 @@ extend-exclude = '''
 line-length = 120
 exclude = [
   "phienv*",
-  "phidata"
 ]
 # Ignore `F401` (import violations) in all `__init__.py` files
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
+"phi/k8s/app/traefik/crds.py" = ["E501"]
 
 [tool.mypy]
 plugins = [
@@ -83,7 +85,6 @@ no_implicit_optional = true
 warn_unused_configs = true
 exclude = [
   "phienv*",
-  "phidata"
 ]
 
 [[tool.mypy.overrides]]

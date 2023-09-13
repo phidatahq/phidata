@@ -1,7 +1,8 @@
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
+from phi.aws.resource.reference import AwsReference
 from phi.aws.resource.cloudformation.stack import CloudFormationStack
 from phi.cli.console import print_info
 from phi.utils.log import logger
@@ -29,12 +30,38 @@ class DbSubnetGroup(AwsResource):
     # The description for the DB subnet group.
     description: Optional[str] = None
     # The EC2 Subnet IDs for the DB subnet group.
-    subnet_ids: Optional[List[str]] = None
+    subnet_ids: Optional[Union[List[str], AwsReference]] = None
     # Get Subnet IDs from a VPC CloudFormationStack
-    # NOTE: only gets privatesubnets from the vpc stack
+    # First gets private subnets from the vpc stack, then public subnets
     vpc_stack: Optional[CloudFormationStack] = None
     # Tags to assign to the DB subnet group.
     tags: Optional[List[Dict[str, str]]] = None
+
+    def get_subnet_ids(self, aws_client: AwsApiClient) -> List[str]:
+        """Returns the subnet_ids for the DbSubnetGroup
+
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+        subnet_ids = []
+        if self.subnet_ids is not None:
+            if isinstance(self.subnet_ids, list):
+                logger.debug("Getting subnet_ids from list")
+                subnet_ids = self.subnet_ids
+            elif isinstance(self.subnet_ids, AwsReference):
+                logger.debug("Getting subnet_ids from reference")
+                subnet_ids = self.subnet_ids.get_reference(aws_client=aws_client)
+        if len(subnet_ids) == 0 and self.vpc_stack is not None:
+            logger.debug("Getting private subnet_ids from vpc stack")
+            private_subnet_ids = self.vpc_stack.get_private_subnets(aws_client=aws_client)
+            if private_subnet_ids is not None:
+                subnet_ids.extend(private_subnet_ids)
+            if len(subnet_ids) == 0:
+                logger.debug("Getting public subnet_ids from vpc stack")
+                public_subnet_ids = self.vpc_stack.get_public_subnets(aws_client=aws_client)
+                if public_subnet_ids is not None:
+                    subnet_ids.extend(public_subnet_ids)
+        return subnet_ids
 
     def _create(self, aws_client: AwsApiClient) -> bool:
         """Creates the DbSubnetGroup
@@ -45,23 +72,13 @@ class DbSubnetGroup(AwsResource):
 
         print_info(f"Creating {self.get_resource_type()}: {self.get_resource_name()}")
         try:
+            # Get subnet_ids
+            subnet_ids = self.get_subnet_ids(aws_client=aws_client)
+
             # create a dict of args which are not null, otherwise aws type validation fails
             not_null_args: Dict[str, Any] = {}
-
             if self.tags:
                 not_null_args["Tags"] = self.tags
-
-            subnet_ids = self.subnet_ids
-            if subnet_ids is None and self.vpc_stack is not None:
-                subnet_ids = []
-                logger.debug("Getting public subnet_ids from vpc stack")
-                public_subnet_ids = self.vpc_stack.get_private_subnets(aws_client=aws_client)
-                if public_subnet_ids is not None:
-                    subnet_ids.extend(public_subnet_ids)
-                logger.debug("Getting private subnet_ids from vpc stack")
-                private_subnet_ids = self.vpc_stack.get_private_subnets(aws_client=aws_client)
-                if private_subnet_ids is not None:
-                    subnet_ids.extend(private_subnet_ids)
 
             # Create DbSubnetGroup
             service_client = self.get_service_client(aws_client)
@@ -141,34 +158,32 @@ class DbSubnetGroup(AwsResource):
         return False
 
     def _update(self, aws_client: AwsApiClient) -> bool:
-        subnet_ids = self.subnet_ids
-        if subnet_ids is None and self.vpc_stack is not None:
-            subnet_ids = []
-            logger.debug("Getting public subnet_ids from vpc stack")
-            public_subnet_ids = self.vpc_stack.get_private_subnets(aws_client=aws_client)
-            if public_subnet_ids is not None:
-                subnet_ids.extend(public_subnet_ids)
-            logger.debug("Getting private subnet_ids from vpc stack")
-            private_subnet_ids = self.vpc_stack.get_private_subnets(aws_client=aws_client)
-            if private_subnet_ids is not None:
-                subnet_ids.extend(private_subnet_ids)
+        """Updates the DbSubnetGroup
 
-        service_client = self.get_service_client(aws_client)
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+
+        print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
         try:
+            # Get subnet_ids
+            subnet_ids = self.get_subnet_ids(aws_client=aws_client)
+
+            # Update DbSubnetGroup
+            service_client = self.get_service_client(aws_client)
             update_response = service_client.modify_db_subnet_group(
                 DBSubnetGroupName=self.name,
                 DBSubnetGroupDescription=self.description or f"Created for {self.name}",
-                SubnetIds=self.subnet_ids,
+                SubnetIds=subnet_ids,
             )
-            logger.debug(f"Response: {update_response}")
-            resource_dict = update_response.get("DBSubnetGroup", {})
+            logger.debug(f"update_response: {update_response}")
 
-            # Validate resource update
-            if resource_dict is not None:
-                print_info(f"DBSubnetGroup updated: {self.get_resource_name()}")
-                self.active_resource = resource_dict
+            self.active_resource = update_response.get("DBSubnetGroup", None)
+            if self.active_resource is not None:
+                print_info(f"{self.get_resource_type()}: {self.get_resource_name()} updated")
                 return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be updated.")
+            logger.error("Please try again or update resources manually.")
             logger.error(e)
         return False

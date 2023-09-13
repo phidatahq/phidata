@@ -11,8 +11,8 @@ from phi.cli.console import (
     print_subheading,
     log_config_not_available_msg,
 )
-from phi.infra.enums import InfraType
-from phi.infra.resource.group import InfraResourceGroup
+from phi.infra.type import InfraType
+from phi.infra.resources import InfraResources
 from phi.api.schemas.workspace import (
     WorkspaceSchema,
     WorkspaceCreate,
@@ -25,22 +25,18 @@ from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.api_app: "api-app",
     WorkspaceStarterTemplate.llm_app: "llm-app",
+    WorkspaceStarterTemplate.api_app: "api-app",
     WorkspaceStarterTemplate.django_app: "django-app",
     WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
-    WorkspaceStarterTemplate.data_platform: "data-platform",
-    WorkspaceStarterTemplate.spark_data_platform: "spark-data-platform",
-    WorkspaceStarterTemplate.snowflake_data_platform: "snowflake-data-platform",
+    WorkspaceStarterTemplate.ai_platform: "ai-platform",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.api_app: "https://github.com/phihq/api-app.git",
-    WorkspaceStarterTemplate.llm_app: "https://github.com/phihq/llm-app.git",
-    WorkspaceStarterTemplate.django_app: "https://github.com/phihq/django-app.git",
-    WorkspaceStarterTemplate.streamlit_app: "https://github.com/phihq/streamlit-app.git",
-    WorkspaceStarterTemplate.data_platform: "https://github.com/phihq/data-platform.git",
-    WorkspaceStarterTemplate.spark_data_platform: "https://github.com/phihq/spark-data-platform.git",
-    WorkspaceStarterTemplate.snowflake_data_platform: "https://github.com/phihq/snowflake-data-platform.git",
+    WorkspaceStarterTemplate.llm_app: "https://github.com/phidatahq/llm-app.git",
+    WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
+    WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
+    WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
+    WorkspaceStarterTemplate.ai_platform: "https://github.com/phidatahq/ai-platform.git",
 }
 
 
@@ -79,7 +75,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
-    ws_template = WorkspaceStarterTemplate.api_app
+    ws_template = WorkspaceStarterTemplate.llm_app
     templates = list(WorkspaceStarterTemplate.__members__.values())
 
     if repo_to_clone is None:
@@ -87,7 +83,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         if template is None:
             # Get starter template from the user if template is not provided
             # Display available starter templates and ask user to select one
-            print_info("Select starter template or press Enter for default (api-app)")
+            print_info("Select starter template or press Enter for default (llm-app)")
             for template_id, template_name in enumerate(templates, start=1):
                 print_info("  [{}] {}".format(template_id, template_name))
 
@@ -99,7 +95,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
             if template_inp is not None:
                 template_inp_idx = template_inp - 1
-                ws_template = WorkspaceStarterTemplate[templates[template_inp_idx]]
+                ws_template = WorkspaceStarterTemplate(templates[template_inp_idx])
             logger.debug("Selected: {}".format(ws_template.value))
         elif template.lower() in WorkspaceStarterTemplate.__members__.values():
             ws_template = WorkspaceStarterTemplate[template]
@@ -108,13 +104,13 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         repo_to_clone = TEMPLATE_TO_REPO_MAP.get(ws_template)
 
     if ws_dir_name is None:
-        default_ws_name = "api-app"
+        default_ws_name = "llm-app"
         if url is not None:
             # Get default_ws_name from url
             default_ws_name = url.split("/")[-1].split(".")[0]
         else:
             # Get default_ws_name from template
-            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "api-app")
+            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "llm-app")
 
         # Ask user for workspace name if not provided
         ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name)
@@ -129,7 +125,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     # Check if a workspace with the same name exists
     existing_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
     if existing_ws_config is not None:
-        logger.error(f"Found existing record for a workspace at: {ws_dir_name}")
+        logger.error(f"Found existing record for workspace: {ws_dir_name}")
         delete_existing_ws_config = typer.confirm("Replace existing record?", default=True)
         if delete_existing_ws_config:
             phi_config.delete_ws(ws_dir_name)
@@ -269,7 +265,7 @@ def setup_workspace(ws_root_path: Path) -> None:
     # 1.4 Load workspace and set as active
     ######################################################
     # Load and save the workspace config
-    ws_config.load()
+    # ws_config.load()
     # Get the workspace dir name
     ws_dir_name = ws_config.ws_dir_name
     # Set the workspace as active if it is not already
@@ -425,22 +421,23 @@ def start_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to deploy
-    resource_groups_to_create: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_create: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=target_infra,
         order="create",
     )
-    num_rgs_to_create = len(resource_groups_to_create)
+
+    # Track number of resource groups created
     num_rgs_created = 0
+    num_rgs_to_create = len(resource_groups_to_create)
+    # Track number of resources created
     num_resources_created = 0
+    num_resources_to_create = 0
 
     if num_rgs_to_create == 0:
         print_info("No resources to create")
@@ -448,18 +445,18 @@ def start_workspace(
 
     logger.debug(f"Deploying {num_rgs_to_create} resource groups")
     for rg in resource_groups_to_create:
-        num_resources_created += rg.create_resources(
+        _num_resources_created, _num_resources_to_create = rg.create_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
-            workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_created += 1
-        # print white space between runs
-        print_info("")
+        if _num_resources_created > 0:
+            num_rgs_created += 1
+        num_resources_created += _num_resources_created
+        num_resources_to_create += _num_resources_to_create
         logger.debug(f"Deployed {num_resources_created} resources in {num_rgs_created} resource groups")
 
     if dry_run:
@@ -468,14 +465,13 @@ def start_workspace(
     if num_resources_created == 0:
         return
 
-    print_info(f"# ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
+    print_heading(f"\n--**-- ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
 
     workspace_event_status = "in_progress"
-    if num_rgs_to_create == num_rgs_created:
-        print_subheading("Workspace started")
+    if num_resources_created == num_resources_to_create:
         workspace_event_status = "success"
     else:
-        logger.error("Workspace start failed")
+        logger.error("Some resources failed to create, please check logs")
         workspace_event_status = "failed"
 
     if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
@@ -516,22 +512,23 @@ def stop_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to delete
-    resource_groups_to_delete: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_delete: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=target_infra,
         order="delete",
     )
-    num_rgs_to_delete = len(resource_groups_to_delete)
+
+    # Track number of resource groups deleted
     num_rgs_deleted = 0
+    num_rgs_to_delete = len(resource_groups_to_delete)
+    # Track number of resources deleted
     num_resources_deleted = 0
+    num_resources_to_delete = 0
 
     if num_rgs_to_delete == 0:
         print_info("No resources to delete")
@@ -539,18 +536,18 @@ def stop_workspace(
 
     logger.debug(f"Deleting {num_rgs_to_delete} resource groups")
     for rg in resource_groups_to_delete:
-        num_resources_deleted += rg.delete_resources(
+        _num_resources_deleted, _num_resources_to_delete = rg.delete_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
-            workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_deleted += 1
-        # print white space between runs
-        print_info("")
+        if _num_resources_deleted > 0:
+            num_rgs_deleted += 1
+        num_resources_deleted += _num_resources_deleted
+        num_resources_to_delete += _num_resources_to_delete
         logger.debug(f"Deleted {num_resources_deleted} resources in {num_rgs_deleted} resource groups")
 
     if dry_run:
@@ -559,14 +556,13 @@ def stop_workspace(
     if num_resources_deleted == 0:
         return
 
-    print_info(f"# ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
+    print_heading(f"\n--**-- ResourceGroups deleted: {num_rgs_deleted}/{num_rgs_to_delete}\n")
 
     workspace_event_status = "in_progress"
-    if num_rgs_to_delete == num_rgs_deleted:
-        print_subheading("Workspace stopped")
+    if num_resources_to_delete == num_resources_deleted:
         workspace_event_status = "success"
     else:
-        logger.error("Workspace stop failed")
+        logger.error("Some resources failed to delete, please check logs")
         workspace_event_status = "failed"
 
     if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
@@ -607,22 +603,22 @@ def update_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
-    if ws_config.workspace_settings is None:
-        logger.error("WorkspaceSettings invalid")
-        return
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
 
     # Get resource groups to update
-    resource_groups_to_update: List[InfraResourceGroup] = ws_config.get_resource_groups(
+    resource_groups_to_update: List[InfraResources] = ws_config.get_resources(
         env=target_env,
         infra=target_infra,
         order="create",
     )
-    num_rgs_to_update = len(resource_groups_to_update)
+    # Track number of resource groups updated
     num_rgs_updated = 0
+    num_rgs_to_update = len(resource_groups_to_update)
+    # Track number of resources updated
     num_resources_updated = 0
+    num_resources_to_update = 0
 
     if num_rgs_to_update == 0:
         print_info("No resources to update")
@@ -630,18 +626,18 @@ def update_workspace(
 
     logger.debug(f"Updating {num_rgs_to_update} resource groups")
     for rg in resource_groups_to_update:
-        num_resources_updated += rg.update_resources(
+        _num_resources_updated, _num_resources_to_update = rg.update_resources(
             group_filter=target_group,
             name_filter=target_name,
             type_filter=target_type,
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
-            workspace_settings=ws_config.workspace_settings,
         )
-        num_rgs_updated += 1
-        # print white space between runs
-        print_info("")
+        if _num_resources_updated > 0:
+            num_rgs_updated += 1
+        num_resources_updated += _num_resources_updated
+        num_resources_to_update += _num_resources_to_update
         logger.debug(f"Updated {num_resources_updated} resources in {num_rgs_updated} resource groups")
 
     if dry_run:
@@ -650,14 +646,13 @@ def update_workspace(
     if num_resources_updated == 0:
         return
 
-    print_info(f"# ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
+    print_heading(f"\n--**-- ResourceGroups updated: {num_rgs_updated}/{num_rgs_to_update}\n")
 
     workspace_event_status = "in_progress"
-    if num_rgs_to_update == num_rgs_updated:
-        print_subheading("Workspace updated")
+    if num_resources_updated == num_resources_to_update:
         workspace_event_status = "success"
     else:
-        logger.error("Workspace update failed")
+        logger.error("Some resources failed to update, please check logs")
         workspace_event_status = "failed"
 
     if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
@@ -747,13 +742,13 @@ def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> No
         return
 
     print_heading(f"Setting workspace {active_ws_config.ws_dir_name} as active")
-    if load:
-        try:
-            active_ws_config.load()
-        except Exception as e:
-            logger.error("Could not load workspace config, please fix errors and try again")
-            logger.error(e)
-            return
+    # if load:
+    #     try:
+    #         active_ws_config.load()
+    #     except Exception as e:
+    #         logger.error("Could not load workspace config, please fix errors and try again")
+    #         logger.error(e)
+    #         return
 
     ######################################################
     # 1.4 Make api request if updating active workspace

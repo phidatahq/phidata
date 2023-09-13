@@ -1,5 +1,7 @@
 from typing import List, Optional
 
+from pydantic import Field, field_serializer
+
 from kubernetes.client import RbacAuthorizationV1Api
 from kubernetes.client.models.v1_cluster_role_binding import V1ClusterRoleBinding
 from kubernetes.client.models.v1_cluster_role_binding_list import (
@@ -8,7 +10,6 @@ from kubernetes.client.models.v1_cluster_role_binding_list import (
 from kubernetes.client.models.v1_role_ref import V1RoleRef
 from kubernetes.client.models.v1_subject import V1Subject
 from kubernetes.client.models.v1_status import V1Status
-from pydantic import Field
 
 from phi.k8s.enums.api_group import ApiGroup
 from phi.k8s.enums.kind import Kind
@@ -40,12 +41,20 @@ class Subject(K8sObject):
     # Defaults to "rbac.authorization.k8s.io" for User and Group subjects.
     api_group: Optional[ApiGroup] = Field(None, alias="apiGroup")
 
+    @field_serializer("api_group")
+    def get_api_group_value(self, v) -> Optional[str]:
+        return v.value if v else None
+
+    @field_serializer("kind")
+    def get_kind_value(self, v) -> str:
+        return v.value
+
     def get_k8s_object(self) -> V1Subject:
         # Return a V1Subject object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_subject.py
         _v1_subject = V1Subject(
-            api_group=self.api_group,
-            kind=self.kind,
+            api_group=self.api_group.value if self.api_group else None,
+            kind=self.kind.value,
             name=self.name,
             namespace=self.namespace,
         )
@@ -67,12 +76,20 @@ class RoleRef(K8sObject):
     # Name is the name of resource being referenced
     name: str
 
+    @field_serializer("api_group")
+    def get_api_group_value(self, v) -> str:
+        return v.value
+
+    @field_serializer("kind")
+    def get_kind_value(self, v) -> str:
+        return v.value
+
     def get_k8s_object(self) -> V1RoleRef:
         # Return a V1RoleRef object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_role_ref.py
         _v1_role_ref = V1RoleRef(
-            api_group=self.api_group,
-            kind=self.kind,
+            api_group=self.api_group.value,
+            kind=self.kind.value,
             name=self.name,
         )
         return _v1_role_ref
@@ -108,8 +125,8 @@ class ClusterRoleBinding(K8sResource):
         # Return a V1ClusterRoleBinding object to create a ClusterRoleBinding
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_cluster_role_binding.py
         _v1_cluster_role_binding = V1ClusterRoleBinding(
-            api_version=self.api_version,
-            kind=self.kind,
+            api_version=self.api_version.value,
+            kind=self.kind.value,
             metadata=self.metadata.get_k8s_object(),
             role_ref=self.role_ref.get_k8s_object(),
             subjects=subjects_list,

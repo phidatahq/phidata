@@ -1,9 +1,6 @@
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict
 
-from pydantic import field_validator, Field
-from pydantic_core.core_schema import FieldValidationInfo
-
-from phi.aws.app.base import AwsApp, WorkspaceVolumeType, ContainerContext  # noqa: F401
+from phi.aws.app.base import AwsApp, ContainerContext, AwsBuildContext  # noqa: F401
 
 
 class Jupyter(AwsApp):
@@ -21,6 +18,10 @@ class Jupyter(AwsApp):
     # Port number on the container
     container_port: int = 8888
 
+    # -*- Workspace Configuration
+    # Path to the workspace directory inside the container
+    workspace_dir_container_path: str = "/usr/local/jupyter"
+
     # -*- ECS Configuration
     ecs_task_cpu: str = "1024"
     ecs_task_memory: str = "2048"
@@ -36,17 +37,15 @@ class Jupyter(AwsApp):
     # Defaults to the workspace_root if mount_workspace = True else "/",
     notebook_dir: Optional[str] = None
 
-    # Set validate_default=True so update_container_env is always called
-    container_env: Optional[Dict[str, Any]] = Field(None, validate_default=True)
+    def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
+        container_env: Dict[str, str] = super().get_container_env(
+            container_context=container_context, build_context=build_context
+        )
 
-    @field_validator("container_env", mode="before")
-    def update_container_env(cls, v, info: FieldValidationInfo):
-        jupyter_config_file = info.data.get("jupyter_config_file", None)
-        if jupyter_config_file is not None:
-            v = v or {}
-            v["JUPYTER_CONFIG_FILE"] = jupyter_config_file
+        if self.jupyter_config_file is not None:
+            container_env["JUPYTER_CONFIG_FILE"] = self.jupyter_config_file
 
-        return v
+        return container_env
 
     def get_container_command(self) -> Optional[List[str]]:
         container_cmd: List[str]
@@ -61,12 +60,9 @@ class Jupyter(AwsApp):
             container_cmd.append(f"--config={str(self.jupyter_config_file)}")
 
         if self.notebook_dir is None:
-            if self.mount_workspace:
-                container_context: Optional[ContainerContext] = self.get_container_context()
-                if container_context is not None and container_context.workspace_root is not None:
-                    container_cmd.append(f"--notebook-dir={str(container_context.workspace_root)}")
-            else:
-                container_cmd.append("--notebook-dir=/")
+            container_context: Optional[ContainerContext] = self.get_container_context()
+            if container_context is not None and container_context.workspace_root is not None:
+                container_cmd.append(f"--notebook-dir={str(container_context.workspace_root)}")
         else:
             container_cmd.append(f"--notebook-dir={str(self.notebook_dir)}")
         return container_cmd

@@ -7,7 +7,7 @@ class Qdrant(DockerApp):
 
     # -*- Image Configuration
     image_name: str = "qdrant/qdrant"
-    image_tag: str = "v1.3.1"
+    image_tag: str = "v1.5.1"
 
     # -*- App Ports
     # Open a container port if open_port=True

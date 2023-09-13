@@ -68,8 +68,8 @@ class Qdrant(VectorDb):
         return False
 
     def name_exists(self, name: str) -> bool:
-        pass
-    
+        raise NotImplementedError
+
     def insert(self, documents: List[Document], batch_size: int = 10) -> UpdateStatus:
         logger.debug(f"Inserting {len(documents)} documents")
         points = []
@@ -143,6 +143,7 @@ class Qdrant(VectorDb):
         if self.client:
             collection_info = self.client.get_collection(collection_name=self.collection)
             return collection_info.status == CollectionStatus.GREEN
+        return False
 
     def get_count(self) -> int:
         return self.client.count(collection_name=self.collection, exact=True)

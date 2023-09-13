@@ -103,5 +103,6 @@ module = [
   "sqlalchemy.*",
   "textract.*",
   "wikipedia.*",
+  "qdrant_client.*",
 ]
 ignore_missing_imports = true

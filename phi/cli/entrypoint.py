@@ -215,6 +215,18 @@ def ai(
         "--debug",
         help="Print debug logs.",
     ),
+    start_new_conversation: bool = typer.Option(
+        False,
+        "-n",
+        "--new",
+        help="Start a new conversation.",
+    ),
+    show_all_messages: bool = typer.Option(
+        False,
+        "-a",
+        "--all",
+        help="Show all previous messages.",
+    ),
 ):
     """
     Chat with Phi AI
@@ -266,7 +278,12 @@ def ai(
                 phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
                 active_ws_config = ws_at_current_path
 
-    start_conversation(phi_config=phi_config, ws_config=active_ws_config)
+    start_conversation(
+        phi_config=phi_config,
+        ws_config=active_ws_config,
+        start_new_conversation=start_new_conversation,
+        show_all_messages=show_all_messages,
+    )
 
 
 # @phi_cli.command(short_help="Start resources defined in a resources.py file")

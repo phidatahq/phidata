@@ -19,7 +19,7 @@ class PhiCliSettings(BaseSettings):
     auth_token_header: str = "X-PHIDATA-AUTH-TOKEN"
 
     api_runtime: str = "prd"
-    api_enabled: bool = False
+    api_enabled: bool = True
     api_url: str = Field("https://api.phidata.com", validate_default=True)
     signin_url: str = Field("https://phidata.com/signin", validate_default=True)
 

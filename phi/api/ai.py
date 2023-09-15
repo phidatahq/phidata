@@ -43,7 +43,7 @@ def conversation_create(user: UserSchema) -> Optional[ConversationCreateResponse
     return None
 
 
-def conversation_chat(user: UserSchema, conversation_id: int, message: str) -> Optional[ConversationChatResponse]:
+def conversation_chat(user: UserSchema, conversation_id: int, message: str, stream: bool = True) -> Optional[ConversationChatResponse]:
     logger.debug("--o-o-- Conversation Chat")
     with api.AuthenticatedClient() as api_client:
         try:
@@ -56,19 +56,24 @@ def conversation_chat(user: UserSchema, conversation_id: int, message: str) -> O
                         "message": message,
                         "type": ConversationType.RAG,
                         "client": ConversationClient.CLI,
+                        "stream": stream,
                     },
                 },
             )
-            if invalid_response(r):
-                return None
+            if stream:
+                pass
+                # yield r.json()
+            else:
+                if invalid_response(r):
+                    return None
 
-            response_json: Union[Dict, List] = r.json()
-            if response_json is None:
-                return None
+                response_json: Union[Dict, List] = r.json()
+                if response_json is None:
+                    return None
 
-            conversation_chat_response = ConversationChatResponse.model_validate(response_json)
-            if conversation_chat_response is not None:
-                return conversation_chat_response
+                conversation_chat_response = ConversationChatResponse.model_validate(response_json)
+                if conversation_chat_response is not None:
+                    return conversation_chat_response
         except Exception as e:
             logger.debug(f"Failed conversation chat: {e}")
     return None

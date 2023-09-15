@@ -29,6 +29,7 @@ class ConversationChat(BaseModel):
     message: str
     type: Optional[ConversationType] = ConversationType.RAG
     client: Optional[ConversationClient] = ConversationClient.CLI
+    stream: bool = True
 
 
 class ConversationChatResponse(BaseModel):

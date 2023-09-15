@@ -6,7 +6,7 @@ from phi.workspace.config import WorkspaceConfig
 from phi.utils.log import logger
 
 
-def start_conversation(
+def phi_ai_conversation(
     phi_config: PhiCliConfig,
     ws_config: WorkspaceConfig,
     start_new_conversation: bool = False,
@@ -62,17 +62,25 @@ def start_conversation(
             conversation_active = False
 
         # -*- Send message to Phi AI
+        stream = False
         chat_response: Optional[ConversationChatResponse] = conversation_chat(
             user=user,
             conversation_id=conversation_id,
             message=user_message,
+            stream=stream,
         )
-        if chat_response is None:
-            logger.error("Could not chat with Phi AI")
-            return False
+        if stream:
+            for r in chat_response:
+                phi_padding = " " * (role_column_width - len("Phi"))
+                console.print(f":sunglasses: Phi{phi_padding}: {r.response}")
+                chat_history.append({"role": "assistant", "content": r.response})
+        else:
+            if chat_response is None:
+                logger.error("Could not reach Phi AI")
+                conversation_active = False
 
-        phi_padding = " " * (role_column_width - len("Phi"))
-        console.print(f":sunglasses: Phi{phi_padding}: {chat_response.response}")
-        chat_history.append({"role": "assistant", "content": chat_response.response})
+            phi_padding = " " * (role_column_width - len("Phi"))
+            console.print(f":sunglasses: Phi{phi_padding}: {chat_response.response}")
+            chat_history.append({"role": "assistant", "content": chat_response.response})
 
     return True

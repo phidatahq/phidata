@@ -248,7 +248,7 @@ def ai(
         print_available_workspaces,
     )
     from phi.workspace.config import WorkspaceConfig
-    from phi.cli.ai.operator import start_conversation
+    from phi.cli.ai.operator import phi_ai_conversation
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -278,7 +278,7 @@ def ai(
                 phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
                 active_ws_config = ws_at_current_path
 
-    start_conversation(
+    phi_ai_conversation(
         phi_config=phi_config,
         ws_config=active_ws_config,
         start_new_conversation=start_new_conversation,

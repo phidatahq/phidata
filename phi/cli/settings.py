@@ -15,6 +15,7 @@ class PhiCliSettings(BaseSettings):
     auth_token_path: Path = PHI_CLI_DIR.joinpath("token")
     config_file_path: Path = PHI_CLI_DIR.joinpath("config")
     credentials_path: Path = PHI_CLI_DIR.joinpath("credentials")
+    ai_conversations_path: Path = PHI_CLI_DIR.joinpath("ai_conversations.json")
     auth_token_cookie: str = "__phi_session"
     auth_token_header: str = "X-PHIDATA-AUTH-TOKEN"
 

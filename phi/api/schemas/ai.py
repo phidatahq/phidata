@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 
 from pydantic import BaseModel
 
@@ -14,23 +14,6 @@ class ConversationClient(str, Enum):
     WEB = "WEB"
 
 
-class ConversationCreate(BaseModel):
-    type: Optional[ConversationType] = ConversationType.RAG
-    client: Optional[ConversationClient] = ConversationClient.CLI
-
-
 class ConversationCreateResponse(BaseModel):
     id: int
     chat_history: List[Dict[str, Any]]
-
-
-class ConversationChat(BaseModel):
-    id: int
-    message: str
-    type: Optional[ConversationType] = ConversationType.RAG
-    client: Optional[ConversationClient] = ConversationClient.CLI
-    stream: bool = True
-
-
-class ConversationChatResponse(BaseModel):
-    response: str

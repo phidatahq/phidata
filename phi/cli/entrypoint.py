@@ -209,11 +209,11 @@ def set(
 
 @phi_cli.command(short_help="Chat with Phi AI", options_metavar="")
 def ai(
-    print_debug_log: bool = typer.Option(
+    batch: bool = typer.Option(
         False,
-        "-d",
-        "--debug",
-        help="Print debug logs.",
+        "-b",
+        "--batch",
+        help="Return the response as a batch i.e do not stream the response.",
     ),
     start_new_conversation: bool = typer.Option(
         False,
@@ -221,11 +221,17 @@ def ai(
         "--new",
         help="Start a new conversation.",
     ),
-    show_all_messages: bool = typer.Option(
+    show_previous_messages: bool = typer.Option(
         False,
         "-a",
         "--all",
         help="Show all previous messages.",
+    ),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
     ),
 ):
     """
@@ -248,7 +254,7 @@ def ai(
         print_available_workspaces,
     )
     from phi.workspace.config import WorkspaceConfig
-    from phi.cli.ai.operator import phi_ai_conversation
+    from phi.ai.operator import phi_ai_conversation
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -282,7 +288,8 @@ def ai(
         phi_config=phi_config,
         ws_config=active_ws_config,
         start_new_conversation=start_new_conversation,
-        show_all_messages=show_all_messages,
+        show_previous_messages=show_previous_messages,
+        stream=(not batch),
     )
 
 

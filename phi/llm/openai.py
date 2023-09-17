@@ -62,19 +62,37 @@ class OpenAIChat(LLM):
         )
         if response_function_call is not None and isinstance(response_function_call, OpenAIObject):
             assistant_message.function_call = response_function_call.to_dict()
-        assistant_message.metrics["time"] = response_timer.elapsed
 
         # -*- Update usage metrics
+        # Add response time to metrics
+        assistant_message.metrics["time"] = response_timer.elapsed
+        if "response_times" not in self.metrics:
+            self.metrics["response_times"] = []
+        self.metrics["response_times"].append(response_timer.elapsed)
+
+        # Add token usage to metrics
         response_usage = response.usage
         prompt_tokens = response_usage.get("prompt_tokens")
         if prompt_tokens is not None:
             assistant_message.metrics["prompt_tokens"] = prompt_tokens
+            if "prompt_tokens" not in self.metrics:
+                self.metrics["prompt_tokens"] = prompt_tokens
+            else:
+                self.metrics["prompt_tokens"] += prompt_tokens
         completion_tokens = response_usage.get("completion_tokens")
         if completion_tokens is not None:
             assistant_message.metrics["completion_tokens"] = completion_tokens
+            if "completion_tokens" not in self.metrics:
+                self.metrics["completion_tokens"] = completion_tokens
+            else:
+                self.metrics["completion_tokens"] += completion_tokens
         total_tokens = response_usage.get("total_tokens")
         if total_tokens is not None:
             assistant_message.metrics["total_tokens"] = total_tokens
+            if "total_tokens" not in self.metrics:
+                self.metrics["total_tokens"] = total_tokens
+            else:
+                self.metrics["total_tokens"] += total_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -114,6 +132,11 @@ class OpenAIChat(LLM):
                     metrics={"time": function_call_timer.elapsed},
                 )
                 messages.append(function_call_message)
+                if "function_call_times" not in self.metrics:
+                    self.metrics["function_call_times"] = {}
+                if function_call.function.name not in self.metrics["function_call_times"]:
+                    self.metrics["function_call_times"][function_call.function.name] = []
+                self.metrics["function_call_times"][function_call.function.name].append(function_call_timer.elapsed)
 
                 # -*- Get new response using result of function call
                 final_response = ""
@@ -170,11 +193,34 @@ class OpenAIChat(LLM):
                     _function_arguments_str += _function_args_stream
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-        assistant_message.metrics["time"] = response_timer.elapsed
 
         # -*- Update usage metrics
+        # Add response time to metrics
+        assistant_message.metrics["time"] = response_timer.elapsed
+        if "response_times" not in self.metrics:
+            self.metrics["response_times"] = []
+        self.metrics["response_times"].append(response_timer.elapsed)
+
+        # Add token usage to metrics
+        # TODO: compute prompt tokens
+        prompt_tokens = 0
+        assistant_message.metrics["prompt_tokens"] = prompt_tokens
+        if "prompt_tokens" not in self.metrics:
+            self.metrics["prompt_tokens"] = prompt_tokens
+        else:
+            self.metrics["prompt_tokens"] += prompt_tokens
         logger.debug(f"Estimated completion tokens: {completion_tokens}")
         assistant_message.metrics["completion_tokens"] = completion_tokens
+        if "completion_tokens" not in self.metrics:
+            self.metrics["completion_tokens"] = completion_tokens
+        else:
+            self.metrics["completion_tokens"] += completion_tokens
+        total_tokens = prompt_tokens + completion_tokens
+        assistant_message.metrics["total_tokens"] = total_tokens
+        if "total_tokens" not in self.metrics:
+            self.metrics["total_tokens"] = total_tokens
+        else:
+            self.metrics["total_tokens"] += total_tokens
 
         # -*- Parse and run function call
         if _function_name is not None and _function_name != "":
@@ -216,6 +262,11 @@ class OpenAIChat(LLM):
                 metrics={"time": function_call_timer.elapsed},
             )
             messages.append(function_call_message)
+            if "function_call_times" not in self.metrics:
+                self.metrics["function_call_times"] = {}
+            if function_call.function.name not in self.metrics["function_call_times"]:
+                self.metrics["function_call_times"][function_call.function.name] = []
+            self.metrics["function_call_times"][function_call.function.name].append(function_call_timer.elapsed)
 
             # -*- Yield new response using result of function call
             yield from self.response_stream(messages=messages)

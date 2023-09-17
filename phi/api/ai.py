@@ -43,7 +43,9 @@ def conversation_create(user: UserSchema) -> Optional[ConversationCreateResponse
     return None
 
 
-def conversation_chat(user: UserSchema, conversation_id: int, message: str, stream: bool = True) -> Optional[ConversationChatResponse]:
+def conversation_chat(
+    user: UserSchema, conversation_id: int, message: str, stream: bool = True
+) -> Optional[ConversationChatResponse]:
     logger.debug("--o-o-- Conversation Chat")
     with api.AuthenticatedClient() as api_client:
         try:

@@ -141,7 +141,7 @@ class Conversation(BaseModel):
                 self.llm.show_function_calls = self.show_function_calls
         return self  # type: ignore
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def set_id(self) -> "Conversation":
         if self.storage is None:
             import random
@@ -149,7 +149,7 @@ class Conversation(BaseModel):
             # Generate random integer ID
             self.id = random.randint(1000000000000000, 9999999999999999)
             logger.debug(f"Conversation ID set to {self.id}")
-        return self  # type: ignore
+        return self
 
     def to_conversation_row(self) -> ConversationRow:
         """Create a ConversationRow for the current conversation (usually to save to the database)"""
@@ -460,6 +460,7 @@ class Conversation(BaseModel):
             "llm_response": llm_response,
             "messages": [m.model_dump(exclude_none=True) for m in messages],
             "references": references.model_dump(exclude_none=True) if references else None,
+            "metrics": self.llm.metrics,
         }
         self._api_send_conversation_event(event_type="chat", event_data=event_data)
 
@@ -510,6 +511,7 @@ class Conversation(BaseModel):
             "user_message": user_message,
             "llm_response": llm_response,
             "messages": [m.model_dump(exclude_none=True) for m in messages],
+            "metrics": self.llm.metrics,
         }
         self._api_send_conversation_event(event_type="prompt", event_data=event_data)
 

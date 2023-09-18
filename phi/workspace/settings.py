@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import field_validator
+from pydantic import field_validator, Extra
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_core.core_schema import FieldValidationInfo
 
@@ -160,7 +160,7 @@ class WorkspaceSettings(BaseSettings):
     # WorkspaceSchema provided by the api
     ws_schema: Optional[WorkspaceSchema] = None
 
-    model_config = SettingsConfigDict(extra="allow")
+    model_config = SettingsConfigDict(extra=Extra.allow)
 
     @field_validator("dev_key", mode="before")
     def set_dev_key(cls, dev_key, info: FieldValidationInfo):

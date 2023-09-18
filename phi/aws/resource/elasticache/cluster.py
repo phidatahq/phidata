@@ -69,10 +69,10 @@ class CacheCluster(AwsResource):
     cache_security_group_names: Optional[List[str]] = None
     # One or more VPC security groups associated with the cluster.
     # Use this parameter only when you are creating a cluster in an Amazon Virtual Private Cloud (Amazon VPC).
-    security_group_ids: Optional[List[str]] = None
-    # If security_group_ids is None
-    # Read the security_group_id from security_groups
-    security_groups: Optional[List[SecurityGroup]] = None
+    cache_security_group_ids: Optional[List[str]] = None
+    # If cache_security_group_ids is None
+    # Read the security_group_id from cache_security_groups
+    cache_security_groups: Optional[List[SecurityGroup]] = None
 
     tags: Optional[List[Dict[str, str]]] = None
     snapshot_arns: Optional[List[str]] = None
@@ -138,18 +138,18 @@ class CacheCluster(AwsResource):
         if cache_subnet_group_name is not None:
             not_null_args["CacheSubnetGroupName"] = cache_subnet_group_name
 
-        security_group_ids = self.security_group_ids
-        if security_group_ids is None and self.security_groups is not None:
+        cache_security_group_ids = self.cache_security_group_ids
+        if cache_security_group_ids is None and self.cache_security_groups is not None:
             sg_ids = []
-            for sg in self.security_groups:
+            for sg in self.cache_security_groups:
                 sg_id = sg.get_security_group_id(aws_client)
                 if sg_id is not None:
                     sg_ids.append(sg_id)
             if len(sg_ids) > 0:
-                security_group_ids = sg_ids
-                logger.debug(f"Using SecurityGroups: {security_group_ids}")
-        if security_group_ids is not None:
-            not_null_args["SecurityGroupIds"] = security_group_ids
+                cache_security_group_ids = sg_ids
+                logger.debug(f"Using SecurityGroups: {cache_security_group_ids}")
+        if cache_security_group_ids is not None:
+            not_null_args["SecurityGroupIds"] = cache_security_group_ids
 
         if self.replication_group_id is not None:
             not_null_args["ReplicationGroupId"] = self.replication_group_id
@@ -319,3 +319,51 @@ class CacheCluster(AwsResource):
                 logger.error("Waiter failed.")
                 logger.error(e)
         return True
+
+    def get_cache_endpoint(self, aws_client: AwsApiClient) -> Optional[str]:
+        """Returns the CacheCluster endpoint
+
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+        cache_endpoint = None
+        try:
+            cache_cluster_id = self.get_cache_cluster_id()
+            describe_response = self.get_service_client(aws_client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            logger.debug(f"CacheCluster: {describe_response}")
+            resource_list = describe_response.get("CacheClusters", None)
+
+            if resource_list is not None and isinstance(resource_list, list):
+                for resource in resource_list:
+                    _cluster_identifier = resource.get("CacheClusterId", None)
+                    if _cluster_identifier == cache_cluster_id:
+                        cache_endpoint = resource.get("ConfigurationEndpoint", {}).get("Address", None)
+                        break
+        except Exception as e:
+            logger.error(f"Error reading {self.get_resource_type()}.")
+            logger.error(e)
+        return cache_endpoint
+
+    def get_cache_port(self, aws_client: AwsApiClient) -> Optional[int]:
+        """Returns the CacheCluster port
+
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+        cache_port = None
+        try:
+            cache_cluster_id = self.get_cache_cluster_id()
+            describe_response = self.get_service_client(aws_client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            logger.debug(f"CacheCluster: {describe_response}")
+            resource_list = describe_response.get("CacheClusters", None)
+
+            if resource_list is not None and isinstance(resource_list, list):
+                for resource in resource_list:
+                    _cluster_identifier = resource.get("CacheClusterId", None)
+                    if _cluster_identifier == cache_cluster_id:
+                        cache_port = resource.get("ConfigurationEndpoint", {}).get("Port", None)
+                        break
+        except Exception as e:
+            logger.error(f"Error reading {self.get_resource_type()}.")
+            logger.error(e)
+        return cache_port

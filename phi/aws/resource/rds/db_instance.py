@@ -511,31 +511,31 @@ class DbInstance(AwsResource):
         not_null_args: Dict[str, Any] = {}
 
         # Step 1: Get the VpcSecurityGroupIds
-        vpc_security_group_ids = self.vpc_security_group_ids
-        if vpc_security_group_ids is None and self.vpc_stack is not None:
-            vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
-            if vpc_stack_sg is not None:
-                logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
-                vpc_security_group_ids = [vpc_stack_sg]
-        if vpc_security_group_ids is None and self.db_security_groups is not None:
-            sg_ids = []
-            for sg in self.db_security_groups:
-                sg_id = sg.get_security_group_id(aws_client)
-                if sg_id is not None:
-                    sg_ids.append(sg_id)
-            if len(sg_ids) > 0:
-                vpc_security_group_ids = sg_ids
-                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
-        if vpc_security_group_ids is not None:
-            not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
-
-        # Step 2: Get the DbSubnetGroupName
-        db_subnet_group_name = self.db_subnet_group_name
-        if db_subnet_group_name is None and self.db_subnet_group is not None:
-            db_subnet_group_name = self.db_subnet_group.name
-            logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
-        if db_subnet_group_name is not None:
-            not_null_args["DBSubnetGroupName"] = db_subnet_group_name
+        # vpc_security_group_ids = self.vpc_security_group_ids
+        # if vpc_security_group_ids is None and self.vpc_stack is not None:
+        #     vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
+        #     if vpc_stack_sg is not None:
+        #         logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
+        #         vpc_security_group_ids = [vpc_stack_sg]
+        # if vpc_security_group_ids is None and self.db_security_groups is not None:
+        #     sg_ids = []
+        #     for sg in self.db_security_groups:
+        #         sg_id = sg.get_security_group_id(aws_client)
+        #         if sg_id is not None:
+        #             sg_ids.append(sg_id)
+        #     if len(sg_ids) > 0:
+        #         vpc_security_group_ids = sg_ids
+        #         logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+        # if vpc_security_group_ids is not None:
+        #     not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
+        #
+        # # Step 2: Get the DbSubnetGroupName
+        # db_subnet_group_name = self.db_subnet_group_name
+        # if db_subnet_group_name is None and self.db_subnet_group is not None:
+        #     db_subnet_group_name = self.db_subnet_group.name
+        #     logger.debug(f"Using DbSubnetGroup: {db_subnet_group_name}")
+        # if db_subnet_group_name is not None:
+        #     not_null_args["DBSubnetGroupName"] = db_subnet_group_name
 
         apply_immediately = self.apply_immediately or True
         not_null_args["ApplyImmediately"] = apply_immediately

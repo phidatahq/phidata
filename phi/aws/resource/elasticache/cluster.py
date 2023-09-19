@@ -320,7 +320,7 @@ class CacheCluster(AwsResource):
                 logger.error(e)
         return True
 
-    def get_cache_endpoint(self, aws_client: AwsApiClient) -> Optional[str]:
+    def get_cache_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         """Returns the CacheCluster endpoint
 
         Args:
@@ -328,8 +328,9 @@ class CacheCluster(AwsResource):
         """
         cache_endpoint = None
         try:
+            client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
-            describe_response = self.get_service_client(aws_client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            describe_response = self.get_service_client(client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
             logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
@@ -344,7 +345,7 @@ class CacheCluster(AwsResource):
             logger.error(e)
         return cache_endpoint
 
-    def get_cache_port(self, aws_client: AwsApiClient) -> Optional[int]:
+    def get_cache_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[int]:
         """Returns the CacheCluster port
 
         Args:
@@ -352,8 +353,9 @@ class CacheCluster(AwsResource):
         """
         cache_port = None
         try:
+            client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
-            describe_response = self.get_service_client(aws_client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            describe_response = self.get_service_client(client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
             logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 

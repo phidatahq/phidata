@@ -12,7 +12,7 @@ from phi.utils.dttm import current_datetime_utc
 from phi.utils.log import logger
 
 # List of directories to ignore when loading the workspace
-ignored_dirs = ["ignore", "tests", "config"]
+ignored_dirs = ["ignore", "test", "tests", "config"]
 
 
 class WorkspaceConfig(BaseModel):

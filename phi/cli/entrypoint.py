@@ -245,15 +245,8 @@ def ai(
     if print_debug_log:
         set_log_level_to_debug()
 
-    from pathlib import Path
     from phi.cli.config import PhiCliConfig
-    from phi.cli.console import (
-        print_info,
-        log_config_not_available_msg,
-        log_active_workspace_not_available,
-        print_available_workspaces,
-    )
-    from phi.workspace.config import WorkspaceConfig
+    from phi.cli.console import log_config_not_available_msg
     from phi.ai.operator import phi_ai_conversation
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
@@ -261,32 +254,8 @@ def ai(
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-    if active_ws_config is None:
-        log_active_workspace_not_available()
-        avl_ws = phi_config.available_ws
-        if avl_ws:
-            print_available_workspaces(avl_ws)
-        return
-
-    current_path: Path = Path(".").resolve()
-    if active_ws_config.ws_root_path != current_path:
-        ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
-        if ws_at_current_path is not None:
-            print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
-            )
-            update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
-            )
-            if update_active_workspace:
-                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
-                active_ws_config = ws_at_current_path
-
     phi_ai_conversation(
         phi_config=phi_config,
-        ws_config=active_ws_config,
         start_new_conversation=start_new_conversation,
         show_previous_messages=show_previous_messages,
         stream=(not batch),

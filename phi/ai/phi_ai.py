@@ -14,16 +14,12 @@ class PhiAI:
         self,
         new_conversation: bool = False,
         phi_config: Optional[PhiCliConfig] = None,
-        ws_config: Optional[WorkspaceConfig] = None,
     ):
         logger.debug("--**-- Starting Phi AI --**--")
 
         _phi_config = phi_config or PhiCliConfig.from_saved_config()
         if _phi_config is None:
             raise ValueError("Phi config not found. Please run `phi init`")
-        _ws_config = ws_config or _phi_config.get_active_ws_config()
-        if _ws_config is None:
-            raise ValueError("Workspace config not found. Please run `phi ws setup`")
         _user = _phi_config.user
         if _user is None:
             raise ValueError("User not found. Please run `phi auth`")
@@ -42,13 +38,13 @@ class PhiAI:
 
             _conversation: Optional[ConversationCreateResponse] = conversation_create(user=_user)
             if _conversation is None:
-                raise Exception("Could not create conversation")
+                logger.error("Could not create conversation, please authenticate using `phi auth`")
+                exit(0)
 
             _conversation_id = _conversation.id
             _conversation_history = _conversation.chat_history
 
         self.phi_config: PhiCliConfig = _phi_config
-        self.ws_config: WorkspaceConfig = _ws_config
         self.user: UserSchema = _user
         self.conversation_id: int = _conversation_id
         self.conversation_history: List[Dict[str, Any]] = _conversation_history or []

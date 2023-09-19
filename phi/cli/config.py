@@ -46,7 +46,9 @@ class PhiCliConfig:
         if user is not None:
             logger.debug(f"Setting user to: {user.email}")
             clear_user_cache = (
-                self._user is not None and self._user.email != "anon" and user.id_user != self._user.id_user
+                self._user is not None  # previous user is not None
+                and self._user.email != "anon"  # previous user is not anon
+                and (user.email != self._user.email or user.id_user != self._user.id_user) # new user is different
             )
             self._user = user
             if clear_user_cache:
@@ -59,6 +61,7 @@ class PhiCliConfig:
         self.ws_config_map.clear()
         self.path_to_ws_config_map.clear()
         self._active_ws_dir = None
+        phi_cli_settings.ai_conversations_path.unlink(missing_ok=True)
         logger.info("Workspaces cleared, please setup again using `phi ws setup`")
 
     ######################################################

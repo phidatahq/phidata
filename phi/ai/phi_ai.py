@@ -1,9 +1,12 @@
 from typing import Optional, Dict, List, Any, Iterator
 
 from phi.api.schemas.user import UserSchema
+from phi.api.schemas.ai import ConversationType
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import console
 from phi.cli.settings import phi_cli_settings
+from phi.llm.schemas import Function
+from phi.llm.function.shell import ShellScriptsRegistry
 from phi.workspace.config import WorkspaceConfig
 from phi.utils.log import logger
 from phi.utils.json_io import write_json_file, read_json_file
@@ -13,6 +16,7 @@ class PhiAI:
     def __init__(
         self,
         new_conversation: bool = False,
+        conversation_type: ConversationType = ConversationType.RAG,
         phi_config: Optional[PhiCliConfig] = None,
     ):
         logger.debug("--**-- Starting Phi AI --**--")
@@ -23,20 +27,41 @@ class PhiAI:
         _user = _phi_config.user
         if _user is None:
             raise ValueError("User not found. Please run `phi auth`")
+        _active_workspace = _phi_config.get_active_ws_config()
+
+        self.conversation_db: Optional[List[Dict[str, Any]]] = None
+        self.functions: Dict[str, Function] = {
+            "run_shell_command": Function.from_callable(ShellScriptsRegistry.run_shell_command)
+        }
+        logger.debug(f"Functions: {self.functions.keys()}")
 
         _conversation_id = None
         _conversation_history = None
-        self.conversation_db: Optional[List[Dict[str, Any]]] = None
         if not new_conversation:
             latest_conversation = self.get_latest_conversation()
             if latest_conversation is not None:
-                _conversation_id = latest_conversation.get("conversation_id")
-                _conversation_history = latest_conversation.get("conversation_history")
+                # Check if the latest conversation is of the same type and user
+                if latest_conversation.get("conversation_type") == conversation_type and latest_conversation.get(
+                    "user"
+                ) == _user.model_dump(include={"id_user", "email"}):
+                    logger.debug("Found conversation for the same user and type")
+                    # Check if the latest conversation is for the same workspace
+                    if _active_workspace is not None and latest_conversation.get(
+                        "workspace"
+                    ) == _active_workspace.model_dump(include={"ws_dir_name"}):
+                        logger.debug("Found conversation for the same workspace")
+                        # Check if the latest conversation has the same functions
+                        if latest_conversation.get("functions") == list(self.functions.keys()):
+                            logger.debug("Found conversation with the same functions")
+                            _conversation_id = latest_conversation.get("conversation_id")
+                            _conversation_history = latest_conversation.get("conversation_history")
 
         if _conversation_id is None:
             from phi.api.ai import conversation_create, ConversationCreateResponse
 
-            _conversation: Optional[ConversationCreateResponse] = conversation_create(user=_user)
+            _conversation: Optional[ConversationCreateResponse] = conversation_create(
+                user=_user, conversation_type=conversation_type, functions=self.functions
+            )
             if _conversation is None:
                 logger.error("Could not create conversation, please authenticate using `phi auth`")
                 exit(0)
@@ -46,13 +71,15 @@ class PhiAI:
 
         self.phi_config: PhiCliConfig = _phi_config
         self.user: UserSchema = _user
+        self.active_workspace: Optional[WorkspaceConfig] = _active_workspace
         self.conversation_id: int = _conversation_id
         self.conversation_history: List[Dict[str, Any]] = _conversation_history or []
+        self.conversation_type: ConversationType = conversation_type
 
         self.save_conversation()
         logger.debug(f"--**-- Conversation: {self.conversation_id} --**--")
 
-    def start_conversation(self, stream: bool = False):
+    async def start_conversation(self, stream: bool = False):
         from rich import box
         from rich.prompt import Prompt
         from rich.live import Live
@@ -76,6 +103,8 @@ class PhiAI:
                 user=self.user,
                 conversation_id=self.conversation_id,
                 message=user_message,
+                conversation_type=self.conversation_type,
+                functions=self.functions,
                 stream=stream,
             )
             if api_response is None:
@@ -119,24 +148,17 @@ class PhiAI:
             else:
                 table.add_row(message["role"], Markdown(message["content"]))
         console.print(table)
-        # for message in self.conversation_history:
-        #     if message["role"] == "system":
-        #         continue
-        #     elif message["role"] == "assistant":
-        #         padding = " " * (self.column_width - len("Phi"))
-        #         print_info(f":sunglasses: Phi{padding}: {message['content']}")
-        #     elif message["role"] == "user":
-        #         username = self.user.username or "You"
-        #         padding = " " * (self.column_width - len(username))
-        #         print_info(f":sunglasses: {username}{padding}: {message['content']}")
-        #     else:
-        #         padding = " " * (self.column_width - len(message["role"]))
-        #         print_info(f":sunglasses: {message['role']}:{padding}: {message['content']}")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "conversation_id": self.conversation_id,
             "conversation_history": self.conversation_history,
+            "conversation_type": self.conversation_type,
+            "user": self.user.model_dump(include={"id_user", "email"}),
+            "workspace": self.active_workspace.model_dump(include={"ws_dir_name"})
+            if self.active_workspace is not None
+            else None,
+            "functions": list(self.functions.keys()),
         }
 
     def save_conversation(self):

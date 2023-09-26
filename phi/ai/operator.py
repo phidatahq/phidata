@@ -1,19 +1,21 @@
+from phi.api.schemas.ai import ConversationType
 from phi.cli.config import PhiCliConfig
-from phi.workspace.config import WorkspaceConfig
 
 
 def phi_ai_conversation(
     phi_config: PhiCliConfig,
     start_new_conversation: bool = False,
-    show_previous_messages: bool = False,
+    autonomous_conversation: bool = True,
+    print_conversation_history: bool = False,
     stream: bool = False,
 ) -> None:
     """Start a conversation with Phi AI."""
 
     from phi.ai.phi_ai import PhiAI
 
-    ai = PhiAI(new_conversation=start_new_conversation, phi_config=phi_config)
-    if show_previous_messages:
+    conversation_type = ConversationType.AUTO if autonomous_conversation else ConversationType.RAG
+    ai = PhiAI(new_conversation=start_new_conversation, conversation_type=conversation_type, phi_config=phi_config)
+    if print_conversation_history:
         ai.print_conversation_history()
 
     ai.start_conversation(stream=stream)

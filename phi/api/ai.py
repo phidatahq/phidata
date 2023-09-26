@@ -10,10 +10,15 @@ from phi.api.schemas.ai import (
     ConversationCreateResponse,
 )
 from phi.api.schemas.user import UserSchema
+from phi.llm.schemas import Function
 from phi.utils.log import logger
 
 
-def conversation_create(user: UserSchema) -> Optional[ConversationCreateResponse]:
+def conversation_create(
+    user: UserSchema,
+    conversation_type: ConversationType = ConversationType.RAG,
+    functions: Optional[Dict[str, Function]] = None,
+) -> Optional[ConversationCreateResponse]:
     logger.debug("--o-o-- Creating Conversation")
     with api.AuthenticatedClient() as api_client:
         try:
@@ -22,8 +27,13 @@ def conversation_create(user: UserSchema) -> Optional[ConversationCreateResponse
                 json={
                     "user": user.model_dump(include={"id_user", "email"}),
                     "conversation": {
-                        "type": ConversationType.RAG,
+                        "type": conversation_type,
                         "client": ConversationClient.CLI,
+                        "functions": {
+                            k: v.model_dump(include={"name", "description", "parameters"}) for k, v in functions.items()
+                        }
+                        if functions is not None
+                        else None,
                     },
                 },
             )
@@ -43,7 +53,12 @@ def conversation_create(user: UserSchema) -> Optional[ConversationCreateResponse
 
 
 def conversation_chat(
-    user: UserSchema, conversation_id: int, message: str, stream: bool = True
+    user: UserSchema,
+    conversation_id: int,
+    message: str,
+    conversation_type: ConversationType = ConversationType.RAG,
+    functions: Optional[Dict[str, Function]] = None,
+    stream: bool = True,
 ) -> Optional[Iterator[str]]:
     with api.AuthenticatedClient() as api_client:
         if stream:
@@ -57,8 +72,14 @@ def conversation_chat(
                         "conversation": {
                             "id": conversation_id,
                             "message": message,
-                            "type": ConversationType.RAG,
+                            "type": conversation_type,
                             "client": ConversationClient.CLI,
+                            "functions": {
+                                k: v.model_dump(include={"name", "description", "parameters"})
+                                for k, v in functions.items()
+                            }
+                            if functions is not None
+                            else None,
                             "stream": stream,
                         },
                     },

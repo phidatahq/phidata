@@ -20,7 +20,8 @@ dependencies = [
   "rich",
   "tomli",
   "typer",
-  "typing-extensions"
+  "typing-extensions",
+  "wsproto",
 ]
 
 [project.optional-dependencies]

@@ -209,23 +209,29 @@ def set(
 
 @phi_cli.command(short_help="Chat with Phi AI", options_metavar="")
 def ai(
-    batch: bool = typer.Option(
-        False,
-        "-b",
-        "--batch",
-        help="Return the response as a batch i.e do not stream the response.",
-    ),
     start_new_conversation: bool = typer.Option(
         False,
         "-n",
         "--new",
         help="Start a new conversation.",
     ),
-    show_previous_messages: bool = typer.Option(
-        False,
+    autonomous_conversation: bool = typer.Option(
+        True,
         "-a",
-        "--all",
+        "--autonomous",
+        help="Start an autonomous conversation that can call functions and take actions.",
+    ),
+    print_conversation_history: bool = typer.Option(
+        False,
+        "-h",
+        "--history",
         help="Show all previous messages.",
+    ),
+    batch: bool = typer.Option(
+        False,
+        "-b",
+        "--batch",
+        help="Return the response as a batch i.e do not stream the response.",
     ),
     print_debug_log: bool = typer.Option(
         False,
@@ -257,7 +263,8 @@ def ai(
     phi_ai_conversation(
         phi_config=phi_config,
         start_new_conversation=start_new_conversation,
-        show_previous_messages=show_previous_messages,
+        autonomous_conversation=autonomous_conversation,
+        print_conversation_history=print_conversation_history,
         stream=(not batch),
     )
 

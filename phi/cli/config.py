@@ -48,7 +48,7 @@ class PhiCliConfig:
             clear_user_cache = (
                 self._user is not None  # previous user is not None
                 and self._user.email != "anon"  # previous user is not anon
-                and (user.email != self._user.email or user.id_user != self._user.id_user) # new user is different
+                and (user.email != self._user.email or user.id_user != self._user.id_user)  # new user is different
             )
             self._user = user
             if clear_user_cache:

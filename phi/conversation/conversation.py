@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
@@ -310,8 +311,6 @@ class Conversation(BaseModel):
         if self.knowledge_base is None:
             return None
 
-        import json
-
         relevant_docs: List[Document] = self.knowledge_base.search(query=query)
         return json.dumps([doc.to_dict() for doc in relevant_docs])
 
@@ -425,14 +424,14 @@ class Conversation(BaseModel):
             messages += self.history.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
 
-        # -*- Generate response
+        # -*- Generate response: including running function calls
         llm_response = ""
         if stream:
-            for response_chunk in self.llm.response_stream(messages=messages):
+            for response_chunk in self.llm.parsed_response_stream(messages=messages):
                 llm_response += response_chunk
                 yield response_chunk
         else:
-            llm_response = self.llm.response(messages=messages)
+            llm_response = self.llm.parsed_response(messages=messages)
 
         # -*- Add messages to the history
         # Add the system prompt to the history - added only if this is the first message to the LLM
@@ -476,10 +475,10 @@ class Conversation(BaseModel):
         else:
             return next(resp)
 
-    def _prompt(
+    def _chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
-    ) -> Iterator[str]:
-        logger.debug("*********** Conversation Prompt Start ***********")
+    ) -> Iterator[Dict]:
+        logger.debug("*********** Conversation Raw Chat Start ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
 
@@ -492,16 +491,20 @@ class Conversation(BaseModel):
             self.history.add_user_prompt(message=message)
 
         # -*- Generate response
-        llm_response = ""
+        batch_llm_response = {}
         if stream:
-            for response_chunk in self.llm.response_stream(messages=messages):
-                llm_response += response_chunk
-                yield response_chunk
+            for response_delta in self.llm.response_delta(messages=messages):
+                yield response_delta
         else:
-            llm_response = self.llm.response(messages=messages)
+            batch_llm_response = self.llm.response_message(messages=messages)
 
         # -*- Add response to the history - this is added to the chat and llm history
-        self.history.add_llm_response(Message(role="assistant", content=llm_response))
+        # Last message is the llm response
+        llm_response_message = messages[-1]
+        try:
+            self.history.add_llm_response(llm_response_message)
+        except Exception as e:
+            logger.warning(f"Failed to add llm response to history: {e}")
 
         # -*- Save conversation to storage
         self.write_to_storage()
@@ -509,7 +512,7 @@ class Conversation(BaseModel):
         # -*- Send conversation event
         event_data = {
             "user_message": user_message,
-            "llm_response": llm_response,
+            "llm_response": llm_response_message,
             "messages": [m.model_dump(exclude_none=True) for m in messages],
             "metrics": self.llm.metrics,
         }
@@ -517,13 +520,13 @@ class Conversation(BaseModel):
 
         # -*- Return final response if not streaming
         if not stream:
-            yield llm_response
-        logger.debug("*********** Conversation Prompt End ***********")
+            yield batch_llm_response
+        logger.debug("*********** Conversation Raw Chat End ***********")
 
-    def prompt(
+    def chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
-    ) -> Union[Iterator[str], str]:
-        resp = self._prompt(messages=messages, user_message=user_message, stream=stream)
+    ) -> Union[Iterator[Dict], Dict]:
+        resp = self._chat_raw(messages=messages, user_message=user_message, stream=stream)
         if stream:
             return resp
         else:
@@ -557,7 +560,7 @@ class Conversation(BaseModel):
         )
         user_message = Message(role="user", content=_conv)
         generate_name_message = [system_message, user_message]
-        generated_name = self.llm.response(messages=generate_name_message)
+        generated_name = self.llm.parsed_response(messages=generate_name_message)
         if len(generated_name.split()) > 15:
             logger.error("Generated name is too long. Trying again.")
             return self.generate_name()
@@ -635,8 +638,6 @@ class Conversation(BaseModel):
             Each chat contains 2 messages. One from the user and one from the assistant.
         :return: A list of dictionaries representing the chat history.
         """
-        import json
-
         history: List[Dict[str, Any]] = []
         all_chats = self.history.get_chats()
         if len(all_chats) == 0:

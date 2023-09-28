@@ -19,12 +19,13 @@ class ShellScriptsRegistry(FunctionRegistry):
 
         import subprocess
 
-        result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        logger.debug("Return code:", result.returncode)
-        logger.debug("Have {} bytes in stdout:\n{}".format(len(result.stdout), result.stdout.decode()))
-        logger.debug("Have {} bytes in stderr:\n{}".format(len(result.stderr), result.stderr.decode()))
-
-        if result.returncode != 0:
-            return f"error: {result.stderr.decode()}"
-        return result.stdout.decode()
+        try:
+            result = subprocess.run(args, capture_output=True, text=True)
+            logger.debug(f"Result: {result}")
+            logger.debug(f"Return code: {result.returncode}")
+            if result.returncode != 0:
+                return f"Error: {result.stderr}"
+            return result.stdout
+        except Exception as e:
+            logger.warning(f"Failed to run shell command: {e}")
+            return f"Error: {e}"

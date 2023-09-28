@@ -132,7 +132,8 @@ class FunctionCall(BaseModel):
                 self.result = self.function.entrypoint()
                 return True
             except Exception as e:
-                logger.warning(f"Could not run function {self.get_call_str()}: {e}")
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.error(e)
                 return False
 
         # Validate the arguments if provided.

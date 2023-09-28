@@ -33,3 +33,4 @@ class ApiRoutes:
     # ai paths
     AI_CONVERSATION_CREATE: str = "/v1/ai/conversation/create"
     AI_CONVERSATION_CHAT: str = "/v1/ai/conversation/chat"
+    AI_CONVERSATION_CHAT_WS: str = "/v1/ai/conversation/chat_ws"

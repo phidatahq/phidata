@@ -18,13 +18,21 @@ class LLM(BaseModel):
     function_call_limit: int = 50
     function_call_stack: Optional[List[FunctionCall]] = None
     show_function_calls: Optional[bool] = None
+    # If True, runs function calls before sending back the response content.
+    run_function_calls: bool = True
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def response(self, messages: List[Message]) -> str:
+    def parsed_response(self, messages: List[Message]) -> str:
         raise NotImplementedError
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_message(self, messages: List[Message]) -> Dict:
+        raise NotImplementedError
+
+    def parsed_response_stream(self, messages: List[Message]) -> Iterator[str]:
+        raise NotImplementedError
+
+    def response_delta(self, messages: List[Message]) -> Iterator[Dict]:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:

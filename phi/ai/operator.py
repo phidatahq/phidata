@@ -10,7 +10,6 @@ def phi_ai_conversation(
     stream: bool = False,
 ) -> None:
     """Start a conversation with Phi AI."""
-
     from phi.ai.phi_ai import PhiAI
 
     conversation_type = ConversationType.AUTO if autonomous_conversation else ConversationType.RAG

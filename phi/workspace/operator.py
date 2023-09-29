@@ -6,6 +6,7 @@ import typer
 from phi.api.workspace import log_workspace_event
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
+    console,
     print_heading,
     print_info,
     print_subheading,
@@ -40,7 +41,7 @@ TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
 }
 
 
-def create_workspace(name: Optional[str] = None, template: Optional[str] = None, url: Optional[str] = None) -> None:
+def create_workspace(name: Optional[str] = None, template: Optional[str] = None, url: Optional[str] = None) -> bool:
     """Creates a new workspace.
 
     This function clones a template or url on the users machine at the path:
@@ -66,12 +67,12 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             from phi.cli.console import log_phi_init_failed_msg
 
             log_phi_init_failed_msg()
-            return
+            return False
         phi_config = PhiCliConfig.from_saved_config()
         # If phi_config is still None, throw an error
         if not phi_config:
             log_config_not_available_msg()
-            return
+            return False
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
@@ -96,11 +97,12 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             if template_inp is not None:
                 template_inp_idx = template_inp - 1
                 ws_template = WorkspaceStarterTemplate(templates[template_inp_idx])
-            logger.debug("Selected: {}".format(ws_template.value))
         elif template.lower() in WorkspaceStarterTemplate.__members__.values():
-            ws_template = WorkspaceStarterTemplate[template]
+            ws_template = WorkspaceStarterTemplate(template)
         else:
             raise Exception(f"{template} is not a supported template, please choose from: {templates}")
+
+        logger.debug(f"Selected Template: {ws_template.value}")
         repo_to_clone = TEMPLATE_TO_REPO_MAP.get(ws_template)
 
     if ws_dir_name is None:
@@ -111,16 +113,16 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         else:
             # Get default_ws_name from template
             default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "llm-app")
-
+        logger.debug(f"asking for ws name with default: {default_ws_name}")
         # Ask user for workspace name if not provided
-        ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name)
+        ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name, console=console)
 
     if ws_dir_name is None:
         logger.error("Workspace name is required")
-        return
+        return False
     if repo_to_clone is None:
         logger.error("URL or Template is required")
-        return
+        return False
 
     # Check if a workspace with the same name exists
     existing_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
@@ -130,13 +132,13 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         if delete_existing_ws_config:
             phi_config.delete_ws(ws_dir_name)
         else:
-            return
+            return False
 
     # Check if we can create the workspace in the current dir
     ws_root_path: Path = current_dir.joinpath(ws_dir_name)
     if ws_root_path.exists():
         logger.error(f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace")
-        return
+        return False
 
     print_info(f"Creating {str(ws_root_path)}")
     logger.debug("Cloning: {}".format(repo_to_clone))
@@ -146,7 +148,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         )
     except Exception as e:
         logger.error(e)
-        return
+        return False
 
     # Remove existing .git folder
     _dot_git_folder = ws_root_path.joinpath(".git")
@@ -181,10 +183,10 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         logger.warning("Please manually copy workspace/example_secrets to workspace/secrets")
 
     print_info(f"Your new workspace is available at {str(ws_root_path)}\n")
-    setup_workspace(ws_root_path=ws_root_path)
+    return setup_workspace(ws_root_path=ws_root_path)
 
 
-def setup_workspace(ws_root_path: Path) -> None:
+def setup_workspace(ws_root_path: Path) -> bool:
     """Setup a phi workspace at `ws_root_path`.
 
     1. Validate pre-requisites
@@ -215,7 +217,7 @@ def setup_workspace(ws_root_path: Path) -> None:
     _ws_is_valid: bool = ws_root_path is not None and ws_root_path.exists() and ws_root_path.is_dir()
     if not _ws_is_valid:
         logger.error("Invalid directory: {}".format(ws_root_path))
-        return
+        return False
 
     ######################################################
     # 1.2 Check PhiCliConfig is available
@@ -228,7 +230,7 @@ def setup_workspace(ws_root_path: Path) -> None:
             from phi.cli.console import log_phi_init_failed_msg
 
             log_phi_init_failed_msg()
-            return
+            return False
         phi_config = PhiCliConfig.from_saved_config()
         # If phi_config is still None, throw an error
         if not phi_config:
@@ -259,7 +261,7 @@ def setup_workspace(ws_root_path: Path) -> None:
     if ws_config is None:
         logger.error(f"Could not use workspace from: {ws_root_path}")
         logger.error("Please try again")
-        return
+        return False
 
     ######################################################
     # 1.4 Load workspace and set as active
@@ -397,9 +399,10 @@ def setup_workspace(ws_root_path: Path) -> None:
                     event_data={"workspace_root_path": str(ws_root_path)},
                 ),
             )
+        return True
     else:
         print_info("Workspace setup unsuccessful. Please try again.")
-
+    return False
     ######################################################
     ## End Workspace setup
     ######################################################

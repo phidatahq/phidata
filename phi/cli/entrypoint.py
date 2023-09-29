@@ -252,13 +252,23 @@ def ai(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.cli.console import log_config_not_available_msg
     from phi.ai.operator import phi_ai_conversation
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        log_config_not_available_msg()
-        return
+        init_success = initialize_phi()
+        if not init_success:
+            from phi.cli.console import log_phi_init_failed_msg
+
+            log_phi_init_failed_msg()
+            return False
+        phi_config = PhiCliConfig.from_saved_config()
+        # If phi_config is still None, throw an error
+        if not phi_config:
+            log_config_not_available_msg()
+            return False
 
     phi_ai_conversation(
         phi_config=phi_config,

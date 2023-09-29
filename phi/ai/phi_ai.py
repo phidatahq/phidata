@@ -15,6 +15,7 @@ from phi.cli.console import console
 from phi.cli.settings import phi_cli_settings
 from phi.llm.schemas import Function, Message, FunctionCall
 from phi.llm.function.shell import ShellScriptsRegistry
+from phi.llm.function.phi_commands import PhiCommandsRegistry
 from phi.workspace.config import WorkspaceConfig
 from phi.utils.log import logger
 from phi.utils.functions import get_function_call
@@ -40,8 +41,7 @@ class PhiAI:
         _active_workspace = _phi_config.get_active_ws_config()
 
         self.conversation_db: Optional[List[Dict[str, Any]]] = None
-        self.functions: Dict[str, Function] = ShellScriptsRegistry().functions
-        logger.debug(f"Functions: {self.functions.keys()}")
+        self.functions: Dict[str, Function] = {**ShellScriptsRegistry().functions, **PhiCommandsRegistry().functions}
 
         _conversation_id = None
         _conversation_history = None
@@ -96,10 +96,11 @@ class PhiAI:
             while not user_message_str_valid:
                 user_message_str = Prompt.ask(f"[bold] :sunglasses: {username} [/bold]", console=console)
                 if (
-                    user_message_str is None
-                    or user_message_str == ""
-                    or user_message_str == "{}"
-                    or len(user_message_str) < 2
+                    user_message_str
+                    is None
+                    # or user_message_str == ""
+                    # or user_message_str == "{}"
+                    # or len(user_message_str) == 0
                 ):
                     console.print("Please enter a valid message")
                     continue

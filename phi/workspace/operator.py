@@ -4,6 +4,13 @@ from typing import Optional, Dict, List
 import typer
 
 from phi.api.workspace import log_workspace_event
+from phi.api.schemas.workspace import (
+    WorkspaceSchema,
+    WorkspaceCreate,
+    WorkspaceUpdate,
+    WorkspaceEvent,
+    UpdatePrimaryWorkspace,
+)
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
     console,
@@ -14,13 +21,6 @@ from phi.cli.console import (
 )
 from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
-from phi.api.schemas.workspace import (
-    WorkspaceSchema,
-    WorkspaceCreate,
-    WorkspaceUpdate,
-    WorkspaceEvent,
-    UpdatePrimaryWorkspace,
-)
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger

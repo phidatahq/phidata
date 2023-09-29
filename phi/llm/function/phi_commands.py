@@ -23,7 +23,8 @@ class PhiCommandsRegistry(FunctionRegistry):
     def create_new_app(self, template: str, workspace_name: str) -> str:
         """Creates a new phidata workspace for a given application template.
         Use this function when the user wants to create a new "llm-app", "api-app", "django-app", or "streamlit-app".
-        Remember to provide a name for the new workspace. You can use the format: "template-name" + name of an interesting person.
+        Remember to provide a name for the new workspace.
+        You can use the format: "template-name" + name of an interesting person (lowercase, no spaces).
 
         :param template: (required) The template to use for the new application.
             One of: llm-app, api-app, django-app, streamlit-app

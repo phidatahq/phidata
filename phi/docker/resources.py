@@ -12,7 +12,8 @@ from phi.utils.log import logger
 
 
 class DockerResources(InfraResources):
-    network: str = "bridge"
+    env: str = "dev"
+    network: str = "phi"
     # URL for the Docker server. For example, unix:///var/run/docker.sock or tcp://127.0.0.1:1234
     base_url: Optional[str] = None
 

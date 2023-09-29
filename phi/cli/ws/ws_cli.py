@@ -250,7 +250,7 @@ def up(
         )
     if target_infra_str is not None:
         try:
-            target_infra = cast(InfraType, InfraType[target_infra_str.lower()])
+            target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
         except KeyError:
             logger.error(f"{target_infra_str} is not supported")
             return
@@ -415,7 +415,7 @@ def down(
         )
     if target_infra_str is not None:
         try:
-            target_infra = cast(InfraType, InfraType[target_infra_str.lower()])
+            target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
         except KeyError:
             logger.error(f"{target_infra_str} is not supported")
             return
@@ -578,7 +578,7 @@ def patch(
         )
     if target_infra_str is not None:
         try:
-            target_infra = cast(InfraType, InfraType[target_infra_str.lower()])
+            target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
         except KeyError:
             logger.error(f"{target_infra_str} is not supported")
             return

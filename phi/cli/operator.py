@@ -1,10 +1,13 @@
-from typing import Optional
+from pathlib import Path
+from typing import Optional, List
 
 from typer import launch as typer_launch
 
 from phi.cli.settings import phi_cli_settings, PHI_CLI_DIR
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import print_info, print_heading
+from phi.infra.type import InfraType
+from phi.infra.resources import InfraResources
 from phi.utils.log import logger
 
 
@@ -159,99 +162,80 @@ def sign_in_using_cli() -> None:
     print_info("Welcome {}".format(user.email))
 
 
-# def start_resources(
-#     resources_file_path: Path,
-#     target_env: Optional[str] = None,
-#     target_config: Optional[Any] = None,
-#     target_name: Optional[str] = None,
-#     target_type: Optional[str] = None,
-#     target_group: Optional[str] = None,
-#     dry_run: Optional[bool] = False,
-#     auto_confirm: Optional[bool] = False,
-# ) -> None:
-#     print_heading(f"Starting resources in: {resources_file_path}")
-#     logger.debug(f"\ttarget_env   : {target_env}")
-#     logger.debug(f"\ttarget_config: {target_config}")
-#     logger.debug(f"\ttarget_name  : {target_name}")
-#     logger.debug(f"\ttarget_type  : {target_type}")
-#     logger.debug(f"\ttarget_group : {target_group}")
-#     logger.debug(f"\tdry_run      : {dry_run}")
-#     logger.debug(f"\tauto_confirm : {auto_confirm}")
-#
-#     from phidata.aws.config import AwsConfig
-#     from phidata.docker.config import DockerConfig
-#     from phidata.infra.config import InfraConfig
-#     from phidata.k8s.config import K8sConfig
-#     from phidata.workspace import WorkspaceConfig
-#
-#     from phi.utils.prep_infra_config import filter_and_prep_configs
-#
-#     if not resources_file_path.exists():
-#         logger.error(f"File does not exist: {resources_file_path}")
-#         return
-#
-#     ws_config: WorkspaceConfig = WorkspaceConfig.from_file(resources_file_path)
-#     # Set the local environment variables before processing configs
-#     ws_config.set_local_env()
-#
-#     configs_to_deploy: List[InfraConfig] = filter_and_prep_configs(
-#         ws_config=ws_config,
-#         target_env=target_env,
-#         target_config=target_config,
-#         order="create",
-#     )
-#
-#     num_configs_to_deploy = len(configs_to_deploy)
-#     num_configs_deployed = 0
-#     for config in configs_to_deploy:
-#         logger.debug(f"Deploying {config.__class__.__name__}")
-#         if isinstance(config, DockerConfig):
-#             from phi.docker.docker_operator import deploy_docker_config
-#
-#             deploy_docker_config(
-#                 config=config,
-#                 name_filter=target_name,
-#                 type_filter=target_type,
-#                 app_filter=target_group,
-#                 dry_run=dry_run,
-#                 auto_confirm=auto_confirm,
-#             )
-#             num_configs_deployed += 1
-#         if isinstance(config, K8sConfig):
-#             from phi.k8s.k8s_operator import deploy_k8s_config
-#
-#             deploy_k8s_config(
-#                 config=config,
-#                 name_filter=target_name,
-#                 type_filter=target_type,
-#                 app_filter=target_group,
-#                 dry_run=dry_run,
-#                 auto_confirm=auto_confirm,
-#             )
-#             num_configs_deployed += 1
-#         if isinstance(config, AwsConfig):
-#             from phi.aws.aws_operator import deploy_aws_config
-#
-#             deploy_aws_config(
-#                 config=config,
-#                 name_filter=target_name,
-#                 type_filter=target_type,
-#                 app_filter=target_group,
-#                 dry_run=dry_run,
-#                 auto_confirm=auto_confirm,
-#             )
-#             num_configs_deployed += 1
-#         # white space between runs
-#         print_info("")
-#
-#     print_info(f"# Configs deployed: {num_configs_deployed}/{num_configs_to_deploy}\n")
-#     if num_configs_to_deploy == num_configs_deployed:
-#         if not dry_run:
-#             print_subheading("Workspace deploy success")
-#     else:
-#         logger.error("Workspace deploy failed")
-#
-#
+def start_resources(
+    phi_config: PhiCliConfig,
+    resources_file_path: Path,
+    target_env: Optional[str] = None,
+    target_infra: Optional[InfraType] = None,
+    target_group: Optional[str] = None,
+    target_name: Optional[str] = None,
+    target_type: Optional[str] = None,
+    dry_run: Optional[bool] = False,
+    auto_confirm: Optional[bool] = False,
+    force: Optional[bool] = None,
+) -> None:
+    print_heading(f"Starting resources in: {resources_file_path}")
+    logger.debug(f"\ttarget_env   : {target_env}")
+    logger.debug(f"\ttarget_infra : {target_infra}")
+    logger.debug(f"\ttarget_name  : {target_name}")
+    logger.debug(f"\ttarget_type  : {target_type}")
+    logger.debug(f"\ttarget_group : {target_group}")
+    logger.debug(f"\tdry_run      : {dry_run}")
+    logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
+
+    from phi.workspace.config import WorkspaceConfig
+
+    if not resources_file_path.exists():
+        logger.error(f"File does not exist: {resources_file_path}")
+        return
+
+    # Get resource groups to deploy
+    resource_groups_to_create: List[InfraResources] = WorkspaceConfig.get_resources_from_file(
+        resource_file=resources_file_path,
+        env=target_env,
+        infra=target_infra,
+        order="create",
+    )
+
+    # Track number of resource groups created
+    num_rgs_created = 0
+    num_rgs_to_create = len(resource_groups_to_create)
+    # Track number of resources created
+    num_resources_created = 0
+    num_resources_to_create = 0
+
+    if num_rgs_to_create == 0:
+        print_info("No resources to create")
+        return
+
+    logger.debug(f"Deploying {num_rgs_to_create} resource groups")
+    for rg in resource_groups_to_create:
+        _num_resources_created, _num_resources_to_create = rg.create_resources(
+            group_filter=target_group,
+            name_filter=target_name,
+            type_filter=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            force=force,
+        )
+        if _num_resources_created > 0:
+            num_rgs_created += 1
+        num_resources_created += _num_resources_created
+        num_resources_to_create += _num_resources_to_create
+        logger.debug(f"Deployed {num_resources_created} resources in {num_rgs_created} resource groups")
+
+    if dry_run:
+        return
+
+    if num_resources_created == 0:
+        return
+
+    print_heading(f"\n--**-- ResourceGroups deployed: {num_rgs_created}/{num_rgs_to_create}\n")
+    if num_resources_created != num_resources_to_create:
+        logger.error("Some resources failed to create, please check logs")
+
+
 # def stop_resources(
 #     resources_file_path: Path,
 #     target_env: Optional[str] = None,

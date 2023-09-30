@@ -129,11 +129,11 @@ class Conversation(BaseModel):
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
 
     # If True, show debug logs
-    debug_logs: bool = False
+    debug_mode: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @field_validator("debug_logs", mode="before")
+    @field_validator("debug_mode", mode="before")
     def set_log_level(cls, v: bool) -> bool:
         if v:
             set_log_level_to_debug()
@@ -350,7 +350,11 @@ class Conversation(BaseModel):
         if self.function_calls:
             _system_prompt += "You have access to functions that you can run to help you respond to the user.\n"
 
-        _system_prompt += "If you don't know the answer, say 'I don't know'"
+        _system_prompt += """Remember the following guidelines:
+        - If you don't know the answer, say 'I don't know'.
+        - Use bullet points where possible.
+        - User markdown to format your answers.
+        """
 
         # Return the system prompt after removing newlines and indenting
         _system_prompt = cast(str, remove_indent(_system_prompt))
@@ -402,6 +406,7 @@ class Conversation(BaseModel):
         _user_prompt = "Your task is to respond to the following message"
         if self.user_type:
             _user_prompt += f" from a '{self.user_type}'"
+        _user_prompt += " in the best way possible.\n"
 
         # Add references to prompt
         if references:
@@ -425,9 +430,11 @@ class Conversation(BaseModel):
                 END OF CHAT HISTORY
                 """
 
+        # Remind the LLM of its task
         if references or chat_history:
             _user_prompt += "\nRemember, your task is to respond to the following message in the best way possible."
-            _user_prompt += f"\nUSER: {message}"
+
+        _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "
 
         # Return the user prompt after removing newlines and indenting
@@ -722,6 +729,7 @@ class Conversation(BaseModel):
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
+        from rich.box import ROUNDED
         from rich.markdown import Markdown
 
         if stream:
@@ -730,7 +738,7 @@ class Conversation(BaseModel):
                 for resp in self.chat(message, stream=True):
                     response += resp
 
-                    table = Table()
+                    table = Table(box=ROUNDED, border_style="blue")
                     table.add_column("Message")
                     table.add_column(message)
                     md_response = Markdown(response)
@@ -739,7 +747,7 @@ class Conversation(BaseModel):
         else:
             response = self.chat(message, stream=False)  # type: ignore
             md_response = Markdown(response)
-            table = Table()
+            table = Table(box=ROUNDED, border_style="blue")
             table.add_column("Message")
             table.add_column(message)
             table.add_row("Response", md_response)

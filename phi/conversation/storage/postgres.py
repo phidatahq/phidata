@@ -13,7 +13,7 @@ except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
 try:
-    from psycopg.errors import UndefinedTable
+    import psycopg
 except ImportError:
     raise ImportError("`psycopg` not installed")
 
@@ -111,11 +111,10 @@ class PgConversationStorage(ConversationStorage):
         stmt = select(self.table).where(self.table.c.id == conversation_id)
         try:
             return session.execute(stmt).first()
-        except UndefinedTable:
-            # Create table if it does not exist
-            self.create()
         except Exception as e:
-            logger.warning(e)
+            # Create table if it does not exist
+            if e.__class__ == psycopg.errors.UndefinedTable:
+                self.create()
         return None
 
     def read(self, conversation_id: str) -> Optional[ConversationRow]:
@@ -136,7 +135,7 @@ class PgConversationStorage(ConversationStorage):
                 for row in rows:
                     if row is not None and row.id is not None:
                         conversation_ids.append(row.id)
-        except UndefinedTable:
+        except psycopg.errors.UndefinedTable:
             logger.debug(f"Table does not exist: {self.table.name}")
             pass
         return conversation_ids
@@ -154,7 +153,7 @@ class PgConversationStorage(ConversationStorage):
                 for row in rows:
                     if row.id is not None:
                         conversations.append(ConversationRow.model_validate(row))
-        except UndefinedTable:
+        except psycopg.errors.UndefinedTable:
             logger.debug(f"Table does not exist: {self.table.name}")
             pass
         return conversations
@@ -196,7 +195,7 @@ class PgConversationStorage(ConversationStorage):
 
             try:
                 sess.execute(stmt)
-            except UndefinedTable:
+            except psycopg.errors.UndefinedTable:
                 # Create table if it does not exist
                 self.create()
                 sess.execute(stmt)

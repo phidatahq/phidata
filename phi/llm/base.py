@@ -49,6 +49,16 @@ class LLM(BaseModel):
         self.functions[func.name] = func
         logger.debug(f"Added function {func.name} to LLM.")
 
+    def add_function_schema(self, func: Function, if_not_exists: bool = True) -> None:
+        if self.functions is None:
+            self.functions = {}
+
+        if if_not_exists and func.name in self.functions:
+            return
+
+        self.functions[func.name] = func
+        logger.debug(f"Added function {func.name} to LLM.")
+
     def add_function_registry(self, registry: FunctionRegistry) -> None:
         if self.functions is None:
             self.functions = {}

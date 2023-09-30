@@ -10,11 +10,11 @@ class ConversationStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, conversation_id: int) -> Optional[ConversationRow]:
+    def read(self, conversation_id: str) -> Optional[ConversationRow]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_conversation_ids(self, user_name: str) -> List[int]:
+    def get_all_conversation_ids(self, user_name: str) -> List[str]:
         raise NotImplementedError
 
     @abstractmethod
@@ -26,7 +26,7 @@ class ConversationStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def end(self, conversation_id: int) -> Optional[ConversationRow]:
+    def end(self, conversation_id: str) -> Optional[ConversationRow]:
         raise NotImplementedError
 
     @abstractmethod

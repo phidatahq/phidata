@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, List
 
 try:
     from sqlalchemy.dialects import sqlite
@@ -8,7 +8,7 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import select
-    from sqlalchemy.types import String, Integer
+    from sqlalchemy.types import String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -29,16 +29,18 @@ class SqlConversationStorage(ConversationStorage):
         db_engine: Optional[Engine] = None,
     ):
         """
+        This class provides conversation storage using a sqllite database.
+
+        The following order is used to determine the database connection:
+            1. Use the db_engine if provided
+            2. Use the db_url
+            3. Use the db_file
+            4. Create a new in-memory database
+
         :param table_name: The name of the table to store conversations in.
         :param db_url: The database URL to connect to.
         :param db_file: The database file to connect to.
         :param db_engine: The database engine to use.
-
-        To connect to the database:
-            Use the db_engine if provided
-            Otherwise, use the db_url if provided
-            Otherwise, use the db_file if provided
-            Otherwise, create a new in-memory database
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -68,19 +70,20 @@ class SqlConversationStorage(ConversationStorage):
             self.table_name,
             self.metadata,
             # Database ID/Primary key for this conversation.
-            Column("id", Integer, primary_key=True),
+            Column("id", String, primary_key=True),
             # Conversation name
             Column("name", String),
-            # The name of the user participating in this conversation.
+            # Name and type of user participating in this conversation.
             Column("user_name", String),
-            # The persona of the user participating in this conversation.
-            Column("user_persona", String),
+            Column("user_type", String),
             # True if this conversation is active.
             Column("is_active", sqlite.BOOLEAN, default=True),
             # -*- LLM data (name, model, etc.)
             Column("llm", sqlite.JSON),
-            # -*- Conversation history
-            Column("history", sqlite.JSON),
+            # -*- Conversation memory
+            Column("memory", sqlite.JSON),
+            # Metadata associated with this conversation.
+            Column("meta_data", sqlite.JSON),
             # Extra data associated with this conversation.
             Column("extra_data", sqlite.JSON),
             # The timestamp of when this conversation was created.
@@ -104,7 +107,7 @@ class SqlConversationStorage(ConversationStorage):
             logger.debug(f"Creating table: {self.table.name}")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, conversation_id: int) -> Optional[Row[Any]]:
+    def _read(self, session: Session, conversation_id: str) -> Optional[Row[Any]]:
         stmt = select(self.table).where(self.table.c.id == conversation_id)
         try:
             return session.execute(stmt).first()
@@ -115,19 +118,19 @@ class SqlConversationStorage(ConversationStorage):
             logger.warning(e)
         return None
 
-    def read(self, conversation_id: int) -> Optional[ConversationRow]:
+    def read(self, conversation_id: str) -> Optional[ConversationRow]:
         with self.Session() as sess:
             existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)
             return ConversationRow.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_conversation_ids(self, user_name: str) -> List[int]:
-        conversation_ids: List[int] = []
+    def get_all_conversation_ids(self, user_name: str) -> List[str]:
+        conversation_ids: List[str] = []
         try:
             with self.Session() as sess:
                 # get all conversation ids for this user
                 stmt = select(self.table).where(self.table.c.user_name == user_name)
-                # order by id desc
-                stmt = stmt.order_by(self.table.c.id.desc())
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
@@ -139,71 +142,66 @@ class SqlConversationStorage(ConversationStorage):
         return conversation_ids
 
     def get_all_conversations(self, user_name: str) -> List[ConversationRow]:
-        conversation_ids: List[ConversationRow] = []
+        conversations: List[ConversationRow] = []
         try:
             with self.Session() as sess:
                 # get all conversation ids for this user
                 stmt = select(self.table).where(self.table.c.user_name == user_name)
-                # order by id desc
-                stmt = stmt.order_by(self.table.c.id.desc())
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.id is not None:
-                        conversation_ids.append(ConversationRow.model_validate(row))
+                        conversations.append(ConversationRow.model_validate(row))
         except OperationalError:
             logger.debug(f"Table does not exist: {self.table.name}")
             pass
-        return conversation_ids
+        return conversations
 
     def upsert(self, conversation: ConversationRow) -> Optional[ConversationRow]:
         """
         Create a new conversation if it does not exist, otherwise update the existing conversation.
         """
         with self.Session() as sess:
-            # Conversation exists if conversation.id is not None
-            if conversation.id is None:
-                values_to_insert: Dict[str, Any] = {
-                    "name": conversation.name,
-                    "user_name": conversation.user_name,
-                    "user_persona": conversation.user_persona,
-                    "is_active": conversation.is_active,
-                    "llm": conversation.llm,
-                    "history": conversation.history,
-                    "extra_data": conversation.extra_data,
-                }
+            # Create an insert statement
+            stmt = sqlite.insert(self.table).values(
+                id=conversation.id,
+                name=conversation.name,
+                user_name=conversation.user_name,
+                user_type=conversation.user_type,
+                is_active=conversation.is_active,
+                llm=conversation.llm,
+                memory=conversation.memory,
+                meta_data=conversation.meta_data,
+                extra_data=conversation.extra_data,
+            )
 
-                insert_stmt = sqlite.insert(self.table).values(**values_to_insert)
-                try:
-                    result = sess.execute(insert_stmt)
-                except OperationalError:
-                    # Create table if it does not exist
-                    self.create()
-                    result = sess.execute(insert_stmt)
-                conversation.id = result.inserted_primary_key[0]  # type: ignore
-            else:
-                values_to_update: Dict[str, Any] = {}
-                if conversation.name is not None:
-                    values_to_update["name"] = conversation.name
-                if conversation.user_name is not None:
-                    values_to_update["user_name"] = conversation.user_name
-                if conversation.user_persona is not None:
-                    values_to_update["user_persona"] = conversation.user_persona
-                if conversation.is_active is not None:
-                    values_to_update["is_active"] = conversation.is_active
-                if conversation.llm is not None:
-                    values_to_update["llm"] = conversation.llm
-                if conversation.history is not None:
-                    values_to_update["history"] = conversation.history
-                if conversation.extra_data is not None:
-                    values_to_update["extra_data"] = conversation.extra_data
+            # Define the upsert if the id already exists
+            # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["id"],
+                set_=dict(
+                    name=conversation.name,
+                    user_name=conversation.user_name,
+                    user_type=conversation.user_type,
+                    is_active=conversation.is_active,
+                    llm=conversation.llm,
+                    memory=conversation.memory,
+                    meta_data=conversation.meta_data,
+                    extra_data=conversation.extra_data,
+                ),  # The updated value for each column
+            )
 
-                update_stmt = self.table.update().where(self.table.c.id == conversation.id).values(**values_to_update)
-                sess.execute(update_stmt)
-            sess.commit()
+            try:
+                sess.execute(stmt)
+            except OperationalError:
+                # Create table if it does not exist
+                self.create()
+                sess.execute(stmt)
         return self.read(conversation_id=conversation.id)
 
-    def end(self, conversation_id: int) -> None:
+    def end(self, conversation_id: str) -> None:
         with self.Session() as sess:
             # Check if conversation exists in the database
             existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)

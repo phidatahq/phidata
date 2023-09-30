@@ -16,7 +16,7 @@ class KnowledgeBase(BaseModel):
     # Vector db to store the knowledge base
     vector_db: Optional[VectorDb] = None
     # Number of relevant documents to return on search
-    relevant_documents: int = 5
+    num_documents: int = 5
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
 
@@ -29,14 +29,14 @@ class KnowledgeBase(BaseModel):
         """
         raise NotImplementedError
 
-    def search(self, query: str, relevant_documents: Optional[int] = None) -> List[Document]:
+    def search(self, query: str, num_documents: Optional[int] = None) -> List[Document]:
         """Returns relevant documents matching the query"""
 
         if self.vector_db is None:
             logger.warning("No vector db provided")
             return []
 
-        _num_documents = relevant_documents or self.relevant_documents
+        _num_documents = num_documents or self.num_documents
         logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
         return self.vector_db.search(query=query, limit=_num_documents)
 

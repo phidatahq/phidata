@@ -10,7 +10,7 @@ class Redis(DockerApp, DbApp):
 
     # -*- Image Configuration
     image_name: str = "redis"
-    image_tag: str = "7.2.0"
+    image_tag: str = "7.2.1"
 
     # -*- App Ports
     # Open a container port if open_port=True

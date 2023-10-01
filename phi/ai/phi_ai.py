@@ -80,7 +80,7 @@ class PhiAI:
         self.phi_config: PhiCliConfig = _phi_config
         self.user: UserSchema = _user
         self.active_workspace: Optional[WorkspaceConfig] = _active_workspace
-        self.conversation_id: int = _conversation_id
+        self.conversation_id: str = _conversation_id
         self.conversation_history: List[Dict[str, Any]] = _conversation_history or []
         self.conversation_type: ConversationType = conversation_type
 
@@ -92,24 +92,22 @@ class PhiAI:
         while conversation_active:
             username = self.user.username or "You"
             console.rule()
+            user_message_str = None
             user_message_str_valid = False
             while not user_message_str_valid:
                 user_message_str = Prompt.ask(f"[bold] :sunglasses: {username} [/bold]", console=console)
-                if (
-                    user_message_str
-                    is None
-                    # or user_message_str == ""
-                    # or user_message_str == "{}"
-                    # or len(user_message_str) == 0
-                ):
+                if user_message_str is None or user_message_str == "":
                     console.print("Please enter a valid message")
                     continue
                 user_message_str_valid = True
+            if user_message_str is None:
+                raise ValueError("Message invalid")
             self.conversation_history.append({"role": "user", "content": user_message_str})
 
             # -*- Quit conversation
             if user_message_str in ("exit", "quit", "bye"):
                 conversation_active = False
+                break
 
             # -*- Send message to Phi AI
             api_response: Optional[Iterator[str]] = conversation_chat(

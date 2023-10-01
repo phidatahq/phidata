@@ -15,5 +15,5 @@ class ConversationClient(str, Enum):
 
 
 class ConversationCreateResponse(BaseModel):
-    id: int
+    id: str
     chat_history: List[Dict[str, Any]]

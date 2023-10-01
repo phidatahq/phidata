@@ -54,7 +54,7 @@ def conversation_create(
 
 def conversation_chat(
     user: UserSchema,
-    conversation_id: int,
+    conversation_id: str,
     message: Message,
     conversation_type: ConversationType = ConversationType.RAG,
     functions: Optional[Dict[str, Function]] = None,
@@ -87,7 +87,9 @@ def conversation_chat(
                     for chunk in streaming_resp.iter_text():
                         yield chunk
             except Exception as e:
-                logger.debug(f"Failed conversation chat: {e}")
+                logger.error(f"Error: {e}")
+                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
+                exit(1)
         else:
             logger.debug("--o-o-- Conversation Chat")
             try:
@@ -119,7 +121,9 @@ def conversation_chat(
 
                 yield response_json.get("response")
             except Exception as e:
-                logger.debug(f"Failed conversation chat: {e}")
+                logger.error(f"Error: {e}")
+                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
+                exit(1)
     return None
 
 

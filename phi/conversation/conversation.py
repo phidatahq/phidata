@@ -33,7 +33,7 @@ class Conversation(BaseModel):
 
     # -*- Conversation settings
     # Conversation UUID
-    id: str = Field(default_factory=lambda: str(uuid4()))
+    id: Optional[str] = Field(None, validate_default=True)
     # Conversation name
     name: Optional[str] = None
     # True if this conversation is active i.e. not ended
@@ -132,6 +132,10 @@ class Conversation(BaseModel):
     debug_mode: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("id", mode="before")
+    def set_conversation_id(cls, v: Optional[str]) -> str:
+        return v if v is not None else str(uuid4())
 
     @field_validator("debug_mode", mode="before")
     def set_log_level(cls, v: bool) -> bool:

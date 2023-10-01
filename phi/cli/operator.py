@@ -236,99 +236,79 @@ def start_resources(
         logger.error("Some resources failed to create, please check logs")
 
 
-# def stop_resources(
-#     resources_file_path: Path,
-#     target_env: Optional[str] = None,
-#     target_config: Optional[Any] = None,
-#     target_name: Optional[str] = None,
-#     target_type: Optional[str] = None,
-#     target_group: Optional[str] = None,
-#     dry_run: Optional[bool] = False,
-#     auto_confirm: Optional[bool] = False,
-# ) -> None:
-#     print_heading(f"Stopping resources in: {resources_file_path}")
-#     logger.debug(f"\ttarget_env   : {target_env}")
-#     logger.debug(f"\ttarget_config: {target_config}")
-#     logger.debug(f"\ttarget_name  : {target_name}")
-#     logger.debug(f"\ttarget_type  : {target_type}")
-#     logger.debug(f"\ttarget_group : {target_group}")
-#     logger.debug(f"\tdry_run      : {dry_run}")
-#     logger.debug(f"\tauto_confirm : {auto_confirm}")
-#
-#     from phidata.aws.config import AwsConfig
-#     from phidata.docker.config import DockerConfig
-#     from phidata.infra.config import InfraConfig
-#     from phidata.k8s.config import K8sConfig
-#     from phidata.workspace import WorkspaceConfig
-#
-#     from phi.utils.prep_infra_config import filter_and_prep_configs
-#
-#     if not resources_file_path.exists():
-#         logger.error(f"File does not exist: {resources_file_path}")
-#         return
-#
-#     ws_config: WorkspaceConfig = WorkspaceConfig.from_file(resources_file_path)
-#     # Set the local environment variables before processing configs
-#     ws_config.set_local_env()
-#
-#     configs_to_shutdown: List[InfraConfig] = filter_and_prep_configs(
-#         ws_config=ws_config,
-#         target_env=target_env,
-#         target_config=target_config,
-#         order="create",
-#     )
-#
-#     num_configs_to_shutdown = len(configs_to_shutdown)
-#     num_configs_shutdown = 0
-#     for config in configs_to_shutdown:
-#         logger.debug(f"Deploying {config.__class__.__name__}")
-#         if isinstance(config, DockerConfig):
-#             from phi.docker.docker_operator import shutdown_docker_config
-#
-#             shutdown_docker_config(
-#                 config=config,
-#                 name_filter=target_name,
-#                 type_filter=target_type,
-#                 app_filter=target_group,
-#                 dry_run=dry_run,
-#                 auto_confirm=auto_confirm,
-#             )
-#             num_configs_shutdown += 1
-#         if isinstance(config, K8sConfig):
-#             from phi.k8s.k8s_operator import shutdown_k8s_config
-#
-#             shutdown_k8s_config(
-#                 config=config,
-#                 name_filter=target_name,
-#                 type_filter=target_type,
-#                 app_filter=target_group,
-#                 dry_run=dry_run,
-#                 auto_confirm=auto_confirm,
-#             )
-#             num_configs_shutdown += 1
-#         if isinstance(config, AwsConfig):
-#             from phi.aws.aws_operator import shutdown_aws_config
-#
-#             shutdown_aws_config(
-#                 config=config,
-#                 name_filter=target_name,
-#                 type_filter=target_type,
-#                 app_filter=target_group,
-#                 dry_run=dry_run,
-#                 auto_confirm=auto_confirm,
-#             )
-#             num_configs_shutdown += 1
-#         # white space between runs
-#         print_info("")
-#
-#     print_info(f"# Configs shutdown: {num_configs_shutdown}/{num_configs_to_shutdown}\n")
-#     if num_configs_to_shutdown == num_configs_shutdown:
-#         if not dry_run:
-#             print_subheading("Workspace shutdown success")
-#     else:
-#         logger.error("Workspace shutdown failed")
-#
-#
+def stop_resources(
+    phi_config: PhiCliConfig,
+    resources_file_path: Path,
+    target_env: Optional[str] = None,
+    target_infra: Optional[InfraType] = None,
+    target_group: Optional[str] = None,
+    target_name: Optional[str] = None,
+    target_type: Optional[str] = None,
+    dry_run: Optional[bool] = False,
+    auto_confirm: Optional[bool] = False,
+    force: Optional[bool] = None,
+) -> None:
+    print_heading(f"Stopping resources in: {resources_file_path}")
+    logger.debug(f"\ttarget_env   : {target_env}")
+    logger.debug(f"\ttarget_infra : {target_infra}")
+    logger.debug(f"\ttarget_name  : {target_name}")
+    logger.debug(f"\ttarget_type  : {target_type}")
+    logger.debug(f"\ttarget_group : {target_group}")
+    logger.debug(f"\tdry_run      : {dry_run}")
+    logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
+
+    from phi.workspace.config import WorkspaceConfig
+
+    if not resources_file_path.exists():
+        logger.error(f"File does not exist: {resources_file_path}")
+        return
+
+    # Get resource groups to shutdown
+    resource_groups_to_shutdown: List[InfraResources] = WorkspaceConfig.get_resources_from_file(
+        resource_file=resources_file_path,
+        env=target_env,
+        infra=target_infra,
+        order="create",
+    )
+
+    # Track number of resource groups deleted
+    num_rgs_delete = 0
+    num_rgs_to_shutdown = len(resource_groups_to_shutdown)
+    # Track number of resources created
+    num_resources_shutdown = 0
+    num_resources_to_shutdown = 0
+
+    if num_rgs_to_shutdown == 0:
+        print_info("No resources to delete")
+        return
+
+    for rg in resource_groups_to_shutdown:
+        num_resources_shutdown, num_resources_to_shutdown = rg.delete_resources(
+            group_filter=target_group,
+            name_filter=target_name,
+            type_filter=target_type,
+            dry_run=dry_run,
+            auto_confirm=auto_confirm,
+            force=force,
+        )
+        if num_resources_shutdown > 0:
+            num_rgs_delete += 1
+        num_resources_to_shutdown += num_resources_shutdown
+        num_resources_to_shutdown += num_resources_to_shutdown
+        logger.debug(f"Deleted {num_resources_to_shutdown} resources in {num_rgs_delete} resource groups")
+
+    if dry_run:
+        return
+
+    if num_resources_to_shutdown == 0:
+        return
+
+    print_heading(f"\n--**-- ResourceGroups deleted: {num_rgs_delete}/{num_rgs_to_shutdown}\n")
+    if num_resources_shutdown != num_resources_to_shutdown:
+        logger.error("Some resources failed to delete, please check logs")
+
+
 # def patch_resources(
 #     resources_file_path: Path,
 #     target_env: Optional[str] = None,

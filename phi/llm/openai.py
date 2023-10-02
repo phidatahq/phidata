@@ -19,7 +19,13 @@ class OpenAIChat(LLM):
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
 
-    def api_kwargs(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = super().to_dict()
+        _dict["max_tokens"] = self.max_tokens
+        _dict["temperature"] = self.temperature
+        return _dict
+
+    def api_kwargs(self) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
         if self.max_tokens:
             kwargs["max_tokens"] = self.max_tokens
@@ -225,9 +231,6 @@ class OpenAIChat(LLM):
         for m in messages:
             m.log()
 
-        # -*- Create assistant message
-        assistant_message = Message(role="assistant", content="")
-
         assistant_message_content = ""
         assistant_message_function_name = ""
         assistant_message_function_arguments_str = ""
@@ -262,13 +265,15 @@ class OpenAIChat(LLM):
                 _function_args_stream = response_function_call.get("arguments")
                 if _function_args_stream is not None:
                     assistant_message_function_arguments_str += _function_args_stream
+
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
+        # -*- Create assistant message
+        assistant_message = Message(role="assistant")
         # -*- Add content to assistant message
         if assistant_message_content != "":
             assistant_message.content = assistant_message_content
-
         # -*- Add function call to assistant message
         if assistant_message_function_name != "":
             assistant_message.function_call = {
@@ -358,9 +363,6 @@ class OpenAIChat(LLM):
         for m in messages:
             m.log()
 
-        # -*- Create assistant message
-        assistant_message = Message(role="assistant")
-
         assistant_message_content = ""
         assistant_message_function_name = ""
         assistant_message_function_arguments_str = ""
@@ -399,10 +401,11 @@ class OpenAIChat(LLM):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
+        # -*- Create assistant message
+        assistant_message = Message(role="assistant")
         # -*- Add content to assistant message
         if assistant_message_content != "":
             assistant_message.content = assistant_message_content
-
         # -*- Add function call to assistant message
         if assistant_message_function_name != "":
             assistant_message.function_call = {

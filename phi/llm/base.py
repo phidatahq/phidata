@@ -23,6 +23,15 @@ class LLM(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    def api_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def invoke_model(self, *args, **kwargs) -> Any:
+        raise NotImplementedError
+
+    def invoke_model_stream(self, *args, **kwargs) -> Iterator[Any]:
+        raise NotImplementedError
+
     def parsed_response(self, messages: List[Message]) -> str:
         raise NotImplementedError
 
@@ -36,7 +45,7 @@ class LLM(BaseModel):
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(exclude_none=True, exclude={"functions", "function_call", "function_call_stack"})
+        _dict = self.model_dump(include={"model", "name", "metrics"})
         if self.functions:
             _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
             _dict["function_call_limit"] = self.function_call_limit

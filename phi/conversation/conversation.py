@@ -358,6 +358,7 @@ class Conversation(BaseModel):
         - If you don't know the answer, say 'I don't know'.
         - Use bullet points where possible.
         - User markdown to format your answers.
+        - Don't use phrases like 'based on the information provided' or 'from the knowledge base'.
         """
 
         # Return the system prompt after removing newlines and indenting
@@ -393,6 +394,9 @@ class Conversation(BaseModel):
         self, message: str, references: Optional[str] = None, chat_history: Optional[str] = None
     ) -> str:
         """Build the user prompt given a message, references and chat_history"""
+
+        if self.user_prompt is not None:
+            return "\n".join([line.strip() for line in self.user_prompt.split("\n")])
 
         if self.user_prompt_function is not None:
             user_prompt_kwargs = {
@@ -485,7 +489,9 @@ class Conversation(BaseModel):
         user_prompt_message = Message(role="user", content=user_prompt)
 
         # Create message list
-        messages: List[Message] = [system_prompt_message]
+        messages: List[Message] = []
+        if system_prompt_message.content != "":
+            messages.append(system_prompt_message)
         if self.add_chat_history_to_messages:
             messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
@@ -739,6 +745,8 @@ class Conversation(BaseModel):
         if stream:
             response = ""
             with Live() as live_log:
+                response_timer = Timer()
+                response_timer.start()
                 for resp in self.chat(message, stream=True):
                     response += resp
 
@@ -746,13 +754,17 @@ class Conversation(BaseModel):
                     table.add_column("Message")
                     table.add_column(message)
                     md_response = Markdown(response)
-                    table.add_row("Response", md_response)
+                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
                     live_log.update(table)
+                response_timer.stop()
         else:
+            response_timer = Timer()
+            response_timer.start()
             response = self.chat(message, stream=False)  # type: ignore
+            response_timer.stop()
             md_response = Markdown(response)
             table = Table(box=ROUNDED, border_style="blue")
             table.add_column("Message")
             table.add_column(message)
-            table.add_row("Response", md_response)
+            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
             console.print(table)

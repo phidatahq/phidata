@@ -5,7 +5,7 @@ from phi.knowledge.base import KnowledgeBase
 
 
 class CombinedKnowledgeBase(KnowledgeBase):
-    sources: List[KnowledgeBase]
+    sources: List[KnowledgeBase] = []
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:

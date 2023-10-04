@@ -97,7 +97,11 @@ class Conversation(BaseModel):
     # def system_prompt_function(conversation: Conversation) -> str:
     #    ...
     system_prompt_function: Optional[Callable[..., Optional[str]]] = None
+    # If True, the conversation provides a default system prompt
+    use_default_system_prompt: bool = True
+
     # -*- User prompt: provide the user prompt as a string or using a function
+    # Note: this will ignore the message provided to the chat function
     user_prompt: Optional[str] = None
     # Function to build the user prompt.
     # This function is provided the conversation and the user message as arguments
@@ -113,7 +117,8 @@ class Conversation(BaseModel):
     # ) -> str:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
-
+    # If True, the conversation provides a default user prompt
+    use_default_user_prompt: bool = True
     # -*- Functions to customize the user_prompt
     # Function to build references for the default user_prompt
     # This function, if provided, is called when add_references_to_prompt is True
@@ -323,12 +328,14 @@ class Conversation(BaseModel):
             self.storage.end(conversation_id=self.id)
         self.is_active = False
 
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the conversation"""
 
+        # If the system_prompt is set, return it
         if self.system_prompt is not None:
             return "\n".join([line.strip() for line in self.system_prompt.split("\n")])
 
+        # If the system_prompt_function is set, return the system_prompt from the function
         if self.system_prompt_function is not None:
             system_prompt_kwargs = {"conversation": self}
             _system_prompt_from_function = remove_indent(self.system_prompt_function(**system_prompt_kwargs))
@@ -337,12 +344,17 @@ class Conversation(BaseModel):
             else:
                 raise Exception("system_prompt_function returned None")
 
-        _system_prompt = "You are a chatbot "
+        # If use_default_system_prompt is False, return None
+        if not self.use_default_system_prompt:
+            return None
+
+        # Build a default system prompt
+        _system_prompt = "You are a helpful assistant "
 
         if self.user_type:
-            _system_prompt += f"that is designed to help a '{self.user_type}' with their work.\n"
+            _system_prompt += f"designed to help a '{self.user_type}' with their work.\n"
         else:
-            _system_prompt += "that is designed to help a user with their work.\n"
+            _system_prompt += "designed to help a user with their work.\n"
 
         if self.knowledge_base is not None:
             _system_prompt += "You have access to a knowledge base that you can search for information.\n"
@@ -354,10 +366,10 @@ class Conversation(BaseModel):
         if self.function_calls:
             _system_prompt += "You have access to functions that you can run to help you respond to the user.\n"
 
-        _system_prompt += """Remember the following guidelines:
+        _system_prompt += """Follow these guidelines when responding to the user:
         - If you don't know the answer, say 'I don't know'.
         - Use bullet points where possible.
-        - User markdown to format your answers.
+        - Use markdown to format your answers.
         - Don't use phrases like 'based on the information provided' or 'from the knowledge base'.
         """
 
@@ -395,9 +407,12 @@ class Conversation(BaseModel):
     ) -> str:
         """Build the user prompt given a message, references and chat_history"""
 
+        # If the user_prompt is set, return it
+        # Note: this ignores the message provided to the chat function
         if self.user_prompt is not None:
             return "\n".join([line.strip() for line in self.user_prompt.split("\n")])
 
+        # If the user_prompt_function is set, return the user_prompt from the function
         if self.user_prompt_function is not None:
             user_prompt_kwargs = {
                 "conversation": self,
@@ -411,7 +426,16 @@ class Conversation(BaseModel):
             else:
                 raise Exception("user_prompt_function returned None")
 
-        _user_prompt = "Your task is to respond to the following message"
+        # If use_default_user_prompt is False, return the message as is
+        if not self.use_default_user_prompt:
+            return message
+
+        # If references and chat_history are None, return the message as is
+        if references is None and chat_history is None:
+            return message
+
+        # Build a default user prompt
+        _user_prompt = "Respond to the following message"
         if self.user_type:
             _user_prompt += f" from a '{self.user_type}'"
         _user_prompt += " in the best way possible.\n"
@@ -440,7 +464,7 @@ class Conversation(BaseModel):
 
         # Remind the LLM of its task
         if references or chat_history:
-            _user_prompt += "\nRemember, your task is to respond to the following message in the best way possible."
+            _user_prompt += "\nRemember, your task is to respond to the following message."
 
         _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "

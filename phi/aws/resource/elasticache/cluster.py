@@ -346,8 +346,6 @@ class CacheCluster(AwsResource):
             logger.error(f"{self.get_resource_type()} could not be updated.")
             logger.error(e)
 
-
-
     def _delete(self, aws_client: AwsApiClient) -> bool:
         """Deletes the CacheCluster
 

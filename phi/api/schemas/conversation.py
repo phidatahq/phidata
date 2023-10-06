@@ -21,7 +21,7 @@ class ConversationEventCreate(BaseModel):
 
 class ConversationEventCreateResopnse(BaseModel):
     id_event: Optional[int] = None
-    id_conversation: Optional[int] = None
+    id_conversation: Optional[str] = None
 
 
 class ConversationUpdate(BaseModel):
@@ -34,7 +34,7 @@ class ConversationUpdate(BaseModel):
 class ConversationSchema(BaseModel):
     """Schema for a conversation returned by API"""
 
-    id_conversation: Optional[int] = None
+    id_conversation: Optional[str] = None
     id_workspace: Optional[int] = None
     conversation_key: Optional[str] = None
     conversation_data: Optional[Dict[str, Any]] = None

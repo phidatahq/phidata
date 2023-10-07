@@ -433,11 +433,11 @@ def stop(
     ),
 ):
     """\b
-    Start resources defined in a resources.py file
+    Stop resources defined in a resources.py file
     \b
     Examples:
-    > `phi ws start`                -> Start resources defined in a resources.py file
-    > `phi ws start workspace.py`   -> Start resources defined in a workspace.py file
+    > `phi ws stop`                -> Stop resources defined in a resources.py file
+    > `phi ws stop workspace.py`   -> Stop resources defined in a workspace.py file
     """
     if print_debug_log:
         set_log_level_to_debug()
@@ -540,11 +540,11 @@ def patch(
     ),
 ):
     """\b
-    Start resources defined in a resources.py file
+    Update resources defined in a resources.py file
     \b
     Examples:
-    > `phi ws start`                -> Start resources defined in a resources.py file
-    > `phi ws start workspace.py`   -> Start resources defined in a workspace.py file
+    > `phi ws patch`                -> Update resources defined in a resources.py file
+    > `phi ws patch workspace.py`   -> Update resources defined in a workspace.py file
     """
     if print_debug_log:
         set_log_level_to_debug()

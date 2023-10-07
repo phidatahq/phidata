@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Union, List, Iterator
 
 from phi.document import Document
-from phi.document.reader.pdf import PDFReader
+from phi.document.reader.pdf import PDFReader, PDFUrlReader
 from phi.knowledge.base import KnowledgeBase
 
 
@@ -26,3 +26,20 @@ class PDFKnowledgeBase(KnowledgeBase):
                 yield self.reader.read(path=_pdf)
         elif _pdf_path.exists() and _pdf_path.is_file() and _pdf_path.suffix == ".pdf":
             yield self.reader.read(path=_pdf_path)
+
+
+class PDFUrlKnowledgeBase(KnowledgeBase):
+    urls: List[str] = []
+    reader: PDFUrlReader = PDFUrlReader()
+
+    @property
+    def document_lists(self) -> Iterator[List[Document]]:
+        """Iterate over PDF urls and yield lists of documents.
+        Each object yielded by the iterator is a list of documents.
+
+        Returns:
+            Iterator[List[Document]]: Iterator yielding list of documents
+        """
+
+        for url in self.urls:
+            yield self.reader.read(url=url)

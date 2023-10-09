@@ -44,6 +44,7 @@ class AwsApp(AppBase):
     ecs_service_connect_protocol: Optional[str] = None
     ecs_service_connect_namespace: str = "default"
     assign_public_ip: Optional[bool] = None
+    ecs_bedrock_access: bool = True
     ecs_exec_access: bool = True
     ecs_secret_access: bool = True
     ecs_s3_access: bool = True
@@ -564,6 +565,7 @@ class AwsApp(AppBase):
             memory=self.ecs_task_memory,
             containers=[ecs_container],
             requires_compatibilities=[self.ecs_launch_type],
+            add_bedrock_access_to_task=self.ecs_bedrock_access,
             add_exec_access_to_task=self.ecs_exec_access,
             add_secret_access_to_ecs=self.ecs_secret_access,
             add_secret_access_to_task=self.ecs_secret_access,

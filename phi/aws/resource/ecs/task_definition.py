@@ -64,6 +64,8 @@ class EcsTaskDefinition(AwsResource):
     add_policy_arns_to_task_role: Optional[List[str]] = None
     # Provide a list of IamPolicy to attach to the task role
     add_policies_to_task_role: Optional[List[IamPolicy]] = None
+    # Add bedrock access to task role
+    add_bedrock_access_to_task: bool = False
     # Add ecs_exec_policy to task role
     add_exec_access_to_task: bool = False
     # Add secret access to task role
@@ -256,6 +258,25 @@ class EcsTaskDefinition(AwsResource):
             policy_arns.extend(self.add_policy_arns_to_task_role)
 
         policies = []
+        if self.add_bedrock_access_to_task:
+            bedrock_access_policy = IamPolicy(
+                name=f"{self.name}-bedrock-access-policy",
+                policy_document=dedent(
+                    """\
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "bedrock:*",
+                            "Resource": "*"
+                        }
+                    ]
+                }
+                """
+                ),
+            )
+            policies.append(bedrock_access_policy)
         if self.add_exec_access_to_task:
             ecs_exec_policy = IamPolicy(
                 name=f"{self.name}-task-exec-policy",

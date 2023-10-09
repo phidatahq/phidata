@@ -22,7 +22,9 @@
 
 ---
 
-## 🧰 Phidata is a batteries included toolkit for building LLM Applications
+<h2 align="center">
+  🧰 Phidata is a batteries included toolkit for building LLM Apps
+</h2>
 
 It solves the problem of building products using large language models by providing:
 
@@ -45,20 +47,26 @@ It solves the problem of building products using large language models by provid
 - Infrastructure for running LLM apps in production: **AWS**
 - Best practices like testing, formatting, CI/CD, security and secret management.
 
-## 🚀 How it works
+<h2 align="center">
+  🚀 How it works
+</h2>
 
 - **Create your LLM app** from a template using `phi ws create`
 - **Run your app locally** using `phi ws up dev:docker`
 - **Run your app on AWS** using `phi ws up prd:aws`
 
-## 🎯 For more information:
+<h2 align="center">
+  🎯 More Information
+</h2>
 
 - Read the <a href="https://docs.phidata.com" target="_blank">documentation</a>
 - Read about <a href="https://docs.phidata.com/intro/basics" target="_blank">phidata basics</a>
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
 - Email us at <a href="mailto:help@phidata.com" target="_blank">help@phidata.com</a>
 
-## 👩‍💻 Quickstart: Build a LLM App 🧑‍💻
+<h2 align="center">
+  ‍👩‍💻 Quickstart: Build a LLM App 🧑‍💻
+</h2>
 
 Let's build an **LLM App** with GPT-4 using PgVector for Knowledge Base and Storage. We'll serve the app using Streamlit and FastApi, running locally on Docker.
 

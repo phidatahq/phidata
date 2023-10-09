@@ -66,7 +66,7 @@ Our goal is to integrate the 3 layers of software development using 1 toolkit an
 
 ## 👩‍💻 Quickstart: Build a LLM App 🧑‍💻
 
-Let's build an **LLM App** with GPT-4 using PgVector for Knowledge Base and Storage. We'll serve the app using Streamlit and FastApi, running locally on Docker.
+Let's build a **LLM App** with GPT-4 using PgVector for Knowledge Base and Storage. We'll serve the app using Streamlit and FastApi, running locally on Docker.
 
 > Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank">docker desktop</a> before moving ahead
 

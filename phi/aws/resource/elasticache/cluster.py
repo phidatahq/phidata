@@ -398,11 +398,13 @@ class CacheCluster(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-        cache_endpoint = None
+        cache_endpoint = []
         try:
             client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
-            describe_response = self.get_service_client(client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            describe_response = self.get_service_client(client).describe_cache_clusters(
+                CacheClusterId=cache_cluster_id, ShowCacheNodeInfo=True
+            )
             logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
@@ -410,7 +412,8 @@ class CacheCluster(AwsResource):
                 for resource in resource_list:
                     _cluster_identifier = resource.get("CacheClusterId", None)
                     if _cluster_identifier == cache_cluster_id:
-                        cache_endpoint = resource.get("ConfigurationEndpoint", {}).get("Address", None)
+                        for node in resource.get("CacheNodes", []):
+                            cache_endpoint.append(node.get("Endpoint", {}).get("Address", None))
                         break
         except Exception as e:
             logger.error(f"Error reading {self.get_resource_type()}.")
@@ -423,11 +426,13 @@ class CacheCluster(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-        cache_port = None
+        cache_port = []
         try:
             client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
-            describe_response = self.get_service_client(client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            describe_response = self.get_service_client(client).describe_cache_clusters(
+                CacheClusterId=cache_cluster_id, ShowCacheNodeInfo=True
+            )
             logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
@@ -435,7 +440,8 @@ class CacheCluster(AwsResource):
                 for resource in resource_list:
                     _cluster_identifier = resource.get("CacheClusterId", None)
                     if _cluster_identifier == cache_cluster_id:
-                        cache_port = resource.get("ConfigurationEndpoint", {}).get("Port", None)
+                        for node in resource.get("CacheNodes", []):
+                            cache_port.append(node.get("Endpoint", {}).get("Port", None))
                         break
         except Exception as e:
             logger.error(f"Error reading {self.get_resource_type()}.")

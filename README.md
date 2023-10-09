@@ -38,7 +38,7 @@ It solves the problem of building products using large language models by provid
 - Components for **improving** LLM apps: **Fine-tuning, RLHF**
 - Components for **securing** LLM apps: **I/O Validation, Guardrails**
 
-### 📱  Application layer
+### 📱 Application layer
 
 - Tools for serving LLM apps: **FastApi, Django, Streamlit**
 - Tools for serving LLM components: **PgVector, Postgres, Redis**
@@ -48,6 +48,8 @@ It solves the problem of building products using large language models by provid
 - Infrastructure for running LLM apps locally: **Docker**
 - Infrastructure for running LLM apps in production: **AWS**
 - Best practices like testing, formatting, CI/CD, security and secret management.
+
+Our goal is to integrate the 3 layers of software development using 1 toolkit and build production-grade LLM Apps.
 
 ## 🚀 How it works
 

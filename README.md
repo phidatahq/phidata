@@ -22,11 +22,11 @@
 
 ---
 
-### Phidata is a batteries included toolkit for building LLM Applications.
+## 🧰 Phidata is a batteries included toolkit for building LLM Applications
 
 It solves the problem of building products using large language models by providing:
 
-### Software layer
+### 💻 Software layer
 
 - Components for **building** LLM apps: **RAG, Agents, Workflows**
 - Components for **extending** LLM apps: **VectorDbs, Storage, Memory, Cache**
@@ -34,12 +34,12 @@ It solves the problem of building products using large language models by provid
 - Components for **improving** LLM apps: **Fine-tuning, RLHF**
 - Components for **securing** LLM apps: **I/O Validation, Guardrails**
 
-### Application layer
+### 📱  Application layer
 
 - Tools for serving LLM apps: **FastApi, Django, Streamlit**
 - Tools for serving LLM components: **PgVector, Postgres, Redis**
 
-### Infrastructure layer
+### 🌉 Infrastructure layer
 
 - Infrastructure for running LLM apps locally: **Docker**
 - Infrastructure for running LLM apps in production: **AWS**
@@ -58,16 +58,15 @@ It solves the problem of building products using large language models by provid
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
 - Email us at <a href="mailto:help@phidata.com" target="_blank">help@phidata.com</a>
 
-## 👩‍💻 Quickstart: Build an LLM App 🧑‍💻
+## 👩‍💻 Quickstart: Build a LLM App 🧑‍💻
 
 Let's build an **LLM App** with GPT-4 using PgVector for Knowledge Base and Storage. We'll serve the app using Streamlit and FastApi, running locally on Docker.
 
-> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) before moving ahead
+> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank">docker desktop</a> before moving ahead
 
 ### Setup
 
 Open the `Terminal` and create a python virtual environment
-
 
 ```bash
 python3 -m venv ~/.venvs/llmenv
@@ -88,7 +87,7 @@ Create your codebase using the `llm-app` template that is pre-configured with Fa
 phi ws create -t llm-app -n llm-app
 ```
 
-<img src="https://github.com/phidatahq/phidata/assets/22579644/dee7b884-028e-48a0-9074-4deb7a055b97" height=600 />
+<img src="https://github.com/phidatahq/phidata/assets/22579644/dee7b884-028e-48a0-9074-4deb7a055b97" height=600  alt="create-llm-app"/>
 
 This will create a folder named `llm-app` with the following structure:
 
@@ -123,7 +122,7 @@ Set the `OPENAI_API_KEY` environment variable. You can get one <a href="https://
 export OPENAI_API_KEY=sk-***
 ```
 
-### Serve you LLM Apps using Streamlit
+### Serve you LLM App using Streamlit
 
 <a href="https://streamlit.io" target="_blank">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
@@ -131,7 +130,7 @@ export OPENAI_API_KEY=sk-***
 phi ws up --group app
 ```
 
-<img src="https://github.com/phidatahq/phidata/assets/22579644/dee35e20-9fe5-4623-af5e-2e8a6ffac58c" height=600 />
+<img src="https://github.com/phidatahq/phidata/assets/22579644/dee35e20-9fe5-4623-af5e-2e8a6ffac58c" height=600  alt="run-llm-app"/>
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
@@ -149,7 +148,7 @@ Open <a href="http://localhost:8501" target="_blank">localhost:8501</a> to view 
 
 <img width="1573" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/8529aad8-f74c-464d-8bf8-2272a3281b25">
 
-### Serve your LLM Apps using FastApi
+### Serve your LLM App using FastApi
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built with a framework like `FastApi`.
 
@@ -165,7 +164,7 @@ phi ws up --group api
 
 - Open <a href="http://localhost:8000/docs" target="_blank">localhost:8000/docs</a> to view the API Endpoints.
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "how do I make chicken tikka salad"}`
-- Checkout the `api/routes/pdf_routes.py` file for common endpoints that you can integrate with your front-end or product.
+- Checkout the `api/routes/pdf_routes.py` file for endpoints that you can integrate with your front-end or product.
 - The FastApi application is defined in the `workspace/dev_resources.py` file.
 
 ### Delete local resources

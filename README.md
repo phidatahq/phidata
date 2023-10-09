@@ -88,6 +88,8 @@ Create your codebase using the `llm-app` template that is pre-configured with Fa
 phi ws create -t llm-app -n llm-app
 ```
 
+<img src="https://github.com/phidatahq/phidata/assets/22579644/dee7b884-028e-48a0-9074-4deb7a055b97" height=600 />
+
 This will create a folder named `llm-app` with the following structure:
 
 ```bash
@@ -115,7 +117,7 @@ llm-app
 
 ### Set OpenAI Key
 
-Set the `OPENAI_API_KEY` environment variable. You can get one [from OpenAI here](https://platform.openai.com/account/api-keys).
+Set the `OPENAI_API_KEY` environment variable. You can get one <a href="https://platform.openai.com/account/api-keys" target="_blank">from OpenAI here</a>.
 
 ```bash
 export OPENAI_API_KEY=sk-***
@@ -123,15 +125,17 @@ export OPENAI_API_KEY=sk-***
 
 ### Serve you LLM Apps using Streamlit
 
-[Streamlit](https://streamlit.io) allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
+<a href="https://streamlit.io" target="_blank">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
 ```bash
 phi ws up --group app
 ```
 
+<img src="https://github.com/phidatahq/phidata/assets/22579644/dee35e20-9fe5-4623-af5e-2e8a6ffac58c" height=600 />
+
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-Open [localhost:8501](http://localhost:8501) to view streamlit apps that you can customize and make your own.
+Open <a href="http://localhost:8501" target="_blank">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 
 ### Chat with PDFs
 
@@ -142,6 +146,8 @@ Open [localhost:8501](http://localhost:8501) to view streamlit apps that you can
 - The streamlit apps are defined in the `app` folder.
 - The `Conversations` powering these apps are defined in the `llm/conversations` folder.
 - The Streamlit application is defined in the `workspace/dev_resources.py` file.
+
+<img width="1573" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/8529aad8-f74c-464d-8bf8-2272a3281b25">
 
 ### Serve your LLM Apps using FastApi
 
@@ -157,7 +163,7 @@ phi ws up --group api
 
 ### View API Endpoints
 
-- Open [localhost:8000/docs](http://localhost:8000/docs) to view the API Endpoints.
+- Open <a href="http://localhost:8000/docs" target="_blank">localhost:8000/docs</a> to view the API Endpoints.
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "how do I make chicken tikka salad"}`
 - Checkout the `api/routes/pdf_routes.py` file for common endpoints that you can integrate with your front-end or product.
 - The FastApi application is defined in the `workspace/dev_resources.py` file.

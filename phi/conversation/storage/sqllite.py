@@ -123,12 +123,14 @@ class SqlConversationStorage(ConversationStorage):
             existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)
             return ConversationRow.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_conversation_ids(self, user_name: str) -> List[str]:
+    def get_all_conversation_ids(self, user_name: Optional[str] = None) -> List[str]:
         conversation_ids: List[str] = []
         try:
             with self.Session() as sess:
                 # get all conversation ids for this user
-                stmt = select(self.table).where(self.table.c.user_name == user_name)
+                stmt = select(self.table)
+                if user_name is not None:
+                    stmt = stmt.where(self.table.c.user_name == user_name)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -141,12 +143,14 @@ class SqlConversationStorage(ConversationStorage):
             pass
         return conversation_ids
 
-    def get_all_conversations(self, user_name: str) -> List[ConversationRow]:
+    def get_all_conversations(self, user_name: Optional[str] = None) -> List[ConversationRow]:
         conversations: List[ConversationRow] = []
         try:
             with self.Session() as sess:
                 # get all conversation ids for this user
-                stmt = select(self.table).where(self.table.c.user_name == user_name)
+                stmt = select(self.table)
+                if user_name is not None:
+                    stmt = stmt.where(self.table.c.user_name == user_name)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query

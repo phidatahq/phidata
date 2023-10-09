@@ -386,337 +386,304 @@ def start(
     )
 
 
-# @phi_cli.command(short_help="Stop resources defined in a resources.py file")
-# def stop(
-#     resources_file: str = typer.Argument(
-#         "resources.py",
-#         help="Path to workspace file.",
-#         show_default=False,
-#     ),
-#     env_filter: Optional[str] = typer.Option(
-#         None, "-e", "--env", metavar="", help="Filter the environment to deploy"
-#     ),
-#     config_filter: Optional[str] = typer.Option(
-#         None, "-c", "--config", metavar="", help="Filter the config to deploy"
-#     ),
-#     name_filter: Optional[str] = typer.Option(
-#         None, "-n", "--name", metavar="", help="Filter using resource name"
-#     ),
-#     type_filter: Optional[str] = typer.Option(
-#         None,
-#         "-t",
-#         "--type",
-#         metavar="",
-#         help="Filter using resource type",
-#     ),
-#     group_filter: Optional[str] = typer.Option(
-#         None, "-g", "--group", metavar="", help="Filter using group name"
-#     ),
-#     dry_run: bool = typer.Option(
-#         False,
-#         "-dr",
-#         "--dry-run",
-#         help="Print which resources will be deployed and exit.",
-#     ),
-#     auto_confirm: bool = typer.Option(
-#         False,
-#         "-y",
-#         "--yes",
-#         help="Skip the confirmation before deploying resources.",
-#     ),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-#     force: bool = typer.Option(
-#         False,
-#         "-f",
-#         "--force",
-#         help="Force",
-#     ),
-# ):
-#     """\b
-#     Start resources defined in a resources.py file
-#     \b
-#     Examples:
-#     > `phi ws start`                -> Start resources defined in a resources.py file
-#     > `phi ws start workspace.py`   -> Start resources defined in a workspace.py file
-#     """
-#     from pathlib import Path
-#     from phi.conf.phi_conf import PhiConf
-#
-#     from phi.cli.operator import stop_resources
-#     from phi.utils.load_env import load_env
-#     from phi.utils.cli_console import print_error, print_conf_not_available_msg
-#     from phi.workspace.ws_enums import WorkspaceConfigType
-#
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     phi_conf: Optional[PhiConf] = PhiConf.get_saved_conf()
-#     if not phi_conf:
-#         print_conf_not_available_msg()
-#         return
-#
-#     # Load environment from .env
-#     load_env(
-#         env={
-#             "PHI_WS_FORCE": str(force),
-#         },
-#         dotenv_dir=Path(".").resolve(),
-#     )
-#
-#     target_env: Optional[str] = None
-#     target_config_str: Optional[str] = None
-#     target_config: Optional[WorkspaceConfigType] = None
-#     target_name: Optional[str] = None
-#     target_type: Optional[str] = None
-#     target_group: Optional[str] = None
-#
-#     if env_filter is not None and isinstance(env_filter, str):
-#         target_env = env_filter
-#     if config_filter is not None and isinstance(config_filter, str):
-#         target_config_str = config_filter
-#     if name_filter is not None and isinstance(name_filter, str):
-#         target_name = name_filter
-#     if type_filter is not None and isinstance(type_filter, str):
-#         target_type = type_filter
-#     if group_filter is not None and isinstance(group_filter, str):
-#         target_group = group_filter
-#
-#     if target_config_str is not None:
-#         if target_config_str.lower() not in WorkspaceConfigType.values_list():
-#             print_error(
-#                 f"{target_config_str} not supported",
-#                 f"please choose from: {WorkspaceConfigType.values_list()}"
-#             )
-#             return
-#         target_config = WorkspaceConfigType.from_str(target_config_str)
-#
-#     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
-#     stop_resources(
-#         resources_file_path=resources_file_path,
-#         target_env=target_env,
-#         target_config=target_config,
-#         target_name=target_name,
-#         target_type=target_type,
-#         target_group=target_group,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#     )
-#
-#
-# @phi_cli.command(short_help="Update resources defined in a resources.py file")
-# def patch(
-#     resources_file: str = typer.Argument(
-#         "resources.py",
-#         help="Path to workspace file.",
-#         show_default=False,
-#     ),
-#     env_filter: Optional[str] = typer.Option(
-#         None, "-e", "--env", metavar="", help="Filter the environment to deploy"
-#     ),
-#     config_filter: Optional[str] = typer.Option(
-#         None, "-c", "--config", metavar="", help="Filter the config to deploy"
-#     ),
-#     name_filter: Optional[str] = typer.Option(
-#         None, "-n", "--name", metavar="", help="Filter using resource name"
-#     ),
-#     type_filter: Optional[str] = typer.Option(
-#         None,
-#         "-t",
-#         "--type",
-#         metavar="",
-#         help="Filter using resource type",
-#     ),
-#     group_filter: Optional[str] = typer.Option(
-#         None, "-g", "--group", metavar="", help="Filter using group name"
-#     ),
-#     dry_run: bool = typer.Option(
-#         False,
-#         "-dr",
-#         "--dry-run",
-#         help="Print which resources will be deployed and exit.",
-#     ),
-#     auto_confirm: bool = typer.Option(
-#         False,
-#         "-y",
-#         "--yes",
-#         help="Skip the confirmation before deploying resources.",
-#     ),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-#     force: bool = typer.Option(
-#         False,
-#         "-f",
-#         "--force",
-#         help="Force",
-#     ),
-# ):
-#     """\b
-#     Start resources defined in a resources.py file
-#     \b
-#     Examples:
-#     > `phi ws start`                -> Start resources defined in a resources.py file
-#     > `phi ws start workspace.py`   -> Start resources defined in a workspace.py file
-#     """
-#     from pathlib import Path
-#     from phi.conf.phi_conf import PhiConf
-#
-#     from phi.cli.operator import patch_resources
-#     from phi.utils.load_env import load_env
-#     from phi.utils.cli_console import print_error, print_conf_not_available_msg
-#     from phi.workspace.ws_enums import WorkspaceConfigType
-#
-#     if print_debug_log:
-#         set_log_level_to_debug()
-#
-#     phi_conf: Optional[PhiConf] = PhiConf.get_saved_conf()
-#     if not phi_conf:
-#         print_conf_not_available_msg()
-#         return
-#
-#     # Load environment from .env
-#     load_env(
-#         env={
-#             "PHI_WS_FORCE": str(force),
-#         },
-#         dotenv_dir=Path(".").resolve(),
-#     )
-#
-#     target_env: Optional[str] = None
-#     target_config_str: Optional[str] = None
-#     target_config: Optional[WorkspaceConfigType] = None
-#     target_name: Optional[str] = None
-#     target_type: Optional[str] = None
-#     target_group: Optional[str] = None
-#
-#     if env_filter is not None and isinstance(env_filter, str):
-#         target_env = env_filter
-#     if config_filter is not None and isinstance(config_filter, str):
-#         target_config_str = config_filter
-#     if name_filter is not None and isinstance(name_filter, str):
-#         target_name = name_filter
-#     if type_filter is not None and isinstance(type_filter, str):
-#         target_type = type_filter
-#     if group_filter is not None and isinstance(group_filter, str):
-#         target_group = group_filter
-#
-#     if target_config_str is not None:
-#         if target_config_str.lower() not in WorkspaceConfigType.values_list():
-#             print_error(
-#                 f"{target_config_str} not supported",
-#                 f"please choose from: {WorkspaceConfigType.values_list()}"
-#             )
-#             return
-#         target_config = WorkspaceConfigType.from_str(target_config_str)
-#
-#     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
-#     patch_resources(
-#         resources_file_path=resources_file_path,
-#         target_env=target_env,
-#         target_config=target_config,
-#         target_name=target_name,
-#         target_type=target_type,
-#         target_group=target_group,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#     )
-#
-#
-# @phi_cli.command(short_help="Restart resources defined in a resources.py file")
-# def restart(
-#     resources_file: str = typer.Argument(
-#         "resources.py",
-#         help="Path to workspace file.",
-#         show_default=False,
-#     ),
-#     env_filter: Optional[str] = typer.Option(
-#         None, "-e", "--env", metavar="", help="Filter the environment to deploy"
-#     ),
-#     config_filter: Optional[str] = typer.Option(
-#         None, "-c", "--config", metavar="", help="Filter the config to deploy"
-#     ),
-#     name_filter: Optional[str] = typer.Option(
-#         None, "-n", "--name", metavar="", help="Filter using resource name"
-#     ),
-#     type_filter: Optional[str] = typer.Option(
-#         None,
-#         "-t",
-#         "--type",
-#         metavar="",
-#         help="Filter using resource type",
-#     ),
-#     group_filter: Optional[str] = typer.Option(
-#         None, "-g", "--group", metavar="", help="Filter using group name"
-#     ),
-#     dry_run: bool = typer.Option(
-#         False,
-#         "-dr",
-#         "--dry-run",
-#         help="Print which resources will be deployed and exit.",
-#     ),
-#     auto_confirm: bool = typer.Option(
-#         False,
-#         "-y",
-#         "--yes",
-#         help="Skip the confirmation before deploying resources.",
-#     ),
-#     print_debug_log: bool = typer.Option(
-#         False,
-#         "-d",
-#         "--debug",
-#         help="Print debug logs.",
-#     ),
-#     force: bool = typer.Option(
-#         False,
-#         "-f",
-#         "--force",
-#         help="Force",
-#     ),
-# ):
-#     """\b
-#     Restart resources defined in a resources.py file
-#     \b
-#     Examples:
-#     > `phi ws restart`                -> Start resources defined in a resources.py file
-#     > `phi ws restart workspace.py`   -> Start resources defined in a workspace.py file
-#     """
-#     from time import sleep
-#     from phi.utils.cli_console import print_info
-#
-#     stop(
-#         resources_file=resources_file,
-#         env_filter=env_filter,
-#         config_filter=config_filter,
-#         name_filter=name_filter,
-#         type_filter=type_filter,
-#         group_filter=group_filter,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#         print_debug_log=print_debug_log,
-#         force=force,
-#     )
-#     print_info("Sleeping for 2 seconds..")
-#     sleep(2)
-#     start(
-#         resources_file=resources_file,
-#         env_filter=env_filter,
-#         config_filter=config_filter,
-#         name_filter=name_filter,
-#         type_filter=type_filter,
-#         group_filter=group_filter,
-#         dry_run=dry_run,
-#         auto_confirm=auto_confirm,
-#         print_debug_log=print_debug_log,
-#         force=force,
-#     )
+@phi_cli.command(short_help="Stop resources defined in a resources.py file")
+def stop(
+    resources_file: str = typer.Argument(
+        "resources.py",
+        help="Path to workspace file.",
+        show_default=False,
+    ),
+    env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy"),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
+    config_filter: Optional[str] = typer.Option(None, "-c", "--config", metavar="", help="Filter the config to deploy"),
+    group_filter: Optional[str] = typer.Option(
+        None, "-g", "--group", metavar="", help="Filter resources using group name."
+    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter using resource name"),
+    type_filter: Optional[str] = typer.Option(
+        None,
+        "-t",
+        "--type",
+        metavar="",
+        help="Filter using resource type",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "-dr",
+        "--dry-run",
+        help="Print resources and exit.",
+    ),
+    auto_confirm: bool = typer.Option(
+        False,
+        "-y",
+        "--yes",
+        help="Skip the confirmation before deploying resources.",
+    ),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Force",
+    ),
+):
+    """\b
+    Stop resources defined in a resources.py file
+    \b
+    Examples:
+    > `phi ws stop`                -> Stop resources defined in a resources.py file
+    > `phi ws stop workspace.py`   -> Stop resources defined in a workspace.py file
+    """
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from pathlib import Path
+    from phi.cli.config import PhiCliConfig
+    from phi.cli.console import log_config_not_available_msg
+    from phi.cli.operator import stop_resources
+    from phi.infra.type import InfraType
+
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        log_config_not_available_msg()
+        return
+
+    target_env: Optional[str] = None
+    target_infra_str: Optional[str] = None
+    target_infra: Optional[InfraType] = None
+    target_group: Optional[str] = None
+    target_name: Optional[str] = None
+    target_type: Optional[str] = None
+
+    if env_filter is not None and isinstance(env_filter, str):
+        target_env = env_filter
+    if infra_filter is not None and isinstance(infra_filter, str):
+        target_infra_str = infra_filter
+    if group_filter is not None and isinstance(group_filter, str):
+        target_group = group_filter
+    if name_filter is not None and isinstance(name_filter, str):
+        target_name = name_filter
+    if type_filter is not None and isinstance(type_filter, str):
+        target_type = type_filter
+
+    if target_infra_str is not None:
+        try:
+            target_infra = InfraType(target_infra_str.lower())
+        except KeyError:
+            logger.error(f"{target_infra_str} is not supported")
+            return
+
+    resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
+    stop_resources(
+        phi_config=phi_config,
+        resources_file_path=resources_file_path,
+        target_env=target_env,
+        target_infra=target_infra,
+        target_group=target_group,
+        target_name=target_name,
+        target_type=target_type,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        force=force,
+    )
+
+
+@phi_cli.command(short_help="Update resources defined in a resources.py file")
+def patch(
+    resources_file: str = typer.Argument(
+        "resources.py",
+        help="Path to workspace file.",
+        show_default=False,
+    ),
+    env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy"),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
+    config_filter: Optional[str] = typer.Option(None, "-c", "--config", metavar="", help="Filter the config to deploy"),
+    group_filter: Optional[str] = typer.Option(
+        None, "-g", "--group", metavar="", help="Filter resources using group name."
+    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter using resource name"),
+    type_filter: Optional[str] = typer.Option(
+        None,
+        "-t",
+        "--type",
+        metavar="",
+        help="Filter using resource type",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "-dr",
+        "--dry-run",
+        help="Print which resources will be deployed and exit.",
+    ),
+    auto_confirm: bool = typer.Option(
+        False,
+        "-y",
+        "--yes",
+        help="Skip the confirmation before deploying resources.",
+    ),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Force",
+    ),
+):
+    """\b
+    Update resources defined in a resources.py file
+    \b
+    Examples:
+    > `phi ws patch`                -> Update resources defined in a resources.py file
+    > `phi ws patch workspace.py`   -> Update resources defined in a workspace.py file
+    """
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from pathlib import Path
+    from phi.cli.config import PhiCliConfig
+    from phi.cli.console import log_config_not_available_msg
+    from phi.cli.operator import patch_resources
+    from phi.infra.type import InfraType
+
+    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        log_config_not_available_msg()
+        return
+
+    target_env: Optional[str] = None
+    target_infra_str: Optional[str] = None
+    target_infra: Optional[InfraType] = None
+    target_group: Optional[str] = None
+    target_name: Optional[str] = None
+    target_type: Optional[str] = None
+
+    if env_filter is not None and isinstance(env_filter, str):
+        target_env = env_filter
+    if infra_filter is not None and isinstance(infra_filter, str):
+        target_infra_str = infra_filter
+    if group_filter is not None and isinstance(group_filter, str):
+        target_group = group_filter
+    if name_filter is not None and isinstance(name_filter, str):
+        target_name = name_filter
+    if type_filter is not None and isinstance(type_filter, str):
+        target_type = type_filter
+
+    if target_infra_str is not None:
+        try:
+            target_infra = InfraType(target_infra_str.lower())
+        except KeyError:
+            logger.error(f"{target_infra_str} is not supported")
+            return
+
+    resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
+    patch_resources(
+        phi_config=phi_config,
+        resources_file_path=resources_file_path,
+        target_env=target_env,
+        target_infra=target_infra,
+        target_group=target_group,
+        target_name=target_name,
+        target_type=target_type,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        force=force,
+    )
+
+
+@phi_cli.command(short_help="Restart resources defined in a resources.py file")
+def restart(
+    resources_file: str = typer.Argument(
+        "resources.py",
+        help="Path to workspace file.",
+        show_default=False,
+    ),
+    env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy"),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
+    config_filter: Optional[str] = typer.Option(None, "-c", "--config", metavar="", help="Filter the config to deploy"),
+    group_filter: Optional[str] = typer.Option(
+        None, "-g", "--group", metavar="", help="Filter resources using group name."
+    ),
+    name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter using resource name"),
+    type_filter: Optional[str] = typer.Option(
+        None,
+        "-t",
+        "--type",
+        metavar="",
+        help="Filter using resource type",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "-dr",
+        "--dry-run",
+        help="Print which resources will be deployed and exit.",
+    ),
+    auto_confirm: bool = typer.Option(
+        False,
+        "-y",
+        "--yes",
+        help="Skip the confirmation before deploying resources.",
+    ),
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Force",
+    ),
+):
+    """\b
+    Restart resources defined in a resources.py file
+    \b
+    Examples:
+    > `phi ws restart`                -> Start resources defined in a resources.py file
+    > `phi ws restart workspace.py`   -> Start resources defined in a workspace.py file
+    """
+    from time import sleep
+    from phi.cli.console import print_info
+
+    stop(
+        resources_file=resources_file,
+        env_filter=env_filter,
+        infra_filter=infra_filter,
+        config_filter=config_filter,
+        group_filter=group_filter,
+        name_filter=name_filter,
+        type_filter=type_filter,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        print_debug_log=print_debug_log,
+        force=force,
+    )
+    print_info("Sleeping for 2 seconds..")
+    sleep(2)
+    start(
+        resources_file=resources_file,
+        env_filter=env_filter,
+        infra_filter=infra_filter,
+        config_filter=config_filter,
+        group_filter=group_filter,
+        name_filter=name_filter,
+        type_filter=type_filter,
+        dry_run=dry_run,
+        auto_confirm=auto_confirm,
+        print_debug_log=print_debug_log,
+        force=force,
+    )
 
 
 phi_cli.add_typer(ws_cli)

@@ -85,26 +85,32 @@ class PhiCommandsRegistry(FunctionRegistry):
         if not phi_config:
             return "Error: Phi not initialized. Please run `phi ai` again"
 
+        workspace_config_to_start: Optional[WorkspaceConfig] = None
         active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-        if active_ws_config is None:
-            return "Error: No active workspace found. Please create a workspace first."
 
-        if active_ws_config.ws_dir_name != workspace_name and workspace_name is not None:
-            # TODO: set active workspace to the workspace with the given name
-            new_active_workspace_config = phi_config.get_ws_config_by_dir_name(workspace_name)
-            if new_active_workspace_config is None:
+        if workspace_name is None:
+            if active_ws_config is None:
+                return "Error: No active workspace found. Please create a workspace first."
+            workspace_config_to_start = active_ws_config
+        else:
+            workspace_config_by_name: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(workspace_name)
+            if workspace_config_by_name is None:
                 return f"Error: Could not find a workspace with name: {workspace_name}"
-            phi_config.active_ws_dir = new_active_workspace_config.ws_dir_name
-            active_ws_config = new_active_workspace_config
+            workspace_config_to_start = workspace_config_by_name
+
+            # Set the active workspace to the workspace to start
+            if active_ws_config is not None and active_ws_config.ws_root_path != workspace_config_by_name.ws_root_path:
+                phi_config.active_ws_dir = str(workspace_config_by_name.ws_root_path)
+                active_ws_config = workspace_config_by_name
 
         try:
             start_workspace(
                 phi_config=phi_config,
-                ws_config=active_ws_config,
+                ws_config=workspace_config_to_start,
                 target_env="dev",
                 target_infra=InfraType.docker,
                 auto_confirm=True,
             )
-            return f"Successfully started workspace: {active_ws_config.ws_dir_name}"
+            return f"Successfully started workspace: {workspace_config_to_start.ws_root_path.stem}"
         except Exception as e:
             return f"Error: {e}"

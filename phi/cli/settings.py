@@ -13,7 +13,7 @@ class PhiCliSettings(BaseSettings):
     app_version: str = metadata.version("phidata")
 
     auth_token_path: Path = PHI_CLI_DIR.joinpath("token")
-    config_file_path: Path = PHI_CLI_DIR.joinpath("config")
+    config_file_path: Path = PHI_CLI_DIR.joinpath("config.json")
     credentials_path: Path = PHI_CLI_DIR.joinpath("credentials")
     ai_conversations_path: Path = PHI_CLI_DIR.joinpath("ai_conversations.json")
     auth_token_cookie: str = "__phi_session"

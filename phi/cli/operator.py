@@ -66,6 +66,7 @@ def authenticate_user() -> None:
 
     if phi_config is None:
         phi_config = PhiCliConfig(user)
+        phi_config.save_config()
     else:
         phi_config.user = user
 
@@ -113,6 +114,7 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     if phi_config is None:
         logger.debug("Creating new PhiCliConfig")
         phi_config = PhiCliConfig()
+        phi_config.save_config()
 
     # Authenticate user
     if login:
@@ -156,6 +158,7 @@ def sign_in_using_cli() -> None:
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         phi_config = PhiCliConfig(user)
+        phi_config.save_config()
     else:
         phi_config.user = user
 

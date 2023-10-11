@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Optional, Dict, List
 
-import typer
 
 from phi.api.workspace import log_workspace_event
 from phi.api.schemas.workspace import (
@@ -124,16 +123,6 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         logger.error("URL or Template is required")
         return False
 
-    # Check if a workspace with the same name exists
-    existing_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
-    if existing_ws_config is not None:
-        logger.error(f"Found existing record for workspace: {ws_dir_name}")
-        delete_existing_ws_config = typer.confirm("Replace existing record?", default=True)
-        if delete_existing_ws_config:
-            phi_config.delete_ws(ws_dir_name)
-        else:
-            return False
-
     # Check if we can create the workspace in the current dir
     ws_root_path: Path = current_dir.joinpath(ws_dir_name)
     if ws_root_path.exists():
@@ -162,10 +151,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             logger.info("Please delete the .git folder manually")
             pass
 
-    phi_config.add_new_ws_to_config(
-        ws_dir_name=ws_dir_name,
-        ws_root_path=ws_root_path,
-    )
+    phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
 
     try:
         # workspace_dir_path is the path to the ws_root/workspace dir
@@ -245,21 +231,18 @@ def setup_workspace(ws_root_path: Path) -> bool:
         # This happens if
         # - The user is setting up a workspace not previously setup on this machine
         # - OR the user ran `phi init -r` which erases existing records of workspaces
-        logger.debug(f"Could not find an existing workspace at path: {ws_root_path}")
+        logger.debug(f"Could not find an existing workspace at: {ws_root_path}")
 
         # In this case, the local workspace directory exists but PhiCliConfig does not have a record
-        print_info(f"Adding {ws_root_path} as a workspace")
-        phi_config.add_new_ws_to_config(
-            ws_dir_name=ws_root_path.stem,
-            ws_root_path=ws_root_path,
-        )
+        print_info(f"Adding {str(ws_root_path.stem)} as a workspace")
+        phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
         ws_config = phi_config.get_ws_config_by_path(ws_root_path)
     else:
-        logger.debug(f"Found workspace at {ws_config.ws_dir_name}")
+        logger.debug(f"Found workspace at {ws_root_path}")
 
     # If the ws_config is still None it means the workspace is corrupt
     if ws_config is None:
-        logger.error(f"Could not use workspace from: {ws_root_path}")
+        logger.error(f"Could not find workspace at: {str(ws_root_path)}")
         logger.error("Please try again")
         return False
 
@@ -269,7 +252,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
     # Load and save the workspace config
     # ws_config.load()
     # Get the workspace dir name
-    ws_dir_name = ws_config.ws_dir_name
+    ws_dir_name = ws_config.ws_root_path.stem
     # Set the workspace as active if it is not already
     # update_primary_ws is a flag to update the primary workspace in the backend
     update_primary_ws = False
@@ -323,7 +306,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
                 ),
             )
             if ws_schema is not None:
-                ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=ws_schema)
+                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=ws_schema)
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")
 
@@ -347,7 +330,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
 
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
+                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=updated_workspace_schema)
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")
 
@@ -372,7 +355,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
             )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                ws_config = phi_config.update_ws_config(ws_dir_name=ws_dir_name, ws_schema=updated_workspace_schema)
+                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=updated_workspace_schema)
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")
 
@@ -685,11 +668,11 @@ def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[str]]
         print_heading("No workspaces to delete")
         return
 
-    for ws_dir in ws_to_delete:
-        phi_config.delete_ws(ws_dir_name=ws_dir)
+    for ws_root in ws_to_delete:
+        phi_config.delete_ws(ws_root_path=ws_root)
 
 
-def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> None:
+def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     from phi.cli.operator import initialize_phi
 
     ######################################################
@@ -723,10 +706,11 @@ def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> No
         ws_root_path = Path(".").resolve()
     else:
         # If the user provides a workspace name manually, we find the dir for that ws
-        ws_root_path = phi_config.get_ws_root_path_by_dir_name(ws_dir_name)
-        if ws_root_path is None:
+        ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
+        if ws_config is None:
             logger.error(f"Could not find workspace {ws_dir_name}")
             return
+        ws_root_path = ws_config.ws_root_path
 
     ws_dir_is_valid: bool = ws_root_path is not None and ws_root_path.exists() and ws_root_path.is_dir()
     if not ws_dir_is_valid:
@@ -744,7 +728,7 @@ def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> No
         print_info("If this workspace has not been setup, please run `phi ws setup` from the workspace directory")
         return
 
-    print_heading(f"Setting workspace {active_ws_config.ws_dir_name} as active")
+    print_heading(f"Setting workspace {active_ws_config.ws_root_path.stem} as active")
     # if load:
     #     try:
     #         active_ws_config.load()
@@ -760,7 +744,7 @@ def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> No
     if phi_config.user is not None:
         ws_schema: Optional[WorkspaceSchema] = active_ws_config.ws_schema
         if ws_schema is None:
-            logger.warning(f"Please setup {active_ws_config.ws_dir_name} by running `phi ws setup`")
+            logger.warning(f"Please setup {active_ws_config.ws_root_path.stem} by running `phi ws setup`")
         else:
             from phi.api.workspace import update_primary_workspace_for_user
 
@@ -774,12 +758,12 @@ def set_workspace_as_active(ws_dir_name: Optional[str], load: bool = True) -> No
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
                 phi_config.update_ws_config(
-                    ws_dir_name=active_ws_config.ws_dir_name, ws_schema=updated_workspace_schema
+                    ws_root_path=active_ws_config.ws_root_path, ws_schema=updated_workspace_schema
                 )
 
     ######################################################
     ## 2. Set workspace as active
     ######################################################
-    phi_config.active_ws_dir = active_ws_config.ws_dir_name
+    phi_config.active_ws_dir = str(active_ws_config.ws_root_path)
     print_info("Active workspace updated")
     return

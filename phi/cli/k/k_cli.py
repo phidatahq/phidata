@@ -87,15 +87,18 @@ def save(
     if active_ws_config.ws_root_path != current_path:
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
+            active_ws_dir_name = active_ws_config.ws_root_path.stem
+            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
+
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
+                f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
+                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
+                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None

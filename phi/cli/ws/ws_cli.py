@@ -199,15 +199,18 @@ def up(
     if active_ws_config.ws_root_path != current_path and not auto_confirm:
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
+            active_ws_dir_name = active_ws_config.ws_root_path.stem
+            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
+
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
+                f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
+                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
+                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -264,7 +267,7 @@ def up(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Starting workspace: {}".format(active_ws_config.ws_dir_name))
+    print_heading("Starting workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
     start_workspace(
         phi_config=phi_config,
         ws_config=active_ws_config,
@@ -364,15 +367,18 @@ def down(
     if active_ws_config.ws_root_path != current_path and not auto_confirm:
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
+            active_ws_dir_name = active_ws_config.ws_root_path.stem
+            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
+
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
+                f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
+                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
+                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -429,7 +435,7 @@ def down(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Stopping workspace: {}".format(active_ws_config.ws_dir_name))
+    print_heading("Stopping workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
     stop_workspace(
         phi_config=phi_config,
         ws_config=active_ws_config,
@@ -527,15 +533,18 @@ def patch(
     if active_ws_config.ws_root_path != current_path and not auto_confirm:
         ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
         if ws_at_current_path is not None:
+            active_ws_dir_name = active_ws_config.ws_root_path.stem
+            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
+
             print_info(
-                f"Workspace at the current directory ({ws_at_current_path.ws_dir_name}) "
-                + f"is not the Active Workspace ({active_ws_config.ws_dir_name})"
+                f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
+                + f"is not the Active Workspace ({active_ws_dir_name})"
             )
             update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path.ws_dir_name}", default=True
+                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = ws_at_current_path.ws_dir_name
+                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -592,7 +601,7 @@ def patch(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Updating workspace: {}".format(active_ws_config.ws_dir_name))
+    print_heading("Updating workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
     update_workspace(
         phi_config=phi_config,
         ws_config=active_ws_config,
@@ -773,11 +782,15 @@ def delete(
     ws_to_delete = []
     # Delete workspace by name if provided
     if ws_name is not None:
-        ws_to_delete.append(ws_name)
+        ws_config = phi_config.get_ws_config_by_dir_name(ws_name)
+        if ws_config is None:
+            logger.error(f"Workspace {ws_name} not found")
+            return
+        ws_to_delete.append(str(ws_config.ws_root_path))
     else:
         # Delete all workspaces if flag is set
         if all_workspaces:
-            ws_to_delete = [ws.ws_dir_name for ws in phi_config.available_ws if ws.ws_dir_name is not None]
+            ws_to_delete = [str(ws.ws_root_path) for ws in phi_config.available_ws if ws.ws_root_path is not None]
         else:
             # # By default, we assume this command is run for the active workspace
             if phi_config.active_ws_dir is not None:

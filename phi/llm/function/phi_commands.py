@@ -100,7 +100,7 @@ class PhiCommandsRegistry(FunctionRegistry):
 
             # Set the active workspace to the workspace to start
             if active_ws_config is not None and active_ws_config.ws_root_path != workspace_config_by_name.ws_root_path:
-                phi_config.active_ws_dir = str(workspace_config_by_name.ws_root_path)
+                phi_config.set_active_ws_dir(workspace_config_by_name.ws_root_path)
                 active_ws_config = workspace_config_by_name
 
         try:

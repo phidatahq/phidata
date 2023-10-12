@@ -257,7 +257,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
     # update_primary_ws is a flag to update the primary workspace in the backend
     update_primary_ws = False
     if phi_config.active_ws_dir is None or phi_config.active_ws_dir != ws_dir_name:
-        phi_config.active_ws_dir = ws_dir_name
+        phi_config.set_active_ws_dir(ws_config.ws_root_path)
         update_primary_ws = True
 
     ######################################################
@@ -663,7 +663,7 @@ def update_workspace(
         )
 
 
-def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[str]]) -> None:
+def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[Path]]) -> None:
     if ws_to_delete is None or len(ws_to_delete) == 0:
         print_heading("No workspaces to delete")
         return
@@ -764,6 +764,6 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     ######################################################
     ## 2. Set workspace as active
     ######################################################
-    phi_config.active_ws_dir = str(active_ws_config.ws_root_path)
+    phi_config.set_active_ws_dir(active_ws_config.ws_root_path)
     print_info("Active workspace updated")
     return

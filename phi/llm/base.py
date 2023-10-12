@@ -9,11 +9,21 @@ from phi.utils.log import logger
 
 
 class LLM(BaseModel):
+    # ID of the model to use.
     model: str
+    # Name for this LLM (not used for api calls).
     name: Optional[str] = None
+    # Metrics collected for this LLM (not used for api calls).
     metrics: Dict[str, Any] = {}
 
+    # A list of functions the model may generate JSON inputs for.
+    # Do not add functions manually. Use add_function() or add_function_schema() instead.
     functions: Optional[Dict[str, Function]] = None
+    # Controls how the model calls functions.
+    # "none" means the model will not call a function and instead generates a message.
+    # "auto" means the model can pick between generating a message or calling a function.
+    # Specifying a particular function via {"name": "my_function"} forces the model to call that function.
+    # "none" is the default when no functions are present. "auto" is the default if functions are present.
     function_call: Optional[str] = None
     function_call_limit: int = 50
     function_call_stack: Optional[List[FunctionCall]] = None
@@ -23,6 +33,7 @@ class LLM(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @property
     def api_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
 

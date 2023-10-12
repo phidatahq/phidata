@@ -23,12 +23,12 @@
 ---
 
 <h2 align="center">
-  🧰  Phidata is a batteries included toolkit for building LLM Apps
+  🧰  Phidata is a everything-included toolkit for building products using LLMs
 </h2>
 
 <br />
 
-It solves the problem of building products using large language models by providing:
+It solves the problem of building LLM applications by providing:
 
 ### 💻 Software layer
 

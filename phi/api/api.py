@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
 
@@ -9,22 +9,24 @@ from phi.utils.log import logger
 
 class Api:
     def __init__(self):
-        self.headers = {
+        self.headers: Dict[str, str] = {
             "user-agent": f"{phi_cli_settings.app_name}/{phi_cli_settings.app_version}",
             "Content-Type": "application/json",
         }
+        self._auth_token: Optional[str] = None
         self._authenticated_headers = None
 
     @property
     def auth_token(self) -> Optional[str]:
-        try:
-            return read_auth_token()
-        except Exception as e:
-            logger.debug(f"Failed to read auth token: {e}")
-            return None
+        if self._auth_token is None:
+            try:
+                self._auth_token = read_auth_token()
+            except Exception as e:
+                logger.debug(f"Failed to read auth token: {e}")
+        return self._auth_token
 
     @property
-    def authenticated_headers(self):
+    def authenticated_headers(self) -> Dict[str, str]:
         if self._authenticated_headers is None:
             self._authenticated_headers = self.headers.copy()
             token = self.auth_token

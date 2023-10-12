@@ -47,8 +47,8 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
         # )
         # logger.debug("Data: {}".format(decoded_post_data))
         # logger.info("type: {}".format(type(post_data)))
-        phi_cli_settings.auth_token_path.touch(exist_ok=True)
-        phi_cli_settings.auth_token_path.write_text(decoded_post_data)
+        phi_cli_settings.tmp_token_path.touch(exist_ok=True)
+        phi_cli_settings.tmp_token_path.write_text(decoded_post_data)
         # TODO: Add checks before shutting down the server
         self.server.running = False  # type: ignore
         self._set_response()
@@ -97,9 +97,9 @@ def get_auth_token_from_web_flow(port) -> Optional[str]:
     server = CliAuthServer(port)
     server.run()
 
-    if phi_cli_settings.auth_token_path.exists() and phi_cli_settings.auth_token_path.is_file():
-        auth_token_str = phi_cli_settings.auth_token_path.read_text()
+    if phi_cli_settings.tmp_token_path.exists() and phi_cli_settings.tmp_token_path.is_file():
+        auth_token_str = phi_cli_settings.tmp_token_path.read_text()
         auth_token_json = json.loads(auth_token_str)
-        phi_cli_settings.auth_token_path.unlink()
+        phi_cli_settings.tmp_token_path.unlink()
         return auth_token_json.get("AuthToken", None)
     return None

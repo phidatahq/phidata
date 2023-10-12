@@ -34,3 +34,7 @@ class ApiRoutes:
     AI_CONVERSATION_CREATE: str = "/v1/ai/conversation/create"
     AI_CONVERSATION_CHAT: str = "/v1/ai/conversation/chat"
     AI_CONVERSATION_CHAT_WS: str = "/v1/ai/conversation/chat_ws"
+
+    # llm paths
+    OPENAI_CHAT: str = "/v1/llm/openai/chat"
+    OPENAI_EMBEDDING: str = "/v1/llm/openai/embedding"

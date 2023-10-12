@@ -3,7 +3,7 @@
 This is the entrypoint for the `phi ws` application.
 """
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional, cast, List
 
 import typer
 
@@ -210,7 +210,7 @@ def up(
                 f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
+                phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -378,7 +378,7 @@ def down(
                 f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
+                phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -544,7 +544,7 @@ def patch(
                 f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
+                phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
@@ -779,21 +779,21 @@ def delete(
         log_config_not_available_msg()
         return
 
-    ws_to_delete = []
+    ws_to_delete: List[Path] = []
     # Delete workspace by name if provided
     if ws_name is not None:
         ws_config = phi_config.get_ws_config_by_dir_name(ws_name)
         if ws_config is None:
             logger.error(f"Workspace {ws_name} not found")
             return
-        ws_to_delete.append(str(ws_config.ws_root_path))
+        ws_to_delete.append(ws_config.ws_root_path)
     else:
         # Delete all workspaces if flag is set
         if all_workspaces:
-            ws_to_delete = [str(ws.ws_root_path) for ws in phi_config.available_ws if ws.ws_root_path is not None]
+            ws_to_delete = [ws.ws_root_path for ws in phi_config.available_ws if ws.ws_root_path is not None]
         else:
-            # # By default, we assume this command is run for the active workspace
+            # By default, we assume this command is run for the active workspace
             if phi_config.active_ws_dir is not None:
-                ws_to_delete.append(phi_config.active_ws_dir)
+                ws_to_delete.append(Path(phi_config.active_ws_dir))
 
     delete_workspace(phi_config, ws_to_delete)

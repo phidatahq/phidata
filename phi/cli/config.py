@@ -70,11 +70,10 @@ class PhiCliConfig:
     def active_ws_dir(self) -> Optional[str]:
         return self._active_ws_dir
 
-    @active_ws_dir.setter
-    def active_ws_dir(self, ws_root: Optional[str]) -> None:
-        if ws_root is not None:
-            logger.debug(f"Setting active workspace to: {ws_root}")
-            self._active_ws_dir = ws_root
+    def set_active_ws_dir(self, ws_root_path: Optional[Path]) -> None:
+        if ws_root_path is not None:
+            logger.debug(f"Setting active workspace to: {str(ws_root_path)}")
+            self._active_ws_dir = str(ws_root_path)
             self.save_config()
 
     @property
@@ -150,11 +149,11 @@ class PhiCliConfig:
             ws_schema=ws_schema,
         )
         if set_as_active:
-            self.active_ws_dir = str(ws_root_path)
+            self._active_ws_dir = str(ws_root_path)
         self.save_config()
         return ws_config
 
-    def delete_ws(self, ws_root_path: str) -> None:
+    def delete_ws(self, ws_root_path: Path) -> None:
         """Handles Deleting a workspace from the PhiCliConfig and api"""
 
         ws_root_str = str(ws_root_path)

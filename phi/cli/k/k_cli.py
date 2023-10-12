@@ -98,7 +98,7 @@ def save(
                 f"Update active workspace to {ws_at_current_path_dir_name}", default=True
             )
             if update_active_workspace:
-                phi_config.active_ws_dir = str(ws_at_current_path.ws_root_path)
+                phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None

@@ -105,7 +105,14 @@ class OpenAIChat(LLM):
                     }
                 ):
                     if chunk:
-                        yield openai_util.convert_to_openai_object(json.loads(chunk))
+                        # Sometimes we get multiple chunks in one response which is not valid JSON
+                        if "}{" in chunk:
+                            # logger.debug(f"Double chunk: {chunk}")
+                            chunks = "[" + chunk.replace("}{", "},{") + "]"
+                            for chunk_dict in json.loads(chunks, object_hook=openai_util.convert_to_openai_object):
+                                yield chunk_dict
+                        else:
+                            yield json.loads(chunk, object_hook=openai_util.convert_to_openai_object)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")

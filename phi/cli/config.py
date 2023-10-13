@@ -225,7 +225,7 @@ class PhiCliConfig:
             config_data = read_json_file(file_path=phi_cli_settings.config_file_path)
             if config_data is None or not isinstance(config_data, dict):
                 logger.debug("No config found")
-                return cls()
+                return None
 
             user_dict = config_data.get("user")
             user_schema = UserSchema.model_validate(user_dict) if user_dict else None

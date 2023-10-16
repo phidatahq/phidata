@@ -94,7 +94,7 @@ class DuckDbAgent(FunctionRegistry):
 
         :return: List of tables in the database
         """
-        stmt = "select table_name from information_schema.tables where table_schema='public';"
+        stmt = "select * from information_schema.tables where table_schema='public';"
         tables = self.run_duckdb_query(stmt)
         logger.info(f"Tables: {tables}")
         return tables
@@ -143,6 +143,8 @@ class DuckDbAgent(FunctionRegistry):
         """
         import os
 
+        logger.info(f"Loading {load_s3_path} into duckdb")
+
         # Get the file name from the s3 path
         file_name = load_s3_path.split("/")[-1]
         # Get the file name without extension from the s3 path
@@ -151,6 +153,8 @@ class DuckDbAgent(FunctionRegistry):
         table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
         create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{load_s3_path}';"
-        self.duckdb_connection.sql(create_statement)
+        self.run_duckdb_query(create_statement)
 
+        logger.info(f"Loaded {load_s3_path} into duckdb as {table_name}")
+        # self.run_duckdb_query(f"SELECT * from {table_name};")
         return table_name, create_statement

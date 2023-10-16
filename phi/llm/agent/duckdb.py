@@ -61,7 +61,7 @@ class DuckDbAgent(FunctionRegistry):
         formatted_sql = formatted_sql.split(";")[0]
 
         try:
-            logger.info(f"Running query: {formatted_sql}")
+            logger.debug(f"Running query: {formatted_sql}")
 
             query_result = self.duckdb_connection.sql(formatted_sql)
             result_output = "No output"
@@ -80,7 +80,7 @@ class DuckDbAgent(FunctionRegistry):
                 except AttributeError:
                     result_output = str(query_result)
 
-            logger.info(f"Query result: {result_output}")
+            logger.debug(f"Query result: {result_output}")
             return result_output
         except duckdb.ProgrammingError as e:
             return str(e)
@@ -94,9 +94,9 @@ class DuckDbAgent(FunctionRegistry):
 
         :return: List of tables in the database
         """
-        stmt = "select * from information_schema.tables where table_schema='public';"
+        stmt = "SHOW TABLES;"
         tables = self.run_duckdb_query(stmt)
-        logger.info(f"Tables: {tables}")
+        logger.debug(f"Tables: {tables}")
         return tables
 
     def describe_table(self, table: str) -> str:
@@ -108,7 +108,7 @@ class DuckDbAgent(FunctionRegistry):
         stmt = f"select column_name, data_type from information_schema.columns where table_name='{table}';"
         table_description = self.run_duckdb_query(stmt)
 
-        logger.info(f"Table description: {table_description}")
+        logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
     def explain_query(self, query: str) -> str:
@@ -120,7 +120,7 @@ class DuckDbAgent(FunctionRegistry):
         stmt = f"explain {query};"
         explain_plan = self.run_duckdb_query(stmt)
 
-        logger.info(f"Explain plan: {explain_plan}")
+        logger.debug(f"Explain plan: {explain_plan}")
         return explain_plan
 
     def describe_table_or_view(self, table: str):
@@ -132,7 +132,7 @@ class DuckDbAgent(FunctionRegistry):
         stmt = f"select column_name, data_type from information_schema.columns where table_name='{table}';"
         table_description = self.run_duckdb_query(stmt)
 
-        logger.info(f"Table description: {table_description}")
+        logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
     def load_s3_path_to_table(self, s3_path: str, table_name: Optional[str] = None) -> Tuple[str, str]:
@@ -144,7 +144,7 @@ class DuckDbAgent(FunctionRegistry):
         """
         import os
 
-        logger.info(f"Loading {s3_path} into duckdb")
+        logger.debug(f"Loading {s3_path} into duckdb")
 
         if table_name is None:
             # Get the file name from the s3 path
@@ -157,6 +157,6 @@ class DuckDbAgent(FunctionRegistry):
         create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{s3_path}';"
         self.run_duckdb_query(create_statement)
 
-        logger.info(f"Loaded {s3_path} into duckdb as {table_name}")
+        logger.debug(f"Loaded {s3_path} into duckdb as {table_name}")
         # self.run_duckdb_query(f"SELECT * from {table_name};")
         return table_name, create_statement

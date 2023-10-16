@@ -135,26 +135,28 @@ class DuckDbAgent(FunctionRegistry):
         logger.info(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
-    def load_s3_path_to_table(self, load_s3_path: str) -> Tuple[str, str]:
+    def load_s3_path_to_table(self, s3_path: str, table_name: Optional[str] = None) -> Tuple[str, str]:
         """Load a file from S3 into duckdb
 
-        :param load_s3_path: S3 path to load
+        :param s3_path: S3 path to load
+        :param table_name: Optional table name to use
         :return: Table name, SQL statement used to load the file
         """
         import os
 
-        logger.info(f"Loading {load_s3_path} into duckdb")
+        logger.info(f"Loading {s3_path} into duckdb")
 
-        # Get the file name from the s3 path
-        file_name = load_s3_path.split("/")[-1]
-        # Get the file name without extension from the s3 path
-        table_name, extension = os.path.splitext(file_name)
-        # If the table_name isn't a valid SQL identifier, we'll need to use something else
-        table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+        if table_name is None:
+            # Get the file name from the s3 path
+            file_name = s3_path.split("/")[-1]
+            # Get the file name without extension from the s3 path
+            table_name, extension = os.path.splitext(file_name)
+            # If the table_name isn't a valid SQL identifier, we'll need to use something else
+            table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
-        create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{load_s3_path}';"
+        create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{s3_path}';"
         self.run_duckdb_query(create_statement)
 
-        logger.info(f"Loaded {load_s3_path} into duckdb as {table_name}")
+        logger.info(f"Loaded {s3_path} into duckdb as {table_name}")
         # self.run_duckdb_query(f"SELECT * from {table_name};")
         return table_name, create_statement

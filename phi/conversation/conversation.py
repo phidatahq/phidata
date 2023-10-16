@@ -20,9 +20,10 @@ from phi.utils.timer import Timer
 
 
 class Conversation(BaseModel):
-    # -*- LLM to use for this conversation
+    # -*- LLM settings
+    # LLM to use for this conversation
     llm: LLM = OpenAIChat()
-    # -*- LLM Introduction
+    # LLM Introduction
     # Add an introduction (from the LLM) to the chat history
     introduction: Optional[str] = None
 
@@ -74,7 +75,7 @@ class Conversation(BaseModel):
     database_row: Optional[ConversationRow] = None
 
     # -*- Enable Function Calls
-    # Makes the conversation autonomous.
+    # Makes the conversation Autonomous by letting the LLM call functions to achieve tasks.
     function_calls: bool = False
     # Add a list of default functions to the LLM
     default_functions: bool = True

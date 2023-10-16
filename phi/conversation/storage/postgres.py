@@ -38,7 +38,7 @@ class PgConversationStorage(ConversationStorage):
             2. Use the db_url
 
         :param table_name: The name of the table to store conversations in.
-        :param schema: The name of the schema to store the table in.
+        :param schema: The schema to store the table in.
         :param db_url: The database URL to connect to.
         :param db_engine: The database engine to use.
         """

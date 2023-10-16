@@ -25,7 +25,7 @@ class DuckDbAgent(FunctionRegistry):
         self.register(self.run_duckdb_query)
         self.register(self.show_tables)
         self.register(self.describe_table)
-        self.register(self.explain_query)
+        self.register(self.inspect_query)
         self.register(self.describe_table_or_view)
 
     @property
@@ -111,11 +111,11 @@ class DuckDbAgent(FunctionRegistry):
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
-    def explain_query(self, query: str) -> str:
-        """Function to explain the query plan. Always explain your query before execution.
+    def inspect_query(self, query: str) -> str:
+        """Function to inspect a query and return the query plan. Always inspect your query before running them.
 
-        :param query: Query to validate
-        :return: Validation result
+        :param query: Query to inspect
+        :return: Qeury plan
         """
         stmt = f"explain {query};"
         explain_plan = self.run_duckdb_query(stmt)

@@ -9,7 +9,7 @@ class Streamlit(AwsApp):
 
     # -*- Image Configuration
     image_name: str = "phidata/streamlit"
-    image_tag: str = "1.23"
+    image_tag: str = "1.27"
     command: Optional[Union[str, List[str]]] = "streamlit hello"
 
     # -*- App Ports

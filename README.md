@@ -30,9 +30,9 @@ Phidata is an everything-included AI toolkit. It provides pre-built templates fo
 
 ## 🚀 How it works
 
-- **Create your LLM app** from a template using `phi ws create`
-- **Run your app locally** using `phi ws up dev:docker`
-- **Run your app on AWS** using `phi ws up prd:aws`
+- Create your LLM app: `phi ws create`
+- Run your app locally: `phi ws up dev:docker`
+- Run your app on AWS: `phi ws up prd:aws`
 
 For example, run a RAG Chatbot built with FastApi, Streamlit and PgVector in 2 commands:
 

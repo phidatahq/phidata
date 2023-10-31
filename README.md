@@ -30,13 +30,18 @@
 
 Phidata is an everything-included AI toolkit. It provides pre-built templates for LLM apps.
 
+## 🚀 How it works
+
+- **Create your LLM app** from a template using `phi ws create`
+- **Run your app locally** using `phi ws up dev:docker`
+- **Run your app on AWS** using `phi ws up prd:aws`
+
 For example, run a RAG Chatbot built with FastApi, Streamlit and PgVector in 2 commands:
 
 ```bash
 phi ws create -t llm-app -n llm-app  # create the llm-app codebase
 phi ws up                            # run the llm-app locally
 ```
-
 
 It solves the problem of building LLM powered products by providing:
 
@@ -61,12 +66,6 @@ It solves the problem of building LLM powered products by providing:
 
 Phidata bridges the 3 layers of software development to deliver production-grade LLM Apps that you can run with 1 command.
 
-## 🚀 How it works
-
-- **Create your LLM app** from a template using `phi ws create`
-- **Run your app locally** using `phi ws up dev:docker`
-- **Run your app on AWS** using `phi ws up prd:aws`
-
 ## 🎯 For more information:
 
 - Read the <a href="https://docs.phidata.com" target="_blank">documentation</a>
@@ -76,11 +75,11 @@ Phidata bridges the 3 layers of software development to deliver production-grade
 
 ## 👩‍💻 Example: Build a RAG LLM App 🧑‍💻
 
-> Read the full tutorial <a href="https://docs.phidata.com/how-to/rag-llm-app" target="_blank">here</a>
-
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi.
 
 > Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank">docker desktop</a> to run the app locally.
+
+> Read the full tutorial <a href="https://docs.phidata.com/how-to/rag-llm-app" target="_blank">here</a>
 
 ### Setup
 

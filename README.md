@@ -20,18 +20,15 @@
 </a>
 </p>
 
----
-
 <h2 align="center">
   Build LLM applications using production ready templates
 </h2>
 
 <br />
 
-Phidata is an everything-included AI toolkit. It provides pre-built templates for LLM apps.
-
 ## 🚀 How it works
 
+Phidata is an everything-included AI toolkit. It provides pre-built templates for LLM apps.
 - **Create your LLM app** from a template using `phi ws create`
 - **Run your app locally** using `phi ws up dev:docker`
 - **Run your app on AWS** using `phi ws up prd:aws`

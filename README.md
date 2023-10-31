@@ -30,7 +30,7 @@ Phidata is an everything-included AI toolkit. It provides pre-built templates fo
 
 ## 🚀 How it works
 
-- Create your LLM app using a template: `phi ws create`
+- Create your LLM app: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 

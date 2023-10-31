@@ -15,6 +15,7 @@ class Ivfflat(BaseModel):
 class HNSW(BaseModel):
     m: int = 16
     ef: int = 50
+    ef_search: int = 5
     ef_construction: int = 200
     configuration: Dict[str, Any] = {
         "maintenance_work_mem": "2GB",

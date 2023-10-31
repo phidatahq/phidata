@@ -222,8 +222,11 @@ class PgVector(VectorDb):
         # Get neighbors
         with self.Session() as sess:
             with sess.begin():
-                if self.index is not None and isinstance(self.index, Ivfflat):
-                    sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
+                if self.index is not None:
+                    if isinstance(self.index, Ivfflat):
+                        sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
+                    elif isinstance(self.index, HNSW):
+                        sess.execute(text(f"SET hnsw.ef_search  = {self.index.ef_search}"))
                 neighbors = sess.execute(stmt).fetchall() or []
 
         # Build search results
@@ -262,8 +265,15 @@ class PgVector(VectorDb):
     def optimize(self) -> None:
         from math import sqrt
 
+        logger.debug("==== Optimizing Vector DB ====")
         if self.index is None:
             return
+
+        index_distance = "vector_cosine_ops"
+        if self.distance == Distance.l2:
+            index_distance = "vector_l2_ops"
+        if self.distance == Distance.max_inner_product:
+            index_distance = "vector_ip_ops"
 
         if isinstance(self.index, Ivfflat):
             num_lists = self.index.lists
@@ -275,11 +285,6 @@ class PgVector(VectorDb):
                 elif total_records > 1000000:
                     num_lists = int(sqrt(total_records))
 
-            index_distance = "vector_cosine_ops"
-            if self.distance == Distance.l2:
-                index_distance = "vector_l2_ops"
-            if self.distance == Distance.max_inner_product:
-                index_distance = "vector_ip_ops"
             with self.Session() as sess:
                 with sess.begin():
                     logger.debug(f"Setting configuration: {self.index.configuration}")
@@ -296,4 +301,15 @@ class PgVector(VectorDb):
                                 {index_distance}) WITH (lists = {num_lists});"
                         )
                     )
+        elif isinstance(self.index, HNSW):
+            logger.debug("Indexing HNSW")
+            with self.Session() as sess:
+                with sess.begin():
+                    sess.execute(
+                        text(
+                            f"CREATE INDEX ON {self.table} USING hnsw (embedding {index_distance}) "
+                            f"WITH (m = {self.index.m}, ef_construction = {self.index.ef_construction});"
+                        )
+                    )
+
         logger.debug("Optimized Vector DB")

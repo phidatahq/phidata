@@ -27,6 +27,10 @@ class DuckDbAgent(FunctionRegistry):
         self.register(self.describe_table)
         self.register(self.inspect_query)
         self.register(self.describe_table_or_view)
+        self.register(self.export_table_as)
+        self.register(self.summarize_table)
+        self.register(self.create_fts_index)
+        self.register(self.full_text_search)
 
     @property
     def duckdb_connection(self) -> duckdb.DuckDBPyConnection:
@@ -111,6 +115,18 @@ class DuckDbAgent(FunctionRegistry):
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
+    def summarize_table(self, table: str) -> str:
+        """Function to summarize the contents of a table
+
+        :param table: Table to describe
+        :return: Description of the table
+        """
+        stmt = f"SUMMARIZE SELECT * FROM {table};"
+        table_description = self.run_duckdb_query(stmt)
+
+        logger.debug(f"Table description: {table_description}")
+        return f"{table}\n{table_description}"
+
     def inspect_query(self, query: str) -> str:
         """Function to inspect a query and return the query plan. Always inspect your query before running them.
 
@@ -161,7 +177,9 @@ class DuckDbAgent(FunctionRegistry):
         # self.run_duckdb_query(f"SELECT * from {table_name};")
         return table_name, create_statement
 
-    def load_local_csv_to_table(self, path: str, table_name: Optional[str] = None, delimiter: Optional[str] = None) -> Tuple[str, str]:
+    def load_local_csv_to_table(
+        self, path: str, table_name: Optional[str] = None, delimiter: Optional[str] = None
+    ) -> Tuple[str, str]:
         """Load a local CSV file into duckdb
 
         :param path: Path to load
@@ -220,7 +238,9 @@ class DuckDbAgent(FunctionRegistry):
         # self.run_duckdb_query(f"SELECT * from {table_name};")
         return table_name, create_statement
 
-    def load_s3_csv_to_table(self, s3_path: str, table_name: Optional[str] = None, delimiter: Optional[str] = None) -> Tuple[str, str]:
+    def load_s3_csv_to_table(
+        self, s3_path: str, table_name: Optional[str] = None, delimiter: Optional[str] = None
+    ) -> Tuple[str, str]:
         """Load a CSV file from S3 into duckdb
 
         :param s3_path: S3 path to load
@@ -251,3 +271,66 @@ class DuckDbAgent(FunctionRegistry):
         logger.debug(f"Loaded CSV {s3_path} into duckdb as {table_name}")
         # self.run_duckdb_query(f"SELECT * from {table_name};")
         return table_name, create_statement
+
+    def export_table_as(self, table_name: str, format: Optional[str] = "PARQUET", path: Optional[str] = None) -> str:
+        """Save a table to a desired format
+        The function will use the default format as parquet
+        If the path is provided, the table will be exported to that path, example s3
+
+        :param table_name: Table to export
+        :param format: Format to export to
+        :param path: Path to export to
+        :return: None
+        """
+        logger.debug(f"Exporting Table {table_name} as {format.upper()} in the path {path}")
+        # self.run_duckdb_query(f"SELECT * from {table_name};")
+        if path is None:
+            path = f"{table_name}.{format}"
+        else:
+            path = f"{path}/{table_name}.{format}"
+        export_statement = f"COPY (SELECT * FROM {table_name}) TO '{path}' (FORMAT {format.upper()});"
+        result = self.run_duckdb_query(export_statement)
+        logger.debug(f"Exported {table_name} to {path}/{table_name}")
+
+        return result
+
+    def create_fts_index(self, table_name: str, unique_key: str, input_values: list[str]) -> str:
+        """Create a full text search index on a table
+
+        :param table_name: Table to create the index on
+        :param unique_key: Unique key to use
+        :param input_values: Values to index
+        :return: None
+        """
+        logger.debug(f"Creating FTS index on {table_name} for {input_values}")
+        self.run_duckdb_query("INSTALL fts;")
+        logger.debug(f"Installed FTS extension")
+        self.run_duckdb_query("LOAD fts;")
+        logger.debug(f"Loaded FTS extension")
+
+        create_fts_index_statement = f"PRAGMA create_fts_index('{table_name}', '{unique_key}', '{input_values}');"
+        logger.debug(f"Running {create_fts_index_statement}")
+        result = self.run_duckdb_query(create_fts_index_statement)
+        logger.debug(f"Created FTS index on {table_name} for {input_values}")
+
+        return result
+
+    def full_text_search(self, table_name:str, unique_key: str, search_text: str) -> str:
+        """Full text Search in a table column for a specific text/keyword
+
+        :param table_name: Table to search
+        :param unique_key: Unique key to use
+        :param search_text: Text to search
+        :return: None
+        """
+        logger.debug(f"Running full_text_search for {search_text} in {table_name}")
+        search_text_statement = f"""SELECT fts_main_corpus.match_bm25({unique_key}, '{search_text}') AS score,*
+                                    FROM {table_name}
+                                    WHERE score IS NOT NULL
+                                    ORDER BY score;"""
+
+        logger.debug(f"Running {search_text_statement}")
+        result = self.run_duckdb_query(search_text_statement)
+        logger.debug(f"Search results for {search_text} in {table_name}")
+
+        return result

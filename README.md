@@ -177,12 +177,9 @@ phi ws up --group jupyter
 - Open <a href="http://localhost:8888" target="_blank">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
 - Open `notebooks/chatgpt_stream` to test the ChatGPT Api.
 
-### Update Streamlit Apps
+### Read Local PDFs
 
-The streamlit apps are defined in the `app` folder and the `Conversations` powering these apps are defined in the `llm/conversations` folder. Play around and update them to fit your use case.
-
-- The Streamlit App configuration is defined in the `workspace/dev_resources.py` file.
-- To read local PDFs, update the `llm/knowledge_base.py` file to use the `PDFKnowledgeBase`
+To read local PDFs, update the `llm/knowledge_base.py` file to use the `PDFKnowledgeBase`
 
 ```python
 ...
@@ -198,10 +195,6 @@ pdf_knowledge_base = PDFKnowledgeBase(
 )
 ...
 ```
-
-### Update Dev Api
-
-The FastApi routes are defined the `api/routes` folder. You can update and integrate them with your front-end or product.
 
 ### Delete local resources
 

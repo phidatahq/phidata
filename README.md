@@ -6,16 +6,16 @@
 </p>
 
 <p align="center">
-<a href="https://python.org/pypi/phidata" target="_blank">
+<a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
 </a>
-<a href="https://github.com/phidatahq/phidata" target="_blank">
+<a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/badge/python->=3.7-blue" alt="pythonversion">
 </a>
-<a href="https://github.com/phidatahq/phidata" target="_blank">
+<a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://pepy.tech/badge/phidata" alt="downloads">
 </a>
-<a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank">
+<a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
     <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
 </a>
 </p>
@@ -66,16 +66,16 @@ Phidata bridges the 3 layers of software development to deliver production-grade
 
 ## 🎯 For more information:
 
-- Read the <a href="https://docs.phidata.com" target="_blank">documentation</a>
-- Read about <a href="https://docs.phidata.com/intro/basics" target="_blank">phidata basics</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
-- Email us at <a href="mailto:help@phidata.com" target="_blank">help@phidata.com</a>
+- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
+- Read about <a href="https://docs.phidata.com/intro/basics" target="_blank" rel="noopener noreferrer">phidata basics</a>
+- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
+- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
 
 ## 👩‍💻 Example: Build a RAG LLM App 🧑‍💻
 
-Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/how-to/rag-llm-app" target="_blank">here</a>
+Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/how-to/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 
-> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank">docker desktop</a> to run the app locally.
+> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run the app locally.
 
 ### Setup
 
@@ -108,7 +108,7 @@ This will create a folder named `llm-app`
 
 ### Serve your LLM App using Streamlit
 
-<a href="https://streamlit.io" target="_blank">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
+<a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
 ```bash
 phi ws up --group app
@@ -118,7 +118,7 @@ phi ws up --group app
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-Open <a href="http://localhost:8501" target="_blank">localhost:8501</a> to view streamlit apps that you can customize and make your own.
+Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 
 ### Chat with PDFs
 
@@ -143,7 +143,7 @@ phi ws up --group api
 
 ### View API Endpoints
 
-- Open <a href="http://localhost:8000/docs" target="_blank">localhost:8000/docs</a> to view the API Endpoints.
+- Open <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">localhost:8000/docs</a> to view the API Endpoints.
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
 - The LLM Api comes pre-build with the endpoints you need to integrate with your front-end.
@@ -172,7 +172,7 @@ phi ws up --group jupyter
 
 ### View Jupyterlab UI
 
-- Open <a href="http://localhost:8888" target="_blank">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
+- Open <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
 - Open `notebooks/chatgpt_stream` to test the ChatGPT Api.
 
 ### Read Local PDFs
@@ -204,11 +204,11 @@ phi ws down
 
 ### Run your LLM App on AWS
 
-Read how to <a href="https://docs.phidata.com/guides/llm-app#run-on-aws" target="_blank">run your LLM App on AWS here</a>.
+Read how to <a href="https://docs.phidata.com/guides/llm-app#run-on-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS here</a>.
 
 ### More information:
 
-- Read the <a href="https://docs.phidata.com" target="_blank">documentation</a>
-- Read about <a href="https://docs.phidata.com/intro/basics" target="_blank">phidata basics</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank">Discord</a>
-- Email us at <a href="mailto:help@phidata.com" target="_blank">help@phidata.com</a>
+- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
+- Read about <a href="https://docs.phidata.com/intro/basics" target="_blank" rel="noopener noreferrer">phidata basics</a>
+- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
+- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>

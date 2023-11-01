@@ -75,7 +75,7 @@ Phidata bridges the 3 layers of software development to deliver production-grade
 
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/how-to/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 
-> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run the app locally.
+> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
 
 ### Setup
 

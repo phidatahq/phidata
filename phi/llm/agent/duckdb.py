@@ -282,6 +282,9 @@ class DuckDbAgent(FunctionRegistry):
         :param path: Path to export to
         :return: None
         """
+        if format is None:
+            format = "PARQUET"
+
         logger.debug(f"Exporting Table {table_name} as {format.upper()} in the path {path}")
         # self.run_duckdb_query(f"SELECT * from {table_name};")
         if path is None:
@@ -304,9 +307,9 @@ class DuckDbAgent(FunctionRegistry):
         """
         logger.debug(f"Creating FTS index on {table_name} for {input_values}")
         self.run_duckdb_query("INSTALL fts;")
-        logger.debug(f"Installed FTS extension")
+        logger.debug("Installed FTS extension")
         self.run_duckdb_query("LOAD fts;")
-        logger.debug(f"Loaded FTS extension")
+        logger.debug("Loaded FTS extension")
 
         create_fts_index_statement = f"PRAGMA create_fts_index('{table_name}', '{unique_key}', '{input_values}');"
         logger.debug(f"Running {create_fts_index_statement}")
@@ -315,7 +318,7 @@ class DuckDbAgent(FunctionRegistry):
 
         return result
 
-    def full_text_search(self, table_name:str, unique_key: str, search_text: str) -> str:
+    def full_text_search(self, table_name: str, unique_key: str, search_text: str) -> str:
         """Full text Search in a table column for a specific text/keyword
 
         :param table_name: Table to search

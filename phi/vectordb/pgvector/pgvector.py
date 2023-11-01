@@ -35,7 +35,7 @@ class PgVector(VectorDb):
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
-        index: Optional[Union[Ivfflat, HNSW]] = Ivfflat(),
+        index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -276,6 +276,7 @@ class PgVector(VectorDb):
             index_distance = "vector_ip_ops"
 
         if isinstance(self.index, Ivfflat):
+            logger.debug("Creating IVFFLAT index")
             num_lists = self.index.lists
             if self.index.dynamic_lists:
                 total_records = self.get_count()
@@ -302,7 +303,7 @@ class PgVector(VectorDb):
                         )
                     )
         elif isinstance(self.index, HNSW):
-            logger.debug("Indexing HNSW")
+            logger.debug("Creating HNSW index")
             with self.Session() as sess:
                 with sess.begin():
                     sess.execute(

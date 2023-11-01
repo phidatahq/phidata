@@ -50,6 +50,10 @@ class PhiCliSettings(BaseSettings):
     def update_api_url(cls, v, info: FieldValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
+            from os import getenv
+
+            if getenv("PHI_RUNTIME") == "docker":
+                return "http://host.docker.internal:7070"
             return "http://localhost:7070"
         elif api_runtime == "stg":
             return "https://api.stgphi.com"

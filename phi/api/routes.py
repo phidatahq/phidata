@@ -27,7 +27,7 @@ class ApiRoutes:
     MONITOR_EVENT_CREATE: str = "/v1/monitor/event/create"
 
     # conversation paths
-    CONVERSATION_UPSERT: str = "/v1/conversation/upsert"
+    CONVERSATION_MONITOR_CREATE: str = "/v1/conversation/monitor/create"
     CONVERSATION_EVENT_CREATE: str = "/v1/conversation/event/create"
 
     # ai paths

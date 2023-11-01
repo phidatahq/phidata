@@ -43,14 +43,3 @@ class ConversationRow(BaseModel):
         _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
         _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
         return _dict
-
-    def conversation_key(self) -> str:
-        """Returns the conversation key."""
-        keys = []
-        if self.user_name:
-            keys.append(self.user_name)
-        if self.user_type:
-            keys.append(self.user_type)
-        if self.id:
-            keys.append(str(self.id))
-        return "::".join(keys)

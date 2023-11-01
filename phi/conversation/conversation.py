@@ -320,7 +320,7 @@ class Conversation(BaseModel):
                     raise Exception("Failed to create new conversation in storage")
                 logger.debug(f"-*- Created conversation: {self.database_row.id}")
                 self.from_database_row(row=self.database_row)
-                self._api_upsert_conversation()
+                self._api_log_conversation_monitor()
         return self.id
 
     def end(self) -> None:
@@ -558,7 +558,7 @@ class Conversation(BaseModel):
             "references": references.model_dump(exclude_none=True) if references else None,
             "metrics": self.llm.metrics,
         }
-        self._api_send_conversation_event(event_type="chat", event_data=event_data)
+        self._api_log_conversation_event(event_type="chat", event_data=event_data)
 
         # -*- Yield final response if not streaming
         if not stream:
@@ -612,7 +612,7 @@ class Conversation(BaseModel):
             "messages": [m.model_dump(exclude_none=True) for m in messages],
             "metrics": self.llm.metrics,
         }
-        self._api_send_conversation_event(event_type="chat_raw", event_data=event_data)
+        self._api_log_conversation_event(event_type="chat_raw", event_data=event_data)
 
         # -*- Yield final response if not streaming
         if not stream:
@@ -636,8 +636,8 @@ class Conversation(BaseModel):
         # -*- Save conversation to storage
         self.write_to_storage()
 
-        # -*- Update conversation
-        self._api_upsert_conversation()
+        # -*- Log conversation monitor
+        self._api_log_conversation_monitor()
 
     def generate_name(self) -> str:
         """Generate a name for the conversation using chat history"""
@@ -672,52 +672,50 @@ class Conversation(BaseModel):
         # -*- Save conversation to storage
         self.write_to_storage()
 
-        # -*- Update conversation
-        self._api_upsert_conversation()
+        # -*- Log conversation monitor
+        self._api_log_conversation_monitor()
 
     ###########################################################################
     # Api functions
     ###########################################################################
 
-    def _api_upsert_conversation(self):
+    def _api_log_conversation_monitor(self):
         if not self.monitoring:
             return
 
-        from phi.api.conversation import upsert_conversation, ConversationUpdate
+        from phi.api.conversation import create_conversation_monitor, ConversationMonitorCreate
 
-        logger.debug("Sending conversation event")
         try:
             database_row: ConversationRow = self.database_row or self.to_database_row()
-            upsert_conversation(
-                conversation=ConversationUpdate(
-                    conversation_key=database_row.conversation_key(),
+            create_conversation_monitor(
+                monitor=ConversationMonitorCreate(
+                    conversation_id=database_row.id,
                     conversation_data=database_row.conversation_data(),
                 ),
             )
         except Exception as e:
-            logger.debug(f"Could not log conversation event: {e}")
+            logger.debug(f"Could not create conversation monitor: {e}")
 
-    def _api_send_conversation_event(
+    def _api_log_conversation_event(
         self, event_type: str = "chat", event_data: Optional[Dict[str, Any]] = None
     ) -> None:
         if not self.monitoring:
             return
 
-        from phi.api.conversation import log_conversation_event, ConversationEventCreate
+        from phi.api.conversation import create_conversation_event, ConversationEventCreate
 
-        logger.debug("Sending conversation event")
         try:
             database_row: ConversationRow = self.database_row or self.to_database_row()
-            log_conversation_event(
+            create_conversation_event(
                 conversation=ConversationEventCreate(
-                    conversation_key=database_row.conversation_key(),
+                    conversation_id=database_row.id,
                     conversation_data=database_row.conversation_data(),
                     event_type=event_type,
                     event_data=event_data,
                 ),
             )
         except Exception as e:
-            logger.debug(f"Could not log conversation event: {e}")
+            logger.debug(f"Could not create conversation event: {e}")
 
     ###########################################################################
     # LLM functions

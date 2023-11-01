@@ -146,7 +146,7 @@ phi ws up --group api
 - Open <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">localhost:8000/docs</a> to view the API Endpoints.
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
-- The LLM Api comes pre-build with the endpoints you need to integrate with your front-end.
+- The LLM Api comes pre-built with endpoints that you can integrate with your front-end.
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/17a11146-a49d-4595-9fa0-d6ab15372289">
 

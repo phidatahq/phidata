@@ -104,7 +104,7 @@ phi ws create -t llm-app -n llm-app
 
 This will create a folder named `llm-app`
 
-<img src="https://github.com/phidatahq/phidata/assets/22579644/dee7b884-028e-48a0-9074-4deb7a055b97" height=600  alt="create-llm-app"/>
+<img src="https://github.com/phidatahq/phidata/assets/22579644/dee7b884-028e-48a0-9074-4deb7a055b97" height=500  alt="create-llm-app"/>
 
 ### Serve your LLM App using Streamlit
 
@@ -114,7 +114,7 @@ This will create a folder named `llm-app`
 phi ws up --group app
 ```
 
-<img src="https://github.com/phidatahq/phidata/assets/22579644/dee35e20-9fe5-4623-af5e-2e8a6ffac58c" height=600  alt="run-llm-app"/>
+<img src="https://github.com/phidatahq/phidata/assets/22579644/dee35e20-9fe5-4623-af5e-2e8a6ffac58c" height=500  alt="run-llm-app"/>
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
@@ -126,7 +126,8 @@ phi ws up --group app
 - Choose the `RAG` Conversation type.
 - Ask "How do I make chicken curry?"
 
-<img width="1573" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/8529aad8-f74c-464d-8bf8-2272a3281b25">
+<img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/5a8f7129-492b-485a-87e8-29164bf83e6a">
+
 
 ### Serve your LLM App using FastApi
 
@@ -146,6 +147,8 @@ phi ws up --group api
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
 - The LLM Api comes pre-build with the endpoints you need to integrate with your front-end.
+
+<img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/17a11146-a49d-4595-9fa0-d6ab15372289">
 
 ### Optional: Run Jupyterlab
 

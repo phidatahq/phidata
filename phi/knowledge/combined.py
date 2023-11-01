@@ -18,5 +18,5 @@ class CombinedKnowledgeBase(KnowledgeBase):
         """
 
         for kb in self.sources:
-            logger.debug(f"Loading knowledge base: {kb}")
+            logger.debug(f"Loading documents from {kb.__class__.__name__}")
             yield from kb.document_lists

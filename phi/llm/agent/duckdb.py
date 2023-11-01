@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 
-from phi.llm.function.registry import FunctionRegistry
+from phi.llm.agent.base import BaseAgent
 from phi.utils.log import logger
 
 try:
@@ -9,7 +9,7 @@ except ImportError:
     raise ImportError("`duckdb` not installed. Please install it using `pip install duckdb`.")
 
 
-class DuckDbAgent(FunctionRegistry):
+class DuckDbAgent(BaseAgent):
     def __init__(
         self,
         db_path: str = ":memory:",

@@ -1,9 +1,10 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from pydantic import BaseModel
 
 
 class Ivfflat(BaseModel):
+    name: Optional[str] = None
     lists: int = 100
     probes: int = 10
     dynamic_lists: bool = True
@@ -13,8 +14,8 @@ class Ivfflat(BaseModel):
 
 
 class HNSW(BaseModel):
+    name: Optional[str] = None
     m: int = 16
-    ef: int = 50
     ef_search: int = 5
     ef_construction: int = 200
     configuration: Dict[str, Any] = {

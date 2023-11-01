@@ -1,1 +1,1 @@
-from phi.vectordb.pgvector.pgvector import PgVector
+from phi.vectordb.pgvector.pgvector import PgVector, Distance, Ivfflat, HNSW

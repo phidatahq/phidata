@@ -1,4 +1,3 @@
-import json
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
@@ -13,7 +12,9 @@ from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
 from phi.llm.schemas import Message, References
+from phi.llm.agent.base import BaseAgent
 from phi.llm.function.registry import FunctionRegistry
+from phi.llm.task.llm_task import LLMTask
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.timer import Timer
@@ -48,7 +49,7 @@ class Conversation(BaseModel):
     # The timestamp of when this conversation was last updated in the database
     updated_at: Optional[datetime] = None
 
-    # Monitor conversations on phidata.com
+    # Enable monitoring on phidata.com
     monitoring: bool = False
 
     # -*- Conversation Memory
@@ -62,17 +63,17 @@ class Conversation(BaseModel):
     # Number of previous messages to add to prompt or messages sent to the LLM.
     num_history_messages: int = 8
 
-    # -*- Conversation Knowledge Base
-    knowledge_base: Optional[KnowledgeBase] = None
-    # Add references from the knowledge base to the prompt sent to the LLM.
-    add_references_to_prompt: bool = False
-
     # -*- Conversation Storage
     storage: Optional[ConversationStorage] = None
     # Create table if it doesn't exist
     create_storage: bool = True
     # ConversationRow from the database: DO NOT SET THIS MANUALLY
     database_row: Optional[ConversationRow] = None
+
+    # -*- Conversation Knowledge Base
+    knowledge_base: Optional[KnowledgeBase] = None
+    # Add references from the knowledge base to the prompt sent to the LLM.
+    add_references_to_prompt: bool = False
 
     # -*- Enable Function Calls
     # Makes the conversation Autonomous by letting the LLM call functions to achieve tasks.
@@ -85,6 +86,15 @@ class Conversation(BaseModel):
     functions: Optional[List[Callable]] = None
     # A list of function registries to add to the LLM.
     function_registries: Optional[List[FunctionRegistry]] = None
+
+    # -*- Agents
+    # Add a list of agents to the LLM
+    # function_calls must be True for agents to be added to the LLM
+    agents: Optional[List[BaseAgent]] = None
+
+    # -*- Tasks
+    # Generate a response using tasks instead of a prompt
+    tasks: Optional[List[LLMTask]] = None
 
     #
     # -*- Prompt Settings
@@ -134,6 +144,9 @@ class Conversation(BaseModel):
     #     ...
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
 
+    # -*- Latest LLM response
+    output: Optional[Any] = None
+
     # If True, show debug logs
     debug_mode: bool = False
 
@@ -170,6 +183,21 @@ class Conversation(BaseModel):
             if self.function_registries is not None:
                 for registry in self.function_registries:
                     self.llm.add_function_registry(registry)
+
+            # Set function call to auto if it is not set
+            if self.llm.function_call is None:
+                self.llm.function_call = "auto"
+
+            # Set show_function_calls if it is not set on the llm
+            if self.llm.show_function_calls is None:
+                self.llm.show_function_calls = self.show_function_calls
+        return self
+
+    @model_validator(mode="after")
+    def add_agents_to_llm(self) -> "Conversation":
+        if self.agents is not None and len(self.agents) > 0:
+            for agent in self.agents:
+                self.llm.add_agent(agent)
 
             # Set function call to auto if it is not set
             if self.llm.function_call is None:
@@ -350,25 +378,18 @@ class Conversation(BaseModel):
             return None
 
         # Build a default system prompt
-        _system_prompt = "You are a helpful assistant "
-
-        if self.user_type:
-            _system_prompt += f"designed to help a '{self.user_type}' with their work.\n"
-        else:
-            _system_prompt += "designed to help a user with their work.\n"
+        _system_prompt = "You are a helpful assistant designed to help users with their work.\n"
 
         if self.knowledge_base is not None:
-            _system_prompt += "You have access to a knowledge base that you can search for information.\n"
-            _system_prompt += (
-                "If you cannot find the answer in the knowledge base, "
-                "say that you cannot find the answer in the knowledge base.\n"
-            )
+            _system_prompt += "Use the information from a knowledge base if it helps respond to the message.\n"
 
         if self.function_calls:
-            _system_prompt += "You have access to functions that you can run to help you respond to the user.\n"
+            _system_prompt += (
+                "You have access to functions that you can run to achieve your task.\n"
+                "Only use the function you have been provided with.\n"
+            )
 
-        _system_prompt += """Follow these guidelines when responding to the user:
-        - If you don't know the answer, say 'I don't know'.
+        _system_prompt += """Follow these guidelines:
         - Use bullet points where possible.
         - Use markdown to format your answers.
         - Don't use phrases like 'based on the information provided' or 'from the knowledge base'.
@@ -380,6 +401,7 @@ class Conversation(BaseModel):
 
     def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
         """Return a list of references from the knowledge base"""
+        import json
 
         if self.references_function is not None:
             reference_kwargs = {"conversation": self, "query": query}
@@ -436,37 +458,25 @@ class Conversation(BaseModel):
             return message
 
         # Build a default user prompt
-        _user_prompt = "Respond to the following message"
-        if self.user_type:
-            _user_prompt += f" from a '{self.user_type}'"
-        _user_prompt += " in the best way possible.\n"
-
+        _user_prompt = ""
         # Add references to prompt
         if references:
-            _user_prompt += f"""\n
-                You can use the following information from the knowledge base if it helps respond to the message.
-                START OF KNOWLEDGE BASE INFORMATION
-                ```
+            _user_prompt += f"""Use the following information from the knowledge base if it helps:
+                <knowledge_base>
                 {references}
-                ```
-                END OF KNOWLEDGE BASE INFORMATION
-                """
-
+                </knowledge_base>
+                \n"""
         # Add chat_history to prompt
         if chat_history:
-            _user_prompt += f"""\n
-                You can use the following chat history to reference past messages.
-                START OF CHAT HISTORY
-                ```
+            _user_prompt += f"""Use the following chat history to reference past messages:
+                <chat_history>
                 {chat_history}
-                ```
-                END OF CHAT HISTORY
-                """
-
-        # Remind the LLM of its task
-        if references or chat_history:
-            _user_prompt += "\nRemember, your task is to respond to the following message."
-
+                </chat_history>
+                \n"""
+        # Add message to prompt
+        _user_prompt += "Respond to the following message"
+        if self.user_type:
+            _user_prompt += f" from a '{self.user_type}'"
         _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "
 
@@ -515,7 +525,7 @@ class Conversation(BaseModel):
 
         # Create message list
         messages: List[Message] = []
-        if system_prompt_message.content != "":
+        if system_prompt_message.content and system_prompt_message.content != "":
             messages.append(system_prompt_message)
         if self.add_chat_history_to_messages:
             messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
@@ -560,17 +570,97 @@ class Conversation(BaseModel):
         }
         self._api_log_conversation_event(event_type="chat", event_data=event_data)
 
+        # -*- Update task output
+        self.output = llm_response
+
         # -*- Yield final response if not streaming
         if not stream:
             yield llm_response
         logger.debug("*********** Conversation Chat End ***********")
 
+    def _chat_tasks(self, message: str, stream: bool = True) -> Iterator[str]:
+        if self.tasks is None or len(self.tasks) == 0:
+            return ""
+
+        logger.debug("*********** Conversation Tasks Start ***********")
+        # Load the conversation from the database if available
+        self.read_from_storage()
+
+        # Add user message to the memory - this is added to the chat_history
+        self.memory.add_user_message(message=Message(role="user", content=message))
+
+        # -*- Generate response by running tasks
+        # Full response from running all tasks
+        full_response = ""
+        # All messages from the tasks
+        task_dicts: List[Dict[str, Any]] = []
+        previous_task: Optional[LLMTask] = None
+        current_task: Optional[LLMTask] = None
+        for idx, task in enumerate(self.tasks, start=1):
+            logger.debug(f"*********** Task: {idx} Start ***********")
+            previous_task = current_task
+            current_task = task
+            current_task_message = previous_task.output if previous_task else message
+
+            # Set Task LLM if not set
+            if current_task.llm is None:
+                current_task.llm = self.llm
+
+            if stream:
+                for chunk in current_task.run(message=current_task_message, stream=True):
+                    full_response += chunk
+                    yield chunk
+                yield "\n\n"
+            else:
+                full_response += current_task.run(message=current_task_message, stream=False)  # type: ignore
+            full_response += "\n\n"
+
+            # Add task information to the list of tasks
+            task_dicts.append(current_task.to_dict())
+
+            # Add task LLM messages to the memory
+            self.memory.add_llm_messages(messages=current_task.memory.llm_messages)
+            # Add task references to the memory
+            for references in current_task.memory.references:
+                self.memory.add_references(references=references)
+            logger.debug(f"*********** Task: {idx} End ***********")
+
+        # Add llm response to the memory - this is added to the chat_history
+        llm_response = current_task.output if current_task else full_response
+        self.memory.add_chat_message(message=Message(role="assistant", content=llm_response))
+
+        # -*- Save conversation to storage
+        self.write_to_storage()
+
+        # -*- Send conversation event for monitoring
+        event_data = {
+            "user_message": message,
+            "llm_response": llm_response,
+            "tasks": task_dicts,
+            "metrics": self.llm.metrics,
+        }
+        self._api_log_conversation_event(event_type="chat_tasks", event_data=event_data)
+
+        # -*- Update task output
+        self.output = llm_response
+
+        # -*- Yield final response if not streaming
+        if not stream:
+            yield full_response
+        logger.debug("*********** Conversation Tasks End ***********")
+
     def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
-        resp = self._chat(message=message, stream=stream)
+        if self.tasks and len(self.tasks) > 0:
+            resp = self._chat_tasks(message=message, stream=stream)
+        else:
+            resp = self._chat(message=message, stream=stream)
         if stream:
             return resp
         else:
             return next(resp)
+
+    def run(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
+        return self.chat(message=message, stream=stream)
 
     def _chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
@@ -622,6 +712,8 @@ class Conversation(BaseModel):
     def chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
     ) -> Union[Iterator[Dict], Dict]:
+        if self.tasks and len(self.tasks) > 0:
+            raise Exception("chat_raw does not support tasks")
         resp = self._chat_raw(messages=messages, user_message=user_message, stream=stream)
         if stream:
             return resp
@@ -732,6 +824,8 @@ class Conversation(BaseModel):
             Each chat contains 2 messages. One from the user and one from the assistant.
         :return: A list of dictionaries representing the chat history.
         """
+        import json
+
         history: List[Dict[str, Any]] = []
         all_chats = self.memory.get_chats()
         if len(all_chats) == 0:

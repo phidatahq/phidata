@@ -118,10 +118,9 @@ phi ws up --group app
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
-
 ### Chat with PDFs
 
+- Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 - Click on **Chat with PDFs** in the sidebar
 - Enter a username and wait for the knowledge base to load.
 - Choose the `RAG` Conversation type.
@@ -131,9 +130,9 @@ Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">l
 
 ### Serve your LLM App using FastApi
 
-Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built with a framework like `FastApi`.
+Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 
-Your LLM App comes pre-configured with FastApi, start the `api` group using:
+Your LLM App comes ready-to-use with FastApi endpoints, start the `api` group using:
 
 ```bash
 phi ws up --group api

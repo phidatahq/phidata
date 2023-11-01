@@ -20,7 +20,7 @@ def create_conversation_monitor(monitor: ConversationMonitorCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
-    logger.debug("--o-o-- Creating Conversation Monitor")
+    # logger.debug("--o-o-- Creating Conversation Monitor")
     with api.AuthenticatedClient() as api_client:
         try:
             conversation_workspace = ConversationWorkspace(
@@ -42,7 +42,7 @@ def create_conversation_monitor(monitor: ConversationMonitorCreate) -> bool:
             if response_json is None:
                 return False
 
-            logger.debug(f"Response: {response_json}")
+            # logger.debug(f"Response: {response_json}")
             return True
         except Exception as e:
             logger.debug(f"Could not create conversation monitor: {e}")
@@ -53,7 +53,7 @@ def create_conversation_event(conversation: ConversationEventCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
-    logger.debug("--o-o-- Creating Conversation Event")
+    # logger.debug("--o-o-- Creating Conversation Event")
     with api.AuthenticatedClient() as api_client:
         try:
             conversation_workspace = ConversationWorkspace(
@@ -75,7 +75,7 @@ def create_conversation_event(conversation: ConversationEventCreate) -> bool:
             if response_json is None:
                 return False
 
-            logger.debug(f"Response: {response_json}")
+            # logger.debug(f"Response: {response_json}")
             return True
         except Exception as e:
             logger.debug(f"Could not log conversation event: {e}")

@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.0.21"
+version = "2.0.22"
 description = "AI Toolkit for Engineers"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -91,6 +91,7 @@ module = [
   "botocore.*",
   "bs4.*",
   "docker.*",
+  "duckdb.*",
   "kubernetes.*",
   "openai.*",
   "pgvector.*",

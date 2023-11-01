@@ -16,7 +16,7 @@ class OpenAIEmbedder(Embedder):
 
     def _response(self, text: str):
         if get_from_env("OPENAI_API_KEY") is None:
-            logger.debug("--o-o-- Using Phidata Servers")
+            logger.debug("--o-o-- Using Phidata Proxy")
             try:
                 from phi.api.llm import openai_embedding
 
@@ -36,10 +36,13 @@ class OpenAIEmbedder(Embedder):
 
     def get_embedding(self, text: str) -> List[float]:
         response = self._response(text=text)
-        if "data" not in response:
+        try:
+            if "data" not in response:
+                return []
+            return response["data"][0]["embedding"]
+        except Exception as e:
+            logger.warning(e)
             return []
-
-        return response["data"][0]["embedding"]
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
         response = self._response(text=text)

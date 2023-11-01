@@ -2,6 +2,7 @@ from typing import List, Iterator
 
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
+from phi.utils.log import logger
 
 
 class CombinedKnowledgeBase(KnowledgeBase):
@@ -17,5 +18,5 @@ class CombinedKnowledgeBase(KnowledgeBase):
         """
 
         for kb in self.sources:
-            for document_list in kb.document_lists:
-                yield document_list
+            logger.debug(f"Loading knowledge base: {kb}")
+            yield from kb.document_lists

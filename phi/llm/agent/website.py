@@ -19,7 +19,7 @@ class WebsiteAgent(BaseAgent):
 
     def add_website_to_knowledge_base(self, url: str) -> str:
         """This function adds a websites content to the knowledge base.
-        NOTE: The website must start wit http:// or https:// and should be a valid website.
+        NOTE: The website must start with https:// and should be a valid website.
 
         USE THIS FUNCTION TO GET INFORMATION ABOUT PRODUCTS FROM THE INTERNET.
 

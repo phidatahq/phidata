@@ -63,7 +63,7 @@ class OpenAIChat(LLM):
 
     def invoke_model(self, messages: List[Message]) -> OpenAIObject:
         if get_from_env("OPENAI_API_KEY") is None:
-            logger.debug("--o-o-- Using Phidata Servers")
+            logger.debug("--o-o-- Using Phidata Proxy")
             try:
                 from phi.api.llm import openai_chat
 
@@ -91,7 +91,7 @@ class OpenAIChat(LLM):
 
     def invoke_model_stream(self, messages: List[Message]) -> Iterator[OpenAIObject]:
         if get_from_env("OPENAI_API_KEY") is None:
-            logger.debug("--o-o-- Using Phidata Servers")
+            logger.debug("--o-o-- Using Phidata Proxy")
             try:
                 from phi.api.llm import openai_chat_stream
                 from openai import util as openai_util

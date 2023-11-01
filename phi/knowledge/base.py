@@ -41,10 +41,7 @@ class KnowledgeBase(BaseModel):
         return self.vector_db.search(query=query, limit=_num_documents)
 
     def load(self, recreate: bool = False) -> None:
-        """Load the knowledge base to the vector db
-
-        TODO: Use upsert instead of insert
-        """
+        """Load the knowledge base to the vector db"""
 
         if self.vector_db is None:
             logger.warning("No vector db provided")
@@ -61,6 +58,37 @@ class KnowledgeBase(BaseModel):
         num_documents = 0
 
         for document_list in self.document_lists:
+            # Filter out documents which already exist in the vector db
+            if not recreate:
+                document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]
+
+            self.vector_db.insert(documents=document_list)
+            num_documents += len(document_list)
+        logger.info(f"Loaded {num_documents} documents to knowledge base")
+
+        if self.optimize_on is not None and num_documents > self.optimize_on:
+            logger.debug("Optimizing Vector DB")
+            self.vector_db.optimize()
+
+    def load_documents(self, documents: List[List[Document]], recreate: bool = False) -> None:
+        """Load documents to the knowledge base
+
+        Args:
+            documents (List[List[Document]]): List of list of documents to load
+            recreate (bool, optional): Whether to recreate the documents. Defaults to False.
+        """
+
+        if self.vector_db is None:
+            logger.warning("No vector db provided")
+            return
+
+        logger.debug("Creating collection")
+        self.vector_db.create()
+
+        logger.info("Loading knowledge base")
+        num_documents = 0
+
+        for document_list in documents:
             # Filter out documents which already exist in the vector db
             if not recreate:
                 document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]

@@ -477,6 +477,7 @@ class Conversation(BaseModel):
         _user_prompt += "Respond to the following message"
         if self.user_type:
             _user_prompt += f" from a '{self.user_type}'"
+        _user_prompt += ":"
         _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "
 

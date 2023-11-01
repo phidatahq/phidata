@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, Union, IO, Any
 
 from phi.document.base import Document
 from phi.document.reader.base import Reader
@@ -9,21 +9,26 @@ from phi.utils.log import logger
 class PDFReader(Reader):
     """Reader for PDF files"""
 
-    def read(self, path: Path) -> List[Document]:
-        if not path:
-            raise ValueError("No path provided")
-
-        if not path.exists():
-            raise FileNotFoundError(f"Could not find file: {path}")
+    def read(self, pdf: Union[str, Path, IO[Any]]) -> List[Document]:
+        if not pdf:
+            raise ValueError("No pdf provided")
 
         try:
             from pypdf import PdfReader as DocumentReader  # noqa: F401
         except ImportError:
             raise ImportError("`pypdf` not installed")
 
-        logger.info(f"Reading: {path}")
-        doc_name = path.name.split(".")[0]
-        doc_reader = DocumentReader(path)
+        doc_name = ""
+        try:
+            if isinstance(pdf, str):
+                doc_name = pdf.split("/")[-1].split(".")[0].replace(" ", "_")
+            else:
+                doc_name = pdf.name.split(".")[0]
+        except Exception:
+            doc_name = "pdf"
+
+        logger.info(f"Reading: {doc_name}")
+        doc_reader = DocumentReader(pdf)
 
         documents = [
             Document(

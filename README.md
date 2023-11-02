@@ -46,7 +46,7 @@ It solves the problem of building LLM powered products by providing:
 ### 💻 Software layer
 
 - Access to **LLMs** using a human-like `Conversation` interface.
-- Components for **building** LLM apps: **RAG, Agents, Workflows**
+- Components for **building** LLM apps: **RAG, Agents, Tasks**
 - Components for **extending** LLM apps: **Knowledge Base, Storage, Memory, Cache**
 - Components for **monitoring** LLM apps: **Model Inputs/Outputs, Quality, Cost**
 - Components for **improving** LLM apps: **Fine-tuning, RLHF**

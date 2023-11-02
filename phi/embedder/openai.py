@@ -16,7 +16,7 @@ class OpenAIEmbedder(Embedder):
 
     def _response(self, text: str):
         if get_from_env("OPENAI_API_KEY") is None:
-            logger.debug("--o-o-- Using Phidata Proxy")
+            logger.debug("--o-o-- Using phi-proxy")
             try:
                 from phi.api.llm import openai_embedding
 

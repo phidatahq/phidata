@@ -70,12 +70,12 @@ class KnowledgeBase(BaseModel):
             logger.debug("Optimizing Vector DB")
             self.vector_db.optimize()
 
-    def load_documents(self, documents: List[List[Document]], recreate: bool = False) -> None:
-        """Load documents to the knowledge base
+    def load_documents(self, documents: List[Document], skip_existing: bool = True) -> None:
+        """Load documents to the knowledgke base
 
         Args:
-            documents (List[List[Document]]): List of list of documents to load
-            recreate (bool, optional): Whether to recreate the documents. Defaults to False.
+            documents (List[Document]): List of documents to load
+            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
         """
 
         if self.vector_db is None:
@@ -86,20 +86,17 @@ class KnowledgeBase(BaseModel):
         self.vector_db.create()
 
         logger.info("Loading knowledge base")
-        num_documents = 0
 
-        for document_list in documents:
-            # Filter out documents which already exist in the vector db
-            if not recreate:
-                document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]
+        # Filter out documents which already exist in the vector db
+        documents_to_load = (
+            [document for document in documents if not self.vector_db.doc_exists(document)]
+            if skip_existing
+            else documents
+        )
 
-            self.vector_db.insert(documents=document_list)
-            num_documents += len(document_list)
-        logger.info(f"Loaded {num_documents} documents to knowledge base")
-
-        if self.optimize_on is not None and num_documents > self.optimize_on:
-            logger.debug("Optimizing Vector DB")
-            self.vector_db.optimize()
+        # Insert documents
+        self.vector_db.insert(documents=documents_to_load)
+        logger.info(f"Loaded {len(documents_to_load)} documents to knowledge base")
 
     def exists(self) -> bool:
         """Returns True if the knowledge base exists"""

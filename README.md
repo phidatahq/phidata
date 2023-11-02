@@ -96,7 +96,7 @@ pip install phidata
 
 ### Create your codebase
 
-Create your codebase using the `llm-app` template that is pre-configured with FastApi, Streamlit and PgVector. Use this codebase as a starting point for your LLM product.
+Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector. Use this codebase as a starting point for your LLM product.
 
 ```bash
 phi ws create -t llm-app -n llm-app

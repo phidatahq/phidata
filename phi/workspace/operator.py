@@ -133,7 +133,9 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     logger.debug("Cloning: {}".format(repo_to_clone))
     try:
         _cloned_git_repo: git.Repo = git.Repo.clone_from(
-            repo_to_clone, str(ws_root_path), progress=GitCloneProgress()  # type: ignore
+            repo_to_clone,
+            str(ws_root_path),
+            progress=GitCloneProgress(),  # type: ignore
         )
     except Exception as e:
         logger.error(e)

@@ -12,11 +12,6 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-try:
-    import psycopg
-except ImportError:
-    raise ImportError("`psycopg` not installed")
-
 from phi.conversation.schemas import ConversationRow
 from phi.conversation.storage.base import ConversationStorage
 from phi.utils.log import logger
@@ -111,10 +106,9 @@ class PgConversationStorage(ConversationStorage):
         stmt = select(self.table).where(self.table.c.id == conversation_id)
         try:
             return session.execute(stmt).first()
-        except Exception as e:
+        except Exception:
             # Create table if it does not exist
-            if e.__class__ == psycopg.errors.UndefinedTable:
-                self.create()
+            self.create()
         return None
 
     def read(self, conversation_id: str) -> Optional[ConversationRow]:
@@ -137,9 +131,8 @@ class PgConversationStorage(ConversationStorage):
                 for row in rows:
                     if row is not None and row.id is not None:
                         conversation_ids.append(row.id)
-        except psycopg.errors.UndefinedTable:
+        except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
-            pass
         return conversation_ids
 
     def get_all_conversations(self, user_name: Optional[str] = None) -> List[ConversationRow]:
@@ -157,9 +150,8 @@ class PgConversationStorage(ConversationStorage):
                 for row in rows:
                     if row.id is not None:
                         conversations.append(ConversationRow.model_validate(row))
-        except psycopg.errors.UndefinedTable:
+        except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
-            pass
         return conversations
 
     def upsert(self, conversation: ConversationRow) -> Optional[ConversationRow]:
@@ -199,8 +191,8 @@ class PgConversationStorage(ConversationStorage):
 
             try:
                 sess.execute(stmt)
-            except psycopg.errors.UndefinedTable:
-                # Create table if it does not exist
+            except Exception:
+                # Create table and try again
                 self.create()
                 sess.execute(stmt)
         return self.read(conversation_id=conversation.id)

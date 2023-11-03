@@ -127,8 +127,7 @@ phi ws up --group app
 - Ask "How do I make chicken curry?"
 - Upload PDFs and ask questions
 
-<img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/5a8f7129-492b-485a-87e8-29164bf83e6a">
-
+<img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/a8eff0ac-963c-43cb-a784-920bd6713a48">
 
 ### Serve your LLM App using FastApi
 

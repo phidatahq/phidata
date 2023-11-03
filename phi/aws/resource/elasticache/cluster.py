@@ -274,6 +274,78 @@ class CacheCluster(AwsResource):
             logger.error(e)
         return self.active_resource
 
+    def _update(self, aws_client: AwsApiClient) -> bool:
+        """Updates the CacheCluster
+
+        Args:
+            aws_client: The AwsApiClient for the current cluster
+        """
+        logger.debug(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
+
+        cache_cluster_id = self.get_cache_cluster_id()
+        if cache_cluster_id is None:
+            logger.error("CacheClusterId is None")
+            return False
+
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {}
+        if self.num_cache_nodes is not None:
+            not_null_args["NumCacheNodes"] = self.num_cache_nodes
+        if self.cache_node_ids_to_remove is not None:
+            not_null_args["CacheNodeIdsToRemove"] = self.cache_node_ids_to_remove
+        if self.az_mode is not None:
+            not_null_args["AZMode"] = self.az_mode
+        if self.new_availability_zone is not None:
+            not_null_args["NewAvailabilityZone"] = self.new_availability_zone
+        if self.cache_security_group_names is not None:
+            not_null_args["CacheSecurityGroupNames"] = self.cache_security_group_names
+        if self.security_group_ids is not None:
+            not_null_args["SecurityGroupIds"] = self.cache_security_group_ids
+        if self.preferred_maintenance_window is not None:
+            not_null_args["PreferredMaintenanceWindow"] = self.preferred_maintenance_window
+        if self.notification_topic_arn is not None:
+            not_null_args["NotificationTopicArn"] = self.notification_topic_arn
+        if self.cache_parameter_group_name is not None:
+            not_null_args["CacheParameterGroupName"] = self.cache_parameter_group_name
+        if self.notification_topic_status is not None:
+            not_null_args["NotificationTopicStatus"] = self.notification_topic_status
+        if self.apply_immediately is not None:
+            not_null_args["ApplyImmediately"] = self.apply_immediately
+        if self.engine_version is not None:
+            not_null_args["EngineVersion"] = self.engine_version
+        if self.auto_minor_version_upgrade is not None:
+            not_null_args["AutoMinorVersionUpgrade"] = self.auto_minor_version_upgrade
+        if self.snapshot_retention_limit is not None:
+            not_null_args["SnapshotRetentionLimit"] = self.snapshot_retention_limit
+        if self.snapshot_window is not None:
+            not_null_args["SnapshotWindow"] = self.snapshot_window
+        if self.cache_node_type is not None:
+            not_null_args["CacheNodeType"] = self.cache_node_type
+        if self.auth_token is not None:
+            not_null_args["AuthToken"] = self.get_auth_token()
+        if self.auth_token_update_strategy is not None:
+            not_null_args["AuthTokenUpdateStrategy"] = self.auth_token_update_strategy
+        if self.log_delivery_configurations is not None:
+            not_null_args["LogDeliveryConfigurations"] = self.log_delivery_configurations
+
+        service_client = self.get_service_client(aws_client)
+        try:
+            modify_response = service_client.modify_cache_cluster(
+                CacheClusterId=cache_cluster_id,
+                **not_null_args,
+            )
+            logger.debug(f"CacheCluster: {modify_response}")
+            resource_dict = modify_response.get("CacheCluster", {})
+
+            # Validate resource creation
+            if resource_dict is not None:
+                print_info(f"CacheCluster updated: {self.get_cache_cluster_id()}")
+                self.active_resource = modify_response
+            return True
+        except Exception as e:
+            logger.error(f"{self.get_resource_type()} could not be updated.")
+            logger.error(e)
+
     def _delete(self, aws_client: AwsApiClient) -> bool:
         """Deletes the CacheCluster
 
@@ -326,11 +398,13 @@ class CacheCluster(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-        cache_endpoint = None
+        cache_endpoint = []
         try:
             client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
-            describe_response = self.get_service_client(client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            describe_response = self.get_service_client(client).describe_cache_clusters(
+                CacheClusterId=cache_cluster_id, ShowCacheNodeInfo=True
+            )
             logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
@@ -338,7 +412,8 @@ class CacheCluster(AwsResource):
                 for resource in resource_list:
                     _cluster_identifier = resource.get("CacheClusterId", None)
                     if _cluster_identifier == cache_cluster_id:
-                        cache_endpoint = resource.get("ConfigurationEndpoint", {}).get("Address", None)
+                        for node in resource.get("CacheNodes", []):
+                            cache_endpoint.append(node.get("Endpoint", {}).get("Address", None))
                         break
         except Exception as e:
             logger.error(f"Error reading {self.get_resource_type()}.")
@@ -351,11 +426,13 @@ class CacheCluster(AwsResource):
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-        cache_port = None
+        cache_port = []
         try:
             client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
-            describe_response = self.get_service_client(client).describe_cache_clusters(CacheClusterId=cache_cluster_id)
+            describe_response = self.get_service_client(client).describe_cache_clusters(
+                CacheClusterId=cache_cluster_id, ShowCacheNodeInfo=True
+            )
             logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
@@ -363,7 +440,8 @@ class CacheCluster(AwsResource):
                 for resource in resource_list:
                     _cluster_identifier = resource.get("CacheClusterId", None)
                     if _cluster_identifier == cache_cluster_id:
-                        cache_port = resource.get("ConfigurationEndpoint", {}).get("Port", None)
+                        for node in resource.get("CacheNodes", []):
+                            cache_port.append(node.get("Endpoint", {}).get("Port", None))
                         break
         except Exception as e:
             logger.error(f"Error reading {self.get_resource_type()}.")

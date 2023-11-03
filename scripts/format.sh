@@ -14,14 +14,14 @@ source ${CURR_DIR}/_utils.sh
 
 main() {
   print_heading "Formatting phidata"
-  print_heading "Running: black ${REPO_ROOT}"
-  black ${REPO_ROOT}
+  print_heading "Running: ruff format ${REPO_ROOT}"
+  ruff format ${REPO_ROOT}
+  print_heading "Running: ruff check ${REPO_ROOT}"
+  ruff check ${REPO_ROOT}
   print_heading "Running: mypy ${REPO_ROOT}"
   mypy ${REPO_ROOT}
   print_heading "Running: pytest ${REPO_ROOT}"
   pytest ${REPO_ROOT}
-  print_heading "Running: ruff ${REPO_ROOT}"
-  ruff ${REPO_ROOT}
 }
 
 main "$@"

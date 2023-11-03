@@ -1,23 +1,24 @@
-import json
 from uuid import uuid4
 from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
+from phi.llm.schemas import Message, References
 from phi.llm.openai import OpenAIChat
-from phi.llm.schemas import Message
+from phi.llm.agent.base import BaseAgent
 from phi.llm.function.registry import FunctionRegistry
+from phi.llm.task.memory.base import TaskMemory
 from phi.utils.format_str import remove_indent
-from phi.utils.log import logger, set_log_level_to_debug
+from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 
-class Task(BaseModel):
+class LLMTask(BaseModel):
     # -*- LLM to use for this task
-    llm: LLM = OpenAIChat()
+    llm: Optional[LLM] = None
 
     # -*- Task settings
     # Task UUID
@@ -27,8 +28,13 @@ class Task(BaseModel):
     # Metadata associated with this task
     meta_data: Optional[Dict[str, Any]] = None
 
-    # -*- Task Output
-    output: Optional[Any] = None
+    # -*- Task Memory
+    memory: TaskMemory = TaskMemory()
+    # Add chat history to the messages sent to the LLM.
+    # If True, the chat history is added to the messages sent to the LLM.
+    add_chat_history_to_messages: bool = False
+    # Number of previous messages to add to prompt or messages sent to the LLM.
+    num_history_messages: int = 8
 
     # -*- Task Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
@@ -47,6 +53,11 @@ class Task(BaseModel):
     # A list of function registries to add to the LLM.
     function_registries: Optional[List[FunctionRegistry]] = None
 
+    # -*- Agents
+    # Add a list of agents to the LLM
+    # function_calls must be True for agents to be added to the LLM
+    agents: Optional[List[BaseAgent]] = None
+
     #
     # -*- Prompt Settings
     #
@@ -63,10 +74,10 @@ class Task(BaseModel):
     use_default_system_prompt: bool = True
 
     # -*- User prompt: provide the user prompt as a string or using a function
-    # Note: this will ignore the input provided to the run function
+    # Note: this will ignore the message provided to the run function
     user_prompt: Optional[str] = None
     # Function to build the user prompt.
-    # This function is provided the task and the input as arguments
+    # This function is provided the task and the input message as arguments
     #   and should return the user_prompt as a string.
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # Signature:
@@ -86,27 +97,25 @@ class Task(BaseModel):
     #     ...
     references_function: Optional[Callable[..., Optional[str]]] = None
 
-    # If True, show debug logs
-    debug_mode: bool = False
+    # -*- Task Output
+    output: Optional[Any] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @field_validator("id", mode="before")
-    def set_task_id(cls, v: Optional[str]) -> str:
-        return v if v is not None else str(uuid4())
+    def set_task_id(self) -> None:
+        if self.id is None:
+            self.id = str(uuid4())
 
-    @field_validator("debug_mode", mode="before")
-    def set_log_level(cls, v: bool) -> bool:
-        if v:
-            set_log_level_to_debug()
-            logger.debug("Debug logs enabled")
-        return v
+    def add_functions_to_llm(self) -> None:
+        if self.llm is None:
+            return
 
-    @model_validator(mode="after")
-    def add_functions_to_llm(self) -> "Task":
         if self.function_calls:
             if self.default_functions:
-                default_func_list: List[Callable] = [self.search_knowledge_base]
+                default_func_list: List[Callable] = [
+                    self.get_last_n_chats,
+                    self.search_knowledge_base,
+                ]
                 for func in default_func_list:
                     self.llm.add_function(func)
 
@@ -127,20 +136,22 @@ class Task(BaseModel):
             # Set show_function_calls if it is not set on the llm
             if self.llm.show_function_calls is None:
                 self.llm.show_function_calls = self.show_function_calls
-        return self
 
-    def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
-        """Return a list of references from the knowledge base"""
+    def add_agents_to_llm(self) -> None:
+        if self.llm is None:
+            return
 
-        if self.references_function is not None:
-            reference_kwargs = {"task": self, "query": query}
-            return remove_indent(self.references_function(**reference_kwargs))
+        if self.agents is not None and len(self.agents) > 0:
+            for agent in self.agents:
+                self.llm.add_agent(agent)
 
-        if self.knowledge_base is None:
-            return None
+            # Set function call to auto if it is not set
+            if self.llm.function_call is None:
+                self.llm.function_call = "auto"
 
-        relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
-        return json.dumps([doc.to_dict() for doc in relevant_docs])
+            # Set show_function_calls if it is not set on the llm
+            if self.llm.show_function_calls is None:
+                self.llm.show_function_calls = self.show_function_calls
 
     def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the task"""
@@ -174,6 +185,20 @@ class Task(BaseModel):
         # Return the system prompt after removing newlines and indenting
         _system_prompt = cast(str, remove_indent(_system_prompt))
         return _system_prompt
+
+    def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
+        """Return a list of references from the knowledge base"""
+        import json
+
+        if self.references_function is not None:
+            reference_kwargs = {"task": self, "query": query}
+            return remove_indent(self.references_function(**reference_kwargs))
+
+        if self.knowledge_base is None:
+            return None
+
+        relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
+        return json.dumps([doc.to_dict() for doc in relevant_docs])
 
     def get_user_prompt(self, message: Optional[str] = None, references: Optional[str] = None) -> str:
         """Build the user prompt given a message and references"""
@@ -233,10 +258,20 @@ class Task(BaseModel):
         return _user_prompt
 
     def _run(self, message: Optional[str] = None, stream: bool = True) -> Iterator[str]:
-        logger.debug("*********** Task Run Start ***********")
+        # -*- Set default LLM
+        if self.llm is None:
+            self.llm = OpenAIChat()
+
+        # -*- Prepare the task
+        self.set_task_id()
+        self.add_functions_to_llm()
+        self.add_agents_to_llm()
 
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
+
+        # -*- References to add to the user_prompt and save to the task memory
+        references: Optional[References] = None
 
         # -*- Get references to add to the user_prompt
         user_prompt_references = None
@@ -245,6 +280,9 @@ class Task(BaseModel):
             reference_timer.start()
             user_prompt_references = self.get_references_from_knowledge_base(query=message)
             reference_timer.stop()
+            references = References(
+                query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+            )
             logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
 
         # -*- Build the user prompt
@@ -260,6 +298,8 @@ class Task(BaseModel):
         messages: List[Message] = []
         if system_prompt_message.content and system_prompt_message.content != "":
             messages.append(system_prompt_message)
+        if self.add_chat_history_to_messages:
+            messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
 
         # -*- Generate response (includes running function calls)
@@ -271,10 +311,29 @@ class Task(BaseModel):
         else:
             llm_response = self.llm.parsed_response(messages=messages)
 
+        # -*- Add messages to the memory
+        # Add the system prompt to the memory - added only if this is the first message to the LLM
+        self.memory.add_system_prompt(message=system_prompt_message)
+
+        # Add user message to the memory - this is added to the chat_history
+        self.memory.add_user_message(message=Message(role="user", content=message))
+
+        # Add user prompt to the memory - this is added to the llm_messages
+        self.memory.add_llm_message(message=user_prompt_message)
+
+        # Add references to the memory
+        if references:
+            self.memory.add_references(references=references)
+
+        # Add llm response to the memory - this is added to the chat_history and llm_messages
+        self.memory.add_llm_response(message=Message(role="assistant", content=llm_response))
+
+        # -*- Update task output
+        self.output = llm_response
+
         # -*- Yield final response if not streaming
         if not stream:
             yield llm_response
-        logger.debug("*********** Task Run End ***********")
 
     def run(self, message: Optional[str] = None, stream: bool = True) -> Union[Iterator[str], str]:
         resp = self._run(message=message, stream=stream)
@@ -283,9 +342,50 @@ class Task(BaseModel):
         else:
             return next(resp)
 
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = {
+            "id": self.id,
+            "name": self.name,
+            "meta_data": self.meta_data,
+            "output": self.output,
+            "chat_history": self.memory.get_chat_history(),
+            "llm_messages": self.memory.get_llm_messages(),
+            "references": self.memory.references,
+            "llm": self.llm.to_dict() if self.llm else None,
+            "metrics": self.llm.metrics if self.llm else None,
+        }
+        return _dict
+
     ###########################################################################
     # LLM functions
     ###########################################################################
+
+    def get_last_n_chats(self, num_chats: Optional[int] = None) -> str:
+        """Returns the last n chats between the user and assistant.
+        Example:
+            - To get the last chat, use num_chats=1.
+            - To get the last 5 chats, use num_chats=5.
+            - To get all chats, use num_chats=None.
+            - To get the first chat, use num_chats=None and pick the first message.
+        :param num_chats: The number of chats to return.
+            Each chat contains 2 messages. One from the user and one from the assistant.
+        :return: A list of dictionaries representing the chat history.
+        """
+        import json
+
+        history: List[Dict[str, Any]] = []
+        all_chats = self.memory.get_chats()
+        if len(all_chats) == 0:
+            return ""
+
+        chats_added = 0
+        for chat in all_chats[::-1]:
+            history.insert(0, chat[1].to_dict())
+            history.insert(0, chat[0].to_dict())
+            chats_added += 1
+            if num_chats is not None and chats_added >= num_chats:
+                break
+        return json.dumps(history)
 
     def search_knowledge_base(self, query: str) -> Optional[str]:
         """Search the knowledge base for information about a users query.

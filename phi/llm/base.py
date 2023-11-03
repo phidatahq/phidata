@@ -4,25 +4,40 @@ from typing import List, Iterator, Optional, Dict, Any, Callable
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.schemas import Message, Function, FunctionCall
+from phi.llm.agent.base import BaseAgent
 from phi.llm.function.registry import FunctionRegistry
 from phi.utils.log import logger
 
 
 class LLM(BaseModel):
+    # ID of the model to use.
     model: str
+    # Name for this LLM (not used for api calls).
     name: Optional[str] = None
+    # Metrics collected for this LLM (not used for api calls).
     metrics: Dict[str, Any] = {}
 
+    # A list of functions the model may generate JSON inputs for.
+    # NOTE: Do not add functions manually. Use add_function() or add_function_schema() instead.
     functions: Optional[Dict[str, Function]] = None
+    # Controls how the model calls functions.
+    # "none" means the model will not call a function and instead generates a message.
+    # "auto" means the model can pick between generating a message or calling a function.
+    # Default: "none" is the default when no functions are present. "auto" is the default if functions are present.
+    # Specifying a particular function via {"name": "my_function"} forces the model to call that function.
     function_call: Optional[str] = None
+    # Maximum number of function calls allowed.
     function_call_limit: int = 50
+    # Stack of function calls.
     function_call_stack: Optional[List[FunctionCall]] = None
+    # If True, shows function calls in the response.
     show_function_calls: Optional[bool] = None
     # If True, runs function calls before sending back the response content.
     run_function_calls: bool = True
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @property
     def api_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
 
@@ -74,6 +89,13 @@ class LLM(BaseModel):
 
         self.functions.update(registry.functions)
         logger.debug(f"Functions from {registry.name} added to LLM.")
+
+    def add_agent(self, agent: BaseAgent) -> None:
+        if self.functions is None:
+            self.functions = {}
+
+        self.functions.update(agent.functions)
+        logger.debug(f"Agent: {agent.name} added to LLM.")
 
     def get_function_call(self, name: str, arguments: Optional[str] = None) -> Optional[FunctionCall]:
         logger.debug(f"Getting function {name}. Args: {arguments}")

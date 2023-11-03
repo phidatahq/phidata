@@ -8,6 +8,7 @@ from phi.aws.resource.cloudformation.stack import CloudFormationStack
 from phi.aws.resource.ec2.security_group import SecurityGroup
 from phi.aws.resource.rds.db_instance import DbInstance
 from phi.aws.resource.rds.db_subnet_group import DbSubnetGroup
+from phi.aws.resource.secret.manager import SecretsManager
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
@@ -25,12 +26,33 @@ class DbCluster(AwsResource):
     name: str
     # The name of the database engine to be used for this DB cluster.
     engine: Union[str, Literal["aurora", "aurora-mysql", "aurora-postgresql", "mysql", "postgres"]]
-    # DbInstances to add to this cluster
-    db_instances: Optional[List[DbInstance]] = None
     # The version number of the database engine to use.
     # For valid engine_version values, refer to
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html#RDS.Client.create_db_cluster
+    # Or run: aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
     engine_version: Optional[str] = None
+    # DbInstances to add to this cluster
+    db_instances: Optional[List[DbInstance]] = None
+
+    # The name for your database of up to 64 alphanumeric characters.
+    # If you do not provide a name, Amazon RDS doesn't create a database in the DB cluster you are creating.
+    # Provide DATABASE_NAME here or as DATABASE_NAME in secrets_file
+    # Valid for: Aurora DB clusters and Multi-AZ DB clusters
+    database_name: Optional[str] = None
+    # The DB cluster identifier. This parameter is stored as a lowercase string.
+    # If None, use name as the db_cluster_identifier
+    # Constraints:
+    #   Must contain from 1 to 63 letters, numbers, or hyphens.
+    #   First character must be a letter.
+    #   Can't end with a hyphen or contain two consecutive hyphens.
+    # Example: my-cluster1
+    # Valid for: Aurora DB clusters and Multi-AZ DB clusters
+    db_cluster_identifier: Optional[str] = None
+    # The name of the DB cluster parameter group to associate with this DB cluster.
+    # If you do not specify a value, then the default DB cluster parameter group for the specified
+    # DB engine and version is used.
+    # Constraints: If supplied, must match the name of an existing DB cluster parameter group.
+    db_cluster_parameter_group_name: Optional[str] = None
 
     # The port number on which the instances in the DB cluster accept connections.
     # RDS for MySQL and Aurora MySQL
@@ -40,6 +62,7 @@ class DbCluster(AwsResource):
     # - Default: 5432
     # - Valid values: 1150-65535
     port: Optional[int] = None
+
     # The name of the master user for the DB cluster.
     # Constraints:
     #   Must be 1 to 16 letters or numbers.
@@ -54,10 +77,76 @@ class DbCluster(AwsResource):
     master_user_password: Optional[str] = None
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
+    # Read secret variables from AWS Secret
+    aws_secret: Optional[SecretsManager] = None
 
     # A list of Availability Zones (AZs) where DB instances in the DB cluster can be created.
     # Valid for: Aurora DB clusters only
     availability_zones: Optional[List[str]] = None
+    # A DB subnet group to associate with this DB cluster.
+    # This setting is required to create a Multi-AZ DB cluster.
+    # Constraints: Must match the name of an existing DBSubnetGroup. Must not be default.
+    db_subnet_group_name: Optional[str] = None
+    # If db_subnet_group_name is None,
+    # Read the db_subnet_group_name from db_subnet_group
+    db_subnet_group: Optional[DbSubnetGroup] = None
+
+    # Compute and memory capacity of each DB instance in the Multi-AZ DB cluster, for example db.m6g.xlarge.
+    # Not all DB instance classes are available in all Amazon Web Services Regions, or for all database engines.
+    # This setting is required to create a Multi-AZ DB cluster.
+    db_instance_class: Optional[str] = None
+    # The amount of storage in gibibytes (GiB) to allocate to each DB instance in the Multi-AZ DB cluster.
+    allocated_storage: Optional[int] = None
+    # The storage type to associate with the DB cluster.
+    # This setting is required to create a Multi-AZ DB cluster.
+    # When specified for a Multi-AZ DB cluster, a value for the Iops parameter is required.
+    # Valid Values:
+    # Aurora DB clusters - aurora | aurora-iopt1
+    # Multi-AZ DB clusters - io1
+    # Default:
+    # Aurora DB clusters - aurora
+    # Multi-AZ DB clusters - io1
+    storage_type: Optional[str] = None
+    # The amount of Provisioned IOPS (input/output operations per second) to be initially allocated for each DB
+    # instance in the Multi-AZ DB cluster.
+    iops: Optional[int] = None
+    # Specifies whether the DB cluster is publicly accessible.
+    # When the DB cluster is publicly accessible, its Domain Name System (DNS) endpoint resolves to the private
+    #   IP address from within the DB cluster’s virtual private cloud (VPC). It resolves to the public IP address
+    #   from outside the DB cluster’s VPC. Access to the DB cluster is ultimately controlled by the security group
+    #   it uses. That public access isn’t permitted if the security group assigned to the DB cluster doesn’t permit it.
+    # When the DB cluster isn’t publicly accessible, it is an internal DB cluster with a DNS name that resolves to a
+    #   private IP address.
+    # Default: The default behavior varies depending on whether DBSubnetGroupName is specified.
+    # If DBSubnetGroupName isn’t specified, and PubliclyAccessible isn’t specified, the following applies:
+    # If the default VPC in the target Region doesn’t have an internet gateway attached to it, the DB cluster is private
+    # If the default VPC in the target Region has an internet gateway attached to it, the DB cluster is public.
+    # If DBSubnetGroupName is specified, and PubliclyAccessible isn’t specified, the following applies:
+    # If the subnets are part of a VPC that doesn’t have an internet gateway attached to it, the DB cluster is private.
+    # If the subnets are part of a VPC that has an internet gateway attached to it, the DB cluster is public.
+    publicly_accessible: Optional[bool] = None
+
+    # A list of EC2 VPC security groups to associate with this DB cluster.
+    vpc_security_group_ids: Optional[List[str]] = None
+    # If vpc_security_group_ids is None,
+    # Read the security_group_id from vpc_stack
+    vpc_stack: Optional[CloudFormationStack] = None
+    # Add security_group_ids from db_security_groups
+    db_security_groups: Optional[List[SecurityGroup]] = None
+
+    # The DB engine mode of the DB cluster, either provisioned or serverless
+    engine_mode: Optional[Literal["provisioned", "serverless"]] = None
+    # For DB clusters in serverless DB engine mode, the scaling properties of the DB cluster.
+    scaling_configuration: Optional[Dict[str, Any]] = None
+    # Contains the scaling configuration of an Aurora Serverless v2 DB cluster.
+    serverless_v2_scaling_configuration: Dict[str, Any] = {
+        "MinCapacity": 0.5,
+        "MaxCapacity": 8,
+    }
+    # A value that indicates whether the DB cluster has deletion protection enabled.
+    # The database can't be deleted when deletion protection is enabled. By default, deletion protection isn't enabled.
+    deletion_protection: Optional[bool] = None
+
     # The number of days for which automated backups are retained.
     # Default: 1
     # Constraints: Must be a value from 1 to 35
@@ -66,42 +155,6 @@ class DbCluster(AwsResource):
     # A value that indicates that the DB cluster should be associated with the specified CharacterSet.
     # Valid for: Aurora DB clusters only
     character_set_name: Optional[str] = None
-    # The name for your database of up to 64 alphanumeric characters.
-    # If you do not provide a name, Amazon RDS doesn't create a database in the DB cluster you are creating.
-    # Provide DATABASE_NAME here or as DATABASE_NAME in secrets_file
-    # Valid for: Aurora DB clusters and Multi-AZ DB clusters
-    database_name: Optional[str] = None
-    # The DB cluster identifier. This parameter is stored as a lowercase string.
-    # If None, use the name as the db_cluster_identifier
-    # Constraints:
-    #   Must contain from 1 to 63 letters, numbers, or hyphens.
-    #   First character must be a letter.
-    #   Can't end with a hyphen or contain two consecutive hyphens.
-    # Example: my-cluster1
-    # Valid for: Aurora DB clusters and Multi-AZ DB clusters
-    db_cluster_identifier: Optional[str] = None
-    # The name of the DB cluster parameter group to associate with this DB cluster.
-    # If you do not specify a value, then the default DB cluster parameter group for the specified
-    # DB engine and version is used.
-    # Constraints: If supplied, must match the name of an existing DB cluster parameter group.
-    db_cluster_parameter_group_name: Optional[str] = None
-
-    # A list of EC2 VPC security groups to associate with this DB cluster.
-    vpc_security_group_ids: Optional[List[str]] = None
-    # If vpc_security_group_ids is None,
-    # Read the security_group_id from vpc_stack
-    vpc_stack: Optional[CloudFormationStack] = None
-    # If vpc_security_group_ids is None and vpc_stack is None
-    # Read the security_group_id from db_security_groups
-    db_security_groups: Optional[List[SecurityGroup]] = None
-
-    # A DB subnet group to associate with this DB cluster.
-    # This setting is required to create a Multi-AZ DB cluster.
-    # Constraints: Must match the name of an existing DBSubnetGroup. Must not be default.
-    db_subnet_group_name: Optional[str] = None
-    # If db_subnet_group_name is None,
-    # Read the db_subnet_group_name from db_subnet_group
-    db_subnet_group: Optional[DbSubnetGroup] = None
 
     # A value that indicates that the DB cluster should be associated with the specified option group.
     option_group_name: Optional[str] = None
@@ -145,14 +198,7 @@ class DbCluster(AwsResource):
     # Aurora MySQL: Possible values are audit , error , general , and slowquery .
     # Aurora PostgreSQL: Possible value is postgresql .
     enable_cloudwatch_logs_exports: Optional[List[str]] = None
-    # The DB engine mode of the DB cluster,
-    # either provisioned , serverless , parallelquery , global , or multimaster .
-    engine_mode: Optional[Literal["provisioned", "serverless", "parallelquery", "global", "multimaster"]] = None
-    # For DB clusters in serverless DB engine mode, the scaling properties of the DB cluster.
-    scaling_configuration: Optional[Dict[str, Any]] = None
-    # A value that indicates whether the DB cluster has deletion protection enabled.
-    # The database can't be deleted when deletion protection is enabled. By default, deletion protection isn't enabled.
-    deletion_protection: Optional[bool] = None
+
     # The global cluster ID of an Aurora cluster that becomes the primary cluster in the new global database cluster.
     global_cluster_identifier: Optional[str] = None
     # A value that indicates whether to enable the HTTP endpoint for an Aurora Serverless v1 DB cluster.
@@ -172,29 +218,6 @@ class DbCluster(AwsResource):
     domain_iam_role_name: Optional[str] = None
     enable_global_write_forwarding: Optional[bool] = None
 
-    # Compute and memory capacity of each DB instance in the Multi-AZ DB cluster, for example db.m6g.xlarge.
-    # Not all DB instance classes are available in all Amazon Web Services Regions, or for all database engines.
-    # This setting is required to create a Multi-AZ DB cluster.
-    db_instance_class: Optional[str] = None
-    # The amount of storage in gibibytes (GiB) to allocate to each DB instance in the Multi-AZ DB cluster.
-    allocated_storage: Optional[int] = None
-    # Specifies the storage type to be associated with the DB cluster.
-    # This setting is required to create a Multi-AZ DB cluster.
-    # Valid values: io1
-    # When specified, a value for the Iops parameter is required.
-    # Default: io1
-    storage_type: Optional[str] = None
-    # The amount of Provisioned IOPS (input/output operations per second) to be initially allocated for each DB
-    # instance in the Multi-AZ DB cluster.
-    iops: Optional[int] = None
-    # A value that indicates whether the DB cluster is publicly accessible.
-    # When the DB cluster is publicly accessible, its Domain Name System (DNS) endpoint resolves to the private IP
-    # address from within the DB cluster's virtual private cloud (VPC). It resolves to the public IP address from
-    # outside of the DB cluster's VPC. Access to the DB cluster is ultimately controlled by the security group it uses.
-    # That public access isn't permitted if the security group assigned to the DB cluster doesn't permit it.
-    # When the DB cluster isn't publicly accessible, it is an internal DB cluster with a DNS name
-    # that resolves to a private IP address.
-    publicly_accessible: Optional[bool] = None
     # A value that indicates whether minor engine upgrades are applied automatically to the DB cluster during the
     # maintenance window. By default, minor engine upgrades are applied automatically.
     auto_minor_version_upgrade: Optional[bool] = None
@@ -209,11 +232,7 @@ class DbCluster(AwsResource):
     enable_performance_insights: Optional[bool] = None
     performance_insights_kms_key_id: Optional[str] = None
     performance_insights_retention_period: Optional[int] = None
-    # Contains the scaling configuration of an Aurora Serverless v2 DB cluster.
-    serverless_v2_scaling_configuration: Dict[str, Any] = {
-        "MinCapacity": 0.5,
-        "MaxCapacity": 8,
-    }
+
     # The network type of the DB cluster.
     # Valid values:
     # - IPV4
@@ -225,15 +244,28 @@ class DbCluster(AwsResource):
     db_system_id: Optional[str] = None
     # The ID of the region that contains the source for the db cluster.
     source_region: Optional[str] = None
+    enable_local_write_forwarding: Optional[bool] = None
 
+    # Specifies whether to manage the master user password with Amazon Web Services Secrets Manager.
+    # Constraints:
+    # Can’t manage the master user password with Amazon Web Services Secrets Manager if MasterUserPassword is specified.
+    manage_master_user_password: Optional[bool] = None
+    # The Amazon Web Services KMS key identifier to encrypt a secret that is automatically generated and
+    # managed in Amazon Web Services Secrets Manager.
+    master_user_secret_kms_key_id: Optional[str] = None
+
+    # Parameters for delete function
     # Skip the creation of a final DB cluster snapshot before the DB cluster is deleted.
     # If skip_final_snapshot = True, no DB cluster snapshot is created.
-    # If skip_final_snapshot = None, a DB cluster snapshot is created before the DB cluster is deleted.
-    #
-    # You must specify a FinalDBSnapshotIdentifier parameter
-    # if skip_final_snapshot = None.
+    # If skip_final_snapshot = None | False, a DB cluster snapshot is created before the DB cluster is deleted.
+    #   You must specify a FinalDBSnapshotIdentifier parameter
+    #   if skip_final_snapshot = None | False
     skip_final_snapshot: Optional[bool] = True
+    # The DB cluster snapshot identifier of the new DB cluster snapshot created when SkipFinalSnapshot is disabled.
     final_db_snapshot_identifier: Optional[str] = None
+    # Specifies whether to remove automated backups immediately after the DB cluster is deleted.
+    # The default is to remove automated backups immediately after the DB cluster is deleted.
+    delete_automated_backups: Optional[bool] = None
 
     # Parameters for update function
     new_db_cluster_identifier: Optional[str] = None
@@ -241,9 +273,7 @@ class DbCluster(AwsResource):
     cloudwatch_logs_exports: Optional[List[str]] = None
     allow_major_version_upgrade: Optional[bool] = None
     db_instance_parameter_group_name: Optional[str] = None
-    manage_master_user_password: Optional[bool] = None
     rotate_master_user_password: Optional[bool] = None
-    master_iser_secter_kms_key_id: Optional[str] = None
     allow_engine_mode_change: Optional[bool] = None
 
     # Cache secret_data
@@ -252,25 +282,35 @@ class DbCluster(AwsResource):
     def get_db_cluster_identifier(self):
         return self.db_cluster_identifier or self.name
 
-    def get_master_username(self) -> Optional[str]:
+    def get_master_username(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         master_username = self.master_username
         if master_username is None and self.secrets_file is not None:
             # read from secrets_file
             secret_data = self.get_secret_file_data()
             if secret_data is not None:
                 master_username = secret_data.get("MASTER_USERNAME", master_username)
+        if master_username is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading MASTER_USERNAME from secret: {self.aws_secret.name}")
+            master_username = self.aws_secret.get_secret_value("MASTER_USERNAME", aws_client=aws_client)
+
         return master_username
 
-    def get_master_user_password(self) -> Optional[str]:
+    def get_master_user_password(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         master_user_password = self.master_user_password
         if master_user_password is None and self.secrets_file is not None:
             # read from secrets_file
             secret_data = self.get_secret_file_data()
             if secret_data is not None:
                 master_user_password = secret_data.get("MASTER_USER_PASSWORD", master_user_password)
+        if master_user_password is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading MASTER_USER_PASSWORD from secret: {self.aws_secret.name}")
+            master_user_password = self.aws_secret.get_secret_value("MASTER_USER_PASSWORD", aws_client=aws_client)
+
         return master_user_password
 
-    def get_database_name(self) -> Optional[str]:
+    def get_database_name(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         database_name = self.database_name
         if database_name is None and self.secrets_file is not None:
             # read from secrets_file
@@ -279,6 +319,13 @@ class DbCluster(AwsResource):
                 database_name = secret_data.get("DATABASE_NAME", database_name)
                 if database_name is None:
                     database_name = secret_data.get("DB_NAME", database_name)
+        if database_name is None and self.aws_secret is not None:
+            # read from aws_secret
+            logger.debug(f"Reading DATABASE_NAME from secret: {self.aws_secret.name}")
+            database_name = self.aws_secret.get_secret_value("DATABASE_NAME", aws_client=aws_client)
+            if database_name is None:
+                logger.debug(f"Reading DB_NAME from secret: {self.aws_secret.name}")
+                database_name = self.aws_secret.get_secret_value("DB_NAME", aws_client=aws_client)
         return database_name
 
     def get_db_name(self) -> Optional[str]:
@@ -301,18 +348,19 @@ class DbCluster(AwsResource):
         if vpc_security_group_ids is None and self.vpc_stack is not None:
             vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
             if vpc_stack_sg is not None:
-                logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
-        if vpc_security_group_ids is None and self.db_security_groups is not None:
+        if self.db_security_groups is not None:
             sg_ids = []
             for sg in self.db_security_groups:
                 sg_id = sg.get_security_group_id(aws_client)
                 if sg_id is not None:
                     sg_ids.append(sg_id)
             if len(sg_ids) > 0:
-                vpc_security_group_ids = sg_ids
-                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
+                if vpc_security_group_ids is None:
+                    vpc_security_group_ids = []
+                vpc_security_group_ids.extend(sg_ids)
         if vpc_security_group_ids is not None:
+            logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
             not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
 
         # Step 2: Get the DbSubnetGroupName
@@ -326,6 +374,13 @@ class DbCluster(AwsResource):
         database_name = self.get_database_name()
         if database_name:
             not_null_args["DatabaseName"] = database_name
+
+        master_username = self.get_master_username()
+        if master_username:
+            not_null_args["MasterUsername"] = master_username
+        master_user_password = self.get_master_user_password()
+        if master_user_password:
+            not_null_args["MasterUserPassword"] = master_user_password
 
         if self.availability_zones:
             not_null_args["AvailabilityZones"] = self.availability_zones
@@ -341,13 +396,6 @@ class DbCluster(AwsResource):
             not_null_args["EngineVersion"] = self.engine_version
         if self.port:
             not_null_args["Port"] = self.port
-
-        master_username = self.get_master_username()
-        if master_username:
-            not_null_args["MasterUsername"] = master_username
-        master_user_password = self.get_master_user_password()
-        if master_user_password:
-            not_null_args["MasterUserPassword"] = master_user_password
 
         if self.option_group_name:
             not_null_args["OptionGroupName"] = self.option_group_name
@@ -417,6 +465,13 @@ class DbCluster(AwsResource):
             not_null_args["DBSystemId"] = self.db_system_id
         if self.source_region:
             not_null_args["SourceRegion"] = self.source_region
+        if self.enable_local_write_forwarding:
+            not_null_args["EnableLocalWriteForwarding"] = self.enable_local_write_forwarding
+
+        if self.manage_master_user_password:
+            not_null_args["ManageMasterUserPassword"] = self.manage_master_user_password
+        if self.master_user_secret_kms_key_id:
+            not_null_args["MasterUserSecretKmsKeyId"] = self.master_user_secret_kms_key_id
 
         # Step 3: Create DBCluster
         service_client = self.get_service_client(aws_client)
@@ -426,13 +481,13 @@ class DbCluster(AwsResource):
                 Engine=self.engine,
                 **not_null_args,
             )
-            logger.debug(f"DbCluster: {create_response}")
-            database_dict = create_response.get("DBCluster", {})
+            logger.debug(f"Response: {create_response}")
+            resource_dict = create_response.get("DBCluster", {})
 
             # Validate database creation
-            if database_dict is not None:
-                print_info(f"DBCluster created: {self.get_db_cluster_identifier()}")
-                self.active_resource = create_response
+            if resource_dict is not None:
+                logger.debug(f"DBCluster created: {self.get_db_cluster_identifier()}")
+                self.active_resource = resource_dict
                 return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be created.")
@@ -481,16 +536,16 @@ class DbCluster(AwsResource):
 
         service_client = self.get_service_client(aws_client)
         try:
-            db_cluster_identifier = self.get_db_cluster_identifier()
-            describe_response = service_client.describe_db_clusters(DBClusterIdentifier=db_cluster_identifier)
+            resource_identifier = self.get_db_cluster_identifier()
+            describe_response = service_client.describe_db_clusters(DBClusterIdentifier=resource_identifier)
             logger.debug(f"DbCluster: {describe_response}")
-            db_clusters_list = describe_response.get("DBClusters", None)
+            resources_list = describe_response.get("DBClusters", None)
 
-            if db_clusters_list is not None and isinstance(db_clusters_list, list):
-                for _db_cluster in db_clusters_list:
-                    _cluster_identifier = _db_cluster.get("DBClusterIdentifier", None)
-                    if _cluster_identifier == db_cluster_identifier:
-                        self.active_resource = _db_cluster
+            if resources_list is not None and isinstance(resources_list, list):
+                for _resource in resources_list:
+                    _identifier = _resource.get("DBClusterIdentifier", None)
+                    if _identifier == resource_identifier:
+                        self.active_resource = _resource
                         break
         except ClientError as ce:
             logger.debug(f"ClientError: {ce}")
@@ -520,6 +575,8 @@ class DbCluster(AwsResource):
         not_null_args: Dict[str, Any] = {}
         if self.final_db_snapshot_identifier:
             not_null_args["FinalDBSnapshotIdentifier"] = self.final_db_snapshot_identifier
+        if self.delete_automated_backups:
+            not_null_args["DeleteAutomatedBackups"] = self.delete_automated_backups
 
         try:
             db_cluster_identifier = self.get_db_cluster_identifier()
@@ -528,8 +585,14 @@ class DbCluster(AwsResource):
                 SkipFinalSnapshot=self.skip_final_snapshot,
                 **not_null_args,
             )
-            logger.debug(f"DbCluster: {delete_response}")
-            return True
+            logger.debug(f"Response: {delete_response}")
+            resource_dict = delete_response.get("DBCluster", {})
+
+            # Validate database deletion
+            if resource_dict is not None:
+                logger.debug(f"DBCluster deleted: {self.get_db_cluster_identifier()}")
+                self.active_resource = resource_dict
+                return True
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be deleted.")
             logger.error("Please try again or delete resources manually.")
@@ -559,42 +622,50 @@ class DbCluster(AwsResource):
 
         print_info(f"Updating {self.get_resource_type()}: {self.get_resource_name()}")
 
-        # create a dict of args which are not null, otherwise aws type validation fails
-        not_null_args: Dict[str, Any] = {}
+        # Step 1: Get existing DBInstance
+        db_cluster = self.read(aws_client)
 
-        # Step 1: Get the VpcSecurityGroupIds
+        # create a dict of args which are not null, otherwise aws type validation fails
+        not_null_args: Dict[str, Any] = {
+            "ApplyImmediately": self.apply_immediately,
+        }
+
         vpc_security_group_ids = self.vpc_security_group_ids
         if vpc_security_group_ids is None and self.vpc_stack is not None:
             vpc_stack_sg = self.vpc_stack.get_security_group(aws_client=aws_client)
             if vpc_stack_sg is not None:
-                logger.debug(f"Using SecurityGroup: {vpc_stack_sg}")
                 vpc_security_group_ids = [vpc_stack_sg]
-        if vpc_security_group_ids is None and self.db_security_groups is not None:
+        if self.db_security_groups is not None:
             sg_ids = []
             for sg in self.db_security_groups:
                 sg_id = sg.get_security_group_id(aws_client)
                 if sg_id is not None:
                     sg_ids.append(sg_id)
             if len(sg_ids) > 0:
-                vpc_security_group_ids = sg_ids
-                logger.debug(f"Using SecurityGroups: {vpc_security_group_ids}")
-        if vpc_security_group_ids is not None:
+                if vpc_security_group_ids is None:
+                    vpc_security_group_ids = []
+                vpc_security_group_ids.extend(sg_ids)
+        # Check if vpc_security_group_ids has changed
+        existing_vpc_security_group = db_cluster.get("VpcSecurityGroups", [])
+        existing_vpc_security_group_ids = []
+        for existing_sg in existing_vpc_security_group:
+            existing_vpc_security_group_ids.append(existing_sg.get("VpcSecurityGroupId", None))
+        if vpc_security_group_ids is not None and vpc_security_group_ids != existing_vpc_security_group_ids:
+            logger.info(f"Updating SecurityGroups: {vpc_security_group_ids}")
             not_null_args["VpcSecurityGroupIds"] = vpc_security_group_ids
+
+        master_user_password = self.get_master_user_password()
+        if master_user_password:
+            not_null_args["MasterUserPassword"] = master_user_password
 
         if self.new_db_cluster_identifier:
             not_null_args["NewDBClusterIdentifier"] = self.new_db_cluster_identifier
-        if self.apply_immediately:
-            not_null_args["ApplyImmediately"] = self.apply_immediately
         if self.backup_retention_period:
             not_null_args["BackupRetentionPeriod"] = self.backup_retention_period
         if self.db_cluster_parameter_group_name:
             not_null_args["DBClusterParameterGroupName"] = self.db_cluster_parameter_group_name
         if self.port:
             not_null_args["Port"] = self.port
-
-        master_user_password = self.get_master_user_password()
-        if master_user_password:
-            not_null_args["MasterUserPassword"] = master_user_password
 
         if self.option_group_name:
             not_null_args["OptionGroupName"] = self.option_group_name
@@ -656,8 +727,8 @@ class DbCluster(AwsResource):
             not_null_args["ManageMasterUserPassword"] = self.manage_master_user_password
         if self.rotate_master_user_password:
             not_null_args["RotateMasterUserPassword"] = self.rotate_master_user_password
-        if self.master_iser_secter_kms_key_id:
-            not_null_args["MasterUserSecretKmsKeyId"] = self.master_iser_secter_kms_key_id
+        if self.master_user_secret_kms_key_id:
+            not_null_args["MasterUserSecretKmsKeyId"] = self.master_user_secret_kms_key_id
         if self.engine_mode:
             not_null_args["EngineMode"] = self.engine_mode
         if self.allow_engine_mode_change:
@@ -670,7 +741,7 @@ class DbCluster(AwsResource):
                 DBClusterIdentifier=self.get_db_cluster_identifier(),
                 **not_null_args,
             )
-            logger.debug(f"DBCluster: {update_response}")
+            logger.debug(f"Response: {update_response}")
             resource_dict = update_response.get("DBCluster", {})
 
             # Validate resource update
@@ -682,3 +753,69 @@ class DbCluster(AwsResource):
             logger.error(f"{self.get_resource_type()} could not be updated.")
             logger.error(e)
         return False
+
+    def get_db_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
+        """Returns the DbCluster endpoint
+
+        Returns:
+            The DbCluster endpoint
+        """
+        logger.debug(f"Getting endpoint for {self.get_resource_name()}")
+        _db_endpoint: Optional[str] = None
+        if self.active_resource:
+            _db_endpoint = self.active_resource.get("Endpoint")
+        if _db_endpoint is None:
+            client: AwsApiClient = aws_client or self.get_aws_client()
+            resource = self._read(aws_client=client)
+            if resource is not None:
+                _db_endpoint = resource.get("Endpoint")
+        if _db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                _db_endpoint = resource.get("Endpoint")
+        logger.debug(f"DBCluster Endpoint: {_db_endpoint}")
+        return _db_endpoint
+
+    def get_db_reader_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
+        """Returns the DbCluster reader endpoint
+
+        Returns:
+            The DbCluster reader endpoint
+        """
+        logger.debug(f"Getting endpoint for {self.get_resource_name()}")
+        _db_endpoint: Optional[str] = None
+        if self.active_resource:
+            _db_endpoint = self.active_resource.get("ReaderEndpoint")
+        if _db_endpoint is None:
+            client: AwsApiClient = aws_client or self.get_aws_client()
+            resource = self._read(aws_client=client)
+            if resource is not None:
+                _db_endpoint = resource.get("ReaderEndpoint")
+        if _db_endpoint is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                _db_endpoint = resource.get("ReaderEndpoint")
+        logger.debug(f"DBCluster ReaderEndpoint: {_db_endpoint}")
+        return _db_endpoint
+
+    def get_db_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
+        """Returns the DbCluster port
+
+        Returns:
+            The DbCluster port
+        """
+        logger.debug(f"Getting port for {self.get_resource_name()}")
+        _db_port: Optional[str] = None
+        if self.active_resource:
+            _db_port = self.active_resource.get("Port")
+        if _db_port is None:
+            client: AwsApiClient = aws_client or self.get_aws_client()
+            resource = self._read(aws_client=client)
+            if resource is not None:
+                _db_port = resource.get("Port")
+        if _db_port is None:
+            resource = self.read_resource_from_file()
+            if resource is not None:
+                _db_port = resource.get("Port")
+        logger.debug(f"DBCluster Port: {_db_port}")
+        return _db_port

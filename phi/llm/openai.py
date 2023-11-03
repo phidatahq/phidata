@@ -1,12 +1,14 @@
+import json
 from typing import Optional, List, Iterator, Dict, Any
 
 from phi.llm.base import LLM
 from phi.llm.schemas import Message, FunctionCall
+from phi.utils.env import get_from_env
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 try:
-    from openai import ChatCompletion  # noqa: F401
+    import openai  # noqa: F401
     from openai.openai_object import OpenAIObject  # noqa: F401
 except ImportError:
     logger.error("`openai` not installed")
@@ -18,6 +20,13 @@ class OpenAIChat(LLM):
     model: str = "gpt-3.5-turbo-16k"
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    stop: Optional[List[str]] = None
+    user: Optional[str] = None
+    top_p: Optional[float] = None
+    logit_bias: Optional[Any] = None
+    headers: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()
@@ -25,6 +34,7 @@ class OpenAIChat(LLM):
         _dict["temperature"] = self.temperature
         return _dict
 
+    @property
     def api_kwargs(self) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
         if self.max_tokens:
@@ -35,7 +45,85 @@ class OpenAIChat(LLM):
             kwargs["functions"] = [f.to_dict() for f in self.functions.values()]
             if self.function_call is not None:
                 kwargs["function_call"] = self.function_call
+        if self.frequency_penalty:
+            kwargs["frequency_penalty"] = self.frequency_penalty
+        if self.presence_penalty:
+            kwargs["presence_penalty"] = self.presence_penalty
+        if self.stop:
+            kwargs["stop"] = self.stop
+        if self.user:
+            kwargs["user"] = self.user
+        if self.top_p:
+            kwargs["top_p"] = self.top_p
+        if self.logit_bias:
+            kwargs["logit_bias"] = self.logit_bias
+        if self.headers:
+            kwargs["headers"] = self.headers
         return kwargs
+
+    def invoke_model(self, messages: List[Message]) -> OpenAIObject:
+        if get_from_env("OPENAI_API_KEY") is None:
+            logger.debug("--o-o-- Using phi-proxy")
+            try:
+                from phi.api.llm import openai_chat
+
+                response_dict = openai_chat(
+                    params={
+                        "model": self.model,
+                        "messages": [m.to_dict() for m in messages],
+                        **self.api_kwargs,
+                    }
+                )
+                if response_dict is None:
+                    logger.error("Error: Could not reach Phidata Servers.")
+                    logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
+                return OpenAIObject.construct_from(response_dict)
+            except Exception as e:
+                logger.exception(e)
+                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
+                exit(1)
+        else:
+            return openai.ChatCompletion.create(
+                model=self.model,
+                messages=[m.to_dict() for m in messages],
+                **self.api_kwargs,
+            )
+
+    def invoke_model_stream(self, messages: List[Message]) -> Iterator[OpenAIObject]:
+        if get_from_env("OPENAI_API_KEY") is None:
+            logger.debug("--o-o-- Using phi-proxy")
+            try:
+                from phi.api.llm import openai_chat_stream
+                from openai import util as openai_util
+
+                for chunk in openai_chat_stream(
+                    params={
+                        "model": self.model,
+                        "messages": [m.to_dict() for m in messages],
+                        "stream": True,
+                        **self.api_kwargs,
+                    }
+                ):
+                    if chunk:
+                        # Sometimes we get multiple chunks in one response which is not valid JSON
+                        if "}{" in chunk:
+                            # logger.debug(f"Double chunk: {chunk}")
+                            chunks = "[" + chunk.replace("}{", "},{") + "]"
+                            for chunk_dict in json.loads(chunks, object_hook=openai_util.convert_to_openai_object):
+                                yield chunk_dict
+                        else:
+                            yield json.loads(chunk, object_hook=openai_util.convert_to_openai_object)
+            except Exception as e:
+                logger.exception(e)
+                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
+                exit(1)
+        else:
+            yield from openai.ChatCompletion.create(
+                model=self.model,
+                messages=[m.to_dict() for m in messages],
+                stream=True,
+                **self.api_kwargs,
+            )
 
     def parsed_response(self, messages: List[Message]) -> str:
         logger.debug("---------- OpenAI Response Start ----------")
@@ -45,11 +133,7 @@ class OpenAIChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: OpenAIObject = ChatCompletion.create(
-            model=self.model,
-            messages=[m.to_dict() for m in messages],
-            **self.api_kwargs(),
-        )
+        response: OpenAIObject = self.invoke_model(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"OpenAI response type: {type(response)}")
@@ -161,11 +245,7 @@ class OpenAIChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: OpenAIObject = ChatCompletion.create(
-            model=self.model,
-            messages=[m.to_dict() for m in messages],
-            **self.api_kwargs(),
-        )
+        response: OpenAIObject = self.invoke_model(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"OpenAI response type: {type(response)}")
@@ -237,12 +317,7 @@ class OpenAIChat(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for response in ChatCompletion.create(
-            model=self.model,
-            messages=[m.to_dict() for m in messages],
-            stream=True,
-            **self.api_kwargs(),
-        ):
+        for response in self.invoke_model_stream(messages=messages):
             # logger.debug(f"OpenAI response type: {type(response)}")
             # logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1
@@ -369,12 +444,7 @@ class OpenAIChat(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for response in ChatCompletion.create(
-            model=self.model,
-            messages=[m.to_dict() for m in messages],
-            stream=True,
-            **self.api_kwargs(),
-        ):
+        for response in self.invoke_model_stream(messages=messages):
             # logger.debug(f"OpenAI response type: {type(response)}")
             # logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1

@@ -270,7 +270,7 @@ class PhiAI:
             "conversation_history": self.conversation_history,
             "conversation_type": self.conversation_type,
             "user": self.user.model_dump(include={"id_user", "email"}),
-            "workspace": self.active_workspace.model_dump(include={"ws_dir_name"})
+            "workspace": self.active_workspace.model_dump(include={"ws_root_path"})
             if self.active_workspace is not None
             else None,
             "functions": list(self.functions.keys()),

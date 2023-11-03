@@ -9,7 +9,7 @@ class Jupyter(AwsApp):
 
     # -*- Image Configuration
     image_name: str = "phidata/jupyter"
-    image_tag: str = "3.6.3"
+    image_tag: str = "4.0.5"
     command: Optional[Union[str, List[str]]] = "jupyter lab"
 
     # -*- App Ports

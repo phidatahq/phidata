@@ -1,13 +1,13 @@
 import uuid
 from typing import Optional
 
-from phi.llm.function.registry import FunctionRegistry
+from phi.llm.agent.base import BaseAgent
 from phi.utils.log import logger
 
 
-class PhiCommandsRegistry(FunctionRegistry):
+class PhiAgent(BaseAgent):
     def __init__(self):
-        super().__init__(name="phi_commands_registry")
+        super().__init__(name="phi_agent")
         self.register(self.create_new_app)
         self.register(self.start_user_workspace)
         self.register(self.validate_phi_is_ready)

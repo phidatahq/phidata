@@ -1,6 +1,5 @@
-import datetime
 from pathlib import Path
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,7 +7,6 @@ from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
 from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
-from phi.utils.dttm import current_datetime_utc
 from phi.utils.log import logger
 
 # List of directories to ignore when loading the workspace
@@ -18,22 +16,38 @@ ignored_dirs = ["ignore", "test", "tests", "config"]
 class WorkspaceConfig(BaseModel):
     """The WorkspaceConfig stores data for a phidata workspace."""
 
-    # Name of the workspace directory
-    ws_dir_name: str
-    # The root directory for the workspace.
-    # This field indicates that the ws has been downloaded on this machine
-    ws_root_path: Optional[Path] = None
-    # Path to the "workspace" directory inside the workspace root
-    _workspace_dir_path: Optional[Path] = None
-    # Timestamp of when this workspace was created on the users machine
-    create_ts: datetime.datetime = current_datetime_utc()
+    # Root directory for the workspace.
+    ws_root_path: Path
     # WorkspaceSchema: This field indicates that the workspace is synced with the api
     ws_schema: Optional[WorkspaceSchema] = None
 
+    # Path to the "workspace" directory inside the workspace root
+    _workspace_dir_path: Optional[Path] = None
     # WorkspaceSettings
     _workspace_settings: Optional[WorkspaceSettings] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def to_dict(self) -> dict:
+        dict_data: Dict[str, Any] = {"ws_root_path": str(self.ws_root_path)}
+        if self.ws_schema is not None:
+            dict_data["ws_schema"] = self.ws_schema.model_dump()
+
+        return dict_data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Optional["WorkspaceConfig"]:
+        _ws_root_path = data.get("ws_root_path")
+        if _ws_root_path is None:
+            logger.warning("WorkspaceConfig.ws_root_path is None")
+            return None
+        _ws_config = cls(ws_root_path=Path(_ws_root_path))
+
+        _ws_schema = data.get("ws_schema")
+        if _ws_schema is not None:
+            _ws_config.ws_schema = WorkspaceSchema(**_ws_schema)
+
+        return _ws_config
 
     @property
     def workspace_dir_path(self) -> Optional[Path]:
@@ -408,7 +422,7 @@ class WorkspaceConfig(BaseModel):
             # Create a temporary workspace settings object
             temporary_ws_config._workspace_settings = WorkspaceSettings(
                 ws_root=temporary_ws_config.ws_root_path,
-                ws_name=temporary_ws_config.ws_dir_name,
+                ws_name=temporary_ws_config.ws_root_path.stem,
             )
         if temporary_ws_config._workspace_settings is not None:
             for resource_group in env_filtered_resource_groups:

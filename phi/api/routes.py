@@ -27,10 +27,14 @@ class ApiRoutes:
     MONITOR_EVENT_CREATE: str = "/v1/monitor/event/create"
 
     # conversation paths
-    CONVERSATION_UPSERT: str = "/v1/conversation/upsert"
+    CONVERSATION_MONITOR_CREATE: str = "/v1/conversation/monitor/create"
     CONVERSATION_EVENT_CREATE: str = "/v1/conversation/event/create"
 
     # ai paths
     AI_CONVERSATION_CREATE: str = "/v1/ai/conversation/create"
     AI_CONVERSATION_CHAT: str = "/v1/ai/conversation/chat"
     AI_CONVERSATION_CHAT_WS: str = "/v1/ai/conversation/chat_ws"
+
+    # llm paths
+    OPENAI_CHAT: str = "/v1/llm/openai/chat"
+    OPENAI_EMBEDDING: str = "/v1/llm/openai/embedding"

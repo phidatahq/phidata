@@ -21,6 +21,7 @@ class AnthropicClaude(AwsBedrock):
         _dict["stop_sequences"] = self.stop_sequences
         return _dict
 
+    @property
     def api_kwargs(self) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
         if self.max_tokens:

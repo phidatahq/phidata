@@ -12,9 +12,9 @@ class PhiCliSettings(BaseSettings):
     app_name: str = "phi"
     app_version: str = metadata.version("phidata")
 
-    auth_token_path: Path = PHI_CLI_DIR.joinpath("token")
-    config_file_path: Path = PHI_CLI_DIR.joinpath("config")
-    credentials_path: Path = PHI_CLI_DIR.joinpath("credentials")
+    tmp_token_path: Path = PHI_CLI_DIR.joinpath("tmp_token")
+    config_file_path: Path = PHI_CLI_DIR.joinpath("config.json")
+    credentials_path: Path = PHI_CLI_DIR.joinpath("credentials.json")
     ai_conversations_path: Path = PHI_CLI_DIR.joinpath("ai_conversations.json")
     auth_token_cookie: str = "__phi_session"
     auth_token_header: str = "X-PHIDATA-AUTH-TOKEN"
@@ -50,6 +50,10 @@ class PhiCliSettings(BaseSettings):
     def update_api_url(cls, v, info: FieldValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
+            from os import getenv
+
+            if getenv("PHI_RUNTIME") == "docker":
+                return "http://host.docker.internal:7070"
             return "http://localhost:7070"
         elif api_runtime == "stg":
             return "https://api.stgphi.com"

@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.0.15"
+version = "2.0.26"
 description = "AI Toolkit for Engineers"
 requires-python = ">=3.7"
 readme = "README.md"
@@ -56,22 +56,9 @@ include = ["phi*"]
 [tool.setuptools.package-data]
 phi = ["py.typed"]
 
-[tool.black]
-line-length = 120
-extend-exclude = '''
-# A regex preceded with ^/ will apply only to files and directories
-# in the root of the project.
-(
-  ^/phienv    # exclude phienv directory
-  | ^/phidata # exclude phidata directory
-)
-'''
-
 [tool.ruff]
 line-length = 120
-exclude = [
-  "phienv*",
-]
+exclude = ["phienv*"]
 # Ignore `F401` (import violations) in all `__init__.py` files
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
@@ -91,6 +78,7 @@ module = [
   "botocore.*",
   "bs4.*",
   "docker.*",
+  "duckdb.*",
   "kubernetes.*",
   "openai.*",
   "pgvector.*",

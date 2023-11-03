@@ -23,9 +23,9 @@ class PDFKnowledgeBase(KnowledgeBase):
 
         if _pdf_path.exists() and _pdf_path.is_dir():
             for _pdf in _pdf_path.glob("**/*.pdf"):
-                yield self.reader.read(path=_pdf)
+                yield self.reader.read(pdf=_pdf)
         elif _pdf_path.exists() and _pdf_path.is_file() and _pdf_path.suffix == ".pdf":
-            yield self.reader.read(path=_pdf_path)
+            yield self.reader.read(pdf=_pdf_path)
 
 
 class PDFUrlKnowledgeBase(KnowledgeBase):

@@ -78,6 +78,10 @@ class AwsBedrock(LLM):
         self._bedrock_runtime_client = boto3_session.client(service_name="bedrock-runtime")
         return self._bedrock_runtime_client
 
+    @property
+    def api_kwargs(self) -> Dict[str, Any]:
+        return {}
+
     def get_model_summaries(self) -> List[Dict[str, Any]]:
         list_response: dict = self.bedrock_client.list_foundation_models()
         if list_response is None or "modelSummaries" not in list_response:
@@ -100,12 +104,9 @@ class AwsBedrock(LLM):
 
         return model_details["modelDetails"]
 
-    def api_kwargs(self) -> Dict[str, Any]:
-        return {}
-
     def invoke_model(self, prompt: str) -> Dict[str, Any]:
         body = {"prompt": prompt}
-        body.update(self.api_kwargs())
+        body.update(self.api_kwargs)
         body_json = json.dumps(body)
 
         response = self.bedrock_runtime_client.invoke_model(
@@ -123,7 +124,7 @@ class AwsBedrock(LLM):
 
     def invoke_model_stream(self, prompt: str) -> Iterator[Dict[str, Any]]:
         body = {"prompt": prompt}
-        body.update(self.api_kwargs())
+        body.update(self.api_kwargs)
         body_json = json.dumps(body)
 
         response = self.bedrock_runtime_client.invoke_model_with_response_stream(
@@ -136,8 +137,9 @@ class AwsBedrock(LLM):
             if chunk:
                 yield json.loads(chunk.get("bytes").decode())
 
-    def generate_prompt(self, messages: List[Message]) -> str:
-        # -*- Build prompt from messages
+    def build_prompt(self, messages: List[Message]) -> str:
+        """Build prompt from messages"""
+
         prompt = ""
         for m in messages:
             if m.role == "user":
@@ -153,7 +155,7 @@ class AwsBedrock(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: Dict[str, Any] = self.invoke_model(prompt=self.generate_prompt(messages))
+        response: Dict[str, Any] = self.invoke_model(prompt=self.build_prompt(messages))
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -209,7 +211,7 @@ class AwsBedrock(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: Dict[str, Any] = self.invoke_model(prompt=self.generate_prompt(messages))
+        response: Dict[str, Any] = self.invoke_model(prompt=self.build_prompt(messages))
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -267,7 +269,7 @@ class AwsBedrock(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for delta in self.invoke_model_stream(prompt=self.generate_prompt(messages)):
+        for delta in self.invoke_model_stream(prompt=self.build_prompt(messages)):
             completion_tokens += 1
             # -*- Parse response
             delta_completion = delta.get("completion")
@@ -324,7 +326,7 @@ class AwsBedrock(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for delta in self.invoke_model_stream(prompt=self.generate_prompt(messages)):
+        for delta in self.invoke_model_stream(prompt=self.build_prompt(messages)):
             completion_tokens += 1
             # -*- Parse response
             delta_completion = delta.get("completion")

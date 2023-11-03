@@ -125,6 +125,7 @@ phi ws up --group app
 - Enter a username and wait for the knowledge base to load.
 - Choose the `RAG` Conversation type.
 - Ask "How do I make chicken curry?"
+- Upload PDFs and ask questions
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/5a8f7129-492b-485a-87e8-29164bf83e6a">
 
@@ -175,26 +176,7 @@ phi ws up --group jupyter
 ### View Jupyterlab UI
 
 - Open <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
-- Open `notebooks/chatgpt_stream` to test the ChatGPT Api.
-
-### Read Local PDFs
-
-To read local PDFs, update the `llm/knowledge_base.py` file to use the `PDFKnowledgeBase`
-
-```python
-...
-pdf_knowledge_base = PDFKnowledgeBase(
-    path="data/pdfs",
-    # Table name: llm.pdf_documents
-    vector_db=PgVector(
-        collection="pdf_documents",
-        db_url=db_url,
-        schema="llm",
-    ),
-    reader=PDFReader(chunk=False),
-)
-...
-```
+- Play around with cookbooks in the `notebooks` folder.
 
 ### Delete local resources
 

@@ -8,7 +8,7 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 try:
-    import openai
+    from openai import OpenAI
     from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion import ChatCompletion
     from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDelta, ChoiceDeltaFunctionCall
@@ -35,12 +35,11 @@ class OpenAIChat(LLM):
     top_p: Optional[float] = None
     logit_bias: Optional[Any] = None
     headers: Optional[Dict[str, Any]] = None
+    openai: Optional[OpenAI] = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        _dict = super().to_dict()
-        _dict["max_tokens"] = self.max_tokens
-        _dict["temperature"] = self.temperature
-        return _dict
+    @property
+    def client(self) -> OpenAI:
+        return self.openai or OpenAI()
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
@@ -78,6 +77,30 @@ class OpenAIChat(LLM):
                 kwargs["function_call"] = self.function_call
         return kwargs
 
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = super().to_dict()
+        if self.seed:
+            _dict["seed"] = self.seed
+        if self.max_tokens:
+            _dict["max_tokens"] = self.max_tokens
+        if self.temperature:
+            _dict["temperature"] = self.temperature
+        if self.response_format:
+            _dict["response_format"] = self.response_format
+        if self.frequency_penalty:
+            _dict["frequency_penalty"] = self.frequency_penalty
+        if self.presence_penalty:
+            _dict["presence_penalty"] = self.presence_penalty
+        if self.stop:
+            _dict["stop"] = self.stop
+        if self.user:
+            _dict["user"] = self.user
+        if self.top_p:
+            _dict["top_p"] = self.top_p
+        if self.logit_bias:
+            _dict["logit_bias"] = self.logit_bias
+        return _dict
+
     def invoke_model(self, messages: List[Message]) -> ChatCompletion:
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
@@ -100,9 +123,9 @@ class OpenAIChat(LLM):
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
-            return openai.chat.completions.create(
+            return self.client.chat.completions.create(
                 model=self.model,
-                messages=[m.to_dict() for m in messages],
+                messages=[m.to_dict() for m in messages],  # type: ignore
                 **self.api_kwargs,
             )
 
@@ -125,8 +148,8 @@ class OpenAIChat(LLM):
                         if "}{" in chunk:
                             # logger.debug(f"Double chunk: {chunk}")
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for chunk_dict in json.loads(chunks, object_hook=ChatCompletionChunk.model_validate):
-                                yield chunk_dict
+                            for completion_chunk in json.loads(chunks, object_hook=ChatCompletionChunk.model_validate):
+                                yield completion_chunk
                         else:
                             yield json.loads(chunk, object_hook=ChatCompletionChunk.model_validate)
             except Exception as e:
@@ -134,9 +157,9 @@ class OpenAIChat(LLM):
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
-            yield from openai.chat.completions.create(
+            yield from self.client.chat.completions.create(
                 model=self.model,
-                messages=[m.to_dict() for m in messages],
+                messages=[m.to_dict() for m in messages],  # type: ignore
                 stream=True,
                 **self.api_kwargs,
             )  # type: ignore

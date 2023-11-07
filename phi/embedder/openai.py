@@ -1,11 +1,12 @@
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Literal
 
 from phi.embedder.base import Embedder
 from phi.utils.env import get_from_env
 from phi.utils.log import logger
 
 try:
-    from openai import Embedding  # noqa: F401
+    from openai import OpenAI
+    from openai.types.create_embedding_response import CreateEmbeddingResponse
 except ImportError:
     raise ImportError("`openai` not installed")
 
@@ -13,8 +14,14 @@ except ImportError:
 class OpenAIEmbedder(Embedder):
     model: str = "text-embedding-ada-002"
     dimensions: int = 1536
+    encoding_format: Literal["float", "base64"] = "float"
+    openai: Optional[OpenAI] = None
 
-    def _response(self, text: str):
+    @property
+    def client(self) -> OpenAI:
+        return self.openai or OpenAI()
+
+    def _response(self, text: str) -> CreateEmbeddingResponse:
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
@@ -24,31 +31,28 @@ class OpenAIEmbedder(Embedder):
                     params={
                         "input": text,
                         "model": self.model,
+                        "encoding_format": self.encoding_format,
                     }
                 )
-                return response_dict
+                return CreateEmbeddingResponse.model_validate(response_dict)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
-            return Embedding.create(input=text, model=self.model)
+            return self.client.embeddings.create(input=text, model=self.model, encoding_format=self.encoding_format)
 
     def get_embedding(self, text: str) -> List[float]:
-        response = self._response(text=text)
+        response: CreateEmbeddingResponse = self._response(text=text)
         try:
-            if "data" not in response:
-                return []
-            return response["data"][0]["embedding"]
+            return response.data[0].embedding
         except Exception as e:
             logger.warning(e)
             return []
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        response = self._response(text=text)
-        if "data" not in response:
-            return [], None
+        response: CreateEmbeddingResponse = self._response(text=text)
 
-        embedding = response["data"][0]["embedding"]
-        usage = response.get("usage", None)
-        return embedding, usage
+        embedding = response.data[0].embedding
+        usage = response.usage
+        return embedding, usage.model_dump()

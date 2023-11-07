@@ -390,7 +390,6 @@ class Conversation(BaseModel):
             )
 
         _system_prompt += """Follow these guidelines:
-        - Use bullet points where possible.
         - Use markdown to format your answers.
         - Don't use phrases like 'based on the information provided' or 'from the knowledge base'.
         """

@@ -5,7 +5,7 @@ from phi.utils.log import logger
 
 
 class Message(BaseModel):
-    """Pydantic model for holding LLM messages"""
+    """Model for LLM messages"""
 
     # The role of the messages author.
     # One of system, user, assistant, or function.
@@ -53,7 +53,7 @@ class Message(BaseModel):
 
 
 class References(BaseModel):
-    """Pydantic model for holding LLM references"""
+    """Model for LLM references"""
 
     # The question asked by the user.
     query: str
@@ -64,7 +64,7 @@ class References(BaseModel):
 
 
 class Function(BaseModel):
-    """Pydantic model for holding LLM functions"""
+    """Model for LLM functions"""
 
     # The name of the function to be called.
     # Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
@@ -101,7 +101,7 @@ class Function(BaseModel):
 
 
 class FunctionCall(BaseModel):
-    """Pydantic model for holding LLM function calls"""
+    """Model for LLM function calls"""
 
     # The function to be called.
     function: Function

@@ -1,9 +1,8 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import field_validator, Extra
+from pydantic import field_validator, Extra, FieldValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_core.core_schema import FieldValidationInfo
 
 from phi.api.schemas.workspace import WorkspaceSchema
 

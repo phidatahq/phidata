@@ -1,10 +1,11 @@
 import json
-from typing import List, Iterator, Optional, Dict, Any, Callable
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.schemas import Message, Function, FunctionCall
 from phi.llm.agent.base import BaseAgent
+from phi.llm.tool.base import BaseTool
 from phi.llm.function.registry import FunctionRegistry
 from phi.utils.log import logger
 
@@ -17,6 +18,27 @@ class LLM(BaseModel):
     # Metrics collected for this LLM (not used for api calls).
     metrics: Dict[str, Any] = {}
 
+    # A list of tools the model may call.
+    # Currently, only functions are supported as a tool.
+    # Use this to provide a list of functions the model may generate JSON inputs for.
+    tools: Optional[List[BaseTool]] = None
+    # Controls which (if any) function is called by the model.
+    # "none" means the model will not call a function and instead generates a message.
+    # "auto" means the model can pick between generating a message or calling a function.
+    # Specifying a particular function via {"type: "function", "function": {"name": "my_function"}}
+    #   forces the model to call that function.
+    # "none" is the default when no functions are present. "auto" is the default if functions are present.
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+
+    # Maximum number of function calls allowed.
+    function_call_limit: int = 50
+    # Stack of function calls.
+    function_call_stack: Optional[List[FunctionCall]] = None
+    # If True, shows function calls in the response.
+    show_function_calls: Optional[bool] = None
+    # If True, runs function calls before sending back the response content.
+    run_function_calls: bool = True
+
     # A list of functions the model may generate JSON inputs for.
     # NOTE: Do not add functions manually. Use add_function() or add_function_schema() instead.
     functions: Optional[Dict[str, Function]] = None
@@ -26,14 +48,6 @@ class LLM(BaseModel):
     # Default: "none" is the default when no functions are present. "auto" is the default if functions are present.
     # Specifying a particular function via {"name": "my_function"} forces the model to call that function.
     function_call: Optional[str] = None
-    # Maximum number of function calls allowed.
-    function_call_limit: int = 50
-    # Stack of function calls.
-    function_call_stack: Optional[List[FunctionCall]] = None
-    # If True, shows function calls in the response.
-    show_function_calls: Optional[bool] = None
-    # If True, runs function calls before sending back the response content.
-    run_function_calls: bool = True
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

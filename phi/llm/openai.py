@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Iterator, Dict, Any
+from typing import Optional, List, Iterator, Dict, Any, Union
 
 from phi.llm.base import LLM
 from phi.llm.schemas import Message, FunctionCall
@@ -8,8 +8,14 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 try:
-    import openai  # noqa: F401
-    from openai.openai_object import OpenAIObject  # noqa: F401
+    import openai
+    from openai.types.completion_usage import CompletionUsage
+    from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDelta, ChoiceDeltaFunctionCall
+    from openai.types.chat.chat_completion_message import (
+        ChatCompletionMessage,
+        FunctionCall as ChatCompletionFunctionCall,
+    )
 except ImportError:
     logger.error("`openai` not installed")
     raise
@@ -17,12 +23,14 @@ except ImportError:
 
 class OpenAIChat(LLM):
     name: str = "OpenAIChat"
-    model: str = "gpt-3.5-turbo-16k"
+    model: str = "gpt-4-1106-preview"
+    seed: Optional[int] = None
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
+    response_format: Optional[Dict[str, Any]] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
-    stop: Optional[List[str]] = None
+    stop: Optional[Union[str, List[str]]] = None
     user: Optional[str] = None
     top_p: Optional[float] = None
     logit_bias: Optional[Any] = None
@@ -37,14 +45,14 @@ class OpenAIChat(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
+        if self.seed:
+            kwargs["seed"] = self.seed
         if self.max_tokens:
             kwargs["max_tokens"] = self.max_tokens
         if self.temperature:
             kwargs["temperature"] = self.temperature
-        if self.functions:
-            kwargs["functions"] = [f.to_dict() for f in self.functions.values()]
-            if self.function_call is not None:
-                kwargs["function_call"] = self.function_call
+        if self.response_format:
+            kwargs["response_format"] = self.response_format
         if self.frequency_penalty:
             kwargs["frequency_penalty"] = self.frequency_penalty
         if self.presence_penalty:
@@ -59,9 +67,18 @@ class OpenAIChat(LLM):
             kwargs["logit_bias"] = self.logit_bias
         if self.headers:
             kwargs["headers"] = self.headers
+        if self.tools:
+            kwargs["tools"] = [t.to_dict() for t in self.tools]
+            if self.tool_choice is not None:
+                kwargs["tool_choice"] = self.tool_choice
+        # Deprecated
+        if self.functions:
+            kwargs["functions"] = [f.to_dict() for f in self.functions.values()]
+            if self.function_call is not None:
+                kwargs["function_call"] = self.function_call
         return kwargs
 
-    def invoke_model(self, messages: List[Message]) -> OpenAIObject:
+    def invoke_model(self, messages: List[Message]) -> ChatCompletion:
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
@@ -77,24 +94,23 @@ class OpenAIChat(LLM):
                 if response_dict is None:
                     logger.error("Error: Could not reach Phidata Servers.")
                     logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                return OpenAIObject.construct_from(response_dict)
+                return ChatCompletion.model_validate(response_dict)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
-            return openai.ChatCompletion.create(
+            return openai.chat.completions.create(
                 model=self.model,
                 messages=[m.to_dict() for m in messages],
                 **self.api_kwargs,
             )
 
-    def invoke_model_stream(self, messages: List[Message]) -> Iterator[OpenAIObject]:
+    def invoke_model_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
                 from phi.api.llm import openai_chat_stream
-                from openai import util as openai_util
 
                 for chunk in openai_chat_stream(
                     params={
@@ -109,21 +125,21 @@ class OpenAIChat(LLM):
                         if "}{" in chunk:
                             # logger.debug(f"Double chunk: {chunk}")
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for chunk_dict in json.loads(chunks, object_hook=openai_util.convert_to_openai_object):
+                            for chunk_dict in json.loads(chunks, object_hook=ChatCompletionChunk.model_validate):
                                 yield chunk_dict
                         else:
-                            yield json.loads(chunk, object_hook=openai_util.convert_to_openai_object)
+                            yield json.loads(chunk, object_hook=ChatCompletionChunk.model_validate)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
-            yield from openai.ChatCompletion.create(
+            yield from openai.chat.completions.create(
                 model=self.model,
                 messages=[m.to_dict() for m in messages],
                 stream=True,
                 **self.api_kwargs,
-            )
+            )  # type: ignore
 
     def parsed_response(self, messages: List[Message]) -> str:
         logger.debug("---------- OpenAI Response Start ----------")
@@ -133,25 +149,25 @@ class OpenAIChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: OpenAIObject = self.invoke_model(messages=messages)
+        response: ChatCompletion = self.invoke_model(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"OpenAI response type: {type(response)}")
         # logger.debug(f"OpenAI response: {response}")
 
         # -*- Parse response
-        response_message = response.choices[0].message
-        response_role = response_message.get("role")
-        response_content = response_message.get("content")
-        response_function_call = response_message.get("function_call")
+        response_message: ChatCompletionMessage = response.choices[0].message
+        response_role = response_message.role
+        response_content: Optional[str] = response_message.content
+        response_function_call: Optional[ChatCompletionFunctionCall] = response_message.function_call
 
         # -*- Create assistant message
         assistant_message = Message(
             role=response_role or "assistant",
             content=response_content,
         )
-        if response_function_call is not None and isinstance(response_function_call, OpenAIObject):
-            assistant_message.function_call = response_function_call.to_dict()
+        if response_function_call is not None:
+            assistant_message.function_call = response_function_call.model_dump()
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -161,22 +177,22 @@ class OpenAIChat(LLM):
         self.metrics["response_times"].append(response_timer.elapsed)
 
         # Add token usage to metrics
-        response_usage = response.usage
-        prompt_tokens = response_usage.get("prompt_tokens")
+        response_usage: Optional[CompletionUsage] = response.usage
+        prompt_tokens = response_usage.prompt_tokens if response_usage is not None else None
         if prompt_tokens is not None:
             assistant_message.metrics["prompt_tokens"] = prompt_tokens
             if "prompt_tokens" not in self.metrics:
                 self.metrics["prompt_tokens"] = prompt_tokens
             else:
                 self.metrics["prompt_tokens"] += prompt_tokens
-        completion_tokens = response_usage.get("completion_tokens")
+        completion_tokens = response_usage.completion_tokens if response_usage is not None else None
         if completion_tokens is not None:
             assistant_message.metrics["completion_tokens"] = completion_tokens
             if "completion_tokens" not in self.metrics:
                 self.metrics["completion_tokens"] = completion_tokens
             else:
                 self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = response_usage.get("total_tokens")
+        total_tokens = response_usage.total_tokens if response_usage is not None else None
         if total_tokens is not None:
             assistant_message.metrics["total_tokens"] = total_tokens
             if "total_tokens" not in self.metrics:
@@ -245,25 +261,25 @@ class OpenAIChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: OpenAIObject = self.invoke_model(messages=messages)
+        response: ChatCompletion = self.invoke_model(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"OpenAI response type: {type(response)}")
         # logger.debug(f"OpenAI response: {response}")
 
         # -*- Parse response
-        response_message = response.choices[0].message
-        response_role = response_message.get("role")
-        response_content = response_message.get("content")
-        response_function_call = response_message.get("function_call")
+        response_message: ChatCompletionMessage = response.choices[0].message
+        response_role = response_message.role
+        response_content: Optional[str] = response_message.content
+        response_function_call: Optional[ChatCompletionFunctionCall] = response_message.function_call
 
         # -*- Create assistant message
         assistant_message = Message(
             role=response_role or "assistant",
             content=response_content,
         )
-        if response_function_call is not None and isinstance(response_function_call, OpenAIObject):
-            assistant_message.function_call = response_function_call.to_dict()
+        if response_function_call is not None:
+            assistant_message.function_call = response_function_call.model_dump()
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -273,22 +289,22 @@ class OpenAIChat(LLM):
         self.metrics["response_times"].append(response_timer.elapsed)
 
         # Add token usage to metrics
-        response_usage = response.usage
-        prompt_tokens = response_usage.get("prompt_tokens")
+        response_usage: Optional[CompletionUsage] = response.usage
+        prompt_tokens = response_usage.prompt_tokens if response_usage is not None else None
         if prompt_tokens is not None:
             assistant_message.metrics["prompt_tokens"] = prompt_tokens
             if "prompt_tokens" not in self.metrics:
                 self.metrics["prompt_tokens"] = prompt_tokens
             else:
                 self.metrics["prompt_tokens"] += prompt_tokens
-        completion_tokens = response_usage.get("completion_tokens")
+        completion_tokens = response_usage.completion_tokens if response_usage is not None else None
         if completion_tokens is not None:
             assistant_message.metrics["completion_tokens"] = completion_tokens
             if "completion_tokens" not in self.metrics:
                 self.metrics["completion_tokens"] = completion_tokens
             else:
                 self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = response_usage.get("total_tokens")
+        total_tokens = response_usage.total_tokens if response_usage is not None else None
         if total_tokens is not None:
             assistant_message.metrics["total_tokens"] = total_tokens
             if "total_tokens" not in self.metrics:
@@ -301,7 +317,7 @@ class OpenAIChat(LLM):
         assistant_message.log()
 
         # -*- Return response
-        response_message_dict = response_message.to_dict_recursive()
+        response_message_dict = response_message.model_dump()
         logger.debug("---------- OpenAI Response End ----------")
         return response_message_dict
 
@@ -323,9 +339,9 @@ class OpenAIChat(LLM):
             completion_tokens += 1
 
             # -*- Parse response
-            response_delta = response.choices[0].delta
-            response_content = response_delta.get("content")
-            response_function_call = response_delta.get("function_call")
+            response_delta: ChoiceDelta = response.choices[0].delta
+            response_content: Optional[str] = response_delta.content
+            response_function_call: Optional[ChoiceDeltaFunctionCall] = response_delta.function_call
 
             # -*- Return content if present, otherwise get function call
             if response_content is not None:
@@ -334,10 +350,10 @@ class OpenAIChat(LLM):
 
             # -*- Parse function call
             if response_function_call is not None:
-                _function_name_stream = response_function_call.get("name")
+                _function_name_stream = response_function_call.name
                 if _function_name_stream is not None:
                     assistant_message_function_name += _function_name_stream
-                _function_args_stream = response_function_call.get("arguments")
+                _function_args_stream = response_function_call.arguments
                 if _function_args_stream is not None:
                     assistant_message_function_arguments_str += _function_args_stream
 
@@ -450,24 +466,25 @@ class OpenAIChat(LLM):
             completion_tokens += 1
 
             # -*- Parse response
-            response_delta = response.choices[0].delta
+            response_delta: ChoiceDelta = response.choices[0].delta
 
             # -*- Read content
-            response_content = response_delta.get("content")
+            response_content: Optional[str] = response_delta.content
             if response_content is not None:
                 assistant_message_content += response_content
 
             # -*- Read function call
-            response_function_call = response_delta.get("function_call")
+            response_function_call: Optional[ChoiceDeltaFunctionCall] = response_delta.function_call
             if response_function_call is not None:
-                _function_name_stream = response_function_call.get("name")
+                _function_name_stream = response_function_call.name
                 if _function_name_stream is not None:
                     assistant_message_function_name += _function_name_stream
-                _function_args_stream = response_function_call.get("arguments")
+                _function_args_stream = response_function_call.arguments
                 if _function_args_stream is not None:
                     assistant_message_function_arguments_str += _function_args_stream
 
-            yield response_delta.to_dict_recursive()
+            yield response_delta.model_dump()
+
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 

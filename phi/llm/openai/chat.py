@@ -1,4 +1,3 @@
-import json
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 from phi.llm.base import LLM
@@ -107,17 +106,17 @@ class OpenAIChat(LLM):
             try:
                 from phi.api.llm import openai_chat
 
-                response_dict = openai_chat(
+                response_json = openai_chat(
                     params={
                         "model": self.model,
                         "messages": [m.to_dict() for m in messages],
                         **self.api_kwargs,
                     }
                 )
-                if response_dict is None:
+                if response_json is None:
                     logger.error("Error: Could not reach Phidata Servers.")
                     logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                return ChatCompletion.model_validate(response_dict)
+                return ChatCompletion.model_validate_json(response_json)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
@@ -148,10 +147,10 @@ class OpenAIChat(LLM):
                         if "}{" in chunk:
                             # logger.debug(f"Double chunk: {chunk}")
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for completion_chunk in ChatCompletionChunk.model_validate(json.loads(chunks)):
+                            for completion_chunk in ChatCompletionChunk.model_validate_json(chunks):
                                 yield completion_chunk
                         else:
-                            yield ChatCompletionChunk.model_validate(json.loads(chunk))
+                            yield ChatCompletionChunk.model_validate_json(chunk)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")

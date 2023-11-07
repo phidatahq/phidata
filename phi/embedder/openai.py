@@ -27,14 +27,16 @@ class OpenAIEmbedder(Embedder):
             try:
                 from phi.api.llm import openai_embedding
 
-                response_dict = openai_embedding(
+                response_json = openai_embedding(
                     params={
                         "input": text,
                         "model": self.model,
                         "encoding_format": self.encoding_format,
                     }
                 )
-                return CreateEmbeddingResponse.model_validate(response_dict)
+                # logger.debug(f"Response: {type(response_json)}")
+                # logger.debug(f"Response: {response_json}")
+                return CreateEmbeddingResponse.model_validate_json(response_json)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")

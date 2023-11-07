@@ -9,7 +9,7 @@ from phi.utils.env import get_from_env
 from phi.utils.log import logger
 
 
-def openai_chat(params: Dict[str, Any]) -> Optional[Dict]:
+def openai_chat(params: Dict[str, Any]) -> Optional[str]:
     with api.AuthenticatedClient() as api_client:
         logger.debug("--o-o-- OpenAI Chat")
         try:
@@ -62,7 +62,7 @@ def openai_chat_stream(params: Dict[str, Any]) -> Iterator[str]:
             exit(1)
 
 
-def openai_embedding(params: Dict[str, Any]) -> Optional[Dict]:
+def openai_embedding(params: Dict[str, Any]) -> Optional[str]:
     with api.AuthenticatedClient() as api_client:
         logger.debug("--o-o-- OpenAI Embedding")
         try:

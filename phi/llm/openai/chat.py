@@ -148,10 +148,10 @@ class OpenAIChat(LLM):
                         if "}{" in chunk:
                             # logger.debug(f"Double chunk: {chunk}")
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for completion_chunk in json.loads(chunks, object_hook=ChatCompletionChunk.model_validate):
+                            for completion_chunk in ChatCompletionChunk.model_validate(json.loads(chunks)):
                                 yield completion_chunk
                         else:
-                            yield json.loads(chunk, object_hook=ChatCompletionChunk.model_validate)
+                            yield ChatCompletionChunk.model_validate(json.loads(chunk))
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")

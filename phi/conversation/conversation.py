@@ -49,9 +49,6 @@ class Conversation(BaseModel):
     # The timestamp of when this conversation was last updated in the database
     updated_at: Optional[datetime] = None
 
-    # Enable monitoring on phidata.com
-    monitoring: bool = False
-
     # -*- Conversation Memory
     memory: ConversationMemory = ConversationMemory()
     # Add chat history to the prompt sent to the LLM.
@@ -149,6 +146,8 @@ class Conversation(BaseModel):
 
     # If True, show debug logs
     debug_mode: bool = False
+    # Enable monitoring on phidata.com
+    monitoring: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

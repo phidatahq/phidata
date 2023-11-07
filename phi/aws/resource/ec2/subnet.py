@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 
 from phi.aws.api_client import AwsApiClient
@@ -54,7 +54,7 @@ class Subnet(AwsResource):
 
 
 def get_vpc_id_from_subnet_ids(
-    subnet_ids: Optional[list[str]], aws_client: Optional[AwsApiClient] = None
+    subnet_ids: Optional[List[str]], aws_client: Optional[AwsApiClient] = None
 ) -> Optional[str]:
     if subnet_ids is None:
         return None

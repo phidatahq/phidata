@@ -107,6 +107,14 @@ class CacheCluster(AwsResource):
     # Read secrets from a file in yaml format
     secrets_file: Optional[Path] = None
 
+    # The follwing attributes are used for update function
+    cache_node_ids_to_remove: Optional[List[str]] = None
+    new_availability_zone: Optional[List[str]] = None
+    security_group_ids: Optional[List[str]] = None
+    notification_topic_status: Optional[str] = None
+    apply_immediately: Optional[bool] = None
+    auth_token_update_strategy: Optional[Literal["SET", "ROTATE", "DELETE"]] = None
+
     def get_cache_cluster_id(self):
         return self.cache_cluster_id or self.name
 
@@ -300,7 +308,7 @@ class CacheCluster(AwsResource):
         if self.cache_security_group_names is not None:
             not_null_args["CacheSecurityGroupNames"] = self.cache_security_group_names
         if self.security_group_ids is not None:
-            not_null_args["SecurityGroupIds"] = self.cache_security_group_ids
+            not_null_args["SecurityGroupIds"] = self.security_group_ids
         if self.preferred_maintenance_window is not None:
             not_null_args["PreferredMaintenanceWindow"] = self.preferred_maintenance_window
         if self.notification_topic_arn is not None:
@@ -345,6 +353,7 @@ class CacheCluster(AwsResource):
         except Exception as e:
             logger.error(f"{self.get_resource_type()} could not be updated.")
             logger.error(e)
+        return False
 
     def _delete(self, aws_client: AwsApiClient) -> bool:
         """Deletes the CacheCluster
@@ -392,7 +401,7 @@ class CacheCluster(AwsResource):
                 logger.error(e)
         return True
 
-    def get_cache_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
+    def get_cache_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[List]:
         """Returns the CacheCluster endpoint
 
         Args:
@@ -420,7 +429,7 @@ class CacheCluster(AwsResource):
             logger.error(e)
         return cache_endpoint
 
-    def get_cache_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[int]:
+    def get_cache_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[List]:
         """Returns the CacheCluster port
 
         Args:

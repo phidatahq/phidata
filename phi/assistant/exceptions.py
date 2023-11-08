@@ -20,3 +20,9 @@ class RunIdNotSet(Exception):
     """Exception raised when the run.id is not set."""
 
     pass
+
+
+class FileIdNotSet(Exception):
+    """Exception raised when the file.id is not set."""
+
+    pass

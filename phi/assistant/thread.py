@@ -134,9 +134,11 @@ class Thread(BaseModel):
         message.create()
         return message
 
-    def create_run(self, assistant_id: Optional[str] = None, run: Optional[Run] = None, **kwargs) -> Run:
+    def create_run(
+        self, assistant_id: Optional[str] = None, run: Optional[Run] = None, use_cache: bool = True, **kwargs
+    ) -> Run:
         try:
-            thread_to_run = self.get()
+            thread_to_run = self.get(use_cache=use_cache)
         except ThreadIdNotSet:
             logger.warning("Thread not available")
             raise
@@ -159,3 +161,15 @@ class Thread(BaseModel):
         logger.debug(f"Creating run: {run}")
         run.create()
         return run
+
+    def get_messages(self, use_cache: bool = True) -> List[Message]:
+        try:
+            thread_to_read = self.get(use_cache=use_cache)
+        except ThreadIdNotSet:
+            logger.warning("Thread not available")
+            raise
+
+        thread_messages = self.client.beta.threads.messages.list(
+            thread_id=thread_to_read.id,
+        )
+        return [Message(**message.model_dump()) for message in thread_messages]

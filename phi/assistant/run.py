@@ -158,3 +158,18 @@ class Run(BaseModel):
         except (ThreadIdNotSet, RunIdNotSet):
             logger.warning("Message not available")
             raise
+
+    def wait_for_completion(self, timeout: Optional[int] = None) -> OpenAIRun:
+        import time
+
+        start_time = time.time()
+        while True:
+            logger.debug(f"Waiting for run {self.id} to complete")
+            run = self.get(use_cache=False)
+            logger.debug(f"Run {run.id}: {run}")
+            logger.debug(f"Run {run.id} status: {run.status}")
+            if run.status == "completed":
+                return run
+            if timeout is not None and time.time() - start_time > timeout:
+                raise TimeoutError(f"Run {run.id} did not complete within {timeout} seconds")
+            time.sleep(1)

@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, Callable, get_type_hints
+from typing import Optional, Any, Dict, Callable, List, get_type_hints
 from pydantic import BaseModel, validate_call
 
 from phi.utils.log import logger
@@ -12,7 +12,7 @@ class Message(BaseModel):
     role: str
     # The contents of the message. content is required for all messages,
     # and may be null for assistant messages with function calls.
-    content: Optional[str] = None
+    content: Optional[List[Dict] | str] = None
     # The name of the author of this message. name is required if role is function,
     # and it should be the name of the function whose response is in the content.
     # May contain a-z, A-Z, 0-9, and underscores, with a maximum length of 64 characters.
@@ -21,6 +21,16 @@ class Message(BaseModel):
     function_call: Optional[Any] = None
     # Metrics for the message, tokes + the time it took to generate the response.
     metrics: Dict[str, Any] = {}
+
+    def get_content_string(self) -> str:
+        """Returns the content as a string."""
+        if isinstance(self.content, str):
+            return self.content
+        if isinstance(self.content, list):
+            import json
+
+            return json.dumps(self.content)
+        return ""
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = self.model_dump(exclude_none=True, exclude={"metrics"})

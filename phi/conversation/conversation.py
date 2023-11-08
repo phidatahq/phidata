@@ -110,19 +110,19 @@ class Conversation(BaseModel):
 
     # -*- User prompt: provide the user prompt as a string or using a function
     # Note: this will ignore the message provided to the chat function
-    user_prompt: Optional[str] = None
+    user_prompt: Optional[List[Dict] | str] = None
     # Function to build the user prompt.
     # This function is provided the conversation and the user message as arguments
-    #   and should return the user_prompt as a string.
+    #   and should return the user_prompt as a List[Dict] | str.
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     conversation: Conversation,
-    #     message: str,
+    #     message: List[Dict] | str,
     #     references: Optional[str] = None,
     #     chat_history: Optional[str] = None,
-    # ) -> str:
+    # ) -> List[Dict] | str:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
     # If True, the conversation provides a default user prompt
@@ -424,14 +424,14 @@ class Conversation(BaseModel):
         return remove_indent(formatted_history)
 
     def get_user_prompt(
-        self, message: str, references: Optional[str] = None, chat_history: Optional[str] = None
-    ) -> str:
+        self, message: List[Dict] | str, references: Optional[str] = None, chat_history: Optional[str] = None
+    ) -> List[Dict] | str:
         """Build the user prompt given a message, references and chat_history"""
 
         # If the user_prompt is set, return it
         # Note: this ignores the message provided to the chat function
         if self.user_prompt is not None:
-            return "\n".join([line.strip() for line in self.user_prompt.split("\n")])
+            return self.user_prompt
 
         # If the user_prompt_function is set, return the user_prompt from the function
         if self.user_prompt_function is not None:
@@ -441,7 +441,7 @@ class Conversation(BaseModel):
                 "references": references,
                 "chat_history": chat_history,
             }
-            _user_prompt_from_function = remove_indent(self.user_prompt_function(**user_prompt_kwargs))
+            _user_prompt_from_function = self.user_prompt_function(**user_prompt_kwargs)
             if _user_prompt_from_function is not None:
                 return _user_prompt_from_function
             else:
@@ -453,6 +453,10 @@ class Conversation(BaseModel):
 
         # If references and chat_history are None, return the message as is
         if references is None and chat_history is None:
+            return message
+
+        # If message is a list, return it as is
+        if isinstance(message, list):
             return message
 
         # Build a default user prompt
@@ -483,7 +487,28 @@ class Conversation(BaseModel):
         _user_prompt = cast(str, remove_indent(_user_prompt))
         return _user_prompt
 
-    def _chat(self, message: str, stream: bool = True) -> Iterator[str]:
+    def get_text_from_message(self, message: List[Dict] | str) -> str:
+        """Return the user texts from the message"""
+        if isinstance(message, str):
+            return message
+        if isinstance(message, list):
+            text_messages = []
+            for m in message:
+                m_type = m.get("type")
+                if m_type is not None and isinstance(m_type, str):
+                    m_value = m.get(m_type)
+                    if m_value is not None and isinstance(m_value, str):
+                        if m_type == "text":
+                            text_messages.append(m_value)
+                        # elif m_type == "image_url":
+                        #     text_messages.append(f"Image: {m_value}")
+                        # else:
+                        #     text_messages.append(f"{m_type}: {m_value}")
+            if len(text_messages) > 0:
+                return "\n".join(text_messages)
+        return ""
+
+    def _chat(self, message: List[Dict] | str, stream: bool = True) -> Iterator[str]:
         logger.debug("*********** Conversation Chat Start ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
@@ -496,7 +521,7 @@ class Conversation(BaseModel):
 
         # -*- Get references to add to the user_prompt
         user_prompt_references = None
-        if self.add_references_to_prompt:
+        if self.add_references_to_prompt and isinstance(message, str):
             reference_timer = Timer()
             reference_timer.start()
             user_prompt_references = self.get_references_from_knowledge_base(query=message)
@@ -512,7 +537,7 @@ class Conversation(BaseModel):
             user_prompt_chat_history = self.get_formatted_chat_history()
 
         # -*- Build the user prompt
-        user_prompt = self.get_user_prompt(
+        user_prompt: List[Dict] | str = self.get_user_prompt(
             message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
         )
 
@@ -577,7 +602,7 @@ class Conversation(BaseModel):
             yield llm_response
         logger.debug("*********** Conversation Chat End ***********")
 
-    def _chat_tasks(self, message: str, stream: bool = True) -> Iterator[str]:
+    def _chat_tasks(self, message: List[Dict] | str, stream: bool = True) -> Iterator[str]:
         if self.tasks is None or len(self.tasks) == 0:
             return ""
 
@@ -648,7 +673,7 @@ class Conversation(BaseModel):
             yield full_response
         logger.debug("*********** Conversation Tasks End ***********")
 
-    def chat(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
+    def chat(self, message: List[Dict] | str, stream: bool = True) -> Union[Iterator[str], str]:
         if self.tasks and len(self.tasks) > 0:
             resp = self._chat_tasks(message=message, stream=stream)
         else:
@@ -658,7 +683,7 @@ class Conversation(BaseModel):
         else:
             return next(resp)
 
-    def run(self, message: str, stream: bool = True) -> Union[Iterator[str], str]:
+    def run(self, message: List[Dict] | str, stream: bool = True) -> Union[Iterator[str], str]:
         return self.chat(message=message, stream=stream)
 
     def _chat_raw(
@@ -851,7 +876,7 @@ class Conversation(BaseModel):
     # Print Response
     ###########################################################################
 
-    def print_response(self, message: str, stream: bool = True) -> None:
+    def print_response(self, message: List[Dict] | str, stream: bool = True) -> None:
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
@@ -868,7 +893,7 @@ class Conversation(BaseModel):
 
                     table = Table(box=ROUNDED, border_style="blue")
                     table.add_column("Message")
-                    table.add_column(message)
+                    table.add_column(self.get_text_from_message(message))
                     md_response = Markdown(response)
                     table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
                     live_log.update(table)
@@ -881,6 +906,6 @@ class Conversation(BaseModel):
             md_response = Markdown(response)
             table = Table(box=ROUNDED, border_style="blue")
             table.add_column("Message")
-            table.add_column(message)
+            table.add_column(self.get_text_from_message(message))
             table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
             console.print(table)

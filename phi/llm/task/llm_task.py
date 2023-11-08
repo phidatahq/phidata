@@ -75,15 +75,15 @@ class LLMTask(BaseModel):
 
     # -*- User prompt: provide the user prompt as a string or using a function
     # Note: this will ignore the message provided to the run function
-    user_prompt: Optional[str] = None
+    user_prompt: Optional[List[Dict] | str] = None
     # Function to build the user prompt.
     # This function is provided the task and the input message as arguments
-    #   and should return the user_prompt as a string.
+    #   and should return the user_prompt as a List[Dict] | str.
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     task: Task,
-    #     message: Optional[str] = None,
+    #     message: Optional[List[Dict] | str] = None,
     #     references: Optional[str] = None,
     # ) -> str:
     #     ...
@@ -200,13 +200,15 @@ class LLMTask(BaseModel):
         relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
         return json.dumps([doc.to_dict() for doc in relevant_docs])
 
-    def get_user_prompt(self, message: Optional[str] = None, references: Optional[str] = None) -> str:
+    def get_user_prompt(
+        self, message: Optional[List[Dict] | str] = None, references: Optional[str] = None
+    ) -> List[Dict] | str:
         """Build the user prompt given a message and references"""
 
         # If the user_prompt is set, return it
         # Note: this ignores the message provided to the run function
         if self.user_prompt is not None:
-            return "\n".join([line.strip() for line in self.user_prompt.split("\n")])
+            return self.user_prompt
 
         # If the user_prompt_function is set, return the user_prompt from the function
         if self.user_prompt_function is not None:
@@ -215,7 +217,7 @@ class LLMTask(BaseModel):
                 "message": message,
                 "references": references,
             }
-            _user_prompt_from_function = remove_indent(self.user_prompt_function(**user_prompt_kwargs))
+            _user_prompt_from_function = self.user_prompt_function(**user_prompt_kwargs)
             if _user_prompt_from_function is not None:
                 return _user_prompt_from_function
             else:
@@ -232,6 +234,10 @@ class LLMTask(BaseModel):
         if references is None:
             return message
 
+        # If message is a list, return it as is
+        if isinstance(message, list):
+            return message
+
         # Build a default user prompt
         _user_prompt = "Respond to the following message in the best way possible.\n"
 
@@ -246,10 +252,6 @@ class LLMTask(BaseModel):
                 END OF KNOWLEDGE BASE INFORMATION
                 """
 
-        # Remind the LLM of its task
-        # if references:
-        #     _user_prompt += "\nRemember, your task is to respond to the following message."
-
         _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "
 
@@ -257,7 +259,28 @@ class LLMTask(BaseModel):
         _user_prompt = cast(str, remove_indent(_user_prompt))
         return _user_prompt
 
-    def _run(self, message: Optional[str] = None, stream: bool = True) -> Iterator[str]:
+    def get_text_from_message(self, message: List[Dict] | str) -> str:
+        """Return the user texts from the message"""
+        if isinstance(message, str):
+            return message
+        if isinstance(message, list):
+            text_messages = []
+            for m in message:
+                m_type = m.get("type")
+                if m_type is not None and isinstance(m_type, str):
+                    m_value = m.get(m_type)
+                    if m_value is not None and isinstance(m_value, str):
+                        if m_type == "text":
+                            text_messages.append(m_value)
+                        # if m_type == "image_url":
+                        #     text_messages.append(f"Image: {m_value}")
+                        # else:
+                        #     text_messages.append(f"{m_type}: {m_value}")
+            if len(text_messages) > 0:
+                return "\n".join(text_messages)
+        return ""
+
+    def _run(self, message: Optional[List[Dict] | str] = None, stream: bool = True) -> Iterator[str]:
         # -*- Set default LLM
         if self.llm is None:
             self.llm = OpenAIChat()
@@ -275,7 +298,7 @@ class LLMTask(BaseModel):
 
         # -*- Get references to add to the user_prompt
         user_prompt_references = None
-        if self.add_references_to_prompt and message:
+        if self.add_references_to_prompt and message and isinstance(message, str):
             reference_timer = Timer()
             reference_timer.start()
             user_prompt_references = self.get_references_from_knowledge_base(query=message)
@@ -286,7 +309,7 @@ class LLMTask(BaseModel):
             logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
 
         # -*- Build the user prompt
-        user_prompt = self.get_user_prompt(message=message, references=user_prompt_references)
+        user_prompt: List[Dict] | str = self.get_user_prompt(message=message, references=user_prompt_references)
 
         # -*- Build the messages to send to the LLM
         # Create system message
@@ -335,7 +358,7 @@ class LLMTask(BaseModel):
         if not stream:
             yield llm_response
 
-    def run(self, message: Optional[str] = None, stream: bool = True) -> Union[Iterator[str], str]:
+    def run(self, message: Optional[List[Dict] | str] = None, stream: bool = True) -> Union[Iterator[str], str]:
         resp = self._run(message=message, stream=stream)
         if stream:
             return resp
@@ -399,7 +422,7 @@ class LLMTask(BaseModel):
     # Print Response
     ###########################################################################
 
-    def print_response(self, message: str, stream: bool = True) -> None:
+    def print_response(self, message: List[Dict] | str, stream: bool = True) -> None:
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
@@ -416,7 +439,7 @@ class LLMTask(BaseModel):
 
                     table = Table(box=ROUNDED, border_style="blue")
                     table.add_column("Message")
-                    table.add_column(message)
+                    table.add_column(self.get_text_from_message(message))
                     md_response = Markdown(response)
                     table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
                     live_log.update(table)
@@ -429,6 +452,6 @@ class LLMTask(BaseModel):
             md_response = Markdown(response)
             table = Table(box=ROUNDED, border_style="blue")
             table.add_column("Message")
-            table.add_column(message)
+            table.add_column(self.get_text_from_message(message))
             table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
             console.print(table)

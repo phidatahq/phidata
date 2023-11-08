@@ -144,7 +144,7 @@ class AwsBedrock(LLM):
         for m in messages:
             if m.role == "user":
                 if m.content is not None:
-                    prompt += m.content
+                    prompt += m.get_content_string()
 
         # -*- Log prompt for debugging
         logger.debug(f"PROMPT: {prompt}")
@@ -204,7 +204,7 @@ class AwsBedrock(LLM):
 
         logger.debug("---------- Aws Response End ----------")
         # -*- Return content
-        return assistant_message.content if assistant_message.content is not None else ""
+        return assistant_message.get_content_string()
 
     def response_message(self, messages: List[Message]) -> Dict:
         logger.debug("---------- Aws Response Start ----------")

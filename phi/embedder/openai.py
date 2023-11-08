@@ -34,9 +34,12 @@ class OpenAIEmbedder(Embedder):
                         "encoding_format": self.encoding_format,
                     }
                 )
-                # logger.debug(f"Response: {type(response_json)}")
-                # logger.debug(f"Response: {response_json}")
-                return CreateEmbeddingResponse.model_validate_json(response_json)
+                if response_json is None:
+                    logger.error("Error: Could not reach Phidata Servers.")
+                    logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
+                    exit(1)
+                else:
+                    return CreateEmbeddingResponse.model_validate_json(response_json)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")

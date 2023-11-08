@@ -116,7 +116,9 @@ class OpenAIChat(LLM):
                 if response_json is None:
                     logger.error("Error: Could not reach Phidata Servers.")
                     logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                return ChatCompletion.model_validate_json(response_json)
+                    exit(1)
+                else:
+                    return ChatCompletion.model_validate_json(response_json)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
@@ -132,6 +134,7 @@ class OpenAIChat(LLM):
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
+                import json
                 from phi.api.llm import openai_chat_stream
 
                 for chunk in openai_chat_stream(
@@ -147,8 +150,8 @@ class OpenAIChat(LLM):
                         if "}{" in chunk:
                             # logger.debug(f"Double chunk: {chunk}")
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for completion_chunk in ChatCompletionChunk.model_validate_json(chunks):
-                                yield completion_chunk
+                            for completion_chunk in json.loads(chunks):
+                                yield ChatCompletionChunk.model_validate_json(completion_chunk)
                         else:
                             yield ChatCompletionChunk.model_validate_json(chunk)
             except Exception as e:
@@ -228,7 +231,7 @@ class OpenAIChat(LLM):
 
         # -*- Return content if present, otherwise run function call
         if assistant_message.content is not None:
-            return assistant_message.content
+            return assistant_message.get_content_string()
 
         # -*- Parse and run function call
         if assistant_message.function_call is not None and self.run_function_calls:

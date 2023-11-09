@@ -1,4 +1,5 @@
-from typing import List, Any, Optional, Dict
+from typing import List, Any, Optional, Dict, Union
+from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -22,9 +23,9 @@ class Message(BaseModel):
     object: Optional[str] = None
 
     # The entity that produced the message. One of user or assistant.
-    role: Optional[str] = None
+    role: Optional[Literal["user", "assistant"]] = None
     # The content of the message in array of text and/or images.
-    content: List[Any | Content] | str
+    content: Optional[Union[List[Content], str]] = None
 
     # The thread ID that this message belongs to.
     # Required to create/get a message.
@@ -57,17 +58,27 @@ class Message(BaseModel):
     def client(self) -> OpenAI:
         return self.openai or OpenAI()
 
+    @classmethod
+    def from_openai(cls, message: OpenAIThreadMessage) -> "Message":
+        _message = cls()
+        _message.load_from_openai(message)
+        return _message
+
     def load_from_openai(self, openai_message: OpenAIThreadMessage):
         self.id = openai_message.id
-        self.object = openai_message.object
-        self.role = openai_message.role
+        self.assistant_id = openai_message.assistant_id
         self.content = openai_message.content
         self.created_at = openai_message.created_at
+        self.file_ids = openai_message.file_ids
+        self.object = openai_message.object
+        self.role = openai_message.role
         self.run_id = openai_message.run_id
         self.thread_id = openai_message.thread_id
+        self.openai_message = openai_message
 
     def create(self, thread_id: Optional[str] = None) -> "Message":
-        if thread_id is None and self.thread_id is None:
+        _thread_id = thread_id or self.thread_id
+        if _thread_id is None:
             raise ThreadIdNotSet("Thread.id not set")
 
         request_body: Dict[str, Any] = {}
@@ -84,7 +95,7 @@ class Message(BaseModel):
             raise TypeError("Message.content must be a string for create()")
 
         self.openai_message = self.client.beta.threads.messages.create(
-            thread_id=self.thread_id, role="user", content=self.content, **request_body
+            thread_id=_thread_id, role="user", content=self.content, **request_body
         )
         self.load_from_openai(self.openai_message)
         logger.debug(f"Message created: {self.id}")
@@ -93,11 +104,9 @@ class Message(BaseModel):
     def get_id(self) -> Optional[str]:
         return self.id or self.openai_message.id if self.openai_message else None
 
-    def get(self, use_cache: bool = True, thread_id: Optional[str] = None) -> "Message":
-        if self.openai_message is not None and use_cache:
-            return self
-
-        if thread_id is None and self.thread_id is None:
+    def get_from_openai(self, thread_id: Optional[str] = None) -> OpenAIThreadMessage:
+        _thread_id = thread_id or self.thread_id
+        if _thread_id is None:
             raise ThreadIdNotSet("Thread.id not set")
 
         _message_id = self.get_id()
@@ -105,10 +114,17 @@ class Message(BaseModel):
             raise MessageIdNotSet("Message.id not set")
 
         self.openai_message = self.client.beta.threads.messages.retrieve(
-            thread_id=self.thread_id,
+            thread_id=_thread_id,
             message_id=_message_id,
         )
         self.load_from_openai(self.openai_message)
+        return self.openai_message
+
+    def get(self, use_cache: bool = True, thread_id: Optional[str] = None) -> "Message":
+        if self.openai_message is not None and use_cache:
+            return self
+
+        self.get_from_openai(thread_id=thread_id)
         return self
 
     def get_or_create(self, use_cache: bool = True, thread_id: Optional[str] = None) -> "Message":
@@ -119,11 +135,17 @@ class Message(BaseModel):
 
     def update(self, thread_id: Optional[str] = None) -> "Message":
         try:
-            message_to_update = self.get(thread_id=thread_id)
+            message_to_update = self.get_from_openai(thread_id=thread_id)
             if message_to_update is not None:
                 request_body: Dict[str, Any] = {}
                 if self.metadata is not None:
                     request_body["metadata"] = self.metadata
+
+                if message_to_update.id is None:
+                    raise MessageIdNotSet("Message.id not set")
+
+                if message_to_update.thread_id is None:
+                    raise ThreadIdNotSet("Thread.id not set")
 
                 self.openai_message = self.client.beta.threads.messages.update(
                     thread_id=message_to_update.thread_id,
@@ -139,7 +161,20 @@ class Message(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(
-            exclude_none=True, include={"id", "object", "role", "content", "file_ids", "files", "metadata"}
+            exclude_none=True,
+            include={
+                "id",
+                "object",
+                "role",
+                "content",
+                "file_ids",
+                "files",
+                "metadata",
+                "created_at",
+                "thread_id",
+                "assistant_id",
+                "run_id",
+            },
         )
 
     def pprint(self):

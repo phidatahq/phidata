@@ -1,12 +1,13 @@
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, Union, Callable
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.assistant.run import Run
 from phi.assistant.message import Message
 from phi.assistant.assistant import Assistant
-from phi.assistant.exceptions import AssistantIdNotSet, ThreadIdNotSet
+from phi.assistant.exceptions import ThreadIdNotSet
 from phi.utils.log import logger
+from phi.utils.timer import Timer
 
 try:
     from openai import OpenAI
@@ -26,7 +27,7 @@ class Thread(BaseModel):
     object: Optional[str] = None
 
     # A list of messages in this thread.
-    messages: List[Message | Dict] = []
+    messages: List[Union[Message, Dict]] = []
 
     # Assistant used for this thread
     assistant: Optional[Assistant] = None
@@ -60,8 +61,9 @@ class Thread(BaseModel):
         self.id = openai_thread.id
         self.object = openai_thread.object
         self.created_at = openai_thread.created_at
+        self.openai_thread = openai_thread
 
-    def create(self, messages: Optional[List[Message | Dict]] = None) -> "Thread":
+    def create(self, messages: Optional[List[Union[Message, Dict]]] = None) -> "Thread":
         request_body: Dict[str, Any] = {}
         if messages is not None:
             _messages = []
@@ -77,7 +79,7 @@ class Thread(BaseModel):
         self.openai_thread = self.client.beta.threads.create(**request_body)
         self.load_from_openai(self.openai_thread)
         logger.debug(f"Thread created: {self.id}")
-        return self.openai_thread
+        return self
 
     def get_id(self) -> Optional[str]:
         _id = self.id or self.openai_thread.id if self.openai_thread else None
@@ -86,10 +88,7 @@ class Thread(BaseModel):
             _id = self.id
         return _id
 
-    def get(self, use_cache: bool = True) -> "Thread":
-        if self.openai_thread is not None and use_cache:
-            return self
-
+    def get_from_openai(self) -> OpenAIThread:
         _thread_id = self.get_id()
         if _thread_id is None:
             raise ThreadIdNotSet("Thread.id not set")
@@ -98,9 +97,16 @@ class Thread(BaseModel):
             thread_id=_thread_id,
         )
         self.load_from_openai(self.openai_thread)
+        return self.openai_thread
+
+    def get(self, use_cache: bool = True) -> "Thread":
+        if self.openai_thread is not None and use_cache:
+            return self
+
+        self.get_from_openai()
         return self
 
-    def get_or_create(self, use_cache: bool = True, messages: Optional[List[Message | Dict]] = None) -> "Thread":
+    def get_or_create(self, use_cache: bool = True, messages: Optional[List[Union[Message, Dict]]] = None) -> "Thread":
         try:
             return self.get(use_cache=use_cache)
         except ThreadIdNotSet:
@@ -108,7 +114,7 @@ class Thread(BaseModel):
 
     def update(self) -> "Thread":
         try:
-            thread_to_update = self.get()
+            thread_to_update = self.get_from_openai()
             if thread_to_update is not None:
                 request_body: Dict[str, Any] = {}
                 if self.metadata is not None:
@@ -127,7 +133,7 @@ class Thread(BaseModel):
 
     def delete(self) -> OpenAIThreadDeleted:
         try:
-            thread_to_delete = self.get()
+            thread_to_delete = self.get_from_openai()
             if thread_to_delete is not None:
                 deletion_status = self.client.beta.threads.delete(
                     thread_id=thread_to_delete.id,
@@ -138,65 +144,60 @@ class Thread(BaseModel):
             logger.warning("Thread not available")
             raise
 
-    def add_message(self, message: Message | Dict) -> Message:
+    def add_message(self, message: Union[Message, Dict]) -> None:
         try:
             message = message if isinstance(message, Message) else Message(**message)
         except Exception as e:
             logger.error(f"Error creating Message: {e}")
             raise
-
         message.thread_id = self.id
         message.create()
-        return message
 
-    def add(self, messages: List[Message | Dict]) -> List[Message]:
+    def add(self, messages: List[Union[Message, Dict]]) -> None:
         existing_thread = self.get_id() is not None
         if existing_thread:
             for message in messages:
                 self.add_message(message=message)
         else:
             self.create(messages=messages)
-        return self.messages
 
-    def create_run(
-        self, assistant_id: Optional[str] = None, run: Optional[Run] = None, use_cache: bool = True, **kwargs
+    def run(
+        self,
+        run: Optional[Run] = None,
+        assistant: Optional[Assistant] = None,
+        assistant_id: Optional[str] = None,
+        wait: bool = True,
+        callback: Optional[Callable] = None,
     ) -> Run:
         try:
-            thread_to_run = self.get(use_cache=use_cache)
+            _thread_id = self.get_id()
+            if _thread_id is None:
+                _thread_id = self.get_from_openai().id
         except ThreadIdNotSet:
             logger.warning("Thread not available")
             raise
 
-        if assistant_id is None:
-            assistant_id = self.assistant_id
-        if assistant_id is None:
-            raise AssistantIdNotSet("Assistant.id not set")
+        _assistant = assistant or self.assistant
+        _assistant_id = assistant_id or self.assistant_id
 
+        _run = run or Run()
+        return _run.run(
+            thread_id=_thread_id, assistant=_assistant, assistant_id=_assistant_id, wait=wait, callback=callback
+        )
+
+    def get_messages(self) -> List[Message]:
         try:
-            if run is None:
-                run = Run(**kwargs)
-        except Exception as e:
-            logger.error(f"Error creating run: {e}")
-            raise
-
-        run.thread_id = thread_to_run.id
-        run.assistant_id = assistant_id
-
-        logger.debug(f"Creating run: {run}")
-        run.create()
-        return run
-
-    def get_messages(self, use_cache: bool = True) -> List[Message]:
-        try:
-            thread_to_read = self.get(use_cache=use_cache)
+            _thread_id = self.get_id()
+            if _thread_id is None:
+                _thread_id = self.get_from_openai().id
         except ThreadIdNotSet:
             logger.warning("Thread not available")
             raise
 
         thread_messages = self.client.beta.threads.messages.list(
-            thread_id=thread_to_read.id,
+            thread_id=_thread_id,
         )
-        return [Message(**message.model_dump()) for message in thread_messages]
+        return [Message.from_openai(message=message) for message in thread_messages]
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True, include={"id", "object", "messages", "metadata"})
@@ -206,6 +207,47 @@ class Thread(BaseModel):
         from rich.pretty import pprint
 
         pprint(self.to_dict())
+
+    def print_response(self, message: str, assistant: Assistant) -> None:
+        from phi.cli.console import console
+        from rich.table import Table
+        from rich.box import ROUNDED
+        from rich.markdown import Markdown
+
+        # Start the response timer
+        response_timer = Timer()
+        response_timer.start()
+
+        # Add the message to the thread
+        self.add(messages=[Message(role="user", content=message)])
+
+        # Run the assistant
+        self.run(assistant=assistant)
+
+        # Stop the response timer
+        response_timer.stop()
+
+        # Get the messages from the thread
+        messages = self.get_messages()
+
+        # Get the assistant response
+        assistant_response: str = ""
+        for m in messages:
+            oai_message = m.openai_message
+            if oai_message and oai_message.role == "assistant":
+                for content in oai_message.content:
+                    if content.type == "text":
+                        text = content.text
+                        assistant_response += text.value
+                break
+
+        # Convert to markdown
+        md_response = Markdown(assistant_response)
+        table = Table(box=ROUNDED, border_style="blue")
+        table.add_column("Message")
+        table.add_column(message)
+        table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
+        console.print(table)
 
     def __str__(self) -> str:
         import json

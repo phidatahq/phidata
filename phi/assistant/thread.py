@@ -208,12 +208,27 @@ class Thread(BaseModel):
 
         pprint(self.to_dict())
 
-    def print_response(self, message: str, assistant: Assistant) -> None:
-        from phi.cli.console import console
+    def print_messages(self) -> None:
         from rich.table import Table
         from rich.box import ROUNDED
         from rich.markdown import Markdown
+        from phi.cli.console import console
 
+        # Get the messages from the thread
+        messages = self.get_messages()
+
+        # Print the response
+        table = Table(box=ROUNDED, border_style="blue")
+        for m in messages[::-1]:
+            if m.role == "user":
+                table.add_column("User")
+                table.add_column(m.get_content_text())
+            if m.role == "assistant":
+                table.add_row("Assistant", Markdown(m.get_content_text()))
+                table.add_section()
+        console.print(table)
+
+    def print_response(self, message: str, assistant: Assistant) -> None:
         # Start the response timer
         response_timer = Timer()
         response_timer.start()
@@ -227,27 +242,7 @@ class Thread(BaseModel):
         # Stop the response timer
         response_timer.stop()
 
-        # Get the messages from the thread
-        messages = self.get_messages()
-
-        # Get the assistant response
-        assistant_response: str = ""
-        for m in messages:
-            oai_message = m.openai_message
-            if oai_message and oai_message.role == "assistant":
-                for content in oai_message.content:
-                    if content.type == "text":
-                        text = content.text
-                        assistant_response += text.value
-                break
-
-        # Convert to markdown
-        md_response = Markdown(assistant_response)
-        table = Table(box=ROUNDED, border_style="blue")
-        table.add_column("Message")
-        table.add_column(message)
-        table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
-        console.print(table)
+        self.print_messages()
 
     def __str__(self) -> str:
         import json

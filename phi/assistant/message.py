@@ -86,7 +86,9 @@ class Message(BaseModel):
             _file_ids = self.file_ids or []
             if self.files:
                 for _file in self.files:
-                    _file_ids.append(_file.get_id())
+                    _file = _file.get_or_create()
+                    if _file.id is not None:
+                        _file_ids.append(_file.id)
             request_body["file_ids"] = _file_ids
         if self.metadata is not None:
             request_body["metadata"] = self.metadata
@@ -158,6 +160,19 @@ class Message(BaseModel):
         except (ThreadIdNotSet, MessageIdNotSet):
             logger.warning("Message not available")
             raise
+
+    def get_content_text(self) -> str:
+        if isinstance(self.content, str):
+            return self.content
+
+        content_str = ""
+        content_list = self.content or (self.openai_message.content if self.openai_message else None)
+        if content_list is not None:
+            for content in content_list:
+                if content.type == "text":
+                    text = content.text
+                    content_str += text.value
+        return content_str
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(

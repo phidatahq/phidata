@@ -150,7 +150,9 @@ class Assistant(BaseModel):
             _file_ids = self.file_ids or []
             if self.files is not None:
                 for _file in self.files:
-                    _file_ids.append(_file.get_id())
+                    _file = _file.get_or_create()
+                    if _file.id is not None:
+                        _file_ids.append(_file.id)
             request_body["file_ids"] = _file_ids
         if self.metadata is not None:
             request_body["metadata"] = self.metadata
@@ -223,7 +225,13 @@ class Assistant(BaseModel):
                     _file_ids = self.file_ids or []
                     if self.files is not None:
                         for _file in self.files:
-                            _file_ids.append(_file.get_id())
+                            try:
+                                _file = _file.get()
+                                if _file.id is not None:
+                                    _file_ids.append(_file.id)
+                            except Exception as e:
+                                logger.warning(f"Unable to get file: {e}")
+                                continue
                     request_body["file_ids"] = _file_ids
                 if self.metadata:
                     request_body["metadata"] = self.metadata
@@ -267,6 +275,7 @@ class Assistant(BaseModel):
                 "tools",
                 "file_ids",
                 "files",
+                "created_at",
             },
         )
 

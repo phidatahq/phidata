@@ -1,4 +1,5 @@
-from typing import Any, Optional, Literal
+from typing import Any, Optional
+from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -75,6 +76,9 @@ class File(BaseModel):
             self.load_from_openai(self.openai_file)
             return self.openai_file
         raise FileIdNotSet("File.id not set")
+
+    def get_id(self) -> str:
+        return self.get().id
 
     def delete(self) -> OpenAIFileDeleted:
         try:

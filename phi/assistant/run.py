@@ -1,8 +1,10 @@
 from typing import Any, Optional, Dict, List
+from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.assistant.tool import Tool
+from phi.assistant.assistant import Assistant
 from phi.assistant.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
 from phi.utils.log import logger
 
@@ -23,35 +25,40 @@ class Run(BaseModel):
 
     # The ID of the thread that was executed on as a part of this run.
     thread_id: Optional[str] = None
+    # Assistant used for this run
+    assistant: Optional[Assistant] = None
     # The ID of the assistant used for execution of this run.
     assistant_id: Optional[str] = None
 
     # The status of the run, which can be either
     # queued, in_progress, requires_action, cancelling, cancelled, failed, completed, or expired.
-    status: Optional[str] = None
+    status: Optional[
+        str
+        | Literal[
+            "queued", "in_progress", "requires_action", "cancelling", "cancelled", "failed", "completed", "expired"
+        ]
+    ] = None
 
     # Details on the action required to continue the run. Will be null if no action is required.
     required_action: Optional[Dict[str, Any]] = None
-
-    # The last error associated with this run. Will be null if there are no errors.
-    last_error: Optional[Dict[str, Any]] = None
 
     # True if this run is active
     is_active: bool = True
     # The Unix timestamp (in seconds) for when the run was created.
     created_at: Optional[int] = None
-    # The Unix timestamp (in seconds) for when the run will expire.
-    expires_at: Optional[int] = None
     # The Unix timestamp (in seconds) for when the run was started.
     started_at: Optional[int] = None
+    # The Unix timestamp (in seconds) for when the run will expire.
+    expires_at: Optional[int] = None
     # The Unix timestamp (in seconds) for when the run was cancelled.
     cancelled_at: Optional[int] = None
     # The Unix timestamp (in seconds) for when the run failed.
     failed_at: Optional[int] = None
     # The Unix timestamp (in seconds) for when the run was completed.
     completed_at: Optional[int] = None
+
     # The list of File IDs the assistant used for this run.
-    file_ids: Optional[List[Any]] = None
+    file_ids: Optional[List[str]] = None
 
     # The ID of the Model to be used to execute this run. If a value is provided here,
     # it will override the model associated with the assistant.
@@ -63,6 +70,9 @@ class Run(BaseModel):
     # Override the tools the assistant can use for this run.
     # This is useful for modifying the behavior on a per-run basis.
     tools: Optional[List[Tool | Dict]] = None
+
+    # The last error associated with this run. Will be null if there are no errors.
+    last_error: Optional[Dict[str, Any]] = None
 
     # Set of 16 key-value pairs that can be attached to an object.
     # This can be useful for storing additional information about the object in a structured format.
@@ -83,24 +93,39 @@ class Run(BaseModel):
     def client(self) -> OpenAI:
         return self.openai or OpenAI()
 
+    def load_from_storage(self):
+        pass
+
     def load_from_openai(self, openai_run: OpenAIRun):
         self.id = openai_run.id
         self.object = openai_run.object
+        self.status = openai_run.status
+        self.required_action = openai_run.required_action
+        self.last_error = openai_run.last_error
+        self.is_active = openai_run.is_active
         self.created_at = openai_run.created_at
+        self.started_at = openai_run.started_at
+        self.expires_at = openai_run.expires_at
+        self.cancelled_at = openai_run.cancelled_at
+        self.failed_at = openai_run.failed_at
+        self.completed_at = openai_run.completed_at
+        self.file_ids = openai_run.file_ids
 
-    def create(self) -> OpenAIRun:
-        if self.thread_id is None:
+    def create(
+        self, thread_id: Optional[str] = None, assistant: Optional[Assistant] = None, assistant_id: Optional[str] = None
+    ) -> "Run":
+        if thread_id is None and self.thread_id is None:
             raise ThreadIdNotSet("Thread.id not set")
 
-        if self.assistant_id is None:
+        if (assistant is None or assistant.id is None) and assistant_id is None and self.assistant_id is None:
             raise AssistantIdNotSet("Assistant.id not set")
 
         request_body: Dict[str, Any] = {}
-        if self.model:
+        if self.model is not None:
             request_body["model"] = self.model
-        if self.instructions:
+        if self.instructions is not None:
             request_body["instructions"] = self.instructions
-        if self.tools:
+        if self.tools is not None:
             _tools = []
             for _tool in self.tools:
                 if isinstance(_tool, Tool):
@@ -108,44 +133,59 @@ class Run(BaseModel):
                 else:
                     _tools.append(_tool)
             request_body["tools"] = _tools
-        if self.metadata:
+        if self.metadata is not None:
             request_body["metadata"] = self.metadata
 
         self.openai_run = self.client.beta.threads.runs.create(
             thread_id=self.thread_id, assistant_id=self.assistant_id, **request_body
         )
         self.load_from_openai(self.openai_run)
-        return self.openai_run
+        logger.debug(f"Run created: {self.id}")
+        return self
 
-    def get(self, use_cache: bool = True) -> OpenAIRun:
+    def get_id(self) -> Optional[str]:
+        _id = self.id or self.openai_run.id if self.openai_run else None
+        if _id is None:
+            self.load_from_storage()
+            _id = self.id
+        return _id
+
+    def get(self, use_cache: bool = True, thread_id: Optional[str] = None) -> "Run":
         if self.openai_run is not None and use_cache:
-            return self.openai_run
+            return self
 
-        if self.thread_id is None:
+        if thread_id is None and self.thread_id is None:
             raise ThreadIdNotSet("Thread.id not set")
 
-        _run_id = self.id or self.openai_run.id if self.openai_run else None
-        if _run_id is not None:
-            self.openai_run = self.client.beta.threads.runs.retrieve(
-                thread_id=self.thread_id,
-                run_id=_run_id,
-            )
-            self.load_from_openai(self.openai_run)
-            return self.openai_run
-        raise RunIdNotSet("Message.id not set")
+        _run_id = self.get_id()
+        if _run_id is None:
+            raise RunIdNotSet("Run.id not set")
 
-    def get_or_create(self, use_cache: bool = True) -> OpenAIRun:
+        self.openai_run = self.client.beta.threads.runs.retrieve(
+            thread_id=self.thread_id,
+            run_id=_run_id,
+        )
+        self.load_from_openai(self.openai_run)
+        return self
+
+    def get_or_create(
+        self,
+        use_cache: bool = True,
+        thread_id: Optional[str] = None,
+        assistant: Optional[Assistant] = None,
+        assistant_id: Optional[str] = None,
+    ) -> "Run":
         try:
             return self.get(use_cache=use_cache)
         except RunIdNotSet:
-            return self.create()
+            return self.create(thread_id=thread_id, assistant=assistant, assistant_id=assistant_id)
 
-    def update(self) -> OpenAIRun:
+    def update(self, thread_id: Optional[str] = None) -> "Run":
         try:
-            run_to_update = self.get()
+            run_to_update = self.get(thread_id=thread_id)
             if run_to_update is not None:
                 request_body: Dict[str, Any] = {}
-                if self.metadata:
+                if self.metadata is not None:
                     request_body["metadata"] = self.metadata
 
                 self.openai_run = self.client.beta.threads.runs.update(
@@ -154,7 +194,8 @@ class Run(BaseModel):
                     **request_body,
                 )
                 self.load_from_openai(self.openai_run)
-                return self.openai_run
+                logger.debug(f"Run updated: {self.id}")
+                return self
         except (ThreadIdNotSet, RunIdNotSet):
             logger.warning("Message not available")
             raise
@@ -173,3 +214,32 @@ class Run(BaseModel):
             if timeout is not None and time.time() - start_time > timeout:
                 raise TimeoutError(f"Run {run.id} did not complete within {timeout} seconds")
             time.sleep(1)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump(
+            exclude_none=True,
+            include={
+                "id",
+                "object",
+                "thread_id",
+                "assistant_id",
+                "status",
+                "required_action",
+                "last_error",
+                "model",
+                "instructions",
+                "tools",
+                "metadata",
+            },
+        )
+
+    def pprint(self):
+        """Pretty print using rich"""
+        from rich.pretty import pprint
+
+        pprint(self.to_dict())
+
+    def __str__(self) -> str:
+        import json
+
+        return json.dumps(self.to_dict(), indent=4)

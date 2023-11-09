@@ -1,4 +1,5 @@
-from typing import Optional, Dict, List, Tuple, Literal
+from typing import Optional, Dict, List, Tuple
+from typing_extensions import Literal
 
 from phi.embedder.base import Embedder
 from phi.utils.env import get_from_env

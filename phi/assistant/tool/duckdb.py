@@ -22,15 +22,16 @@ class DuckDbTools(ToolRegistry):
         self.s3_region: str = s3_region
         self._duckdb_connection: Optional[duckdb.DuckDBPyConnection] = duckdb_connection
 
-        self.register(self.run_duckdb_query)
+        self.register(self.run_query)
         self.register(self.show_tables)
         self.register(self.describe_table)
         self.register(self.inspect_query)
-        self.register(self.describe_table_or_view)
+        self.register(self.load_local_path_to_table)
+        # self.register(self.describe_table_or_view)
         self.register(self.export_table_as)
-        self.register(self.summarize_table)
-        self.register(self.create_fts_index)
-        self.register(self.full_text_search)
+        # self.register(self.summarize_table)
+        # self.register(self.create_fts_index)
+        # self.register(self.full_text_search)
 
     @property
     def duckdb_connection(self) -> duckdb.DuckDBPyConnection:
@@ -51,7 +52,7 @@ class DuckDbTools(ToolRegistry):
 
         return self._duckdb_connection
 
-    def run_duckdb_query(self, query: str) -> str:
+    def run_query(self, query: str) -> str:
         """Function to run SQL queries against a duckdb database
 
         :param query: SQL query to run
@@ -99,7 +100,7 @@ class DuckDbTools(ToolRegistry):
         :return: List of tables in the database
         """
         stmt = "SHOW TABLES;"
-        tables = self.run_duckdb_query(stmt)
+        tables = self.run_query(stmt)
         logger.debug(f"Tables: {tables}")
         return tables
 
@@ -110,7 +111,7 @@ class DuckDbTools(ToolRegistry):
         :return: Description of the table
         """
         stmt = f"DESCRIBE {table};"
-        table_description = self.run_duckdb_query(stmt)
+        table_description = self.run_query(stmt)
 
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
@@ -122,7 +123,7 @@ class DuckDbTools(ToolRegistry):
         :return: Description of the table
         """
         stmt = f"SUMMARIZE SELECT * FROM {table};"
-        table_description = self.run_duckdb_query(stmt)
+        table_description = self.run_query(stmt)
 
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
@@ -134,7 +135,7 @@ class DuckDbTools(ToolRegistry):
         :return: Qeury plan
         """
         stmt = f"explain {query};"
-        explain_plan = self.run_duckdb_query(stmt)
+        explain_plan = self.run_query(stmt)
 
         logger.debug(f"Explain plan: {explain_plan}")
         return explain_plan
@@ -146,7 +147,7 @@ class DuckDbTools(ToolRegistry):
         :return: Description of the table or view
         """
         stmt = f"select column_name, data_type from information_schema.columns where table_name='{table}';"
-        table_description = self.run_duckdb_query(stmt)
+        table_description = self.run_query(stmt)
 
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
@@ -171,10 +172,10 @@ class DuckDbTools(ToolRegistry):
             table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
         create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{path}';"
-        self.run_duckdb_query(create_statement)
+        self.run_query(create_statement)
 
         logger.debug(f"Loaded {path} into duckdb as {table_name}")
-        # self.run_duckdb_query(f"SELECT * from {table_name};")
+        # self.run_query(f"SELECT * from {table_name};")
         return table_name, create_statement
 
     def load_local_csv_to_table(
@@ -206,10 +207,10 @@ class DuckDbTools(ToolRegistry):
             select_statement += ")"
 
         create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS {select_statement};"
-        self.run_duckdb_query(create_statement)
+        self.run_query(create_statement)
 
         logger.debug(f"Loaded CSV {path} into duckdb as {table_name}")
-        # self.run_duckdb_query(f"SELECT * from {table_name};")
+        # self.run_query(f"SELECT * from {table_name};")
         return table_name, create_statement
 
     def load_s3_path_to_table(self, s3_path: str, table_name: Optional[str] = None) -> Tuple[str, str]:
@@ -232,10 +233,10 @@ class DuckDbTools(ToolRegistry):
             table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
         create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{s3_path}';"
-        self.run_duckdb_query(create_statement)
+        self.run_query(create_statement)
 
         logger.debug(f"Loaded {s3_path} into duckdb as {table_name}")
-        # self.run_duckdb_query(f"SELECT * from {table_name};")
+        # self.run_query(f"SELECT * from {table_name};")
         return table_name, create_statement
 
     def load_s3_csv_to_table(
@@ -266,10 +267,10 @@ class DuckDbTools(ToolRegistry):
             select_statement += ")"
 
         create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS {select_statement};"
-        self.run_duckdb_query(create_statement)
+        self.run_query(create_statement)
 
         logger.debug(f"Loaded CSV {s3_path} into duckdb as {table_name}")
-        # self.run_duckdb_query(f"SELECT * from {table_name};")
+        # self.run_query(f"SELECT * from {table_name};")
         return table_name, create_statement
 
     def export_table_as(self, table_name: str, format: Optional[str] = "PARQUET", path: Optional[str] = None) -> str:
@@ -286,13 +287,13 @@ class DuckDbTools(ToolRegistry):
             format = "PARQUET"
 
         logger.debug(f"Exporting Table {table_name} as {format.upper()} in the path {path}")
-        # self.run_duckdb_query(f"SELECT * from {table_name};")
+        # self.run_query(f"SELECT * from {table_name};")
         if path is None:
             path = f"{table_name}.{format}"
         else:
             path = f"{path}/{table_name}.{format}"
         export_statement = f"COPY (SELECT * FROM {table_name}) TO '{path}' (FORMAT {format.upper()});"
-        result = self.run_duckdb_query(export_statement)
+        result = self.run_query(export_statement)
         logger.debug(f"Exported {table_name} to {path}/{table_name}")
 
         return result
@@ -306,14 +307,14 @@ class DuckDbTools(ToolRegistry):
         :return: None
         """
         logger.debug(f"Creating FTS index on {table_name} for {input_values}")
-        self.run_duckdb_query("INSTALL fts;")
+        self.run_query("INSTALL fts;")
         logger.debug("Installed FTS extension")
-        self.run_duckdb_query("LOAD fts;")
+        self.run_query("LOAD fts;")
         logger.debug("Loaded FTS extension")
 
         create_fts_index_statement = f"PRAGMA create_fts_index('{table_name}', '{unique_key}', '{input_values}');"
         logger.debug(f"Running {create_fts_index_statement}")
-        result = self.run_duckdb_query(create_fts_index_statement)
+        result = self.run_query(create_fts_index_statement)
         logger.debug(f"Created FTS index on {table_name} for {input_values}")
 
         return result
@@ -333,7 +334,7 @@ class DuckDbTools(ToolRegistry):
                                     ORDER BY score;"""
 
         logger.debug(f"Running {search_text_statement}")
-        result = self.run_duckdb_query(search_text_statement)
+        result = self.run_query(search_text_statement)
         logger.debug(f"Search results for {search_text} in {table_name}")
 
         return result

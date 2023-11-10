@@ -164,7 +164,22 @@ class Conversation(BaseModel):
 
     @model_validator(mode="after")
     def add_functions_to_llm(self) -> "Conversation":
+        update_tool_choice = False
+
+        # Add functions from self.functions
+        if self.functions is not None:
+            update_tool_choice = True
+            for func in self.functions:
+                self.llm.add_function(func)
+
+        # Add functions from registries
+        if self.function_registries is not None:
+            update_tool_choice = True
+            for registry in self.function_registries:
+                self.llm.add_function_registry(registry)
+
         if self.function_calls:
+            update_tool_choice = True
             if self.default_functions:
                 default_func_list: List[Callable] = [
                     self.get_last_n_chats,
@@ -173,23 +188,19 @@ class Conversation(BaseModel):
                 for func in default_func_list:
                     self.llm.add_function(func)
 
-            # Add functions from self.functions
-            if self.functions is not None:
-                for func in self.functions:
-                    self.llm.add_function(func)
-
-            # Add functions from registries
-            if self.function_registries is not None:
-                for registry in self.function_registries:
-                    self.llm.add_function_registry(registry)
-
+        # Set function_call/tool_choice to auto if it is not set
+        if update_tool_choice:
             # Set function call to auto if it is not set
             if self.llm.function_call is None:
                 self.llm.function_call = "auto"
+            # Set tool_choice to auto if it is not set
+            if self.llm.tool_choice is None:
+                self.llm.tool_choice = "auto"
 
-            # Set show_function_calls if it is not set on the llm
-            if self.llm.show_function_calls is None:
-                self.llm.show_function_calls = self.show_function_calls
+        # Set show_function_calls if it is not set on the llm
+        if self.llm.show_function_calls is None:
+            self.llm.show_function_calls = self.show_function_calls
+
         return self
 
     @model_validator(mode="after")
@@ -198,9 +209,13 @@ class Conversation(BaseModel):
             for agent in self.agents:
                 self.llm.add_agent(agent)
 
-            # Set function call to auto if it is not set
+            # Set function_call to auto if it is not set
             if self.llm.function_call is None:
                 self.llm.function_call = "auto"
+
+            # Set tool_choice to auto if it is not set
+            if self.llm.tool_choice is None:
+                self.llm.tool_choice = "auto"
 
             # Set show_function_calls if it is not set on the llm
             if self.llm.show_function_calls is None:

@@ -1,10 +1,12 @@
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
-from phi.llm.schemas import Message, FunctionCall
+from phi.llm.schemas import Message
+from phi.tool.function import FunctionCall
 from phi.utils.env import get_from_env
 from phi.utils.log import logger
 from phi.utils.timer import Timer
+from phi.utils.functions import get_function_call
 
 try:
     from openai import OpenAI
@@ -72,19 +74,10 @@ class OpenAIChat(LLM):
         if self.headers:
             kwargs["headers"] = self.headers
         if self.tools:
-            kwargs["tools"] = [t.to_dict() for t in self.tools]
-            if self.tool_choice is not None:
-                kwargs["tool_choice"] = self.tool_choice
-        if self.functions:
-            if kwargs.get("tools") is None:
-                kwargs["tools"] = []
-            for f in self.functions.values():
-                function_tool = {
-                    "type": "function",
-                    "function": f.to_dict(),
-                }
-                kwargs["tools"].append(function_tool)
-            if self.tool_choice is not None:
+            kwargs["tools"] = self.get_tools_for_api()
+            if self.tool_choice is None:
+                kwargs["tool_choice"] = "auto"
+            else:
                 kwargs["tool_choice"] = self.tool_choice
         return kwargs
 
@@ -163,9 +156,15 @@ class OpenAIChat(LLM):
                             # logger.debug(f"Double chunk: {chunk}")
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
                             for completion_chunk in json.loads(chunks):
-                                yield ChatCompletionChunk.model_validate_json(completion_chunk)
+                                try:
+                                    yield ChatCompletionChunk.model_validate_json(completion_chunk)
+                                except Exception as e:
+                                    logger.warning(e)
                         else:
-                            yield ChatCompletionChunk.model_validate_json(chunk)
+                            try:
+                                yield ChatCompletionChunk.model_validate_json(chunk)
+                            except Exception as e:
+                                logger.warning(e)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
@@ -183,7 +182,9 @@ class OpenAIChat(LLM):
         _function_arguments_str = function_call.get("arguments")
         if _function_name is not None:
             # Get function call
-            _function_call = self.get_function_call(name=_function_name, arguments=_function_arguments_str)
+            _function_call = get_function_call(
+                name=_function_name, arguments=_function_arguments_str, functions=self.functions
+            )
             if _function_call is None:
                 return Message(role="function", content="Could not find function to call."), None
 
@@ -200,7 +201,7 @@ class OpenAIChat(LLM):
             self.function_call_stack.append(_function_call)
             _function_call_timer = Timer()
             _function_call_timer.start()
-            _function_call.run()
+            _function_call.execute()
             _function_call_timer.stop()
             _function_call_message = Message(
                 role="function",
@@ -227,8 +228,10 @@ class OpenAIChat(LLM):
                     _tool_call_function_arguments_str = _tool_call_function.get("arguments")
                     if _tool_call_function_name is not None:
                         # Get tool call
-                        function_call = self.get_function_call(
-                            name=_tool_call_function_name, arguments=_tool_call_function_arguments_str
+                        function_call = get_function_call(
+                            name=_tool_call_function_name,
+                            arguments=_tool_call_function_arguments_str,
+                            functions=self.functions,
                         )
                         if function_call is None:
                             tool_call_results.append(
@@ -256,7 +259,7 @@ class OpenAIChat(LLM):
                         self.function_call_stack.append(function_call)
                         tool_call_timer = Timer()
                         tool_call_timer.start()
-                        function_call.run()
+                        function_call.execute()
                         tool_call_timer.stop()
                         tool_call_message = Message(
                             role="tool",
@@ -338,10 +341,6 @@ class OpenAIChat(LLM):
         messages.append(assistant_message)
         assistant_message.log()
 
-        # -*- Return content if present, otherwise run function call
-        if assistant_message.content is not None:
-            return assistant_message.get_content_string()
-
         # -*- Parse and run function call
         need_to_run_functions = assistant_message.function_call is not None or assistant_message.tool_calls is not None
         if need_to_run_functions and self.run_function_calls:
@@ -364,7 +363,11 @@ class OpenAIChat(LLM):
                 # -*- Get new response using result of tool call
                 final_response += self.parsed_response(messages=messages)
                 return final_response
+
         logger.debug("---------- OpenAI Response End ----------")
+        # -*- Return content if no function calls are present
+        if assistant_message.content is not None:
+            return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
     def response_message(self, messages: List[Message]) -> Dict:

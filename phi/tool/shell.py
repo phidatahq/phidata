@@ -1,12 +1,12 @@
 from typing import List
 
-from phi.llm.agent.base import BaseAgent
+from phi.tool.registry import ToolRegistry
 from phi.utils.log import logger
 
 
-class ShellAgent(BaseAgent):
+class ShellTool(ToolRegistry):
     def __init__(self):
-        super().__init__(name="shell_agent")
+        super().__init__(name="shell_tools")
         self.register(self.run_shell_command)
 
     def run_shell_command(self, args: List[str], tail: int = 100) -> str:

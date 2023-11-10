@@ -6,10 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
-from phi.llm.schemas import Message, References
 from phi.llm.openai import OpenAIChat
-from phi.llm.agent.base import BaseAgent
-from phi.llm.function.registry import FunctionRegistry
+from phi.llm.schemas import Message, References
+from phi.tool.tool import Tool
+from phi.tool.registry import ToolRegistry
 from phi.llm.task.memory.base import TaskMemory
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger
@@ -42,28 +42,32 @@ class LLMTask(BaseModel):
     add_references_to_prompt: bool = False
 
     # -*- Enable Function Calls
-    # Makes the task autonomous.
+    # Makes the task Autonomous by letting the LLM call functions to achieve tasks.
     function_calls: bool = False
-    # Add a list of default functions to the LLM
+    # Add default functions to the LLM when function_calls is True.
     default_functions: bool = True
     # Show function calls in LLM messages.
     show_function_calls: bool = False
-    # A list of functions to add to the LLM.
-    functions: Optional[List[Callable]] = None
-    # A list of function registries to add to the LLM.
-    function_registries: Optional[List[FunctionRegistry]] = None
 
-    # -*- Agents
-    # Add a list of agents to the LLM
-    # function_calls must be True for agents to be added to the LLM
-    agents: Optional[List[BaseAgent]] = None
+    # -*- Task Tools
+    # A list of tools provided to the LLM.
+    # Currently, only functions are supported as a tool.
+    # Use this to provide a list of functions the model may generate JSON inputs for.
+    tools: Optional[List[Union[Tool, Dict, Callable, ToolRegistry]]] = None
+    # Controls which (if any) function is called by the model.
+    # "none" means the model will not call a function and instead generates a message.
+    # "auto" means the model can pick between generating a message or calling a function.
+    # Specifying a particular function via {"type: "function", "function": {"name": "my_function"}}
+    #   forces the model to call that function.
+    # "none" is the default when no functions are present. "auto" is the default if functions are present.
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
     #
     # -*- Prompt Settings
     #
-    # -*- System prompt: provide the system prompt as a string or using a function
+    # -*- System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
-    # Function to build the system prompt.
+    # -*- System prompt function: provide the system prompt as a function
     # This function is provided the task as an argument
     #   and should return the system_prompt as a string.
     # Signature:
@@ -73,10 +77,10 @@ class LLMTask(BaseModel):
     # If True, the task provides a default system prompt
     use_default_system_prompt: bool = True
 
-    # -*- User prompt: provide the user prompt as a string or using a function
+    # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the message provided to the run function
     user_prompt: Optional[Union[List[Dict], str]] = None
-    # Function to build the user prompt.
+    # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the task and the input message as arguments
     #   and should return the user_prompt as a Union[List[Dict], str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
@@ -106,52 +110,25 @@ class LLMTask(BaseModel):
         if self.id is None:
             self.id = str(uuid4())
 
-    def add_functions_to_llm(self) -> None:
+    def add_tools_to_llm(self) -> None:
         if self.llm is None:
             return
 
-        if self.function_calls:
-            if self.default_functions:
-                default_func_list: List[Callable] = [
-                    self.get_last_n_chats,
-                    self.search_knowledge_base,
-                ]
-                for func in default_func_list:
-                    self.llm.add_function(func)
+        if self.function_calls and self.default_functions:
+            default_func_list: List[Callable] = [
+                self.get_last_n_chats,
+                self.search_knowledge_base,
+            ]
+            for func in default_func_list:
+                self.llm.add_tool(func)
 
-            # Add functions from self.functions
-            if self.functions is not None:
-                for func in self.functions:
-                    self.llm.add_function(func)
+        # Set show_function_calls if it is not set on the llm
+        if self.llm.show_function_calls is None and self.show_function_calls is not None:
+            self.llm.show_function_calls = self.show_function_calls
 
-            # Add functions from registries
-            if self.function_registries is not None:
-                for registry in self.function_registries:
-                    self.llm.add_function_registry(registry)
-
-            # Set function call to auto if it is not set
-            if self.llm.function_call is None:
-                self.llm.function_call = "auto"
-
-            # Set show_function_calls if it is not set on the llm
-            if self.llm.show_function_calls is None:
-                self.llm.show_function_calls = self.show_function_calls
-
-    def add_agents_to_llm(self) -> None:
-        if self.llm is None:
-            return
-
-        if self.agents is not None and len(self.agents) > 0:
-            for agent in self.agents:
-                self.llm.add_agent(agent)
-
-            # Set function call to auto if it is not set
-            if self.llm.function_call is None:
-                self.llm.function_call = "auto"
-
-            # Set show_function_calls if it is not set on the llm
-            if self.llm.show_function_calls is None:
-                self.llm.show_function_calls = self.show_function_calls
+        # Set tool_choice to auto if it is not set on the llm
+        if self.llm.tool_choice is None and self.tool_choice is not None:
+            self.llm.tool_choice = self.tool_choice
 
     def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the task"""
@@ -287,8 +264,7 @@ class LLMTask(BaseModel):
 
         # -*- Prepare the task
         self.set_task_id()
-        self.add_functions_to_llm()
-        self.add_agents_to_llm()
+        self.add_tools_to_llm()
 
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()

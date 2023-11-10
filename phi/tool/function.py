@@ -4,19 +4,8 @@ from pydantic import BaseModel, validate_call
 from phi.utils.log import logger
 
 
-class Tool(BaseModel):
-    """Model for Assistant Tools"""
-
-    # The type of tool
-    type: str
-    function: Optional[Dict[str, Any]] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return self.model_dump(exclude_none=True)
-
-
 class Function(BaseModel):
-    """Model for Assistant functions"""
+    """Model for Functions"""
 
     # The name of the function to be called.
     # Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
@@ -53,7 +42,7 @@ class Function(BaseModel):
 
 
 class FunctionCall(BaseModel):
-    """Model for Assistant function calls"""
+    """Model for Function Calls"""
 
     # The function to be called.
     function: Function

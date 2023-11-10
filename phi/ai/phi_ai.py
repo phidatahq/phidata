@@ -13,9 +13,10 @@ from phi.api.schemas.ai import ConversationType
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import console
 from phi.cli.settings import phi_cli_settings
-from phi.llm.schemas import Function, Message, FunctionCall
-from phi.llm.function.shell import ShellScriptsRegistry
-from phi.llm.function.phi_commands import PhiCommandsRegistry
+from phi.llm.schemas import Message
+from phi.tool.function import Function, FunctionCall
+from phi.tool.shell import ShellTool
+from phi.tool.phi import PhiTool
 from phi.workspace.config import WorkspaceConfig
 from phi.utils.log import logger
 from phi.utils.functions import get_function_call
@@ -41,7 +42,7 @@ class PhiAI:
         _active_workspace = _phi_config.get_active_ws_config()
 
         self.conversation_db: Optional[List[Dict[str, Any]]] = None
-        self.functions: Dict[str, Function] = {**ShellScriptsRegistry().functions, **PhiCommandsRegistry().functions}
+        self.functions: Dict[str, Function] = {**ShellTool().functions, **PhiTool().functions}
 
         _conversation_id = None
         _conversation_history = None
@@ -170,7 +171,7 @@ class PhiAI:
             yield f"Running: {function_call_obj.get_call_str()}\n\n"
             function_call_timer = Timer()
             function_call_timer.start()
-            function_call_obj.run()
+            function_call_obj.execute()
             function_call_timer.stop()
             function_call_message = Message(
                 role="function",
@@ -213,7 +214,7 @@ class PhiAI:
             function_run_response = f"Running: {function_call_obj.get_call_str()}\n\n"
             function_call_timer = Timer()
             function_call_timer.start()
-            function_call_obj.run()
+            function_call_obj.execute()
             function_call_timer.stop()
             function_call_message = Message(
                 role="function",

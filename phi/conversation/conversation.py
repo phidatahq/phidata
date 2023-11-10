@@ -12,9 +12,9 @@ from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
 from phi.llm.schemas import Message, References
-from phi.llm.agent.base import BaseAgent
-from phi.llm.function.registry import FunctionRegistry
 from phi.llm.task.llm_task import LLMTask
+from phi.tool.tool import Tool
+from phi.tool.registry import ToolRegistry
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.timer import Timer
@@ -22,9 +22,7 @@ from phi.utils.timer import Timer
 
 class Conversation(BaseModel):
     # -*- LLM settings
-    # LLM to use for this conversation
     llm: LLM = OpenAIChat()
-    # LLM Introduction
     # Add an introduction (from the LLM) to the chat history
     introduction: Optional[str] = None
 
@@ -75,19 +73,23 @@ class Conversation(BaseModel):
     # -*- Enable Function Calls
     # Makes the conversation Autonomous by letting the LLM call functions to achieve tasks.
     function_calls: bool = False
-    # Add a list of default functions to the LLM
+    # Add default functions to the LLM when function_calls is True.
     default_functions: bool = True
     # Show function calls in LLM messages.
     show_function_calls: bool = False
-    # A list of functions to add to the LLM.
-    functions: Optional[List[Callable]] = None
-    # A list of function registries to add to the LLM.
-    function_registries: Optional[List[FunctionRegistry]] = None
 
-    # -*- Agents
-    # Add a list of agents to the LLM
-    # function_calls must be True for agents to be added to the LLM
-    agents: Optional[List[BaseAgent]] = None
+    # -*- Conversation Tools
+    # A list of tools provided to the LLM.
+    # Currently, only functions are supported as a tool.
+    # Use this to provide a list of functions the model may generate JSON inputs for.
+    tools: Optional[List[Union[Tool, Dict, Callable, ToolRegistry]]] = None
+    # Controls which (if any) function is called by the model.
+    # "none" means the model will not call a function and instead generates a message.
+    # "auto" means the model can pick between generating a message or calling a function.
+    # Specifying a particular function via {"type: "function", "function": {"name": "my_function"}}
+    #   forces the model to call that function.
+    # "none" is the default when no functions are present. "auto" is the default if functions are present.
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
     # -*- Tasks
     # Generate a response using tasks instead of a prompt
@@ -96,9 +98,9 @@ class Conversation(BaseModel):
     #
     # -*- Prompt Settings
     #
-    # -*- System prompt: provide the system prompt as a string or using a function
+    # -*- System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
-    # Function to build the system prompt.
+    # -*- System prompt function: provide the system prompt as a function
     # This function is provided the conversation as an argument
     #   and should return the system_prompt as a string.
     # Signature:
@@ -108,10 +110,10 @@ class Conversation(BaseModel):
     # If True, the conversation provides a default system prompt
     use_default_system_prompt: bool = True
 
-    # -*- User prompt: provide the user prompt as a string or using a function
+    # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the message provided to the chat function
     user_prompt: Optional[Union[List[Dict], str]] = None
-    # Function to build the user prompt.
+    # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the conversation and the user message as arguments
     #   and should return the user_prompt as a Union[List[Dict], str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
@@ -141,7 +143,7 @@ class Conversation(BaseModel):
     #     ...
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
 
-    # -*- Latest LLM response
+    # -*- Latest LLM response i.e. the final output of this conversation
     output: Optional[Any] = None
 
     # If True, show debug logs
@@ -163,63 +165,27 @@ class Conversation(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def add_functions_to_llm(self) -> "Conversation":
-        update_tool_choice = False
+    def add_tools_to_llm(self) -> "Conversation":
+        if self.tools is not None:
+            for tool in self.tools:
+                self.llm.add_tool(tool)
 
-        # Add functions from self.functions
-        if self.functions is not None:
-            update_tool_choice = True
-            for func in self.functions:
-                self.llm.add_function(func)
-
-        # Add functions from registries
-        if self.function_registries is not None:
-            update_tool_choice = True
-            for registry in self.function_registries:
-                self.llm.add_function_registry(registry)
-
-        if self.function_calls:
-            update_tool_choice = True
-            if self.default_functions:
-                default_func_list: List[Callable] = [
-                    self.get_last_n_chats,
-                    self.search_knowledge_base,
-                ]
-                for func in default_func_list:
-                    self.llm.add_function(func)
-
-        # Set function_call/tool_choice to auto if it is not set
-        if update_tool_choice:
-            # Set function call to auto if it is not set
-            if self.llm.function_call is None:
-                self.llm.function_call = "auto"
-            # Set tool_choice to auto if it is not set
-            if self.llm.tool_choice is None:
-                self.llm.tool_choice = "auto"
+        if self.function_calls and self.default_functions:
+            default_func_list: List[Callable] = [
+                self.get_last_n_chats,
+                self.search_knowledge_base,
+            ]
+            for func in default_func_list:
+                self.llm.add_tool(func)
 
         # Set show_function_calls if it is not set on the llm
-        if self.llm.show_function_calls is None:
+        if self.llm.show_function_calls is None and self.show_function_calls is not None:
             self.llm.show_function_calls = self.show_function_calls
 
-        return self
+        # Set tool_choice to auto if it is not set on the llm
+        if self.llm.tool_choice is None and self.tool_choice is not None:
+            self.llm.tool_choice = self.tool_choice
 
-    @model_validator(mode="after")
-    def add_agents_to_llm(self) -> "Conversation":
-        if self.agents is not None and len(self.agents) > 0:
-            for agent in self.agents:
-                self.llm.add_agent(agent)
-
-            # Set function_call to auto if it is not set
-            if self.llm.function_call is None:
-                self.llm.function_call = "auto"
-
-            # Set tool_choice to auto if it is not set
-            if self.llm.tool_choice is None:
-                self.llm.tool_choice = "auto"
-
-            # Set show_function_calls if it is not set on the llm
-            if self.llm.show_function_calls is None:
-                self.llm.show_function_calls = self.show_function_calls
         return self
 
     def to_database_row(self) -> ConversationRow:
@@ -263,16 +229,6 @@ class Conversation(BaseModel):
                     self.llm.metrics = llm_metrics_from_db
                 except Exception as e:
                     logger.warning(f"Failed to load llm metrics: {e}")
-
-            # # Update llm functions from the database
-            # llm_functions_from_db = row.llm.get("functions")
-            # if llm_functions_from_db is not None and isinstance(llm_functions_from_db, dict):
-            #     try:
-            #         for k, v in llm_functions_from_db.items():
-            #             _llm_function = Function(**v)
-            #             self.llm.add_function_schema(func=_llm_function, if_not_exists=True)
-            #     except Exception as e:
-            #         logger.error(f"Failed to load llm functions: {e}")
 
         # Update conversation memory from the ConversationRow
         if row.memory is not None:

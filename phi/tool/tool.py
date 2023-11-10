@@ -3,10 +3,11 @@ from pydantic import BaseModel
 
 
 class Tool(BaseModel):
-    """Model for Assistant Tools"""
+    """Model for Tools"""
 
     # The type of tool
     type: str
+    # The function to be called if type = "function"
     function: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:

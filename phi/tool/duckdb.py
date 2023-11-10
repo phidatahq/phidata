@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 
-from phi.assistant.tool.registry import ToolRegistry
+from phi.tool.registry import ToolRegistry
 from phi.utils.log import logger
 
 try:
@@ -9,7 +9,7 @@ except ImportError:
     raise ImportError("`duckdb` not installed. Please install it using `pip install duckdb`.")
 
 
-class DuckDbTools(ToolRegistry):
+class DuckDbTool(ToolRegistry):
     def __init__(
         self,
         db_path: str = ":memory:",

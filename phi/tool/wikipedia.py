@@ -3,13 +3,13 @@ from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.wikipedia import WikipediaKnowledgeBase
-from phi.llm.function.registry import FunctionRegistry
+from phi.tool.registry import ToolRegistry
 from phi.utils.log import logger
 
 
-class WikipediaRegistry(FunctionRegistry):
+class WikipediaTool(ToolRegistry):
     def __init__(self, knowledge_base: Optional[WikipediaKnowledgeBase] = None):
-        super().__init__(name="wikipedia_registry")
+        super().__init__(name="wikipedia_tools")
         self.knowledge_base: Optional[WikipediaKnowledgeBase] = knowledge_base
 
         if self.knowledge_base is not None and isinstance(self.knowledge_base, WikipediaKnowledgeBase):

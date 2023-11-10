@@ -3,11 +3,12 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from phi.assistant.tool import Tool
-from phi.assistant.tool.registry import ToolRegistry
-from phi.assistant.function import Function
 from phi.assistant.assistant import Assistant
 from phi.assistant.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
+from phi.tool import Tool
+from phi.tool.registry import ToolRegistry
+from phi.tool.function import Function
+from phi.utils.functions import get_function_call
 from phi.utils.log import logger
 
 try:
@@ -300,8 +301,10 @@ class Run(BaseModel):
                         tool_outputs = []
                         for tool_call in tool_calls:
                             if tool_call.type == "function":
-                                function_call = self.assistant.get_function_call(
-                                    name=tool_call.function.name, arguments=tool_call.function.arguments
+                                function_call = get_function_call(
+                                    name=tool_call.function.name,
+                                    arguments=tool_call.function.arguments,
+                                    functions=self.assistant.functions,
                                 )
                                 if function_call is None:
                                     logger.error(f"Function {tool_call.function.name} not found")

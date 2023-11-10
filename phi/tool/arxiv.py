@@ -3,11 +3,11 @@ from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.arxiv import ArxivKnowledgeBase
-from phi.assistant.tool.registry import ToolRegistry
+from phi.tool.registry import ToolRegistry
 from phi.utils.log import logger
 
 
-class ArxivTools(ToolRegistry):
+class ArxivTool(ToolRegistry):
     def __init__(self, knowledge_base: Optional[ArxivKnowledgeBase] = None):
         super().__init__(name="arxiv_tools")
         self.knowledge_base: Optional[ArxivKnowledgeBase] = knowledge_base

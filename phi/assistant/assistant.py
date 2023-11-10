@@ -3,12 +3,12 @@ from typing import List, Any, Optional, Dict, Union, Callable
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from phi.agent import Agent
 from phi.assistant.file import File
 from phi.assistant.row import AssistantRow
 from phi.assistant.storage import AssistantStorage
 from phi.assistant.exceptions import AssistantIdNotSet
 from phi.tool import Tool
-from phi.tool.registry import ToolRegistry
 from phi.tool.function import Function
 from phi.knowledge.base import KnowledgeBase
 from phi.utils.log import logger, set_log_level_to_debug
@@ -42,7 +42,7 @@ class Assistant(BaseModel):
     # -*- Assistant Tools
     # A list of tool enabled on the assistant. There can be a maximum of 128 tools per assistant.
     # Tools can be of types code_interpreter, retrieval, or function.
-    tools: Optional[List[Union[Tool, Dict, Callable, ToolRegistry]]] = None
+    tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
     # -*- Functions available to the Assistant to call
     # Functions provided from the tools. Note: These are not sent to the LLM API.
     functions: Optional[Dict[str, Function]] = None
@@ -101,7 +101,7 @@ class Assistant(BaseModel):
             for tool in self.tools:
                 if self.functions is None:
                     self.functions = {}
-                if isinstance(tool, ToolRegistry):
+                if isinstance(tool, Agent):
                     self.functions.update(tool.functions)
                     logger.debug(f"Tools from {tool.name} added to Assistant.")
                 elif callable(tool):
@@ -133,7 +133,7 @@ class Assistant(BaseModel):
             elif callable(tool):
                 func = Function.from_callable(tool)
                 tools_for_api.append({"type": "function", "function": func.to_dict()})
-            elif isinstance(tool, ToolRegistry):
+            elif isinstance(tool, Agent):
                 for _f in tool.functions.values():
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
         return tools_for_api

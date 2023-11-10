@@ -3,14 +3,15 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from phi.agent import Agent
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
-from phi.llm.schemas import Message, References
+from phi.llm.message import Message
+from phi.llm.references import References
+from phi.llm.task.memory import TaskMemory
 from phi.tool.tool import Tool
-from phi.tool.registry import ToolRegistry
-from phi.llm.task.memory.base import TaskMemory
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -53,7 +54,7 @@ class LLMTask(BaseModel):
     # A list of tools provided to the LLM.
     # Currently, only functions are supported as a tool.
     # Use this to provide a list of functions the model may generate JSON inputs for.
-    tools: Optional[List[Union[Tool, Dict, Callable, ToolRegistry]]] = None
+    tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
     # Controls which (if any) function is called by the model.
     # "none" means the model will not call a function and instead generates a message.
     # "auto" means the model can pick between generating a message or calling a function.
@@ -61,6 +62,11 @@ class LLMTask(BaseModel):
     #   forces the model to call that function.
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+
+    # -*- Agents
+    # A list of agents provided to the LLM
+    # These are added to the tools list
+    agents: Optional[List[Agent]] = None
 
     #
     # -*- Prompt Settings
@@ -113,6 +119,14 @@ class LLMTask(BaseModel):
     def add_tools_to_llm(self) -> None:
         if self.llm is None:
             return
+
+        if self.tools is not None:
+            for tool in self.tools:
+                self.llm.add_tool(tool)
+
+        if self.agents is not None:
+            for agent in self.agents:
+                self.llm.add_tool(agent)
 
         if self.function_calls and self.default_functions:
             default_func_list: List[Callable] = [

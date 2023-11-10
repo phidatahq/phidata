@@ -2,7 +2,8 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel
 
-from phi.llm.schemas import Message, References
+from phi.llm.message import Message
+from phi.llm.references import References
 
 
 class ConversationMemory(BaseModel):

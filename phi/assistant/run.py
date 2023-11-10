@@ -3,10 +3,10 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from phi.agent import Agent
 from phi.assistant.assistant import Assistant
 from phi.assistant.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
 from phi.tool import Tool
-from phi.tool.registry import ToolRegistry
 from phi.tool.function import Function
 from phi.utils.functions import get_function_call
 from phi.utils.log import logger
@@ -73,9 +73,9 @@ class Run(BaseModel):
     instructions: Optional[str] = None
     # Override the tools the assistant can use for this run.
     # This is useful for modifying the behavior on a per-run basis.
-    tools: Optional[List[Union[Tool, Dict, Callable, ToolRegistry]]] = None
+    tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
     # Functions the Run may call.
-    _function_map: Optional[Dict[str, Function]] = None
+    functions: Optional[Dict[str, Function]] = None
 
     # The last error associated with this run. Will be null if there are no errors.
     last_error: Optional[LastError] = None
@@ -99,24 +99,19 @@ class Run(BaseModel):
     def client(self) -> OpenAI:
         return self.openai or OpenAI()
 
-    def add_function(self, f: Function) -> None:
-        if self._function_map is None:
-            self._function_map = {}
-        self._function_map[f.name] = f
-        logger.debug(f"Added function {f.name} to Run")
-
     @model_validator(mode="after")
-    def add_functions_to_assistant(self) -> "Run":
+    def extract_functions_from_tools(self) -> "Run":
         if self.tools is not None:
             for tool in self.tools:
-                if callable(tool):
-                    f = Function.from_callable(tool)
-                    self.add_function(f)
-                elif isinstance(tool, ToolRegistry):
-                    if self._function_map is None:
-                        self._function_map = {}
-                    self._function_map.update(tool.functions)
+                if self.functions is None:
+                    self.functions = {}
+                if isinstance(tool, Agent):
+                    self.functions.update(tool.functions)
                     logger.debug(f"Tools from {tool.name} added to Assistant.")
+                elif callable(tool):
+                    f = Function.from_callable(tool)
+                    self.functions[f.name] = f
+                    logger.debug(f"Added function {f.name} to Assistant")
         return self
 
     def load_from_storage(self):
@@ -137,6 +132,24 @@ class Run(BaseModel):
         self.file_ids = openai_run.file_ids
         self.openai_run = openai_run
 
+    def get_tools_for_api(self) -> Optional[List[Dict[str, Any]]]:
+        if self.tools is None:
+            return None
+
+        tools_for_api = []
+        for tool in self.tools:
+            if isinstance(tool, Tool):
+                tools_for_api.append(tool.to_dict())
+            elif isinstance(tool, dict):
+                tools_for_api.append(tool)
+            elif callable(tool):
+                func = Function.from_callable(tool)
+                tools_for_api.append({"type": "function", "function": func.to_dict()})
+            elif isinstance(tool, Agent):
+                for _f in tool.functions.values():
+                    tools_for_api.append({"type": "function", "function": _f.to_dict()})
+        return tools_for_api
+
     def create(
         self, thread_id: Optional[str] = None, assistant: Optional[Assistant] = None, assistant_id: Optional[str] = None
     ) -> "Run":
@@ -156,19 +169,7 @@ class Run(BaseModel):
         if self.instructions is not None:
             request_body["instructions"] = self.instructions
         if self.tools is not None:
-            _tools = []
-            for _tool in self.tools:
-                if isinstance(_tool, Tool):
-                    _tools.append(_tool.to_dict())
-                elif isinstance(_tool, dict):
-                    _tools.append(_tool)
-                elif callable(_tool):
-                    func = Function.from_callable(_tool)
-                    _tools.append({"type": "function", "function": func.to_dict()})
-                elif isinstance(_tool, ToolRegistry):
-                    for _f in _tool.functions.values():
-                        _tools.append({"type": "function", "function": _f.to_dict()})
-            request_body["tools"] = _tools
+            request_body["tools"] = self.get_tools_for_api()
         if self.metadata is not None:
             request_body["metadata"] = self.metadata
 
@@ -301,10 +302,16 @@ class Run(BaseModel):
                         tool_outputs = []
                         for tool_call in tool_calls:
                             if tool_call.type == "function":
+                                run_functions = self.assistant.functions
+                                if self.functions is not None:
+                                    if run_functions is not None:
+                                        run_functions.update(self.functions)
+                                    else:
+                                        run_functions = self.functions
                                 function_call = get_function_call(
                                     name=tool_call.function.name,
                                     arguments=tool_call.function.arguments,
-                                    functions=self.assistant.functions,
+                                    functions=run_functions,
                                 )
                                 if function_call is None:
                                     logger.error(f"Function {tool_call.function.name} not found")

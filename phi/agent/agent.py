@@ -5,8 +5,8 @@ from phi.tool.function import Function
 from phi.utils.log import logger
 
 
-class ToolRegistry:
-    def __init__(self, name: str = "default_tools"):
+class Agent:
+    def __init__(self, name: str = "base_agent"):
         self.name: str = name
         self.functions: Dict[str, Function] = OrderedDict()
 
@@ -15,7 +15,7 @@ class ToolRegistry:
             f = Function.from_callable(function)
             self.functions[f.name] = f
             logger.debug(f"Function: {f.name} registered with {self.name}")
-            logger.debug(f"Json Schema: {f.to_dict()}")
+            # logger.debug(f"Json Schema: {f.to_dict()}")
         except Exception as e:
             logger.warning(f"Failed to create Function for: {function.__name__}")
             raise e

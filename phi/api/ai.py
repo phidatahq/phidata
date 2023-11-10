@@ -10,7 +10,7 @@ from phi.api.schemas.ai import (
     ConversationCreateResponse,
 )
 from phi.api.schemas.user import UserSchema
-from phi.llm.schemas import Message
+from phi.llm.message import Message
 from phi.tool.function import Function
 from phi.utils.log import logger
 

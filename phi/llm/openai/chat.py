@@ -1,7 +1,7 @@
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
-from phi.llm.schemas import Message
+from phi.llm.message import Message
 from phi.tool.function import FunctionCall
 from phi.utils.env import get_from_env
 from phi.utils.log import logger

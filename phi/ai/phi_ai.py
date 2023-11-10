@@ -13,10 +13,10 @@ from phi.api.schemas.ai import ConversationType
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import console
 from phi.cli.settings import phi_cli_settings
-from phi.llm.schemas import Message
+from phi.llm.message import Message
 from phi.tool.function import Function, FunctionCall
-from phi.tool.shell import ShellTool
-from phi.tool.phi import PhiTool
+from phi.agent.shell import ShellAgent
+from phi.agent.phi import PhiAgent
 from phi.workspace.config import WorkspaceConfig
 from phi.utils.log import logger
 from phi.utils.functions import get_function_call
@@ -42,7 +42,7 @@ class PhiAI:
         _active_workspace = _phi_config.get_active_ws_config()
 
         self.conversation_db: Optional[List[Dict[str, Any]]] = None
-        self.functions: Dict[str, Function] = {**ShellTool().functions, **PhiTool().functions}
+        self.functions: Dict[str, Function] = {**ShellAgent().functions, **PhiAgent().functions}
 
         _conversation_id = None
         _conversation_history = None

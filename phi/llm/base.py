@@ -2,9 +2,9 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.llm.schemas import Message
+from phi.agent import Agent
+from phi.llm.message import Message
 from phi.tool.tool import Tool
-from phi.tool.registry import ToolRegistry
 from phi.tool.function import Function, FunctionCall
 from phi.utils.log import logger
 
@@ -84,7 +84,7 @@ class LLM(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, Dict, Callable, ToolRegistry]) -> None:
+    def add_tool(self, tool: Union[Tool, Dict, Callable, Agent]) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -94,11 +94,11 @@ class LLM(BaseModel):
             logger.debug(f"Added tool {tool} to LLM.")
 
         # If the tool is a Callable or ToolRegistry, add its functions to the LLM
-        if callable(tool) or isinstance(tool, ToolRegistry):
+        if callable(tool) or isinstance(tool, Agent):
             if self.functions is None:
                 self.functions = {}
 
-            if isinstance(tool, ToolRegistry):
+            if isinstance(tool, Agent):
                 self.functions.update(tool.functions)
                 for func in tool.functions.values():
                     self.tools.append({"type": "function", "function": func.to_dict()})

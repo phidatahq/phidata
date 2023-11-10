@@ -3,13 +3,13 @@ from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.website import WebsiteKnowledgeBase
-from phi.tool.registry import ToolRegistry
+from phi.llm.agent.base import BaseAgent
 from phi.utils.log import logger
 
 
-class WebsiteTool(ToolRegistry):
+class WebsiteAgent(BaseAgent):
     def __init__(self, knowledge_base: Optional[WebsiteKnowledgeBase] = None):
-        super().__init__(name="website_tools")
+        super().__init__(name="website_agent")
         self.knowledge_base: Optional[WebsiteKnowledgeBase] = knowledge_base
 
         if self.knowledge_base is not None and isinstance(self.knowledge_base, WebsiteKnowledgeBase):

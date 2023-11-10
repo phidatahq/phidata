@@ -3,13 +3,13 @@ from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.arxiv import ArxivKnowledgeBase
-from phi.tool.registry import ToolRegistry
+from phi.agent import Agent
 from phi.utils.log import logger
 
 
-class ArxivTool(ToolRegistry):
+class ArxivAgent(Agent):
     def __init__(self, knowledge_base: Optional[ArxivKnowledgeBase] = None):
-        super().__init__(name="arxiv_tools")
+        super().__init__(name="arxiv_agent")
         self.knowledge_base: Optional[ArxivKnowledgeBase] = knowledge_base
 
         if self.knowledge_base is not None and isinstance(self.knowledge_base, ArxivKnowledgeBase):

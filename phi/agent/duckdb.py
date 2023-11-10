@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 
-from phi.tool.registry import ToolRegistry
+from phi.agent import Agent
 from phi.utils.log import logger
 
 try:
@@ -9,14 +9,14 @@ except ImportError:
     raise ImportError("`duckdb` not installed. Please install it using `pip install duckdb`.")
 
 
-class DuckDbTool(ToolRegistry):
+class DuckDbAgent(Agent):
     def __init__(
         self,
         db_path: str = ":memory:",
         s3_region: str = "us-east-1",
         duckdb_connection: Optional[duckdb.DuckDBPyConnection] = None,
     ):
-        super().__init__(name="duckdb_tools")
+        super().__init__(name="duckdb_agent")
 
         self.db_path: str = db_path
         self.s3_region: str = s3_region
@@ -329,9 +329,9 @@ class DuckDbTool(ToolRegistry):
         """
         logger.debug(f"Running full_text_search for {search_text} in {table_name}")
         search_text_statement = f"""SELECT fts_main_corpus.match_bm25({unique_key}, '{search_text}') AS score,*
-                                    FROM {table_name}
-                                    WHERE score IS NOT NULL
-                                    ORDER BY score;"""
+                                        FROM {table_name}
+                                        WHERE score IS NOT NULL
+                                        ORDER BY score;"""
 
         logger.debug(f"Running {search_text_statement}")
         result = self.run_query(search_text_statement)

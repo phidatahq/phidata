@@ -3,7 +3,7 @@ from typing import Optional, List, Iterator, Dict, Any
 
 from phi.aws.api_client import AwsApiClient
 from phi.llm.base import LLM
-from phi.llm.schemas import Message
+from phi.llm.message import Message
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 

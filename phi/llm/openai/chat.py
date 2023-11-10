@@ -1,3 +1,4 @@
+import json
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
@@ -139,7 +140,6 @@ class OpenAIChat(LLM):
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
-                import json
                 from phi.api.llm import openai_chat_stream
 
                 for chunk in openai_chat_stream(
@@ -157,7 +157,7 @@ class OpenAIChat(LLM):
                             chunks = "[" + chunk.replace("}{", "},{") + "]"
                             for completion_chunk in json.loads(chunks):
                                 try:
-                                    yield ChatCompletionChunk.model_validate_json(completion_chunk)
+                                    yield ChatCompletionChunk.model_validate(completion_chunk)
                                 except Exception as e:
                                     logger.warning(e)
                         else:

@@ -74,7 +74,7 @@ class Run(BaseModel):
     # Override the tools the assistant can use for this run.
     # This is useful for modifying the behavior on a per-run basis.
     tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
-    # Functions the Run may call.
+    # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
 
     # The last error associated with this run. Will be null if there are no errors.

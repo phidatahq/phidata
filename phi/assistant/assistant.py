@@ -44,7 +44,7 @@ class Assistant(BaseModel):
     # Tools can be of types code_interpreter, retrieval, or function.
     tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
     # -*- Functions available to the Assistant to call
-    # Functions provided from the tools. Note: These are not sent to the LLM API.
+    # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
 
     # -*- Assistant Files
@@ -56,18 +56,18 @@ class Assistant(BaseModel):
     files: Optional[List[File]] = None
 
     # -*- Assistant Storage
-    storage: Optional[AssistantStorage] = None
+    # storage: Optional[AssistantStorage] = None
     # Create table if it doesn't exist
-    create_storage: bool = True
+    # create_storage: bool = True
     # AssistantRow from the database: DO NOT SET THIS MANUALLY
-    database_row: Optional[AssistantRow] = None
+    # database_row: Optional[AssistantRow] = None
 
     # -*- Assistant Knowledge Base
-    knowledge_base: Optional[KnowledgeBase] = None
+    # knowledge_base: Optional[KnowledgeBase] = None
 
     # Set of 16 key-value pairs that can be attached to an object.
     # This can be useful for storing additional information about the object in a structured format.
-    # Keys can be a maximum of 64 characters long and values can be a maxium of 512 characters long.
+    # Keys can be a maximum of 64 characters long and values can be a maximum of 512 characters long.
     metadata: Optional[Dict[str, Any]] = None
 
     # True if this assistant is active

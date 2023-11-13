@@ -223,8 +223,11 @@ class Thread(BaseModel):
             if m.role == "user":
                 table.add_column("User")
                 table.add_column(m.get_content_text())
-            if m.role == "assistant":
+            elif m.role == "assistant":
                 table.add_row("Assistant", Markdown(m.get_content_text()))
+                table.add_section()
+            else:
+                table.add_row(m.role, Markdown(m.get_content_text()))
                 table.add_section()
         console.print(table)
 

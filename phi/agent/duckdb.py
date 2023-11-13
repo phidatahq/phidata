@@ -26,11 +26,7 @@ class DuckDbAgent(Agent):
         self.register(self.show_tables)
         self.register(self.describe_table)
         self.register(self.inspect_query)
-        self.register(self.load_local_path_to_table)
-        # self.register(self.describe_table_or_view)
         self.register(self.export_table_as)
-        # self.register(self.summarize_table)
-        # self.register(self.create_fts_index)
         # self.register(self.full_text_search)
 
     @property

@@ -29,14 +29,14 @@ TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.llm_api: "llm-api",
     WorkspaceStarterTemplate.django_app: "django-app",
     WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
-    WorkspaceStarterTemplate.ai_platform: "ai-platform",
+    WorkspaceStarterTemplate.de_llm: "de-llm",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.llm_app: "https://github.com/phidatahq/llm-app.git",
     WorkspaceStarterTemplate.llm_api: "https://github.com/phidatahq/llm-api.git",
     WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
     WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
-    WorkspaceStarterTemplate.ai_platform: "https://github.com/phidatahq/ai-platform.git",
+    WorkspaceStarterTemplate.de_llm: "https://github.com/phidatahq/de-llm.git",
 }
 
 
@@ -85,7 +85,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             # Display available starter templates and ask user to select one
             print_info("Select starter template or press Enter for default (llm-app)")
             for template_id, template_name in enumerate(templates, start=1):
-                print_info("  [{}] {}".format(template_id, template_name))
+                print_info("  [b][{}][/b] {}".format(template_id, WorkspaceStarterTemplate(template_name).value))
 
             # Get starter template from the user
             template_choices = [str(idx) for idx, _ in enumerate(templates, start=1)]

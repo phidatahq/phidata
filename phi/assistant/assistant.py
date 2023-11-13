@@ -5,12 +5,9 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from phi.agent import Agent
 from phi.assistant.file import File
-from phi.assistant.row import AssistantRow
-from phi.assistant.storage import AssistantStorage
 from phi.assistant.exceptions import AssistantIdNotSet
 from phi.tool import Tool
 from phi.tool.function import Function
-from phi.knowledge.base import KnowledgeBase
 from phi.utils.log import logger, set_log_level_to_debug
 
 try:
@@ -109,6 +106,12 @@ class Assistant(BaseModel):
                     self.functions[f.name] = f
                     logger.debug(f"Added function {f.name} to Assistant")
         return self
+
+    def __enter__(self):
+        return self.create()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.delete()
 
     def load_from_storage(self):
         pass
@@ -277,3 +280,14 @@ class Assistant(BaseModel):
 
     def __str__(self) -> str:
         return json.dumps(self.to_dict(), indent=4)
+
+    def __repr__(self) -> str:
+        return f"<Assistant name={self.name} id={self.id}>"
+
+    def print_response(self, message: str) -> None:
+        """Print a response from the assistant"""
+
+        from phi.assistant.thread import Thread
+
+        thread = Thread()
+        thread.print_response(message=message, assistant=self)

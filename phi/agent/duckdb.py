@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from phi.agent import Agent
 from phi.utils.log import logger
@@ -14,13 +14,15 @@ class DuckDbAgent(Agent):
         self,
         db_path: str = ":memory:",
         s3_region: str = "us-east-1",
-        duckdb_connection: Optional[duckdb.DuckDBPyConnection] = None,
+        connection: Optional[duckdb.DuckDBPyConnection] = None,
+        init_commands: Optional[List] = None,
     ):
         super().__init__(name="duckdb_agent")
 
         self.db_path: str = db_path
         self.s3_region: str = s3_region
-        self._duckdb_connection: Optional[duckdb.DuckDBPyConnection] = duckdb_connection
+        self._connection: Optional[duckdb.DuckDBPyConnection] = connection
+        self.init_commands: Optional[List] = init_commands
 
         self.register(self.run_query)
         self.register(self.show_tables)
@@ -30,23 +32,26 @@ class DuckDbAgent(Agent):
         # self.register(self.full_text_search)
 
     @property
-    def duckdb_connection(self) -> duckdb.DuckDBPyConnection:
+    def connection(self) -> duckdb.DuckDBPyConnection:
         """
         Returns the duckdb connection
 
         :return duckdb.DuckDBPyConnection: duckdb connection
         """
-        if self._duckdb_connection is None:
-            self._duckdb_connection = duckdb.connect(self.db_path)
+        if self._connection is None:
+            self._connection = duckdb.connect(database=self.db_path)
             try:
-                self._duckdb_connection.sql("INSTALL httpfs;")
-                self._duckdb_connection.sql("LOAD httpfs;")
-                self._duckdb_connection.sql(f"SET s3_region='{self.s3_region}';")
+                self._connection.sql("INSTALL httpfs;")
+                self._connection.sql("LOAD httpfs;")
+                self._connection.sql(f"SET s3_region='{self.s3_region}';")
+                if self.init_commands is not None:
+                    for command in self.init_commands:
+                        self._connection.sql(command)
             except Exception as e:
                 logger.exception(e)
-                logger.warning("Failed to install httpfs extension. Only local files will be supported")
+                logger.warning("Failed to initialize duckdb connection")
 
-        return self._duckdb_connection
+        return self._connection
 
     def run_query(self, query: str) -> str:
         """Function to run SQL queries against a duckdb database
@@ -62,9 +67,9 @@ class DuckDbAgent(Agent):
         formatted_sql = formatted_sql.split(";")[0]
 
         try:
-            logger.debug(f"Running query: {formatted_sql}")
+            logger.info(f"Running: {formatted_sql}")
 
-            query_result = self.duckdb_connection.sql(formatted_sql)
+            query_result = self.connection.sql(formatted_sql)
             result_output = "No output"
             if query_result is not None:
                 try:
@@ -148,39 +153,38 @@ class DuckDbAgent(Agent):
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
-    def load_local_path_to_table(self, path: str, table_name: Optional[str] = None) -> Tuple[str, str]:
+    def load_local_path_to_table(self, path: str, table: Optional[str] = None) -> Tuple[str, str]:
         """Load a local file into duckdb
 
         :param path: Path to load
-        :param table_name: Optional table name to use
+        :param table: Optional table name to use
         :return: Table name, SQL statement used to load the file
         """
         import os
 
         logger.debug(f"Loading {path} into duckdb")
 
-        if table_name is None:
+        if table is None:
             # Get the file name from the s3 path
             file_name = path.split("/")[-1]
             # Get the file name without extension from the s3 path
-            table_name, extension = os.path.splitext(file_name)
-            # If the table_name isn't a valid SQL identifier, we'll need to use something else
-            table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            table, extension = os.path.splitext(file_name)
+            # If the table isn't a valid SQL identifier, we'll need to use something else
+            table = table.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
-        create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{path}';"
+        create_statement = f"CREATE OR REPLACE TABLE '{table}' AS SELECT * FROM '{path}';"
         self.run_query(create_statement)
 
-        logger.debug(f"Loaded {path} into duckdb as {table_name}")
-        # self.run_query(f"SELECT * from {table_name};")
-        return table_name, create_statement
+        logger.debug(f"Loaded {path} into duckdb as {table}")
+        return table, create_statement
 
     def load_local_csv_to_table(
-        self, path: str, table_name: Optional[str] = None, delimiter: Optional[str] = None
+        self, path: str, table: Optional[str] = None, delimiter: Optional[str] = None
     ) -> Tuple[str, str]:
         """Load a local CSV file into duckdb
 
         :param path: Path to load
-        :param table_name: Optional table name to use
+        :param table: Optional table name to use
         :param delimiter: Optional delimiter to use
         :return: Table name, SQL statement used to load the file
         """
@@ -188,13 +192,13 @@ class DuckDbAgent(Agent):
 
         logger.debug(f"Loading {path} into duckdb")
 
-        if table_name is None:
+        if table is None:
             # Get the file name from the s3 path
             file_name = path.split("/")[-1]
             # Get the file name without extension from the s3 path
-            table_name, extension = os.path.splitext(file_name)
-            # If the table_name isn't a valid SQL identifier, we'll need to use something else
-            table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            table, extension = os.path.splitext(file_name)
+            # If the table isn't a valid SQL identifier, we'll need to use something else
+            table = table.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
         select_statement = f"SELECT * FROM read_csv('{path}'"
         if delimiter is not None:
@@ -202,79 +206,76 @@ class DuckDbAgent(Agent):
         else:
             select_statement += ")"
 
-        create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS {select_statement};"
+        create_statement = f"CREATE OR REPLACE TABLE '{table}' AS {select_statement};"
         self.run_query(create_statement)
 
-        logger.debug(f"Loaded CSV {path} into duckdb as {table_name}")
-        # self.run_query(f"SELECT * from {table_name};")
-        return table_name, create_statement
+        logger.debug(f"Loaded CSV {path} into duckdb as {table}")
+        return table, create_statement
 
-    def load_s3_path_to_table(self, s3_path: str, table_name: Optional[str] = None) -> Tuple[str, str]:
+    def load_s3_path_to_table(self, path: str, table: Optional[str] = None) -> Tuple[str, str]:
         """Load a file from S3 into duckdb
 
-        :param s3_path: S3 path to load
-        :param table_name: Optional table name to use
+        :param path: S3 path to load
+        :param table: Optional table name to use
         :return: Table name, SQL statement used to load the file
         """
         import os
 
-        logger.debug(f"Loading {s3_path} into duckdb")
+        logger.debug(f"Loading {path} into duckdb")
 
-        if table_name is None:
+        if table is None:
             # Get the file name from the s3 path
-            file_name = s3_path.split("/")[-1]
+            file_name = path.split("/")[-1]
             # Get the file name without extension from the s3 path
-            table_name, extension = os.path.splitext(file_name)
-            # If the table_name isn't a valid SQL identifier, we'll need to use something else
-            table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            table, extension = os.path.splitext(file_name)
+            # If the table isn't a valid SQL identifier, we'll need to use something else
+            table = table.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
-        create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS SELECT * FROM '{s3_path}';"
+        create_statement = f"CREATE OR REPLACE TABLE '{table}' AS SELECT * FROM '{path}';"
         self.run_query(create_statement)
 
-        logger.debug(f"Loaded {s3_path} into duckdb as {table_name}")
-        # self.run_query(f"SELECT * from {table_name};")
-        return table_name, create_statement
+        logger.debug(f"Loaded {path} into duckdb as {table}")
+        return table, create_statement
 
     def load_s3_csv_to_table(
-        self, s3_path: str, table_name: Optional[str] = None, delimiter: Optional[str] = None
+        self, path: str, table: Optional[str] = None, delimiter: Optional[str] = None
     ) -> Tuple[str, str]:
         """Load a CSV file from S3 into duckdb
 
-        :param s3_path: S3 path to load
-        :param table_name: Optional table name to use
+        :param path: S3 path to load
+        :param table: Optional table name to use
         :return: Table name, SQL statement used to load the file
         """
         import os
 
-        logger.debug(f"Loading {s3_path} into duckdb")
+        logger.debug(f"Loading {path} into duckdb")
 
-        if table_name is None:
+        if table is None:
             # Get the file name from the s3 path
-            file_name = s3_path.split("/")[-1]
+            file_name = path.split("/")[-1]
             # Get the file name without extension from the s3 path
-            table_name, extension = os.path.splitext(file_name)
-            # If the table_name isn't a valid SQL identifier, we'll need to use something else
-            table_name = table_name.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            table, extension = os.path.splitext(file_name)
+            # If the table isn't a valid SQL identifier, we'll need to use something else
+            table = table.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
-        select_statement = f"SELECT * FROM read_csv('{s3_path}'"
+        select_statement = f"SELECT * FROM read_csv('{path}'"
         if delimiter is not None:
             select_statement += f", delim='{delimiter}')"
         else:
             select_statement += ")"
 
-        create_statement = f"CREATE OR REPLACE TABLE '{table_name}' AS {select_statement};"
+        create_statement = f"CREATE OR REPLACE TABLE '{table}' AS {select_statement};"
         self.run_query(create_statement)
 
-        logger.debug(f"Loaded CSV {s3_path} into duckdb as {table_name}")
-        # self.run_query(f"SELECT * from {table_name};")
-        return table_name, create_statement
+        logger.debug(f"Loaded CSV {path} into duckdb as {table}")
+        return table, create_statement
 
-    def export_table_as(self, table_name: str, format: Optional[str] = "PARQUET", path: Optional[str] = None) -> str:
+    def export_table_as(self, table: str, format: Optional[str] = "PARQUET", path: Optional[str] = None) -> str:
         """Save a table to a desired format
         The function will use the default format as parquet
         If the path is provided, the table will be exported to that path, example s3
 
-        :param table_name: Table to export
+        :param table: Table to export
         :param format: Format to export to
         :param path: Path to export to
         :return: None
@@ -282,55 +283,55 @@ class DuckDbAgent(Agent):
         if format is None:
             format = "PARQUET"
 
-        logger.debug(f"Exporting Table {table_name} as {format.upper()} in the path {path}")
-        # self.run_query(f"SELECT * from {table_name};")
+        logger.debug(f"Exporting Table {table} as {format.upper()} in the path {path}")
+        # self.run_query(f"SELECT * from {table};")
         if path is None:
-            path = f"{table_name}.{format}"
+            path = f"{table}.{format}"
         else:
-            path = f"{path}/{table_name}.{format}"
-        export_statement = f"COPY (SELECT * FROM {table_name}) TO '{path}' (FORMAT {format.upper()});"
+            path = f"{path}/{table}.{format}"
+        export_statement = f"COPY (SELECT * FROM {table}) TO '{path}' (FORMAT {format.upper()});"
         result = self.run_query(export_statement)
-        logger.debug(f"Exported {table_name} to {path}/{table_name}")
+        logger.debug(f"Exported {table} to {path}/{table}")
 
         return result
 
-    def create_fts_index(self, table_name: str, unique_key: str, input_values: list[str]) -> str:
+    def create_fts_index(self, table: str, unique_key: str, input_values: list[str]) -> str:
         """Create a full text search index on a table
 
-        :param table_name: Table to create the index on
+        :param table: Table to create the index on
         :param unique_key: Unique key to use
         :param input_values: Values to index
         :return: None
         """
-        logger.debug(f"Creating FTS index on {table_name} for {input_values}")
+        logger.debug(f"Creating FTS index on {table} for {input_values}")
         self.run_query("INSTALL fts;")
         logger.debug("Installed FTS extension")
         self.run_query("LOAD fts;")
         logger.debug("Loaded FTS extension")
 
-        create_fts_index_statement = f"PRAGMA create_fts_index('{table_name}', '{unique_key}', '{input_values}');"
+        create_fts_index_statement = f"PRAGMA create_fts_index('{table}', '{unique_key}', '{input_values}');"
         logger.debug(f"Running {create_fts_index_statement}")
         result = self.run_query(create_fts_index_statement)
-        logger.debug(f"Created FTS index on {table_name} for {input_values}")
+        logger.debug(f"Created FTS index on {table} for {input_values}")
 
         return result
 
-    def full_text_search(self, table_name: str, unique_key: str, search_text: str) -> str:
+    def full_text_search(self, table: str, unique_key: str, search_text: str) -> str:
         """Full text Search in a table column for a specific text/keyword
 
-        :param table_name: Table to search
+        :param table: Table to search
         :param unique_key: Unique key to use
         :param search_text: Text to search
         :return: None
         """
-        logger.debug(f"Running full_text_search for {search_text} in {table_name}")
+        logger.debug(f"Running full_text_search for {search_text} in {table}")
         search_text_statement = f"""SELECT fts_main_corpus.match_bm25({unique_key}, '{search_text}') AS score,*
-                                        FROM {table_name}
+                                        FROM {table}
                                         WHERE score IS NOT NULL
                                         ORDER BY score;"""
 
         logger.debug(f"Running {search_text_statement}")
         result = self.run_query(search_text_statement)
-        logger.debug(f"Search results for {search_text} in {table_name}")
+        logger.debug(f"Search results for {search_text} in {table}")
 
         return result

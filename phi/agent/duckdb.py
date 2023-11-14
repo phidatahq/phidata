@@ -41,8 +41,8 @@ class DuckDbAgent(Agent):
         if self._connection is None:
             self._connection = duckdb.connect(database=self.db_path)
             try:
-                self._connection.sql("INSTALL httpfs;")
-                self._connection.sql("LOAD httpfs;")
+                self._connection.install_extension("httpfs")
+                self._connection.load_extension("httpfs")
                 self._connection.sql(f"SET s3_region='{self.s3_region}';")
                 if self.init_commands is not None:
                     for command in self.init_commands:
@@ -50,6 +50,7 @@ class DuckDbAgent(Agent):
             except Exception as e:
                 logger.exception(e)
                 logger.warning("Failed to initialize duckdb connection")
+                exit(1)
 
         return self._connection
 

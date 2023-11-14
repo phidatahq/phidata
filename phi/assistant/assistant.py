@@ -283,6 +283,11 @@ class Assistant(BaseModel):
 
     def __repr__(self) -> str:
         return f"<Assistant name={self.name} id={self.id}>"
+    #
+    # def run(self, thread: Optional["Thread"]) -> "Thread":
+    #     from phi.assistant.thread import Thread
+    #
+    #     return Thread(assistant=self, thread=thread).run()
 
     def print_response(self, message: str) -> None:
         """Print a response from the assistant"""

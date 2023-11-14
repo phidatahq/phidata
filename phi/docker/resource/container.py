@@ -129,7 +129,7 @@ class DockerContainer(DockerResource):
                         _api_client.images.pull(self.image, platform=self.platform)
                         progress.update(pull_image_task, completed=True)
                     except Exception as pull_exc:
-                        logger.warning(f"Could not pull image: {self.image}: {pull_exc}")
+                        logger.debug(f"Could not pull image: {self.image}: {pull_exc}")
                 if self.force:
                     run_container_task = progress.add_task("Running Container", total=None)  # noqa: F841
                 else:

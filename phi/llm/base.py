@@ -37,7 +37,7 @@ class LLM(BaseModel):
     # If True, shows function calls in the response.
     show_function_calls: Optional[bool] = None
     # Maximum number of function calls allowed.
-    function_call_limit: int = 100
+    function_call_limit: int = 25
     # Stack of function calls.
     function_call_stack: Optional[List[FunctionCall]] = None
 

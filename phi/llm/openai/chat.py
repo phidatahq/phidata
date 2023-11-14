@@ -247,8 +247,9 @@ class OpenAIChat(LLM):
                             tool_call_results.append(
                                 (
                                     Message(
-                                        role="function",
-                                        content=f"Function call limit ({self.function_call_limit}) exceeded.",
+                                        role="tool",
+                                        tool_call_id=_tool_call_id,
+                                        content=f"Tool call limit ({self.function_call_limit}) exceeded.",
                                     ),
                                     function_call,
                                 )

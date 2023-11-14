@@ -13,14 +13,12 @@ class DuckDbAgent(Agent):
     def __init__(
         self,
         db_path: str = ":memory:",
-        s3_region: str = "us-east-1",
         connection: Optional[duckdb.DuckDBPyConnection] = None,
         init_commands: Optional[List] = None,
     ):
         super().__init__(name="duckdb_agent")
 
         self.db_path: str = db_path
-        self.s3_region: str = s3_region
         self._connection: Optional[duckdb.DuckDBPyConnection] = connection
         self.init_commands: Optional[List] = init_commands
 
@@ -41,7 +39,6 @@ class DuckDbAgent(Agent):
         if self._connection is None:
             self._connection = duckdb.connect(database=self.db_path)
             try:
-                self._connection.sql(f"SET s3_region='{self.s3_region}';")
                 if self.init_commands is not None:
                     for command in self.init_commands:
                         self._connection.sql(command)

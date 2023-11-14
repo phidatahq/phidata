@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Any, Dict, List, Union
 from pydantic import BaseModel
 
@@ -59,8 +60,14 @@ class Message(BaseModel):
         elif level == "error":
             _logger = logger.error
 
-        if self.role == "function":
-            _logger(f"{self.role.upper()}: {self.name}")
-            _logger(f"{self.content}")
-        else:
-            _logger(f"{self.role.upper()}: {self.content or self.function_call}")
+        _logger(f"============== {self.role} ==============")
+        if self.name:
+            _logger(f"Name: {self.name}")
+        if self.tool_call_id:
+            _logger(f"Call Id: {self.tool_call_id}")
+        if self.content:
+            _logger(self.content)
+        if self.tool_calls:
+            _logger(f"Tool Calls: {json.dumps(self.tool_calls, indent=2)}")
+        if self.function_call:
+            _logger(f"Function Call: {json.dumps(self.function_call, indent=2)}")

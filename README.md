@@ -10,7 +10,7 @@
     <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
 </a>
 <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/badge/python->=3.7-blue" alt="pythonversion">
+    <img src="https://img.shields.io/badge/python->=3.9-blue" alt="pythonversion">
 </a>
 <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://pepy.tech/badge/phidata" alt="downloads">
@@ -26,7 +26,7 @@
 
 <br />
 
-Phidata is an everything-included AI toolkit. It provides pre-built templates for LLM apps.
+Phidata is an AI toolkit that provides pre-built templates for LLM apps.
 
 ## 🚀 How it works
 
@@ -41,37 +41,7 @@ phi ws create -t llm-app -n llm-app  # create the llm-app codebase
 phi ws up                            # run the llm-app locally
 ```
 
-It solves the problem of building LLM powered products by providing:
-
-### 💻 Software layer
-
-- Access to **LLMs** using a human-like `Conversation` interface.
-- Components for **building** LLM apps: **RAG, Agents, Tasks**
-- Components for **extending** LLM apps: **Knowledge Base, Storage, Memory, Cache**
-- Components for **monitoring** LLM apps: **Model Inputs/Outputs, Quality, Cost**
-- Components for **improving** LLM apps: **Fine-tuning, RLHF**
-
-### 📱 Application layer
-
-- Tools for running LLM apps: **FastApi, Django, Streamlit**
-- Tools for running LLM components: **PgVector, Postgres, Redis**
-
-### 🌉 Infrastructure layer
-
-- Infrastructure for running LLM apps locally: **Docker**
-- Infrastructure for running LLM apps in production: **AWS**
-- Best practices like testing, formatting, CI/CD, security and secret management.
-
-Phidata bridges the 3 layers of software development to deliver production-grade LLM Apps that you can run with 1 command.
-
-## 🎯 For more information:
-
-- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
-- Read about <a href="https://docs.phidata.com/intro/basics" target="_blank" rel="noopener noreferrer">phidata basics</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
-- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
-
-## 👩‍💻 Example: Build a RAG LLM App 🧑‍💻
+## 💻 Example: Build a RAG LLM App
 
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/how-to/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 

@@ -41,8 +41,6 @@ class DuckDbAgent(Agent):
         if self._connection is None:
             self._connection = duckdb.connect(database=self.db_path)
             try:
-                self._connection.install_extension("httpfs")
-                self._connection.load_extension("httpfs")
                 self._connection.sql(f"SET s3_region='{self.s3_region}';")
                 if self.init_commands is not None:
                     for command in self.init_commands:

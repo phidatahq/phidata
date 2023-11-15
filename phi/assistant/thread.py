@@ -7,7 +7,6 @@ from phi.assistant.message import Message
 from phi.assistant.assistant import Assistant
 from phi.assistant.exceptions import ThreadIdNotSet
 from phi.utils.log import logger
-from phi.utils.timer import Timer
 
 try:
     from openai import OpenAI
@@ -239,21 +238,31 @@ class Thread(BaseModel):
                 table.add_section()
         console.print(table)
 
-    def print_response(self, message: str, assistant: Assistant) -> None:
-        # Start the response timer
-        response_timer = Timer()
-        response_timer.start()
+    def print_response(self, message: str, assistant: Assistant, current_message_only: bool = False) -> None:
+        from rich.progress import Progress, SpinnerColumn, TextColumn
 
-        # Add the message to the thread
-        self.add(messages=[Message(role="user", content=message)])
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
+            progress.add_task("Working")
+            self.run(
+                message=message,
+                assistant=assistant,
+                wait=True,
+            )
 
-        # Run the assistant
-        self.run(assistant=assistant)
+        if current_message_only:
+            response_messages = []
+            for m in self.messages:
+                if m.role == "assistant":
+                    response_messages.append(m)
+                if m.role == "user" and m.get_content_text() == message:
+                    break
 
-        # Stop the response timer
-        response_timer.stop()
-
-        self.print_messages()
+            total_messages = len(response_messages)
+            for idx, response_message in enumerate(response_messages[::-1], start=1):
+                response_message.pprint(title=f"[bold] :robot: Assistant ({idx}/{total_messages}) [/bold]")
+        else:
+            for m in self.messages[::-1]:
+                m.pprint()
 
     def __str__(self) -> str:
         import json

@@ -238,7 +238,9 @@ class Thread(BaseModel):
                 table.add_section()
         console.print(table)
 
-    def print_response(self, message: str, assistant: Assistant, current_message_only: bool = False) -> None:
+    def print_response(
+        self, message: str, assistant: Assistant, current_message_only: bool = False, markdown: bool = False
+    ) -> None:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
@@ -259,10 +261,12 @@ class Thread(BaseModel):
 
             total_messages = len(response_messages)
             for idx, response_message in enumerate(response_messages[::-1], start=1):
-                response_message.pprint(title=f"[bold] :robot: Assistant ({idx}/{total_messages}) [/bold]")
+                response_message.pprint(
+                    title=f"[bold] :robot: Assistant ({idx}/{total_messages}) [/bold]", markdown=markdown
+                )
         else:
             for m in self.messages[::-1]:
-                m.pprint()
+                m.pprint(markdown=markdown)
 
     def __str__(self) -> str:
         import json

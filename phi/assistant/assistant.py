@@ -283,10 +283,10 @@ class Assistant(BaseModel):
     #
     #     return Thread(assistant=self, thread=thread).run()
 
-    def print_response(self, message: str) -> None:
+    def print_response(self, message: str, markdown: bool = False) -> None:
         """Print a response from the assistant"""
 
         from phi.assistant.thread import Thread
 
         thread = Thread()
-        thread.print_response(message=message, assistant=self)
+        thread.print_response(message=message, assistant=self, markdown=markdown)

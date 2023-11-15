@@ -226,11 +226,12 @@ class Message(BaseModel):
             },
         )
 
-    def pprint(self, title: Optional[str] = None):
+    def pprint(self, title: Optional[str] = None, markdown: bool = False):
         """Pretty print using rich"""
         from rich.box import ROUNDED
         from rich.panel import Panel
         from rich.pretty import pprint
+        from rich.markdown import Markdown
         from phi.cli.console import console
 
         if self.content is None:
@@ -239,8 +240,12 @@ class Message(BaseModel):
 
         title = title or (f"[b]{self.role.capitalize()}[/]" if self.role else None)
 
+        content = self.get_content_text().strip()
+        if markdown:
+            content = Markdown(content)  # type: ignore
+
         panel = Panel(
-            self.get_content_with_files().strip(),
+            content,
             title=title,
             title_align="left",
             border_style="green",

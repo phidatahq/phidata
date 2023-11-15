@@ -44,8 +44,7 @@ class DuckDbAgent(Agent):
                         self._connection.sql(command)
             except Exception as e:
                 logger.exception(e)
-                logger.warning("Failed to initialize duckdb connection")
-                exit(1)
+                logger.warning("Failed to run duckdb init commands")
 
         return self._connection
 

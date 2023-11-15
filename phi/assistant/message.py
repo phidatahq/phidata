@@ -240,7 +240,7 @@ class Message(BaseModel):
 
         title = title or (f"[b]{self.role.capitalize()}[/]" if self.role else None)
 
-        content = self.get_content_text().strip()
+        content = self.get_content_with_files().strip()
         if markdown:
             content = Markdown(content)  # type: ignore
 
@@ -248,7 +248,7 @@ class Message(BaseModel):
             content,
             title=title,
             title_align="left",
-            border_style="green",
+            border_style="dark_turquoise" if self.role == "user" else "green",
             box=ROUNDED,
             width=80,
             expand=True,

@@ -256,7 +256,7 @@ class Thread(BaseModel):
             for m in self.messages:
                 if m.role == "assistant":
                     response_messages.append(m)
-                if m.role == "user" and m.get_content_text() == message:
+                elif m.role == "user" and m.get_content_text() == message:
                     break
 
             total_messages = len(response_messages)

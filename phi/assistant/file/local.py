@@ -14,9 +14,9 @@ class LocalFile(File):
             return Path(self.path)
         return self.path
 
+    def get_filename(self) -> Optional[str]:
+        return self.filepath.name or self.filename
+
     def read(self) -> Any:
         logger.debug(f"Reading file: {self.filepath}")
         return self.filepath.open("rb")
-
-    def get_filename(self) -> Optional[str]:
-        return self.filepath.name or self.filename

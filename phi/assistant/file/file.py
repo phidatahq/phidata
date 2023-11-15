@@ -17,6 +17,7 @@ except ImportError:
 
 class File(BaseModel):
     # -*- File settings
+    name: Optional[str] = None
     # File id which can be referenced in API endpoints.
     id: Optional[str] = None
     # The object type, populated by the API. Always file.
@@ -91,7 +92,7 @@ class File(BaseModel):
         logger.debug(f"Getting id for: {file_name}")
         for file in file_list:
             if file.filename == file_name:
-                logger.debug(f"Found: {file.id}")
+                logger.debug(f"Found file: {file.id}")
                 return file
         return None
 

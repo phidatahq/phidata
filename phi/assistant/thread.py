@@ -26,9 +26,6 @@ class Thread(BaseModel):
     # The object type, populated by the API. Always thread.
     object: Optional[str] = None
 
-    # A list of messages in this thread.
-    messages: List[Union[Message, Dict]] = []
-
     # Assistant used for this thread
     assistant: Optional[Assistant] = None
     # The ID of the assistant for this thread.
@@ -54,8 +51,13 @@ class Thread(BaseModel):
     def client(self) -> OpenAI:
         return self.openai or OpenAI()
 
-    def load_from_storage(self):
-        pass
+    @property
+    def messages(self) -> List[Message]:
+        # Returns A list of messages in this thread.
+        try:
+            return self.get_messages()
+        except ThreadIdNotSet:
+            return []
 
     def load_from_openai(self, openai_thread: OpenAIThread):
         self.id = openai_thread.id
@@ -82,11 +84,7 @@ class Thread(BaseModel):
         return self
 
     def get_id(self) -> Optional[str]:
-        _id = self.id or self.openai_thread.id if self.openai_thread else None
-        if _id is None:
-            self.load_from_storage()
-            _id = self.id
-        return _id
+        return self.id or self.openai_thread.id if self.openai_thread else None
 
     def get_from_openai(self) -> OpenAIThread:
         _thread_id = self.get_id()
@@ -163,18 +161,24 @@ class Thread(BaseModel):
 
     def run(
         self,
-        run: Optional[Run] = None,
+        message: Optional[Union[str, Message]] = None,
         assistant: Optional[Assistant] = None,
         assistant_id: Optional[str] = None,
+        run: Optional[Run] = None,
         wait: bool = True,
         callback: Optional[Callable] = None,
     ) -> Run:
+        if message is not None:
+            if isinstance(message, str):
+                message = Message(role="user", content=message)
+            self.add(messages=[message])
+
         try:
             _thread_id = self.get_id()
             if _thread_id is None:
                 _thread_id = self.get_from_openai().id
         except ThreadIdNotSet:
-            logger.warning("Thread not available")
+            logger.error("Thread not available")
             raise
 
         _assistant = assistant or self.assistant
@@ -218,16 +222,20 @@ class Thread(BaseModel):
         messages = self.get_messages()
 
         # Print the response
-        table = Table(box=ROUNDED, border_style="blue")
+        table = Table(
+            box=ROUNDED,
+            border_style="blue",
+            expand=True,
+        )
         for m in messages[::-1]:
             if m.role == "user":
                 table.add_column("User")
-                table.add_column(m.get_content_text())
+                table.add_column(m.get_content_with_files())
             elif m.role == "assistant":
-                table.add_row("Assistant", Markdown(m.get_content_text()))
+                table.add_row("Assistant", Markdown(m.get_content_with_files()))
                 table.add_section()
             else:
-                table.add_row(m.role, Markdown(m.get_content_text()))
+                table.add_row(m.role, Markdown(m.get_content_with_files()))
                 table.add_section()
         console.print(table)
 

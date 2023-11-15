@@ -113,9 +113,6 @@ class Assistant(BaseModel):
     def __exit__(self, exc_type, exc_value, traceback):
         self.delete()
 
-    def load_from_storage(self):
-        pass
-
     def load_from_openai(self, openai_assistant: OpenAIAssistant):
         self.id = openai_assistant.id
         self.object = openai_assistant.object
@@ -171,11 +168,7 @@ class Assistant(BaseModel):
         return self
 
     def get_id(self) -> Optional[str]:
-        _id = self.id or self.openai_assistant.id if self.openai_assistant else None
-        if _id is None:
-            self.load_from_storage()
-            _id = self.id
-        return _id
+        return self.id or self.openai_assistant.id if self.openai_assistant else None
 
     def get_from_openai(self) -> OpenAIAssistant:
         _assistant_id = self.get_id()

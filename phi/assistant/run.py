@@ -114,9 +114,6 @@ class Run(BaseModel):
                     logger.debug(f"Added function {f.name} to Assistant")
         return self
 
-    def load_from_storage(self):
-        pass
-
     def load_from_openai(self, openai_run: OpenAIRun):
         self.id = openai_run.id
         self.object = openai_run.object
@@ -181,11 +178,7 @@ class Run(BaseModel):
         return self
 
     def get_id(self) -> Optional[str]:
-        _id = self.id or self.openai_run.id if self.openai_run else None
-        if _id is None:
-            self.load_from_storage()
-            _id = self.id
-        return _id
+        return self.id or self.openai_run.id if self.openai_run else None
 
     def get_from_openai(self, thread_id: Optional[str] = None) -> OpenAIRun:
         _thread_id = thread_id or self.thread_id

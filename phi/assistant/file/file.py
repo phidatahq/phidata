@@ -51,14 +51,8 @@ class File(BaseModel):
     def read(self) -> Any:
         raise NotImplementedError
 
-    def write(self, content: Any) -> Any:
-        raise NotImplementedError
-
     def get_filename(self) -> Optional[str]:
         return self.filename
-
-    def load_from_storage(self):
-        pass
 
     def load_from_openai(self, openai_file: OpenAIFile):
         self.id = openai_file.id
@@ -77,11 +71,7 @@ class File(BaseModel):
         return self
 
     def get_id(self) -> Optional[str]:
-        _id = self.id or self.openai_file.id if self.openai_file else None
-        if _id is None:
-            self.load_from_storage()
-            _id = self.id
-        return _id
+        return self.id or self.openai_file.id if self.openai_file else None
 
     def get_using_filename(self) -> Optional[OpenAIFile]:
         file_list = self.client.files.list(purpose=self.purpose)
@@ -123,12 +113,23 @@ class File(BaseModel):
         except FileIdNotSet:
             return self.create()
 
-    def download(self):
+    def download(self, path: Optional[str] = None, suffix: Optional[str] = None) -> str:
+        from tempfile import NamedTemporaryFile
+
         try:
             file_to_download = self.get_from_openai()
             if file_to_download is not None:
-                content = self.client.files.retrieve_content(file_id=file_to_download.id)
-                self.write(content)
+                logger.debug(f"Downloading file: {file_to_download.id}")
+                response = self.client.files.with_raw_response.retrieve_content(file_id=file_to_download.id)
+                if path:
+                    with open(path, "wb") as f:
+                        f.write(response.content)
+                    return path
+                else:
+                    with NamedTemporaryFile(delete=False, mode="wb", suffix=f"{suffix}") as temp_file:
+                        temp_file.write(response.content)
+                        temp_file_path = temp_file.name
+                    return temp_file_path
         except FileIdNotSet:
             logger.warning("File not available")
             raise

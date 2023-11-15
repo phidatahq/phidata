@@ -174,6 +174,40 @@ class Message(BaseModel):
                     content_str += text.value
         return content_str
 
+    def get_content_with_files(self) -> str:
+        if isinstance(self.content, str):
+            return self.content
+
+        content_str = ""
+        content_list = self.content or (self.openai_message.content if self.openai_message else None)
+        if content_list is not None:
+            for content in content_list:
+                if content.type == "text":
+                    text = content.text
+                    content_str += text.value
+                elif content.type == "image_file":
+                    image_file = content.image_file
+                    downloaded_file = self.download_image_file(image_file.file_id)
+                    content_str += (
+                        "[bold]Attached file[/bold]:"
+                        f" [blue][link=file://{downloaded_file}]{downloaded_file}[/link][/blue]\n\n"
+                    )
+        return content_str
+
+    def download_image_file(self, file_id: str) -> str:
+        from tempfile import NamedTemporaryFile
+
+        try:
+            logger.debug(f"Downloading file: {file_id}")
+            response = self.client.files.with_raw_response.retrieve_content(file_id=file_id)
+            with NamedTemporaryFile(delete=False, mode="wb", suffix=".png") as temp_file:
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
+            return temp_file_path
+        except Exception as e:
+            logger.warning(f"Could not download image file: {e}")
+            return file_id
+
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(
             exclude_none=True,
@@ -192,11 +226,30 @@ class Message(BaseModel):
             },
         )
 
-    def pprint(self):
+    def pprint(self, title: Optional[str] = None):
         """Pretty print using rich"""
+        from rich.box import ROUNDED
+        from rich.panel import Panel
         from rich.pretty import pprint
+        from phi.cli.console import console
 
-        pprint(self.to_dict())
+        if self.content is None:
+            pprint(self.to_dict())
+            return
+
+        title = title or (f"[b]{self.role.capitalize()}[/]" if self.role else None)
+
+        panel = Panel(
+            self.get_content_with_files().strip(),
+            title=title,
+            title_align="left",
+            border_style="green",
+            box=ROUNDED,
+            width=80,
+            expand=True,
+            padding=(1, 2),
+        )
+        console.print(panel)
 
     def __str__(self) -> str:
         import json

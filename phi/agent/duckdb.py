@@ -15,6 +15,9 @@ class DuckDbAgent(Agent):
         db_path: str = ":memory:",
         connection: Optional[duckdb.DuckDBPyConnection] = None,
         init_commands: Optional[List] = None,
+        run_queries: bool = True,
+        inspect_queries: bool = True,
+        export_tables: bool = True,
     ):
         super().__init__(name="duckdb_agent")
 
@@ -22,12 +25,14 @@ class DuckDbAgent(Agent):
         self._connection: Optional[duckdb.DuckDBPyConnection] = connection
         self.init_commands: Optional[List] = init_commands
 
-        self.register(self.run_query)
         self.register(self.show_tables)
         self.register(self.describe_table)
-        self.register(self.inspect_query)
-        self.register(self.export_table_as)
-        # self.register(self.full_text_search)
+        if inspect_queries:
+            self.register(self.inspect_query)
+        if run_queries:
+            self.register(self.run_query)
+        if export_tables:
+            self.register(self.export_table_as)
 
     @property
     def connection(self) -> duckdb.DuckDBPyConnection:

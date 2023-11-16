@@ -181,12 +181,10 @@ class Conversation(BaseModel):
                 self.llm.add_tool(agent)
 
         if self.function_calls and self.default_functions:
-            default_func_list: List[Callable] = [
-                self.get_last_n_chats,
-                self.search_knowledge_base,
-            ]
-            for func in default_func_list:
-                self.llm.add_tool(func)
+            if self.memory is not None:
+                self.llm.add_tool(self.get_last_n_chats)
+            if self.knowledge_base is not None:
+                self.llm.add_tool(self.search_knowledge_base)
 
         # Set show_function_calls if it is not set on the llm
         if self.llm.show_function_calls is None and self.show_function_calls is not None:

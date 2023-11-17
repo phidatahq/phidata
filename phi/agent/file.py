@@ -36,6 +36,8 @@ class FileAgent(Agent):
         try:
             file_path = self.base_dir.joinpath(file_name)
             logger.debug(f"Saving contents to {file_path}")
+            if not file_path.parent.exists():
+                file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(contents)
             logger.info(f"Saved: {file_path}")
             return str(file_name)
@@ -66,7 +68,7 @@ class FileAgent(Agent):
     def read_contents_from_file(self, file_name: str) -> str:
         """Reads the contents of the file `file_name` and returns the contents if successful.
 
-        :param file_name: The name of the file to run.
+        :param file_name: The name of the file to read.
         :return: The contents of the file if successful, otherwise returns an error message.
         """
         try:

@@ -187,6 +187,8 @@ class OpenAIChat(LLM):
             )
             if _function_call is None:
                 return Message(role="function", content="Could not find function to call."), None
+            if _function_call.error is not None:
+                return Message(role="function", content=_function_call.error), _function_call
 
             if self.function_call_stack is None:
                 self.function_call_stack = []
@@ -236,7 +238,26 @@ class OpenAIChat(LLM):
                         )
                         if function_call is None:
                             tool_call_results.append(
-                                (Message(role="function", content="Could not find function to call."), None)
+                                (
+                                    Message(
+                                        role="tool",
+                                        tool_call_id=_tool_call_id,
+                                        content="Could not find function to call.",
+                                    ),
+                                    None,
+                                )
+                            )
+                            continue
+                        if function_call.error is not None:
+                            tool_call_results.append(
+                                (
+                                    Message(
+                                        role="tool",
+                                        tool_call_id=_tool_call_id,
+                                        content=function_call.error,
+                                    ),
+                                    function_call,
+                                )
                             )
                             continue
 

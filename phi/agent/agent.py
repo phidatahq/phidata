@@ -21,6 +21,9 @@ class Agent:
             logger.warning(f"Failed to create Function for: {function.__name__}")
             raise e
 
+    def instructions(self) -> str:
+        return ""
+
     def __repr__(self):
         return f"<{self.__class__.__name__} name={self.name} functions={list(self.functions.keys())}>"
 

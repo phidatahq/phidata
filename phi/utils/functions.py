@@ -32,11 +32,13 @@ def get_function_call(
             _arguments = json.loads(arguments)
         except Exception as e:
             logger.error(f"Unable to decode function arguments:\n{arguments}\nError: {e}")
-            return None
+            function_call.error = f"Error while decoding function arguments: {e}\n\n Please make sure we can json.loads() the arguments and retry."
+            return function_call
 
         if not isinstance(_arguments, dict):
-            logger.error(f"Function arguments {arguments} is not a valid JSON object")
-            return None
+            logger.error(f"Function arguments are not a valid JSON object: {arguments}")
+            function_call.error = "Function arguments are not a valid JSON object.\n\n Please fix and retry."
+            return function_call
 
         try:
             clean_arguments: Dict[str, Any] = {}
@@ -56,8 +58,9 @@ def get_function_call(
 
             function_call.arguments = clean_arguments
         except Exception as e:
-            logger.error(f"Unable to parse function arguments {arguments}: {e}")
-            return None
+            logger.error(f"Unable to parsing function arguments:\n{arguments}\nError: {e}")
+            function_call.error = f"Error while parsing function arguments: {e}\n\n Please fix and retry."
+            return function_call
     return function_call
 
 

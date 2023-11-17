@@ -54,6 +54,9 @@ class FunctionCall(BaseModel):
     # The result of the function call.
     result: Optional[Any] = None
 
+    # Error while parsing arguments or running the function.
+    error: Optional[str] = None
+
     def get_call_str(self) -> str:
         """Returns a string representation of the function call."""
         if self.arguments is None:

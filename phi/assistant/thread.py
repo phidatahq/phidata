@@ -243,8 +243,8 @@ class Thread(BaseModel):
     ) -> None:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
-        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
-            progress.add_task("Working")
+        with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
+            progress.add_task("Working...")
             self.run(
                 message=message,
                 assistant=assistant,

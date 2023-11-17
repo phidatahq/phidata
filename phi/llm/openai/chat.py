@@ -193,6 +193,7 @@ class OpenAIChat(LLM):
 
             # -*- Check function call limit
             if len(self.function_call_stack) > self.function_call_limit:
+                self.tool_choice = "none"
                 return Message(
                     role="function", content=f"Function call limit ({self.function_call_limit}) exceeded."
                 ), _function_call
@@ -244,6 +245,7 @@ class OpenAIChat(LLM):
 
                         # -*- Check function call limit
                         if len(self.function_call_stack) > self.function_call_limit:
+                            self.tool_choice = "none"
                             tool_call_results.append(
                                 (
                                     Message(

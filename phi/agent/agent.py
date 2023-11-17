@@ -10,9 +10,10 @@ class Agent:
         self.name: str = name
         self.functions: Dict[str, Function] = OrderedDict()
 
-    def register(self, function: Callable):
+    def register(self, function: Callable, sanitize_arguments: bool = True):
         try:
             f = Function.from_callable(function)
+            f.sanitize_arguments = sanitize_arguments
             self.functions[f.name] = f
             logger.debug(f"Function: {f.name} registered with {self.name}")
             # logger.debug(f"Json Schema: {f.to_dict()}")

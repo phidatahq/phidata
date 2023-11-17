@@ -17,6 +17,9 @@ class Function(BaseModel):
     parameters: Dict[str, Any] = {"type": "object", "properties": {}}
     entrypoint: Optional[Callable] = None
 
+    # If True, the arguments are sanitized before being passed to the function.
+    sanitize_arguments: bool = True
+
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True, exclude={"entrypoint"})
 
@@ -55,7 +58,11 @@ class FunctionCall(BaseModel):
         """Returns a string representation of the function call."""
         if self.arguments is None:
             return f"{self.function.name}()"
-        return f"{self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
+        call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
+        if len(call_str) > 100:
+            return f"{self.function.name}(...)"
+
+        return call_str
 
     def execute(self) -> bool:
         """Runs the function call.

@@ -248,11 +248,9 @@ class Message(BaseModel):
             content,
             title=title,
             title_align="left",
-            border_style="dark_turquoise" if self.role == "user" else "green",
+            border_style="blue" if self.role == "user" else "green",
             box=ROUNDED,
-            width=80,
             expand=True,
-            padding=(1, 2),
         )
         console.print(panel)
 

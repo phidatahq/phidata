@@ -78,6 +78,8 @@ class Conversation(BaseModel):
     default_functions: bool = True
     # Show function calls in LLM messages.
     show_function_calls: bool = False
+    # Maximum number of function calls allowed.
+    function_call_limit: Optional[int] = None
 
     # -*- Conversation Tools
     # A list of tools provided to the LLM.
@@ -193,6 +195,10 @@ class Conversation(BaseModel):
         # Set tool_choice to auto if it is not set on the llm
         if self.llm.tool_choice is None and self.tool_choice is not None:
             self.llm.tool_choice = self.tool_choice
+
+        # Set function_call_limit if it is less than the llm function_call_limit
+        if self.function_call_limit is not None and self.function_call_limit < self.llm.function_call_limit:
+            self.llm.function_call_limit = self.function_call_limit
 
         return self
 
@@ -855,36 +861,44 @@ class Conversation(BaseModel):
     # Print Response
     ###########################################################################
 
-    def print_response(self, message: Union[List[Dict], str], stream: bool = True) -> None:
+    def print_response(self, message: Union[List[Dict], str], stream: bool = True, markdown: bool = True) -> None:
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
+        from rich.status import Status
+        from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
         from rich.markdown import Markdown
 
         if stream:
             response = ""
             with Live() as live_log:
+                status = Status("Working...", spinner="dots")
+                live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
                 for resp in self.chat(message, stream=True):
                     response += resp
-
                     table = Table(box=ROUNDED, border_style="blue")
                     table.add_column("Message")
                     table.add_column(self.get_text_from_message(message))
-                    md_response = Markdown(response)
-                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
+                    _response = response if not markdown else Markdown(response)
+                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
                     live_log.update(table)
                 response_timer.stop()
         else:
             response_timer = Timer()
             response_timer.start()
-            response = self.chat(message, stream=False)  # type: ignore
+            with Progress(
+                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
+            ) as progress:
+                progress.add_task("Working...")
+                response = self.chat(message, stream=False)  # type: ignore
+
             response_timer.stop()
-            md_response = Markdown(response)
+            _response = response if not markdown else Markdown(response)
             table = Table(box=ROUNDED, border_style="blue")
             table.add_column("Message")
             table.add_column(self.get_text_from_message(message))
-            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", md_response)
+            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
             console.print(table)

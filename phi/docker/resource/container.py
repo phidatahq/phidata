@@ -112,7 +112,7 @@ class DockerContainer(DockerResource):
     def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
         from docker.errors import ImageNotFound, APIError
-        from rich.progress import Progress
+        from rich.progress import Progress, SpinnerColumn, TextColumn
 
         print_info("Starting container: {}".format(self.name))
         # logger.debug()(
@@ -122,18 +122,20 @@ class DockerContainer(DockerResource):
         # )
         try:
             _api_client: DockerClient = docker_client.api_client
-            with Progress(transient=True) as progress:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
+            ) as progress:
                 if self.force:
                     try:
-                        pull_image_task = progress.add_task("Downloading Image", total=None)  # noqa: F841
+                        pull_image_task = progress.add_task("Downloading Image...")  # noqa: F841
                         _api_client.images.pull(self.image, platform=self.platform)
                         progress.update(pull_image_task, completed=True)
                     except Exception as pull_exc:
                         logger.debug(f"Could not pull image: {self.image}: {pull_exc}")
                 if self.force:
-                    run_container_task = progress.add_task("Running Container", total=None)  # noqa: F841
+                    run_container_task = progress.add_task("Running Container...")  # noqa: F841
                 else:
-                    run_container_task = progress.add_task("Downloading Image", total=None)  # noqa: F841
+                    run_container_task = progress.add_task("Downloading Image...")  # noqa: F841
                 container_object = _api_client.containers.run(
                     name=self.name,
                     image=self.image,
@@ -210,9 +212,11 @@ class DockerContainer(DockerResource):
                 logger.debug("Container is running")
                 return True
             elif self.container_status == "created":
-                from rich.progress import Progress
+                from rich.progress import Progress, SpinnerColumn, TextColumn
 
-                with Progress(transient=True) as progress:
+                with Progress(
+                    SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
+                ) as progress:
                     task = progress.add_task("Waiting for container to start", total=None)  # noqa: F841
                     while self.container_status != "created":
                         logger.debug(f"Container Status: {self.container_status}, trying again in 1 seconds")

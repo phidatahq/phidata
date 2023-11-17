@@ -8,7 +8,7 @@ from phi.utils.log import logger
 def get_function_call(
     name: str, arguments: Optional[str] = None, functions: Optional[Dict[str, Function]] = None
 ) -> Optional[FunctionCall]:
-    logger.debug(f"Getting function {name}. Args: {arguments}")
+    logger.debug(f"Getting function {name}")
     if functions is None:
         return None
 
@@ -22,15 +22,16 @@ def get_function_call(
     function_call = FunctionCall(function=function_to_call)
     if arguments is not None and arguments != "":
         try:
-            if "None" in arguments:
-                arguments = arguments.replace("None", "null")
-            if "True" in arguments:
-                arguments = arguments.replace("True", "true")
-            if "False" in arguments:
-                arguments = arguments.replace("False", "false")
+            if function_to_call.sanitize_arguments:
+                if "None" in arguments:
+                    arguments = arguments.replace("None", "null")
+                if "True" in arguments:
+                    arguments = arguments.replace("True", "true")
+                if "False" in arguments:
+                    arguments = arguments.replace("False", "false")
             _arguments = json.loads(arguments)
         except Exception as e:
-            logger.error(f"Unable to decode function arguments {arguments}: {e}")
+            logger.error(f"Unable to decode function arguments:\n{arguments}\nError: {e}")
             return None
 
         if not isinstance(_arguments, dict):

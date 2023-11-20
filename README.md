@@ -22,9 +22,19 @@
 
 <br />
 
-### Phidata is an AI toolkit that provides pre-built templates for LLM apps.
+<h3 align="center">
+  Phidata is an AI toolkit that provides pre-built templates for LLM apps.
+</h3>
+<p align="center">
+  ⭐️ it for when you need to spin up an AI project quickly.
+</p>
 
-## 🚀 Run an LLM App in 3 simple steps
+## ⭐ Features:
+- **Powerful:** Run an LLM App in 3 steps.
+- **Simple:** Provides a simple human-like `Conversation` interface to language models.
+- **Production Ready:** Each template can be deployed to production with 1 command.
+
+## 🚀 How it works
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
@@ -37,19 +47,13 @@ phi ws create -t llm-app -n llm-app  # create the llm-app codebase
 phi ws up                            # run the llm-app locally
 ```
 
-## 📚 More Information:
-
-- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
-- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
-
-## 💻 Example: Build a RAG LLM App
+## 💻 Quickstart: Build a RAG LLM App
 
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 
 > Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
 
-### Setup
+### Installation
 
 Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
@@ -76,8 +80,6 @@ phi ws create -t llm-app -n llm-app
 
 This will create a folder named `llm-app`
 
-<img src="https://github.com/phidatahq/phidata/assets/22579644/dee7b884-028e-48a0-9074-4deb7a055b97" height=500  alt="create-llm-app"/>
-
 ### Serve your LLM App using Streamlit
 
 <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
@@ -86,11 +88,9 @@ This will create a folder named `llm-app`
 phi ws up --group app
 ```
 
-<img src="https://github.com/phidatahq/phidata/assets/22579644/dee35e20-9fe5-4623-af5e-2e8a6ffac58c" height=500  alt="run-llm-app"/>
-
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-### Chat with PDFs
+### Example: Chat with PDFs
 
 - Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 - Click on **Chat with PDFs** in the sidebar
@@ -119,8 +119,6 @@ phi ws up --group api
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
 - The LLM Api comes pre-built with endpoints that you can integrate with your front-end.
-
-<img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/17a11146-a49d-4595-9fa0-d6ab15372289">
 
 ### Optional: Run Jupyterlab
 

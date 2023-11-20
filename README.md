@@ -1,10 +1,12 @@
 <h1 align="center">
   phidata
 </h1>
+<h3 align="center">
+  Phidata is an AI toolkit that provides pre-built templates for LLM apps.
+</h3>
 <p align="center">
-    <em>AI Toolkit for Engineers</em>
+  ⭐️ it for when you need to spin up an AI project quickly.
 </p>
-
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
@@ -18,15 +20,6 @@
 <a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
     <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
 </a>
-</p>
-
-<br />
-
-<h3 align="center">
-  Phidata is an AI toolkit that provides pre-built templates for LLM apps.
-</h3>
-<p align="center">
-  ⭐️ it for when you need to spin up an AI project quickly.
 </p>
 
 ## ⭐ Features:

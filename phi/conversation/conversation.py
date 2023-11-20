@@ -1,20 +1,22 @@
+import json
 from uuid import uuid4
 from datetime import datetime
-from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
+from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union, Type, Tuple
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, ValidationError
 
 from phi.agent import Agent
-from phi.conversation.memory import ConversationMemory
-from phi.conversation.schemas import ConversationRow
-from phi.conversation.storage import ConversationStorage
+from phi.conversation.row import ConversationRow
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
 from phi.llm.references import References
-from phi.llm.task.llm_task import LLMTask
+from phi.memory.conversation import ConversationMemory
+from phi.storage.conversation import ConversationStorage
+from phi.task.task import Task
+from phi.task.llm import LLMTask
 from phi.tool.tool import Tool
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger, set_log_level_to_debug
@@ -101,7 +103,7 @@ class Conversation(BaseModel):
 
     # -*- Tasks
     # Generate a response using tasks instead of a prompt
-    tasks: Optional[List[LLMTask]] = None
+    tasks: Optional[List[Task]] = None
 
     #
     # -*- Prompt Settings
@@ -151,7 +153,14 @@ class Conversation(BaseModel):
     #     ...
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
 
-    # -*- Latest LLM response i.e. the final output of this conversation
+    # -*- Output Settings
+    # Output model for the responses
+    output_model: Optional[Union[str, List, Type[BaseModel]]] = None
+    # Format the output using markdown
+    markdown: bool = True
+    # List of guidelines for the default system prompt
+    guidelines: Optional[List[str]] = None
+    # -*- Last LLM response i.e. the final output of this conversation
     output: Optional[Any] = None
 
     # If True, show debug logs
@@ -200,6 +209,15 @@ class Conversation(BaseModel):
         if self.function_call_limit is not None and self.function_call_limit < self.llm.function_call_limit:
             self.llm.function_call_limit = self.function_call_limit
 
+        return self
+
+    @model_validator(mode="after")
+    def add_response_format_to_llm(self) -> "Conversation":
+        if self.output_model is not None:
+            if isinstance(self.llm, OpenAIChat):
+                self.llm.response_format = {"type": "json_object"}
+            else:
+                logger.warning(f"output_model is not supported for {self.llm.__class__.__name__}")
         return self
 
     def to_database_row(self) -> ConversationRow:
@@ -341,11 +359,57 @@ class Conversation(BaseModel):
             self.storage.end(conversation_id=self.id)
         self.is_active = False
 
+    def get_json_output_prompt(self) -> str:
+        json_output_prompt = "\nProvide your output as a JSON containing the following fields:"
+        if self.output_model is not None:
+            if isinstance(self.output_model, str):
+                json_output_prompt += "\n<json_fields>"
+                json_output_prompt += f"\n{self.output_model}"
+                json_output_prompt += "\n</json_fields>"
+            elif isinstance(self.output_model, list):
+                json_output_prompt += "\n<json_fields>"
+                json_output_prompt += f"\n{json.dumps(self.output_model)}"
+                json_output_prompt += "\n</json_fields>"
+            elif issubclass(self.output_model, BaseModel):
+                json_schema = self.output_model.model_json_schema()
+                if json_schema is not None:
+                    output_model_properties = {}
+                    json_schema_properties = json_schema.get("properties")
+                    if json_schema_properties is not None:
+                        for field_name, field_properties in json_schema_properties.items():
+                            formatted_field_properties = {
+                                prop_name: prop_value
+                                for prop_name, prop_value in field_properties.items()
+                                if prop_name != "title"
+                            }
+                            output_model_properties[field_name] = formatted_field_properties
+
+                    if len(output_model_properties) > 0:
+                        json_output_prompt += "\n<json_fields>"
+                        json_output_prompt += f"\n{json.dumps(list(output_model_properties.keys()))}"
+                        json_output_prompt += "\n</json_fields>"
+                        json_output_prompt += "\nHere are the properties for each field:"
+                        json_output_prompt += "\n<json_field_properties>"
+                        json_output_prompt += f"\n{json.dumps(output_model_properties, indent=2)}"
+                        json_output_prompt += "\n</json_field_properties>"
+            else:
+                logger.warning(f"Could not build json schema for {self.output_model}")
+        else:
+            json_output_prompt += "Provide the output as JSON."
+
+        json_output_prompt += "\nStart your response with `{` and end it with `}`."
+        json_output_prompt += "\nYour output will be passed to json.loads() to convert it to a Python object."
+        json_output_prompt += "\nMake sure it only contains valid JSON."
+        return json_output_prompt
+
     def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the conversation"""
 
         # If the system_prompt is set, return it
         if self.system_prompt is not None:
+            sys_prompt = "\n".join([line.strip() for line in self.system_prompt.split("\n")])
+            if self.output_model is not None:
+                sys_prompt += f"\n{self.get_json_output_prompt()}"
             return "\n".join([line.strip() for line in self.system_prompt.split("\n")])
 
         # If the system_prompt_function is set, return the system_prompt from the function
@@ -353,6 +417,8 @@ class Conversation(BaseModel):
             system_prompt_kwargs = {"conversation": self}
             _system_prompt_from_function = remove_indent(self.system_prompt_function(**system_prompt_kwargs))
             if _system_prompt_from_function is not None:
+                if self.output_model is not None:
+                    _system_prompt_from_function += f"\n{self.get_json_output_prompt()}"
                 return _system_prompt_from_function
             else:
                 raise Exception("system_prompt_function returned None")
@@ -362,21 +428,25 @@ class Conversation(BaseModel):
             return None
 
         # Build a default system prompt
-        _system_prompt = "You are a helpful assistant designed to help users with their work.\n"
+        _system_prompt = "You are a helpful assistant.\n"
 
+        _guidelines = []
         if self.knowledge_base is not None:
-            _system_prompt += "Use the information from a knowledge base if it helps respond to the message.\n"
-
+            _guidelines.append("Use the information from a knowledge base if it helps respond to the message")
         if self.function_calls:
-            _system_prompt += (
-                "You have access to functions that you can run to achieve your task.\n"
-                "Only use the function you have been provided with.\n"
-            )
+            _guidelines.append("You have access to tools that you can run to achieve your task.")
+            _guidelines.append("Only use the tools you have been provided with")
+        if self.markdown and self.output_model is None:
+            _guidelines.append("Use markdown to format your answers.")
+        if self.output_model is not None:
+            _guidelines.append(self.get_json_output_prompt())
+        if self.guidelines is not None:
+            _guidelines.extend(self.guidelines)
 
-        _system_prompt += """Follow these guidelines:
-        - Use markdown to format your answers.
-        - Don't use phrases like 'based on the information provided' or 'from the knowledge base'.
-        """
+        if len(_guidelines) > 0:
+            _system_prompt += "Follow these guidelines:"
+            for i, guideline in enumerate(_guidelines, start=1):
+                _system_prompt += f"\n{i}. {guideline}"
 
         # Return the system prompt after removing newlines and indenting
         _system_prompt = cast(str, remove_indent(_system_prompt))
@@ -384,8 +454,6 @@ class Conversation(BaseModel):
 
     def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
         """Return a list of references from the knowledge base"""
-        import json
-
         if self.references_function is not None:
             reference_kwargs = {"conversation": self, "query": query}
             return remove_indent(self.references_function(**reference_kwargs))
@@ -409,12 +477,15 @@ class Conversation(BaseModel):
         return remove_indent(formatted_history)
 
     def get_user_prompt(
-        self, message: Union[List[Dict], str], references: Optional[str] = None, chat_history: Optional[str] = None
+        self,
+        message: Optional[Union[List[Dict], str]] = None,
+        references: Optional[str] = None,
+        chat_history: Optional[str] = None,
     ) -> Union[List[Dict], str]:
         """Build the user prompt given a message, references and chat_history"""
 
         # If the user_prompt is set, return it
-        # Note: this ignores the message provided to the chat function
+        # Note: this ignores the message provided to the run function
         if self.user_prompt is not None:
             return self.user_prompt
 
@@ -431,6 +502,9 @@ class Conversation(BaseModel):
                 return _user_prompt_from_function
             else:
                 raise Exception("user_prompt_function returned None")
+
+        if message is None:
+            raise Exception("Could not build user prompt. Please provide a user_prompt or an input message.")
 
         # If use_default_user_prompt is False, return the message as is
         if not self.use_default_user_prompt:
@@ -493,8 +567,8 @@ class Conversation(BaseModel):
                 return "\n".join(text_messages)
         return ""
 
-    def _chat(self, message: Union[List[Dict], str], stream: bool = True) -> Iterator[str]:
-        logger.debug("*********** Conversation Chat Start ***********")
+    def _run(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
+        logger.debug("*********** Conversation Run Start ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
 
@@ -506,7 +580,7 @@ class Conversation(BaseModel):
 
         # -*- Get references to add to the user_prompt
         user_prompt_references = None
-        if self.add_references_to_prompt and isinstance(message, str):
+        if self.add_references_to_prompt and message and isinstance(message, str):
             reference_timer = Timer()
             reference_timer.start()
             user_prompt_references = self.get_references_from_knowledge_base(query=message)
@@ -577,17 +651,17 @@ class Conversation(BaseModel):
             "references": references.model_dump(exclude_none=True) if references else None,
             "metrics": self.llm.metrics,
         }
-        self._api_log_conversation_event(event_type="chat", event_data=event_data)
+        self._api_log_conversation_event(event_type="run", event_data=event_data)
 
-        # -*- Update task output
+        # -*- Update conversation output
         self.output = llm_response
 
         # -*- Yield final response if not streaming
         if not stream:
             yield llm_response
-        logger.debug("*********** Conversation Chat End ***********")
+        logger.debug("*********** Conversation Run End ***********")
 
-    def _chat_tasks(self, message: Union[List[Dict], str], stream: bool = True) -> Iterator[str]:
+    def _run_tasks(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
         if self.tasks is None or len(self.tasks) == 0:
             return ""
 
@@ -599,43 +673,76 @@ class Conversation(BaseModel):
         self.memory.add_user_message(message=Message(role="user", content=message))
 
         # -*- Generate response by running tasks
-        # Full response from running all tasks
-        full_response = ""
+        # LLM response after running all tasks
+        llm_response = ""
         # All messages from the tasks
         task_dicts: List[Dict[str, Any]] = []
-        previous_task: Optional[LLMTask] = None
-        current_task: Optional[LLMTask] = None
+        previous_task: Optional[Task] = None
+        current_task: Optional[Task] = None
+        last_task_response: Optional[str] = None
         for idx, task in enumerate(self.tasks, start=1):
             logger.debug(f"*********** Task: {idx} Start ***********")
             previous_task = current_task
             current_task = task
-            current_task_message = previous_task.output if previous_task else message
+            current_task_message: Optional[Union[List[Dict], str]] = None
+            if previous_task and previous_task.output:
+                # Convert current_task_message to json if it is a BaseModel
+                if issubclass(previous_task.output.__class__, BaseModel):
+                    current_task_message = previous_task.output.model_dump_json(exclude_none=True, indent=2)
+                else:
+                    current_task_message = previous_task.output
+            else:
+                current_task_message = message
+
+            # Provide conversation to the task
+            current_task.conversation_memory = self.memory
+            current_task.conversation_message = message
 
             # Set Task LLM if not set
-            if current_task.llm is None:
-                current_task.llm = self.llm
+            if isinstance(current_task, LLMTask):
+                if current_task.llm is None:
+                    current_task.llm = self.llm
 
-            if stream:
+            # -*- Run Task
+            if stream and current_task.streamable:
                 for chunk in current_task.run(message=current_task_message, stream=True):
-                    full_response += chunk
-                    yield chunk
+                    llm_response += chunk if isinstance(chunk, str) else ""
+                    yield chunk if isinstance(chunk, str) else ""
                 yield "\n\n"
+                llm_response += "\n\n"
             else:
-                full_response += current_task.run(message=current_task_message, stream=False)  # type: ignore
-            full_response += "\n\n"
+                task_response = current_task.run(message=current_task_message, stream=False)  # type: ignore
+                try:
+                    if task_response:
+                        if isinstance(task_response, str):
+                            last_task_response = task_response
+                        elif issubclass(task_response.__class__, BaseModel):
+                            last_task_response = task_response.model_dump_json(exclude_none=True, indent=2)
+                        else:
+                            last_task_response = json.dumps(task_response)
+
+                        if current_task.show_output:
+                            if stream:
+                                yield last_task_response
+                                yield "\n\n"
+                            else:
+                                llm_response += last_task_response
+                                llm_response += "\n\n"
+                except Exception as e:
+                    logger.debug(f"Failed to convert response to json: {e}")
 
             # Add task information to the list of tasks
             task_dicts.append(current_task.to_dict())
 
             # Add task LLM messages to the memory
-            self.memory.add_llm_messages(messages=current_task.memory.llm_messages)
-            # Add task references to the memory
-            for references in current_task.memory.references:
-                self.memory.add_references(references=references)
+            if isinstance(current_task, LLMTask):
+                self.memory.add_llm_messages(messages=current_task.memory.llm_messages)
+                # Add task references to the memory
+                for references in current_task.memory.references:
+                    self.memory.add_references(references=references)
             logger.debug(f"*********** Task: {idx} End ***********")
 
         # Add llm response to the memory - this is added to the chat_history
-        llm_response = current_task.output if current_task else full_response
         self.memory.add_chat_message(message=Message(role="assistant", content=llm_response))
 
         # -*- Save conversation to storage
@@ -648,28 +755,78 @@ class Conversation(BaseModel):
             "tasks": task_dicts,
             "metrics": self.llm.metrics,
         }
-        self._api_log_conversation_event(event_type="chat_tasks", event_data=event_data)
+        self._api_log_conversation_event(event_type="task_run", event_data=event_data)
 
-        # -*- Update task output
+        # -*- Update conversation output
         self.output = llm_response
 
         # -*- Yield final response if not streaming
         if not stream:
-            yield full_response
+            yield llm_response
         logger.debug("*********** Conversation Tasks End ***********")
 
-    def chat(self, message: Union[List[Dict], str], stream: bool = True) -> Union[Iterator[str], str]:
+    def run(
+        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True
+    ) -> Union[Iterator[str], str, BaseModel]:
+        # Run tasks if tasks are set
         if self.tasks and len(self.tasks) > 0:
-            resp = self._chat_tasks(message=message, stream=stream)
+            resp = self._run_tasks(message=message, stream=stream)
+            if stream:
+                return resp
+            else:
+                return next(resp)
+
+        # Run Conversation if tasks are not set
+        if self.output_model is not None:
+            logger.debug("Stream=False as output_model is set")
+            json_resp = next(self._run(message=message, stream=False))
+            try:
+                structured_llm_output = None
+                if (
+                    isinstance(self.output_model, str)
+                    or isinstance(self.output_model, dict)
+                    or isinstance(self.output_model, list)
+                ):
+                    structured_llm_output = json.loads(json_resp)
+                elif issubclass(self.output_model, BaseModel):
+                    try:
+                        structured_llm_output = self.output_model.model_validate_json(json_resp)
+                    except ValidationError:
+                        # Check if response starts with ```json
+                        if json_resp.startswith("```json"):
+                            json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_llm_output = self.output_model.model_validate_json(json_resp)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to validate response: {exc}")
+
+                # -*- Update conversation output to the structured output
+                if structured_llm_output is not None:
+                    self.output = structured_llm_output
+            except Exception as e:
+                logger.warning(f"Failed to convert response to output model: {e}")
+
+            return self.output or json_resp
         else:
-            resp = self._chat(message=message, stream=stream)
+            resp = self._run(message=message, stream=stream)
+            if stream:
+                return resp
+            else:
+                return next(resp)
+
+    def chat(self, message: Union[List[Dict], str], stream: bool = True) -> Union[Iterator[str], str]:
+        # Run tasks if tasks are set
+        if self.tasks and len(self.tasks) > 0:
+            resp = self._run_tasks(message=message, stream=stream)
+
+        # Run Conversation if tasks are not set
+        else:
+            resp = self._run(message=message, stream=stream)
+
         if stream:
             return resp
         else:
             return next(resp)
-
-    def run(self, message: Union[List[Dict], str], stream: bool = True) -> Union[Iterator[str], str]:
-        return self.chat(message=message, stream=stream)
 
     def _chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
@@ -833,8 +990,6 @@ class Conversation(BaseModel):
             Each chat contains 2 messages. One from the user and one from the assistant.
         :return: A list of dictionaries representing the chat history.
         """
-        import json
-
         history: List[Dict[str, Any]] = []
         all_chats = self.memory.get_chats()
         if len(all_chats) == 0:
@@ -861,7 +1016,9 @@ class Conversation(BaseModel):
     # Print Response
     ###########################################################################
 
-    def print_response(self, message: Union[List[Dict], str], stream: bool = True, markdown: bool = True) -> None:
+    def print_response(
+        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True, markdown: bool = True
+    ) -> None:
         from phi.cli.console import console
         from rich.live import Live
         from rich.table import Table
@@ -877,12 +1034,15 @@ class Conversation(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.chat(message, stream=True):
-                    response += resp
-                    table = Table(box=ROUNDED, border_style="blue")
-                    table.add_column("Message")
-                    table.add_column(self.get_text_from_message(message))
+                for resp in self.run(message, stream=True):
+                    response += resp if isinstance(resp, str) else ""
                     _response = response if not markdown else Markdown(response)
+
+                    table = Table(box=ROUNDED, border_style="blue", show_header=False)
+                    if message:
+                        table.show_header = True
+                        table.add_column("Message")
+                        table.add_column(self.get_text_from_message(message))
                     table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
                     live_log.update(table)
                 response_timer.stop()
@@ -893,12 +1053,27 @@ class Conversation(BaseModel):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.chat(message, stream=False)  # type: ignore
+                response = self.run(message, stream=False)  # type: ignore
 
             response_timer.stop()
             _response = response if not markdown else Markdown(response)
-            table = Table(box=ROUNDED, border_style="blue")
-            table.add_column("Message")
-            table.add_column(self.get_text_from_message(message))
+
+            table = Table(box=ROUNDED, border_style="blue", show_header=False)
+            if message:
+                table.show_header = True
+                table.add_column("Message")
+                table.add_column(self.get_text_from_message(message))
             table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
             console.print(table)
+
+    def cli_app(
+        self, user: str = "User", stream: bool = True, markdown: bool = True, exit_on: Tuple[str, ...] = ("exit", "bye")
+    ) -> None:
+        from rich.prompt import Prompt
+
+        while True:
+            message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
+            if message in exit_on:
+                break
+
+            self.print_response(message=message, stream=stream, markdown=markdown)

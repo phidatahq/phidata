@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from phi.conversation.schemas import ConversationRow
+from phi.conversation.row import ConversationRow
 
 
 class ConversationStorage(ABC):

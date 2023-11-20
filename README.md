@@ -20,17 +20,13 @@
 </a>
 </p>
 
-<h2 align="center">
-  Run LLM Apps with 1 command
-</h2>
-
 <br />
 
-Phidata is an AI toolkit that provides pre-built templates for LLM apps.
+### Phidata is an AI toolkit that provides pre-built templates for LLM apps.
 
-## 🚀 How it works
+## 🚀 Run an LLM App in 3 simple steps
 
-- Create your LLM app using a template: `phi ws create`
+- Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 

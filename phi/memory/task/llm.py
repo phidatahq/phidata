@@ -6,9 +6,9 @@ from phi.llm.message import Message
 from phi.llm.references import References
 
 
-class TaskMemory(BaseModel):
+class LLMTaskMemory(BaseModel):
     """
-    This class provides a memory for a Task.
+    This class provides a memory for a LLM Task.
     """
 
     # Messages between the user and the LLM.

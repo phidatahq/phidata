@@ -23,8 +23,8 @@
 </p>
 
 ## ⭐ Features:
-- **Powerful:** Run an LLM App in 3 steps.
-- **Simple:** Provides a simple human-like `Conversation` interface to language models.
+- **Powerful:** Get a production-grade LLM App with 1 command.
+- **Simple:** Provides a human-like `Conversation` interface to language models.
 - **Production Ready:** Each template can be deployed to production with 1 command.
 
 ## 🚀 How it works

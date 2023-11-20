@@ -33,13 +33,6 @@
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-For example, run a RAG Chatbot built with FastApi, Streamlit and PgVector:
-
-```bash
-phi ws create -t llm-app -n llm-app  # create the llm-app codebase
-phi ws up                            # run the llm-app locally
-```
-
 ## 💻 Quickstart: Build a RAG LLM App
 
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.

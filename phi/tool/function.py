@@ -63,7 +63,13 @@ class FunctionCall(BaseModel):
             return f"{self.function.name}()"
         call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
         if len(call_str) > 500:
-            return f"{self.function.name}(...)"
+            trimmed_arguments = {}
+            for k, v in self.arguments.items():
+                if isinstance(v, str):
+                    trimmed_arguments[k] = f"{v[:50]}..."
+                else:
+                    trimmed_arguments[k] = v
+            call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in trimmed_arguments.items()])})"
 
         return call_str
 

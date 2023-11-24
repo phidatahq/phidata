@@ -17,7 +17,7 @@ class PythonAgent(Agent):
         self,
         base_dir: Optional[Path] = None,
         save_and_run: bool = True,
-        read_files: bool = True,
+        read_files: bool = False,
         list_files: bool = False,
         run_directly: bool = False,
         safe_globals: Optional[dict] = None,
@@ -41,14 +41,14 @@ class PythonAgent(Agent):
             self.register(self.run_python_code, sanitize_arguments=False)
 
     def save_to_file_and_run(
-        self, code: str, file_name: str, variable_to_return: Optional[str] = None, overwrite: bool = True
+        self, file_name: str, code: str, variable_to_return: Optional[str] = None, overwrite: bool = True
     ) -> str:
         """This function saves Python code to a file called `file_name` and then runs it.
         If successful, returns the value of `variable_to_return` if provided otherwise returns the file name.
         If failed, returns an error message.
 
+        :param file_name: The name of the file the code will be saved to.
         :param code: The code to save and run.
-        :param file_name: The name of the file to save to.
         :param variable_to_return: The variable to return.
         :param overwrite: Overwrite the file if it already exists.
         :return: if run is successful, the value of `variable_to_return` if provided else file name.

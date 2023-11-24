@@ -192,15 +192,16 @@ class LLMTask(Task):
 
         # If the system_prompt is set, return it
         if self.system_prompt is not None:
-            sys_prompt = "\n".join([line.strip() for line in self.system_prompt.split("\n")])
             if self.output_model is not None:
+                sys_prompt = self.system_prompt
                 sys_prompt += f"\n{self.get_json_output_prompt()}"
-            return sys_prompt
+                return sys_prompt
+            return self.system_prompt
 
         # If the system_prompt_function is set, return the system_prompt from the function
         if self.system_prompt_function is not None:
             system_prompt_kwargs = {"task": self}
-            _system_prompt_from_function = remove_indent(self.system_prompt_function(**system_prompt_kwargs))
+            _system_prompt_from_function = self.system_prompt_function(**system_prompt_kwargs)
             if _system_prompt_from_function is not None:
                 if self.output_model is not None:
                     _system_prompt_from_function += f"\n{self.get_json_output_prompt()}"
@@ -233,8 +234,8 @@ class LLMTask(Task):
             for i, guideline in enumerate(_guidelines, start=1):
                 _system_prompt += f"\n{i}. {guideline}"
 
-        # Return the system prompt after removing newlines and indenting
-        _system_prompt = cast(str, remove_indent(_system_prompt))
+        # Return the system prompt
+        _system_prompt = cast(str, _system_prompt)
         return _system_prompt
 
     def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
@@ -301,8 +302,8 @@ class LLMTask(Task):
         _user_prompt += f"\nUSER: {message}"
         _user_prompt += "\nASSISTANT: "
 
-        # Return the user prompt after removing newlines and indenting
-        _user_prompt = cast(str, remove_indent(_user_prompt))
+        # Return the user prompt
+        _user_prompt = cast(str, _user_prompt)
         return _user_prompt
 
     def get_text_from_message(self, message: Union[List[Dict], str]) -> str:

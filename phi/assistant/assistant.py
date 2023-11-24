@@ -1,5 +1,5 @@
 import json
-from typing import List, Any, Optional, Dict, Union, Callable
+from typing import List, Any, Optional, Dict, Union, Callable, Tuple
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -290,3 +290,24 @@ class Assistant(BaseModel):
 
         thread = Thread()
         thread.print_response(message=message, assistant=self, markdown=markdown)
+
+    def cli_app(
+        self,
+        user: str = "User",
+        emoji: str = ":sunglasses:",
+        current_message_only: bool = True,
+        markdown: bool = True,
+        exit_on: Tuple[str, ...] = ("exit", "bye"),
+    ) -> None:
+        from rich.prompt import Prompt
+        from phi.assistant.thread import Thread
+
+        thread = Thread()
+        while True:
+            message = Prompt.ask(f"[bold] {emoji} {user} [/bold]")
+            if message in exit_on:
+                break
+
+            thread.print_response(
+                message=message, assistant=self, current_message_only=current_message_only, markdown=markdown
+            )

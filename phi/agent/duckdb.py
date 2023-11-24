@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any
 
 from phi.agent import Agent
 from phi.utils.log import logger
@@ -12,16 +12,22 @@ except ImportError:
 class DuckDbAgent(Agent):
     def __init__(
         self,
-        db_path: str = ":memory:",
+        db_path: Optional[str] = None,
         connection: Optional[duckdb.DuckDBPyConnection] = None,
         init_commands: Optional[List] = None,
+        read_only: bool = False,
+        config: Optional[dict] = None,
         run_queries: bool = True,
         inspect_queries: bool = True,
+        create_tables: bool = True,
+        summarize_tables: bool = True,
         export_tables: bool = True,
     ):
         super().__init__(name="duckdb_agent")
 
-        self.db_path: str = db_path
+        self.db_path: Optional[str] = db_path
+        self.read_only: bool = read_only
+        self.config: Optional[dict] = config
         self._connection: Optional[duckdb.DuckDBPyConnection] = connection
         self.init_commands: Optional[List] = init_commands
 
@@ -31,8 +37,12 @@ class DuckDbAgent(Agent):
             self.register(self.inspect_query)
         if run_queries:
             self.register(self.run_query)
+        if create_tables:
+            self.register(self.create_table_from_path)
+        if summarize_tables:
+            self.register(self.summarize_table)
         if export_tables:
-            self.register(self.export_table_as)
+            self.register(self.export_table_to_path)
 
     @property
     def connection(self) -> duckdb.DuckDBPyConnection:
@@ -42,7 +52,14 @@ class DuckDbAgent(Agent):
         :return duckdb.DuckDBPyConnection: duckdb connection
         """
         if self._connection is None:
-            self._connection = duckdb.connect(database=self.db_path)
+            connection_kwargs: Dict[str, Any] = {}
+            if self.db_path is not None:
+                connection_kwargs["database"] = self.db_path
+            if self.read_only:
+                connection_kwargs["read_only"] = self.read_only
+            if self.config is not None:
+                connection_kwargs["config"] = self.config
+            self._connection = duckdb.connect(**connection_kwargs)
             try:
                 if self.init_commands is not None:
                     for command in self.init_commands:
@@ -53,8 +70,42 @@ class DuckDbAgent(Agent):
 
         return self._connection
 
+    def show_tables(self) -> str:
+        """Function to show tables in the database
+
+        :return: List of tables in the database
+        """
+        stmt = "SHOW TABLES;"
+        tables = self.run_query(stmt)
+        logger.debug(f"Tables: {tables}")
+        return tables
+
+    def describe_table(self, table: str) -> str:
+        """Function to describe a table
+
+        :param table: Table to describe
+        :return: Description of the table
+        """
+        stmt = f"DESCRIBE {table};"
+        table_description = self.run_query(stmt)
+
+        logger.debug(f"Table description: {table_description}")
+        return f"{table}\n{table_description}"
+
+    def inspect_query(self, query: str) -> str:
+        """Function to inspect a query and return the query plan. Always inspect your query before running them.
+
+        :param query: Query to inspect
+        :return: Qeury plan
+        """
+        stmt = f"explain {query};"
+        explain_plan = self.run_query(stmt)
+
+        logger.debug(f"Explain plan: {explain_plan}")
+        return explain_plan
+
     def run_query(self, query: str) -> str:
-        """Function to run SQL queries against a duckdb database
+        """Function that runs a query and returns the result.
 
         :param query: SQL query to run
         :return: Result of the query
@@ -95,63 +146,81 @@ class DuckDbAgent(Agent):
         except Exception as e:
             return str(e)
 
-    def show_tables(self) -> str:
-        """Function to show tables in the database
-
-        :return: List of tables in the database
-        """
-        stmt = "SHOW TABLES;"
-        tables = self.run_query(stmt)
-        logger.debug(f"Tables: {tables}")
-        return tables
-
-    def describe_table(self, table: str) -> str:
-        """Function to describe a table
-
-        :param table: Table to describe
-        :return: Description of the table
-        """
-        stmt = f"DESCRIBE {table};"
-        table_description = self.run_query(stmt)
-
-        logger.debug(f"Table description: {table_description}")
-        return f"{table}\n{table_description}"
-
     def summarize_table(self, table: str) -> str:
-        """Function to summarize the contents of a table
+        """Function to compute a number of aggregates over a table.
+        The function launches a query that computes a number of aggregates over all columns,
+        including min, max, avg, std and approx_unique.
 
-        :param table: Table to describe
-        :return: Description of the table
+        :param table: Table to summarize
+        :return: Summary of the table
         """
-        stmt = f"SUMMARIZE SELECT * FROM {table};"
-        table_description = self.run_query(stmt)
+        table_summary = self.run_query(f"SUMMARIZE {table};")
 
-        logger.debug(f"Table description: {table_description}")
-        return f"{table}\n{table_description}"
+        logger.debug(f"Table description: {table_summary}")
+        return table_summary
 
-    def inspect_query(self, query: str) -> str:
-        """Function to inspect a query and return the query plan. Always inspect your query before running them.
+    def get_table_name_from_path(self, path: str) -> str:
+        """Get the table name from a path
 
-        :param query: Query to inspect
-        :return: Qeury plan
+        :param path: Path to get the table name from
+        :return: Table name
         """
-        stmt = f"explain {query};"
-        explain_plan = self.run_query(stmt)
+        import os
 
-        logger.debug(f"Explain plan: {explain_plan}")
-        return explain_plan
+        # Get the file name from the path
+        file_name = path.split("/")[-1]
+        # Get the file name without extension from the path
+        table, extension = os.path.splitext(file_name)
+        # If the table isn't a valid SQL identifier, we'll need to use something else
+        table = table.replace("-", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
 
-    def describe_table_or_view(self, table: str):
-        """Function to describe a table or view
+        return table
 
-        :param table: Table or view to describe
-        :return: Description of the table or view
+    def create_table_from_path(self, path: str, table: Optional[str] = None, replace: bool = False) -> str:
+        """Creates a table from a path
+
+        :param path: Path to load
+        :param table: Optional table name to use
+        :param replace: Whether to replace the table if it already exists
+        :return: Table name created
         """
-        stmt = f"select column_name, data_type from information_schema.columns where table_name='{table}';"
-        table_description = self.run_query(stmt)
 
-        logger.debug(f"Table description: {table_description}")
-        return f"{table}\n{table_description}"
+        if table is None:
+            table = self.get_table_name_from_path(path)
+
+        logger.debug(f"Creating table {table} from {path}")
+        create_statement = "CREATE TABLE IF NOT EXISTS"
+        if replace:
+            create_statement = "CREATE OR REPLACE TABLE"
+
+        create_statement += f" '{table}' AS SELECT * FROM '{path}';"
+        self.run_query(create_statement)
+        logger.debug(f"Created table {table} from {path}")
+        return table
+
+    def export_table_to_path(self, table: str, format: Optional[str] = "PARQUET", path: Optional[str] = None) -> str:
+        """Save a table in a desired format (default: parquet)
+        If the path is provided, the table will be saved under that path.
+            Eg: If path is /tmp, the table will be saved as /tmp/table.parquet
+        Otherwise it will be saved in the current directory
+
+        :param table: Table to export
+        :param format: Format to export in (default: parquet)
+        :param path: Path to export to
+        :return: None
+        """
+        if format is None:
+            format = "PARQUET"
+
+        logger.debug(f"Exporting Table {table} as {format.upper()} to path {path}")
+        if path is None:
+            path = f"{table}.{format}"
+        else:
+            path = f"{path}/{table}.{format}"
+        export_statement = f"COPY (SELECT * FROM {table}) TO '{path}' (FORMAT {format.upper()});"
+        result = self.run_query(export_statement)
+        logger.debug(f"Exported {table} to {path}/{table}")
+        return result
 
     def load_local_path_to_table(self, path: str, table: Optional[str] = None) -> Tuple[str, str]:
         """Load a local file into duckdb
@@ -269,31 +338,6 @@ class DuckDbAgent(Agent):
 
         logger.debug(f"Loaded CSV {path} into duckdb as {table}")
         return table, create_statement
-
-    def export_table_as(self, table: str, format: Optional[str] = "PARQUET", path: Optional[str] = None) -> str:
-        """Save a table to a desired format
-        The function will use the default format as parquet
-        If the path is provided, the table will be exported to that path, example s3
-
-        :param table: Table to export
-        :param format: Format to export to
-        :param path: Path to export to
-        :return: None
-        """
-        if format is None:
-            format = "PARQUET"
-
-        logger.debug(f"Exporting Table {table} as {format.upper()} in the path {path}")
-        # self.run_query(f"SELECT * from {table};")
-        if path is None:
-            path = f"{table}.{format}"
-        else:
-            path = f"{path}/{table}.{format}"
-        export_statement = f"COPY (SELECT * FROM {table}) TO '{path}' (FORMAT {format.upper()});"
-        result = self.run_query(export_statement)
-        logger.debug(f"Exported {table} to {path}/{table}")
-
-        return result
 
     def create_fts_index(self, table: str, unique_key: str, input_values: list[str]) -> str:
         """Create a full text search index on a table

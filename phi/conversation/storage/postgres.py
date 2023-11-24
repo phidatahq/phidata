@@ -1,1 +1,1 @@
-from phi.storage.conversation.postgres import PgConversationStorage
+from phi.storage.conversation.postgres import PgConversationStorage  # noqa: F401

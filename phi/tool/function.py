@@ -62,7 +62,7 @@ class FunctionCall(BaseModel):
         if self.arguments is None:
             return f"{self.function.name}()"
         call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
-        if len(call_str) > 100:
+        if len(call_str) > 500:
             return f"{self.function.name}(...)"
 
         return call_str

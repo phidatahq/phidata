@@ -1,0 +1,94 @@
+[project]
+name = "phidata"
+version = "2.0.59"
+description = "AI Toolkit for Engineers"
+requires-python = ">=3.7"
+readme = "README.md"
+authors = [
+  {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
+]
+
+dependencies = [
+  "boto3",
+  "botocore",
+  "docker",
+  "gitpython",
+  "httpx",
+  "pydantic==2.3.0",
+  "pydantic-settings",
+  "python-dotenv",
+  "pyyaml",
+  "rich",
+  "tomli",
+  "typer",
+  "typing-extensions",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy==v1.4.1",
+    "black",
+    "pytest",
+    "ruff",
+    "types-pyyaml"
+]
+aws = [
+    "boto3"
+]
+k8s = [
+    "kubernetes"
+]
+
+[project.scripts]
+phi = "phi.cli.entrypoint:phi_cli"
+
+[project.urls]
+homepage = "https://phidata.com"
+documentation = "https://docs.phidata.com"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["phi*"]
+
+[tool.setuptools.package-data]
+phi = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+exclude = ["phienv*"]
+# Ignore `F401` (import violations) in all `__init__.py` files
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"phi/k8s/app/traefik/crds.py" = ["E501"]
+
+[tool.mypy]
+check_untyped_defs = true
+no_implicit_optional = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]
+exclude = ["phienv*"]
+
+[[tool.mypy.overrides]]
+module = [
+  "arxiv.*",
+  "boto3.*",
+  "botocore.*",
+  "bs4.*",
+  "docker.*",
+  "duckdb.*",
+  "kubernetes.*",
+  "openai.*",
+  "pgvector.*",
+  "psycopg.*",
+  "pypdf.*",
+  "pandas.*",
+  "setuptools.*",
+  "sqlalchemy.*",
+  "textract.*",
+  "wikipedia.*",
+  "qdrant_client.*",
+]
+ignore_missing_imports = true

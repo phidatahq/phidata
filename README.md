@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Phidata is an AI toolkit that provides pre-built templates for LLM apps.
+  A collection of AI Apps that you can run with 1 command 🚀
 </h3>
 <p align="center">
   ⭐️ it for when you need to spin up an AI project quickly.
@@ -23,9 +23,10 @@
 </p>
 
 ## ⭐ Features:
-- **Powerful:** Get a production-grade LLM App with 1 command.
-- **Simple:** Provides a human-like `Conversation` interface to language models.
-- **Production Ready:** Each template can be deployed to production with 1 command.
+- **Powerful:** Get a production-ready LLM App with 1 command.
+- **Simple**: Built using a human-like `Conversation` interface to language models.
+- **Local first**: Your app runs locally on docker with 1 command.
+- **Production Ready:** Your app can be deployed to aws with 1 command.
 
 ## 🚀 How it works
 

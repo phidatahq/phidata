@@ -25,7 +25,6 @@
 ## ⭐ Features:
 - **Powerful:** Get a production-ready LLM App with 1 command.
 - **Simple**: Built using a human-like `Conversation` interface to language models.
-- **Local first**: Your app runs locally on docker with 1 command.
 - **Production Ready:** Your app can be deployed to aws with 1 command.
 
 ## 🚀 How it works
@@ -34,7 +33,7 @@
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-## 💻 Quickstart: Build a RAG LLM App
+## 💻 Example: Build a RAG LLM App
 
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 

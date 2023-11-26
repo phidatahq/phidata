@@ -2,10 +2,10 @@
   phidata
 </h1>
 <h3 align="center">
-  A collection of AI Apps that you can run with 1 command 🚀
+  A collection of AI Apps you can run with 1 command 🚀
 </h3>
 <p align="center">
-  ⭐️ it for when you need to spin up an AI project quickly.
+  ⭐️ for when you need to spin up an AI project quickly.
 </p>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">

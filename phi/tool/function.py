@@ -61,16 +61,14 @@ class FunctionCall(BaseModel):
         """Returns a string representation of the function call."""
         if self.arguments is None:
             return f"{self.function.name}()"
-        call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in self.arguments.items()])})"
-        if len(call_str) > 500:
-            trimmed_arguments = {}
-            for k, v in self.arguments.items():
-                if isinstance(v, str):
-                    trimmed_arguments[k] = f"{v[:50]}..."
-                else:
-                    trimmed_arguments[k] = v
-            call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in trimmed_arguments.items()])})"
 
+        trimmed_arguments = {}
+        for k, v in self.arguments.items():
+            if isinstance(v, str) and len(v) > 50:
+                trimmed_arguments[k] = "..."
+            else:
+                trimmed_arguments[k] = v
+        call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in trimmed_arguments.items()])})"
         return call_str
 
     def execute(self) -> bool:

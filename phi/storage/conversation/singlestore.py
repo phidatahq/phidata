@@ -1,7 +1,7 @@
 from typing import Optional, Any, List
 
 try:
-    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.dialects import mysql
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.engine.row import Row
     from sqlalchemy.inspection import inspect
@@ -69,15 +69,15 @@ class SingleStoreConversationStorage(ConversationStorage):
             Column("user_name", String),
             Column("user_type", String),
             # True if this conversation is active.
-            Column("is_active", postgresql.BOOLEAN, server_default=text("true")),
+            Column("is_active", mysql.BOOLEAN, server_default=text("true")),
             # -*- LLM data (name, model, etc.)
-            Column("llm", postgresql.JSONB),
+            Column("llm", mysql.JSON),
             # -*- Conversation memory
-            Column("memory", postgresql.JSONB),
+            Column("memory", mysql.JSON),
             # Metadata associated with this conversation.
-            Column("meta_data", postgresql.JSONB),
+            Column("meta_data", mysql.JSON),
             # Extra data associated with this conversation.
-            Column("extra_data", postgresql.JSONB),
+            Column("extra_data", mysql.JSON),
             # The timestamp of when this conversation was created.
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             # The timestamp of when this conversation was last updated.
@@ -161,7 +161,7 @@ class SingleStoreConversationStorage(ConversationStorage):
 
         with self.Session() as sess, sess.begin():
             # Create an insert statement
-            stmt = postgresql.insert(self.table).values(
+            stmt = mysql.insert(self.table).values(
                 id=conversation.id,
                 name=conversation.name,
                 user_name=conversation.user_name,

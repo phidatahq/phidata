@@ -12,11 +12,6 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-try:
-    from pgvector.sqlalchemy import Vector
-except ImportError:
-    raise ImportError("`pgvector` not installed")
-
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
@@ -259,3 +254,6 @@ class SingleStoreVector(VectorDb):
                 if result is not None:
                     return int(result)
                 return 0
+
+    def optimize(self) -> None:
+        pass

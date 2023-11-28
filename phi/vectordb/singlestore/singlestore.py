@@ -64,14 +64,14 @@ class SingleStoreVector(VectorDb):
         return Table(
             self.collection,
             self.metadata,
-            Column("name", String),
-            Column("meta_data", mysql.JSON, server_default=text("'{}'::jsonb")),
+            Column("name", mysql.TEXT),
+            Column("meta_data", mysql.JSON),
             Column("content", mysql.TEXT),
             Column("embedding", mysql.BLOB),
             Column("usage", mysql.TEXT),
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
-            Column("content_hash", String),
+            Column("content_hash", mysql.TEXT),
             extend_existing=True,
         )
 
@@ -87,8 +87,6 @@ class SingleStoreVector(VectorDb):
         if not self.table_exists():
             with self.Session() as sess:
                 with sess.begin():
-                    logger.debug("Creating extension: vector")
-                    sess.execute(text("create extension if not exists vector;"))
                     if self.schema is not None:
                         logger.debug(f"Creating schema: {self.schema}")
                         sess.execute(text(f"create schema if not exists {self.schema};"))
@@ -131,14 +129,18 @@ class SingleStoreVector(VectorDb):
             for document in documents:
                 document.embed(embedder=self.embedder)
                 cleaned_content = document.content.replace("\x00", "\uFFFD")
+                json_array_pack = text(f"JSON_ARRAY_PACK('{document.embedding}')")
+
                 stmt = mysql.insert(self.table).values(
                     name=document.name,
                     meta_data=document.meta_data,
                     content=cleaned_content,
-                    embedding=document.embedding,
+                    embedding=json_array_pack,
                     usage=document.usage,
                     content_hash=md5(cleaned_content.encode()).hexdigest(),
                 )
+                logger.debug(f"Inserting document: {document.name} ({document.meta_data})")
+                logger.debug(stmt)
                 sess.execute(stmt)
                 counter += 1
                 logger.debug(f"Inserted document: {document.name} ({document.meta_data})")

@@ -67,7 +67,7 @@ class SingleStoreVector(VectorDb):
             Column("name", String),
             Column("meta_data", mysql.JSON, server_default=text("'{}'::jsonb")),
             Column("content", mysql.TEXT),
-            Column("embedding", Vector(self.dimensions)),
+            Column("embedding", mysql.BLOB),
             Column("usage", mysql.TEXT),
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
@@ -125,6 +125,7 @@ class SingleStoreVector(VectorDb):
                 return result is not None
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+        # TODO: update this
         with self.Session() as sess:
             counter = 0
             for document in documents:

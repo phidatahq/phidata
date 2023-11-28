@@ -23,7 +23,7 @@
 </p>
 
 ## ⭐ Features:
-- **Powerful:** Get a production-ready LLM App with 1 command.
+- **Powerful:** Get a production-ready AI App with 1 command.
 - **Simple**: Built using a human-like `Conversation` interface to language models.
 - **Production Ready:** Your app can be deployed to aws with 1 command.
 

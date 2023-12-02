@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  A collection of AI Apps you can run with 1 command 🚀
+  Templates for AI Apps you can run with 1 command 🚀
 </h3>
 <p align="center">
   ⭐️ for when you need to spin up an AI project quickly.

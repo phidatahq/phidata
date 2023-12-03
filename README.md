@@ -22,16 +22,26 @@
 </a>
 </p>
 
-## ⭐ Features:
-- **Powerful:** Get a production-ready AI App with 1 command.
-- **Simple**: Built using a human-like `Conversation` interface to language models.
-- **Production Ready:** Your app can be deployed to aws with 1 command.
+Phidata is an AI toolkit designed to run LLM Apps with 1 command.
+
+It comes with templates for common AI Apps that you can run locally or on AWS.
 
 ## 🚀 How it works
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
+
+## ⭐ Features:
+- **Powerful:** Get a production-ready AI App with 1 command.
+- **Simple**: Built using a human-like `Conversation` interface to language models.
+- **Production Ready:** Your app can be deployed to aws with 1 command.
+
+## 📚 More Information:
+
+- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
+- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
+- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
 
 ## 💻 Example: Build a RAG LLM App
 

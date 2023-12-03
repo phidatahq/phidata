@@ -24,7 +24,7 @@
 
 Phidata is an AI toolkit designed to run LLM Apps with 1 command.
 
-It comes with templates for common AI Apps that you can run locally or on AWS.
+It provides production-ready templates for common AI Apps that you can run locally or on AWS.
 
 ## 🚀 How it works
 

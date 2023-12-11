@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  AI Toolkit for Engineers 🚀
+  AI Toolkit for Engineers
 </h3>
 <p align="center">
   ⭐️ for when you need to spin up an AI project quickly.
@@ -23,16 +23,16 @@
 </p>
 
 Phidata is a toolkit for building production-grade AI Applications. It provides:
-- Pre-built templates with best practices.
-- Classes for building your application: `Conversations`, `Agents`, `KnowledgeBase`, `Storage`
-- Tools for serving your application: `FastApi`, `Django`, `Streamlit`, `PgVector`
-- Infrastructure for running your application: `Docker`, `AWS`
+- Pre-built templates to get started quickly.
+- Building blocks: `Conversations`, `Agents`, `KnowledgeBase`, `Storage`
+- Tools: `FastApi`, `Django`, `Streamlit`, `PgVector`
+- Infrastructure: `Docker`, `AWS`
 
 ## 🎯 Motivation
 
-Most AI Apps are built as a house of cards because engineers have to build
-the Software, Application and Infrastructure layer manually. Phidata bridges the 3 layers of software development
-to deliver production-grade AI Apps that you can run with 1 command.
+Most AI Apps are built as a house of cards because engineers have to build the Software, Application and Infrastructure layer separately and then glue them together. This leads to a lot of technical debt and makes it hard to build production-grade AI Apps.
+
+Phidata bridges the 3 layers of software development to deliver production-grade AI Apps that you can run with 1 command.
 
 ## 🚀 How it works
 

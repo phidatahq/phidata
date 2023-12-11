@@ -22,17 +22,18 @@
 </a>
 </p>
 
-Phidata is a toolkit for building production-grade AI Applications. It provides:
-- Pre-built templates to get started quickly.
+Phidata is a toolkit for building AI powered software. It provides:
+- Pre-built templates for AI Apps.
 - Building blocks: `Conversations`, `Agents`, `KnowledgeBase`, `Storage`
 - Tools: `FastApi`, `Django`, `Streamlit`, `PgVector`
 - Infrastructure: `Docker`, `AWS`
 
 ## 🎯 Motivation
 
-Most AI Apps are built as a house of cards because engineers have to build the Software, Application and Infrastructure layer separately and then glue them together. This leads to a lot of technical debt and makes it hard to build production-grade AI Apps.
+Most AI Apps are built as a house of cards because engineers have to build the Software, Application and Infrastructure layer separately and then glue them together.
+This leads to technical debt and makes it hard to build production-grade AI Apps.
 
-Phidata bridges the 3 layers of software development to deliver production-grade AI Apps that you can run with 1 command.
+Phidata bridges the 3 layers of software development and provides production-ready templates for AI Apps that you can run with 1 command.
 
 ## 🚀 How it works
 

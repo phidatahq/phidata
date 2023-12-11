@@ -1,13 +1,13 @@
 from pathlib import Path
 from typing import Optional, Union
 
-from phi.agent import Agent
+from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 
-class AirflowAgent(Agent):
+class AirflowTools(ToolRegistry):
     def __init__(self, dags_dir: Optional[Union[Path, str]] = None, save_dag: bool = True, read_dag: bool = True):
-        super().__init__(name="file_agent")
+        super().__init__(name="AirflowTools")
 
         _dags_dir: Optional[Path] = None
         if dags_dir is not None:

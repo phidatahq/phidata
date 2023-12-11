@@ -3,11 +3,10 @@ from typing import List, Any, Optional, Dict, Union, Callable, Tuple
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from phi.agent import Agent
 from phi.assistant.file import File
 from phi.assistant.exceptions import AssistantIdNotSet
-from phi.tool import Tool
-from phi.tool.function import Function
+from phi.tools import Tool, ToolRegistry
+from phi.tools.function import Function
 from phi.utils.log import logger, set_log_level_to_debug
 
 try:
@@ -37,9 +36,9 @@ class Assistant(BaseModel):
     instructions: Optional[str] = None
 
     # -*- Assistant Tools
-    # A list of tool enabled on the assistant. There can be a maximum of 128 tools per assistant.
+    # A list of tools provided to the assistant. There can be a maximum of 128 tools per assistant.
     # Tools can be of types code_interpreter, retrieval, or function.
-    tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
+    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict]]] = None
     # -*- Functions available to the Assistant to call
     # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
@@ -98,13 +97,13 @@ class Assistant(BaseModel):
             for tool in self.tools:
                 if self.functions is None:
                     self.functions = {}
-                if isinstance(tool, Agent):
+                if isinstance(tool, ToolRegistry):
                     self.functions.update(tool.functions)
-                    logger.debug(f"Tools from {tool.name} added to Assistant.")
+                    logger.debug(f"Functions from {tool.name} added to Assistant.")
                 elif callable(tool):
                     f = Function.from_callable(tool)
                     self.functions[f.name] = f
-                    logger.debug(f"Added function {f.name} to Assistant")
+                    logger.debug(f"Function {f.name} added to Assistant")
         return self
 
     def __enter__(self):
@@ -133,7 +132,7 @@ class Assistant(BaseModel):
             elif callable(tool):
                 func = Function.from_callable(tool)
                 tools_for_api.append({"type": "function", "function": func.to_dict()})
-            elif isinstance(tool, Agent):
+            elif isinstance(tool, ToolRegistry):
                 for _f in tool.functions.values():
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
         return tools_for_api

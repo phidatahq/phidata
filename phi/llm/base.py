@@ -2,10 +2,9 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.agent import Agent
 from phi.llm.message import Message
-from phi.tool.tool import Tool
-from phi.tool.function import Function, FunctionCall
+from phi.tools import Tool, ToolRegistry
+from phi.tools.function import Function, FunctionCall
 from phi.utils.log import logger
 
 
@@ -17,8 +16,9 @@ class LLM(BaseModel):
     # Metrics collected for this LLM. Note: This is not sent to the LLM API.
     metrics: Dict[str, Any] = {}
 
-    # A list of tools the model may call.
-    # Currently, only functions are supported as a tool.
+    # A list of tools provided to the LLM.
+    # Tools are functions the model may generate JSON inputs for.
+    # If you provide a dict, it is not called by the model.
     # Always add tools using the add_tool() method.
     tools: Optional[List[Union[Tool, Dict]]] = None
     # Controls which (if any) function is called by the model.
@@ -84,7 +84,7 @@ class LLM(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, Dict, Callable, Agent]) -> None:
+    def add_tool(self, tool: Union[Tool, ToolRegistry, Callable, Dict]) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -94,11 +94,11 @@ class LLM(BaseModel):
             logger.debug(f"Added tool {tool} to LLM.")
 
         # If the tool is a Callable or ToolRegistry, add its functions to the LLM
-        if callable(tool) or isinstance(tool, Agent):
+        if callable(tool) or isinstance(tool, ToolRegistry):
             if self.functions is None:
                 self.functions = {}
 
-            if isinstance(tool, Agent):
+            if isinstance(tool, ToolRegistry):
                 self.functions.update(tool.functions)
                 for func in tool.functions.values():
                     self.tools.append({"type": "function", "function": func.to_dict()})
@@ -107,4 +107,4 @@ class LLM(BaseModel):
                 func = Function.from_callable(tool)
                 self.functions[func.name] = func
                 self.tools.append({"type": "function", "function": func.to_dict()})
-                logger.debug(f"Added function {func.name} to LLM.")
+                logger.debug(f"Function {func.name} added to LLM.")

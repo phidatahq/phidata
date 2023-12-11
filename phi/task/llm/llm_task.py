@@ -3,7 +3,6 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, cast, Union
 
 from pydantic import BaseModel, ValidationError
 
-from phi.agent import Agent
 from phi.document import Document
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
@@ -12,7 +11,7 @@ from phi.llm.message import Message
 from phi.llm.references import References
 from phi.task.task import Task
 from phi.memory.task.llm import LLMTaskMemory
-from phi.tool.tool import Tool
+from phi.tools import Tool, ToolRegistry
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -47,9 +46,9 @@ class LLMTask(Task):
 
     # -*- Task Tools
     # A list of tools provided to the LLM.
-    # Currently, only functions are supported as a tool.
-    # Use this to provide a list of functions the model may generate JSON inputs for.
-    tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
+    # Tools are functions the model may generate JSON inputs for.
+    # If you provide a dict, it is not called by the model.
+    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict]]] = None
     # Controls which (if any) function is called by the model.
     # "none" means the model will not call a function and instead generates a message.
     # "auto" means the model can pick between generating a message or calling a function.
@@ -57,11 +56,6 @@ class LLMTask(Task):
     #   forces the model to call that function.
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-
-    # -*- Agents
-    # A list of agents provided to the LLM
-    # These are added to the tools list
-    agents: Optional[List[Agent]] = None
 
     #
     # -*- Prompt Settings
@@ -115,10 +109,6 @@ class LLMTask(Task):
         if self.tools is not None:
             for tool in self.tools:
                 self.llm.add_tool(tool)
-
-        if self.agents is not None:
-            for agent in self.agents:
-                self.llm.add_tool(agent)
 
         if self.function_calls and self.default_functions:
             if self.memory is not None:

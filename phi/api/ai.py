@@ -11,7 +11,7 @@ from phi.api.schemas.ai import (
 )
 from phi.api.schemas.user import UserSchema
 from phi.llm.message import Message
-from phi.tool.function import Function
+from phi.tools.function import Function
 from phi.utils.log import logger
 
 

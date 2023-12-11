@@ -1,14 +1,17 @@
 from typing import Dict, Any
 
-import pandas as pd
-
-from phi.agent import Agent
+from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
+try:
+    import pandas as pd
+except ImportError:
+    raise ImportError("`pandas` not installed. Please install using `pip install pandas`.")
 
-class PandasAgent(Agent):
+
+class PandasTools(ToolRegistry):
     def __init__(self):
-        super().__init__(name="pandas_agent")
+        super().__init__(name="pandas_tools")
 
         self.dataframes: Dict[str, pd.DataFrame] = {}
         self.register(self.create_pandas_dataframe)

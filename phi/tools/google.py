@@ -1,10 +1,11 @@
-from phi.agent import Agent
+from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 
-class GoogleAgent(Agent):
+class GoogleTools(ToolRegistry):
     def __init__(self):
-        super().__init__(name="google_agent")
+        super().__init__(name="google_tools")
+
         self.register(self.get_result_from_google)
 
     def get_result_from_google(self, query: str) -> str:

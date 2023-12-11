@@ -1,12 +1,12 @@
 from collections import OrderedDict
 from typing import Callable, Dict
 
-from phi.tool.function import Function
+from phi.tools.function import Function
 from phi.utils.log import logger
 
 
-class Agent:
-    def __init__(self, name: str = "base_agent"):
+class ToolRegistry:
+    def __init__(self, name: str = "tool_registry"):
         self.name: str = name
         self.functions: Dict[str, Function] = OrderedDict()
 

@@ -3,11 +3,10 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from phi.agent import Agent
 from phi.assistant.assistant import Assistant
 from phi.assistant.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
-from phi.tool import Tool
-from phi.tool.function import Function
+from phi.tools import Tool, ToolRegistry
+from phi.tools.function import Function
 from phi.utils.functions import get_function_call
 from phi.utils.log import logger
 
@@ -73,7 +72,7 @@ class Run(BaseModel):
     instructions: Optional[str] = None
     # Override the tools the assistant can use for this run.
     # This is useful for modifying the behavior on a per-run basis.
-    tools: Optional[List[Union[Tool, Dict, Callable, Agent]]] = None
+    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict]]] = None
     # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
 
@@ -82,7 +81,7 @@ class Run(BaseModel):
 
     # Set of 16 key-value pairs that can be attached to an object.
     # This can be useful for storing additional information about the object in a structured format.
-    # Keys can be a maximum of 64 characters long and values can be a maxium of 512 characters long.
+    # Keys can be a maximum of 64 characters long and values can be a maximum of 512 characters long.
     metadata: Optional[Dict[str, Any]] = None
 
     # If True, show debug logs
@@ -105,13 +104,13 @@ class Run(BaseModel):
             for tool in self.tools:
                 if self.functions is None:
                     self.functions = {}
-                if isinstance(tool, Agent):
+                if isinstance(tool, ToolRegistry):
                     self.functions.update(tool.functions)
-                    logger.debug(f"Tools from {tool.name} added to Assistant.")
+                    logger.debug(f"Functions from {tool.name} added to Assistant.")
                 elif callable(tool):
                     f = Function.from_callable(tool)
                     self.functions[f.name] = f
-                    logger.debug(f"Added function {f.name} to Assistant")
+                    logger.debug(f"Function {f.name} added to Assistant")
         return self
 
     def load_from_openai(self, openai_run: OpenAIRun):
@@ -142,7 +141,7 @@ class Run(BaseModel):
             elif callable(tool):
                 func = Function.from_callable(tool)
                 tools_for_api.append({"type": "function", "function": func.to_dict()})
-            elif isinstance(tool, Agent):
+            elif isinstance(tool, ToolRegistry):
                 for _f in tool.functions.values():
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
         return tools_for_api

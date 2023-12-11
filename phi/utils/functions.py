@@ -1,7 +1,7 @@
 import json
 from typing import Optional, Dict, Any
 
-from phi.tool.function import Function, FunctionCall
+from phi.tools.function import Function, FunctionCall
 from phi.utils.log import logger
 
 

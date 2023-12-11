@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Optional, List
 
-from phi.agent import Agent
+from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 
-class FileAgent(Agent):
+class FileTools(ToolRegistry):
     def __init__(
         self,
         base_dir: Optional[Path] = None,
@@ -13,7 +13,7 @@ class FileAgent(Agent):
         read_files: bool = True,
         list_files: bool = False,
     ):
-        super().__init__(name="file_agent")
+        super().__init__(name="file_tools")
 
         self.base_dir: Path = base_dir or Path.cwd()
         if save_files:

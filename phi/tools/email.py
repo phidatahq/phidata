@@ -1,10 +1,10 @@
 from typing import Optional
 
-from phi.agent import Agent
+from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 
-class EmailAgent(Agent):
+class EmailTools(ToolRegistry):
     def __init__(
         self,
         receiver_email: Optional[str] = None,
@@ -12,7 +12,7 @@ class EmailAgent(Agent):
         sender_email: Optional[str] = None,
         sender_passkey: Optional[str] = None,
     ):
-        super().__init__(name="email_agent")
+        super().__init__(name="email_tools")
         self.receiver_email: Optional[str] = receiver_email
         self.sender_name: Optional[str] = sender_name
         self.sender_email: Optional[str] = sender_email

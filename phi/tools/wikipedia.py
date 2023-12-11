@@ -3,13 +3,13 @@ from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.wikipedia import WikipediaKnowledgeBase
-from phi.agent import Agent
+from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 
-class WikipediaAgent(Agent):
+class WikipediaTools(ToolRegistry):
     def __init__(self, knowledge_base: Optional[WikipediaKnowledgeBase] = None):
-        super().__init__(name="wikipedia_agent")
+        super().__init__(name="wikipedia_tools")
         self.knowledge_base: Optional[WikipediaKnowledgeBase] = knowledge_base
 
         if self.knowledge_base is not None and isinstance(self.knowledge_base, WikipediaKnowledgeBase):

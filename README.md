@@ -68,7 +68,7 @@ Phidata bridges the 3 layers of software development and provides a paved path t
 
 Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
-```bash
+```shell
 mkdir ai && cd ai
 
 python3 -m venv aienv
@@ -79,7 +79,7 @@ source aienv/bin/activate
 
 Install phidata
 
-```bash
+```shell
 pip install phidata
 ```
 
@@ -91,7 +91,7 @@ We send the LLM a message and get a model-generated output as a response.
 Conversations come with built-in Memory, Knowledge, Storage and access to Tools.
 Giving LLMs the ability to have long-term, knowledge-based Conversations is the first step in our journey to AGI.
 
-Copy the following code to a file conversation.py
+- Copy the following code to a file `conversation.py`
 
 ```python
 from phi.conversation import Conversation
@@ -100,13 +100,50 @@ conversation = Conversation()
 conversation.print_response('Share a quick healthy breakfast recipe.')
 ```
 
-### Run your conversation
+- Install openai
 
-```bash
+```shell
+pip install openai
+```
+
+- Run your conversation
+
+```shell
 python conversation.py
 ```
 
-## 🤖 Example: Build a RAG LLM App
+### Get structured output from LLM
+
+- Update the `conversation.py` file to:
+
+```python
+from pydantic import BaseModel, Field
+from phi.conversation import Conversation
+from rich.pretty import pprint
+
+class Recipe(BaseModel):
+    title: str = Field(..., description='Title of the recipe.')
+    ingredients: str = Field(..., description='Ingredients for the recipe.')
+    instructions: str = Field(..., description='Instructions for the recipe.')
+
+conversation = Conversation(output_model=Recipe)
+breakfast_recipe = conversation.run('Quick healthy breakfast recipe.')
+pprint(breakfast_recipe)
+```
+
+- Run your conversation again:
+
+```shell
+python conversation.py
+
+Recipe(
+│   title='Banana and Almond Butter Toast',
+│   ingredients='2 slices of whole-grain bread, 1 ripe banana, 2 tablespoons almond butter, 1 teaspoon chia seeds, 1 teaspoon honey (optional)',
+│   instructions='Toast the bread slices to desired crispness. Spread 1 tablespoon of almond butter on each slice of toast. Slice the banana and arrange the slices on top of the almond butter. Sprinkle chia seeds over the banana slices. Drizzle honey on top if preferred. Serve immediately.'
+)
+```
+
+## 🤖 Full Example: Build a RAG LLM App
 
 Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 
@@ -116,7 +153,7 @@ Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base 
 
 Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector. Use this codebase as a starting point for your LLM product.
 
-```bash
+```shell
 phi ws create -t llm-app -n llm-app
 ```
 
@@ -126,7 +163,7 @@ This will create a folder named `llm-app`
 
 <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
-```bash
+```shell
 phi ws up --group app
 ```
 
@@ -149,7 +186,7 @@ Streamlit is great for building micro front-ends but any production application 
 
 Your LLM App comes ready-to-use with FastApi endpoints, start the `api` group using:
 
-```bash
+```shell
 phi ws up --group api
 ```
 
@@ -178,7 +215,7 @@ ws_settings = WorkspaceSettings(
 Start `jupyter` using:
 
 
-```bash
+```shell
 phi ws up --group jupyter
 ```
 
@@ -193,7 +230,7 @@ phi ws up --group jupyter
 
 Play around and stop the workspace using:
 
-```bash
+```shell
 phi ws down
 ```
 

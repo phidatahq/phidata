@@ -19,6 +19,8 @@
 </a>
 </p>
 
+## 🎯 Goal: Provide a paved path to production-ready AI
+
 Phidata is a toolkit for building AI powered software. It enables you to build:
 - **RAG Apps**: Connect LLMs to your knowledge base and build context-aware applications.
 - **Autonomous Apps**: Give LLMs the ability to call functions and build autonomous applications.
@@ -31,8 +33,6 @@ It achieves this by providing:
 - Infrastructure for running AI Apps: `Docker`, `AWS`
 
 To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command. ⭐️ for when you need to spin up an AI project quickly.
-
-## 🎯 Goal: Provide a paved path to production-ready AI
 
 ## ✨ Motivation
 

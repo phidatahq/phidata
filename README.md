@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Full Stack AI Toolkit
+  Toolkit for building AI Apps
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">

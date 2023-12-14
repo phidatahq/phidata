@@ -142,7 +142,11 @@ Recipe(
 
 ## 🤖 Full Example: Build a RAG LLM App
 
-Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
+Let's build a **RAG LLM App** with GPT-4. We'll use:
+- PgVector for Knowledge Base and Storage
+- Streamlit for the front-end
+- FastApi for the back-end
+- Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
 
 > Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
 
@@ -198,7 +202,7 @@ phi ws up --group api
 
 ### Optional: Run Jupyterlab
 
-A jupyter notebook is a must have for AI development and your `llm-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
+A jupyter notebook is a must-have for AI development and your `llm-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
 
 ```python {{ title: 'workspace/settings.py'}}
 ...

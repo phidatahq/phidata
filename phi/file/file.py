@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class File(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     columns: Optional[List[str]] = None
     path: Optional[str] = None

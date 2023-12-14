@@ -9,6 +9,11 @@ class CsvFile(File):
     type: str = "CSV"
 
     def get_metadata(self) -> dict[str, Any]:
+        if self.name is None:
+            from pathlib import Path
+
+            self.name = Path(self.path).name
+
         if self.columns is None:
             try:
                 # Get the columns from the file

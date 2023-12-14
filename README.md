@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  AI Toolkit for Engineers
+  Full Stack AI Toolkit
 </h3>
 <p align="center">
   ⭐️ for when you need to spin up an AI project quickly.
@@ -22,18 +22,27 @@
 </a>
 </p>
 
-Phidata is a toolkit for building AI powered software. It provides:
-- Pre-built templates for AI Apps.
-- Building blocks: `Conversations`, `Agents`, `KnowledgeBase`, `Storage`
-- Tools: `FastApi`, `Django`, `Streamlit`, `PgVector`
-- Infrastructure: `Docker`, `AWS`
+Phidata is a toolkit for building AI powered software. It enables you to build:
+- **RAG Apps**: Connect LLMs to your knowledge base and build context-aware applications.
+- **Autonomous Apps**: Give LLMs the ability to call functions and build autonomous applications.
+- **Multi-Modal Apps**: Build apps that can process text, images, audio and video.
+- **Workflow Specific AI**: Build AI for specific workflows like data engineering, customer support, sales, marketing, etc.
 
-## 🎯 Motivation
+It achieves this by providing:
+- Building blocks: `Conversations`, `Tools`, `Agents`, `KnowledgeBase`, `Storage`
+- Tools for serving AI Apps: `FastApi`, `Django`, `Streamlit`, `PgVector`
+- Infrastructure for running AI Apps: `Docker`, `AWS`
+
+To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command.
+
+## 🎯 Goal: Provide a paved path to production-ready AI
+
+## ✨ Motivation
 
 Most AI Apps are built as a house of cards because engineers have to build the Software, Application and Infrastructure layer separately and then glue them together.
-This leads to technical debt and makes it hard to build production-grade AI Apps.
+This leads to brittle systems that are hard to productionize and maintain.
 
-Phidata bridges the 3 layers of software development and provides production-ready templates for AI Apps that you can run with 1 command.
+Phidata bridges the 3 layers of software development and provides a paved path to production-ready AI.
 
 ## 🚀 How it works
 
@@ -42,6 +51,7 @@ Phidata bridges the 3 layers of software development and provides production-rea
 - Run your app on AWS: `phi ws up prd:aws`
 
 ## ⭐ Features:
+
 - **Powerful:** Get a production-ready AI App with 1 command.
 - **Simple**: Built using a human-like `Conversation` interface to language models.
 - **Production Ready:** Your app can be deployed to aws with 1 command.
@@ -52,13 +62,9 @@ Phidata bridges the 3 layers of software development and provides production-rea
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
 - Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
 
-## 💻 Example: Build a RAG LLM App
+## 💻 Quickstart
 
-Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
-
-> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
-
-### Installation
+### Create a virtual environment
 
 Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
@@ -69,11 +75,42 @@ python3 -m venv aienv
 source aienv/bin/activate
 ```
 
+### Install
+
 Install phidata
 
 ```bash
 pip install phidata
 ```
+
+### Create a conversation
+
+Conversations are a human-like interface to language models and the starting point for every AI App.
+We send the LLM a message and get a model-generated output as a response.
+
+Conversations come with built-in Memory, Knowledge, Storage and access to Tools.
+Giving LLMs the ability to have long-term, knowledge-based Conversations is the first step in our journey to AGI.
+
+Copy the following code to a file conversation.py
+
+```python
+from phi.conversation import Conversation
+
+conversation = Conversation()
+conversation.print_response('Share a quick healthy breakfast recipe.')
+```
+
+### Run your conversation
+
+```bash
+python conversation.py
+```
+
+## 🤖 Example: Build a RAG LLM App
+
+Let's build a **RAG LLM App** with GPT-4. We'll use PgVector for Knowledge Base and Storage and serve the app using Streamlit and FastApi. Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
+
+> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
 
 ### Create your codebase
 

@@ -5,9 +5,6 @@
   Full Stack AI Toolkit
 </h3>
 <p align="center">
-  ⭐️ for when you need to spin up an AI project quickly.
-</p>
-<p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
 </a>
@@ -33,7 +30,7 @@ It achieves this by providing:
 - Tools for serving AI Apps: `FastApi`, `Django`, `Streamlit`, `PgVector`
 - Infrastructure for running AI Apps: `Docker`, `AWS`
 
-To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command.
+To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command. ⭐️ for when you need to spin up an AI project quickly.
 
 ## 🎯 Goal: Provide a paved path to production-ready AI
 

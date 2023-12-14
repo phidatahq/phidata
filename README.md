@@ -23,7 +23,7 @@ Phidata is a toolkit for building AI powered software. It enables you to build:
 - **RAG Apps**: Connect LLMs to your knowledge base and build context-aware applications.
 - **Autonomous Apps**: Give LLMs the ability to call functions and build autonomous applications.
 - **Multi-Modal Apps**: Build apps that can process text, images, audio and video.
-- **Workflow Specific AI**: Build AI for specific workflows like data engineering, customer support, sales, marketing, etc.
+- **Workflow Specific AI**: Build AI for workflows like data engineering, customer support, sales, marketing, etc.
 
 It achieves this by providing:
 - Building blocks: `Conversations`, `Tools`, `Agents`, `KnowledgeBase`, `Storage`

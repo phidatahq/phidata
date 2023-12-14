@@ -152,13 +152,13 @@ Let's build a **RAG LLM App** with GPT-4. We'll use:
 
 ### Create your codebase
 
-Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector. Use this codebase as a starting point for your LLM product.
+Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector.
 
 ```shell
 phi ws create -t llm-app -n llm-app
 ```
 
-This will create a folder named `llm-app`
+This will create a folder named `llm-app` in the current directory.
 
 ### Serve your LLM App using Streamlit
 
@@ -168,9 +168,9 @@ This will create a folder named `llm-app`
 phi ws up --group app
 ```
 
-**Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
+**Press Enter** to confirm and give a few minutes for the image to download.
 
-### Example: Chat with PDFs
+### Chat with PDFs
 
 - Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 - Click on **Chat with PDFs** in the sidebar

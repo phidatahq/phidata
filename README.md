@@ -37,7 +37,7 @@ To simplify development further, phidata provides pre-built templates for common
 ## ✨ Motivation
 
 Most AI Apps are built as a house of cards because engineers have to build the Software, Application and Infrastructure layer separately and then glue them together.
-This leads to brittle systems that are hard to productionize and maintain.
+This leads to brittle systems that are hard to maintain and productionize.
 
 Phidata bridges the 3 layers of software development and provides a paved path to production-ready AI.
 

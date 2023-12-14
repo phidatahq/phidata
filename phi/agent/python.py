@@ -80,7 +80,7 @@ class PythonAgent(Conversation):
     def get_instructions(self) -> str:
         _instructions = [
             "Determine if you can answer the question directly or if you need to run python code to accomplish the task.",
-            "If you need to run code, **THINK STEP BY STEP** about how you will accomplish the task.",
+            "If you need to run code, first **THINK** about how you will accomplish the task. No need to explain your reasoning.",
             "If you need access to data, check the `files` below to see if you have the data you need.",
             "If you do not have the data you need, stop and prompt the user to provide the missing information.",
             "Once you have all the information, create python functions to accomplishes the task.",
@@ -106,7 +106,7 @@ class PythonAgent(Conversation):
             'After you have all the functions, create a python script that runs the functions guarded by a `if __name__ == "__main__"` block.'
         ]
         if self.save_and_run:
-            _instructions += ["After the script is ready, save it to a file using the `save_to_file_and_run` function."]
+            _instructions += ["After the script is ready, save and run it using the `save_to_file_and_run` function."]
             _instructions += ["Make sure you specify the `variable_to_return` parameter correctly"]
         if self.run_code:
             _instructions += ["After the script is ready, run it using the `run_python_code` function."]

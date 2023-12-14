@@ -32,7 +32,9 @@ It achieves this by providing:
 - Tools for serving AI Apps: `FastApi`, `Django`, `Streamlit`, `PgVector`
 - Infrastructure for running AI Apps: `Docker`, `AWS`
 
-To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command. ⭐️ for when you need to spin up an AI project quickly.
+To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command.
+
+⭐️ for when you need to spin up an AI project quickly.
 
 ## ✨ Motivation
 

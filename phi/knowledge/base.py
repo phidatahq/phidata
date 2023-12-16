@@ -71,7 +71,7 @@ class KnowledgeBase(BaseModel):
             self.vector_db.optimize()
 
     def load_documents(self, documents: List[Document], skip_existing: bool = True) -> None:
-        """Load documents to the knowledgke base
+        """Load documents to the knowledge base
 
         Args:
             documents (List[Document]): List of documents to load

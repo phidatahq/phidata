@@ -445,13 +445,15 @@ class Conversation(BaseModel):
     def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
         """Return a list of references from the knowledge base"""
         if self.references_function is not None:
-            reference_kwargs = {"conversation": self, "query": query}
+            reference_kwargs = {"conversation": self, "query": query, "num_documents": num_documents}
             return remove_indent(self.references_function(**reference_kwargs))
 
         if self.knowledge_base is None:
             return None
 
         relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
+        if len(relevant_docs) == 0:
+            return None
         return json.dumps([doc.to_dict() for doc in relevant_docs])
 
     def get_formatted_chat_history(self) -> Optional[str]:

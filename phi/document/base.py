@@ -29,4 +29,4 @@ class Document(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the document"""
 
-        return self.model_dump(include={"name", "meta_data", "content"})
+        return self.model_dump(include={"name", "meta_data", "content"}, exclude_none=True)

@@ -8,6 +8,6 @@ class References(BaseModel):
     # The question asked by the user.
     query: str
     # The references from the vector database.
-    references: str
+    references: Optional[str] = None
     # Performance in seconds.
     time: Optional[float] = None

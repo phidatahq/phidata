@@ -450,7 +450,7 @@ class LLMTask(Task):
             "meta_data": self.meta_data,
             "output": self.output,
             "chat_history": self.memory.get_chat_history(),
-            "llm_messages": self.memory.get_llm_messages(),
+            "messages": self.memory.get_llm_messages(),
             "references": self.memory.references,
             "llm": self.llm.to_dict() if self.llm else None,
             "metrics": self.llm.metrics if self.llm else None,

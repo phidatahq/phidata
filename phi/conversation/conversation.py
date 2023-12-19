@@ -636,14 +636,19 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
         # -*- Send conversation event for monitoring
+        event_info = {
+            "messages": [m.model_dump(exclude_none=True) for m in messages],
+            "references": references.model_dump(exclude_none=True) if references else None,
+        }
         event_data = {
             "user_message": message,
             "llm_response": llm_response,
             "messages": [m.model_dump(exclude_none=True) for m in messages],
             "references": references.model_dump(exclude_none=True) if references else None,
+            "info": event_info,
             "metrics": self.llm.metrics,
         }
-        self._api_log_conversation_event(event_type="run", event_data=event_data)
+        self._api_log_conversation_event(event_type="chat", event_data=event_data)
 
         # -*- Update conversation output
         self.output = llm_response
@@ -741,13 +746,16 @@ class Conversation(BaseModel):
         self.write_to_storage()
 
         # -*- Send conversation event for monitoring
+        event_info = {
+            "tasks": task_dicts,
+        }
         event_data = {
             "user_message": message,
             "llm_response": llm_response,
-            "tasks": task_dicts,
+            "info": event_info,
             "metrics": self.llm.metrics,
         }
-        self._api_log_conversation_event(event_type="task_run", event_data=event_data)
+        self._api_log_conversation_event(event_type="tasks", event_data=event_data)
 
         # -*- Update conversation output
         self.output = llm_response

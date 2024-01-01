@@ -22,7 +22,9 @@
 
 ## ✨ What is phidata?
 
-Phidata is an open source toolkit for building, shipping and monitoring AI products.
+Phidata is a toolkit for building AI products. It gives you production-ready AI Apps that can run locally using docker or be deployed to AWS with 1 command.
+
+Its goal is to provide a paved-path for building AI products to anyone with basic python skills.
 
 ## 🎖 Use it to build
 
@@ -34,7 +36,7 @@ Phidata is an open source toolkit for building, shipping and monitoring AI produ
 
 ## 💡 What you get
 
-**Production ready codebases** built with:
+**Production ready codebases** for AI Apps, Web Apps and RestAPIs built with:
 
 - **Building blocks** like conversations, agents, knowledge bases defined as pydantic objects
 - **Applications** like FastApi, Streamlit, Django, Postgres defined as pydantic objects

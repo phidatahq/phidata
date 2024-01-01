@@ -34,7 +34,7 @@ Phidata is an open source toolkit for building, shipping and monitoring AI produ
 
 ## 💡 What you get
 
-**Production ready codebases** for AI Apps, Web Apps and RestAPIs built with:
+**Production ready codebases** built with:
 
 - **Building blocks** like conversations, agents, knowledge bases defined as pydantic objects
 - **Applications** like FastApi, Streamlit, Django, Postgres defined as pydantic objects

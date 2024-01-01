@@ -20,11 +20,11 @@
 </p>
 
 
-## What is phidata?
+## ✨ What is phidata?
 
 Phidata is an open source toolkit for building, shipping and monitoring AI products.
 
-## Use it to build
+## 🎖 Use it to build
 
 - **AI Apps** (RAG, autonomous or multimodal applications)
 - **AI Assistants** (automate data engineering, python or snowflake tasks)
@@ -32,7 +32,7 @@ Phidata is an open source toolkit for building, shipping and monitoring AI produ
 - **Web Apps** (with Django, PostgreSQL)
 - **Data Platforms** (with Airflow, Superset, Jupyter)
 
-## What you get
+## 💡 What you get
 
 **Production ready codebases** for AI Apps, Web Apps and RestAPIs built with:
 
@@ -42,13 +42,13 @@ Phidata is an open source toolkit for building, shipping and monitoring AI produ
 
 Phidata applications run locally using docker and can be deployed to AWS with 1 command.
 
-## How it works
+## 👩‍💻 How it works
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-## More Information:
+## 📚 More Information:
 
 - Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>

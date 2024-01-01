@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-Phidata is a toolkit for building AI products. It provides production-ready AI Apps that you can run locally using docker or deploy to AWS with 1 command.
+Phidata is a toolkit for building AI products. It gives you production-ready AI Apps that can run locally on docker or be deployed to AWS with 1 command.
 
 Its goal is to provide a paved-path for building AI products, to anyone with basic python skills.
 

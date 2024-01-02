@@ -30,6 +30,7 @@ class DockerNetwork(DockerResource):
 
     # Set skip_delete=True so that the network is not deleted when the `phi ws down` command is run
     skip_delete: bool = True
+    skip_update: bool = True
 
     def _create(self, docker_client: DockerApiClient) -> bool:
         """Creates the Network on docker

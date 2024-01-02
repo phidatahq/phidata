@@ -1027,6 +1027,10 @@ class Conversation(BaseModel):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
 
+        if self.output_model is not None:
+            markdown = False
+            stream = False
+
         if stream:
             response = ""
             with Live() as live_log:

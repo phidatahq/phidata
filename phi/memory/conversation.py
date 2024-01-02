@@ -14,7 +14,7 @@ class ConversationMemory(BaseModel):
     # Messages between the user and the LLM.
     # Note: the actual prompts are stored in the llm_messages
     chat_history: List[Message] = []
-    # Messages(prompts) sent to the LLM and the LLM responses.
+    # Prompts sent to the LLM and the LLM responses.
     llm_messages: List[Message] = []
     # References from the vector database.
     references: List[References] = []

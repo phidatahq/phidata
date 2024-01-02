@@ -322,8 +322,7 @@ class WorkspaceConfig(BaseModel):
         logger.debug(f"Loading .env from {resource_file_parent_dir}")
         load_env(dotenv_dir=resource_file_parent_dir)
 
-        workspace_dir_name = resource_file_parent_dir.name
-        temporary_ws_config = WorkspaceConfig(ws_dir_name=workspace_dir_name, ws_root_path=resource_file_parent_dir)
+        temporary_ws_config = WorkspaceConfig(ws_root_path=resource_file_parent_dir)
 
         # NOTE: When loading a workspace, relative imports or package imports do not work.
         # This is a known problem in python

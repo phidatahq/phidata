@@ -19,39 +19,36 @@
 </a>
 </p>
 
-## 🎯 Goal: Provide a paved path to production-ready AI
 
-Phidata is a toolkit for building AI powered software. It enables you to build:
-- **RAG Apps**: Connect LLMs to your knowledge base and build context-aware applications.
-- **Autonomous Apps**: Give LLMs the ability to call functions and build autonomous applications.
-- **Multi-Modal Apps**: Build apps that can process text, images, audio and video.
-- **Workflow Specific AI**: Build AI for workflows like data engineering, customer support, sales, marketing, etc.
+## ✨ What is phidata?
 
-It achieves this by providing:
-- Building blocks: `Conversations`, `Tools`, `Agents`, `KnowledgeBase`, `Storage`
-- Tools for serving AI Apps: `FastApi`, `Django`, `Streamlit`, `PgVector`
-- Infrastructure for running AI Apps: `Docker`, `AWS`
+Phidata is a toolkit for building AI products. It gives you production-ready AI Apps that can run locally on docker or be deployed to AWS with 1 command.
 
-To simplify development further, phidata provides pre-built templates for common use-cases that you can clone and run with 1 command.  ⭐️ for when you need to spin up an AI project quickly.
+Its goal is to provide a paved-path for building AI products, to anyone with basic python skills.
 
-## ✨ Motivation
+## 🎖 Use it to build
 
-Most AI Apps are built as a house of cards because engineers have to build the Software, Application and Infrastructure layer separately and then glue them together.
-This leads to brittle systems that are hard to maintain, monitor and productionize.
+- **AI Apps** (RAG, autonomous or multimodal applications)
+- **AI Assistants** (automate data engineering, python or snowflake tasks)
+- **Rest Apis** (with FastApi, PostgreSQL)
+- **Web Apps** (with Django, PostgreSQL)
+- **Data Platforms** (with Airflow, Superset, Jupyter)
 
-Phidata bridges the 3 layers of software development and provides a paved path to production-ready AI.
+## 💡 What you get
 
-## 🚀 How it works
+**Production ready codebases** for AI Apps, Web Apps and RestAPIs built with:
+
+- **Building blocks** like conversations, agents, knowledge bases defined as pydantic objects
+- **Applications** like FastApi, Streamlit, Django, Postgres defined as pydantic objects
+- **Infrastructure** components (docker, AWS) also defined as pydantic objects
+
+Phidata applications run locally using docker and can be deployed to AWS with 1 command.
+
+## 👩‍💻 How it works
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
-
-## ⭐ Features:
-
-- **Powerful:** Get a production-ready AI App with 1 command.
-- **Simple**: Built using a human-like `Conversation` interface to language models.
-- **Production Ready:** Your app can be deployed to aws with 1 command.
 
 ## 📚 More Information:
 
@@ -59,7 +56,15 @@ Phidata bridges the 3 layers of software development and provides a paved path t
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
 - Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
 
-## 💻 Quickstart
+## 🚀 Quickstart: Build a RAG LLM App
+
+Let's build a **RAG LLM App** with GPT-4. We'll use:
+- Streamlit for the front-end
+- FastApi for the back-end
+- PgVector for Knowledge Base and Storage
+- Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
+
+> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
 
 ### Create a virtual environment
 
@@ -77,78 +82,8 @@ source aienv/bin/activate
 Install phidata
 
 ```shell
-pip install phidata
+pip install -U phidata
 ```
-
-### Create a conversation
-
-Conversations are a human-like interface to language models and the starting point for every AI App.
-We send the LLM a message and get a model-generated output as a response.
-
-Conversations come with built-in Memory, Knowledge, Storage and access to Tools.
-Giving LLMs the ability to have long-term, knowledge-based Conversations is the first step in our journey to AGI.
-
-- Copy the following code to a file `conversation.py`
-
-```python
-from phi.conversation import Conversation
-
-conversation = Conversation()
-conversation.print_response('Share a quick healthy breakfast recipe.')
-```
-
-- Install openai
-
-```shell
-pip install openai
-```
-
-- Run your conversation
-
-```shell
-python conversation.py
-```
-
-### Get structured output from LLM
-
-- Update the `conversation.py` file to:
-
-```python
-from pydantic import BaseModel, Field
-from phi.conversation import Conversation
-from rich.pretty import pprint
-
-class Recipe(BaseModel):
-    title: str = Field(..., description='Title of the recipe.')
-    ingredients: str = Field(..., description='Ingredients for the recipe.')
-    instructions: str = Field(..., description='Instructions for the recipe.')
-
-conversation = Conversation(output_model=Recipe)
-breakfast_recipe = conversation.run('Quick healthy breakfast recipe.')
-pprint(breakfast_recipe)
-```
-
-- Run your conversation again:
-
-```shell
-python conversation.py
-
-Recipe(
-│   title='Banana and Almond Butter Toast',
-│   ingredients='2 slices of whole-grain bread, 1 ripe banana, 2 tablespoons almond butter, 1 teaspoon chia seeds, 1 teaspoon honey (optional)',
-│   instructions='Toast the bread slices to desired crispness. Spread 1 tablespoon of almond butter on each slice of toast. Slice the banana and arrange the slices on top of the almond butter. Sprinkle chia seeds over the banana slices. Drizzle honey on top if preferred. Serve immediately.'
-)
-```
-
-## 🤖 Full Example: Build a RAG LLM App
-
-Let's build a **RAG LLM App** with GPT-4. We'll use:
-- PgVector for Knowledge Base and Storage
-- Streamlit for the front-end
-- FastApi for the back-end
-- Read the full tutorial <a href="https://docs.phidata.com/examples/rag-llm-app" target="_blank" rel="noopener noreferrer">here</a>.
-
-> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
 
 ### Create your codebase
 
@@ -158,7 +93,7 @@ Create your codebase using the `llm-app` template pre-configured with FastApi, S
 phi ws create -t llm-app -n llm-app
 ```
 
-This will create a folder named `llm-app` in the current directory.
+This will create a folder `llm-app` with a pre-built LLM App that you can customize and make your own.
 
 ### Serve your LLM App using Streamlit
 
@@ -237,7 +172,7 @@ phi ws down
 
 ### Run your LLM App on AWS
 
-Read how to <a href="https://docs.phidata.com/guides/llm-app#run-on-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS here</a>.
+Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS</a>.
 
 ## 📚 More Information:
 

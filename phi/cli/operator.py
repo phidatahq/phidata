@@ -359,7 +359,7 @@ def patch_resources(
         print_info("No resources to patch")
         return
 
-    logger.debug(f"Deploying {num_rgs_to_patch} resource groups")
+    logger.debug(f"Patching {num_rgs_to_patch} resource groups")
     for rg in resource_groups_to_patch:
         _num_resources_patched, _num_resources_to_patch = rg.update_resources(
             group_filter=target_group,
@@ -373,7 +373,7 @@ def patch_resources(
             num_rgs_patched += 1
         num_resources_patched += _num_resources_patched
         num_resources_to_patch += _num_resources_to_patch
-        logger.debug(f"Deployed {num_resources_patched} resources in {num_rgs_patched} resource groups")
+        logger.debug(f"Patched {num_resources_patched} resources in {num_rgs_patched} resource groups")
 
     if dry_run:
         return

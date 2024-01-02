@@ -26,14 +26,14 @@ from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.llm_app: "llm-app",
-    WorkspaceStarterTemplate.llm_api: "llm-api",
+    WorkspaceStarterTemplate.api_app: "api-app",
     WorkspaceStarterTemplate.django_app: "django-app",
     WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
     WorkspaceStarterTemplate.junior_de: "junior-de",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.llm_app: "https://github.com/phidatahq/llm-app.git",
-    WorkspaceStarterTemplate.llm_api: "https://github.com/phidatahq/llm-api.git",
+    WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
     WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
     WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
     WorkspaceStarterTemplate.junior_de: "https://github.com/phidatahq/junior-de.git",

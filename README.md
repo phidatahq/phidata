@@ -25,8 +25,7 @@
 Phidata is an open source toolkit for building AI products.
 
 It gives you production-ready AI Apps with 1 command.
-
-Its goal is to provide a paved-path for building AI products, for anyone with basic python skills.
+It's designed to provide a paved-path for building AI products to anyone with basic python skills.
 
 ## 🎖 Use it to build
 

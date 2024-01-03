@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-Phidata is an OSS toolkit for building AI products.
+Phidata is an open source toolkit for building AI products.
 
 It gives you production-ready AI Apps with 1 command.
 

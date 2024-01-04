@@ -63,7 +63,7 @@ class S3Bucket(AwsResource):
         # the region of the already existing bucket. If you happen to guess the correct region of the
         # existing bucket it will give you the BucketAlreadyExists exception.
         bucket_configuration = None
-        if aws_client.aws_region != "us-east-1":
+        if aws_client.aws_region is not None and aws_client.aws_region != "us-east-1":
             bucket_configuration = {"LocationConstraint": aws_client.aws_region}
 
         # create a dict of args which are not null, otherwise aws type validation fails

@@ -130,6 +130,7 @@ class File(BaseModel):
                         temp_file.write(response.content)
                         temp_file_path = temp_file.name
                     return temp_file_path
+            raise ValueError("File not available")
         except FileIdNotSet:
             logger.warning("File not available")
             raise

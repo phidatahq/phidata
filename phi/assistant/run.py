@@ -230,6 +230,7 @@ class Run(BaseModel):
                 self.load_from_openai(self.openai_run)
                 logger.debug(f"Run updated: {self.id}")
                 return self
+            raise ValueError("Run not available")
         except (ThreadIdNotSet, RunIdNotSet):
             logger.warning("Message not available")
             raise

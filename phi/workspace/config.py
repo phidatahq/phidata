@@ -7,10 +7,133 @@ from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
 from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
+from phi.utils.py_io import get_python_objects_from_module
 from phi.utils.log import logger
 
 # List of directories to ignore when loading the workspace
 ignored_dirs = ["ignore", "test", "tests", "config"]
+
+
+def get_workspace_objects_from_file(resource_file: Path) -> dict:
+    """Returns workspace objects from the resource file"""
+    try:
+        python_objects = get_python_objects_from_module(resource_file)
+        # logger.debug(f"python_objects: {python_objects}")
+
+        workspace_objects = {}
+        docker_resources_available = False
+        create_default_docker_resources = False
+        k8s_resources_available = False
+        create_default_k8s_resources = False
+        aws_resources_available = False
+        create_default_aws_resources = False
+        for obj_name, obj in python_objects.items():
+            _type_name = obj.__class__.__name__
+            if _type_name in [
+                "WorkspaceSettings",
+                "DockerResources",
+                "K8sResources",
+                "AwsResources",
+            ]:
+                workspace_objects[obj_name] = obj
+                if _type_name == "DockerResources":
+                    docker_resources_available = True
+                elif _type_name == "K8sResources":
+                    k8s_resources_available = True
+                elif _type_name == "AwsResources":
+                    aws_resources_available = True
+
+            try:
+                if not docker_resources_available:
+                    if obj.__class__.__module__.startswith("phi.docker"):
+                        create_default_docker_resources = True
+                if not k8s_resources_available:
+                    if obj.__class__.__module__.startswith("phi.k8s"):
+                        create_default_k8s_resources = True
+                if not aws_resources_available:
+                    if obj.__class__.__module__.startswith("phi.aws"):
+                        create_default_aws_resources = True
+            except Exception:
+                pass
+
+        if not docker_resources_available and create_default_docker_resources:
+            from phi.docker.resources import DockerResources, DockerResource, DockerApp
+
+            logger.debug("Creating default docker resources")
+            default_docker_resources = DockerResources()
+            add_default_docker_resources = False
+            for obj_name, obj in python_objects.items():
+                _obj_class = obj.__class__
+                if issubclass(_obj_class, DockerResource):
+                    if default_docker_resources.resources is None:
+                        default_docker_resources.resources = []
+                    default_docker_resources.resources.append(obj)
+                    add_default_docker_resources = True
+                    logger.debug(f"Added DockerResource: {obj_name}")
+                elif issubclass(_obj_class, DockerApp):
+                    if default_docker_resources.apps is None:
+                        default_docker_resources.apps = []
+                    default_docker_resources.apps.append(obj)
+                    add_default_docker_resources = True
+                    logger.debug(f"Added DockerApp: {obj_name}")
+
+            if add_default_docker_resources:
+                workspace_objects["default_docker_resources"] = default_docker_resources
+
+        if not k8s_resources_available and create_default_k8s_resources:
+            from phi.k8s.resources import K8sResources, K8sResource, K8sApp, CreateK8sResource
+
+            logger.debug("Creating default k8s resources")
+            default_k8s_resources = K8sResources()
+            add_default_k8s_resources = False
+            for obj_name, obj in python_objects.items():
+                _obj_class = obj.__class__
+                # logger.debug(f"Checking {_obj_class}: {obj_name}")
+                if issubclass(_obj_class, K8sResource) or issubclass(_obj_class, CreateK8sResource):
+                    if default_k8s_resources.resources is None:
+                        default_k8s_resources.resources = []
+                    default_k8s_resources.resources.append(obj)
+                    add_default_k8s_resources = True
+                    logger.debug(f"Added K8sResource: {obj_name}")
+                elif issubclass(_obj_class, K8sApp):
+                    if default_k8s_resources.apps is None:
+                        default_k8s_resources.apps = []
+                    default_k8s_resources.apps.append(obj)
+                    add_default_k8s_resources = True
+                    logger.debug(f"Added K8sApp: {obj_name}")
+
+            if add_default_k8s_resources:
+                workspace_objects["default_k8s_resources"] = default_k8s_resources
+
+        if not aws_resources_available and create_default_aws_resources:
+            from phi.aws.resources import AwsResources, AwsResource, AwsApp
+
+            logger.debug("Creating default aws resources")
+            default_aws_resources = AwsResources()
+            add_default_aws_resources = False
+            for obj_name, obj in python_objects.items():
+                _obj_class = obj.__class__
+                # logger.debug(f"Checking {_obj_class}: {obj_name}")
+                if issubclass(_obj_class, AwsResource):
+                    if default_aws_resources.resources is None:
+                        default_aws_resources.resources = []
+                    default_aws_resources.resources.append(obj)
+                    add_default_aws_resources = True
+                    logger.debug(f"Added AwsResource: {obj_name}")
+                elif issubclass(_obj_class, AwsApp):
+                    if default_aws_resources.apps is None:
+                        default_aws_resources.apps = []
+                    default_aws_resources.apps.append(obj)
+                    add_default_aws_resources = True
+                    logger.debug(f"Added AwsApp: {obj_name}")
+
+            if add_default_aws_resources:
+                workspace_objects["default_aws_resources"] = default_aws_resources
+
+        return workspace_objects
+    except Exception:
+        logger.error(f"Error reading: {resource_file}")
+        raise
 
 
 class WorkspaceConfig(BaseModel):
@@ -91,9 +214,6 @@ class WorkspaceConfig(BaseModel):
             return None
 
         logger.debug(f"Loading workspace_settings from {ws_settings_file}")
-
-        from phi.utils.py_io import get_python_objects_from_module
-
         try:
             python_objects = get_python_objects_from_module(ws_settings_file)
             for obj_name, obj in python_objects.items():
@@ -164,7 +284,6 @@ class WorkspaceConfig(BaseModel):
 
         from sys import path as sys_path
         from phi.utils.load_env import load_env
-        from phi.utils.py_io import get_python_objects_from_module
 
         # Objects to read from the files in the workspace_dir_path
         docker_resource_groups: Optional[List[Any]] = None
@@ -311,7 +430,6 @@ class WorkspaceConfig(BaseModel):
 
         from sys import path as sys_path
         from phi.utils.load_env import load_env
-        from phi.utils.py_io import get_python_objects_from_module
 
         # Objects to read from the file
         docker_resource_groups: Optional[List[Any]] = None
@@ -331,24 +449,9 @@ class WorkspaceConfig(BaseModel):
         logger.debug(f"Adding {resource_file_parent_dir} to path")
         sys_path.insert(0, str(resource_file_parent_dir))
 
-        # Create a dict of objects in the workspace directory
-        workspace_objects = {}
         logger.debug(f"**--> Loading resources from {resource_file}")
-        try:
-            python_objects = get_python_objects_from_module(resource_file)
-            # logger.debug(f"python_objects: {python_objects}")
-            for obj_name, obj in python_objects.items():
-                _type_name = obj.__class__.__name__
-                if _type_name in [
-                    "WorkspaceSettings",
-                    "DockerResources",
-                    "K8sResources",
-                    "AwsResources",
-                ]:
-                    workspace_objects[obj_name] = obj
-        except Exception:
-            logger.warning(f"Error in {resource_file}")
-            raise
+        # Create a dict of objects from the file
+        workspace_objects = get_workspace_objects_from_file(resource_file)
 
         # logger.debug(f"workspace_objects: {workspace_objects}")
         for obj_name, obj in workspace_objects.items():

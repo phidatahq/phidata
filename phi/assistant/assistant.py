@@ -229,6 +229,7 @@ class Assistant(BaseModel):
                 self.load_from_openai(self.openai_assistant)
                 logger.debug(f"Assistant updated: {self.id}")
                 return self
+            raise ValueError("Assistant not available")
         except AssistantIdNotSet:
             logger.warning("Assistant not available")
             raise

@@ -124,6 +124,7 @@ class Thread(BaseModel):
                 self.load_from_openai(self.openai_thread)
                 logger.debug(f"Thead updated: {self.id}")
                 return self
+            raise ValueError("Thread not available")
         except ThreadIdNotSet:
             logger.warning("Thread not available")
             raise

@@ -157,6 +157,7 @@ class Message(BaseModel):
                 self.load_from_openai(self.openai_message)
                 logger.debug(f"Message updated: {self.id}")
                 return self
+            raise ValueError("Message not available")
         except (ThreadIdNotSet, MessageIdNotSet):
             logger.warning("Message not available")
             raise

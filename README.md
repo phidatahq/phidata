@@ -27,7 +27,7 @@ Phidata is an open source toolkit for building AI products. It gives you pre-bui
 ## 🎖 Use it to build
 
 - **AI Apps** (RAG, autonomous or multimodal applications)
-- **AI Assistants** (automate data engineering, python or snowflake tasks)
+- **AI Agents** (automate data engineering, python or snowflake tasks)
 - **Rest Apis** (with FastApi, PostgreSQL)
 - **Web Apps** (with Django, PostgreSQL)
 - **Data Platforms** (with Airflow, Superset, Jupyter)

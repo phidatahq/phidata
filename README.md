@@ -24,8 +24,7 @@
 
 Phidata is an open source toolkit for building AI products.
 
-It gives you production-ready AI Apps with 1 command.
-It's designed to provide a paved-path for building AI products to anyone with basic python skills.
+It provides a paved-path for building AI products by giving you pre-built AI Apps that you can run locally using docker or deploy to AWS.
 
 ## 🎖 Use it to build
 
@@ -51,18 +50,19 @@ Phidata applications run locally using docker and can be deployed to AWS with 1 
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-## 📚 More Information:
+## 🚀 Get Started
 
-- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
-- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs</a> for more information.
+- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a> for help.
 
-## 🚀 Quickstart: Build a RAG LLM App
+## 📖 Quickstart: Build a RAG LLM App
 
-Let's build a **RAG LLM App** with GPT-4. We'll use:
-- Streamlit for the front-end
-- FastApi for the back-end
-- PgVector for Knowledge Base and Storage
+Let's build a **RAG LLM App** using:
+
+- GPT-4 as the LLM
+- Streamlit as the chat interface
+- FastApi as the backend
+- PgVector for knowledge base and storage
 - Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
 
 > Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
@@ -177,6 +177,6 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ## 📚 More Information:
 
-- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
+- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs</a>
+- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 - Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>

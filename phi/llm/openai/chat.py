@@ -109,6 +109,7 @@ class OpenAIChat(LLM):
     def invoke_model(self, messages: List[Message]) -> ChatCompletion:
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
+            response_json = None
             try:
                 from phi.api.llm import openai_chat
 
@@ -125,8 +126,8 @@ class OpenAIChat(LLM):
                     exit(1)
                 else:
                     return ChatCompletion.model_validate_json(response_json)
-            except Exception as e:
-                logger.exception(e)
+            except Exception:
+                logger.error(response_json)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
@@ -158,13 +159,13 @@ class OpenAIChat(LLM):
                             for completion_chunk in json.loads(chunks):
                                 try:
                                     yield ChatCompletionChunk.model_validate(completion_chunk)
-                                except Exception as e:
-                                    logger.warning(e)
+                                except Exception:
+                                    logger.error(chunk)
                         else:
                             try:
                                 yield ChatCompletionChunk.model_validate_json(chunk)
-                            except Exception as e:
-                                logger.warning(e)
+                            except Exception:
+                                logger.error(chunk)
             except Exception as e:
                 logger.exception(e)
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")

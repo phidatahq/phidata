@@ -8,7 +8,7 @@ from phi.llm.references import References
 
 class ConversationMemory(BaseModel):
     """
-    This class provides a memory for a Conversation.
+    This class provides memory for a Conversation.
     """
 
     # Messages between the user and the LLM.
@@ -20,21 +20,7 @@ class ConversationMemory(BaseModel):
     references: List[References] = []
 
     def to_dict(self) -> Dict[str, Any]:
-        return self.model_dump(include={"chat_history", "llm_messages", "references"})
-
-    def add_user_message(self, message: Message) -> None:
-        """Adds a message sent by the user to the chat_history."""
-        self.chat_history.append(message)
-
-    def add_llm_response(self, message: Message) -> None:
-        """Adds the LLM response to the chat_history and llm_messages."""
-        self.chat_history.append(message)
-        self.llm_messages.append(message)
-
-    def add_system_prompt(self, message: Message) -> None:
-        """Adds the system prompt sent to the LLM to llm_messages if this is the first llm message."""
-        if len(self.llm_messages) == 0:
-            self.llm_messages.append(message)
+        return self.model_dump(exclude_none=True)
 
     def add_chat_message(self, message: Message) -> None:
         """Adds a Message to the chat_history."""
@@ -44,7 +30,7 @@ class ConversationMemory(BaseModel):
         """Adds a Message to the llm_messages."""
         self.llm_messages.append(message)
 
-    def add_chat_history(self, messages: List[Message]) -> None:
+    def add_chat_messages(self, messages: List[Message]) -> None:
         """Adds a list of messages to the chat_history."""
         self.chat_history.extend(messages)
 

@@ -9,7 +9,7 @@ from phi.utils.log import logger
 
 @functools.lru_cache(maxsize=None)
 def warn() -> None:
-    logger.warning("PythonAgent can execute arbitrary code. Do not use without human supervision.")
+    logger.warning("PythonTools can run arbitrary code, please provide human supervision.")
 
 
 class PythonTools(ToolRegistry):

@@ -13,25 +13,26 @@ class Task(BaseModel):
     id: Optional[str] = None
     # Task name
     name: Optional[str] = None
-    # Metadata associated with this task
-    meta_data: Optional[Dict[str, Any]] = None
 
-    # If True, show debug logs
-    debug_mode: bool = False
-    # Enable monitoring on phidata.com
-    monitoring: bool = False
-
-    # -*- Conversation settings
-    conversation_memory: Optional["ConversationMemory"] = None
+    # -*- Conversation state
+    # The index of the current task in the conversation
+    task_index: Optional[int] = None
+    conversation_id: Optional[str] = None
+    conversation_memory: Optional[ConversationMemory] = None
     conversation_message: Optional[Union[List[Dict], str]] = None
 
     # -*- Output Settings
-    # -*- The output of this Task
-    output: Optional[Any] = None
     # Output model for the responses
     output_model: Optional[Union[str, List, Type[BaseModel]]] = None
-    # If True, shows the output of the LLM in the conversation.run()
+    # If True, the output is converted into the output_model
+    parse_output: bool = True
+    # -*- The output of this Task
+    output: Optional[Any] = None
+    # If True, shows the output of the task in the conversation.run()
     show_output: bool = True
+
+    # If True, enable debug logs
+    debug_mode: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -44,7 +45,7 @@ class Task(BaseModel):
 
     @property
     def streamable(self) -> bool:
-        return self.output_model is None
+        return False
 
     def set_task_id(self) -> None:
         if self.id is None:
@@ -64,7 +65,6 @@ class Task(BaseModel):
         _dict = {
             "id": self.id,
             "name": self.name,
-            "meta_data": self.meta_data,
             "output": self.output,
         }
         return _dict

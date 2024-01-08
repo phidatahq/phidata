@@ -84,7 +84,7 @@ class LLM(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, ToolRegistry, Callable, Dict]) -> None:
+    def add_tool(self, tool: Union[Tool, ToolRegistry, Callable, Dict, Function]) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -92,9 +92,8 @@ class LLM(BaseModel):
         if isinstance(tool, Tool) or isinstance(tool, Dict):
             self.tools.append(tool)
             logger.debug(f"Added tool {tool} to LLM.")
-
         # If the tool is a Callable or ToolRegistry, add its functions to the LLM
-        if callable(tool) or isinstance(tool, ToolRegistry):
+        elif callable(tool) or isinstance(tool, ToolRegistry) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
@@ -103,6 +102,10 @@ class LLM(BaseModel):
                 for func in tool.functions.values():
                     self.tools.append({"type": "function", "function": func.to_dict()})
                 logger.debug(f"Functions from {tool.name} added to LLM.")
+            elif isinstance(tool, Function):
+                self.functions[tool.name] = tool
+                self.tools.append({"type": "function", "function": tool.to_dict()})
+                logger.debug(f"Function {tool.name} added to LLM.")
             elif callable(tool):
                 func = Function.from_callable(tool)
                 self.functions[func.name] = func

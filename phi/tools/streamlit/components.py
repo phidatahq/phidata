@@ -19,7 +19,7 @@ def get_username_sidebar() -> Optional[str]:
             username_input_container.empty()
 
     # Get username from session state
-    username = st.session_state.get("username")
+    username = st.session_state.get("username")  # type: ignore
     return username
 
 

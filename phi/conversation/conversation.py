@@ -213,7 +213,6 @@ class Conversation(BaseModel):
             markdown=self.markdown,
             guidelines=self.guidelines,
         )
-        logger.debug(f"LLM Tools: {self._llm_task.tools}")
         return self._llm_task
 
     def to_database_row(self) -> ConversationRow:
@@ -441,6 +440,7 @@ class Conversation(BaseModel):
             "tasks": task_meta_data,
             "messages": self.memory.get_llm_messages(),
             "references": [r.model_dump(exclude_none=True) for r in self.memory.references if r is not None],
+            "markdown": self.markdown,
         }
         event_data = {
             "user_message": message,

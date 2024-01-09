@@ -283,15 +283,11 @@ Templates are **pre-built AI Apps** that can be used as a starting point for you
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-Let's build a **RAG LLM App** using:
+Let's build a **RAG LLM App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the backend and PgVector for knowledge and storage.
 
-- GPT-4 as the LLM
-- Streamlit as the chat interface
-- FastApi as the backend
-- PgVector for knowledge base and storage
-- Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
+> Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
 
-#### Create your codebase
+- Create your codebase
 
 Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector.
 
@@ -301,7 +297,7 @@ phi ws create -t llm-app -n llm-app
 
 This will create a folder `llm-app` with a pre-built LLM App that you can customize and make your own.
 
-#### Serve your LLM App using Streamlit
+- Serve your LLM App using Streamlit
 
 <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
@@ -311,7 +307,7 @@ phi ws up --group app
 
 **Press Enter** to confirm and give a few minutes for the image to download.
 
-#### Chat with PDFs
+- Chat with PDFs
 
 - Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 - Click on **Chat with PDFs** in the sidebar
@@ -322,7 +318,7 @@ phi ws up --group app
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/a8eff0ac-963c-43cb-a784-920bd6713a48">
 
-#### Serve your LLM App using FastApi
+- Serve your LLM App using FastApi
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 
@@ -334,14 +330,14 @@ phi ws up --group api
 
 **Press Enter** to confirm and give a few minutes for the image to download.
 
-#### View API Endpoints
+- View API Endpoints
 
 - Open <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">localhost:8000/docs</a> to view the API Endpoints.
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
 - The LLM Api comes pre-built with endpoints that you can integrate with your front-end.
 
-#### Optional: Run Jupyterlab
+- Optional: Run Jupyterlab
 
 A jupyter notebook is a must-have for AI development and your `llm-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
 
@@ -363,12 +359,12 @@ phi ws up --group jupyter
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-#### View Jupyterlab UI
+- View Jupyterlab UI
 
 - Open <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
 - Play around with cookbooks in the `notebooks` folder.
 
-#### Delete local resources
+- Delete local resources
 
 Play around and stop the workspace using:
 
@@ -376,7 +372,7 @@ Play around and stop the workspace using:
 phi ws down
 ```
 
-#### Run your LLM App on AWS
+- Run your LLM App on AWS
 
 Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS</a>.
 

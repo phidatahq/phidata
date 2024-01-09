@@ -137,7 +137,7 @@ python data_analyst.py
 
 - See it work through the problem
 
-## 📚 Examples
+## 🚀 Examples
 
 <details>
 
@@ -378,7 +378,7 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 </details>
 
-## 🚀 More Information:
+## 📚 More Information:
 
 - Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs</a>
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>

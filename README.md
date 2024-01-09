@@ -35,7 +35,9 @@ Like we have conversations with human specialists, now we can have conversations
 
 ## 👩‍💻 Getting Started
 
-### Installation
+<details>
+
+<summary><h3>Installation</h3></summary>
 
 - Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
@@ -52,7 +54,11 @@ source aienv/bin/activate
 pip install -U phidata
 ```
 
-### Create a Conversation
+</details>
+
+<details>
+
+<summary><h3>Create a Conversation</h3></summary>
 
 **Conversations** are a human-like interface to language models and the starting point for every AI App.
 Conversations come with built-in **memory**, **knowledge**, **storage** and access to **tools**.
@@ -72,7 +78,11 @@ conversation.print_response('Share a quick healthy breakfast recipe.')
 python conversation.py
 ```
 
-### Create a Python Engineer
+</details>
+
+<details>
+
+<summary><h3>Create a Python Engineer</h3></summary>
 
 You can have a Conversation with an `Agent` that is designed for a specific task. For example: `PythonAgent` can perform virtually any task using python code.
 
@@ -104,7 +114,11 @@ python python_agent.py
 
 - See it work through the problem
 
-### Create a Data Analyst
+</details>
+
+<details>
+
+<summary><h3>Create a Data Analyst</h3></summary>
 
 Use the `DuckDbAgent` to perform data analysis using SQL queries.
 
@@ -136,6 +150,8 @@ python data_analyst.py
 ```
 
 - See it work through the problem
+
+</details>
 
 ## 🚀 Examples
 

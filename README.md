@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build, ship and monitor AI products
+  Build human-like AI Interfaces
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,38 +22,265 @@
 
 ## ✨ What is phidata?
 
-Phidata is an open source toolkit for building AI products. It gives you pre-built AI Apps that you can run locally using docker or deploy to AWS.
+Toolkit for building AI products using a human-like `Conversation` interface.
 
-## 🎖 Use it to build
+**Conversations** come with built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build pretty much any kind of **RAG**, **Autonomous** or **Multimodal** application. For example:
 
-- **AI Apps** (RAG, autonomous or multimodal applications)
-- **AI Agents** (automate data engineering, python or snowflake tasks)
-- **Rest Apis** (with FastApi, PostgreSQL)
-- **Web Apps** (with Django, PostgreSQL)
-- **Data Platforms** (with Airflow, Superset, Jupyter)
+- **PDF Assistants:** Upload PDFs and ask questions.
+- **Python Engineers:** Perform tasks by writing and running python scripts.
+- **Data Analysts:** Analyze data by writing and running SQL queries.
+- **Stock Analysts:** Analyze stocks and research companies.
+- **Marketing Analysts:** Provide marketing insights, copywriting and content ideas.
 
-## 💡 What you get
+## 👩‍💻 Getting Started
 
-**Production ready codebases** built with:
+### Installation
 
-- **Building blocks** like conversations, agents, knowledge bases defined as pydantic objects
-- **Applications** like FastApi, Streamlit, Django, Postgres defined as pydantic objects
-- **Infrastructure** components (docker, AWS) also defined as pydantic objects
+- Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
-Phidata applications run locally using docker and can be deployed to AWS with 1 command.
+```shell
+mkdir ai && cd ai
 
-## 👩‍💻 How it works
+python3 -m venv aienv
+source aienv/bin/activate
+```
+
+- Install phidata
+
+```shell
+pip install -U phidata
+```
+
+### Create a Conversation
+
+**Conversations** are a human-like interface to language models and the starting point for every AI App.
+Conversations come with built-in **memory**, **knowledge**, **storage** and access to **tools**.
+
+- Create a file `conversation.py` and install openai using `pip install openai`
+
+```python
+from phi.conversation import Conversation
+
+conversation = Conversation()
+conversation.print_response('Share a quick healthy breakfast recipe.')
+```
+
+- Run the `conversation.py` file
+
+```bash
+python conversation.py
+```
+
+### Create a Python Engineer
+
+Agents are Conversations designed for specific tasks. For example: `PythonAgent` can perform virtually any task using python code.
+
+- Create a file `python_agent.py` and install pandas using `pip install pandas`
+
+```python
+from phi.agent.python import PythonAgent
+from phi.file.local.csv import CsvFile
+
+python_agent = PythonAgent(
+    files=[
+        CsvFile(
+            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            description="Contains information about movies from IMDB.",
+        )
+    ],
+    pip_install=True,
+    show_function_calls=True,
+)
+
+python_agent.print_response("What is the average rating of movies?")
+```
+
+- Run the `python_agent.py` file
+
+```bash
+python python_agent.py
+```
+
+- See it work through the problem
+
+### Create a Data Analyst
+
+Use the `DuckDbAgent` to perform data analysis using SQL queries.
+
+- Create a file `data_analyst.py` and install duckdb using `pip install duckdb`
+
+```python
+import json
+from phi.agent.duckdb import DuckDbAgent
+
+duckdb_agent = DuckDbAgent(
+    semantic_model=json.dumps({
+        "tables": [
+            {
+                "name": "movies",
+                "description": "Contains information about movies from IMDB.",
+                "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            }
+        ]
+    }),
+)
+
+duckdb_agent.print_response("What is the average rating of movies?")
+```
+
+- Run the `data_analyst.py` file
+
+```bash
+python data_analyst.py
+```
+
+- See it work through the problem
+
+## 👩‍💻 Examples
+
+<details>
+
+<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
+
+- **Knowledge Base:** a database of information that the AI can search to improve its responses.
+- **Storage:** provides long term memory for `Conversations`.
+
+Let's run `PgVector` as it can provide both, knowledge and storage for our Conversations.
+
+- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+- Create a file `resources.py` with the following contents
+
+```python
+from phi.docker.app.postgres import PgVectorDb
+from phi.docker.resources import DockerResources
+
+# -*- PgVector running on port 5432:5432
+vector_db = PgVectorDb(
+    pg_user="llm",
+    pg_password="llm",
+    pg_database="llm",
+    debug_mode=True,
+)
+
+# -*- DockerResources
+dev_docker_resources = DockerResources(apps=[vector_db])
+```
+
+- Start `PgVector` using
+
+```bash
+phi start resources.py
+```
+
+- Create a file `pdf_assistant.py` and install libraries using `pip install pgvector pypdf psycopg sqlalchemy`
+
+```python
+import typer
+from rich.prompt import Prompt
+from typing import Optional, List
+
+from phi.conversation import Conversation
+from phi.storage.conversation.postgres import PgConversationStorage
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.vectordb.pgvector import PgVector
+
+from resources import vector_db
+
+knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf"],
+    vector_db=PgVector(
+        collection="recipes",
+        db_url=vector_db.get_db_connection_local(),
+    ),
+)
+
+storage = PgConversationStorage(
+    table_name="recipe_conversations",
+    db_url=vector_db.get_db_connection_local(),
+)
+
+
+def llm_app(new: bool = False, user: str = "user"):
+    conversation_id: Optional[str] = None
+
+    if not new:
+        existing_conversation_ids: List[str] = storage.get_all_conversation_ids(user)
+        if len(existing_conversation_ids) > 0:
+            conversation_id = existing_conversation_ids[0]
+
+    conversation = Conversation(
+        user_name=user,
+        id=conversation_id,
+        knowledge_base=knowledge_base,
+        storage=storage,
+        # Uncomment the following line to use traditional RAG
+        # add_references_to_prompt=True,
+        function_calls=True,
+        show_function_calls=True,
+    )
+    if conversation_id is None:
+        conversation_id = conversation.id
+        print(f"Started Conversation: {conversation_id}\n")
+    else:
+        print(f"Continuing Conversation: {conversation_id}\n")
+
+    conversation.knowledge_base.load(recreate=False)
+    while True:
+        message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
+        if message in ("exit", "bye"):
+            break
+        conversation.print_response(message)
+
+
+if __name__ == "__main__":
+    typer.run(llm_app)
+```
+
+- Run the `pdf_assistant.py` file
+
+```bash
+python pdf_assistant.py
+```
+
+- Ask a question:
+
+```
+How do I make chicken tikka salad?
+```
+
+- Message `bye` to exit, start the app again and ask:
+
+```
+What was my last message?
+```
+
+See how the app maintains has storage across sessions.
+
+- Run the `pdf_assistant.py` file with the `--new` flag to start a new conversation.
+
+```bash
+python pdf_assistant.py --new
+```
+
+- Stop PgVector
+
+Play around and then stop `PgVector` using `phi stop resources.py`
+
+```bash
+phi stop resources.py
+```
+
+</details>
+
+<details>
+
+<summary><h3>Build a RAG LLM App using a template</h3></summary>
+
+Templates are **pre-built AI Apps** that can be used a starting point for your own AI Apps. The general workflow is:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
-
-## 🚀 Get Started
-
-- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs</a> for more information.
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a> for help.
-
-## 📖 Quickstart: Build a RAG LLM App
 
 Let's build a **RAG LLM App** using:
 
@@ -63,28 +290,7 @@ Let's build a **RAG LLM App** using:
 - PgVector for knowledge base and storage
 - Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
 
-> Install <a href="https://docs.docker.com/desktop/install/mac-install/" target="_blank" rel="noopener noreferrer">docker desktop</a> to run this app locally.
-
-### Create a virtual environment
-
-Open the `Terminal` and create an `ai` directory with a python virtual environment.
-
-```shell
-mkdir ai && cd ai
-
-python3 -m venv aienv
-source aienv/bin/activate
-```
-
-### Install
-
-Install phidata
-
-```shell
-pip install -U phidata
-```
-
-### Create your codebase
+#### Create your codebase
 
 Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector.
 
@@ -94,7 +300,7 @@ phi ws create -t llm-app -n llm-app
 
 This will create a folder `llm-app` with a pre-built LLM App that you can customize and make your own.
 
-### Serve your LLM App using Streamlit
+#### Serve your LLM App using Streamlit
 
 <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
@@ -104,7 +310,7 @@ phi ws up --group app
 
 **Press Enter** to confirm and give a few minutes for the image to download.
 
-### Chat with PDFs
+#### Chat with PDFs
 
 - Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 - Click on **Chat with PDFs** in the sidebar
@@ -115,7 +321,7 @@ phi ws up --group app
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/a8eff0ac-963c-43cb-a784-920bd6713a48">
 
-### Serve your LLM App using FastApi
+#### Serve your LLM App using FastApi
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 
@@ -127,18 +333,18 @@ phi ws up --group api
 
 **Press Enter** to confirm and give a few minutes for the image to download.
 
-### View API Endpoints
+#### View API Endpoints
 
 - Open <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">localhost:8000/docs</a> to view the API Endpoints.
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
 - The LLM Api comes pre-built with endpoints that you can integrate with your front-end.
 
-### Optional: Run Jupyterlab
+#### Optional: Run Jupyterlab
 
 A jupyter notebook is a must-have for AI development and your `llm-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
 
-```python {{ title: 'workspace/settings.py'}}
+```python
 ...
 ws_settings = WorkspaceSettings(
     ...
@@ -156,12 +362,12 @@ phi ws up --group jupyter
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-### View Jupyterlab UI
+#### View Jupyterlab UI
 
 - Open <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
 - Play around with cookbooks in the `notebooks` folder.
 
-### Delete local resources
+#### Delete local resources
 
 Play around and stop the workspace using:
 
@@ -169,11 +375,13 @@ Play around and stop the workspace using:
 phi ws down
 ```
 
-### Run your LLM App on AWS
+#### Run your LLM App on AWS
 
 Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS</a>.
 
-## 📚 More Information:
+</details>
+
+## 🚀 More Information:
 
 - Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs</a>
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>

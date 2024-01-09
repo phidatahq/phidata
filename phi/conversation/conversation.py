@@ -352,14 +352,14 @@ class Conversation(BaseModel):
         self.is_active = False
 
     def _run_conversation(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
-        _tasks = self.tasks
-        if _tasks is None or len(_tasks) == 0:
-            # Add a default LLM Task if tasks are empty
-            _tasks = [self.llm_task]
-
         logger.debug(f"*********** Conversation Start: {self.id} ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
+
+        # Add a default LLM Task if tasks are empty
+        _tasks = self.tasks
+        if _tasks is None or len(_tasks) == 0:
+            _tasks = [self.llm_task]
 
         # Metadata from the tasks
         all_tasks_meta_data: List[Dict[str, Any]] = []

@@ -74,7 +74,7 @@ python conversation.py
 
 ### Create a Python Engineer
 
-You can have a Conversations with Agents that are designed for specific tasks. For example: `PythonAgent` can perform virtually any task using python code.
+You can have a Conversation with an `Agent` that is designed for a specific task. For example: `PythonAgent` can perform virtually any task using python code.
 
 - Create a file `python_agent.py` and install pandas using `pip install pandas`
 

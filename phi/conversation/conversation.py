@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 from datetime import datetime
+from collections import OrderedDict
 from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
@@ -97,6 +98,7 @@ class Conversation(BaseModel):
 
     # -*- Conversation Assistants
     assistants: Optional[List[Assistant]] = None
+    show_assistant_responses: bool = False
 
     #
     # -*- Prompt Settings
@@ -352,13 +354,17 @@ class Conversation(BaseModel):
             self.storage.end(conversation_id=self.id)
         self.is_active = False
 
-    def get_delegation_functions_for_task(self, task: Task) -> Optional[List[Function]]:
+    def get_delegation_functions_for_task(
+        self, task: Task, assistant_responses: Optional[Dict[str, List[str]]] = None
+    ) -> Optional[List[Function]]:
         if self.assistants is None or len(self.assistants) == 0:
             return None
 
         delegation_functions: List[Function] = []
         for assistant in self.assistants:
-            delegation_functions.append(assistant.get_delegation_function(task=task))
+            delegation_functions.append(
+                assistant.get_delegation_function(task=task, assistant_responses=assistant_responses)
+            )
         return delegation_functions
 
     def _run(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
@@ -373,11 +379,13 @@ class Conversation(BaseModel):
 
         # meta_data for all tasks in this run
         conversation_tasks: List[Dict[str, Any]] = []
+        # Final LLM response after running all tasks
+        conversation_run_response = ""
+        assistant_responses: Dict[str, List[str]] = OrderedDict()
+
         # Messages for this run
         # TODO: remove this when frontend is updated
         run_messages: List[Message] = []
-        # Complete LLM response after running all tasks
-        llm_response = ""
 
         # -*- Generate response by running tasks
         current_task: Optional[Task] = None
@@ -415,7 +423,9 @@ class Conversation(BaseModel):
                     current_task.llm = self.llm.model_copy()
 
                 # Add delegation functions to the task
-                delegation_functions = self.get_delegation_functions_for_task(task=current_task)
+                delegation_functions = self.get_delegation_functions_for_task(
+                    task=current_task, assistant_responses=assistant_responses
+                )
                 if delegation_functions and len(delegation_functions) > 0:
                     if current_task.tools is None:
                         current_task.tools = []
@@ -425,11 +435,11 @@ class Conversation(BaseModel):
             if stream and current_task.streamable:
                 for chunk in current_task.run(message=current_task_message, stream=True):
                     if current_task.show_output:
-                        llm_response += chunk if isinstance(chunk, str) else ""
+                        conversation_run_response += chunk if isinstance(chunk, str) else ""
                         yield chunk if isinstance(chunk, str) else ""
                 if current_task.show_output:
                     yield "\n\n"
-                    llm_response += "\n\n"
+                    conversation_run_response += "\n\n"
             else:
                 current_task_response = current_task.run(message=current_task_message, stream=False)  # type: ignore
                 current_task_response_str = ""
@@ -449,14 +459,26 @@ class Conversation(BaseModel):
                                 yield current_task_response_str
                                 yield "\n\n"
                             else:
-                                llm_response += current_task_response_str
-                                llm_response += "\n\n"
+                                conversation_run_response += current_task_response_str
+                                conversation_run_response += "\n\n"
                 except Exception as e:
                     logger.debug(f"Failed to convert response to json: {e}")
 
             # TODO: remove this when frontend is updated
             if isinstance(current_task, LLMTask):
                 run_messages.extend(current_task.memory.llm_messages)
+
+        # -*- Show assistant responses
+        if self.show_assistant_responses and len(assistant_responses) > 0:
+            assistant_responses_str = ""
+            for assistant_name, assistant_response_list in assistant_responses.items():
+                assistant_responses_str += f"{assistant_name}:\n"
+                for assistant_response in assistant_response_list:
+                    assistant_responses_str += f"\n{assistant_response}\n"
+            if stream:
+                yield assistant_responses_str
+            else:
+                conversation_run_response += assistant_responses_str
 
         # -*- Save conversation to storage
         self.write_to_storage()
@@ -468,18 +490,18 @@ class Conversation(BaseModel):
         }
         event_data = {
             "user_message": message,
-            "llm_response": llm_response,
+            "llm_response": conversation_run_response,
             "info": event_info,
             "metrics": self.llm.metrics,
         }
         self._api_log_conversation_event(event_type="run", event_data=event_data)
 
         # -*- Update conversation output
-        self.output = llm_response
+        self.output = conversation_run_response
 
         # -*- Yield final response if not streaming
         if not stream:
-            yield llm_response
+            yield conversation_run_response
         logger.debug(f"*********** Conversation End: {self.id} ***********")
 
     def run(

@@ -4,9 +4,9 @@ from pydantic import BaseModel, ConfigDict
 
 
 class AssistantRow(BaseModel):
-    """Interface between OpenAiAssistant class and the database"""
+    """Interface between OpenAIAssistant class and the database"""
 
-    # OpenAiAssistant id which can be referenced in API endpoints.
+    # OpenAIAssistant id which can be referenced in API endpoints.
     id: str
     # The object type, which is always assistant.
     object: str
@@ -18,13 +18,13 @@ class AssistantRow(BaseModel):
     instructions: Optional[str] = None
     # LLM data (name, model, etc.)
     llm: Optional[Dict[str, Any]] = None
-    # OpenAiAssistant Tools
+    # OpenAIAssistant Tools
     tools: Optional[List[Dict[str, Any]]] = None
     # Files attached to this assistant.
     files: Optional[List[Dict[str, Any]]] = None
     # Metadata attached to this assistant.
     metadata: Optional[Dict[str, Any]] = None
-    # OpenAiAssistant Memory
+    # OpenAIAssistant Memory
     memory: Optional[Dict[str, Any]] = None
     # True if this assistant is active
     is_active: Optional[bool] = None

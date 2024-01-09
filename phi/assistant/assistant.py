@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, List
 
 from phi.task.task import Task
 from phi.task.llm import LLMTask
@@ -9,12 +9,17 @@ class Assistant(LLMTask):
     name: str = "assistant"
     description: Optional[str] = None
 
-    def get_delegation_function(self, task: Task) -> Function:
+    def get_delegation_function(
+        self, task: Task, assistant_responses: Optional[Dict[str, List[str]]] = None
+    ) -> Function:
         # Update assistant task
         self.conversation_id = task.conversation_id
         self.conversation_memory = task.conversation_memory
         self.conversation_message = task.conversation_message
         self.conversation_tasks = task.conversation_tasks
+        self.conversation_responses = task.conversation_responses
+        self.conversation_response_iterator = task.conversation_response_iterator
+        self.parse_output = False
 
         # Prepare the delegation function
         f_name = f"run_{self.name}"
@@ -34,7 +39,14 @@ class Assistant(LLMTask):
         """
 
         def delegation_function(task_description: str):
-            return self.run(message=task_description, stream=False)
+            assistant_response = self.run(message=task_description, stream=False)
+
+            if self.show_output and assistant_responses is not None:
+                if self.__class__.__name__ not in assistant_responses:
+                    assistant_responses[self.__class__.__name__] = []
+                assistant_responses[self.__class__.__name__].append(assistant_response)  # type: ignore
+
+            return assistant_response
 
         _f = Function.from_callable(delegation_function)
         _f.name = f_name

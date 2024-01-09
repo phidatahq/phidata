@@ -81,12 +81,20 @@ class PythonAssistant(Assistant):
     def get_instructions(self) -> str:
         _instructions = [
             "Determine if you can answer the question directly or if you need to run python code to accomplish the task.",
-            "If you need to run code, first **THINK** about how you will accomplish the task. No need to explain your reasoning.",
+            "If you need to run code, **THINK STEP BY STEP** and explain your reasoning.",
             "If you need access to data, check the `files` below to see if you have the data you need.",
             "If you do not have the data you need, stop and prompt the user to provide the missing information.",
-            "Once you have all the information, create python functions to accomplishes the task.",
-            "DO NOT READ THE DATA FILES DIRECTLY. Only read them in the python code you write.",
+            "Once you have all the information, create python functions to accomplish your task.",
+            'After you have all the functions, create 1 single python file that runs the functions guarded by a `if __name__ == "__main__"` block.',
         ]
+        if self.save_and_run:
+            _instructions += [
+                "After the python file is ready, save and run it using the `save_to_file_and_run` function."
+            ]
+            _instructions += ["Make sure you specify the `file_name` and `variable_to_return` parameter correctly"]
+        if self.run_code:
+            _instructions += ["After the script is ready, run it using the `run_python_code` function."]
+
         if self.charting_libraries:
             if "streamlit" in self.charting_libraries:
                 _instructions += [
@@ -103,14 +111,6 @@ class PythonAssistant(Assistant):
                 _instructions += [
                     f"You may use the following charting libraries: {', '.join(self.charting_libraries)}",
                 ]
-        _instructions += [
-            'After you have all the functions, create a python script that runs the functions guarded by a `if __name__ == "__main__"` block.'
-        ]
-        if self.save_and_run:
-            _instructions += ["After the script is ready, save and run it using the `save_to_file_and_run` function."]
-            _instructions += ["Make sure you specify the `variable_to_return` parameter correctly"]
-        if self.run_code:
-            _instructions += ["After the script is ready, run it using the `run_python_code` function."]
 
         _instructions += ["Continue till you have accomplished the task."]
 
@@ -134,6 +134,7 @@ class PythonAssistant(Assistant):
             <rules>
             - Even if you know the answer, you MUST get the answer using Python code.
             - Refuse to delete any data, or drop anything sensitive.
+            - DO NOT READ THE DATA FILES DIRECTLY. Only read them in the python code you write.
             </rules>
             """
         )

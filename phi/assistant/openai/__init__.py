@@ -1,1 +1,1 @@
-from phi.assistant.openai.assistant import OpenAiAssistant
+from phi.assistant.openai.assistant import OpenAIAssistant

@@ -408,14 +408,14 @@ class LLMTask(Task):
                 messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
 
-        # -*- Generate response (includes running function calls)
-        llm_response = ""
+        # -*- Generate run response (includes running function calls)
+        task_run_response = ""
         if stream:
             for response_chunk in self.llm.parsed_response_stream(messages=messages):
-                llm_response += response_chunk
+                task_run_response += response_chunk
                 yield response_chunk
         else:
-            llm_response = self.llm.parsed_response(messages=messages)
+            task_run_response = self.llm.parsed_response(messages=messages)
 
         # -*- Update task memory
         # Add user message to the task memory - this is added to the chat_history
@@ -424,7 +424,7 @@ class LLMTask(Task):
         # Add llm messages to the task memory - this is added to the llm_messages
         self.memory.add_llm_messages(messages=messages)
         # Add llm response to the chat history
-        llm_message = Message(role="assistant", content=llm_response)
+        llm_message = Message(role="assistant", content=task_run_response)
         self.memory.add_chat_message(message=llm_message)
         # Add references to the task memory
         if references:
@@ -447,11 +447,12 @@ class LLMTask(Task):
             self.conversation_tasks.append(self.to_dict())
 
         # -*- Update task output
-        self.output = llm_response
+        self.output = task_run_response
+        logger.debug(f"task_run_response: {task_run_response}")
 
         # -*- Yield final response if not streaming
         if not stream:
-            yield llm_response
+            yield task_run_response
 
         logger.debug(f"*********** Task End: {self.id} ***********")
 

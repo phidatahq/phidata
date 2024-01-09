@@ -4,6 +4,7 @@ from typing import List, Any, Optional, Dict, Union, Type, Iterator
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from phi.memory.conversation import ConversationMemory
+from phi.utils.response_iterator import ResponseIterator
 from phi.utils.log import logger, set_log_level_to_debug
 
 
@@ -19,6 +20,8 @@ class Task(BaseModel):
     conversation_memory: Optional[ConversationMemory] = None
     conversation_message: Optional[Union[List[Dict], str]] = None
     conversation_tasks: Optional[List[Dict[str, Any]]] = None
+    conversation_responses: List[str] = []
+    conversation_response_iterator: ResponseIterator = ResponseIterator()
 
     # -*- Output Settings
     # Output model for the responses

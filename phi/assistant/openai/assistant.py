@@ -18,13 +18,13 @@ except ImportError:
     raise
 
 
-class OpenAiAssistant(BaseModel):
+class OpenAIAssistant(BaseModel):
     # -*- LLM settings
     model: str = "gpt-4-1106-preview"
     openai: Optional[OpenAI] = None
 
-    # -*- OpenAiAssistant settings
-    # OpenAiAssistant id which can be referenced in API endpoints.
+    # -*- OpenAIAssistant settings
+    # OpenAIAssistant id which can be referenced in API endpoints.
     id: Optional[str] = None
     # The object type, populated by the API. Always assistant.
     object: Optional[str] = None
@@ -35,15 +35,15 @@ class OpenAiAssistant(BaseModel):
     # The system instructions that the assistant uses. The maximum length is 32768 characters.
     instructions: Optional[str] = None
 
-    # -*- OpenAiAssistant Tools
+    # -*- OpenAIAssistant Tools
     # A list of tools provided to the assistant. There can be a maximum of 128 tools per assistant.
     # Tools can be of types code_interpreter, retrieval, or function.
     tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict]]] = None
-    # -*- Functions available to the OpenAiAssistant to call
+    # -*- Functions available to the OpenAIAssistant to call
     # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
 
-    # -*- OpenAiAssistant Files
+    # -*- OpenAIAssistant Files
     # A list of file IDs attached to this assistant.
     # There can be a maximum of 20 files attached to the assistant.
     # Files are ordered by their creation date in ascending order.
@@ -51,14 +51,14 @@ class OpenAiAssistant(BaseModel):
     # Files attached to this assistant.
     files: Optional[List[File]] = None
 
-    # -*- OpenAiAssistant Storage
+    # -*- OpenAIAssistant Storage
     # storage: Optional[AssistantStorage] = None
     # Create table if it doesn't exist
     # create_storage: bool = True
     # AssistantRow from the database: DO NOT SET THIS MANUALLY
     # database_row: Optional[AssistantRow] = None
 
-    # -*- OpenAiAssistant Knowledge Base
+    # -*- OpenAIAssistant Knowledge Base
     # knowledge_base: Optional[KnowledgeBase] = None
 
     # Set of 16 key-value pairs that can be attached to an object.
@@ -92,18 +92,18 @@ class OpenAiAssistant(BaseModel):
         return self.openai or OpenAI()
 
     @model_validator(mode="after")
-    def extract_functions_from_tools(self) -> "OpenAiAssistant":
+    def extract_functions_from_tools(self) -> "OpenAIAssistant":
         if self.tools is not None:
             for tool in self.tools:
                 if self.functions is None:
                     self.functions = {}
                 if isinstance(tool, ToolRegistry):
                     self.functions.update(tool.functions)
-                    logger.debug(f"Functions from {tool.name} added to OpenAiAssistant.")
+                    logger.debug(f"Functions from {tool.name} added to OpenAIAssistant.")
                 elif callable(tool):
                     f = Function.from_callable(tool)
                     self.functions[f.name] = f
-                    logger.debug(f"Function {f.name} added to OpenAiAssistant")
+                    logger.debug(f"Function {f.name} added to OpenAIAssistant")
         return self
 
     def __enter__(self):
@@ -137,7 +137,7 @@ class OpenAiAssistant(BaseModel):
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
         return tools_for_api
 
-    def create(self) -> "OpenAiAssistant":
+    def create(self) -> "OpenAIAssistant":
         request_body: Dict[str, Any] = {}
         if self.name is not None:
             request_body["name"] = self.name
@@ -163,7 +163,7 @@ class OpenAiAssistant(BaseModel):
             **request_body,
         )
         self.load_from_openai(self.openai_assistant)
-        logger.debug(f"OpenAiAssistant created: {self.id}")
+        logger.debug(f"OpenAIAssistant created: {self.id}")
         return self
 
     def get_id(self) -> Optional[str]:
@@ -172,7 +172,7 @@ class OpenAiAssistant(BaseModel):
     def get_from_openai(self) -> OpenAIAssistantType:
         _assistant_id = self.get_id()
         if _assistant_id is None:
-            raise AssistantIdNotSet("OpenAiAssistant.id not set")
+            raise AssistantIdNotSet("OpenAIAssistant.id not set")
 
         self.openai_assistant = self.client.beta.assistants.retrieve(
             assistant_id=_assistant_id,
@@ -180,20 +180,20 @@ class OpenAiAssistant(BaseModel):
         self.load_from_openai(self.openai_assistant)
         return self.openai_assistant
 
-    def get(self, use_cache: bool = True) -> "OpenAiAssistant":
+    def get(self, use_cache: bool = True) -> "OpenAIAssistant":
         if self.openai_assistant is not None and use_cache:
             return self
 
         self.get_from_openai()
         return self
 
-    def get_or_create(self, use_cache: bool = True) -> "OpenAiAssistant":
+    def get_or_create(self, use_cache: bool = True) -> "OpenAIAssistant":
         try:
             return self.get(use_cache=use_cache)
         except AssistantIdNotSet:
             return self.create()
 
-    def update(self) -> "OpenAiAssistant":
+    def update(self) -> "OpenAIAssistant":
         try:
             assistant_to_update = self.get_from_openai()
             if assistant_to_update is not None:
@@ -227,11 +227,11 @@ class OpenAiAssistant(BaseModel):
                     **request_body,
                 )
                 self.load_from_openai(self.openai_assistant)
-                logger.debug(f"OpenAiAssistant updated: {self.id}")
+                logger.debug(f"OpenAIAssistant updated: {self.id}")
                 return self
-            raise ValueError("OpenAiAssistant not available")
+            raise ValueError("OpenAIAssistant not available")
         except AssistantIdNotSet:
-            logger.warning("OpenAiAssistant not available")
+            logger.warning("OpenAIAssistant not available")
             raise
 
     def delete(self) -> OpenAIAssistantDeleted:
@@ -241,10 +241,10 @@ class OpenAiAssistant(BaseModel):
                 deletion_status = self.client.beta.assistants.delete(
                     assistant_id=assistant_to_delete.id,
                 )
-                logger.debug(f"OpenAiAssistant deleted: {deletion_status.id}")
+                logger.debug(f"OpenAIAssistant deleted: {deletion_status.id}")
                 return deletion_status
         except AssistantIdNotSet:
-            logger.warning("OpenAiAssistant not available")
+            logger.warning("OpenAIAssistant not available")
             raise
 
     def to_dict(self) -> Dict[str, Any]:
@@ -275,7 +275,7 @@ class OpenAiAssistant(BaseModel):
         return json.dumps(self.to_dict(), indent=4)
 
     def __repr__(self) -> str:
-        return f"<OpenAiAssistant name={self.name} id={self.id}>"
+        return f"<OpenAIAssistant name={self.name} id={self.id}>"
 
     #
     # def run(self, thread: Optional["Thread"]) -> "Thread":

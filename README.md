@@ -230,7 +230,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h3>Return a pydantic model as output</h3></summary>
+<summary><h3>Return a Pydantic Model as output</h3></summary>
 
 One of our favorite features is generating structured data from sparse information.
 

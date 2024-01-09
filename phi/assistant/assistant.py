@@ -34,7 +34,7 @@ class Assistant(LLMTask):
         """
 
         def delegation_function(task_description: str):
-            return self.run(task_description, stream=False)
+            return self.run(message=task_description, stream=False)
 
         _f = Function.from_callable(delegation_function)
         _f.name = f_name

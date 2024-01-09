@@ -89,7 +89,7 @@ class FunctionCall(BaseModel):
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
                 logger.error(e)
-                self.result = e
+                self.result = str(e)
                 return False
 
         try:
@@ -98,5 +98,5 @@ class FunctionCall(BaseModel):
         except Exception as e:
             logger.warning(f"Could not run function {self.get_call_str()}")
             logger.error(e)
-            self.result = e
+            self.result = str(e)
             return False

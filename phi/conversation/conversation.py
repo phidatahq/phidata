@@ -5,6 +5,7 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, T
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
+from phi.assistant import Assistant
 from phi.conversation.row import ConversationRow
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
@@ -94,6 +95,9 @@ class Conversation(BaseModel):
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
+    # -*- Conversation Assistants
+    assistants: Optional[List[Assistant]] = None
+
     #
     # -*- Prompt Settings
     #
@@ -153,11 +157,8 @@ class Conversation(BaseModel):
     output: Optional[Any] = None
 
     # -*- Tasks
-    # The default LLM task to for this conversation
-    # If None, a default LLM task is created
-    _llm_task: Optional[LLMTask] = None
     # Generate a response using tasks instead of a prompt
-    # If tasks is None or empty, the default LLM task is used
+    # If tasks is None or empty, a default LLM task is created for this conversation
     tasks: Optional[List[Task]] = None
     # Metadata about the conversation tasks
     _meta_data: Optional[Dict[str, Any]] = None
@@ -188,7 +189,7 @@ class Conversation(BaseModel):
     def llm_task(self) -> LLMTask:
         """Returns an LLMTask for this conversation"""
 
-        self._llm_task = LLMTask(
+        _llm_task = LLMTask(
             llm=self.llm.model_copy(),
             conversation_memory=self.memory,
             add_references_to_prompt=self.add_references_to_prompt,
@@ -213,7 +214,7 @@ class Conversation(BaseModel):
             markdown=self.markdown,
             guidelines=self.guidelines,
         )
-        return self._llm_task
+        return _llm_task
 
     def to_database_row(self) -> ConversationRow:
         """Create a ConversationRow for the current conversation (to save to the database)"""
@@ -351,6 +352,15 @@ class Conversation(BaseModel):
             self.storage.end(conversation_id=self.id)
         self.is_active = False
 
+    def get_delegation_functions_for_task(self, task: Task) -> Optional[List[Function]]:
+        if self.assistants is None or len(self.assistants) == 0:
+            return None
+
+        delegation_functions: List[Function] = []
+        for assistant in self.assistants:
+            delegation_functions.append(assistant.get_delegation_function(task=task))
+        return delegation_functions
+
     def _run(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
         logger.debug(f"*********** Conversation Start: {self.id} ***********")
         # Load the conversation from the database if available
@@ -361,12 +371,11 @@ class Conversation(BaseModel):
         if _tasks is None or len(_tasks) == 0:
             _tasks = [self.llm_task]
 
-        # Metadata from the tasks
-        all_tasks_meta_data: List[Dict[str, Any]] = []
-        # Messages from the tasks
-        all_tasks_messages: List[Message] = []
-        # References from the tasks
-        all_tasks_references: List[References] = []
+        # meta_data for all tasks in this run
+        conversation_tasks: List[Dict[str, Any]] = []
+        # Messages for this run
+        # TODO: remove this when frontend is updated
+        run_messages: List[Message] = []
         # Complete LLM response after running all tasks
         llm_response = ""
 
@@ -379,7 +388,7 @@ class Conversation(BaseModel):
             previous_task = current_task
             current_task = task
 
-            # Set current_task_message
+            # -*- Prepare input message for the current_task
             current_task_message: Optional[Union[List[Dict], str]] = None
             if previous_task and previous_task.output is not None:
                 # Convert current_task_message to json if it is a BaseModel
@@ -390,27 +399,37 @@ class Conversation(BaseModel):
             else:
                 current_task_message = message
 
+            # -*- Update Task
             # Add conversation state to the task
-            current_task.task_index = idx
             current_task.conversation_id = self.id
             current_task.conversation_memory = self.memory
             current_task.conversation_message = message
-
+            current_task.conversation_tasks = conversation_tasks
             # Set output parsing off
             current_task.parse_output = False
 
-            # Set Task LLM if not set
+            # -*- Update LLMTask
             if isinstance(current_task, LLMTask):
+                # Update LLM
                 if current_task.llm is None:
                     current_task.llm = self.llm.model_copy()
+
+                # Add delegation functions to the task
+                delegation_functions = self.get_delegation_functions_for_task(task=current_task)
+                if delegation_functions and len(delegation_functions) > 0:
+                    if current_task.tools is None:
+                        current_task.tools = []
+                    current_task.tools.extend(delegation_functions)
 
             # -*- Run Task
             if stream and current_task.streamable:
                 for chunk in current_task.run(message=current_task_message, stream=True):
-                    llm_response += chunk if isinstance(chunk, str) else ""
-                    yield chunk if isinstance(chunk, str) else ""
-                yield "\n\n"
-                llm_response += "\n\n"
+                    if current_task.show_output:
+                        llm_response += chunk if isinstance(chunk, str) else ""
+                        yield chunk if isinstance(chunk, str) else ""
+                if current_task.show_output:
+                    yield "\n\n"
+                    llm_response += "\n\n"
             else:
                 current_task_response = current_task.run(message=current_task_message, stream=False)  # type: ignore
                 current_task_response_str = ""
@@ -435,20 +454,17 @@ class Conversation(BaseModel):
                 except Exception as e:
                     logger.debug(f"Failed to convert response to json: {e}")
 
-            # Collect task metadata
-            all_tasks_meta_data.append(current_task.to_dict())
+            # TODO: remove this when frontend is updated
             if isinstance(current_task, LLMTask):
-                all_tasks_messages.extend(current_task.memory.llm_messages)
-                all_tasks_references.extend(current_task.memory.references)
+                run_messages.extend(current_task.memory.llm_messages)
 
         # -*- Save conversation to storage
         self.write_to_storage()
 
         # -*- Send conversation event for monitoring
         event_info = {
-            "tasks": all_tasks_meta_data,
-            "messages": [m.model_dump(exclude_none=True) for m in all_tasks_messages if m is not None],
-            "references": [r.model_dump(exclude_none=True) for r in all_tasks_references if r is not None],
+            "tasks": conversation_tasks,
+            "messages": [m.model_dump(exclude_none=True) for m in run_messages if m is not None],
         }
         event_data = {
             "user_message": message,
@@ -472,7 +488,7 @@ class Conversation(BaseModel):
         # Convert response into structured output if output_model is set
         if self.output_model is not None:
             logger.debug("Setting stream=False as output_model is set")
-            json_resp = next(self._run_conversation(message=message, stream=False))
+            json_resp = next(self._run(message=message, stream=False))
             try:
                 structured_output = None
                 if (
@@ -502,10 +518,10 @@ class Conversation(BaseModel):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run_conversation(message=message, stream=True)
+                resp = self._run(message=message, stream=True)
                 return resp
             else:
-                resp = self._run_conversation(message=message, stream=False)
+                resp = self._run(message=message, stream=False)
                 return next(resp)
 
     def chat(self, message: Union[List[Dict], str], stream: bool = True) -> Union[Iterator[str], str, BaseModel]:

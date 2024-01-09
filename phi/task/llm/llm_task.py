@@ -360,6 +360,7 @@ class LLMTask(Task):
         # -*- Prepare the task
         self.prepare_task()
         self.llm = cast(LLM, self.llm)
+
         logger.debug(f"*********** Task Start: {self.id} ***********")
 
         # -*- Build the system prompt
@@ -441,12 +442,17 @@ class LLMTask(Task):
             if references:
                 self.conversation_memory.add_references(references=references)
 
+        # -*- Update conversation tasks
+        if self.conversation_tasks is not None:
+            self.conversation_tasks.append(self.to_dict())
+
         # -*- Update task output
         self.output = llm_response
 
         # -*- Yield final response if not streaming
         if not stream:
             yield llm_response
+
         logger.debug(f"*********** Task End: {self.id} ***********")
 
     def run(

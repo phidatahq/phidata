@@ -15,11 +15,10 @@ class Task(BaseModel):
     name: Optional[str] = None
 
     # -*- Conversation state
-    # The index of the current task in the conversation
-    task_index: Optional[int] = None
     conversation_id: Optional[str] = None
     conversation_memory: Optional[ConversationMemory] = None
     conversation_message: Optional[Union[List[Dict], str]] = None
+    conversation_tasks: Optional[List[Dict[str, Any]]] = None
 
     # -*- Output Settings
     # Output model for the responses

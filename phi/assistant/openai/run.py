@@ -147,7 +147,10 @@ class Run(BaseModel):
         return tools_for_api
 
     def create(
-        self, thread_id: Optional[str] = None, assistant: Optional[OpenAiAssistant] = None, assistant_id: Optional[str] = None
+        self,
+        thread_id: Optional[str] = None,
+        assistant: Optional[OpenAiAssistant] = None,
+        assistant_id: Optional[str] = None,
     ) -> "Run":
         _thread_id = thread_id or self.thread_id
         if _thread_id is None:

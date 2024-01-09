@@ -352,21 +352,27 @@ class Conversation(BaseModel):
         self.is_active = False
 
     def _run_conversation(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
-        if self.tasks is None or len(self.tasks) == 0:
-            raise Exception("No tasks set for this conversation")
+        _tasks = self.tasks
+        if _tasks is None or len(_tasks) == 0:
+            # Add a default LLM Task if tasks are empty
+            _tasks = [self.llm_task]
 
         logger.debug(f"*********** Conversation Start: {self.id} ***********")
         # Load the conversation from the database if available
         self.read_from_storage()
 
         # Metadata from the tasks
-        task_meta_data: List[Dict[str, Any]] = []
-
+        all_tasks_meta_data: List[Dict[str, Any]] = []
+        # Messages from the tasks
+        all_tasks_messages: List[Message] = []
+        # References from the tasks
+        all_tasks_references: List[References] = []
         # Complete LLM response after running all tasks
         llm_response = ""
-        current_task: Optional[Task] = None
+
         # -*- Generate response by running tasks
-        for idx, task in enumerate(self.tasks, start=1):
+        current_task: Optional[Task] = None
+        for idx, task in enumerate(_tasks, start=1):
             logger.debug(f"*********** Task: {idx} Start ***********")
 
             # Set previous_task and current_task
@@ -429,17 +435,20 @@ class Conversation(BaseModel):
                 except Exception as e:
                     logger.debug(f"Failed to convert response to json: {e}")
 
-            # Add task information to the list of tasks
-            task_meta_data.append(current_task.to_dict())
+            # Collect task metadata
+            all_tasks_meta_data.append(current_task.to_dict())
+            if isinstance(current_task, LLMTask):
+                all_tasks_messages.extend(current_task.memory.llm_messages)
+                all_tasks_references.extend(current_task.memory.references)
 
         # -*- Save conversation to storage
         self.write_to_storage()
 
         # -*- Send conversation event for monitoring
         event_info = {
-            "tasks": task_meta_data,
-            "messages": self.memory.get_llm_messages(),
-            "references": [r.model_dump(exclude_none=True) for r in self.memory.references if r is not None],
+            "tasks": all_tasks_meta_data,
+            "messages": [m.model_dump(exclude_none=True) for m in all_tasks_messages if m is not None],
+            "references": [r.model_dump(exclude_none=True) for r in all_tasks_references if r is not None],
             "markdown": self.markdown,
         }
         event_data = {
@@ -461,10 +470,6 @@ class Conversation(BaseModel):
     def run(
         self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True
     ) -> Union[Iterator[str], str, BaseModel]:
-        # Add the default LLM Task if tasks are empty
-        if self.tasks is None or len(self.tasks) == 0:
-            self.tasks = [self.llm_task]
-
         # Convert response into structured output if output_model is set
         if self.output_model is not None:
             logger.debug("Setting stream=False as output_model is set")

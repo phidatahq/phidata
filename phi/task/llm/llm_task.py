@@ -275,7 +275,13 @@ class LLMTask(Task):
             chat_history_kwargs = {"conversation": self}
             return remove_indent(self.chat_history_function(**chat_history_kwargs))
 
-        formatted_history = self.memory.get_formatted_chat_history(num_messages=self.num_history_messages)
+        formatted_history = ""
+        if self.conversation_memory is not None:
+            formatted_history = self.conversation_memory.get_formatted_chat_history(
+                num_messages=self.num_history_messages
+            )
+        elif self.memory is not None:
+            formatted_history = self.memory.get_formatted_chat_history(num_messages=self.num_history_messages)
         if formatted_history == "":
             return None
         return remove_indent(formatted_history)
@@ -374,8 +380,15 @@ class LLMTask(Task):
             )
             logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
 
+        # -*- Get chat history to add to the user prompt
+        user_prompt_chat_history = None
+        if self.add_chat_history_to_prompt:
+            user_prompt_chat_history = self.get_formatted_chat_history()
+
         # -*- Build the user prompt
-        user_prompt: Union[List[Dict], str] = self.get_user_prompt(message=message, references=user_prompt_references)
+        user_prompt: Union[List[Dict], str] = self.get_user_prompt(
+            message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
+        )
 
         # -*- Build the messages to send to the LLM
         # Create system message
@@ -388,7 +401,10 @@ class LLMTask(Task):
         if system_prompt_message.content and system_prompt_message.content != "":
             messages.append(system_prompt_message)
         if self.add_chat_history_to_messages:
-            messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+            if self.conversation_memory is not None:
+                messages += self.conversation_memory.get_last_n_messages(last_n=self.num_history_messages)
+            elif self.memory is not None:
+                messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
 
         # -*- Generate response (includes running function calls)
@@ -503,7 +519,7 @@ class LLMTask(Task):
         :return: A list of dictionaries representing the chat history.
         """
         history: List[Dict[str, Any]] = []
-        all_chats = self.memory.get_chats()
+        all_chats = self.conversation_memory.get_chats() if self.conversation_memory else self.memory.get_chats()
         if len(all_chats) == 0:
             return ""
 

@@ -11,7 +11,7 @@ from phi.utils.log import logger, set_log_level_to_debug
 
 try:
     from openai import OpenAI
-    from openai.types.beta.assistant import Assistant as OpenAIAssistant
+    from openai.types.beta.assistant import Assistant as OpenAIAssistantType
     from openai.types.beta.assistant_deleted import AssistantDeleted as OpenAIAssistantDeleted
 except ImportError:
     logger.error("`openai` not installed")
@@ -76,7 +76,7 @@ class Assistant(BaseModel):
     # Enable monitoring on phidata.com
     monitoring: bool = False
 
-    openai_assistant: Optional[OpenAIAssistant] = None
+    openai_assistant: Optional[OpenAIAssistantType] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -112,7 +112,7 @@ class Assistant(BaseModel):
     def __exit__(self, exc_type, exc_value, traceback):
         self.delete()
 
-    def load_from_openai(self, openai_assistant: OpenAIAssistant):
+    def load_from_openai(self, openai_assistant: OpenAIAssistantType):
         self.id = openai_assistant.id
         self.object = openai_assistant.object
         self.created_at = openai_assistant.created_at
@@ -169,7 +169,7 @@ class Assistant(BaseModel):
     def get_id(self) -> Optional[str]:
         return self.id or self.openai_assistant.id if self.openai_assistant else None
 
-    def get_from_openai(self) -> OpenAIAssistant:
+    def get_from_openai(self) -> OpenAIAssistantType:
         _assistant_id = self.get_id()
         if _assistant_id is None:
             raise AssistantIdNotSet("Assistant.id not set")

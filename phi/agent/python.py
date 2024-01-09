@@ -10,9 +10,6 @@ from phi.tools.python import PythonTools
 
 
 class PythonAgent(Agent):
-    name: str = "python_agent"
-    description: str = "achieve tasks using Python code"
-
     files: Optional[List[File]] = None
     file_information: Optional[str] = None
 

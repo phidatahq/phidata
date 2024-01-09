@@ -449,7 +449,6 @@ class Conversation(BaseModel):
             "tasks": all_tasks_meta_data,
             "messages": [m.model_dump(exclude_none=True) for m in all_tasks_messages if m is not None],
             "references": [r.model_dump(exclude_none=True) for r in all_tasks_references if r is not None],
-            "markdown": self.markdown,
         }
         event_data = {
             "user_message": message,

@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build human-like AI Interfaces
+  Build human-like AI products
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">

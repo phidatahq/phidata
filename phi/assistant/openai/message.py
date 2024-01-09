@@ -3,8 +3,8 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.assistant.file import File
-from phi.assistant.exceptions import ThreadIdNotSet, MessageIdNotSet
+from phi.assistant.openai.file import File
+from phi.assistant.openai.exceptions import ThreadIdNotSet, MessageIdNotSet
 from phi.utils.log import logger
 
 try:

@@ -3,8 +3,8 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from phi.assistant.assistant import Assistant
-from phi.assistant.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
+from phi.assistant.openai.assistant import OpenAiAssistant
+from phi.assistant.openai.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
 from phi.tools import Tool, ToolRegistry
 from phi.tools.function import Function
 from phi.utils.functions import get_function_call
@@ -33,8 +33,8 @@ class Run(BaseModel):
 
     # The ID of the thread that was executed on as a part of this run.
     thread_id: Optional[str] = None
-    # Assistant used for this run
-    assistant: Optional[Assistant] = None
+    # OpenAiAssistant used for this run
+    assistant: Optional[OpenAiAssistant] = None
     # The ID of the assistant used for execution of this run.
     assistant_id: Optional[str] = None
 
@@ -106,11 +106,11 @@ class Run(BaseModel):
                     self.functions = {}
                 if isinstance(tool, ToolRegistry):
                     self.functions.update(tool.functions)
-                    logger.debug(f"Functions from {tool.name} added to Assistant.")
+                    logger.debug(f"Functions from {tool.name} added to OpenAiAssistant.")
                 elif callable(tool):
                     f = Function.from_callable(tool)
                     self.functions[f.name] = f
-                    logger.debug(f"Function {f.name} added to Assistant")
+                    logger.debug(f"Function {f.name} added to OpenAiAssistant")
         return self
 
     def load_from_openai(self, openai_run: OpenAIRun):
@@ -147,7 +147,7 @@ class Run(BaseModel):
         return tools_for_api
 
     def create(
-        self, thread_id: Optional[str] = None, assistant: Optional[Assistant] = None, assistant_id: Optional[str] = None
+        self, thread_id: Optional[str] = None, assistant: Optional[OpenAiAssistant] = None, assistant_id: Optional[str] = None
     ) -> "Run":
         _thread_id = thread_id or self.thread_id
         if _thread_id is None:
@@ -157,7 +157,7 @@ class Run(BaseModel):
         if _assistant_id is None:
             _assistant_id = self.assistant.get_id() if self.assistant is not None else self.assistant_id
         if _assistant_id is None:
-            raise AssistantIdNotSet("Assistant.id not set")
+            raise AssistantIdNotSet("OpenAiAssistant.id not set")
 
         request_body: Dict[str, Any] = {}
         if self.model is not None:
@@ -206,7 +206,7 @@ class Run(BaseModel):
         self,
         use_cache: bool = True,
         thread_id: Optional[str] = None,
-        assistant: Optional[Assistant] = None,
+        assistant: Optional[OpenAiAssistant] = None,
         assistant_id: Optional[str] = None,
     ) -> "Run":
         try:
@@ -264,7 +264,7 @@ class Run(BaseModel):
     def run(
         self,
         thread_id: Optional[str] = None,
-        assistant: Optional[Assistant] = None,
+        assistant: Optional[OpenAiAssistant] = None,
         assistant_id: Optional[str] = None,
         wait: bool = True,
         callback: Optional[Callable[[OpenAIRun], None]] = None,
@@ -284,7 +284,7 @@ class Run(BaseModel):
             # -*- Check if run requires action
             if self.status == "requires_action":
                 if self.assistant is None:
-                    logger.warning("Assistant not available to complete required_action")
+                    logger.warning("OpenAiAssistant not available to complete required_action")
                     return self
                 if self.required_action is not None:
                     if self.required_action.type == "submit_tool_outputs":

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Optional
 
-from phi.assistant.file import File
+from phi.assistant.openai.file import File
 from phi.utils.log import logger
 
 

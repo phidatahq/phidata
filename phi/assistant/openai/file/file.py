@@ -3,7 +3,7 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.assistant.exceptions import FileIdNotSet
+from phi.assistant.openai.exceptions import FileIdNotSet
 from phi.utils.log import logger
 
 try:

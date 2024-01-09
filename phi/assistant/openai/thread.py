@@ -2,10 +2,10 @@ from typing import Any, Optional, Dict, List, Union, Callable
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.assistant.run import Run
-from phi.assistant.message import Message
-from phi.assistant.assistant import Assistant
-from phi.assistant.exceptions import ThreadIdNotSet
+from phi.assistant.openai.run import Run
+from phi.assistant.openai.message import Message
+from phi.assistant.openai.assistant import OpenAiAssistant
+from phi.assistant.openai.exceptions import ThreadIdNotSet
 from phi.utils.log import logger
 
 try:
@@ -25,8 +25,8 @@ class Thread(BaseModel):
     # The object type, populated by the API. Always thread.
     object: Optional[str] = None
 
-    # Assistant used for this thread
-    assistant: Optional[Assistant] = None
+    # OpenAiAssistant used for this thread
+    assistant: Optional[OpenAiAssistant] = None
     # The ID of the assistant for this thread.
     assistant_id: Optional[str] = None
 
@@ -162,7 +162,7 @@ class Thread(BaseModel):
     def run(
         self,
         message: Optional[Union[str, Message]] = None,
-        assistant: Optional[Assistant] = None,
+        assistant: Optional[OpenAiAssistant] = None,
         assistant_id: Optional[str] = None,
         run: Optional[Run] = None,
         wait: bool = True,
@@ -232,7 +232,7 @@ class Thread(BaseModel):
                 table.add_column("User")
                 table.add_column(m.get_content_with_files())
             elif m.role == "assistant":
-                table.add_row("Assistant", Markdown(m.get_content_with_files()))
+                table.add_row("OpenAiAssistant", Markdown(m.get_content_with_files()))
                 table.add_section()
             else:
                 table.add_row(m.role, Markdown(m.get_content_with_files()))
@@ -240,7 +240,7 @@ class Thread(BaseModel):
         console.print(table)
 
     def print_response(
-        self, message: str, assistant: Assistant, current_message_only: bool = False, markdown: bool = False
+        self, message: str, assistant: OpenAiAssistant, current_message_only: bool = False, markdown: bool = False
     ) -> None:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -263,7 +263,7 @@ class Thread(BaseModel):
             total_messages = len(response_messages)
             for idx, response_message in enumerate(response_messages[::-1], start=1):
                 response_message.pprint(
-                    title=f"[bold] :robot: Assistant ({idx}/{total_messages}) [/bold]", markdown=markdown
+                    title=f"[bold] :robot: OpenAiAssistant ({idx}/{total_messages}) [/bold]", markdown=markdown
                 )
         else:
             for m in self.messages[::-1]:

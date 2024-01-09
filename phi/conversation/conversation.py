@@ -351,7 +351,7 @@ class Conversation(BaseModel):
             self.storage.end(conversation_id=self.id)
         self.is_active = False
 
-    def _run_conversation(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
+    def _run(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
         logger.debug(f"*********** Conversation Start: {self.id} ***********")
         # Load the conversation from the database if available
         self.read_from_storage()

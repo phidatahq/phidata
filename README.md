@@ -137,7 +137,7 @@ python data_analyst.py
 
 - See it work through the problem
 
-## 👩‍💻 Examples
+## 📚 Examples
 
 <details>
 
@@ -277,7 +277,7 @@ phi stop resources.py
 
 <summary><h3>Build a RAG LLM App using a template</h3></summary>
 
-Templates are **pre-built AI Apps** that can be used a starting point for your own AI Apps. The general workflow is:
+Templates are **pre-built AI Apps** that can be used as a starting point for your own AI Apps. The general workflow is:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`

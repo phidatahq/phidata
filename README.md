@@ -74,8 +74,42 @@ conversation.print_response('Share a quick healthy breakfast recipe.')
 
 - Run the `conversation.py` file
 
-```bash
+```shell
 python conversation.py
+```
+
+- See a simple conversation in action
+
+```shell
+╭──────────┬────────────────────────────────────────────────────────╮
+│ Message  │ Share a quick healthy breakfast recipe.                │
+├──────────┼────────────────────────────────────────────────────────┤
+│ Response │ Absolutely! Here's a quick and healthy breakfast       │
+│ (2.1s)   │ recipe for a yogurt parfait:                           │
+│          │                                                        │
+│          │                 Healthy Yogurt Parfait                 │
+│          │                                                        │
+│          │                      Ingredients:                      │
+│          │                                                        │
+│          │  • Greek yogurt                                        │
+│          │  • Fresh berries (e.g., strawberries, blueberries,     │
+│          │    raspberries)                                        │
+│          │  • Granola                                             │
+│          │  • Honey or maple syrup (optional)                     │
+│          │  • Chia seeds (optional)                               │
+│          │                                                        │
+│          │                     Instructions:                      │
+│          │                                                        │
+│          │  1 In a clear glass or bowl, layer Greek yogurt, fresh │
+│          │    berries, and granola.                               │
+│          │  2 Repeat the layers until the glass is filled.        │
+│          │  3 Drizzle with honey or maple syrup for sweetness, if │
+│          │    desired.                                            │
+│          │  4 Optional: Sprinkle with chia seeds for added        │
+│          │    nutritional benefits.                               │
+│          │                                                        │
+│          │ Enjoy your nutritious and delicious yogurt parfait!    │
+╰──────────┴────────────────────────────────────────────────────────╯
 ```
 
 </details>
@@ -108,11 +142,28 @@ python_agent.print_response("What is the average rating of movies?")
 
 - Run the `python_agent.py` file
 
-```bash
+```shell
 python python_agent.py
 ```
 
 - See it work through the problem
+
+```shell
+WARNING  PythonTools can run arbitrary code, please provide human supervision.
+INFO     Saved: .../average_rating.py
+INFO     Running .../average_rating.py
+╭──────────┬────────────────────────────────────────────────────────╮
+│ Message  │ What is the average rating of movies?                  │
+├──────────┼────────────────────────────────────────────────────────┤
+│ Response │                                                        │
+│ (4.1s)   │  • Running:                                            │
+│          │    save_to_file_and_run(file_name=average_rating,      │
+│          │    code=..., variable_to_return=average_rating)        │
+│          │                                                        │
+│          │ The average rating of the movies is approximately      │
+│          │ 6.72.                                                  │
+╰──────────┴────────────────────────────────────────────────────────╯
+```
 
 </details>
 
@@ -140,16 +191,98 @@ duckdb_agent = DuckDbAgent(
     }),
 )
 
-duckdb_agent.print_response("What is the average rating of movies?")
+duckdb_agent.print_response("What is the average rating of movies? Show me the SQL.")
 ```
 
 - Run the `data_analyst.py` file
 
-```bash
+```shell
 python data_analyst.py
 ```
 
 - See it work through the problem
+
+```shell
+INFO     Running: SHOW TABLES
+INFO     Running: CREATE TABLE IF NOT EXISTS 'movies'
+         AS SELECT * FROM
+         'https://phidata-public.s3.amazonaws.com/demo_
+         data/IMDB-Movie-Data.csv'
+INFO     Running: DESCRIBE movies
+INFO     Running: SELECT AVG(Rating) AS average_rating
+         FROM movies
+╭──────────┬────────────────────────────────────────────────────────╮
+│ Message  │ What is the average rating of movies? Show me the SQL. │
+├──────────┼────────────────────────────────────────────────────────┤
+│ Response │ The average rating of movies in the dataset is 6.72.   │
+│ (7.6s)   │                                                        │
+│          │ Here is the SQL query used to calculate the average    │
+│          │ rating:                                                │
+│          │                                                        │
+│          │                                                        │
+│          │  SELECT AVG(Rating) AS average_rating                  │
+│          │  FROM movies;                                          │
+│          │                                                        │
+╰──────────┴────────────────────────────────────────────────────────╯
+```
+
+</details>
+
+<details>
+
+<summary><h3>Return a Pydantic Model from a Conversation</h3></summary>
+
+One of our favorite features is generating structured data from sparse information.
+
+Meaning we can use LLMs to fill in pydantic models and generate content which previously could not be possible.
+In this example, we use the LLM to generate an object of the `MovieGenerator` class.
+
+- Create a file `movie_generator.py`
+
+```python
+from typing import List
+from pydantic import BaseModel, Field
+from phi.conversation import Conversation
+from rich.pretty import pprint
+
+
+class MovieScript(BaseModel):
+    setting: str = Field(..., description="Setting of the movie. If not available, provide a random setting.")
+    ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
+    genre: str = Field(
+        ..., description="Genre of the movie. If not available, select action, thriller or romantic comedy."
+    )
+    name: str = Field(..., description="Give a name to this movie")
+    characters: List[str] = Field(..., description="Name of characters for this movie.")
+    storyline: str = Field(..., description="2 sentence story of the movie.")
+
+
+movie_generator = Conversation(
+    system_prompt="Generate a movie",
+    output_model=MovieScript,
+)
+
+pprint(movie_generator.run("New York"))
+```
+
+- Run the `movie_generator.py` file
+
+```shell
+python movie_generator.py
+```
+
+- See how the conversation generates a structured output
+
+```shell
+MovieScript(
+│   setting='New York',
+│   ending='happy ending',
+│   genre='romantic comedy',
+│   name='Love in the City',
+│   characters=['Emma', 'Jack', 'Olivia', 'Michael'],
+│   storyline="In the bustling streets of New York, Emma, an ambitious young woman, meets Jack, a charming but jobless artist. As they navigate the city's challenges, their bond grows stronger, leading to unexpected romance and heartwarming adventures."
+)
+```
 
 </details>
 
@@ -185,7 +318,7 @@ dev_docker_resources = DockerResources(apps=[vector_db])
 
 - Start `PgVector` using
 
-```bash
+```shell
 phi start resources.py
 ```
 
@@ -255,7 +388,7 @@ if __name__ == "__main__":
 
 - Run the `pdf_assistant.py` file
 
-```bash
+```shell
 python pdf_assistant.py
 ```
 
@@ -275,7 +408,7 @@ See how the app maintains has storage across sessions.
 
 - Run the `pdf_assistant.py` file with the `--new` flag to start a new conversation.
 
-```bash
+```shell
 python pdf_assistant.py --new
 ```
 
@@ -283,7 +416,7 @@ python pdf_assistant.py --new
 
 Play around and then stop `PgVector` using `phi stop resources.py`
 
-```bash
+```shell
 phi stop resources.py
 ```
 

@@ -235,7 +235,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 One of our favorite features is generating structured data from sparse information.
 
 Meaning we can use LLMs to fill in pydantic models and generate content which previously could not be possible.
-In this example, we use the LLM to generate an object of the `MovieGenerator` class.
+In this example, we generate an object of the `MovieScript` class.
 
 - Create a file `movie_generator.py`
 
@@ -424,15 +424,15 @@ phi stop resources.py
 
 <details>
 
-<summary><h3>Build a RAG LLM App using a template</h3></summary>
+<summary><h3>Build an LLM App using Streamlit, FastApi and PgVector</h3></summary>
 
-Templates are **pre-built AI Apps** that can be used as a starting point for your own AI Apps. The general workflow is:
+Templates are **pre-built AI Apps** that can be used as a starting point for your own AI. The general workflow is:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-Let's build a **RAG LLM App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the backend and PgVector for knowledge and storage.
+Let's build an **LLM App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the backend and PgVector for knowledge and storage.
 
 > Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
 
@@ -461,7 +461,7 @@ phi ws up --group app
 - Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
 - Click on **Chat with PDFs** in the sidebar
 - Enter a username and wait for the knowledge base to load.
-- Choose the `RAG` Conversation type.
+- Choose the `RAG` or `Autonomous` Conversation type.
 - Ask "How do I make chicken curry?"
 - Upload PDFs and ask questions
 

@@ -63,6 +63,7 @@ pip install -U phidata
 <summary><h3>Create a Conversation</h3></summary>
 
 **Conversations** are a human-like interface to language models and come with built-in **memory**, **knowledge**, **storage** and access to **tools**.
+Giving LLMs the ability to have long-term, knowledge-based Conversations is the first step in our journey to AGI.
 
 - Create a file `conversation.py` and install openai using `pip install openai`
 

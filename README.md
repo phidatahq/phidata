@@ -23,7 +23,7 @@
 ## ✨ What is phidata?
 
 A toolkit for building AI products using a human-like `Conversation` interface to language models.
-Like we have conversations with human specialists, we can now have conversations with AI specialists.
+Like we have conversations with human specialists, now we can have conversations with AI specialists.
 
 **Conversations** have built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build pretty much any kind of **RAG**, **Autonomous** or **Multimodal** application. For example:
 

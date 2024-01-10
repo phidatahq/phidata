@@ -33,7 +33,7 @@ Like we have conversations with human specialists, now we can have conversations
 - **Stock Analysts:** Analyze stocks and research companies.
 - **Marketing Analysts:** Provide marketing insights, copywriting and content ideas.
 
-We then serve these conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
+We can then serve these conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
 
 ## 👩‍💻 Getting Started
 

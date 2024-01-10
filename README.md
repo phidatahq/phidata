@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build human-like AI products
+  Build human-like AI products using language models
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-A toolkit for building AI products using a human-like `Conversation` interface.
+A toolkit for building AI products using a human-like `Conversation` interface to language models.
 Like we have conversations with human specialists, now we can have conversations with AI specialists.
 
 **Conversations** come with built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build pretty much any kind of **RAG**, **Autonomous** or **Multimodal** application. For example:
@@ -60,8 +60,7 @@ pip install -U phidata
 
 <summary><h3>Create a Conversation</h3></summary>
 
-**Conversations** are a human-like interface to language models and the starting point for every AI App.
-Conversations come with built-in **memory**, **knowledge**, **storage** and access to **tools**.
+**Conversations** are a human-like interface to language models and come with built-in **memory**, **knowledge**, **storage** and access to **tools**.
 
 - Create a file `conversation.py` and install openai using `pip install openai`
 
@@ -118,7 +117,7 @@ python conversation.py
 
 <summary><h3>Create a Python Engineer</h3></summary>
 
-You can have a Conversation with an `Agent` that is designed for a specific task. For example: `PythonAgent` can perform virtually any task using python code.
+You can have a Conversation with an `Agent` designed for a specific task. For example: `PythonAgent` can perform virtually any task using python code.
 
 - Create a file `python_agent.py` and install pandas using `pip install pandas`
 

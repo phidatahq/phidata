@@ -294,8 +294,8 @@ MovieScript(
 
 <summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
 
-- **Knowledge Base:** a database of information that the AI can search to improve its responses.
-- **Storage:** provides long term memory for `Conversations`.
+- **Knowledge Base:** information that the AI can search to improve its responses, typically provided by a vector db.
+- **Storage:** provides long term memory for `Conversations`, typically provided by a database.
 
 Let's run `PgVector` as it can provide both, knowledge and storage for our Conversations.
 
@@ -426,19 +426,17 @@ phi stop resources.py
 
 <details>
 
-<summary><h3>Build an LLM App using Streamlit, FastApi and PgVector</h3></summary>
+<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
 
-Templates are **pre-built AI Apps** that can be used as a starting point for your own AI. The general workflow is:
+Phidata provides templates for **pre-built AI Apps** that you can use as a starting point. The general workflow is:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
 - Run your app on AWS: `phi ws up prd:aws`
 
-Let's build an **LLM App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the backend and PgVector for knowledge and storage.
+Let's build an **AI App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the backend and PgVector for knowledge and storage. Read the full tutorial <a href="https://docs.phidata.com/ai-app/run-local" target="_blank" rel="noopener noreferrer">here</a>.
 
-> Read the full tutorial <a href="https://docs.phidata.com/quickstart" target="_blank" rel="noopener noreferrer">here</a>.
-
-- Create your codebase
+### Step 1: Create your codebase
 
 Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector.
 
@@ -448,9 +446,9 @@ phi ws create -t llm-app -n llm-app
 
 This will create a folder `llm-app` with a pre-built LLM App that you can customize and make your own.
 
-- Serve your LLM App using Streamlit
+### Step 2: Serve your AI App using Streamlit
 
-<a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends for our LLM App and is extremely useful for building basic applications in pure python. Start the `app` group using:
+<a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
 ```shell
 phi ws up --group app
@@ -469,7 +467,7 @@ phi ws up --group app
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/a8eff0ac-963c-43cb-a784-920bd6713a48">
 
-- Serve your LLM App using FastApi
+### Step 3: Serve your AI App using FastApi
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 
@@ -486,9 +484,9 @@ phi ws up --group api
 - Open <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">localhost:8000/docs</a> to view the API Endpoints.
 - Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
 - Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
-- The LLM Api comes pre-built with endpoints that you can integrate with your front-end.
+- The Api comes pre-built with endpoints that you can integrate with your front-end.
 
-- Optional: Run Jupyterlab
+### Optional: Run Jupyterlab
 
 A jupyter notebook is a must-have for AI development and your `llm-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
 
@@ -510,12 +508,14 @@ phi ws up --group jupyter
 
 **Press Enter** to confirm and give a few minutes for the image to download (only the first time). Verify container status and view logs on the docker dashboard.
 
-- View Jupyterlab UI
+#### View Jupyterlab UI
 
 - Open <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">localhost:8888</a> to view the Jupyterlab UI. Password: **admin**
 - Play around with cookbooks in the `notebooks` folder.
 
 - Delete local resources
+
+### Step 4: Stop the workspace
 
 Play around and stop the workspace using:
 
@@ -523,7 +523,7 @@ Play around and stop the workspace using:
 phi ws down
 ```
 
-- Run your LLM App on AWS
+### Step 5: Run your LLM App on AWS
 
 Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS</a>.
 

@@ -428,7 +428,7 @@ phi stop resources.py
 
 <summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
 
-Phidata provides templates for **pre-built AI Apps** that you can use as a starting point. The general workflow is:
+Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up dev:docker`
@@ -446,7 +446,7 @@ phi ws create -t llm-app -n llm-app
 
 This will create a folder `llm-app` with a pre-built LLM App that you can customize and make your own.
 
-### Step 2: Serve your AI App using Streamlit
+### Step 2: Serve your App using Streamlit
 
 <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
@@ -467,7 +467,7 @@ phi ws up --group app
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/a8eff0ac-963c-43cb-a784-920bd6713a48">
 
-### Step 3: Serve your AI App using FastApi
+### Step 3: Serve your App using FastApi
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 

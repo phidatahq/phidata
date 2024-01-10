@@ -27,7 +27,7 @@ Like we have conversations with human specialists, now we can have conversations
 
 **Conversations** come with built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build pretty much any kind of **RAG**, **Autonomous** or **Multimodal** application. For example:
 
-- **PDF Assistants:** Upload PDFs and ask questions.
+- **PDF Assistants:** Answer questions using PDFs.
 - **Python Engineers:** Perform tasks by writing and running python scripts.
 - **Data Analysts:** Analyze data by writing and running SQL queries.
 - **Stock Analysts:** Analyze stocks and research companies.
@@ -403,7 +403,7 @@ How do I make chicken tikka salad?
 What was my last message?
 ```
 
-See how the app maintains has storage across sessions.
+See how the app maintains storage across sessions.
 
 - Run the `pdf_assistant.py` file with the `--new` flag to start a new conversation.
 

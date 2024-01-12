@@ -25,7 +25,7 @@
 A toolkit for building AI products using a human-like `Conversation` interface to language models.
 Like we have conversations with human specialists, phidata makes it possible to have conversations with AI specialists.
 
-**Conversations** have built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build pretty much any kind of **RAG**, **Autonomous** or **Multimodal** application. For example:
+**Conversations** have built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build **RAG**, **Autonomous** or **Multimodal** applications. For example:
 
 - **PDF Assistants:** Answer questions using PDFs.
 - **Python Engineers:** Perform tasks by writing and running python scripts.
@@ -33,7 +33,7 @@ Like we have conversations with human specialists, phidata makes it possible to 
 - **Stock Analysts:** Analyze stocks and research companies.
 - **Marketing Analysts:** Provide marketing insights, copywriting and content ideas.
 
-We then serve our conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
+We serve our conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
 
 ## 👩‍💻 Getting Started
 

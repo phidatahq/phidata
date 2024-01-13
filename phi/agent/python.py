@@ -78,9 +78,10 @@ class PythonAgent(Agent):
     def get_instructions(self) -> str:
         _instructions = [
             "Determine if you can answer the question directly or if you need to run python code to accomplish the task.",
-            "If you need to run code, first **THINK** about how you will accomplish the task. No need to explain your reasoning.",
+            "If you need to run code, **THINK** about how you will accomplish the task but no need to explain your reasoning.",
             "If you need access to data, check the `files` below to see if you have the data you need.",
-            "If you do not have the data you need, stop and prompt the user to provide the missing information.",
+            "If you do not have the data you need, write python code to download the data from the internet.",
+            "If the data is not available publicly, stop and prompt the user to provide the missing information.",
             "Once you have all the information, create python functions to accomplishes the task.",
             "DO NOT READ THE DATA FILES DIRECTLY. Only read them in the python code you write.",
         ]
@@ -106,6 +107,7 @@ class PythonAgent(Agent):
         if self.save_and_run:
             _instructions += ["After the script is ready, save and run it using the `save_to_file_and_run` function."]
             _instructions += ["Make sure you specify the `variable_to_return` parameter correctly"]
+            _instructions += ["Make sure you use a `.py` extension for the file name"]
         if self.run_code:
             _instructions += ["After the script is ready, run it using the `run_python_code` function."]
 

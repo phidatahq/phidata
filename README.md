@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build human-like AI products using language models
+  Build AI products using language models
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -33,7 +33,7 @@ Like we have conversations with human specialists, phidata makes it possible to 
 - **Stock Analysts:** Analyze stocks and research companies.
 - **Marketing Analysts:** Provide marketing insights, copywriting and content ideas.
 
-We serve our conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
+We then serve our conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
 
 ## 👩‍💻 Getting Started
 

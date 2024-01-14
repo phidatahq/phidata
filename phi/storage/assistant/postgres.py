@@ -21,7 +21,7 @@ class PgAssistantStorage(AssistantStorage):
     def __init__(
         self,
         table_name: str,
-        schema: Optional[str] = "llm",
+        schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
     ):

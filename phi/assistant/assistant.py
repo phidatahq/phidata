@@ -96,12 +96,17 @@ class Assistant(BaseModel):
     # def system_prompt_function(assistant: Assistant) -> str:
     #    ...
     system_prompt_function: Optional[Callable[..., Optional[str]]] = None
-    # If True, the assistant uses a default system prompt
-    use_default_system_prompt: bool = True
+    # If True, build a default system prompt using instructions and extra_instructions
+    build_default_system_prompt: bool = True
+    # Assistant description for the default system prompt
+    description: Optional[str] = None
+    # List of instructions for the default system prompt
+    instructions: Optional[List[str]] = None
+    # List of extra_instructions for the default system prompt
+    # Use these when you want to use the default prompt but also add some extra instructions
+    extra_instructions: Optional[List[str]] = None
     # If markdown=true, formats the output using markdown
     markdown: bool = True
-    # List of guidelines to add to the default system prompt
-    guidelines: Optional[List[str]] = None
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
@@ -120,17 +125,15 @@ class Assistant(BaseModel):
     # ) -> Union[List[Dict], str]:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
-    # If True, the assistant uses a default user prompt
-    use_default_user_prompt: bool = True
-
-    # -*- Functions to customize the user_prompt
-    # Function to build references for the user_prompt
+    # If True, build a default user prompt using references and chat history
+    build_default_user_prompt: bool = True
+    # Function to get references for the user_prompt
     # This function, if provided, is called when add_references_to_prompt is True
     # Signature:
     # def references(assistant: Assistant, query: str) -> Optional[str]:
     #     ...
     references_function: Optional[Callable[..., Optional[str]]] = None
-    # Function to build the chat_history for the user prompt
+    # Function to get the chat_history for the user prompt
     # This function, if provided, is called when add_chat_history_to_prompt is True
     # Signature:
     # def chat_history(assistant: Assistant) -> str:
@@ -192,15 +195,17 @@ class Assistant(BaseModel):
             tool_choice=self.tool_choice,
             system_prompt=self.system_prompt,
             system_prompt_function=self.system_prompt_function,
-            use_default_system_prompt=self.use_default_system_prompt,
+            build_default_system_prompt=self.build_default_system_prompt,
+            description=self.description,
+            instructions=self.instructions,
+            extra_instructions=self.extra_instructions,
+            markdown=self.markdown,
             user_prompt=self.user_prompt,
             user_prompt_function=self.user_prompt_function,
-            use_default_user_prompt=self.use_default_user_prompt,
+            build_default_user_prompt=self.build_default_user_prompt,
             references_function=self.references_function,
             chat_history_function=self.chat_history_function,
             output_model=self.output_model,
-            markdown=self.markdown,
-            guidelines=self.guidelines,
         )
         return _llm_task
 
@@ -395,7 +400,7 @@ class Assistant(BaseModel):
             current_task.run_message = message
             current_task.run_task_data = task_data
 
-            # Set output parsing off
+            # Set output parsing off. This is handled by the run() function
             current_task.parse_output = False
 
             # -*- Update LLMTask

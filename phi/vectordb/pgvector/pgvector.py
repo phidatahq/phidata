@@ -30,7 +30,7 @@ class PgVector(VectorDb):
     def __init__(
         self,
         collection: str,
-        schema: Optional[str] = "llm",
+        schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),

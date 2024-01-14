@@ -60,7 +60,9 @@ source aienv/bin/activate
 pip install -U phidata
 ```
 
-### Create an Assistant
+<details>
+
+<summary><h3>Create an Assistant</h3></summary>
 
 **Assistants** provide a human-like interface to language models and come with built-in **memory**, **knowledge**, **storage** and **tools**.
 
@@ -79,10 +81,7 @@ assistant.print_response("Share a quick healthy breakfast recipe.")
 python assistant.py
 ```
 
-<details>
-
-<summary><h4>View Output</h4></summary>
-
+- See a simple assistant in action
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -115,7 +114,9 @@ python assistant.py
 
 </details>
 
-### Create a Python Assistant
+<details>
+
+<summary><h3>Create a Python Assistant</h3></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -145,9 +146,7 @@ python_assistant.print_response("What is the average rating of movies?")
 python python_assistant.py
 ```
 
-<details>
-
-<summary><h4>View Output</h4></summary>
+- See it work through the problem
 
 ```shell
 WARNING  PythonTools can run arbitrary code, please provide human supervision.
@@ -166,7 +165,9 @@ INFO     Running /Users/zu/ai/average_rating
 
 </details>
 
-### Create a Data Assistant
+<details>
+
+<summary><h3>Create a Data Assistant</h3></summary>
 
 The `DuckDbAgent` can perform data analysis using SQL queries.
 
@@ -197,10 +198,7 @@ duckdb_assistant.print_response("What is the average rating of movies? Show me t
 python data_assistant.py
 ```
 
-<details>
-
-<summary><h4>View Output</h4></summary>
-
+- See it work through the problem
 
 ```shell
 INFO     Running: SHOW TABLES

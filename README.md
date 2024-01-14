@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI Assistants using function calling
+  Build AI Assistants using LLMs
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,7 +22,9 @@
 
 ## ✨ What is phidata?
 
-A toolkit for building AI Assistants using function calling. **Assistants** can automate workflows by intelligently choosing functions to run using [OpenAI function calling](https://platform.openai.com/docs/guides/function-calling).
+A toolkit for building AI Assistants using LLM function calling.
+
+Assistants come with built-in **memory**, **knowledge**, **storage**, **tools** and can automate workflows by intelligently choosing which functions to run using [OpenAI function calling](https://platform.openai.com/docs/guides/function-calling).
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**. They can be used to build any kind of RAG, Autonomous or Multimodal application. For example:
 
@@ -41,9 +43,7 @@ After building an Assistant, we serve it using **Streamlit**, **FastApi** or **D
 
 ## 👩‍💻 Getting Started
 
-<details>
-
-<summary><h3>Installation</h3></summary>
+### Installation
 
 - Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
@@ -60,11 +60,7 @@ source aienv/bin/activate
 pip install -U phidata
 ```
 
-</details>
-
-<details>
-
-<summary><h3>Create an Assistant</h3></summary>
+### Create an Assistant
 
 **Assistants** provide a human-like interface to language models and come with built-in **memory**, **knowledge**, **storage** and **tools**.
 
@@ -83,7 +79,10 @@ assistant.print_response("Share a quick healthy breakfast recipe.")
 python assistant.py
 ```
 
-- See a simple assistant in action
+<details>
+
+<summary><h4>View Output</h4></summary>
+
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -116,9 +115,7 @@ python assistant.py
 
 </details>
 
-<details>
-
-<summary><h3>Create a Python Assistant</h3></summary>
+### Create a Python Assistant
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -148,7 +145,9 @@ python_assistant.print_response("What is the average rating of movies?")
 python python_assistant.py
 ```
 
-- See it work through the problem
+<details>
+
+<summary><h4>View Output</h4></summary>
 
 ```shell
 WARNING  PythonTools can run arbitrary code, please provide human supervision.
@@ -167,9 +166,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 </details>
 
-<details>
-
-<summary><h3>Create a Data Assistant</h3></summary>
+### Create a Data Assistant
 
 The `DuckDbAgent` can perform data analysis using SQL queries.
 
@@ -200,7 +197,10 @@ duckdb_assistant.print_response("What is the average rating of movies? Show me t
 python data_assistant.py
 ```
 
-- See it work through the problem
+<details>
+
+<summary><h4>View Output</h4></summary>
+
 
 ```shell
 INFO     Running: SHOW TABLES

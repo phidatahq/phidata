@@ -451,12 +451,18 @@ class Assistant(BaseModel):
         self.write_to_storage()
 
         # -*- Send run event for monitoring
+        llm_response_type = "text"
+        if self.output_model is not None:
+            llm_response_type = "json"
+        elif self.markdown:
+            llm_response_type = "markdown"
         event_info = {
             "tasks": task_data,
         }
         event_data = {
             "user_message": message,
             "llm_response": run_output,
+            "llm_response_type": llm_response_type,
             "info": event_info,
             "metrics": self.llm.metrics,
         }

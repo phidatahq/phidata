@@ -25,18 +25,18 @@ from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.llm_app: "llm-app",
-    WorkspaceStarterTemplate.api_app: "api-app",
-    WorkspaceStarterTemplate.django_app: "django-app",
-    WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
-    WorkspaceStarterTemplate.junior_de: "junior-de",
+    WorkspaceStarterTemplate.ai_app: "ai-app",
+    # WorkspaceStarterTemplate.ai_api: "ai-api",
+    # WorkspaceStarterTemplate.django_app: "django-app",
+    # WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
+    # WorkspaceStarterTemplate.junior_de: "junior-de",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.llm_app: "https://github.com/phidatahq/llm-app.git",
-    WorkspaceStarterTemplate.api_app: "https://github.com/phidatahq/api-app.git",
-    WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
-    WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
-    WorkspaceStarterTemplate.junior_de: "https://github.com/phidatahq/junior-de.git",
+    WorkspaceStarterTemplate.ai_app: "https://github.com/phidatahq/ai-app.git",
+    # WorkspaceStarterTemplate.ai_api: "https://github.com/phidatahq/ai-api.git",
+    # WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
+    # WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
+    # WorkspaceStarterTemplate.junior_de: "https://github.com/phidatahq/junior-de.git",
 }
 
 
@@ -75,7 +75,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
-    ws_template = WorkspaceStarterTemplate.llm_app
+    ws_template = WorkspaceStarterTemplate.ai_app
     templates = list(WorkspaceStarterTemplate.__members__.values())
 
     if repo_to_clone is None:
@@ -83,7 +83,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         if template is None:
             # Get starter template from the user if template is not provided
             # Display available starter templates and ask user to select one
-            print_info("Select starter template or press Enter for default (llm-app)")
+            print_info("Select starter template or press Enter for default (ai-app)")
             for template_id, template_name in enumerate(templates, start=1):
                 print_info("  [b][{}][/b] {}".format(template_id, WorkspaceStarterTemplate(template_name).value))
 
@@ -105,13 +105,13 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         repo_to_clone = TEMPLATE_TO_REPO_MAP.get(ws_template)
 
     if ws_dir_name is None:
-        default_ws_name = "llm-app"
+        default_ws_name = "ai-app"
         if url is not None:
             # Get default_ws_name from url
             default_ws_name = url.split("/")[-1].split(".")[0]
         else:
             # Get default_ws_name from template
-            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "llm-app")
+            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "ai-app")
         logger.debug(f"asking for ws name with default: {default_ws_name}")
         # Ask user for workspace name if not provided
         ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name, console=console)

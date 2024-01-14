@@ -23,7 +23,7 @@
 ## ✨ What is phidata?
 
 A toolkit for building AI Assistants using LLM [function calling](https://platform.openai.com/docs/guides/function-calling).
-Assistants achieve tasks by intelligently choosing which functions to run.
+Assistants can achieve any task by intelligently choosing their course of action by calling functions.
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**. They can be used to build any kind of RAG, Autonomous or Multimodal application, for example:
 

@@ -24,35 +24,29 @@ class LLMTask(Task):
 
     # -*- Task Memory
     memory: LLMTaskMemory = LLMTaskMemory()
-    # Add chat history to the messages sent to the LLM.
-    # If True, the chat history is added to the messages sent to the LLM.
+    # add_chat_history_to_messages=True adds the chat history to the messages sent to the LLM.
     add_chat_history_to_messages: bool = False
-    # Add chat history to the prompt sent to the LLM.
-    # If True, a formatted chat history is added to the default user_prompt.
+    # add_chat_history_to_prompt=True adds the formatted chat history to the user prompt.
     add_chat_history_to_prompt: bool = False
-    # Number of previous messages to add to prompt or messages sent to the LLM.
+    # Number of previous messages to add to the prompt or messages.
     num_history_messages: int = 8
 
     # -*- Task Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
-    # Add references from the knowledge base to the prompt sent to the LLM.
+    # Enable RAG by adding references from the knowledge base to the prompt.
     add_references_to_prompt: bool = False
-
-    # -*- Enable Function Calls
-    # Makes the task Autonomous by letting the LLM call functions to achieve tasks.
-    function_calls: bool = False
-    # Add default functions to the LLM when function_calls is True.
-    default_functions: bool = True
-    # Show function calls in LLM messages.
-    show_function_calls: bool = False
-    # Maximum number of function calls allowed.
-    function_call_limit: Optional[int] = None
 
     # -*- Task Tools
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
+    # Add default tools to the LLM
+    default_tools: bool = False
+    # Show tool calls in LLM messages.
+    show_tool_calls: bool = False
+    # Maximum number of tool calls allowed.
+    tool_call_limit: Optional[int] = None
     # Controls which (if any) function is called by the model.
     # "none" means the model will not call a function and instead generates a message.
     # "auto" means the model can pick between generating a message or calling a function.
@@ -67,7 +61,7 @@ class LLMTask(Task):
     # -*- System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
     # -*- System prompt function: provide the system prompt as a function
-    # This function is provided the task as an argument
+    # This function is provided the "Task object" as an argument
     #   and should return the system_prompt as a string.
     # Signature:
     # def system_prompt_function(task: Task) -> str:
@@ -75,42 +69,44 @@ class LLMTask(Task):
     system_prompt_function: Optional[Callable[..., Optional[str]]] = None
     # If True, the task provides a default system prompt
     use_default_system_prompt: bool = True
+    # If markdown=true, formats the output using markdown
+    markdown: bool = True
+    # List of guidelines to add to the default system prompt
+    guidelines: Optional[List[str]] = None
 
     # -*- User prompt: provide the user prompt as a string
-    # Note: this will ignore the message provided to the run function
+    # Note: this will ignore the input message provided to the run function
     user_prompt: Optional[Union[List[Dict], str]] = None
     # -*- User prompt function: provide the user prompt as a function.
-    # This function is provided the task and the input message as arguments
+    # This function is provided the "Task object" and the "input message" as arguments
     #   and should return the user_prompt as a Union[List[Dict], str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
+    # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     task: Task,
     #     message: Optional[Union[List[Dict], str]] = None,
     #     references: Optional[str] = None,
-    # ) -> str:
+    #     chat_history: Optional[str] = None,
+    # ) -> Union[List[Dict], str]:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
     # If True, the task provides a default user prompt
     use_default_user_prompt: bool = True
-    # Function to build references for the default user_prompt
+
+    # -*- Functions to customize the user_prompt
+    # Function to build references for the user_prompt
     # This function, if provided, is called when add_references_to_prompt is True
     # Signature:
     # def references(task: Task, query: str) -> Optional[str]:
     #     ...
     references_function: Optional[Callable[..., Optional[str]]] = None
-    # Function to build the chat_history for the default user prompt
+    # Function to build the chat_history for the user prompt
     # This function, if provided, is called when add_chat_history_to_prompt is True
     # Signature:
     # def chat_history(conversation: Conversation) -> str:
     #     ...
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
-
-    # -*- Output Settings
-    # If True, the LLM response is formatted using markdown
-    markdown: bool = True
-    # List of guidelines to add to the default system prompt
-    guidelines: Optional[List[str]] = None
 
     @property
     def streamable(self) -> bool:
@@ -136,23 +132,23 @@ class LLMTask(Task):
             for tool in self.tools:
                 self.llm.add_tool(tool)
 
-        if self.function_calls and self.default_functions:
+        if self.default_tools:
             if self.memory is not None:
-                self.llm.add_tool(self.get_last_n_chats)
+                self.llm.add_tool(self.get_chat_history)
             if self.knowledge_base is not None:
                 self.llm.add_tool(self.search_knowledge_base)
 
-        # Set show_function_calls if it is not set on the llm
-        if self.llm.show_function_calls is None and self.show_function_calls is not None:
-            self.llm.show_function_calls = self.show_function_calls
+        # Set show_tool_calls if it is not set on the llm
+        if self.llm.show_function_calls is None and self.show_tool_calls is not None:
+            self.llm.show_function_calls = self.show_tool_calls
 
         # Set tool_choice to auto if it is not set on the llm
         if self.llm.tool_choice is None and self.tool_choice is not None:
             self.llm.tool_choice = self.tool_choice
 
-        # Set function_call_limit if it is less than the llm function_call_limit
-        if self.function_call_limit is not None and self.function_call_limit < self.llm.function_call_limit:
-            self.llm.function_call_limit = self.function_call_limit
+        # Set tool_call_limit if it is less than the llm tool_call_limit
+        if self.tool_call_limit is not None and self.tool_call_limit < self.llm.function_call_limit:
+            self.llm.function_call_limit = self.tool_call_limit
 
     def prepare_task(self) -> None:
         self.set_task_id()
@@ -235,7 +231,7 @@ class LLMTask(Task):
         _guidelines = []
         if self.knowledge_base is not None:
             _guidelines.append("Use the information from a knowledge base if it helps respond to the message")
-        if self.function_calls:
+        if self.default_tools or self.tools is not None:
             _guidelines.append("You have access to tools that you can run to achieve your task.")
             _guidelines.append("Only use the tools you have been provided with")
         if self.markdown and self.output_model is None:
@@ -276,10 +272,8 @@ class LLMTask(Task):
             return remove_indent(self.chat_history_function(**chat_history_kwargs))
 
         formatted_history = ""
-        if self.conversation_memory is not None:
-            formatted_history = self.conversation_memory.get_formatted_chat_history(
-                num_messages=self.num_history_messages
-            )
+        if self.assistant_memory is not None:
+            formatted_history = self.assistant_memory.get_formatted_chat_history(num_messages=self.num_history_messages)
         elif self.memory is not None:
             formatted_history = self.memory.get_formatted_chat_history(num_messages=self.num_history_messages)
         if formatted_history == "":
@@ -361,7 +355,7 @@ class LLMTask(Task):
         self.prepare_task()
         self.llm = cast(LLM, self.llm)
 
-        logger.debug(f"*********** Task Start: {self.id} ***********")
+        logger.debug(f"*********** Task Start: {self.task_id} ***********")
 
         # -*- Build the system prompt
         system_prompt = self.get_system_prompt()
@@ -402,20 +396,20 @@ class LLMTask(Task):
         if system_prompt_message.content and system_prompt_message.content != "":
             messages.append(system_prompt_message)
         if self.add_chat_history_to_messages:
-            if self.conversation_memory is not None:
-                messages += self.conversation_memory.get_last_n_messages(last_n=self.num_history_messages)
+            if self.assistant_memory is not None:
+                messages += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
             elif self.memory is not None:
                 messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
         messages += [user_prompt_message]
 
         # -*- Generate run response (includes running function calls)
-        task_run_response = ""
+        task_response = ""
         if stream:
             for response_chunk in self.llm.parsed_response_stream(messages=messages):
-                task_run_response += response_chunk
+                task_response += response_chunk
                 yield response_chunk
         else:
-            task_run_response = self.llm.parsed_response(messages=messages)
+            task_response = self.llm.parsed_response(messages=messages)
 
         # -*- Update task memory
         # Add user message to the task memory - this is added to the chat_history
@@ -424,43 +418,44 @@ class LLMTask(Task):
         # Add llm messages to the task memory - this is added to the llm_messages
         self.memory.add_llm_messages(messages=messages)
         # Add llm response to the chat history
-        llm_message = Message(role="assistant", content=task_run_response)
+        llm_message = Message(role="assistant", content=task_response)
         self.memory.add_chat_message(message=llm_message)
         # Add references to the task memory
         if references:
             self.memory.add_references(references=references)
 
-        # -*- Update conversation memory
-        if self.conversation_memory is not None:
+        # -*- Update assistant memory
+        if self.assistant_memory is not None:
             # Add user message to the conversation memory
-            self.conversation_memory.add_chat_message(message=user_message)
+            self.assistant_memory.add_chat_message(message=user_message)
             # Add llm messages to the conversation memory
-            self.conversation_memory.add_llm_messages(messages=messages)
+            self.assistant_memory.add_llm_messages(messages=messages)
             # Add llm response to the chat history
-            self.conversation_memory.add_chat_message(message=llm_message)
+            self.assistant_memory.add_chat_message(message=llm_message)
             # Add references to the conversation memory
             if references:
-                self.conversation_memory.add_references(references=references)
+                self.assistant_memory.add_references(references=references)
 
-        # -*- Update conversation tasks
-        if self.conversation_tasks is not None:
-            self.conversation_tasks.append(self.to_dict())
+        # -*- Update run task data
+        if self.run_task_data is not None:
+            self.run_task_data.append(self.to_dict())
 
         # -*- Update task output
-        self.output = task_run_response
-        logger.debug(f"task_run_response: {task_run_response}")
+        self.output = task_response
+        logger.debug(f"task_response: {task_response}")
 
         # -*- Yield final response if not streaming
         if not stream:
-            yield task_run_response
+            yield task_response
 
-        logger.debug(f"*********** Task End: {self.id} ***********")
+        logger.debug(f"*********** Task End: {self.task_id} ***********")
 
     def run(
         self,
         message: Optional[Union[List[Dict], str]] = None,
         stream: bool = True,
     ) -> Union[Iterator[str], str, BaseModel]:
+        # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
             json_resp = next(self._run(message=message, stream=False))
@@ -484,7 +479,7 @@ class LLMTask(Task):
                             except ValidationError as exc:
                                 logger.warning(f"Failed to validate response: {exc}")
 
-                # -*- Update conversation output to the structured output
+                # -*- Update task output to the structured output
                 if structured_llm_output is not None:
                     self.output = structured_llm_output
             except Exception as e:
@@ -501,8 +496,8 @@ class LLMTask(Task):
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = {
-            "id": self.id,
-            "name": self.name,
+            "task_id": self.task_id,
+            "task_name": self.task_name,
             "output": self.output,
             "memory": self.memory.to_dict(),
             "llm": self.llm.to_dict() if self.llm else None,
@@ -514,19 +509,21 @@ class LLMTask(Task):
     # LLM functions
     ###########################################################################
 
-    def get_last_n_chats(self, num_chats: Optional[int] = None) -> str:
-        """Returns the last n chats between the user and assistant.
+    def get_chat_history(self, num_chats: Optional[int] = None) -> str:
+        """Returns the chat history between the user and assistant.
+
+        :param num_chats: The number of chats to return.
+            Each chat contains 2 messages. One from the user and one from the assistant.
+        :return: A list of dictionaries representing the chat history.
+
         Example:
             - To get the last chat, use num_chats=1.
             - To get the last 5 chats, use num_chats=5.
             - To get all chats, use num_chats=None.
             - To get the first chat, use num_chats=None and pick the first message.
-        :param num_chats: The number of chats to return.
-            Each chat contains 2 messages. One from the user and one from the assistant.
-        :return: A list of dictionaries representing the chat history.
         """
         history: List[Dict[str, Any]] = []
-        all_chats = self.conversation_memory.get_chats() if self.conversation_memory else self.memory.get_chats()
+        all_chats = self.assistant_memory.get_chats() if self.assistant_memory else self.memory.get_chats()
         if len(all_chats) == 0:
             return ""
 
@@ -551,8 +548,8 @@ class LLMTask(Task):
         reference_timer.stop()
         _ref = References(query=query, references=references, time=round(reference_timer.elapsed, 4))
         self.memory.add_references(references=_ref)
-        if self.conversation_memory:
-            self.conversation_memory.add_references(references=_ref)
+        if self.assistant_memory:
+            self.assistant_memory.add_references(references=_ref)
         return references
 
     ###########################################################################

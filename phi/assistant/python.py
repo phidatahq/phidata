@@ -4,14 +4,13 @@ from pathlib import Path
 from pydantic import model_validator
 from textwrap import dedent
 
-from phi.assistant import Assistant
+from phi.assistant.custom import CustomAssistant
 from phi.file import File
 from phi.tools.python import PythonTools
 
 
-class PythonAssistant(Assistant):
-    name: str = "python_assistant"
-    description: str = "The PythonAssistant can accomplish any task using python code."
+class PythonAssistant(CustomAssistant):
+    name: str = "PythonAssistant"
 
     files: Optional[List[File]] = None
     file_information: Optional[str] = None
@@ -81,27 +80,20 @@ class PythonAssistant(Assistant):
     def get_instructions(self) -> str:
         _instructions = [
             "Determine if you can answer the question directly or if you need to run python code to accomplish the task.",
-            "If you need to run code, **THINK STEP BY STEP** and explain your reasoning.",
+            "If you need to run code, **THINK** about how you will accomplish the task but no need to explain your reasoning.",
             "If you need access to data, check the `files` below to see if you have the data you need.",
-            "If you do not have the data you need, stop and prompt the user to provide the missing information.",
-            "Once you have all the information, create python functions to accomplish your task.",
-            'After you have all the functions, create 1 single python file that runs the functions guarded by a `if __name__ == "__main__"` block.',
+            "If you do not have the data you need, **THINK** if you can write a python function to download the data from the internet.",
+            "If the data you need is not available in a file or publicly, stop and prompt the user to provide the missing information.",
+            "Once you have all the information, create python functions to accomplishes the task.",
+            "DO NOT READ THE DATA FILES DIRECTLY. Only read them in the python code you write.",
         ]
-        if self.save_and_run:
-            _instructions += [
-                "After the python file is ready, save and run it using the `save_to_file_and_run` function."
-            ]
-            _instructions += ["Make sure you specify the `file_name` and `variable_to_return` parameter correctly"]
-        if self.run_code:
-            _instructions += ["After the script is ready, run it using the `run_python_code` function."]
-
         if self.charting_libraries:
             if "streamlit" in self.charting_libraries:
                 _instructions += [
                     "Only use the Streamlit Elements to display outputs like charts, dataframe, table etc.",
                     "Use Streamlit Chart elements for visualizing data.",
                     "Employ Streamlit Dataframe/Table elements to present data clearly.",
-                    "Integrate Streamlit Input Widgets to accept user input and dynamically alter data based on this input.",
+                    "Integrate streamlit input widgets to accept user input and dynamically alter data based on this input.",
                     "Do not use any Python plotting library like matplotlib or seaborn.",
                     "For any other unavailable charts, try streamlit plotly chart",
                     "When you display charts make sure you print a title and a description of the chart before displaying it.",
@@ -111,6 +103,17 @@ class PythonAssistant(Assistant):
                 _instructions += [
                     f"You may use the following charting libraries: {', '.join(self.charting_libraries)}",
                 ]
+
+        _instructions += [
+            'After you have all the functions, create a python script that runs the functions guarded by a `if __name__ == "__main__"` block.'
+        ]
+
+        if self.save_and_run:
+            _instructions += ["After the script is ready, save and run it using the `save_to_file_and_run` function."]
+            _instructions += ["Make sure you specify the `variable_to_return` parameter correctly"]
+            _instructions += ["Make sure you use a `.py` extension for the file name"]
+        if self.run_code:
+            _instructions += ["After the script is ready, run it using the `run_python_code` function."]
 
         _instructions += ["Continue till you have accomplished the task."]
 
@@ -141,35 +144,10 @@ class PythonAssistant(Assistant):
 
         return instructions
 
-    def get_system_prompt(self) -> Optional[str]:
-        """Return the system prompt for this assistant"""
+    def get_assistant_system_prompt(self) -> Optional[str]:
+        """Return the system prompt for the python assistant"""
 
-        # If the system_prompt is set, return it
-        if self.system_prompt is not None:
-            if self.output_model is not None:
-                sys_prompt = self.system_prompt
-                sys_prompt += f"\n{self.get_json_output_prompt()}"
-                return sys_prompt
-            return self.system_prompt
-
-        # If the system_prompt_function is set, return the system_prompt from the function
-        if self.system_prompt_function is not None:
-            system_prompt_kwargs = {"task": self}
-            _system_prompt_from_function = self.system_prompt_function(**system_prompt_kwargs)
-            if _system_prompt_from_function is not None:
-                if self.output_model is not None:
-                    _system_prompt_from_function += f"\n{self.get_json_output_prompt()}"
-                return _system_prompt_from_function
-            else:
-                raise Exception("system_prompt_function returned None")
-
-        # If use_default_system_prompt is False, return None
-        if not self.use_default_system_prompt:
-            return None
-
-        # Build a default system prompt
         _system_prompt = self.get_instructions()
-
         if self.file_information is not None:
             _system_prompt += dedent(
                 f"""

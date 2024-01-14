@@ -6,9 +6,9 @@ from phi.llm.message import Message
 from phi.llm.references import References
 
 
-class ConversationMemory(BaseModel):
+class AssistantMemory(BaseModel):
     """
-    This class provides memory for a Conversation.
+    This class provides memory for an Assistant.
     """
 
     # Messages between the user and the LLM.

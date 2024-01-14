@@ -12,12 +12,12 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.conversation.row import ConversationRow
-from phi.storage.conversation.base import ConversationStorage
+from phi.assistant.row import AssistantRow
+from phi.storage.assistant.base import AssistantStorage
 from phi.utils.log import logger
 
 
-class PgConversationStorage(ConversationStorage):
+class PgAssistantStorage(AssistantStorage):
     def __init__(
         self,
         table_name: str,
@@ -26,13 +26,13 @@ class PgConversationStorage(ConversationStorage):
         db_engine: Optional[Engine] = None,
     ):
         """
-        This class provides conversation storage using a postgres database.
+        This class provides assistant storage using a postgres table.
 
         The following order is used to determine the database connection:
             1. Use the db_engine if provided
             2. Use the db_url
 
-        :param table_name: The name of the table to store conversations in.
+        :param table_name: The name of the table to store assistant runs.
         :param schema: The schema to store the table in.
         :param db_url: The database URL to connect to.
         :param db_engine: The database engine to use.
@@ -61,26 +61,29 @@ class PgConversationStorage(ConversationStorage):
         return Table(
             self.table_name,
             self.metadata,
-            # Primary key for this conversation.
-            Column("id", String, primary_key=True),
-            # Conversation name
+            # Primary key for this run
+            Column("run_id", String, primary_key=True),
+            # Assistant name
             Column("name", String),
-            # Name and type of user participating in this conversation.
-            Column("user_name", String),
-            Column("user_type", String),
-            # True if this conversation is active.
-            Column("is_active", postgresql.BOOLEAN, server_default=text("true")),
+            # Run name
+            Column("run_name", String),
+            # ID of the user participating in this run
+            Column("user_id", String),
             # -*- LLM data (name, model, etc.)
             Column("llm", postgresql.JSONB),
-            # -*- Conversation memory
+            # -*- Assistant memory
             Column("memory", postgresql.JSONB),
-            # Metadata associated with this conversation.
-            Column("meta_data", postgresql.JSONB),
-            # Extra data associated with this conversation.
-            Column("extra_data", postgresql.JSONB),
-            # The timestamp of when this conversation was created.
+            # Metadata associated with this assistant
+            Column("assistant_data", postgresql.JSONB),
+            # Metadata associated with this run
+            Column("run_data", postgresql.JSONB),
+            # Metadata associated the user participating in this run
+            Column("user_data", postgresql.JSONB),
+            # Metadata associated with the assistant tasks
+            Column("task_data", postgresql.JSONB),
+            # The timestamp of when this run was created.
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
-            # The timestamp of when this conversation was last updated.
+            # The timestamp of when this run was last updated.
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
             extend_existing=True,
         )
@@ -102,8 +105,8 @@ class PgConversationStorage(ConversationStorage):
             logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, conversation_id: str) -> Optional[Row[Any]]:
-        stmt = select(self.table).where(self.table.c.id == conversation_id)
+    def _read(self, session: Session, run_id: str) -> Optional[Row[Any]]:
+        stmt = select(self.table).where(self.table.c.run_id == run_id)
         try:
             return session.execute(stmt).first()
         except Exception:
@@ -111,81 +114,83 @@ class PgConversationStorage(ConversationStorage):
             self.create()
         return None
 
-    def read(self, conversation_id: str) -> Optional[ConversationRow]:
+    def read(self, run_id: str) -> Optional[AssistantRow]:
         with self.Session() as sess, sess.begin():
-            existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)
-            return ConversationRow.model_validate(existing_row) if existing_row is not None else None
+            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
+            return AssistantRow.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_conversation_ids(self, user_name: Optional[str] = None) -> List[str]:
-        conversation_ids: List[str] = []
+    def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
+        run_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
-                # get all conversation ids for this user
+                # get all run_ids for this user
                 stmt = select(self.table)
-                if user_name is not None:
-                    stmt = stmt.where(self.table.c.user_name == user_name)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row is not None and row.id is not None:
-                        conversation_ids.append(row.id)
+                    if row is not None and row.run_id is not None:
+                        run_ids.append(row.run_id)
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
-        return conversation_ids
+        return run_ids
 
-    def get_all_conversations(self, user_name: Optional[str] = None) -> List[ConversationRow]:
-        conversations: List[ConversationRow] = []
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRow]:
+        runs: List[AssistantRow] = []
         try:
             with self.Session() as sess, sess.begin():
-                # get all conversation ids for this user
+                # get all runs for this user
                 stmt = select(self.table)
-                if user_name is not None:
-                    stmt = stmt.where(self.table.c.user_name == user_name)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row.id is not None:
-                        conversations.append(ConversationRow.model_validate(row))
+                    if row.run_id is not None:
+                        runs.append(AssistantRow.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
-        return conversations
+        return runs
 
-    def upsert(self, conversation: ConversationRow) -> Optional[ConversationRow]:
+    def upsert(self, row: AssistantRow) -> Optional[AssistantRow]:
         """
-        Create a new conversation if it does not exist, otherwise update the existing conversation.
+        Create a new assistant run if it does not exist, otherwise update the existing assistant.
         """
 
         with self.Session() as sess, sess.begin():
             # Create an insert statement
             stmt = postgresql.insert(self.table).values(
-                id=conversation.id,
-                name=conversation.name,
-                user_name=conversation.user_name,
-                user_type=conversation.user_type,
-                is_active=conversation.is_active,
-                llm=conversation.llm,
-                memory=conversation.memory,
-                meta_data=conversation.meta_data,
-                extra_data=conversation.extra_data,
+                run_id=row.run_id,
+                name=row.name,
+                run_name=row.run_name,
+                user_id=row.user_id,
+                llm=row.llm,
+                memory=row.memory,
+                assistant_data=row.assistant_data,
+                run_data=row.run_data,
+                user_data=row.user_data,
+                task_data=row.task_data,
             )
 
-            # Define the upsert if the id already exists
+            # Define the upsert if the run_id already exists
             # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
             stmt = stmt.on_conflict_do_update(
-                index_elements=["id"],
+                index_elements=["run_id"],
                 set_=dict(
-                    name=conversation.name,
-                    user_name=conversation.user_name,
-                    user_type=conversation.user_type,
-                    is_active=conversation.is_active,
-                    llm=conversation.llm,
-                    memory=conversation.memory,
-                    meta_data=conversation.meta_data,
-                    extra_data=conversation.extra_data,
+                    name=row.name,
+                    run_name=row.run_name,
+                    user_id=row.user_id,
+                    llm=row.llm,
+                    memory=row.memory,
+                    assistant_data=row.assistant_data,
+                    run_data=row.run_data,
+                    user_data=row.user_data,
+                    task_data=row.task_data,
                 ),  # The updated value for each column
             )
 
@@ -195,16 +200,7 @@ class PgConversationStorage(ConversationStorage):
                 # Create table and try again
                 self.create()
                 sess.execute(stmt)
-        return self.read(conversation_id=conversation.id)
-
-    def end(self, conversation_id: str) -> None:
-        with self.Session() as sess, sess.begin():
-            # Check if conversation exists in the database
-            existing_row: Optional[Row[Any]] = self._read(session=sess, conversation_id=conversation_id)
-            # If conversation exists, set is_active to False
-            if existing_row is not None:
-                stmt = self.table.update().where(self.table.c.id == conversation_id).values(is_active=False)
-                sess.execute(stmt)
+        return self.read(run_id=row.run_id)
 
     def delete(self) -> None:
         if self.table_exists():

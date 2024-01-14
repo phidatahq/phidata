@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI products using language models
+  Build AI Assistants using language models
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,18 +22,17 @@
 
 ## ✨ What is phidata?
 
-A toolkit for building AI products using a human-like `Conversation` interface to language models.
-Like we have conversations with human specialists, phidata makes it possible to have conversations with AI specialists.
+A toolkit for building AI Assistants using language models.
 
-**Conversations** come with built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build **RAG**, **Autonomous** or **Multimodal** applications. For example:
+**Assistants** are trained to perform specific tasks and come with built-in **memory**, **knowledge base**, **storage** and **tools**. Examples:
 
 - **PDF Assistants:** Answer questions using PDFs.
-- **Python Engineers:** Perform tasks by writing and running python scripts.
-- **Data Analysts:** Analyze data by writing and running SQL queries.
-- **Stock Analysts:** Analyze stocks and research companies.
-- **Marketing Analysts:** Provide marketing insights, copywriting and content ideas.
+- **Data Assistants:** Analyze data by running SQL queries.
+- **Python Assistants:** Perform tasks by running python code.
+- **Stock Assistants:** Analyze stocks and research companies.
+- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
 
-We then serve our conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
+We can serve the assistants using **Streamlit**, **FastApi** or **Django** to build AI products.
 
 ## 👩‍💻 Getting Started
 

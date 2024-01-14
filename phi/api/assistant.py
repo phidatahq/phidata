@@ -29,7 +29,7 @@ def create_assistant_run(run: AssistantRunCreate) -> bool:
                 ws_key=getenv(WORKSPACE_KEY_ENV_VAR),
             )
             r: Response = api_client.post(
-                ApiRoutes.CONVERSATION_MONITOR_CREATE,
+                ApiRoutes.ASSISTANT_RUN_CREATE,
                 json={
                     "run": run.model_dump(exclude_none=True),
                     "workspace": assistant_workspace.model_dump(exclude_none=True),
@@ -49,11 +49,10 @@ def create_assistant_run(run: AssistantRunCreate) -> bool:
     return False
 
 
-def create_assistant_event(event: AssistantEventCreate) -> bool:
+def create_assistant_run_event(event: AssistantEventCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
-    # logger.debug("--o-o-- Creating Conversation Event")
     with api.AuthenticatedClient() as api_client:
         try:
             assistant_workspace = AssistantWorkspace(
@@ -62,7 +61,7 @@ def create_assistant_event(event: AssistantEventCreate) -> bool:
                 ws_key=getenv(WORKSPACE_KEY_ENV_VAR),
             )
             r: Response = api_client.post(
-                ApiRoutes.CONVERSATION_EVENT_CREATE,
+                ApiRoutes.ASSISTANT_RUN_EVENT,
                 json={
                     "event": event.model_dump(exclude_none=True),
                     "workspace": assistant_workspace.model_dump(exclude_none=True),

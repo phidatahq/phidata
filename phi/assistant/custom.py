@@ -13,7 +13,7 @@ class CustomAssistant(Assistant):
     def llm_task(self) -> LLMTask:
         _llm_task = super().llm_task
 
-        # If the system prompt is not set for the assistant, use the custom assistant system prompt
+        # Use the custom assistant system prompt if the system prompt is not set
         if self.system_prompt is None or self.system_prompt_function is None:
             assistant_system_prompt = self.get_assistant_system_prompt()
             if assistant_system_prompt is not None:

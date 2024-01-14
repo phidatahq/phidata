@@ -247,7 +247,6 @@ class Assistant(BaseModel):
         if row.memory is not None:
             try:
                 self.memory = self.memory.__class__.model_validate(row.memory)
-                logger.debug(f"Loaded assistant memory: {self.memory.llm_messages}")
             except Exception as e:
                 logger.warning(f"Failed to load assistant memory: {e}")
 

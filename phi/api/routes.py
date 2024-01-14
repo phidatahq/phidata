@@ -32,7 +32,7 @@ class ApiRoutes:
 
     # assistant paths
     ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"
-    ASSISTANT_RUN_EVENT: str = "/v1/assistant/run/event"
+    ASSISTANT_EVENT_CREATE: str = "/v1/assistant/event/create"
 
     # ai paths
     AI_CONVERSATION_CREATE: str = "/v1/ai/conversation/create"

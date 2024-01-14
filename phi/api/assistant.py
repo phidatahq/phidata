@@ -49,7 +49,7 @@ def create_assistant_run(run: AssistantRunCreate) -> bool:
     return False
 
 
-def create_assistant_run_event(event: AssistantEventCreate) -> bool:
+def create_assistant_event(event: AssistantEventCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
@@ -61,7 +61,7 @@ def create_assistant_run_event(event: AssistantEventCreate) -> bool:
                 ws_key=getenv(WORKSPACE_KEY_ENV_VAR),
             )
             r: Response = api_client.post(
-                ApiRoutes.ASSISTANT_RUN_EVENT,
+                ApiRoutes.ASSISTANT_EVENT_CREATE,
                 json={
                     "event": event.model_dump(exclude_none=True),
                     "workspace": assistant_workspace.model_dump(exclude_none=True),

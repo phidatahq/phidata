@@ -452,7 +452,7 @@ class Assistant(BaseModel):
             "info": event_info,
             "metrics": self.llm.metrics,
         }
-        self._api_log_assistant_run_event(event_type="run", event_data=event_data)
+        self._api_log_assistant_event(event_type="run", event_data=event_data)
 
         # -*- Update run output
         self.output = run_output
@@ -547,7 +547,7 @@ class Assistant(BaseModel):
             "messages": [m.model_dump(exclude_none=True) for m in messages],
             "metrics": self.llm.metrics,
         }
-        self._api_log_assistant_run_event(event_type="chat_raw", event_data=event_data)
+        self._api_log_assistant_event(event_type="chat_raw", event_data=event_data)
 
         # -*- Yield final response if not streaming
         if not stream:
@@ -642,15 +642,15 @@ class Assistant(BaseModel):
         except Exception as e:
             logger.debug(f"Could not create assistant monitor: {e}")
 
-    def _api_log_assistant_run_event(self, event_type: str = "run", event_data: Optional[Dict[str, Any]] = None) -> None:
+    def _api_log_assistant_event(self, event_type: str = "run", event_data: Optional[Dict[str, Any]] = None) -> None:
         if not self.monitoring:
             return
 
-        from phi.api.assistant import create_assistant_run_event, AssistantEventCreate
+        from phi.api.assistant import create_assistant_event, AssistantEventCreate
 
         try:
             database_row: AssistantRow = self.row or self.to_database_row()
-            create_assistant_run_event(
+            create_assistant_event(
                 event=AssistantEventCreate(
                     run_id=database_row.run_id,
                     assistant_data=database_row.assistant_dict(),

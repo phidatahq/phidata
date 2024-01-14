@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI Assistants using LLMs
+  Build AI Assistants using language models
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,7 +22,8 @@
 
 ## ✨ What is phidata?
 
-A toolkit for building AI Assistants using LLM function calling. Assistants can automate workflows by intelligently choosing which functions to run using [OpenAI function calling](https://platform.openai.com/docs/guides/function-calling).
+A toolkit for building AI Assistants using LLM [function calling](https://platform.openai.com/docs/guides/function-calling).
+Assistants achieve tasks by intelligently choosing which functions to run.
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**. They can be used to build any kind of RAG, Autonomous or Multimodal application, for example:
 

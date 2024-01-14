@@ -22,8 +22,7 @@
 
 ## ✨ What is phidata?
 
-A toolkit for building AI Assistants using function calling. **Assistants** are AI agents that achieve tasks by intelligently choosing which functions to run using [OpenAI function calling](https://platform.openai.com/docs/guides/function-calling).
-
+A toolkit for building AI Assistants using function calling. **Assistants** can automate workflows by intelligently choosing functions to run using [OpenAI function calling](https://platform.openai.com/docs/guides/function-calling).
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**. They can be used to build any kind of RAG, Autonomous or Multimodal application. For example:
 

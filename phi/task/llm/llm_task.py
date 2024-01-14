@@ -237,12 +237,16 @@ class LLMTask(Task):
             "If you don't know the answer, say 'I don't know'.",
         ]
 
+        # Add instructions for using the knowledge base
         if self.add_references_to_prompt:
-            _instructions.append("Use the information from a knowledge base if it helps respond to the message")
+            _instructions.append("Use the information from the knowledge base to help respond to the message")
+        if self.default_tools and self.knowledge_base is not None:
+            _instructions.append("Search the knowledge base for information if it helps respond to the message")
+        if self.knowledge_base is not None:
+            _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
 
+        # Add instructions for using tools
         if self.default_tools or self.tools is not None:
-            if self.knowledge_base is not None:
-                _instructions.append("Search the knowledge base for information if it helps respond to the message")
             _instructions.append("You have access to tools that you can run to achieve your task.")
             _instructions.append("Only use the tools you are provided.")
 

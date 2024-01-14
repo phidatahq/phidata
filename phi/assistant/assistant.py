@@ -308,6 +308,9 @@ class Assistant(BaseModel):
 
         if self.storage is not None and self.run_id is not None:
             self.row = self.storage.read(run_id=self.run_id)
+            if self.user_id is not None and self.row is not None and self.row.user_id != self.user_id:
+                logger.error(f"SECURITY ERROR: User id mismatch: {self.user_id} != {self.row.user_id}")
+                return None
             if self.row is not None:
                 logger.debug(f"-*- Loading run: {self.row.run_id}")
                 self.from_database_row(row=self.row)
@@ -593,9 +596,10 @@ class Assistant(BaseModel):
         self._api_log_assistant_run()
 
     def generate_name(self) -> str:
-        """Generate a name for the run using chat history"""
+        """Generate a name for the run using the first 6 messages of the chat history"""
+
         _conv = "Conversation\n"
-        for message in self.memory.chat_history[1:6]:
+        for message in self.memory.chat_history[:6]:
             _conv += f"{message.role.upper()}: {message.content}\n"
 
         _conv += "\n\nConversation Name:"

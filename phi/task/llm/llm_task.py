@@ -231,17 +231,13 @@ class LLMTask(Task):
 
         # Build a default system prompt
         _description = self.description or "You are a helpful assistant designed to help users."
-        _instructions = self.instructions or [
-            "Do not use phrases like 'based on the information provided'.",
-            "Never mention about your knowledge base or the tools you have access to.",
-            "If you don't know the answer, say 'I don't know'.",
-        ]
+        _instructions = self.instructions or []
 
         # Add instructions for using the knowledge base
         if self.add_references_to_prompt:
             _instructions.append("Use the information from the knowledge base to help respond to the message")
         if self.default_tools and self.knowledge_base is not None:
-            _instructions.append("Search the knowledge base for information if it helps respond to the message")
+            _instructions.append("Search the knowledge base for information")
         if self.knowledge_base is not None:
             _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
 
@@ -258,6 +254,12 @@ class LLMTask(Task):
 
         if self.extra_instructions is not None:
             _instructions.extend(self.extra_instructions)
+
+        _instructions.extend([
+            "Do not use phrases like 'based on the information provided'.",
+            "Never mention about your knowledge base or the tools you have access to.",
+            "If you don't know the answer, say 'I don't know'.",
+        ])
 
         _system_prompt = _description + "\n\n"
         _system_prompt += dedent(

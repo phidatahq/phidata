@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI Assistants using language models
+  Build AI Assistants using function calling
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">

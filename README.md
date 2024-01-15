@@ -45,7 +45,7 @@ After building an Assistant, serve it using **Streamlit**, **FastApi** or **Djan
 
 ## 👩‍💻 Getting Started
 
-### Installation
+## Installation
 
 - Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
@@ -62,7 +62,7 @@ source aienv/bin/activate
 pip install -U phidata
 ```
 
-### Create a Simple Assistant
+## Create a Simple Assistant
 
 - Create a file `assistant.py` and install openai using `pip install openai`
 
@@ -115,7 +115,7 @@ python assistant.py
 </details>
 
 
-### Create a Data Assistant
+## Create a Data Assistant
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -173,7 +173,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 ```
 
 
-### Create a Python Assistant
+## Create a Python Assistant
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -224,7 +224,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 <details>
 
-<summary><h3>Structured output from a Movie Assistant</h3></summary>
+<summary><h2>Structured output from a Movie Assistant</h2></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -279,7 +279,7 @@ MovieScript(
 
 <details>
 
-<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
+<summary><h2>Create a PDF Assistant with Knowledge & Storage</h2></summary>
 
 - **Knowledge Base:** information that an Assistant can search to improve its responses. Uses a vector db.
 - **Storage:** provides long term memory for Assistants. Uses a database.
@@ -444,7 +444,7 @@ phi stop resources.py
 
 <details>
 
-<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
+<summary><h2>Build an AI App using Streamlit, FastApi and PgVector</h2></summary>
 
 Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
 

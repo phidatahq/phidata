@@ -24,7 +24,7 @@
 
 A toolkit for building AI Assistants using LLM function calling.
 
-Assistants can achieve any task by intelligently choosing their course of action by [function calling](https://platform.openai.com/docs/guides/function-calling).
+Assistants enable LLMs to achieve tasks by intelligently choosing their course of action using [function calling](https://platform.openai.com/docs/guides/function-calling).
 
 They come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build any kind of RAG, Autonomous or Multimodal application. For example:
 

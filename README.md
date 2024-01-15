@@ -28,7 +28,7 @@ Given a task, an LLM can achieve it by calling functions. For example, to answer
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/ae24e385-07f8-46f7-9430-4b9d47590958)
 
-Phidata provides an Assistant interface that enables LLMs to intelligently choosing their course of action using function calling.
+Phidata provides an Assistant interface that enables LLMs to intelligently choose their course of action.
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build AI applications.
 
 Use phidata to build:
@@ -37,10 +37,8 @@ Use phidata to build:
 - **Python Assistants:** Perform tasks by running python code.
 - **Stock Assistants:** Analyze stocks and research companies.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
-- **Sales Assistants:** Answer customer queries using product descriptions and purchase history.
-- **Customer Support Assistants:** Answer customer queries using user manuals.
-- **Real Estate Assistants:** Help search property listings using neighborhood information and user preferences.
-- **Travel Assistants:** Help plan travel by researching destinations and booking tickets.
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
+- **Travel Assistants:** Help plan travel by researching destinations.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
 After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build an AI App.
@@ -64,11 +62,7 @@ source aienv/bin/activate
 pip install -U phidata
 ```
 
-<details>
-
-<summary><h3>Create an Assistant</h3></summary>
-
-**Assistants** provide a human-like interface to language models and come with built-in **memory**, **knowledge**, **storage** and **tools**.
+### Create a Simple Assistant
 
 - Create a file `assistant.py` and install openai using `pip install openai`
 
@@ -86,6 +80,10 @@ python assistant.py
 ```
 
 - See a simple assistant in action
+
+<details>
+
+<summary><h4>Output</h4></summary>
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -118,60 +116,8 @@ python assistant.py
 
 </details>
 
-<details>
 
-<summary><h3>Create a Python Assistant</h3></summary>
-
-The `PythonAssistant` can perform virtually any task using python code.
-
-- Create a file `python_assistant.py` and install pandas using `pip install pandas`
-
-```python
-from phi.assistant.python import PythonAssistant
-from phi.file.local.csv import CsvFile
-
-python_assistant = PythonAssistant(
-    files=[
-        CsvFile(
-            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-            description="Contains information about movies from IMDB.",
-        )
-    ],
-    pip_install=True,
-    show_tool_calls=True,
-)
-
-python_assistant.print_response("What is the average rating of movies?")
-```
-
-- Run the `python_assistant.py` file
-
-```shell
-python python_assistant.py
-```
-
-- See it work through the problem
-
-```shell
-WARNING  PythonTools can run arbitrary code, please provide human supervision.
-INFO     Saved: /Users/zu/ai/average_rating
-INFO     Running /Users/zu/ai/average_rating
-╭──────────┬───────────────────────────────────────────────────────────────────╮
-│ Message  │ What is the average rating of movies?                             │
-├──────────┼───────────────────────────────────────────────────────────────────┤
-│ Response │                                                                   │
-│ (4.1s)   │  • Running: save_to_file_and_run(file_name=average_rating,        │
-│          │    code=..., variable_to_return=average_rating)                   │
-│          │                                                                   │
-│          │ The average rating of movies is approximately 6.72.               │
-╰──────────┴───────────────────────────────────────────────────────────────────╯
-```
-
-</details>
-
-<details>
-
-<summary><h3>Create a Data Assistant</h3></summary>
+### Create a Data Assistant
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -229,7 +175,55 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 ╰──────────┴────────────────────────────────────────────────────────╯
 ```
 
-</details>
+
+### Create a Python Assistant
+
+The `PythonAssistant` can perform virtually any task using python code.
+
+- Create a file `python_assistant.py` and install pandas using `pip install pandas`
+
+```python
+from phi.assistant.python import PythonAssistant
+from phi.file.local.csv import CsvFile
+
+python_assistant = PythonAssistant(
+    files=[
+        CsvFile(
+            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            description="Contains information about movies from IMDB.",
+        )
+    ],
+    pip_install=True,
+    show_tool_calls=True,
+)
+
+python_assistant.print_response("What is the average rating of movies?")
+```
+
+- Run the `python_assistant.py` file
+
+```shell
+python python_assistant.py
+```
+
+- See it work through the problem
+
+```shell
+WARNING  PythonTools can run arbitrary code, please provide human supervision.
+INFO     Saved: /Users/zu/ai/average_rating
+INFO     Running /Users/zu/ai/average_rating
+╭──────────┬───────────────────────────────────────────────────────────────────╮
+│ Message  │ What is the average rating of movies?                             │
+├──────────┼───────────────────────────────────────────────────────────────────┤
+│ Response │                                                                   │
+│ (4.1s)   │  • Running: save_to_file_and_run(file_name=average_rating,        │
+│          │    code=..., variable_to_return=average_rating)                   │
+│          │                                                                   │
+│          │ The average rating of movies is approximately 6.72.               │
+╰──────────┴───────────────────────────────────────────────────────────────────╯
+```
+
+## 🚀 More Examples
 
 <details>
 
@@ -285,8 +279,6 @@ MovieScript(
 ```
 
 </details>
-
-## 🚀 Examples
 
 <details>
 

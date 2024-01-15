@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI Applications using LLM function calling
+  Build Autonomous AI using LLM function calling
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-Phidata is a toolkit for building AI Applications by letting LLMs call functions to achieve tasks.
+Phidata is a framework for building Autonomous AI by letting LLMs call functions to achieve tasks.
 
 Given a task, an LLM can achieve it by calling functions. For example, to answer a question from a PDF, an LLM can call a function to search a knowledge base, synthesize the results and return the answer.
 
@@ -41,7 +41,7 @@ Use phidata to build:
 - **Travel Assistants:** Help plan travel by researching destinations.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build you AI Application.
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI Application.
 
 ## 👩‍💻 Getting Started
 

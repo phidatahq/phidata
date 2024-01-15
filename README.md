@@ -549,6 +549,6 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ## 📚 Documentation
 
-- You can fine detailed documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
+- You can find detailed documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
 - You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 - Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>

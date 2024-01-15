@@ -41,7 +41,7 @@ Use phidata to build:
 - **Travel Assistants:** Help plan travel by researching destinations.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build an AI App.
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build you AI Application.
 
 ## 👩‍💻 Getting Started
 
@@ -79,11 +79,9 @@ assistant.print_response("Share a quick healthy breakfast recipe.")
 python assistant.py
 ```
 
-- See a simple assistant in action
-
 <details>
 
-<summary><h4>Output</h4></summary>
+<summary><h3>Output</h3></summary>
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -137,7 +135,6 @@ duckdb_assistant = DuckDbAssistant(
             }
         ]
     }),
-    show_tool_calls=True,
 )
 
 duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.")

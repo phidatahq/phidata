@@ -24,9 +24,9 @@
 
 A toolkit for building AI Assistants using LLM function calling.
 
-Assistants can achieve any task by intelligently choosing their course of action by [function calling](https://platform.openai.com/docs/guides/function-calling) and come with built-in **memory**, **knowledge**, **storage** and **tools**.
+Assistants can achieve any task by intelligently choosing their course of action by [function calling](https://platform.openai.com/docs/guides/function-calling).
 
-Assistants can be used to build RAG, Autonomous or Multimodal applications, for example:
+They come with built-in **memory**, **knowledge**, **storage** and **tools**, which makes it easy to build any kind of RAG, Autonomous or Multimodal application. For example:
 
 - **PDF Assistants:** Answer questions using PDFs.
 - **Data Assistants:** Analyze data by running SQL queries.
@@ -37,9 +37,9 @@ Assistants can be used to build RAG, Autonomous or Multimodal applications, for 
 - **Customer Support Assistants:** Answer customer queries using user manuals.
 - **Real Estate Assistants:** Help search property listings using neighborhood information and user preferences.
 - **Travel Assistants:** Help plan travel by researching destinations and booking tickets.
-- **Cooking Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
+- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI product.
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build an AI App.
 
 ## 👩‍💻 Getting Started
 

@@ -26,7 +26,7 @@ A toolkit for building AI Assistants using LLM function calling.
 
 Assistants can achieve any task by intelligently choosing their course of action by [function calling](https://platform.openai.com/docs/guides/function-calling).
 
-They come with built-in **memory**, **knowledge**, **storage** and **tools**, which makes it easy to build any kind of RAG, Autonomous or Multimodal application. For example:
+They come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build any kind of RAG, Autonomous or Multimodal application. For example:
 
 - **PDF Assistants:** Answer questions using PDFs.
 - **Data Assistants:** Analyze data by running SQL queries.
@@ -169,7 +169,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 <summary><h3>Create a Data Assistant</h3></summary>
 
-The `DuckDbAgent` can perform data analysis using SQL queries.
+The `DuckDbAssistant` can perform data analysis using SQL queries.
 
 - Create a file `data_assistant.py` and install duckdb using `pip install duckdb`
 
@@ -357,9 +357,9 @@ def recipe_assistant(new: bool = False, user: str = "user"):
         user_id=user,
         knowledge_base=knowledge_base,
         storage=storage,
-        # default_tools=True adds functions to
+        # tool_calls=True adds functions to
         # search the knowledge base and chat history
-        default_tools=True,
+        tool_calls=True,
         show_tool_calls=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,

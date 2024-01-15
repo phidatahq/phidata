@@ -43,7 +43,7 @@ class LLMTask(Task):
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
     # Add default tools to the LLM
-    default_tools: bool = False
+    tool_calls: bool = False
     # Show tool calls in LLM messages.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -136,7 +136,7 @@ class LLMTask(Task):
             for tool in self.tools:
                 self.llm.add_tool(tool)
 
-        if self.default_tools:
+        if self.tool_calls:
             if self.memory is not None:
                 self.llm.add_tool(self.get_chat_history)
             if self.knowledge_base is not None:
@@ -236,7 +236,7 @@ class LLMTask(Task):
         # Add instructions for using the knowledge base
         if self.add_references_to_prompt:
             _instructions.append("Use the information from the knowledge base to help respond to the message")
-        if self.default_tools and self.knowledge_base is not None:
+        if self.tool_calls and self.knowledge_base is not None:
             _instructions.append("Search the knowledge base for information")
         if self.knowledge_base is not None:
             _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
@@ -247,7 +247,7 @@ class LLMTask(Task):
             ])
 
         # Add instructions for using tools
-        if self.default_tools or self.tools is not None:
+        if self.tool_calls or self.tools is not None:
             _instructions.append("You have access to tools that you can run to achieve your task.")
             _instructions.append("Only use the tools you are provided.")
 

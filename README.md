@@ -24,7 +24,7 @@
 
 Phidata is a framework for building Autonomous AI by letting LLMs call functions to achieve tasks.
 
-Given a task, an LLM can achieve it by calling functions. For example, to answer a question from a PDF, an LLM can call a function to search a knowledge base, synthesize the results and return the answer.
+Given a task, the LLM can achieve it by calling functions. For example, to answer questions from a document, the LLM can call a function to search the document, synthesize the results and return the answer.
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/6183b6a4-c188-44b4-9b8e-47c131afb12b)
 
@@ -32,7 +32,7 @@ Phidata provides an Assistant interface that enables LLMs to intelligently choos
 Assistants come with **memory**, **knowledge**, **storage** and **tools**, making it easy to build AI applications.
 
 Use phidata to build:
-- **PDF Assistants:** Answer questions using PDFs.
+- **PDF Assistants:** Answer questions from PDFs.
 - **Data Assistants:** Analyze data by running SQL queries.
 - **Python Assistants:** Perform tasks by running python code.
 - **Stock Assistants:** Analyze stocks and research companies.

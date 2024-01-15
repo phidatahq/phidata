@@ -28,9 +28,8 @@ Given a task, an LLM can achieve it by calling functions. For example, to answer
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/6183b6a4-c188-44b4-9b8e-47c131afb12b)
 
-
-Phidata provides an Assistant interface that enables LLMs to intelligently choose their course of action.
-Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build AI applications.
+Phidata provides an Assistant interface that enables LLMs to intelligently choose their course of action to solve tasks.
+Assistants come with **memory**, **knowledge**, **storage** and **tools**, making it easy to build AI applications.
 
 Use phidata to build:
 - **PDF Assistants:** Answer questions using PDFs.

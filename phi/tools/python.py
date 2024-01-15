@@ -53,6 +53,8 @@ class PythonTools(ToolRegistry):
         If successful, returns the value of `variable_to_return` if provided otherwise returns a success message.
         If failed, returns an error message.
 
+        Make sure the file_name ends with `.py`
+
         :param file_name: The name of the file the code will be saved to.
         :param code: The code to save and run.
         :param variable_to_return: The variable to return.

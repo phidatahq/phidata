@@ -240,11 +240,13 @@ class LLMTask(Task):
             _instructions.append("Search the knowledge base for information")
         if self.knowledge_base is not None:
             _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
-            _instructions.extend([
-                "Do not use phrases like 'based on the information provided'.",
-                "Never mention about your knowledge base or the tools you have access to.",
-                "If you don't know the answer, say 'I don't know'.",
-            ])
+            _instructions.extend(
+                [
+                    "Do not use phrases like 'based on the information provided'.",
+                    "Never mention about your knowledge base or the tools you have access to.",
+                    "If you don't know the answer, say 'I don't know'.",
+                ]
+            )
 
         # Add instructions for using tools
         if self.tool_calls or self.tools is not None:

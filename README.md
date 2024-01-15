@@ -187,6 +187,7 @@ duckdb_assistant = DuckDbAssistant(
             }
         ]
     }),
+    show_tool_calls=True,
 )
 
 duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.")
@@ -231,7 +232,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 <summary><h3>Structured output from a Movie Assistant</h3></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
-Meaning we can use LLMs to return pydantic models and generate content which previously could not be possible.
+Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
 In this example, our movie assistant generates an object of the `MovieScript` class.
 
 - Create a file `movie_assistant.py`

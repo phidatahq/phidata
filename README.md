@@ -26,6 +26,8 @@ Phidata is a toolkit for building AI Applications by letting LLMs call functions
 
 Given a task, an LLM can achieve it by calling functions. For example, to answer a question from a PDF, an LLM can call a function to search a knowledge base, synthesize the results and return the answer.
 
+![image](https://github.com/phidatahq/phidata/assets/22579644/bafb2d97-2780-4802-a7a2-78b5334e12d3)
+
 Phidata provides an Assistant interface that enables LLMs to intelligently choosing their course of action using function calling.
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build AI applications.
 

@@ -28,7 +28,7 @@ Assistants can achieve any task by intelligently choosing a course of action by 
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/ef8cecd6-5173-44c3-b534-72b137ecac7d)
 
-Assistants come with **memory**, **knowledge**, **storage** and **tools** built-in, making it easy to build RAG, Autonomous or Multimodal applications like:
+Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
 - **Data Assistants:** Analyze data by running SQL queries.
 - **Python Assistants:** Perform tasks by running python code.

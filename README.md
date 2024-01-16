@@ -26,7 +26,7 @@ Phidata is a framework for building Autonomous Assistants by letting LLMs call f
 
 Assistants can achieve any task by intelligently choosing a course of action by function calling. For example, to answer questions from a document, an Assistant can call a function to search the document, synthesize the results and return the answer.
 
-![image](https://github.com/phidatahq/phidata/assets/22579644/ef8cecd6-5173-44c3-b534-72b137ecac7d)
+![image](https://github.com/phidatahq/phidata/assets/22579644/3619bf90-20d6-4086-a917-212d0eae92d5)
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)

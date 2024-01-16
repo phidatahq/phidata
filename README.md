@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building Autonomous Assistants by letting LLMs call functions to achieve tasks.
+Phidata is a framework for building Autonomous Assistants by letting LLMs call functions.
 
 Given a task, the LLM can achieve it by calling functions. For example, to answer questions from a document, the LLM can call a function to search the document, synthesize the results and return the answer.
 

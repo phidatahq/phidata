@@ -3,8 +3,8 @@ from typing import Optional, Any, Dict
 from pydantic import BaseModel, ConfigDict
 
 
-class AssistantRow(BaseModel):
-    """Interface between Assistant class and the database"""
+class AssistantRun(BaseModel):
+    """Assistant Run that is stored in the database"""
 
     # Assistant name
     name: Optional[str] = None

@@ -14,7 +14,7 @@ except ImportError:
 
 from sqlite3 import OperationalError
 
-from phi.assistant.row import AssistantRow
+from phi.assistant.run import AssistantRun
 from phi.storage.assistant.base import AssistantStorage
 from phi.utils.dttm import current_datetime
 from phi.utils.log import logger
@@ -121,10 +121,10 @@ class SqlAssistantStorage(AssistantStorage):
             logger.warning(e)
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRow]:
+    def read(self, run_id: str) -> Optional[AssistantRun]:
         with self.Session() as sess:
             existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRow.model_validate(existing_row) if existing_row is not None else None
+            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
@@ -146,8 +146,8 @@ class SqlAssistantStorage(AssistantStorage):
             pass
         return run_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRow]:
-        conversations: List[AssistantRow] = []
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
+        conversations: List[AssistantRun] = []
         try:
             with self.Session() as sess:
                 # get all runs for this user
@@ -160,13 +160,13 @@ class SqlAssistantStorage(AssistantStorage):
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.run_id is not None:
-                        conversations.append(AssistantRow.model_validate(row))
+                        conversations.append(AssistantRun.model_validate(row))
         except OperationalError:
             logger.debug(f"Table does not exist: {self.table.name}")
             pass
         return conversations
 
-    def upsert(self, row: AssistantRow) -> Optional[AssistantRow]:
+    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
         """
         Create a new assistant run if it does not exist, otherwise update the existing conversation.
         """

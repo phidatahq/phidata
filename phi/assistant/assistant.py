@@ -4,7 +4,7 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, T
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
-from phi.assistant.row import AssistantRow
+from phi.assistant.run import AssistantRun
 from phi.knowledge.base import KnowledgeBase
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
@@ -57,8 +57,8 @@ class Assistant(BaseModel):
 
     # -*- Assistant Storage
     storage: Optional[AssistantStorage] = None
-    # AssistantRow from the database: DO NOT SET MANUALLY
-    row: Optional[AssistantRow] = None
+    # AssistantRun from the database: DO NOT SET MANUALLY
+    db_row: Optional[AssistantRun] = None
 
     # -*- Assistant Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
@@ -209,10 +209,10 @@ class Assistant(BaseModel):
         )
         return _llm_task
 
-    def to_database_row(self) -> AssistantRow:
-        """Create a AssistantRow for the current Assistant (to save to the database)"""
+    def to_database_row(self) -> AssistantRun:
+        """Create a AssistantRun for the current Assistant (to save to the database)"""
 
-        return AssistantRow(
+        return AssistantRun(
             name=self.name,
             run_id=self.run_id,
             run_name=self.run_name,
@@ -225,8 +225,8 @@ class Assistant(BaseModel):
             task_data=self.task_data,
         )
 
-    def from_database_row(self, row: AssistantRow):
-        """Load the existing Assistant from an AssistantRow (from the database)"""
+    def from_database_row(self, row: AssistantRun):
+        """Load the existing Assistant from an AssistantRun (from the database)"""
 
         # Values that are overwritten from the database if they are not set in the assistant
         if self.name is None and row.name is not None:
@@ -238,7 +238,7 @@ class Assistant(BaseModel):
         if self.user_id is None and row.user_id is not None:
             self.user_id = row.user_id
 
-        # Update llm data from the AssistantRow
+        # Update llm data from the AssistantRun
         if row.llm is not None:
             # Update llm metrics from the database
             llm_metrics_from_db = row.llm.get("metrics")
@@ -248,7 +248,7 @@ class Assistant(BaseModel):
                 except Exception as e:
                     logger.warning(f"Failed to load llm metrics: {e}")
 
-        # Update assistant memory from the AssistantRow
+        # Update assistant memory from the AssistantRun
         if row.memory is not None:
             try:
                 self.memory = self.memory.__class__.model_validate(row.memory)
@@ -260,7 +260,7 @@ class Assistant(BaseModel):
             # If assistant_data is set in the assistant, merge it with the database assistant_data.
             # The assistant assistant_data takes precedence
             if self.assistant_data is not None and row.assistant_data is not None:
-                # Updates row.assistant_data with self.assistant_data
+                # Updates db_row.assistant_data with self.assistant_data
                 merge_dictionaries(row.assistant_data, self.assistant_data)
                 self.assistant_data = row.assistant_data
             # If assistant_data is not set in the assistant, use the database assistant_data
@@ -272,7 +272,7 @@ class Assistant(BaseModel):
             # If run_data is set in the assistant, merge it with the database run_data.
             # The assistant run_data takes precedence
             if self.run_data is not None and row.run_data is not None:
-                # Updates row.run_data with self.run_data
+                # Updates db_row.run_data with self.run_data
                 merge_dictionaries(row.run_data, self.run_data)
                 self.run_data = row.run_data
             # If run_data is not set in the assistant, use the database run_data
@@ -284,7 +284,7 @@ class Assistant(BaseModel):
             # If user_data is set in the assistant, merge it with the database user_data.
             # The assistant user_data takes precedence
             if self.user_data is not None and row.user_data is not None:
-                # Updates row.user_data with self.user_data
+                # Updates db_row.user_data with self.user_data
                 merge_dictionaries(row.user_data, self.user_data)
                 self.user_data = row.user_data
             # If user_data is not set in the assistant, use the database user_data
@@ -296,33 +296,33 @@ class Assistant(BaseModel):
             # If task_data is set in the assistant, merge it with the database task_data.
             # The assistant task_data takes precedence
             if self.task_data is not None and row.task_data is not None:
-                # Updates row.task_data with self.task_data
+                # Updates db_row.task_data with self.task_data
                 merge_dictionaries(row.task_data, self.task_data)
                 self.task_data = row.task_data
             # If task_data is not set in the assistant, use the database task_data
             if self.task_data is None and row.task_data is not None:
                 self.task_data = row.task_data
 
-    def read_from_storage(self) -> Optional[AssistantRow]:
-        """Load the AssistantRow from storage"""
+    def read_from_storage(self) -> Optional[AssistantRun]:
+        """Load the AssistantRun from storage"""
 
         if self.storage is not None and self.run_id is not None:
-            self.row = self.storage.read(run_id=self.run_id)
-            if self.user_id is not None and self.row is not None and self.row.user_id != self.user_id:
-                logger.error(f"SECURITY ERROR: User id mismatch: {self.user_id} != {self.row.user_id}")
+            self.db_row = self.storage.read(run_id=self.run_id)
+            if self.user_id is not None and self.db_row is not None and self.db_row.user_id != self.user_id:
+                logger.error(f"SECURITY ERROR: User id mismatch: {self.user_id} != {self.db_row.user_id}")
                 return None
-            if self.row is not None:
-                logger.debug(f"-*- Loading run: {self.row.run_id}")
-                self.from_database_row(row=self.row)
+            if self.db_row is not None:
+                logger.debug(f"-*- Loading run: {self.db_row.run_id}")
+                self.from_database_row(row=self.db_row)
                 logger.debug(f"-*- Loaded run: {self.run_id}")
-        return self.row
+        return self.db_row
 
-    def write_to_storage(self) -> Optional[AssistantRow]:
-        """Save the AssistantRow to the storage"""
+    def write_to_storage(self) -> Optional[AssistantRun]:
+        """Save the AssistantRun to the storage"""
 
         if self.storage is not None:
-            self.row = self.storage.upsert(row=self.to_database_row())
-        return self.row
+            self.db_row = self.storage.upsert(row=self.to_database_row())
+        return self.db_row
 
     def add_introduction(self, introduction: str) -> None:
         """Add assistant introduction to the chat history"""
@@ -339,8 +339,8 @@ class Assistant(BaseModel):
         """
 
         # If a database_row exists, return the id from the database_row
-        if self.row is not None:
-            return self.row.run_id
+        if self.db_row is not None:
+            return self.db_row.run_id
 
         # Create a new run or load an existing run
         if self.storage is not None:
@@ -349,15 +349,15 @@ class Assistant(BaseModel):
             self.read_from_storage()
 
             # Create a new run
-            if self.row is None:
+            if self.db_row is None:
                 logger.debug("-*- Creating new assistant run")
                 if self.introduction:
                     self.add_introduction(self.introduction)
-                self.row = self.write_to_storage()
-                if self.row is None:
+                self.db_row = self.write_to_storage()
+                if self.db_row is None:
                     raise Exception("Failed to create new assistant run in storage")
-                logger.debug(f"-*- Created assistant run: {self.row.run_id}")
-                self.from_database_row(row=self.row)
+                logger.debug(f"-*- Created assistant run: {self.db_row.run_id}")
+                self.from_database_row(row=self.db_row)
                 self._api_log_assistant_run()
         return self.run_id
 
@@ -647,7 +647,7 @@ class Assistant(BaseModel):
         from phi.api.assistant import create_assistant_run, AssistantRunCreate
 
         try:
-            database_row: AssistantRow = self.row or self.to_database_row()
+            database_row: AssistantRun = self.db_row or self.to_database_row()
             create_assistant_run(
                 run=AssistantRunCreate(
                     run_id=database_row.run_id,
@@ -664,7 +664,7 @@ class Assistant(BaseModel):
         from phi.api.assistant import create_assistant_event, AssistantEventCreate
 
         try:
-            database_row: AssistantRow = self.row or self.to_database_row()
+            database_row: AssistantRun = self.db_row or self.to_database_row()
             create_assistant_event(
                 event=AssistantEventCreate(
                     run_id=database_row.run_id,

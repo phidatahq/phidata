@@ -12,7 +12,7 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.assistant.row import AssistantRow
+from phi.assistant.run import AssistantRun
 from phi.storage.assistant.base import AssistantStorage
 from phi.utils.log import logger
 
@@ -114,10 +114,10 @@ class PgAssistantStorage(AssistantStorage):
             self.create()
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRow]:
+    def read(self, run_id: str) -> Optional[AssistantRun]:
         with self.Session() as sess, sess.begin():
             existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRow.model_validate(existing_row) if existing_row is not None else None
+            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
@@ -138,8 +138,8 @@ class PgAssistantStorage(AssistantStorage):
             logger.debug(f"Table does not exist: {self.table.name}")
         return run_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRow]:
-        runs: List[AssistantRow] = []
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
+        runs: List[AssistantRun] = []
         try:
             with self.Session() as sess, sess.begin():
                 # get all runs for this user
@@ -152,12 +152,12 @@ class PgAssistantStorage(AssistantStorage):
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.run_id is not None:
-                        runs.append(AssistantRow.model_validate(row))
+                        runs.append(AssistantRun.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
         return runs
 
-    def upsert(self, row: AssistantRow) -> Optional[AssistantRow]:
+    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
         """
         Create a new assistant run if it does not exist, otherwise update the existing assistant.
         """

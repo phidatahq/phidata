@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from phi.assistant.row import AssistantRow
+from phi.assistant.run import AssistantRun
 
 
 class AssistantStorage(ABC):
@@ -10,7 +10,7 @@ class AssistantStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, run_id: str) -> Optional[AssistantRow]:
+    def read(self, run_id: str) -> Optional[AssistantRun]:
         raise NotImplementedError
 
     @abstractmethod
@@ -18,11 +18,11 @@ class AssistantStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRow]:
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
         raise NotImplementedError
 
     @abstractmethod
-    def upsert(self, row: AssistantRow) -> Optional[AssistantRow]:
+    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
         raise NotImplementedError
 
     @abstractmethod

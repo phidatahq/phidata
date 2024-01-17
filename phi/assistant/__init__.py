@@ -1,1 +1,1 @@
-from phi.assistant.assistant import Assistant, AssistantRow, AssistantMemory, AssistantStorage, KnowledgeBase
+from phi.assistant.assistant import Assistant, AssistantRun, AssistantMemory, AssistantStorage, KnowledgeBase

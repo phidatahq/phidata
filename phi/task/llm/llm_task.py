@@ -390,9 +390,12 @@ class LLMTask(Task):
                 \n"""
 
         # Add message to prompt
-        _user_prompt += "Respond to the following message:"
-        _user_prompt += f"\nUSER: {message}"
-        _user_prompt += "\nASSISTANT: "
+        if references or chat_history:
+            _user_prompt += "Respond to the following message:"
+            _user_prompt += f"\nUSER: {message}"
+            _user_prompt += "\nASSISTANT: "
+        else:
+            _user_prompt += message
 
         # Return the user prompt
         return _user_prompt

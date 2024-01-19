@@ -42,6 +42,8 @@ After building an Assistant, serve it using **Streamlit**, **FastApi** or **Djan
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Streamlit Demo with PDF, Image and Website Assistant</a> (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">FastApi Demo (PDF Assistant)</a>
 
+[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
+
 ## 👩‍💻 Getting Started
 
 ## Installation
@@ -220,8 +222,6 @@ INFO     Running /Users/zu/ai/average_rating
 ```
 
 ## 🚀 More Examples
-
-[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
 
 <details>
 

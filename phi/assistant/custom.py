@@ -5,7 +5,7 @@ from phi.assistant import Assistant
 
 
 class CustomAssistant(Assistant):
-    def get_assistant_system_prompt(self) -> Optional[str]:
+    def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the assistant"""
         return None
 
@@ -15,7 +15,7 @@ class CustomAssistant(Assistant):
 
         # Use the custom assistant system prompt if the system prompt is not set
         if self.system_prompt is None or self.system_prompt_function is None:
-            assistant_system_prompt = self.get_assistant_system_prompt()
+            assistant_system_prompt = self.get_system_prompt()
             if assistant_system_prompt is not None:
                 _llm_task.system_prompt = assistant_system_prompt
 

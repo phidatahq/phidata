@@ -11,6 +11,9 @@ class CustomJSONEncoder(json.JSONEncoder):
         if isinstance(o, datetime) or isinstance(o, date):
             return o.isoformat()
 
+        if isinstance(o, Path):
+            return str(o)
+
         return json.JSONEncoder.default(self, o)
 
 

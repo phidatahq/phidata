@@ -55,16 +55,15 @@ class Assistant(BaseModel):
     # Number of previous messages to add to the prompt or messages.
     num_history_messages: int = 6
 
-    # -*- Assistant Storage
-    storage: Optional[AssistantStorage] = None
-    # AssistantRun from the database: DO NOT SET MANUALLY
-    db_row: Optional[AssistantRun] = None
-
     # -*- Assistant Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
     # Enable RAG by adding references from the knowledge base to the prompt.
     add_references_to_prompt: bool = False
 
+    # -*- Assistant Storage
+    storage: Optional[AssistantStorage] = None
+    # AssistantRun from the database: DO NOT SET MANUALLY
+    db_row: Optional[AssistantRun] = None
     # -*- Assistant Tools
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
@@ -83,6 +82,13 @@ class Assistant(BaseModel):
     #   forces the model to call that tool.
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    # -*- Available tools
+    # If tool_calls is True and update_knowledge_base is True,
+    # then a tool is added that allows the LLM to update the knowledge base.
+    update_knowledge_base: bool = False
+    # If tool_calls is True and get_tool_calls is True,
+    # then a tool is added that allows the LLM to get the tool call history.
+    get_tool_calls: bool = False
 
     #
     # -*- Prompt Settings
@@ -183,6 +189,7 @@ class Assistant(BaseModel):
 
         _llm_task = LLMTask(
             llm=self.llm.model_copy(),
+            assistant_name=self.name,
             assistant_memory=self.memory,
             add_references_to_prompt=self.add_references_to_prompt,
             add_chat_history_to_messages=self.add_chat_history_to_messages,
@@ -193,6 +200,8 @@ class Assistant(BaseModel):
             tool_call_limit=self.tool_call_limit,
             tools=self.tools,
             tool_choice=self.tool_choice,
+            update_knowledge_base=self.update_knowledge_base,
+            get_tool_calls=self.get_tool_calls,
             system_prompt=self.system_prompt,
             system_prompt_function=self.system_prompt_function,
             build_default_system_prompt=self.build_default_system_prompt,
@@ -399,6 +408,7 @@ class Assistant(BaseModel):
             # -*- Update Task
             # Add run state to the task
             current_task.run_id = self.run_id
+            current_task.assistant_name = self.name
             current_task.assistant_memory = self.memory
             current_task.run_message = message
             current_task.run_task_data = task_data

@@ -2,18 +2,18 @@ from pathlib import Path
 from typing import Union, List, Iterator
 
 from phi.document import Document
-from phi.document.reader.text import TextReader
+from phi.document.reader.docx import DocxReader
 from phi.knowledge.base import KnowledgeBase
 
 
-class TextKnowledgeBase(KnowledgeBase):
+class DocxKnowledgeBase(KnowledgeBase):
     path: Union[str, Path]
-    formats: List[str] = [".txt"]
-    reader: TextReader = TextReader()
+    formats: List[str] = [".doc", ".docx"]
+    reader: DocxReader = DocxReader()
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
-        """Iterate over text files and yield lists of documents.
+        """Iterate over doc/docx files and yield lists of documents.
         Each object yielded by the iterator is a list of documents.
 
         Returns:

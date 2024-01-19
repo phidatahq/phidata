@@ -30,3 +30,15 @@ class Document(BaseModel):
         """Returns a dictionary representation of the document"""
 
         return self.model_dump(include={"name", "meta_data", "content"}, exclude_none=True)
+
+    @classmethod
+    def from_dict(cls, document: Dict[str, Any]) -> "Document":
+        """Returns a Document object from a dictionary representation"""
+
+        return cls.model_validate(**document)
+
+    @classmethod
+    def from_json(cls, document: str) -> "Document":
+        """Returns a Document object from a json string representation"""
+
+        return cls.model_validate_json(document)

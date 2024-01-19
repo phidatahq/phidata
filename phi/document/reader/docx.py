@@ -6,8 +6,8 @@ from phi.document.reader.base import Reader
 from phi.utils.log import logger
 
 
-class TextReader(Reader):
-    """Reader for Text files"""
+class DocxReader(Reader):
+    """Reader for Doc/Docx files"""
 
     def read(self, path: Path) -> List[Document]:
         if not path:
@@ -17,13 +17,18 @@ class TextReader(Reader):
             raise FileNotFoundError(f"Could not find file: {path}")
 
         try:
+            import textract  # noqa: F401
+        except ImportError:
+            raise ImportError("`textract` not installed")
+
+        try:
             logger.info(f"Reading: {path}")
-            file_name = path.name.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
-            file_contents = path.read_text()
+            doc_name = path.name.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
+            doc_content = textract.process(path)
             documents = [
                 Document(
-                    name=file_name,
-                    content=file_contents,
+                    name=doc_name,
+                    content=doc_content.decode("utf-8"),
                 )
             ]
             if self.chunk:

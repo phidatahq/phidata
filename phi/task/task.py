@@ -15,6 +15,7 @@ class Task(BaseModel):
     task_name: Optional[str] = None
 
     # -*- Assistant state
+    assistant_name: Optional[str] = None
     assistant_memory: Optional[AssistantMemory] = None
 
     # -*- Run state

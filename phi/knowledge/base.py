@@ -1,4 +1,4 @@
-from typing import List, Optional, Iterator
+from typing import List, Optional, Iterator, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -97,6 +97,80 @@ class KnowledgeBase(BaseModel):
         # Insert documents
         self.vector_db.insert(documents=documents_to_load)
         logger.info(f"Loaded {len(documents_to_load)} documents to knowledge base")
+
+    def load_document(self, document: Document, skip_existing: bool = True) -> None:
+        """Load a document to the knowledge base
+
+        Args:
+            document (Document): Document to load
+            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+        """
+
+        if self.vector_db is None:
+            logger.warning("No vector db provided")
+            return
+
+        logger.debug("Creating collection")
+        self.vector_db.create()
+
+        # Filter out documents which already exist in the vector db
+        if skip_existing and self.vector_db.doc_exists(document):
+            logger.debug(f"Document already exists: {document.name}")
+            return
+
+        # Insert documents
+        self.vector_db.insert(documents=[document])
+        logger.info(f"Document loaded to knowledge base: {document.name}")
+
+    def load_dict(self, document: Dict[str, Any], skip_existing: bool = True) -> None:
+        """Load a dictionary representation of a document to the knowledge base
+
+        Args:
+            document (Dict[str, Any]): Dictionary representation of a document
+            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+        """
+
+        if self.vector_db is None:
+            logger.warning("No vector db provided")
+            return
+
+        logger.debug("Creating collection")
+        self.vector_db.create()
+
+        # Filter out documents which already exist in the vector db
+        document_to_load = Document.from_dict(document)
+        if skip_existing and self.vector_db.doc_exists(document_to_load):
+            logger.debug(f"Document already exists: {document_to_load.name}")
+            return
+
+        # Insert documents
+        self.vector_db.insert(documents=[document_to_load])
+        logger.info(f"Document loaded to knowledge base: {document_to_load.name}")
+
+    def load_json(self, document: str, skip_existing: bool = True) -> None:
+        """Load a json representation of a document to the knowledge base
+
+        Args:
+            document (str): Json representation of a document
+            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+        """
+
+        if self.vector_db is None:
+            logger.warning("No vector db provided")
+            return
+
+        logger.debug("Creating collection")
+        self.vector_db.create()
+
+        # Filter out documents which already exist in the vector db
+        document_to_load = Document.from_json(document)
+        if skip_existing and self.vector_db.doc_exists(document_to_load):
+            logger.debug(f"Document already exists: {document_to_load.name}")
+            return
+
+        # Insert documents
+        self.vector_db.insert(documents=[document_to_load])
+        logger.info(f"Document loaded to knowledge base: {document_to_load.name}")
 
     def exists(self) -> bool:
         """Returns True if the knowledge base exists"""

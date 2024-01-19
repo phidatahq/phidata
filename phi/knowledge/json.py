@@ -24,5 +24,5 @@ class JSONKnowledgeBase(KnowledgeBase):
         if _json_path.exists() and _json_path.is_dir():
             for _pdf in _json_path.glob("*.json"):
                 yield self.reader.read(path=_pdf)
-        elif _json_path.exists() and _json_path.is_file() and _json_path.suffix == ".pdf":
+        elif _json_path.exists() and _json_path.is_file() and _json_path.suffix == ".json":
             yield self.reader.read(path=_json_path)

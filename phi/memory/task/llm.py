@@ -102,3 +102,16 @@ class LLMTaskMemory(BaseModel):
         if len(current_chat) >= 1:
             all_chats.append((current_chat[0], current_chat[1]))
         return all_chats
+
+    def get_tool_calls(self, num_calls: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Returns a list of tool calls from the llm_messages."""
+
+        tool_calls = []
+        for llm_message in self.llm_messages[::-1]:
+            if llm_message.tool_calls:
+                for tool_call in llm_message.tool_calls:
+                    tool_calls.append(tool_call)
+
+        if num_calls:
+            return tool_calls[:num_calls]
+        return tool_calls

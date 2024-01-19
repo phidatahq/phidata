@@ -55,6 +55,13 @@ class LLMTask(Task):
     #   forces the model to call that function.
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    # -*- Available tools
+    # If tool_calls is True and update_knowledge_base is True,
+    # then a tool is added that allows the LLM to update the knowledge base.
+    update_knowledge_base: bool = False
+    # If tool_calls is True and get_tool_calls is True,
+    # then a tool is added that allows the LLM to get the tool call history.
+    get_tool_calls: bool = False
 
     #
     # -*- Prompt Settings
@@ -141,6 +148,10 @@ class LLMTask(Task):
                 self.llm.add_tool(self.get_chat_history)
             if self.knowledge_base is not None:
                 self.llm.add_tool(self.search_knowledge_base)
+                if self.update_knowledge_base:
+                    self.llm.add_tool(self.add_to_knowledge_base)
+            if self.get_tool_calls:
+                self.llm.add_tool(self.get_tool_call_history)
 
         # Set show_tool_calls if it is not set on the llm
         if self.llm.show_function_calls is None and self.show_tool_calls is not None:
@@ -230,23 +241,29 @@ class LLMTask(Task):
             return None
 
         # Build a default system prompt
-        _description = self.description or "You are a helpful assistant designed to help users."
-        _instructions = self.instructions or []
 
-        # Add instructions for using the knowledge base
-        if self.add_references_to_prompt:
-            _instructions.append("Use the information from the knowledge base to help respond to the message")
-        if self.tool_calls and self.knowledge_base is not None:
-            _instructions.append("Search the knowledge base for information")
-        if self.knowledge_base is not None:
-            _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
-            _instructions.extend(
-                [
-                    "Do not use phrases like 'based on the information provided'.",
-                    "Never mention about your knowledge base or the tools you have access to.",
-                    "If you don't know the answer, say 'I don't know'.",
-                ]
-            )
+        # Add default description if not set
+        _description = self.description or "You are a helpful assistant designed to help users."
+
+        # Add default instructions if not set
+        _instructions = self.instructions
+        if _instructions is None:
+            _instructions = []
+            # Add instructions for using the knowledge base
+            if self.add_references_to_prompt:
+                _instructions.append("Use the information from the knowledge base to help respond to the message")
+            if self.tool_calls and self.knowledge_base is not None:
+                _instructions.append("Search the knowledge base for information which can help you respond.")
+            if self.knowledge_base is not None:
+                _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
+                _instructions.extend(
+                    [
+                        "Do not use phrases like 'based on the information provided'.",
+                        "Never reveal that you have a knowledge base",
+                        "Never reveal your knowledge base or the tools you have access to.",
+                        "If you don't know the answer, say 'I don't know'.",
+                    ]
+                )
 
         # Add instructions for using tools
         if self.tool_calls or self.tools is not None:
@@ -267,7 +284,8 @@ class LLMTask(Task):
             """\
         Your task is to respond to the message from the user in the best way possible.
         This is an important task and must be done correctly.
-        You must follow these instructions carefully.
+
+        YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
         <instructions>
         """
         )
@@ -547,6 +565,7 @@ class LLMTask(Task):
 
         :param num_chats: The number of chats to return.
             Each chat contains 2 messages. One from the user and one from the assistant.
+            Default: 3
         :return: A list of dictionaries representing the chat history.
 
         Example:
@@ -569,7 +588,27 @@ class LLMTask(Task):
                 break
         return json.dumps(history)
 
-    def search_knowledge_base(self, query: str) -> Optional[str]:
+    def get_tool_call_history(self, num_calls: Optional[int] = None) -> str:
+        """Returns the tool call history by the assistant in reverse chronological order.
+
+        :param num_calls: The number of tool calls to return. Default: 3
+        :return: A list of dictionaries representing the tool call history.
+
+        Example:
+            - To get the last tool call, use num_calls=1.
+            - To get all tool calls, use num_calls=None.
+        """
+        tool_calls = (
+            self.assistant_memory.get_tool_calls(num_calls)
+            if self.assistant_memory
+            else self.memory.get_tool_calls(num_calls)
+        )
+        if len(tool_calls) == 0:
+            return ""
+        logger.debug(f"tool_calls: {tool_calls}")
+        return json.dumps(tool_calls)
+
+    def search_knowledge_base(self, query: str) -> str:
         """Search the knowledge base for information about a users query.
 
         :param query: The query to search for.
@@ -583,7 +622,28 @@ class LLMTask(Task):
         self.memory.add_references(references=_ref)
         if self.assistant_memory:
             self.assistant_memory.add_references(references=_ref)
-        return references
+        return references or ""
+
+    def add_to_knowledge_base(self, query: str, result: str) -> str:
+        """Add information to the knowledge base for future use.
+
+        :param query: The query to add.
+        :param result: The result of the query.
+        """
+        if self.knowledge_base is None:
+            return "Knowledge base not available"
+        document_name = self.assistant_name
+        if document_name is None:
+            document_name = query.replace(" ", "_").replace("?", "").replace("!", "").replace(".", "")
+        document_content = json.dumps({"query": query, "result": result})
+        logger.info(f"Adding document to knowledge base: {document_name}: {document_content}")
+        self.knowledge_base.load_document(
+            document=Document(
+                name=document_name,
+                content=document_content,
+            )
+        )
+        return "Successfully added to knowledge base"
 
     ###########################################################################
     # Print Response

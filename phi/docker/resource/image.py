@@ -155,7 +155,7 @@ class DockerImage(DockerResource):
 
                     if build_log.get("error", None) is not None:
                         live_log.stop()
-                        # logger.error(build_log_output[-10:])
+                        logger.error(build_log_output[-50:])
                         logger.error(build_log["error"])
                         logger.error(f"Image build failed: {self.get_image_str()}")
                         return None

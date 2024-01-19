@@ -221,6 +221,8 @@ INFO     Running /Users/zu/ai/average_rating
 
 ## 🚀 More Examples
 
+[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
+
 <details>
 
 <summary><h2>Structured output from a Movie Assistant</h2></summary>

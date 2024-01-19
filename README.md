@@ -39,6 +39,9 @@ Assistants come with built-in **memory**, **knowledge**, **storage** and **tools
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
 After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI Application.
+Demos:
+- Streamlit: <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo AI Apps</a> (password: admin)
+- FastApi: <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo AI Api</a>
 
 ## 👩‍💻 Getting Started
 

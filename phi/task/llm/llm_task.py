@@ -42,8 +42,8 @@ class LLMTask(Task):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
-    # Add default tools to the LLM
-    tool_calls: bool = False
+    # Allow the LLM to use tools
+    use_tools: bool = False
     # Show tool calls in LLM messages.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -56,10 +56,10 @@ class LLMTask(Task):
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     # -*- Available tools
-    # If tool_calls is True and update_knowledge_base is True,
+    # If use_tools is True and update_knowledge_base is True,
     # then a tool is added that allows the LLM to update the knowledge base.
     update_knowledge_base: bool = False
-    # If tool_calls is True and get_tool_calls is True,
+    # If use_tools is True and get_tool_calls is True,
     # then a tool is added that allows the LLM to get the tool call history.
     get_tool_calls: bool = False
 
@@ -143,7 +143,7 @@ class LLMTask(Task):
             for tool in self.tools:
                 self.llm.add_tool(tool)
 
-        if self.tool_calls:
+        if self.use_tools:
             if self.memory is not None:
                 self.llm.add_tool(self.get_chat_history)
             if self.knowledge_base is not None:
@@ -252,7 +252,7 @@ class LLMTask(Task):
             # Add instructions for using the knowledge base
             if self.add_references_to_prompt:
                 _instructions.append("Use the information from the knowledge base to help respond to the message")
-            if self.tool_calls and self.knowledge_base is not None:
+            if self.use_tools and self.knowledge_base is not None:
                 _instructions.append("Search the knowledge base for information which can help you respond.")
             if self.knowledge_base is not None:
                 _instructions.append("Always prefer information from the knowledge base over your own knowledge.")
@@ -266,7 +266,7 @@ class LLMTask(Task):
                 )
 
         # Add instructions for using tools
-        if self.tool_calls or self.tools is not None:
+        if self.use_tools or self.tools is not None:
             _instructions.append("You have access to tools that you can run to achieve your task.")
             _instructions.append("Only use the tools you are provided.")
 

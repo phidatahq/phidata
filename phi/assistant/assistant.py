@@ -69,8 +69,8 @@ class Assistant(BaseModel):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
-    # Add default tools to the LLM
-    tool_calls: bool = False
+    # Allow the assistant to use tools
+    use_tools: bool = False
     # Show tool calls in LLM messages.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -83,10 +83,10 @@ class Assistant(BaseModel):
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     # -*- Available tools
-    # If tool_calls is True and update_knowledge_base is True,
+    # If use_tools is True and update_knowledge_base is True,
     # then a tool is added that allows the LLM to update the knowledge base.
     update_knowledge_base: bool = False
-    # If tool_calls is True and get_tool_calls is True,
+    # If use_tools is True and get_tool_calls is True,
     # then a tool is added that allows the LLM to get the tool call history.
     get_tool_calls: bool = False
 
@@ -195,7 +195,7 @@ class Assistant(BaseModel):
             add_chat_history_to_messages=self.add_chat_history_to_messages,
             num_history_messages=self.num_history_messages,
             knowledge_base=self.knowledge_base,
-            tool_calls=self.tool_calls,
+            use_tools=self.use_tools,
             show_tool_calls=self.show_tool_calls,
             tool_call_limit=self.tool_call_limit,
             tools=self.tools,

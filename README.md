@@ -356,9 +356,9 @@ def recipe_assistant(new: bool = False, user: str = "user"):
         user_id=user,
         knowledge_base=knowledge_base,
         storage=storage,
-        # tool_calls=True adds functions to
+        # use_tools=True adds functions to
         # search the knowledge base and chat history
-        tool_calls=True,
+        use_tools=True,
         show_tool_calls=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
@@ -375,7 +375,6 @@ def recipe_assistant(new: bool = False, user: str = "user"):
         if message in ("exit", "bye"):
             break
         assistant.print_response(message)
-
 
 if __name__ == "__main__":
     typer.run(recipe_assistant)

@@ -91,7 +91,7 @@ class PythonAssistant(CustomAssistant):
             _instructions += [
                 "If you need access to data, check the `files` below to see if you have the data you need.",
             ]
-        if self.tool_calls and self.knowledge_base is not None:
+        if self.use_tools and self.knowledge_base is not None:
             _instructions += [
                 "You have access to tools to search the `knowledge_base` for information.",
             ]

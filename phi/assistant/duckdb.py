@@ -111,7 +111,7 @@ class DuckDbAssistant(CustomAssistant):
             _instructions += [
                 "Using the `semantic_model` below, find which tables and columns you need to accomplish the task.",
             ]
-        if self.tool_calls and self.knowledge_base is not None:
+        if self.use_tools and self.knowledge_base is not None:
             _instructions += [
                 "You have access to tools to search the `knowledge_base` for information.",
             ]

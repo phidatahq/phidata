@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building AI Assistants using function calling.
+Phidata is a framework for building AI Assistants using LLM function calling.
 
 By letting LLMs call functions, we allow them to take actions and solve complex problems.
 

@@ -22,7 +22,7 @@
 
 ## ✨ What is phidata?
 
-**Phidata is a toolkit for building AI Apps.** It provides pre-built templates that you can use to build an AI product. Here's how it works:
+Phidata is a toolkit for building AI Apps, it provides pre-built templates that you can use to build your AI product. Here's how it works:
 
 - Create your AI App using a template: `phi ws create`
 - Run your AI App locally: `phi ws up`

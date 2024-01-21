@@ -20,7 +20,7 @@ class PythonAssistant(CustomAssistant):
 
     charting_libraries: Optional[List[str]] = ["plotly", "matplotlib", "seaborn"]
     followups: bool = False
-    get_tool_calls: bool = True
+    read_tool_call_history: bool = True
 
     base_dir: Optional[Path] = None
     save_and_run: bool = True

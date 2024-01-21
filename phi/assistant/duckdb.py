@@ -22,7 +22,7 @@ class DuckDbAssistant(CustomAssistant):
     num_history_messages: int = 6
 
     followups: bool = False
-    get_tool_calls: bool = True
+    read_tool_call_history: bool = True
 
     db_path: Optional[str] = None
     connection: Optional[duckdb.DuckDBPyConnection] = None

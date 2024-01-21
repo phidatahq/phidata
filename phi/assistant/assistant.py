@@ -86,9 +86,9 @@ class Assistant(BaseModel):
     # If use_tools is True and update_knowledge_base is True,
     # then a tool is added that allows the LLM to update the knowledge base.
     update_knowledge_base: bool = False
-    # If use_tools is True and get_tool_calls is True,
+    # If use_tools is True and read_tool_call_history is True,
     # then a tool is added that allows the LLM to get the tool call history.
-    get_tool_calls: bool = False
+    read_tool_call_history: bool = False
 
     #
     # -*- Prompt Settings
@@ -201,7 +201,7 @@ class Assistant(BaseModel):
             tools=self.tools,
             tool_choice=self.tool_choice,
             update_knowledge_base=self.update_knowledge_base,
-            get_tool_calls=self.get_tool_calls,
+            read_tool_call_history=self.read_tool_call_history,
             system_prompt=self.system_prompt,
             system_prompt_function=self.system_prompt_function,
             build_default_system_prompt=self.build_default_system_prompt,

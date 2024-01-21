@@ -59,9 +59,9 @@ class LLMTask(Task):
     # If use_tools is True and update_knowledge_base is True,
     # then a tool is added that allows the LLM to update the knowledge base.
     update_knowledge_base: bool = False
-    # If use_tools is True and get_tool_calls is True,
+    # If use_tools is True and read_tool_call_history is True,
     # then a tool is added that allows the LLM to get the tool call history.
-    get_tool_calls: bool = False
+    read_tool_call_history: bool = False
 
     #
     # -*- Prompt Settings
@@ -150,7 +150,7 @@ class LLMTask(Task):
                 self.llm.add_tool(self.search_knowledge_base)
                 if self.update_knowledge_base:
                     self.llm.add_tool(self.add_to_knowledge_base)
-            if self.get_tool_calls:
+            if self.read_tool_call_history:
                 self.llm.add_tool(self.get_tool_call_history)
 
         # Set show_tool_calls if it is not set on the llm

@@ -53,7 +53,7 @@ Assistants come with their own memory, knowledge base and storage, making it eas
 
 ## Templates
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application. Instead of wiring tools manually, phidata provides **pre-built** templates that you customise and make your own.
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application. Instead of wiring tools manually, phidata provides **pre-built** templates that you can customise and make your own.
 
 Here's how they work:
 
@@ -173,6 +173,10 @@ python data_assistant.py
 
 - See it work through the problem
 
+<details>
+
+<summary><h3>Output</h3></summary>
+
 ```shell
 INFO     Running: SHOW TABLES
 INFO     Running: CREATE TABLE IF NOT EXISTS 'movies'
@@ -197,6 +201,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 ╰──────────┴────────────────────────────────────────────────────────╯
 ```
 
+</details>
 
 ## Create a Python Assistant
 
@@ -230,6 +235,10 @@ python python_assistant.py
 
 - See it work through the problem
 
+<details>
+
+<summary><h3>Output</h3></summary>
+
 ```shell
 WARNING  PythonTools can run arbitrary code, please provide human supervision.
 INFO     Saved: /Users/zu/ai/average_rating
@@ -244,6 +253,8 @@ INFO     Running /Users/zu/ai/average_rating
 │          │ The average rating of movies is approximately 6.72.               │
 ╰──────────┴───────────────────────────────────────────────────────────────────╯
 ```
+
+</details>
 
 ## 🚀 More Examples
 

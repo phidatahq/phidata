@@ -22,28 +22,29 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building AI Assistants using LLM function calling.
+Phidata is a framework for building AI Assistants that achieve tasks by letting LLMs call functions and take actions.
 
-By letting LLMs call functions, we allow them to solve complex problems by taking actions.
+This is a powerful paradigm that allows LLMs to solve complex problems by intelligently choosing a course of action -- similar to how a human would solve the problem.
 
-This is a powerful paradigm that allows LLMs to intelligently solve problems by choosing their course of action. For example, to answer a question from a database, an Assistant first calls a function to see which tables are available,
-then describes those tables to learn their structure and finally, runs a query to get the answer.
+For example, to answer questions from a database, an Assistant might call a function to see which tables are available, then describe those tables to learn their structure and finally, run a query to get the answer.
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/3619bf90-20d6-4086-a917-212d0eae92d5)
 
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Data Assistants:** Analyze data by running SQL queries.
 - **Python Assistants:** Perform tasks by running python code.
-- **Stock Assistants:** Analyze stocks and research companies.
+- **Research Assistants:** Perform research and summarize findings.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
 - **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
-- **Travel Assistants:** Help plan travel by researching destinations.
+- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI Application.
-- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Streamlit Demo with PDF, Image and Website Assistant</a> (password: admin)
-- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">FastApi Demo (PDF Assistant)</a>
+Demos:
+- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
+- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">FastApi App</a> serving a PDF Assistant.
 
 [![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
 

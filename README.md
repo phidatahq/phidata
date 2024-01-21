@@ -26,7 +26,7 @@ Phidata is a framework for building AI Assistants using LLM function calling.
 
 By letting LLMs call functions, we allow them to solve complex problems by taking actions.
 
-This is a powerful paradigm that allows LLMs to intelligently choose a course of action.
+This is a powerful paradigm that allows LLMs to intelligently choose a course of action to solve the problem at hand.
 For example, to answer a question from a database, an Assistant first calls a function to see which tables are available,
 then describes those tables to learn their structure and finally, runs a query to get the answer.
 

@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI Assistants using LLM function calling
+  Pre-built templates for AI Apps
 </h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
@@ -22,26 +22,46 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building AI Assistants that achieve tasks using function calling.
+Phidata is a toolkit for building AI Apps, it provides pre-built templates that you can use to build your AI product.
 
-By letting LLMs call functions and take actions, we enable LLMs to solve complex problems by intelligently choosing a course of action -- similar to how a human would solve a problem.
+Here's how it works:
 
-For example, to answer questions from a database, an Assistant might call a function to see which tables are available, then describe those tables to learn their structure and finally, run a query to get the answer.
+- Create your AI App using a template: `phi ws create`
+- Run your AI App locally: `phi ws up`
+- Integrate with your product.
+- Deploy your AI App to AWS: `phi ws up prd:aws`
+- Monitor and improve.
 
-![image](https://github.com/phidatahq/phidata/assets/22579644/3619bf90-20d6-4086-a917-212d0eae92d5)
+## Under the hood
 
-Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
+Phidata provides **Assistants** that use LLMs to solve problems by function calling.
+This is a powerful paradigm that allows LLMs to achieve complex tasks by intelligently choosing a course of action.
+
+For example, to answer questions from a database, an Assistant will first call a function to show tables, then describe those tables and finally, run a query to get the answer.
+
+![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
+
+Assistants come with their own memory, knowledge base and storage, making it easy to build **RAG**, **Autonomous** or **Multimodal** applications like:
+
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
-- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Data Assistants:** Analyze data by running SQL queries.
 - **Python Assistants:** Perform tasks by running python code.
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Research Assistants:** Perform research and summarize findings.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
 - **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
+## Templates
+
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application. Instead of wiring tools manually, phidata provides **pre-built** templates that you customise and make your own.
+
+Here's how they work:
+
+- Create your codebase using a template: `phi ws create`
+- Run your app locally: `phi ws up`
+- Run your app on AWS: `phi ws up prd:aws`
 
 ## Live Demos
 

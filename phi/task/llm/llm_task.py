@@ -31,7 +31,7 @@ class LLMTask(Task):
     add_chat_history_to_prompt: bool = False
     # Number of previous messages to add to the prompt or messages.
     num_history_messages: int = 8
-
+`
     # -*- Task Knowledge Base
     knowledge_base: Optional[KnowledgeBase] = None
     # Enable RAG by adding references from the knowledge base to the prompt.

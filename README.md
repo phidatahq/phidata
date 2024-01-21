@@ -24,7 +24,7 @@
 
 **Phidata is a toolkit for building AI Apps.** It provides pre-built templates that you can use to build an AI product. Here's how it works:
 
-- Create your AI App: `phi ws create`
+- Create your AI App using a template: `phi ws create`
 - Run your AI App locally: `phi ws up`
 - Integrate with your product.
 - Deploy your AI App to AWS: `phi ws up prd:aws`
@@ -32,18 +32,19 @@
 
 ## Under the hood
 
-
-Phidata provides **Assistants** that use LLMs to solve problems by calling functions. This is a powerful paradigm that allows LLMs to solve complex problems by intelligently choosing a course of action -- similar to how a human would solve a problem.
+Phidata provides **Assistants** that use LLMs to solve problems by function calling.
+This is a powerful paradigm that allows LLMs to solve complex problems by intelligently choosing a course of action.
 
 For example, to answer questions from a database, an Assistant will first call a function to show tables, then describe those tables and finally, run a query to get the answer.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
-Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
+Assistants come with their own memory, knowledge base and storage, making it easy to build **RAG**, **Autonomous** or **Multimodal** applications like:
+
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
-- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Data Assistants:** Analyze data by running SQL queries.
 - **Python Assistants:** Perform tasks by running python code.
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Research Assistants:** Perform research and summarize findings.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
 - **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
@@ -52,7 +53,9 @@ Assistants come with built-in **memory**, **knowledge**, **storage** and **tools
 
 ## Templates
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application. Instead of wiring tools manually, phidata provides **pre-built** templates that you customise and make your own. Here's how they work:
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application. Instead of wiring tools manually, phidata provides **pre-built** templates that you customise and make your own.
+
+Here's how they work:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up`

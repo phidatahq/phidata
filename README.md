@@ -28,7 +28,7 @@ This is a powerful paradigm that allows LLMs to solve complex problems by intell
 
 For example, to answer questions from a database, an Assistant might call a function to see which tables are available, then describe those tables to learn their structure and finally, run a query to get the answer.
 
-![how-assistants-work](https://github.com/phidatahq/phidata/assets/22579644/b4e153eb-1331-4119-aa8d-09f54a9684a8)
+![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)

@@ -37,7 +37,7 @@ Phidata provides **Assistants** that use LLMs to solve problems by calling funct
 
 For example, to answer questions from a database, an Assistant will first call a function to show tables, then describe those tables and finally, run a query to get the answer.
 
-![image](https://github.com/phidatahq/phidata/assets/22579644/3619bf90-20d6-4086-a917-212d0eae92d5)
+![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)

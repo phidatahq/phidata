@@ -30,7 +30,6 @@ For example, to answer questions from a database, an Assistant might call a func
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/3619bf90-20d6-4086-a917-212d0eae92d5)
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
 Assistants come with built-in **memory**, **knowledge**, **storage** and **tools**, making it easy to build RAG, Autonomous or Multimodal applications like:
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
 - **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
@@ -42,6 +41,7 @@ Assistants come with built-in **memory**, **knowledge**, **storage** and **tools
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
 Demos:
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">FastApi App</a> serving a PDF Assistant.

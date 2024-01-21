@@ -34,7 +34,7 @@ Here's how it works:
 
 ## Under the hood
 
-Phidata provides **Assistants** that use LLMs to solve problems by function calling.
+Phidata provides **Assistants** that use LLMs to solve problems by calling functions.
 This is a powerful paradigm that allows LLMs to solve complex problems by intelligently choosing a course of action.
 
 For example, to answer questions from a database, an Assistant will first call a function to show tables, then describe those tables and finally, run a query to get the answer.

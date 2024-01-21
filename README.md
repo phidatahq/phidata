@@ -28,9 +28,7 @@ Here's how it works:
 
 - Create your AI App using a template: `phi ws create`
 - Run your AI App locally: `phi ws up`
-- Integrate with your product.
 - Deploy your AI App to AWS: `phi ws up prd:aws`
-- Monitor and improve.
 
 ## Under the hood
 

@@ -1,9 +1,6 @@
 <h1 align="center">
   phidata
 </h1>
-<h3 align="center">
-  Build AI Assistants using function calling
-</h3>
 <p align="center">
 <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
@@ -22,9 +19,9 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building AI Assistants by letting LLMs call functions and take actions.
+Phidata is a framework for building AI Assistants using function calling.
 
-This is a powerful paradigm that allows LLMs to solve complex problems by intelligently choosing their course of action -- similar to how a human would solve a problem.
+Function calling is a powerful approach that allows LLMs to solve complex problems by calling functions and intelligently choosing their course of action based on the response -- similar to how a human would solve a problem.
 
 For example, to answer questions from a database, an Assistant will first call a function to show tables, then describe those tables and finally, run a query to get the answer.
 

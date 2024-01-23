@@ -24,14 +24,14 @@
 
 Phidata is a framework for building AI Assistants using LLM function calling.
 
-This is a powerful approach that allows LLMs to solve complex problems by calling functions and intelligently choosing their course of action based on the response -- similar to how a human would solve a problem.
+This is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing their course of action based on the response -- similar to how a human would solve a problem.
 
 For example, to answer questions from a database, an Assistant will first run a function to show tables, then describe those tables and finally, run a query to get the answer.
 To answer questions from a PDF, an Assistant will run a function to search the PDF for context, then summarize the answer.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
-Assistants come with built-in memory, knowledge, storage and tools, making it easy to build AI applications like:
+Assistants come with built-in memory, knowledge, storage and tools, making it easy to build **RAG**, **Autonomous** or **Multimodal** applications like:
 
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
 - **Data Assistants:** Analyze data by running SQL queries.
@@ -126,6 +126,99 @@ python assistant.py
 │          │                                                                   │
 │          │ Enjoy your nutritious and delicious Greek yogurt parfait!         │
 ╰──────────┴───────────────────────────────────────────────────────────────────╯
+```
+
+</details>
+
+
+## Create an Assistant with function calling
+
+- Create a file `hn_assistant.py` that can read the top stories on Hacker News
+
+```python
+import json
+import httpx
+
+from phi.assistant import Assistant
+
+
+def get_top_hackernews_stories(num_stories: int = 10) -> str:
+    """Use this function to get top stories from Hacker News.
+
+    Args:
+        num_stories (int): Number of stories to return. Defaults to 10.
+
+    Returns:
+        str: JSON string of top stories.
+    """
+
+    # Fetch top story IDs
+    response = httpx.get('https://hacker-news.firebaseio.com/v0/topstories.json')
+    story_ids = response.json()
+
+    # Fetch story details
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        story_response = httpx.get(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json')
+        story = story_response.json()
+        if "text" in story:
+            story.pop("text", None)
+        stories.append(story)
+    return json.dumps(stories)
+
+assistant = Assistant(
+    tools=[get_top_hackernews_stories],
+    show_tool_calls=True
+)
+assistant.print_response("What's trending on hackernews?")
+```
+
+- Run the `hn_assistant.py` file
+
+```shell
+python hn_assistant.py
+```
+
+<details>
+
+<summary><h3>Output</h3></summary>
+
+```shell
+╭──────────┬─────────────────────────────────────────────────────────────╮
+│ Message  │ What's trending on hackernews?                              │
+├──────────┼─────────────────────────────────────────────────────────────┤
+│ Response │                                                             │
+│ (30.1s)  │  • Running: get_top_hackernews_stories(num_stories=5)       │
+│          │                                                             │
+│          │ Here are the top trending stories on Hacker News:           │
+│          │                                                             │
+│          │  1 Qdrant, the Vector Search Database, raised $28M in a     │
+│          │    Series A round                                           │
+│          │     • Author: francoismassot                                │
+│          │     • Comments: 37                                          │
+│          │     • Score: 49                                             │
+│          │  2 Boeing Whistleblower: Max 9 Production Line Has          │
+│          │    "Enormous Volume of Defects"                             │
+│          │     • Author: bookofjoe                                     │
+│          │     • Comments: 50                                          │
+│          │     • Score: 110                                            │
+│          │  3 Why the fuck are we templating YAML? (2019)              │
+│          │     • Author: olestr                                        │
+│          │     • Comments: 171                                         │
+│          │     • Score: 140                                            │
+│          │  4 Arno A. Penzias, 90, Dies; Nobel Physicist Confirmed Big │
+│          │    Bang Theory                                              │
+│          │     • Author: gumby                                         │
+│          │     • Comments: 57                                          │
+│          │     • Score: 206                                            │
+│          │  5 Forging signed commits on GitHub                         │
+│          │     • Author: rokkitmensch                                  │
+│          │     • Comments: 31                                          │
+│          │     • Score: 91                                             │
+│          │                                                             │
+│          │ These are the current discussions capturing the attention   │
+│          │ of the Hacker News community.                               │
+╰──────────┴─────────────────────────────────────────────────────────────╯
 ```
 
 </details>

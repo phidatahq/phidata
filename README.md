@@ -30,7 +30,7 @@ For example, to answer questions from a database, an Assistant will first call a
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
-Assistants come with built-in memory, knowledge, storage and tools, making it easy to build **RAG**, **Autonomous** or **Multimodal** applications like:
+Assistants with built-in memory, knowledge, storage and tools make it easy to build **RAG**, **Autonomous** or **Multimodal** applications like:
 
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
 - **Data Assistants:** Analyze data by running SQL queries.

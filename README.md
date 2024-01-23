@@ -131,9 +131,9 @@ python assistant.py
 </details>
 
 
-## Create an Assistant that summarizes top HackerNews stories
+## Create an Assistant that calls functions
 
-- Create a file `hn_assistant.py` that can summarize the top stories on Hacker News
+- Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
 ```python
 import json

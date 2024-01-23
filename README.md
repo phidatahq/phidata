@@ -24,9 +24,9 @@
 
 Phidata is a framework for building AI Assistants using LLM function calling.
 
-This is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing their course of action based on the response -- similar to how a human would solve a problem.
+This is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how a human would solve a problem.
 
-For example, to answer questions from a database, the Assistant will first run a function to show tables, then describe those tables and finally, run a query to get the answer.
+For example, to answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
 To answer questions from a PDF, the Assistant will run a function to search the PDF for context, then summarize the answer.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)

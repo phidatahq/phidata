@@ -131,9 +131,9 @@ python assistant.py
 </details>
 
 
-## Create an Assistant with function calling
+## Create an Assistant that summarizes top HackerNews stories
 
-- Create a file `hn_assistant.py` that can read the top stories on Hacker News
+- Create a file `hn_assistant.py` that can summarize the top stories on Hacker News
 
 ```python
 import json
@@ -166,11 +166,8 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
         stories.append(story)
     return json.dumps(stories)
 
-assistant = Assistant(
-    tools=[get_top_hackernews_stories],
-    show_tool_calls=True
-)
-assistant.print_response("What's trending on hackernews?")
+assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True)
+assistant.print_response("Summarize the top stories on hackernews?")
 ```
 
 - Run the `hn_assistant.py` file
@@ -184,41 +181,43 @@ python hn_assistant.py
 <summary><h3>Output</h3></summary>
 
 ```shell
-╭──────────┬─────────────────────────────────────────────────────────────╮
-│ Message  │ What's trending on hackernews?                              │
-├──────────┼─────────────────────────────────────────────────────────────┤
-│ Response │                                                             │
-│ (30.1s)  │  • Running: get_top_hackernews_stories(num_stories=5)       │
-│          │                                                             │
-│          │ Here are the top trending stories on Hacker News:           │
-│          │                                                             │
-│          │  1 Qdrant, the Vector Search Database, raised $28M in a     │
-│          │    Series A round                                           │
-│          │     • Author: francoismassot                                │
-│          │     • Comments: 37                                          │
-│          │     • Score: 49                                             │
-│          │  2 Boeing Whistleblower: Max 9 Production Line Has          │
-│          │    "Enormous Volume of Defects"                             │
-│          │     • Author: bookofjoe                                     │
-│          │     • Comments: 50                                          │
-│          │     • Score: 110                                            │
-│          │  3 Why the fuck are we templating YAML? (2019)              │
-│          │     • Author: olestr                                        │
-│          │     • Comments: 171                                         │
-│          │     • Score: 140                                            │
-│          │  4 Arno A. Penzias, 90, Dies; Nobel Physicist Confirmed Big │
-│          │    Bang Theory                                              │
-│          │     • Author: gumby                                         │
-│          │     • Comments: 57                                          │
-│          │     • Score: 206                                            │
-│          │  5 Forging signed commits on GitHub                         │
-│          │     • Author: rokkitmensch                                  │
-│          │     • Comments: 31                                          │
-│          │     • Score: 91                                             │
-│          │                                                             │
-│          │ These are the current discussions capturing the attention   │
-│          │ of the Hacker News community.                               │
-╰──────────┴─────────────────────────────────────────────────────────────╯
+╭──────────┬───────────────────────────────────────────────────────────────────╮
+│ Message  │ Summarize the top stories on hackernews?                          │
+├──────────┼───────────────────────────────────────────────────────────────────┤
+│ Response │                                                                   │
+│ (51.1s)  │  • Running: get_top_hackernews_stories(num_stories=5)             │
+│          │                                                                   │
+│          │ Here's a summary of the top stories on Hacker News:               │
+│          │                                                                   │
+│          │  1 Boeing Whistleblower: Max 9 Production Line Has "Enormous      │
+│          │    Volume of Defects" A whistleblower has revealed that Boeing's  │
+│          │    Max 9 production line is riddled with an "enormous volume of   │
+│          │    defects," with instances where bolts were not installed. The   │
+│          │    story has garnered attention with a score of 140. Read more    │
+│          │  2 Arno A. Penzias, 90, Dies; Nobel Physicist Confirmed Big Bang  │
+│          │    Theory Arno A. Penzias, a Nobel Prize-winning physicist known  │
+│          │    for his work that confirmed the Big Bang Theory, has passed    │
+│          │    away at the age of 90. His contributions to science have been  │
+│          │    significant, leading to discussions and tributes in the        │
+│          │    scientific community. The news has a score of 207. Read more   │
+│          │  3 Why the fuck are we templating YAML? (2019) This provocative   │
+│          │    article from 2019 questions the proliferation of YAML          │
+│          │    templating in software, sparking a larger conversation about   │
+│          │    the complexities and potential pitfalls of this practice. With │
+│          │    a substantial score of 149, it remains a hot topic of debate.  │
+│          │    Read more                                                      │
+│          │  4 Forging signed commits on GitHub Researchers have discovered a │
+│          │    method for forging signed commits on GitHub which is causing   │
+│          │    concern within the tech community about the implications for   │
+│          │    code security and integrity. The story has a current score of  │
+│          │    94. Read more                                                  │
+│          │  5 Qdrant, the Vector Search Database, raised $28M in a Series A  │
+│          │    round Qdrant, a company specializing in vector search          │
+│          │    databases, has successfully raised $28 million in a Series A   │
+│          │    funding round. This financial milestone indicates growing      │
+│          │    interest and confidence in their technology. The story has     │
+│          │    attracted attention with a score of 55. Read more              │
+╰──────────┴───────────────────────────────────────────────────────────────────╯
 ```
 
 </details>

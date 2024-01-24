@@ -1,33 +1,30 @@
-<h1 align="center">
-  phidata
-</h1>
-<h3 align="center">
-  Function calling is all you need
-</h3>
 <p align="center">
-<a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
-</a>
-<a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/badge/python->=3.9-blue" alt="pythonversion">
-</a>
-<a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://pepy.tech/badge/phidata" alt="downloads">
-</a>
-<a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
-    <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
-</a>
+  <a href="https://phidata.com">
+    <img alt="phidata" src="https://github.com/phidatahq/phidata/assets/22579644/ce4fba2e-6086-4b2a-b215-69ca03ecdddb" width="300" />
+  </a>
 </p>
 
+<p align="center">
+  <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
+  </a>
+  <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/badge/python->=3.9-blue" alt="pythonversion">
+  </a>
+  <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
+      <img src="https://pepy.tech/badge/phidata" alt="downloads">
+  </a>
+  <a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
+      <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
+  </a>
+</p>
 
-## ✨ What is phidata?
+---
 
-Phidata is a framework for building AI Assistants using LLM function calling.
+Phidata makes it easy to build AI Assistants using function calling.
 
-Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how a human would solve a problem.
-
-For example, to answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
-To answer questions from a PDF, the Assistant will run a function to search the PDF for context, then summarize the answer.
+Function calling allows an LLM to solve problems by running functions and intelligently choosing a course of action based on the response, similar to how humans solve problems.
+This is a powerful paradigm that can be used to build state of the art AI Assistants for any use case.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
@@ -44,7 +41,7 @@ Assistants come with built-in memory, knowledge, storage and tools, making it ea
 
 ## Templates
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI application.
 Instead of wiring tools manually, phidata provides **pre-built** templates for AI Apps that you can customise and make your own. Here's how they work:
 
 - Create your codebase using a template: `phi ws create`

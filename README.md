@@ -24,7 +24,7 @@
 Phidata makes it easy to build AI Assistants using function calling.
 
 Function calling allows an LLM to solve problems by running functions and intelligently choosing a course of action based on the response, similar to how humans solve problems.
-This is a powerful paradigm that can be used to build state of the art AI Assistants for any use case.
+This is a powerful paradigm that can be used to build state-of-the-art AI applications for any use case.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 

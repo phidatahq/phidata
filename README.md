@@ -39,7 +39,6 @@ Assistants come with built-in memory, knowledge, storage and tools, making it ea
 - **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Research Assistants:** Perform research and summarize findings.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
-- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 

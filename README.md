@@ -18,8 +18,6 @@
   </a>
 </p>
 
----
-
 ## ✨ What is phidata?
 
 Phidata is a framework for building AI Assistants using function calling.

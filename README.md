@@ -38,7 +38,7 @@ Assistants come with built-in memory, knowledge, storage and tools, making it ea
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-## Templates
+## ✨ Templates
 
 After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI application.
 Instead of wiring tools manually, phidata provides **pre-built** templates for AI Apps that you can customise and make your own. Here's how they work:
@@ -47,7 +47,7 @@ Instead of wiring tools manually, phidata provides **pre-built** templates for A
 - Run your app locally: `phi ws up`
 - Run your app on AWS: `phi ws up prd:aws`
 
-## Live Demos
+## 🚀 Live Demos
 
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">FastApi App</a> serving a PDF Assistant.
@@ -92,7 +92,7 @@ python assistant.py
 
 <details>
 
-<summary><h3>Output</h3></summary>
+<summary><h3>Show output</h3></summary>
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -173,7 +173,7 @@ python hn_assistant.py
 
 <details>
 
-<summary><h3>Output</h3></summary>
+<summary><h3>Show output</h3></summary>
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -253,7 +253,7 @@ python data_assistant.py
 
 <details>
 
-<summary><h3>Output</h3></summary>
+<summary><h3>Show output</h3></summary>
 
 ```shell
 INFO     Running: SHOW TABLES
@@ -315,7 +315,7 @@ python python_assistant.py
 
 <details>
 
-<summary><h3>Output</h3></summary>
+<summary><h3>Show output</h3></summary>
 
 ```shell
 WARNING  PythonTools can run arbitrary code, please provide human supervision.

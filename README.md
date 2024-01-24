@@ -22,7 +22,7 @@
 
 Phidata is a framework for building AI Assistants using function calling.
 
-Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to humans solve problems.
+Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how humans solve problems.
 
 For example, to answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
 

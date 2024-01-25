@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import List, Any, Optional, Dict, Iterator, Callable, Union, cast
 from textwrap import dedent
 
@@ -84,6 +85,9 @@ class LLMTask(Task):
     # List of extra_instructions for the default system prompt
     # # Use these when you want to use the default prompt but also add some extra instructions
     extra_instructions: Optional[List[str]] = None
+    # If True, add the current datetime to the prompt to give the assistant a sense of time
+    # This allows for relative times like "tomorrow" to be used in the prompt
+    add_datetime_to_instructions: bool = False
     # If markdown=true, formats the output using markdown
     markdown: bool = True
 
@@ -275,6 +279,9 @@ class LLMTask(Task):
 
         if self.output_model is not None:
             _instructions.append(self.get_json_output_prompt())
+
+        if self.add_datetime_to_instructions:
+            _instructions.append(f"The current time is {datetime.now()}")
 
         if self.extra_instructions is not None:
             _instructions.extend(self.extra_instructions)

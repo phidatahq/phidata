@@ -84,7 +84,7 @@ python assistant.py
 
 <details>
 
-<summary><h3>Show output</h3></summary>
+<summary><h4>Show output</h4></summary>
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮

@@ -23,19 +23,19 @@
 
 A framework for building AI Assistants using function calling.
 
-Function calling is a powerful approach that allows LLMs to solve problems by taking actions and
-intelligently choosing their next step based on the response. It allows us to program AI to solve problems like humans.
+Function calling allows LLMs to take an action and intelligently choose their next step based on the response.
+It's a powerful approach that enables us to build AI Assistants that solve problems like humans.
 
 Simple examples:
-- To answer a users' question, the Assistant might search its knowledge base, chat history or the web to provides a context-aware response.
-- To answer questions from a database, the Assistant first runs a function to show tables, then describe relevant tables to learn their structure, then searches its knowledge base for context and finally, run a query to get the answer.
-- To answer a customer query, the Assistant might search the order history, product description or its knowledge base depending on the question. Then takes the next step based on the result.
+- To answer a question from a user, the Assistant decides to search its knowledge base, chat history or the web to provide a context-aware response.
+- To answer a question from a database, the Assistant runs a function to show tables, then learns their structure by describing relevant tables and finally, runs a query to get the answer.
+- To answer a customer query, the Assistant decides to search the order history, product description or its knowledge base depending on the question. Then takes the next step based on the result.
 
-Assistants come with built-in memory, knowledge, storage and tools, making it easy to AI applications.
+Assistants come with built-in memory, knowledge, storage and tools, making it easy to intelligent AI applications.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
-Use phidata to build:
+### Use phidata to build
 
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
 - **Data Assistants:** Analyze data by running SQL queries.

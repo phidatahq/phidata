@@ -21,13 +21,15 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building AI Assistants using function calling.
+🤖 A framework for building AI Assistants using function calling: a powerful approach that allows LLMs to solve problems by taking actions and
+intelligently choosing their next step based on the response -- similar to how humans work.
 
-Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how humans solve problems. For example:
-- To answer questions from a knowledge base, the Assistant will run a function to search its knowledge base if needed, then provide a context-aware response.
-- To answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
+Simple examples:
+- To answer questions from a knowledge base, the Assistant searches its knowledge base then provides a context-aware response.
+- To answer questions from a database, the Assistant first runs a function to show tables, then describe relevant tables to learn their structure, then searches the knowledge base for context and finally, run a query to get the answer.
+- To answer a customer query, the Assistant might search the order history, product description or its knowledge base depending on the question. Then takes the next step based on the result.
 
-Assistants come with built-in memory, knowledge, storage and tools, making it easy to advanced AI applications.
+Assistants come with built-in memory, knowledge, storage and tools, making it easy to AI applications.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
@@ -123,7 +125,7 @@ python assistant.py
 
 <details>
 
-<summary><h3>1. Create an Assistant with a function call</h3></summary>
+<summary><h3>Create an Assistant with a function call</h3></summary>
 
 - Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
@@ -214,7 +216,7 @@ python hn_assistant.py
 
 <details>
 
-<summary><h3>2. Create a Data Assistant</h3></summary>
+<summary><h3>Create an Assistant that can analyze data using SQL</h3></summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -275,7 +277,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h3>3. Create a Python Assistant</h3></summary>
+<summary><h3>Create an Assistant that achieves tasks using python</h3></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -326,7 +328,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 <details>
 
-<summary><h3>4. Generate Pydantic model using an Assistant</h3></summary>
+<summary><h3>Generate pydantic models using an Assistant</h3></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -381,7 +383,7 @@ MovieScript(
 
 <details>
 
-<summary><h3>5. Create a PDF Assistant with Knowledge & Storage</h3></summary>
+<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
 
 - **Knowledge Base:** information that the Assistant can search to improve its responses. Uses a vector db.
 - **Storage:** provides long term memory for Assistants. Uses a database.
@@ -545,7 +547,7 @@ phi stop resources.py
 
 <details>
 
-<summary><h3>6. Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
+<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
 
 Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
 
@@ -656,7 +658,7 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ## Contributions
 
-As an open-source project and we welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+We're open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
 
 ## Request a feature
 

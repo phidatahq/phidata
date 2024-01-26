@@ -33,7 +33,8 @@ Please run this script before submitting a pull request.
 2. Create a new directory in `phi/vectordb` with the name of the vector database.
 3. Implement the `VectorDb` interface in `phi/vectordb/<your_db>/<your_db>.py`.
 4. Import your `VectorDb` implementation in `phi/vectordb/<your_db>/__init__.py`.
-5. Add a recipe for using your `VectorDb` in `cookbook/<your_db>/<your_db>.py`.
+5. Add a recipe for using your `VectorDb` in `cookbook/<your_db>/assistant.py`.
+6. Format and validate your code by running `./scripts/format.sh`.
 6. Submit a pull request.
 
 ## 📚 Resources

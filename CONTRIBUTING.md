@@ -27,12 +27,21 @@ We provide a `./scripts/format.sh` script that runs `ruff`, `mypy` and `pytest`.
 
 Please run this script before submitting a pull request.
 
-## 📝 License
+## Adding a new Vector Database
 
-This project is licensed under the terms of the [MIT license](/LICENSE)
+1. Get your local environment setup by following the [Development setup](#development-setup).
+2. Create a new directory in `phi/vectordb` with the name of the vector database.
+3. Implement the `VectorDb` interface in `phi/vectordb/<your_db>/<your_db>.py`.
+4. Import your `VectorDb` implementation in `phi/vectordb/<your_db>/__init__.py`.
+5. Add a recipe for using your `VectorDb` in `cookbook/<your_db>/<your_db>.py`.
+6. Submit a pull request.
 
 ## 📚 Resources
 
 - <a href="https://docs.phidata.com/introduction" target="_blank" rel="noopener noreferrer">Documentation</a>
 - <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
-- Email: <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+
+## 📝 License
+
+This project is licensed under the terms of the [MIT license](/LICENSE)
+

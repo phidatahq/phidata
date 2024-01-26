@@ -133,7 +133,7 @@ python assistant.py
 
 <details>
 
-<summary><h3>Create an Assistant with a function call</h3></summary>
+<summary><h2>1. Create an Assistant with a function call</h2></summary>
 
 - Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
@@ -224,7 +224,7 @@ python hn_assistant.py
 
 <details>
 
-<summary><h3>Create a Data Assistant</h3></summary>
+<summary><h2>2. Create a Data Assistant</h2></summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -285,7 +285,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h3>Create a Python Assistant</h3></summary>
+<summary><h2>3. Create a Python Assistant</h2></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -336,7 +336,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 <details>
 
-<summary><h3>Generate Pydantic model from an Assistant</h3></summary>
+<summary><h2>4. Generate Pydantic model from an Assistant</h2></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -391,7 +391,7 @@ MovieScript(
 
 <details>
 
-<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
+<summary><h2>5. Create a PDF Assistant with Knowledge & Storage</h2></summary>
 
 - **Knowledge Base:** information that the Assistant can search to improve its responses. Uses a vector db.
 - **Storage:** provides long term memory for Assistants. Uses a database.
@@ -555,7 +555,7 @@ phi stop resources.py
 
 <details>
 
-<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
+<summary><h2>6. Build an AI App using Streamlit, FastApi and PgVector</h2></summary>
 
 Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
 
@@ -658,6 +658,12 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 </details>
 
+## 📚 Documentation
+
+- You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
+- You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
+- Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+
 ## Contributions
 
 As an open-source project and we welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
@@ -667,8 +673,7 @@ As an open-source project and we welcome contributions, please read the [contrib
 - If you have a feature request, please add it as an issue or make a pull request.
 - If you have ideas on how we can improve, please create a discussion.
 
-## 📚 Documentation
+## Roadmap
 
-- You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
-- You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
-- Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+Our roadmap is available <a href="https://github.com/orgs/phidatahq/projects/2/views/1" target="_blank" rel="noopener noreferrer">here</a>.
+If you have a feature request, please open an issue/discussion and we'll add it to the roadmap.

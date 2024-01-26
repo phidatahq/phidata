@@ -665,8 +665,7 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ## Contributions
 
-Phidata is an open-source project and we welcome contributions.
-Please read the [contributing guide](CONTRIBUTING.md) for more information.
+As an open-source project and we welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
 
 ## 📚 Documentation
 

@@ -59,7 +59,7 @@ Instead of wiring tools manually, phidata provides **pre-built** templates for A
 
 ## 👩‍💻 Getting Started
 
-## Installation
+### Installation
 
 - Open the `Terminal` and create an `ai` directory with a python virtual environment.
 
@@ -76,7 +76,7 @@ source aienv/bin/activate
 pip install -U phidata
 ```
 
-## Create a Simple Assistant
+### Create a Simple Assistant
 
 - Create a file `assistant.py` and install openai using `pip install openai`
 
@@ -129,7 +129,11 @@ python assistant.py
 </details>
 
 
-## Create an Assistant with a function call
+## 🚀 Examples
+
+<details>
+
+<summary><h3>Create an Assistant with a function call</h3></summary>
 
 - Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
@@ -174,9 +178,7 @@ assistant.print_response("Summarize the top stories on hackernews?")
 python hn_assistant.py
 ```
 
-<details>
-
-<summary><h3>Show output</h3></summary>
+- See it work through the problem
 
 ```shell
 ╭──────────┬───────────────────────────────────────────────────────────────────╮
@@ -220,8 +222,9 @@ python hn_assistant.py
 
 </details>
 
+<details>
 
-## Create a Data Assistant
+<summary><h3>Create a Data Assistant</h3></summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -254,10 +257,6 @@ python data_assistant.py
 
 - See it work through the problem
 
-<details>
-
-<summary><h3>Show output</h3></summary>
-
 ```shell
 INFO     Running: SHOW TABLES
 INFO     Running: CREATE TABLE IF NOT EXISTS 'movies'
@@ -284,7 +283,9 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 </details>
 
-## Create a Python Assistant
+<details>
+
+<summary><h3>Create a Python Assistant</h3></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -316,10 +317,6 @@ python python_assistant.py
 
 - See it work through the problem
 
-<details>
-
-<summary><h3>Show output</h3></summary>
-
 ```shell
 WARNING  PythonTools can run arbitrary code, please provide human supervision.
 INFO     Saved: /Users/zu/ai/average_rating
@@ -337,11 +334,9 @@ INFO     Running /Users/zu/ai/average_rating
 
 </details>
 
-## 🚀 More Examples
-
 <details>
 
-<summary><h2>Structured output from a Movie Assistant</h2></summary>
+<summary><h3>Generate Pydantic model from an Assistant</h3></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -396,7 +391,7 @@ MovieScript(
 
 <details>
 
-<summary><h2>Create a PDF Assistant with Knowledge & Storage</h2></summary>
+<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
 
 - **Knowledge Base:** information that the Assistant can search to improve its responses. Uses a vector db.
 - **Storage:** provides long term memory for Assistants. Uses a database.
@@ -508,7 +503,7 @@ How do I make chicken tikka salad?
 
 <details>
 
-<summary>Result</summary>
+<summary>Show output</summary>
 
 ```shell
 Started Run: d28478ea-75ed-4710-8191-22564ebfb140
@@ -560,7 +555,7 @@ phi stop resources.py
 
 <details>
 
-<summary><h2>Build an AI App using Streamlit, FastApi and PgVector</h2></summary>
+<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
 
 Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
 
@@ -666,6 +661,11 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 ## Contributions
 
 As an open-source project and we welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+
+## Request a feature
+
+- If you have a feature request, please add it as an issue or make a pull request.
+- If you have ideas on how we can improve, please create a discussion.
 
 ## 📚 Documentation
 

@@ -21,10 +21,10 @@
 
 ## ✨ What is phidata?
 
-🤖 A framework for building AI Assistants using function calling: a powerful approach that allows LLMs to solve problems by taking actions and
+**A framework for building AI Assistants using function calling**: a powerful approach that allows LLMs to solve problems by taking actions and
 intelligently choosing their next step based on the response
 
-Let's teach AI to solve problems like their human counterpart. For example:
+Let's teach AI to solve problems like their human counterparts. For example:
 - To answer questions from a knowledge base, the Assistant searches its knowledge base then provides a context-aware response.
 - To answer questions from a database, the Assistant first runs a function to show tables, then describe relevant tables to learn their structure, then searches the knowledge base for context and finally, run a query to get the answer.
 - To answer a customer query, the Assistant might search the order history, product description or its knowledge base depending on the question. Then takes the next step based on the result.

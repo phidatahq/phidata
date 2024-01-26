@@ -23,14 +23,15 @@
 
 Phidata is a framework for building AI Assistants using function calling.
 
-Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how humans solve problems.
+Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how humans solve problems. For example:
+- To answer questions from a knowledge base, the Assistant will run a function to search its knowledge base if needed, then provide a context-aware response.
+- To answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
 
-For example, to answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
-To answer questions from a knowledge base, the Assistant will run a function to search its knowledge for context, then summarize the answer.
+Assistants come with built-in memory, knowledge, storage and tools, making it easy to advanced AI applications.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
-Assistants come with built-in memory, knowledge, storage and tools, making it easy to build **RAG**, **Autonomous** or **Multimodal** applications like:
+Use phidata to build:
 
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
 - **Data Assistants:** Analyze data by running SQL queries.

@@ -1,8 +1,9 @@
-<p align="center">
-  <a href="https://phidata.com">
-    <img alt="phidata" src="https://github.com/phidatahq/phidata/assets/22579644/ce4fba2e-6086-4b2a-b215-69ca03ecdddb" width="300" />
-  </a>
-</p>
+<h1 align="center">
+  phidata
+</h1>
+<h3 align="center">
+  Function calling is all you need
+</h3>
 <p align="center">
   <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
       <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
@@ -18,13 +19,14 @@
   </a>
 </p>
 
----
+## ✨ What is phidata?
 
 Phidata is a framework for building AI Assistants using function calling.
 
 Function calling is a powerful approach that allows LLMs to solve problems by running functions and intelligently choosing a course of action based on the response -- similar to how humans solve problems.
 
 For example, to answer questions from a database, the Assistant will first run a function to show tables, then describe relevant tables and finally, run a query to get the answer.
+To answer questions from a knowledge base, the Assistant will run a function to search its knowledge for context, then summarize the answer.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
@@ -48,7 +50,7 @@ Instead of wiring tools manually, phidata provides **pre-built** templates for A
 - Run your app locally: `phi ws up`
 - Run your app on AWS: `phi ws up prd:aws`
 
-## 🚀 Live Demos
+## 🚀 Demos
 
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">FastApi App</a> serving a PDF Assistant.
@@ -127,7 +129,7 @@ python assistant.py
 </details>
 
 
-## Create an Assistant that calls functions
+## Create an Assistant with a function call
 
 - Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
@@ -660,6 +662,11 @@ phi ws down
 Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your AI App on AWS</a>.
 
 </details>
+
+## Contributions
+
+Phidata is an open-source project and we welcome contributions.
+Please read the [contributing guide](CONTRIBUTING.md) for more information.
 
 ## 📚 Documentation
 

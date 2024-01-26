@@ -1,6 +1,6 @@
 # Contributing to phidata
 
-As an open-source project we welcome contributions.
+Phidata is an open-source project and we welcome contributions.
 
 ## 👩‍💻 How to contribute
 

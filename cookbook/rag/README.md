@@ -15,7 +15,7 @@ pip install -U pgvector pypdf psycopg sqlalchemy
 3. Run RAG Assistant
 
 ```shell
-python cookbook/rag/rag_assistant.py
+python cookbook/rag/assistant.py
 ```
 
 4. Turn off pgvector

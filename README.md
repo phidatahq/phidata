@@ -659,10 +659,10 @@ As an open-source project and we welcome contributions, please read the [contrib
 
 ## Request a feature
 
-- If you have a feature request, please add it as an issue or make a pull request.
+- If you have a feature request, please open an issue or make a pull request.
 - If you have ideas on how we can improve, please create a discussion.
 
 ## Roadmap
 
 Our roadmap is available <a href="https://github.com/orgs/phidatahq/projects/2/views/1" target="_blank" rel="noopener noreferrer">here</a>.
-If you have a feature request, please open an issue/discussion and we'll add it to the roadmap.
+If you have a feature request, please open an issue/discussion.

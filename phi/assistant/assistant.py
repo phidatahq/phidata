@@ -111,6 +111,10 @@ class Assistant(BaseModel):
     # List of extra_instructions for the default system prompt
     # Use these when you want to use the default prompt but also add some extra instructions
     extra_instructions: Optional[List[str]] = None
+
+    # If True, add the current datetime to the prompt to give the assistant a sense of time
+    # This allows for relative times like "tomorrow" to be used in the prompt
+    add_datetime_to_instructions: bool = False
     # If markdown=true, formats the output using markdown
     markdown: bool = True
 
@@ -215,6 +219,7 @@ class Assistant(BaseModel):
             references_function=self.references_function,
             chat_history_function=self.chat_history_function,
             output_model=self.output_model,
+            add_datetime_to_instructions=self.add_datetime_to_instructions,
         )
         return _llm_task
 

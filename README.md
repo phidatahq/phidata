@@ -25,9 +25,9 @@
 
 It provides a framework for building AI Assistants using function calling - a powerful paradigm that gives LLMs the ability to take actions and dynamically choose their path based on the response.
 Function calling allows LLMs to solve problems like humans. For example:
-- When building a RAG chatbot, instead of stuffing the prompt every time we give the assistant functions to search its knowledge base for relevant context, which results in better responses.
-- When building text-to-SQL, we give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
-- When building a customer support assistant, we give it functions to search the order history, product description or its knowledge base depending on the question.
+- To build a RAG chatbot, instead of stuffing the prompt every time, give the assistant functions to search its knowledge base for relevant context, which results in better responses.
+- To build text-to-SQL, give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
+- To build a customer support assistant, give the assistant functions to search the order history, product description or its knowledge base depending on the question.
 
 Assistants come with memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
 

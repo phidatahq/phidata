@@ -21,9 +21,10 @@
 
 ## ✨ What is phidata?
 
-A framework for building AI Assistants using function calling.
+A framework for building intelligent AI Assistants using function calling.
 
-Giving LLMs functions to achieve tasks and choose their path dynamically is a powerful approach that allows us to build Assistants that solve problems like humans.
+Function calling is a powerful paradigm that gives LLMs the ability to take actions and intelligently choose their path based on the response.
+It enables us to build AI Assistants that solve problems like humans.
 
 Simple examples:
 - When building a RAG chatbot, instead of stuffing the prompt every time we give the assistant functions to search its knowledge base for what it needs, which results in better responses.

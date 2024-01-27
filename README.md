@@ -23,10 +23,8 @@
 
 **Phidata is a toolkit for building intelligent AI applications.**
 
-It provides a framework for building AI Assistants using function calling - a powerful paradigm that gives LLMs the ability to take actions and choose their path based on the response.
-Function calling allows LLMs to solve problems like humans.
-
-For example:
+It provides a framework for building AI Assistants using function calling - a powerful paradigm that gives LLMs the ability to take actions and dynamically choose their path based on the response.
+Function calling allows LLMs to solve problems like humans. For example:
 - When building a RAG chatbot, instead of stuffing the prompt every time we give the assistant functions to search its knowledge base for relevant context, which results in better responses.
 - When building text-to-SQL, we give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
 - When building a customer support assistant, we give it functions to search the order history, product description or its knowledge base depending on the question.

@@ -47,7 +47,7 @@ Assistants come with memory, knowledge, storage and tools, making it easy to bui
 ## ✨ Templates
 
 After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
-Instead of wiring tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
+Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
 
 - Create your codebase using a template: `phi ws create`
 - Run your app locally: `phi ws up`

@@ -27,10 +27,9 @@ Function calling is a powerful paradigm that gives LLMs the ability to take acti
 It enables us to build AI Assistants that solve problems like humans.
 
 Simple examples:
-- When building a RAG chatbot, instead of stuffing the prompt every time we give the assistant functions to search its knowledge base for what it needs, which results in better responses.
-- When building text-to-SQL, we give the assistant functions to view tables, describe tables, search the knowledge base for context and finally, inspect and run queries to get the answer.
+- When building a RAG chatbot, instead of stuffing the prompt every time we give the assistant functions to search its knowledge base for relevant context, which results in better responses.
+- When building text-to-SQL, we give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
 - When building a customer support assistant, we give it functions to search the order history, product description or its knowledge base depending on the question.
-
 
 Assistants come with built-in memory, knowledge, storage and tools, making it easy to intelligent AI applications.
 

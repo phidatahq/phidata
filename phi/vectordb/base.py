@@ -23,6 +23,9 @@ class VectorDb(ABC):
     def insert(self, documents: List[Document]) -> None:
         raise NotImplementedError
 
+    def upsert_available(self) -> bool:
+        return False
+
     @abstractmethod
     def upsert(self, documents: List[Document]) -> None:
         raise NotImplementedError

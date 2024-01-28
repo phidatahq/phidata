@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader, PDFUrlReader
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 
 
-class PDFKnowledgeBase(KnowledgeBase):
+class PDFKnowledgeBase(AssistantKnowledge):
     path: Union[str, Path]
     reader: PDFReader = PDFReader()
 
@@ -28,7 +28,7 @@ class PDFKnowledgeBase(KnowledgeBase):
             yield self.reader.read(pdf=_pdf_path)
 
 
-class PDFUrlKnowledgeBase(KnowledgeBase):
+class PDFUrlKnowledgeBase(AssistantKnowledge):
     urls: List[str] = []
     reader: PDFUrlReader = PDFUrlReader()
 

@@ -26,7 +26,7 @@ from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
 
 
-class PgVector(VectorDb):
+class PgVector2(VectorDb):
     def __init__(
         self,
         collection: str,
@@ -73,6 +73,7 @@ class PgVector(VectorDb):
         return Table(
             self.collection,
             self.metadata,
+            Column("id", String, primary_key=True),
             Column("name", String),
             Column("meta_data", postgresql.JSONB, server_default=text("'{}'::jsonb")),
             Column("content", postgresql.TEXT),
@@ -124,11 +125,24 @@ class PgVector(VectorDb):
         Validate if a row with this name exists or not
 
         Args:
-            name (str): Name to validate
+            name (str): Name to check
         """
         with self.Session() as sess:
             with sess.begin():
                 stmt = select(self.table.c.name).where(self.table.c.name == name)
+                result = sess.execute(stmt).first()
+                return result is not None
+
+    def id_exists(self, id: str) -> bool:
+        """
+        Validate if a row with this id exists or not
+
+        Args:
+            id (str): Id to check
+        """
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = select(self.table.c.id).where(self.table.c.id == id)
                 result = sess.execute(stmt).first()
                 return result is not None
 
@@ -138,13 +152,16 @@ class PgVector(VectorDb):
             for document in documents:
                 document.embed(embedder=self.embedder)
                 cleaned_content = document.content.replace("\x00", "\uFFFD")
+                content_hash = md5(cleaned_content.encode()).hexdigest()
+                _id = document.id or content_hash
                 stmt = postgresql.insert(self.table).values(
+                    id=_id,
                     name=document.name,
                     meta_data=document.meta_data,
                     content=cleaned_content,
                     embedding=document.embedding,
                     usage=document.usage,
-                    content_hash=md5(cleaned_content.encode()).hexdigest(),
+                    content_hash=content_hash,
                 )
                 sess.execute(stmt)
                 counter += 1
@@ -161,37 +178,59 @@ class PgVector(VectorDb):
                 sess.commit()
                 logger.debug(f"Committed {counter} documents")
 
-    def upsert(self, documents: List[Document]) -> None:
+    def upsert_available(self) -> bool:
+        return True
+
+    def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
         """
         Upsert documents into the database.
 
         Args:
             documents (List[Document]): List of documents to upsert
+            batch_size (int): Batch size for upserting documents
         """
         with self.Session() as sess:
-            with sess.begin():
-                for document in documents:
-                    document.embed(embedder=self.embedder)
-                    cleaned_content = document.content.replace("\x00", "\uFFFD")
-                    stmt = postgresql.insert(self.table).values(
-                        name=document.name,
-                        meta_data=document.meta_data,
-                        content=cleaned_content,
-                        embedding=document.embedding,
-                        usage=document.usage,
-                        content_hash=md5(cleaned_content.encode()).hexdigest(),
-                    )
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=["name", "content_hash"],
-                        set_=dict(
-                            meta_data=document.meta_data,
-                            content=stmt.excluded.content,
-                            embedding=stmt.excluded.embedding,
-                            usage=stmt.excluded.usage,
-                        ),
-                    )
-                    sess.execute(stmt)
-                    logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
+            counter = 0
+            for document in documents:
+                document.embed(embedder=self.embedder)
+                cleaned_content = document.content.replace("\x00", "\uFFFD")
+                content_hash = md5(cleaned_content.encode()).hexdigest()
+                _id = document.id or content_hash
+                stmt = postgresql.insert(self.table).values(
+                    id=_id,
+                    name=document.name,
+                    meta_data=document.meta_data,
+                    content=cleaned_content,
+                    embedding=document.embedding,
+                    usage=document.usage,
+                    content_hash=content_hash,
+                )
+                # Update row when id matches but 'content_hash' is different
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["id"],
+                    set_=dict(
+                        name=stmt.excluded.name,
+                        meta_data=stmt.excluded.meta_data,
+                        content=stmt.excluded.content,
+                        embedding=stmt.excluded.embedding,
+                        usage=stmt.excluded.usage,
+                        content_hash=stmt.excluded.content_hash,
+                    ),
+                )
+                sess.execute(stmt)
+                counter += 1
+                logger.debug(f"Upserted document: {document.id} | {document.name} | {document.meta_data}")
+
+                # Commit every `batch_size` documents
+                if counter >= batch_size:
+                    sess.commit()
+                    logger.debug(f"Committed {counter} documents")
+                    counter = 0
+
+            # Commit any remaining documents
+            if counter > 0:
+                sess.commit()
+                logger.debug(f"Committed {counter} documents")
 
     def search(self, query: str, limit: int = 5) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 from typing_extensions import Literal
 
 from phi.embedder.base import Embedder
@@ -16,6 +16,7 @@ class OpenAIEmbedder(Embedder):
     model: str = "text-embedding-ada-002"
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
+    user: Optional[str] = None
     openai: Optional[OpenAI] = None
 
     @property
@@ -23,18 +24,22 @@ class OpenAIEmbedder(Embedder):
         return self.openai or OpenAI()
 
     def _response(self, text: str) -> CreateEmbeddingResponse:
+        params: Dict[str, Any] = {
+            "input": text,
+            "model": self.model,
+            "encoding_format": self.encoding_format,
+        }
+        if self.user is not None:
+            params["user"] = self.user
+        if self.model.startswith("text-embedding-3"):
+            params["dimensions"] = self.dimensions
+
         if get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
                 from phi.api.llm import openai_embedding
 
-                response_json = openai_embedding(
-                    params={
-                        "input": text,
-                        "model": self.model,
-                        "encoding_format": self.encoding_format,
-                    }
-                )
+                response_json = openai_embedding(params=params)
                 if response_json is None:
                     logger.error("Error: Could not reach Phidata Servers.")
                     logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
@@ -46,7 +51,7 @@ class OpenAIEmbedder(Embedder):
                 logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
                 exit(1)
         else:
-            return self.client.embeddings.create(input=text, model=self.model, encoding_format=self.encoding_format)
+            return self.client.embeddings.create(**params)
 
     def get_embedding(self, text: str) -> List[float]:
         response: CreateEmbeddingResponse = self._response(text=text)

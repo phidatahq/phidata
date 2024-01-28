@@ -5,7 +5,7 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, T
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
 from phi.assistant.run import AssistantRun
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
@@ -56,7 +56,7 @@ class Assistant(BaseModel):
     num_history_messages: int = 6
 
     # -*- Assistant Knowledge Base
-    knowledge_base: Optional[KnowledgeBase] = None
+    knowledge_base: Optional[AssistantKnowledge] = None
     # Enable RAG by adding references from the knowledge base to the prompt.
     add_references_to_prompt: bool = False
 

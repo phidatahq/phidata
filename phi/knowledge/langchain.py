@@ -1,11 +1,11 @@
 from typing import List, Optional, Callable, Any
 
 from phi.document import Document
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 from phi.utils.log import logger
 
 
-class LangChainKnowledgeBase(KnowledgeBase):
+class LangChainKnowledgeBase(AssistantKnowledge):
     loader: Optional[Callable] = None
 
     vectorstore: Optional[Any] = None

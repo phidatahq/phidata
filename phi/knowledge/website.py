@@ -4,11 +4,11 @@ from pydantic import model_validator
 
 from phi.document import Document
 from phi.document.reader.website import WebsiteReader
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 from phi.utils.log import logger
 
 
-class WebsiteKnowledgeBase(KnowledgeBase):
+class WebsiteKnowledgeBase(AssistantKnowledge):
     urls: List[str] = []
     reader: Optional[WebsiteReader] = None
 

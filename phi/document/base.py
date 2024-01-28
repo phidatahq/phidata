@@ -9,6 +9,7 @@ class Document(BaseModel):
     """Model for managing a document"""
 
     content: str
+    id: Optional[str] = None
     name: Optional[str] = None
     meta_data: Dict[str, Any] = {}
     embedder: Optional[Embedder] = None

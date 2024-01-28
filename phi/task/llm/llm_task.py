@@ -6,7 +6,7 @@ from textwrap import dedent
 from pydantic import BaseModel, ValidationError
 
 from phi.document import Document
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
 from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
@@ -34,7 +34,7 @@ class LLMTask(Task):
     num_history_messages: int = 8
 
     # -*- Task Knowledge Base
-    knowledge_base: Optional[KnowledgeBase] = None
+    knowledge_base: Optional[AssistantKnowledge] = None
     # Enable RAG by adding references from the knowledge base to the prompt.
     add_references_to_prompt: bool = False
 

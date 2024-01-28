@@ -32,6 +32,21 @@ class WorkspaceSettings(BaseSettings):
     # default infra for phi ws commands
     default_infra: Optional[str] = None
     #
+    # -*- Image Settings
+    #
+    # Repository for images
+    image_repo: str = "phidata"
+    # Name:tag of the image
+    image_name: Optional[str] = None
+    # Build images locally
+    build_images: bool = False
+    # Push images after building
+    push_images: bool = False
+    # Skip cache when building images
+    skip_image_cache: bool = False
+    # Force pull images in FROM
+    force_pull_images: bool = False
+    #
     # -*- Dev settings
     #
     dev_env: str = "dev"
@@ -137,21 +152,6 @@ class WorkspaceSettings(BaseSettings):
     # Set to True if `phi` should continue patching
     # resources after a resource patch has failed
     continue_on_patch_failure: bool = False
-    #
-    # -*- Image Settings
-    #
-    # Repository for images
-    image_repo: str = "phidata"
-    # Suffix added to the image name
-    image_suffix: Optional[str] = None
-    # Build images locally
-    build_images: bool = False
-    # Push images after building
-    push_images: bool = False
-    # Skip cache when building images
-    skip_image_cache: bool = False
-    # Force pull images in FROM
-    force_pull_images: bool = False
     #
     # -*- Other Settings
     #

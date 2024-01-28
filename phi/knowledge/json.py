@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.json import JSONReader
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 
 
-class JSONKnowledgeBase(KnowledgeBase):
+class JSONKnowledgeBase(AssistantKnowledge):
     path: Union[str, Path]
     reader: JSONReader = JSONReader()
 

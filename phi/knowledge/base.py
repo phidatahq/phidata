@@ -8,7 +8,7 @@ from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
 
-class KnowledgeBase(BaseModel):
+class AssistantKnowledge(BaseModel):
     """Base class for LLM knowledge base"""
 
     # Reader to read the documents
@@ -70,12 +70,13 @@ class KnowledgeBase(BaseModel):
             logger.debug("Optimizing Vector DB")
             self.vector_db.optimize()
 
-    def load_documents(self, documents: List[Document], skip_existing: bool = True) -> None:
+    def load_documents(self, documents: List[Document], skip_existing: bool = True, upsert: bool = False) -> None:
         """Load documents to the knowledge base
 
         Args:
             documents (List[Document]): List of documents to load
-            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+            skip_existing (bool): If True, skips documents which already exist in the vector db when inserting. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
         """
 
         if self.vector_db is None:
@@ -87,6 +88,16 @@ class KnowledgeBase(BaseModel):
 
         logger.info("Loading knowledge base")
 
+        # Upsert documents if upsert is True
+        if upsert:
+            if self.vector_db.upsert_available():
+                self.vector_db.upsert(documents=documents)
+                logger.info(f"Upserted {len(documents)} documents to knowledge base")
+            else:
+                logger.warning("Upsert not available for this vector db")
+            return
+
+        # Insert documents
         # Filter out documents which already exist in the vector db
         documents_to_load = (
             [document for document in documents if not self.vector_db.doc_exists(document)]
@@ -98,12 +109,13 @@ class KnowledgeBase(BaseModel):
         self.vector_db.insert(documents=documents_to_load)
         logger.info(f"Loaded {len(documents_to_load)} documents to knowledge base")
 
-    def load_document(self, document: Document, skip_existing: bool = True) -> None:
+    def load_document(self, document: Document, skip_existing: bool = True, upsert: bool = False) -> None:
         """Load a document to the knowledge base
 
         Args:
             document (Document): Document to load
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
         """
 
         if self.vector_db is None:
@@ -112,6 +124,15 @@ class KnowledgeBase(BaseModel):
 
         logger.debug("Creating collection")
         self.vector_db.create()
+
+        # Upsert document if upsert is True
+        if upsert:
+            if self.vector_db.upsert_available():
+                self.vector_db.upsert(documents=[document])
+                logger.info("Upserted document to knowledge base")
+            else:
+                logger.warning("Upsert not available for this vector db")
+            return
 
         # Filter out documents which already exist in the vector db
         if skip_existing and self.vector_db.doc_exists(document):
@@ -122,12 +143,13 @@ class KnowledgeBase(BaseModel):
         self.vector_db.insert(documents=[document])
         logger.info(f"Document loaded to knowledge base: {document.name}")
 
-    def load_dict(self, document: Dict[str, Any], skip_existing: bool = True) -> None:
+    def load_dict(self, document: Dict[str, Any], skip_existing: bool = True, upsert: bool = False) -> None:
         """Load a dictionary representation of a document to the knowledge base
 
         Args:
             document (Dict[str, Any]): Dictionary representation of a document
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
         """
 
         if self.vector_db is None:
@@ -137,8 +159,17 @@ class KnowledgeBase(BaseModel):
         logger.debug("Creating collection")
         self.vector_db.create()
 
-        # Filter out documents which already exist in the vector db
         document_to_load = Document.from_dict(document)
+
+        # Upsert document if upsert is True
+        if upsert:
+            if self.vector_db.upsert_available():
+                self.vector_db.upsert(documents=[document_to_load])
+                logger.info("Upserted document to knowledge base")
+            else:
+                logger.warning("Upsert not available for this vector db")
+            return
+
         if skip_existing and self.vector_db.doc_exists(document_to_load):
             logger.debug(f"Document already exists: {document_to_load.name}")
             return
@@ -147,12 +178,13 @@ class KnowledgeBase(BaseModel):
         self.vector_db.insert(documents=[document_to_load])
         logger.info(f"Document loaded to knowledge base: {document_to_load.name}")
 
-    def load_json(self, document: str, skip_existing: bool = True) -> None:
+    def load_json(self, document: str, skip_existing: bool = True, upsert: bool = False) -> None:
         """Load a json representation of a document to the knowledge base
 
         Args:
             document (str): Json representation of a document
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
         """
 
         if self.vector_db is None:
@@ -162,8 +194,17 @@ class KnowledgeBase(BaseModel):
         logger.debug("Creating collection")
         self.vector_db.create()
 
-        # Filter out documents which already exist in the vector db
         document_to_load = Document.from_json(document)
+
+        # Upsert document if upsert is True
+        if upsert:
+            if self.vector_db.upsert_available():
+                self.vector_db.upsert(documents=[document_to_load])
+                logger.info("Upserted document to knowledge base")
+            else:
+                logger.warning("Upsert not available for this vector db")
+            return
+
         if skip_existing and self.vector_db.doc_exists(document_to_load):
             logger.debug(f"Document already exists: {document_to_load.name}")
             return

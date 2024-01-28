@@ -1,1 +1,1 @@
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge

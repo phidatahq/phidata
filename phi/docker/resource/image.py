@@ -106,6 +106,7 @@ class DockerImage(DockerResource):
         last_build_log = None
         build_log_output: List[Any] = []
         build_step_progress: List[str] = []
+        build_log_to_show_on_error: List[str] = []
         try:
             _api_client: DockerClient = docker_client.api_client
             build_stream = _api_client.api.build(
@@ -173,10 +174,20 @@ class DockerImage(DockerResource):
                         if len(build_step_progress) > 10:
                             build_step_progress.pop(0)
 
+                    build_log_to_show_on_error.append(stream)
+                    if len(build_log_to_show_on_error) > 50:
+                        build_log_to_show_on_error.pop(0)
+
                     if "error" in stream.lower():
                         print(stream)
                         live_log.stop()
-                        logger.error(f"Image build failed: {self.get_image_str()}")
+
+                        # Render error table
+                        error_table = Table(show_edge=False, show_header=False, show_lines=False)
+                        for line in build_log_to_show_on_error:
+                            error_table.add_row(line, style="dim")
+                        error_table.add_row(stream, style="bold red")
+                        console.print(error_table)
                         return None
                     if build_log.get("aux", None) is not None:
                         logger.debug("build_log['aux'] :{}".format(build_log["aux"]))

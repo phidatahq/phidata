@@ -620,7 +620,19 @@ class Assistant(BaseModel):
         """Generate a name for the run using the first 6 messages of the chat history"""
 
         _conv = "Conversation\n"
-        for message in self.memory.chat_history[:6]:
+        _messages_for_generating_name = []
+        try:
+            if self.memory.chat_history[0].role == "assistant":
+                _messages_for_generating_name = self.memory.chat_history[1:6]
+            else:
+                _messages_for_generating_name = self.memory.chat_history[:6]
+        except Exception as e:
+            logger.warning(f"Failed to generate name: {e}")
+        finally:
+            if len(_messages_for_generating_name) == 0:
+                _messages_for_generating_name = self.memory.llm_messages[-4:]
+
+        for message in _messages_for_generating_name:
             _conv += f"{message.role.upper()}: {message.content}\n"
 
         _conv += "\n\nConversation Name:"

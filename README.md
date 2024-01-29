@@ -21,9 +21,7 @@
 
 ## ✨ What is phidata?
 
-**Phidata is a toolkit for building intelligent AI applications.**
-
-It provides a framework for building AI Assistants using function calling - a powerful paradigm that gives LLMs the ability to take actions and dynamically choose their path based on the response,
+Phidata is a framework for building AI Assistants using function calling - a powerful paradigm that gives LLMs the ability to take actions and dynamically choose their path based on the response,
 just like how humans solve problems. For example:
 - To build a RAG chatbot, instead of stuffing the prompt every time, give the assistant functions to search its knowledge base for relevant context, which results in better responses.
 - To build text-to-SQL, give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.

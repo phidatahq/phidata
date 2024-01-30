@@ -14,7 +14,7 @@ dependencies = [
   "docker",
   "gitpython",
   "httpx",
-  "pydantic==2.3.0",
+  "pydantic",
   "pydantic-settings",
   "python-dotenv",
   "pyyaml",

@@ -104,18 +104,26 @@ class Assistant(BaseModel):
     system_prompt_function: Optional[Callable[..., Optional[str]]] = None
     # If True, build a default system prompt using instructions and extra_instructions
     build_default_system_prompt: bool = True
+    # -*- Settings for building the default system prompt
     # Assistant description for the default system prompt
     description: Optional[str] = None
     # List of instructions for the default system prompt
     instructions: Optional[List[str]] = None
-    # List of extra_instructions for the default system prompt
+    # List of extra_instructions added to the default system prompt
     # Use these when you want to use the default prompt but also add some extra instructions
     extra_instructions: Optional[List[str]] = None
-
+    # Add a string to the end of the default system prompt
+    add_to_system_prompt: Optional[str] = None
+    # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
+    add_knowledge_base_instructions: bool = True
+    # If True, add instructions to prevent prompt injection attacks
+    prevent_prompt_injection: bool = True
+    # If True, add instructions for limiting tool access to the default system prompt if tools are provided
+    limit_tool_access: bool = True
     # If True, add the current datetime to the prompt to give the assistant a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
-    # If markdown=true, formats the output using markdown
+    # If markdown=true, add instructions to format the output using markdown
     markdown: bool = True
 
     # -*- User prompt: provide the user prompt as a string
@@ -212,6 +220,11 @@ class Assistant(BaseModel):
             description=self.description,
             instructions=self.instructions,
             extra_instructions=self.extra_instructions,
+            add_to_system_prompt=self.add_to_system_prompt,
+            add_knowledge_base_instructions=self.add_knowledge_base_instructions,
+            prevent_prompt_injection=self.prevent_prompt_injection,
+            limit_tool_access=self.limit_tool_access,
+            add_datetime_to_instructions=self.add_datetime_to_instructions,
             markdown=self.markdown,
             user_prompt=self.user_prompt,
             user_prompt_function=self.user_prompt_function,
@@ -219,7 +232,6 @@ class Assistant(BaseModel):
             references_function=self.references_function,
             chat_history_function=self.chat_history_function,
             output_model=self.output_model,
-            add_datetime_to_instructions=self.add_datetime_to_instructions,
         )
         return _llm_task
 

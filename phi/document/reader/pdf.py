@@ -33,6 +33,7 @@ class PDFReader(Reader):
         documents = [
             Document(
                 name=doc_name,
+                id=f"{doc_name}_{page_number}",
                 meta_data={"page": page_number},
                 content=page.extract_text(),
             )

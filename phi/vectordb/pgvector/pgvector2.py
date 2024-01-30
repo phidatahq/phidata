@@ -1,4 +1,4 @@
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict, Any
 from hashlib import md5
 
 try:
@@ -232,7 +232,7 @@ class PgVector2(VectorDb):
                 sess.commit()
                 logger.debug(f"Committed {counter} documents")
 
-    def search(self, query: str, limit: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -247,6 +247,12 @@ class PgVector2(VectorDb):
         ]
 
         stmt = select(*columns)
+
+        if filters is not None:
+            for key, value in filters.items():
+                if hasattr(self.table.c, key):
+                    stmt = stmt.where(getattr(self.table.c, key) == value)
+
         if self.distance == Distance.l2:
             stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
         if self.distance == Distance.cosine:

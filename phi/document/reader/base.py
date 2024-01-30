@@ -61,12 +61,18 @@ class Reader(BaseModel):
             chunk = cleaned_content[start:end]
             meta_data = chunk_meta_data.copy()
             meta_data["chunk"] = chunk_number
+            chunk_id = None
+            if document.id:
+                chunk_id = f"{document.id}_{chunk_number}"
+            elif document.name:
+                chunk_id = f"{document.name}_{chunk_number}"
             meta_data["chunk_size"] = len(chunk)
             chunked_documents.append(
                 Document(
-                    content=chunk,
+                    id=chunk_id,
                     name=document.name,
                     meta_data=meta_data,
+                    content=chunk,
                 )
             )
             chunk_number += 1

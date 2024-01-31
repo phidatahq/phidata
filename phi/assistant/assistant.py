@@ -116,8 +116,10 @@ class Assistant(BaseModel):
     add_to_system_prompt: Optional[str] = None
     # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
     add_knowledge_base_instructions: bool = True
+    # If True, add instructions for letting the user know that the assistant does not know the answer
+    add_dont_know_instructions: bool = True
     # If True, add instructions to prevent prompt injection attacks
-    prevent_prompt_injection: bool = True
+    prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
     limit_tool_access: bool = True
     # If True, add the current datetime to the prompt to give the assistant a sense of time
@@ -222,6 +224,7 @@ class Assistant(BaseModel):
             extra_instructions=self.extra_instructions,
             add_to_system_prompt=self.add_to_system_prompt,
             add_knowledge_base_instructions=self.add_knowledge_base_instructions,
+            add_dont_know_instructions=self.add_dont_know_instructions,
             prevent_prompt_injection=self.prevent_prompt_injection,
             limit_tool_access=self.limit_tool_access,
             add_datetime_to_instructions=self.add_datetime_to_instructions,

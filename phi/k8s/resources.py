@@ -77,6 +77,7 @@ class K8sResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
+        pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder
@@ -480,6 +481,7 @@ class K8sResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
+        pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.k8s.resource.types import K8sResourceInstallOrder

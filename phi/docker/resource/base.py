@@ -14,6 +14,9 @@ class DockerResource(ResourceBase):
     short_id: Optional[str] = None
     attrs: Optional[Dict[str, Any]] = None
 
+    # Pull latest image before create/update
+    pull: Optional[bool] = None
+
     docker_client: Optional[DockerApiClient] = None
 
     @staticmethod

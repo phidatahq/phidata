@@ -37,6 +37,7 @@ class DockerResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
+        pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
@@ -184,6 +185,8 @@ class DockerResources(InfraResources):
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
             if force is True:
                 resource.force = True
+            if pull is True:
+                resource.pull = True
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network
@@ -404,6 +407,7 @@ class DockerResources(InfraResources):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
+        pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
         from phi.cli.console import print_info, print_heading, confirm_yes_no
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
@@ -554,6 +558,8 @@ class DockerResources(InfraResources):
             print_info(f"\n-==+==- {resource.get_resource_type()}: {resource.get_resource_name()}")
             if force is True:
                 resource.force = True
+            if pull is True:
+                resource.pull = True
             if isinstance(resource, DockerContainer):
                 if resource.network is None and self.network is not None:
                     resource.network = self.network

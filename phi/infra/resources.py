@@ -17,6 +17,7 @@ class InfraResources(PhiBase):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
+        pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError
 
@@ -39,6 +40,7 @@ class InfraResources(PhiBase):
         dry_run: Optional[bool] = False,
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
+        pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
         raise NotImplementedError
 

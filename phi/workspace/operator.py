@@ -404,6 +404,7 @@ def start_workspace(
     dry_run: Optional[bool] = False,
     auto_confirm: Optional[bool] = False,
     force: Optional[bool] = None,
+    pull: Optional[bool] = False,
 ) -> None:
     """Start a Phi Workspace. This is called from `phi ws up`"""
     if ws_config is None:
@@ -440,6 +441,7 @@ def start_workspace(
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
+            pull=pull,
         )
         if _num_resources_created > 0:
             num_rgs_created += 1
@@ -586,6 +588,7 @@ def update_workspace(
     dry_run: Optional[bool] = False,
     auto_confirm: Optional[bool] = False,
     force: Optional[bool] = None,
+    pull: Optional[bool] = False,
 ) -> None:
     """Update a Phi Workspace. This is called from `phi ws patch`"""
     if ws_config is None:
@@ -621,6 +624,7 @@ def update_workspace(
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
+            pull=pull,
         )
         if _num_resources_updated > 0:
             num_rgs_updated += 1

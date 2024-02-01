@@ -8,6 +8,7 @@ from phi.utils.env import get_from_env
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
+from phi.utils.tools import get_function_names_from_tool_calls
 
 try:
     from openai import OpenAI
@@ -220,6 +221,85 @@ class OpenAIChat(LLM):
             self.metrics["function_call_times"][_function_call.function.name].append(_function_call_timer.elapsed)
             return _function_call_message, _function_call
         return Message(role="function", content="Function name is None."), None
+
+    def execute_function_calls(self, function_calls: List[FunctionCall]) -> List[Message]:
+        function_call_results: List[Message] = []
+        for function_call in function_calls:
+            if tool_call.get("type") == "function":
+                _tool_call_id = tool_call.get("id")
+                _tool_call_function = tool_call.get("function")
+                if _tool_call_function is not None:
+                    _tool_call_function_name = _tool_call_function.get("name")
+                    _tool_call_function_arguments_str = _tool_call_function.get("arguments")
+                    if _tool_call_function_name is not None:
+                        # Get tool call
+                        function_call = get_function_call(
+                            name=_tool_call_function_name,
+                            arguments=_tool_call_function_arguments_str,
+                            functions=self.functions,
+                        )
+                        if function_call is None:
+                            tool_call_results.append(
+                                (
+                                    Message(
+                                        role="tool",
+                                        tool_call_id=_tool_call_id,
+                                        content="Could not find function to call.",
+                                    ),
+                                    None,
+                                )
+                            )
+                            continue
+                        if function_call.error is not None:
+                            tool_call_results.append(
+                                (
+                                    Message(
+                                        role="tool",
+                                        tool_call_id=_tool_call_id,
+                                        content=function_call.error,
+                                    ),
+                                    function_call,
+                                )
+                            )
+                            continue
+
+                        if self.function_call_stack is None:
+                            self.function_call_stack = []
+
+                        # -*- Check function call limit
+                        if len(self.function_call_stack) > self.function_call_limit:
+                            self.tool_choice = "none"
+                            tool_call_results.append(
+                                (
+                                    Message(
+                                        role="tool",
+                                        tool_call_id=_tool_call_id,
+                                        content=f"Tool call limit ({self.function_call_limit}) exceeded.",
+                                    ),
+                                    function_call,
+                                )
+                            )
+                            continue
+
+                        # -*- Run function call
+                        self.function_call_stack.append(function_call)
+                        tool_call_timer = Timer()
+                        tool_call_timer.start()
+                        function_call.execute()
+                        tool_call_timer.stop()
+                        tool_call_message = Message(
+                            role="tool",
+                            tool_call_id=_tool_call_id,
+                            content=function_call.result,
+                            metrics={"time": tool_call_timer.elapsed},
+                        )
+                        if "tool_call_times" not in self.metrics:
+                            self.metrics["tool_call_times"] = {}
+                        if function_call.function.name not in self.metrics["tool_call_times"]:
+                            self.metrics["tool_call_times"][function_call.function.name] = []
+                        self.metrics["tool_call_times"][function_call.function.name].append(tool_call_timer.elapsed)
+                        tool_call_results.append((tool_call_message, function_call))
+        return tool_call_results
 
     def run_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[Tuple[Message, Optional[FunctionCall]]]:
         tool_call_results: List[Tuple[Message, Optional[FunctionCall]]] = []
@@ -605,6 +685,23 @@ class OpenAIChat(LLM):
                 # -*- Yield new response using result of function call
                 yield from self.parsed_response_stream(messages=messages)
             elif assistant_message.tool_calls is not None:
+                _functions_to_run: List[FunctionCall] = []
+                for tool_call in assistant_message.tool_calls:
+                    _function = tool_call.get("function")
+                    _function_name = _function.get("name")
+                    _function_arguments_str = _function.get("arguments")
+                    if _function_name:
+                        _function_call = get_function_call(_function_name, _function_arguments_str, self.functions)
+                        if _function_call:
+                            _functions_to_run.append(_function_call)
+                if self.show_function_calls:
+                    if len(_functions_to_run) == 1:
+                        yield f"\n - Running: {_functions_to_run[0].get_call_str()}\n\n"
+                    elif len(_functions_to_run) > 1:
+                        yield f"\nRunning:"
+                        for _f in _functions_to_run:
+                            yield f"\n - {_f.get_call_str()}"
+
                 tool_call_messages = self.run_tool_calls(tool_calls=assistant_message.tool_calls)
                 for tool_call_message, tool_call_fc in tool_call_messages:
                     messages.append(tool_call_message)

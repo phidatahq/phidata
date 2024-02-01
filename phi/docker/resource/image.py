@@ -153,8 +153,9 @@ class DockerImage(DockerResource):
             # Handling output and errors
             if result.returncode == 0:
                 print_info("Docker image built successfully.")
-                _docker_client = docker_client or self.get_docker_client()
-                return self._read(docker_client=_docker_client)
+                return True
+                # _docker_client = docker_client or self.get_docker_client()
+                # return self._read(docker_client=_docker_client)
             else:
                 logger.error("Error in building Docker image:")
                 return False

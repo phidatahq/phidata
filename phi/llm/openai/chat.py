@@ -1,4 +1,5 @@
 import json
+import httpx
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
@@ -9,8 +10,9 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
 
+
 try:
-    from openai import OpenAI
+    from openai import OpenAI as OpenAIClient
     from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion import ChatCompletion
     from openai.types.chat.chat_completion_chunk import (
@@ -43,11 +45,27 @@ class OpenAIChat(LLM):
     top_p: Optional[float] = None
     logit_bias: Optional[Any] = None
     headers: Optional[Dict[str, Any]] = None
-    openai: Optional[OpenAI] = None
+    api_key: Optional[str] = None
+    organization: Optional[str] = None
+    base_url: Optional[Union[str, httpx.URL]] = None
+    client_kwargs: Optional[Dict[str, Any]] = None
+    openai_client: Optional[OpenAIClient] = None
 
     @property
-    def client(self) -> OpenAI:
-        return self.openai or OpenAI()
+    def client(self) -> OpenAIClient:
+        if self.openai_client:
+            return self.openai_client
+
+        _openai_params: Dict[str, Any] = {}
+        if self.api_key:
+            _openai_params["api_key"] = self.api_key
+        if self.organization:
+            _openai_params["organization"] = self.organization
+        if self.base_url:
+            _openai_params["base_url"] = self.base_url
+        if self.client_kwargs:
+            _openai_params.update(self.client_kwargs)
+        return OpenAIClient(**_openai_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:

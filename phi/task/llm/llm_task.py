@@ -143,11 +143,8 @@ class LLMTask(Task):
             self.llm = OpenAIChat()
 
     def add_response_format_to_llm(self) -> None:
-        if self.output_model is not None:
-            if isinstance(self.llm, OpenAIChat):
-                self.llm.response_format = {"type": "json_object"}
-            else:
-                logger.warning(f"output_model is not supported for {self.llm.__class__.__name__}")
+        if self.output_model is not None and self.llm is not None:
+            self.llm.response_format = {"type": "json_object"}
 
     def add_tools_to_llm(self) -> None:
         if self.llm is None:

@@ -27,7 +27,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "mypy",
-    "black",
     "pytest",
     "ruff",
     "types-pyyaml"

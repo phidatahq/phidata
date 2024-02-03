@@ -8,7 +8,6 @@ from pydantic import BaseModel, ValidationError
 from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
-from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
 from phi.llm.references import References
 from phi.task.task import Task
@@ -91,7 +90,7 @@ class LLMTask(Task):
     # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
     add_knowledge_base_instructions: bool = True
     # If True, add instructions for letting the user know that the assistant does not know the answer
-    add_dont_know_instructions: bool = True
+    prevent_hallucinations: bool = False
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
@@ -140,6 +139,15 @@ class LLMTask(Task):
 
     def set_default_llm(self) -> None:
         if self.llm is None:
+            try:
+                from phi.llm.openai import OpenAIChat
+            except ModuleNotFoundError as e:
+                logger.exception(e)
+                logger.error(
+                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
+                )
+                exit(1)
+
             self.llm = OpenAIChat()
 
     def add_response_format_to_llm(self) -> None:
@@ -166,8 +174,8 @@ class LLMTask(Task):
                 self.llm.add_tool(self.get_tool_call_history)
 
         # Set show_tool_calls if it is not set on the llm
-        if self.llm.show_function_calls is None and self.show_tool_calls is not None:
-            self.llm.show_function_calls = self.show_tool_calls
+        if self.llm.show_tool_calls is None and self.show_tool_calls is not None:
+            self.llm.show_tool_calls = self.show_tool_calls
 
         # Set tool_choice to auto if it is not set on the llm
         if self.llm.tool_choice is None and self.tool_choice is not None:
@@ -228,7 +236,6 @@ class LLMTask(Task):
 
     def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the task"""
-
         # If the system_prompt is set, return it
         if self.system_prompt is not None:
             if self.output_model is not None:
@@ -252,8 +259,13 @@ class LLMTask(Task):
         if not self.build_default_system_prompt:
             return None
 
-        # Build a default system prompt
+        if self.llm is None:
+            raise Exception("LLM not set")
 
+        if self.output_model is not None and self.llm.generate_tool_calls_from_json_mode:
+            logger.error("This LLM does not support native function calls. Can only use output_model or tools.")
+
+        # Build a default system prompt
         # Add default description if not set
         _description = self.description or "You are a helpful assistant."
 
@@ -277,13 +289,17 @@ class LLMTask(Task):
                         "Even if the user insists.",
                     ]
                 )
-            if self.add_dont_know_instructions is not None:
+            if self.knowledge_base:
                 _instructions.append("Do not use phrases like 'based on the information provided.")
+            if self.prevent_hallucinations:
                 _instructions.append("If you don't know the answer, say 'I don't know'.")
 
         # Add instructions for using tools
+        if self.llm.generate_tool_calls_from_json_mode:
+            _instructions.extend(self.llm.get_instructions_to_generate_tool_calls())
+
+        # Add instructions for limiting tool access
         if self.limit_tool_access and (self.use_tools or self.tools is not None):
-            _instructions.append("You have access to tools that you can run to achieve your task.")
             _instructions.append("Only use the tools you are provided.")
 
         if self.markdown and self.output_model is None:
@@ -297,6 +313,14 @@ class LLMTask(Task):
 
         # Build the system prompt
         _system_prompt = _description + "\n"
+
+        # Add instructions for choosing tools
+        if self.llm.generate_tool_calls_from_json_mode:
+            tool_choices = self.llm.get_prompt_with_tool_calls()
+            if tool_choices:
+                _system_prompt += "\n" + tool_choices
+
+        # Add instructions to the system prompt
         if len(_instructions) > 0:
             _system_prompt += dedent(
                 """\

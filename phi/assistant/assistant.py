@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 from phi.assistant.run import AssistantRun
 from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
-from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
 from phi.llm.references import References  # noqa: F401
 from phi.memory.assistant import AssistantMemory
@@ -24,7 +23,7 @@ from phi.utils.timer import Timer
 class Assistant(BaseModel):
     # -*- Assistant settings
     # LLM to use for this Assistant
-    llm: LLM = OpenAIChat()
+    llm: Optional[LLM] = None
     # Assistant introduction. This is added to the chat history when a run is started.
     introduction: Optional[str] = None
     # Assistant name
@@ -117,7 +116,7 @@ class Assistant(BaseModel):
     # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
     add_knowledge_base_instructions: bool = True
     # If True, add instructions for letting the user know that the assistant does not know the answer
-    add_dont_know_instructions: bool = True
+    prevent_hallucinations: bool = False
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
@@ -202,7 +201,7 @@ class Assistant(BaseModel):
         """Returns an LLMTask for this assistant"""
 
         _llm_task = LLMTask(
-            llm=self.llm.model_copy(),
+            llm=self.llm.model_copy() if self.llm is not None else None,
             assistant_name=self.name,
             assistant_memory=self.memory,
             add_references_to_prompt=self.add_references_to_prompt,
@@ -224,7 +223,7 @@ class Assistant(BaseModel):
             extra_instructions=self.extra_instructions,
             add_to_system_prompt=self.add_to_system_prompt,
             add_knowledge_base_instructions=self.add_knowledge_base_instructions,
-            add_dont_know_instructions=self.add_dont_know_instructions,
+            prevent_hallucinations=self.prevent_hallucinations,
             prevent_prompt_injection=self.prevent_prompt_injection,
             limit_tool_access=self.limit_tool_access,
             add_datetime_to_instructions=self.add_datetime_to_instructions,
@@ -246,7 +245,7 @@ class Assistant(BaseModel):
             run_id=self.run_id,
             run_name=self.run_name,
             user_id=self.user_id,
-            llm=self.llm.to_dict(),
+            llm=self.llm.to_dict() if self.llm is not None else None,
             memory=self.memory.to_dict(),
             assistant_data=self.assistant_data,
             run_data=self.run_data,
@@ -271,7 +270,7 @@ class Assistant(BaseModel):
         if row.llm is not None:
             # Update llm metrics from the database
             llm_metrics_from_db = row.llm.get("metrics")
-            if llm_metrics_from_db is not None and isinstance(llm_metrics_from_db, dict):
+            if llm_metrics_from_db is not None and isinstance(llm_metrics_from_db, dict) and self.llm:
                 try:
                     self.llm.metrics = llm_metrics_from_db
                 except Exception as e:
@@ -439,7 +438,7 @@ class Assistant(BaseModel):
             # -*- Update LLMTask
             if isinstance(current_task, LLMTask):
                 # Update LLM
-                if current_task.llm is None:
+                if current_task.llm is None and self.llm is not None:
                     current_task.llm = self.llm.model_copy()
 
             # -*- Run Task
@@ -494,7 +493,7 @@ class Assistant(BaseModel):
             "llm_response": run_output,
             "llm_response_type": llm_response_type,
             "info": event_info,
-            "metrics": self.llm.metrics,
+            "metrics": self.llm.metrics if self.llm else None,
         }
         self._api_log_assistant_event(event_type="run", event_data=event_data)
 
@@ -555,6 +554,9 @@ class Assistant(BaseModel):
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
     ) -> Iterator[Dict]:
         logger.debug("*********** Assistant Chat Raw Start ***********")
+        if self.llm is None:
+            raise Exception("LLM not set")
+
         # Load run from storage
         self.read_from_storage()
 
@@ -633,6 +635,8 @@ class Assistant(BaseModel):
 
     def generate_name(self) -> str:
         """Generate a name for the run using the first 6 messages of the chat history"""
+        if self.llm is None:
+            raise Exception("LLM not set")
 
         _conv = "Conversation\n"
         _messages_for_generating_name = []

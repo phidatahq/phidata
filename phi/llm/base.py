@@ -1,3 +1,4 @@
+from textwrap import dedent
 from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict
@@ -5,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from phi.llm.message import Message
 from phi.tools import Tool, ToolRegistry
 from phi.tools.function import Function, FunctionCall
+from phi.utils.timer import Timer
 from phi.utils.log import logger
 
 
@@ -29,18 +31,22 @@ class LLM(BaseModel):
     #   forces the model to call that function.
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    # If True, runs the tool before sending back the response content.
+    run_tools: bool = True
+    # If True, shows function calls in the response.
+    show_tool_calls: Optional[bool] = None
 
     # -*- Functions available to the LLM to call -*-
-    # Functions provided from the tools. Note: These are not sent to the LLM API.
+    # Functions extracted from the tools. Note: These are not sent to the LLM API and are only used for execution.
     functions: Optional[Dict[str, Function]] = None
-    # If True, runs function calls before sending back the response content.
-    run_function_calls: bool = True
-    # If True, shows function calls in the response.
-    show_function_calls: Optional[bool] = None
     # Maximum number of function calls allowed.
     function_call_limit: int = 25
     # Stack of function calls.
     function_call_stack: Optional[List[FunctionCall]] = None
+
+    # This setting is an experimental feature to generate tool calls from JSON mode.
+    # Useful when we want to use LLMs that don't support function calls to generate tool calls.
+    generate_tool_calls_from_json_mode: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -67,7 +73,7 @@ class LLM(BaseModel):
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"model", "name", "metrics"})
+        _dict = self.model_dump(include={"name", "model", "metrics"})
         if self.functions:
             _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
             _dict["function_call_limit"] = self.function_call_limit
@@ -112,3 +118,73 @@ class LLM(BaseModel):
                 self.functions[func.name] = func
                 self.tools.append({"type": "function", "function": func.to_dict()})
                 logger.debug(f"Function {func.name} added to LLM.")
+
+    def run_function_calls(self, function_calls: List[FunctionCall], role: str = "tool") -> List[Message]:
+        function_call_results: List[Message] = []
+        for function_call in function_calls:
+            if self.function_call_stack is None:
+                self.function_call_stack = []
+
+            # -*- Check function call limit
+            if len(self.function_call_stack) > self.function_call_limit:
+                # Set future tool calls to "none" if the function call limit is exceeded.
+                self.tool_choice = "none"
+                function_call_results.append(
+                    Message(
+                        role=role,
+                        tool_call_id=function_call.call_id,
+                        content=f"Tool call limit ({self.function_call_limit}) exceeded.",
+                    )
+                )
+                continue
+
+            # -*- Run function call
+            self.function_call_stack.append(function_call)
+            _function_call_timer = Timer()
+            _function_call_timer.start()
+            function_call.execute()
+            _function_call_timer.stop()
+            _function_call_result = Message(
+                role=role,
+                tool_call_id=function_call.call_id,
+                content=function_call.result,
+                metrics={"time": _function_call_timer.elapsed},
+            )
+            if "tool_call_times" not in self.metrics:
+                self.metrics["tool_call_times"] = {}
+            if function_call.function.name not in self.metrics["tool_call_times"]:
+                self.metrics["tool_call_times"][function_call.function.name] = []
+            self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
+            function_call_results.append(_function_call_result)
+        return function_call_results
+
+    def get_instructions_to_generate_tool_calls(self) -> List[str]:
+        if self.functions is not None:
+            return [
+                "You can select one or more of the above tools to achieve your task.",
+                "If a tool is found, you must respond in the JSON format matching the following schema:\n"
+                + dedent(
+                    """\
+                    {{
+                        "tool_calls": [{
+                            "name": "<name of the selected tool>",
+                            "arguments": <parameters for the selected tool, matching the tool's JSON schema
+                        }]
+                    }}\
+                    """
+                ),
+                "Do not add any additional Notes or Explanations",
+                "REMEMBER: IF YOU USE A TOOL, YOU MUST RESPOND IN THE JSON FORMAT. START YOUR RESPONSE WITH '{' AND END IT WITH '}'.",
+            ]
+        return []
+
+    def get_prompt_with_tool_calls(self) -> Optional[str]:
+        if self.functions is not None:
+            _tool_choice_prompt = "You have access to the following tools:"
+            for _f_name, _function in self.functions.items():
+                _function_json = _function.get_json_schema()
+                if _function_json:
+                    _tool_choice_prompt += f"\n{_function_json}"
+            _tool_choice_prompt += "\n\n"
+            return _tool_choice_prompt
+        return None

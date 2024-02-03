@@ -9,8 +9,7 @@ from phi.utils.env import get_from_env
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
-from phi.utils.tools import get_function_names_from_tool_calls
-
+from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from openai import OpenAI as OpenAIClient
@@ -51,6 +50,7 @@ class OpenAIChat(LLM):
     base_url: Optional[Union[str, httpx.URL]] = None
     client_kwargs: Optional[Dict[str, Any]] = None
     openai_client: Optional[OpenAIClient] = None
+    phi_proxy: bool = True
 
     @property
     def client(self) -> OpenAIClient:
@@ -126,7 +126,7 @@ class OpenAIChat(LLM):
         return _dict
 
     def invoke_model(self, messages: List[Message]) -> ChatCompletion:
-        if get_from_env("OPENAI_API_KEY") is None:
+        if self.phi_proxy and get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             response_json = None
             try:
@@ -157,7 +157,7 @@ class OpenAIChat(LLM):
             )
 
     def invoke_model_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
-        if get_from_env("OPENAI_API_KEY") is None:
+        if self.phi_proxy and get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
                 from phi.api.llm import openai_chat_stream
@@ -240,164 +240,6 @@ class OpenAIChat(LLM):
             return _function_call_message, _function_call
         return Message(role="function", content="Function name is None."), None
 
-    def execute_function_calls(self, function_calls: List[FunctionCall]) -> List[Message]:
-        function_call_results: List[Message] = []
-        for function_call in function_calls:
-            if tool_call.get("type") == "function":
-                _tool_call_id = tool_call.get("id")
-                _tool_call_function = tool_call.get("function")
-                if _tool_call_function is not None:
-                    _tool_call_function_name = _tool_call_function.get("name")
-                    _tool_call_function_arguments_str = _tool_call_function.get("arguments")
-                    if _tool_call_function_name is not None:
-                        # Get tool call
-                        function_call = get_function_call(
-                            name=_tool_call_function_name,
-                            arguments=_tool_call_function_arguments_str,
-                            functions=self.functions,
-                        )
-                        if function_call is None:
-                            tool_call_results.append(
-                                (
-                                    Message(
-                                        role="tool",
-                                        tool_call_id=_tool_call_id,
-                                        content="Could not find function to call.",
-                                    ),
-                                    None,
-                                )
-                            )
-                            continue
-                        if function_call.error is not None:
-                            tool_call_results.append(
-                                (
-                                    Message(
-                                        role="tool",
-                                        tool_call_id=_tool_call_id,
-                                        content=function_call.error,
-                                    ),
-                                    function_call,
-                                )
-                            )
-                            continue
-
-                        if self.function_call_stack is None:
-                            self.function_call_stack = []
-
-                        # -*- Check function call limit
-                        if len(self.function_call_stack) > self.function_call_limit:
-                            self.tool_choice = "none"
-                            tool_call_results.append(
-                                (
-                                    Message(
-                                        role="tool",
-                                        tool_call_id=_tool_call_id,
-                                        content=f"Tool call limit ({self.function_call_limit}) exceeded.",
-                                    ),
-                                    function_call,
-                                )
-                            )
-                            continue
-
-                        # -*- Run function call
-                        self.function_call_stack.append(function_call)
-                        tool_call_timer = Timer()
-                        tool_call_timer.start()
-                        function_call.execute()
-                        tool_call_timer.stop()
-                        tool_call_message = Message(
-                            role="tool",
-                            tool_call_id=_tool_call_id,
-                            content=function_call.result,
-                            metrics={"time": tool_call_timer.elapsed},
-                        )
-                        if "tool_call_times" not in self.metrics:
-                            self.metrics["tool_call_times"] = {}
-                        if function_call.function.name not in self.metrics["tool_call_times"]:
-                            self.metrics["tool_call_times"][function_call.function.name] = []
-                        self.metrics["tool_call_times"][function_call.function.name].append(tool_call_timer.elapsed)
-                        tool_call_results.append((tool_call_message, function_call))
-        return tool_call_results
-
-    def run_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[Tuple[Message, Optional[FunctionCall]]]:
-        tool_call_results: List[Tuple[Message, Optional[FunctionCall]]] = []
-        for tool_call in tool_calls:
-            if tool_call.get("type") == "function":
-                _tool_call_id = tool_call.get("id")
-                _tool_call_function = tool_call.get("function")
-                if _tool_call_function is not None:
-                    _tool_call_function_name = _tool_call_function.get("name")
-                    _tool_call_function_arguments_str = _tool_call_function.get("arguments")
-                    if _tool_call_function_name is not None:
-                        # Get tool call
-                        function_call = get_function_call(
-                            name=_tool_call_function_name,
-                            arguments=_tool_call_function_arguments_str,
-                            functions=self.functions,
-                        )
-                        if function_call is None:
-                            tool_call_results.append(
-                                (
-                                    Message(
-                                        role="tool",
-                                        tool_call_id=_tool_call_id,
-                                        content="Could not find function to call.",
-                                    ),
-                                    None,
-                                )
-                            )
-                            continue
-                        if function_call.error is not None:
-                            tool_call_results.append(
-                                (
-                                    Message(
-                                        role="tool",
-                                        tool_call_id=_tool_call_id,
-                                        content=function_call.error,
-                                    ),
-                                    function_call,
-                                )
-                            )
-                            continue
-
-                        if self.function_call_stack is None:
-                            self.function_call_stack = []
-
-                        # -*- Check function call limit
-                        if len(self.function_call_stack) > self.function_call_limit:
-                            self.tool_choice = "none"
-                            tool_call_results.append(
-                                (
-                                    Message(
-                                        role="tool",
-                                        tool_call_id=_tool_call_id,
-                                        content=f"Tool call limit ({self.function_call_limit}) exceeded.",
-                                    ),
-                                    function_call,
-                                )
-                            )
-                            continue
-
-                        # -*- Run function call
-                        self.function_call_stack.append(function_call)
-                        tool_call_timer = Timer()
-                        tool_call_timer.start()
-                        function_call.execute()
-                        tool_call_timer.stop()
-                        tool_call_message = Message(
-                            role="tool",
-                            tool_call_id=_tool_call_id,
-                            content=function_call.result,
-                            metrics={"time": tool_call_timer.elapsed},
-                        )
-                        if "tool_call_times" not in self.metrics:
-                            self.metrics["tool_call_times"] = {}
-                        if function_call.function.name not in self.metrics["tool_call_times"]:
-                            self.metrics["tool_call_times"][function_call.function.name] = []
-                        self.metrics["tool_call_times"][function_call.function.name].append(tool_call_timer.elapsed)
-                        tool_call_results.append((tool_call_message, function_call))
-        return tool_call_results
-
     def parsed_response(self, messages: List[Message]) -> str:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
@@ -466,27 +308,46 @@ class OpenAIChat(LLM):
 
         # -*- Parse and run function call
         need_to_run_functions = assistant_message.function_call is not None or assistant_message.tool_calls is not None
-        if need_to_run_functions and self.run_function_calls:
+        if need_to_run_functions and self.run_tools:
             if assistant_message.function_call is not None:
                 function_call_message, function_call = self.run_function(function_call=assistant_message.function_call)
                 messages.append(function_call_message)
                 # -*- Get new response using result of function call
                 final_response = ""
-                if self.show_function_calls and function_call is not None:
+                if self.show_tool_calls and function_call is not None:
                     final_response += f"\n - Running: {function_call.get_call_str()}\n\n"
                 final_response += self.parsed_response(messages=messages)
                 return final_response
             elif assistant_message.tool_calls is not None:
-                tool_call_messages = self.run_tool_calls(tool_calls=assistant_message.tool_calls)
                 final_response = ""
-                for tool_call_message, tool_call_fc in tool_call_messages:
-                    messages.append(tool_call_message)
-                    if self.show_function_calls and tool_call_fc is not None:
-                        final_response += f"\n - Running: {tool_call_fc.get_call_str()}\n\n"
+                function_calls_to_run: List[FunctionCall] = []
+                for tool_call in assistant_message.tool_calls:
+                    _tool_call_id = tool_call.get("id")
+                    _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                    if _function_call is None:
+                        messages.append(
+                            Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
+                        )
+                        continue
+                    if _function_call.error is not None:
+                        messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
+                        continue
+                    function_calls_to_run.append(_function_call)
+
+                if self.show_tool_calls:
+                    if len(function_calls_to_run) == 1:
+                        final_response += f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    elif len(function_calls_to_run) > 1:
+                        final_response += "\nRunning:"
+                        for _f in function_calls_to_run:
+                            final_response += f"\n - {_f.get_call_str()}"
+
+                function_call_results = self.run_function_calls(function_calls_to_run)
+                if len(function_call_results) > 0:
+                    messages.extend(function_call_results)
                 # -*- Get new response using result of tool call
                 final_response += self.parsed_response(messages=messages)
                 return final_response
-
         logger.debug("---------- OpenAI Response End ----------")
         # -*- Return content if no function calls are present
         if assistant_message.content is not None:
@@ -624,13 +485,13 @@ class OpenAIChat(LLM):
         if assistant_message_tool_calls is not None:
             # Build tool calls
             tool_calls: List[Dict[str, Any]] = []
-            for tool_call in assistant_message_tool_calls:
-                _index = tool_call.index
-                _tool_call_id = tool_call.id
-                _tool_call_type = tool_call.type
-                _tool_call_function_name = tool_call.function.name if tool_call.function is not None else None
+            for _tool_call in assistant_message_tool_calls:
+                _index = _tool_call.index
+                _tool_call_id = _tool_call.id
+                _tool_call_type = _tool_call.type
+                _tool_call_function_name = _tool_call.function.name if _tool_call.function is not None else None
                 _tool_call_function_arguments_str = (
-                    tool_call.function.arguments if tool_call.function is not None else None
+                    _tool_call.function.arguments if _tool_call.function is not None else None
                 )
 
                 tool_call_at_index = tool_calls[_index] if len(tool_calls) > _index else None
@@ -644,7 +505,7 @@ class OpenAIChat(LLM):
                         else None
                     )
                     tool_call_at_index_dict = {
-                        "id": tool_call.id,
+                        "id": _tool_call.id,
                         "type": _tool_call_type,
                         "function": tool_call_at_index_function_dict,
                     }
@@ -694,38 +555,41 @@ class OpenAIChat(LLM):
 
         # -*- Parse and run function call
         need_to_run_functions = assistant_message.function_call is not None or assistant_message.tool_calls is not None
-        if need_to_run_functions and self.run_function_calls:
+        if need_to_run_functions and self.run_tools:
             if assistant_message.function_call is not None:
                 function_call_message, function_call = self.run_function(function_call=assistant_message.function_call)
                 messages.append(function_call_message)
-                if self.show_function_calls and function_call is not None:
+                if self.show_tool_calls and function_call is not None:
                     yield f"\n - Running: {function_call.get_call_str()}\n\n"
                 # -*- Yield new response using result of function call
                 yield from self.parsed_response_stream(messages=messages)
             elif assistant_message.tool_calls is not None:
-                _functions_to_run: List[FunctionCall] = []
+                function_calls_to_run: List[FunctionCall] = []
                 for tool_call in assistant_message.tool_calls:
-                    _function = tool_call.get("function")
-                    _function_name = _function.get("name")
-                    _function_arguments_str = _function.get("arguments")
-                    if _function_name:
-                        _function_call = get_function_call(_function_name, _function_arguments_str, self.functions)
-                        if _function_call:
-                            _functions_to_run.append(_function_call)
-                if self.show_function_calls:
-                    if len(_functions_to_run) == 1:
-                        yield f"\n - Running: {_functions_to_run[0].get_call_str()}\n\n"
-                    elif len(_functions_to_run) > 1:
-                        yield f"\nRunning:"
-                        for _f in _functions_to_run:
+                    _tool_call_id = tool_call.get("id")
+                    _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                    if _function_call is None:
+                        messages.append(
+                            Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
+                        )
+                        continue
+                    if _function_call.error is not None:
+                        messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
+                        continue
+                    function_calls_to_run.append(_function_call)
+
+                if self.show_tool_calls:
+                    if len(function_calls_to_run) == 1:
+                        yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    elif len(function_calls_to_run) > 1:
+                        yield "\nRunning:"
+                        for _f in function_calls_to_run:
                             yield f"\n - {_f.get_call_str()}"
 
-                tool_call_messages = self.run_tool_calls(tool_calls=assistant_message.tool_calls)
-                for tool_call_message, tool_call_fc in tool_call_messages:
-                    messages.append(tool_call_message)
-                    if self.show_function_calls and tool_call_fc is not None:
-                        yield f"\n - Running: {tool_call_fc.get_call_str()}\n\n"
-                # -*- Yield new response using result of tool call
+                function_call_results = self.run_function_calls(function_calls_to_run)
+                if len(function_call_results) > 0:
+                    messages.extend(function_call_results)
+                # -*- Yield new response using results of tool calls
                 yield from self.parsed_response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
 

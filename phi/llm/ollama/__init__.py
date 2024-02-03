@@ -1,1 +1,1 @@
-from phi.llm.openai.chat import OpenAIChat
+from phi.llm.ollama.chat import Ollama

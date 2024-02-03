@@ -36,7 +36,7 @@ class WorkspaceSettings(BaseSettings):
     #
     # Repository for images
     image_repo: str = "phidata"
-    # Name:tag of the image
+    # Name:tag for the image
     image_name: Optional[str] = None
     # Build images locally
     build_images: bool = False

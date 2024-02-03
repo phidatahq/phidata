@@ -31,6 +31,7 @@ jobs:
             pip setuptools wheel \
             ruff mypy pytest
           pip install --no-deps -r requirements.txt
+          pip install ".[dev]"
       - name: Ruff format
         run: |
           ruff format .

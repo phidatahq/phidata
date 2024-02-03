@@ -30,12 +30,15 @@ jobs:
             pip setuptools wheel \
             black mypy pytest
           pip install --no-deps -r requirements.txt
-      - name: Format with black
+      - name: Ruff format
         run: |
-          black .
-#      - name: Lint with mypy
-#        run: |
-#          mypy .
-      - name: Test with pytest
+          ruff format .
+      - name: Ruff check
+        run: |
+          ruff check .
+      - name: Mypy
+        run: |
+          mypy .
+      - name: Test
         run: |
           pytest

@@ -23,7 +23,7 @@
 
 Phidata is a toolkit for building autonomous AI applications using function calling.
 
-Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choose their next step based on the response,
+Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choosing their next step based on the response,
 just like how humans solve problems.
 
 ## 🤔 How it works
@@ -44,25 +44,6 @@ just like how humans solve problems.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
-
-## 🎖️ Templates
-
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
-Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
-
-- Create your AI App using a template: `phi ws create`
-- Run your app locally: `phi ws up`
-- Run your app on AWS: `phi ws up prd:aws`
-
-## 🚀 Demos
-
-- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
-- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">arXiv AI</a> that summarizes and answers questions about arXiv papers.
-- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> that interacts with the HN API to summarize stories, users, find out what's trending, summarize topics.
-- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
-- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
-
-[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
 
 ## 👩‍💻 Getting Started
 
@@ -124,6 +105,24 @@ python assistant.py
 
 </details>
 
+## 🚀 Demos
+
+- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
+- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">arXiv AI</a> that summarizes and answers questions about arXiv papers.
+- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> that interacts with the HN API to summarize stories, users, find out what's trending, summarize topics.
+- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
+- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
+
+[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
+
+## 🎖️ Templates
+
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
+Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
+
+- Create your AI App using a template: `phi ws create`
+- Run your app locally: `phi ws up`
+- Run your app on AWS: `phi ws up prd:aws`
 
 ## 📖 Examples
 

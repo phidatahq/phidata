@@ -29,8 +29,8 @@ just like how humans solve problems.
 ## 🤔 How it works
 
 - **Step 1:** Create an `Assistant`
-- **Step 2:** Add Memory, Knowledge, Storage and Tools
-- **Step 3:** Serve it using Streamlit, FastApi or Django to build your AI application.
+- **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
+- **Step 3:** Serve it using Streamlit, FastApi or Django to build your AI application
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/10c228e4-ddf2-47fd-983a-5e27e0247a51)
 

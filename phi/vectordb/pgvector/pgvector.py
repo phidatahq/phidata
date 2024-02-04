@@ -322,5 +322,13 @@ class PgVector(VectorDb):
                             f"WITH (m = {self.index.m}, ef_construction = {self.index.ef_construction});"
                         )
                     )
-
         logger.debug("==== Optimized Vector DB ====")
+
+    def clear(self) -> bool:
+        from sqlalchemy import delete
+
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = delete(self.table)
+                sess.execute(stmt)
+                return True

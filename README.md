@@ -23,23 +23,18 @@
 
 Phidata is a toolkit for building autonomous AI applications using function calling.
 
-Function calling is a powerful approach that lets LLMs take actions and dynamically choose their path based on the response,
-just like how humans solve problems. For example:
-- To build a RAG chatbot, instead of stuffing the prompt every time, give the assistant functions to search its knowledge base for relevant context, which results in better responses.
-- To build text-to-SQL, give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
-- To build a customer support assistant, give the assistant functions to search the order history, product description or its knowledge base depending on the question.
-
-Phidata provides `Assistants` that come with memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
+Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choosing its next step based on the response,
+just like how humans solve problems. Phidata provides `Assistants` with built-in memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
-### Use phidata to build
+## ⭐️ Use phidata to build
 
 - **Knowledge Assistants:** Answer questions from documents (PDFs, text)
+- **Research Assistants:** Perform research and summarize findings.
 - **Data Assistants:** Analyze data by running SQL queries.
 - **Python Assistants:** Perform tasks by running python code.
 - **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
-- **Research Assistants:** Perform research and summarize findings.
 - **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.

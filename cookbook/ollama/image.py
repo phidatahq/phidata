@@ -3,8 +3,7 @@ from phi.assistant import Assistant
 from phi.llm.ollama import Ollama
 
 assistant = Assistant(
-    llm=Ollama(model="llava"),
-    debug_mode=True,
+    llm=Ollama(model="llava")
 )
 
 image_path = Path(__file__).parent / "test_image.jpeg"

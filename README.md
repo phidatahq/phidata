@@ -94,6 +94,8 @@ python assistant.py
 
 </details>
 
+### [See more examples below](#-examples)
+
 ## ⭐️ Use phidata to build
 
 - **Data Assistants:** Analyze data by running SQL queries.

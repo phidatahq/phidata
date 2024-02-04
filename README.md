@@ -21,7 +21,7 @@
 
 ## ✨ What is phidata?
 
-Phidata is a toolkit for building autonomous AI applications using function calling.
+Phidata is a toolkit for building Autonomous AI applications using function calling.
 
 Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choosing their next step based on the response,
 just like how humans solve problems.
@@ -33,17 +33,6 @@ just like how humans solve problems.
 - **Step 3:** Serve it using Streamlit, FastApi or Django to build your AI application
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/a8406c12-efb3-435c-abfe-0f92b8e808f3)
-
-## ⭐️ Use phidata to build
-
-- **Knowledge Assistants:** Answer questions from documents (PDFs, text)
-- **Research Assistants:** Perform research and summarize findings.
-- **Data Assistants:** Analyze data by running SQL queries.
-- **Python Assistants:** Perform tasks by running python code.
-- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
-- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
-- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
-- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
 ## 👩‍💻 Getting Started
 
@@ -105,6 +94,17 @@ python assistant.py
 
 </details>
 
+## ⭐️ Use phidata to build
+
+- **Data Assistants:** Analyze data by running SQL queries.
+- **Python Assistants:** Perform tasks by running python code.
+- **Knowledge Assistants:** Answer questions from documents (PDFs, text)
+- **Research Assistants:** Perform research and summarize findings.
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
+- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
+- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
+- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
+
 ## 🚀 Demos
 
 - <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
@@ -117,7 +117,7 @@ python assistant.py
 
 ## 🎖️ Templates
 
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
 Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
 
 - Create your AI App using a template: `phi ws create`

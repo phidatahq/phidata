@@ -59,41 +59,6 @@ assistant.print_response("Share a quick healthy breakfast recipe.")
 python assistant.py
 ```
 
-<details>
-
-<summary><h4>Show output</h4></summary>
-
-```shell
-╭──────────┬───────────────────────────────────────────────────────────────────╮
-│ Message  │ Share a quick healthy breakfast recipe.                           │
-├──────────┼───────────────────────────────────────────────────────────────────┤
-│ Response │ Sure! Here's a quick and healthy breakfast recipe for you:        │
-│ (3.3s)   │                                                                   │
-│          │ Greek Yogurt Parfait:                                             │
-│          │                                                                   │
-│          │ Ingredients:                                                      │
-│          │                                                                   │
-│          │  • 1 cup Greek yogurt                                             │
-│          │  • 1/2 cup fresh mixed berries (strawberries, blueberries,        │
-│          │    raspberries)                                                   │
-│          │  • 1/4 cup granola                                                │
-│          │  • 1 tablespoon honey                                             │
-│          │  • Optional: chia seeds or sliced almonds for extra nutrients     │
-│          │                                                                   │
-│          │ Instructions:                                                     │
-│          │                                                                   │
-│          │  1 In a glass or bowl, layer Greek yogurt, mixed berries, and     │
-│          │    granola.                                                       │
-│          │  2 Drizzle honey on top for some natural sweetness.               │
-│          │  3 Optional: Sprinkle with chia seeds or sliced almonds for added │
-│          │    texture and nutrients.                                         │
-│          │                                                                   │
-│          │ Enjoy your nutritious and delicious Greek yogurt parfait!         │
-╰──────────┴───────────────────────────────────────────────────────────────────╯
-```
-
-</details>
-
 ### [See more examples below](#-examples)
 
 ## ⭐️ Use phidata to build

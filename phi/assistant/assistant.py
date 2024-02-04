@@ -662,7 +662,7 @@ class Assistant(BaseModel):
 
         system_message = Message(
             role="system",
-            content="Please provide a suitable name for the conversation assistant in maximum 5 words. "
+            content="Please provide a suitable name for this conversation in maximum 5 words. "
             "Remember, do not exceed 5 words.",
         )
         user_message = Message(role="user", content=_conv)

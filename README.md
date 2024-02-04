@@ -23,8 +23,17 @@
 
 Phidata is a toolkit for building autonomous AI applications using function calling.
 
-Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choosing its next step based on the response,
-just like how humans solve problems. Phidata provides `Assistants` with built-in memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
+Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choose their next step based on the response,
+just like how humans solve problems.
+
+## 🤔 How it works
+
+- **Step 1:** Create an `Assistant`
+
+- **Step 2:** Add Memory, Knowledge, Storage and Tools
+
+- **Step 3:** Serve it using Streamlit, FastApi or Django to build an AI application.
+
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
@@ -39,7 +48,7 @@ just like how humans solve problems. Phidata provides `Assistants` with built-in
 - **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
 - **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-## ✨ Templates
+## 🎖️ Templates
 
 After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
 Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
@@ -119,7 +128,7 @@ python assistant.py
 </details>
 
 
-## 🚀 Examples
+## 📖 Examples
 
 <details>
 

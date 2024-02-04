@@ -6,7 +6,10 @@ from phi.utils.log import logger
 
 
 def get_function_call(
-    name: str, arguments: Optional[str] = None, functions: Optional[Dict[str, Function]] = None
+    name: str,
+    arguments: Optional[str] = None,
+    call_id: Optional[str] = None,
+    functions: Optional[Dict[str, Function]] = None,
 ) -> Optional[FunctionCall]:
     logger.debug(f"Getting function {name}")
     if functions is None:
@@ -20,6 +23,8 @@ def get_function_call(
         return None
 
     function_call = FunctionCall(function=function_to_call)
+    if call_id is not None:
+        function_call.call_id = call_id
     if arguments is not None and arguments != "":
         try:
             if function_to_call.sanitize_arguments:

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import field_validator, Extra, FieldValidationInfo
+from pydantic import field_validator, Extra, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from phi.api.schemas.workspace import WorkspaceSchema
@@ -36,7 +36,7 @@ class WorkspaceSettings(BaseSettings):
     #
     # Repository for images
     image_repo: str = "phidata"
-    # Name:tag of the image
+    # Name:tag for the image
     image_name: Optional[str] = None
     # Build images locally
     build_images: bool = False
@@ -162,7 +162,7 @@ class WorkspaceSettings(BaseSettings):
     model_config = SettingsConfigDict(extra=Extra.allow)
 
     @field_validator("dev_key", mode="before")
-    def set_dev_key(cls, dev_key, info: FieldValidationInfo):
+    def set_dev_key(cls, dev_key, info: ValidationInfo):
         if dev_key is not None:
             return dev_key
 
@@ -177,7 +177,7 @@ class WorkspaceSettings(BaseSettings):
         return f"{ws_name}-{dev_env}"
 
     @field_validator("dev_tags", mode="before")
-    def set_dev_tags(cls, dev_tags, info: FieldValidationInfo):
+    def set_dev_tags(cls, dev_tags, info: ValidationInfo):
         if dev_tags is not None:
             return dev_tags
 
@@ -195,7 +195,7 @@ class WorkspaceSettings(BaseSettings):
         }
 
     @field_validator("stg_key", mode="before")
-    def set_stg_key(cls, stg_key, info: FieldValidationInfo):
+    def set_stg_key(cls, stg_key, info: ValidationInfo):
         if stg_key is not None:
             return stg_key
 
@@ -210,7 +210,7 @@ class WorkspaceSettings(BaseSettings):
         return f"{ws_name}-{stg_env}"
 
     @field_validator("stg_tags", mode="before")
-    def set_stg_tags(cls, stg_tags, info: FieldValidationInfo):
+    def set_stg_tags(cls, stg_tags, info: ValidationInfo):
         if stg_tags is not None:
             return stg_tags
 
@@ -228,7 +228,7 @@ class WorkspaceSettings(BaseSettings):
         }
 
     @field_validator("prd_key", mode="before")
-    def set_prd_key(cls, prd_key, info: FieldValidationInfo):
+    def set_prd_key(cls, prd_key, info: ValidationInfo):
         if prd_key is not None:
             return prd_key
 
@@ -243,7 +243,7 @@ class WorkspaceSettings(BaseSettings):
         return f"{ws_name}-{prd_env}"
 
     @field_validator("prd_tags", mode="before")
-    def set_prd_tags(cls, prd_tags, info: FieldValidationInfo):
+    def set_prd_tags(cls, prd_tags, info: ValidationInfo):
         if prd_tags is not None:
             return prd_tags
 
@@ -261,7 +261,7 @@ class WorkspaceSettings(BaseSettings):
         }
 
     @field_validator("subnet_ids", mode="before")
-    def set_subnet_ids(cls, subnet_ids, info: FieldValidationInfo):
+    def set_subnet_ids(cls, subnet_ids, info: ValidationInfo):
         if subnet_ids is not None:
             return subnet_ids
 

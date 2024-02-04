@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 from phi.assistant.run import AssistantRun
 from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
-from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
 from phi.llm.references import References  # noqa: F401
 from phi.memory.assistant import AssistantMemory
@@ -24,7 +23,7 @@ from phi.utils.timer import Timer
 class Assistant(BaseModel):
     # -*- Assistant settings
     # LLM to use for this Assistant
-    llm: LLM = OpenAIChat()
+    llm: Optional[LLM] = None
     # Assistant introduction. This is added to the chat history when a run is started.
     introduction: Optional[str] = None
     # Assistant name
@@ -117,7 +116,7 @@ class Assistant(BaseModel):
     # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
     add_knowledge_base_instructions: bool = True
     # If True, add instructions for letting the user know that the assistant does not know the answer
-    add_dont_know_instructions: bool = True
+    prevent_hallucinations: bool = False
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
@@ -130,19 +129,19 @@ class Assistant(BaseModel):
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
-    user_prompt: Optional[Union[List[Dict], str]] = None
+    user_prompt: Optional[Union[List, Dict, str]] = None
     # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the "Assistant object" and the "input message" as arguments
-    #   and should return the user_prompt as a Union[List[Dict], str].
+    #   and should return the user_prompt as a Union[List, Dict, str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     assistant: Assistant,
-    #     message: Union[List[Dict], str],
+    #     message: Union[List, Dict, str],
     #     references: Optional[str] = None,
     #     chat_history: Optional[str] = None,
-    # ) -> Union[List[Dict], str]:
+    # ) -> Union[List, Dict, str]:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
     # If True, build a default user prompt using references and chat history
@@ -202,7 +201,7 @@ class Assistant(BaseModel):
         """Returns an LLMTask for this assistant"""
 
         _llm_task = LLMTask(
-            llm=self.llm.model_copy(),
+            llm=self.llm.model_copy() if self.llm is not None else None,
             assistant_name=self.name,
             assistant_memory=self.memory,
             add_references_to_prompt=self.add_references_to_prompt,
@@ -224,7 +223,7 @@ class Assistant(BaseModel):
             extra_instructions=self.extra_instructions,
             add_to_system_prompt=self.add_to_system_prompt,
             add_knowledge_base_instructions=self.add_knowledge_base_instructions,
-            add_dont_know_instructions=self.add_dont_know_instructions,
+            prevent_hallucinations=self.prevent_hallucinations,
             prevent_prompt_injection=self.prevent_prompt_injection,
             limit_tool_access=self.limit_tool_access,
             add_datetime_to_instructions=self.add_datetime_to_instructions,
@@ -246,7 +245,7 @@ class Assistant(BaseModel):
             run_id=self.run_id,
             run_name=self.run_name,
             user_id=self.user_id,
-            llm=self.llm.to_dict(),
+            llm=self.llm.to_dict() if self.llm is not None else None,
             memory=self.memory.to_dict(),
             assistant_data=self.assistant_data,
             run_data=self.run_data,
@@ -271,7 +270,7 @@ class Assistant(BaseModel):
         if row.llm is not None:
             # Update llm metrics from the database
             llm_metrics_from_db = row.llm.get("metrics")
-            if llm_metrics_from_db is not None and isinstance(llm_metrics_from_db, dict):
+            if llm_metrics_from_db is not None and isinstance(llm_metrics_from_db, dict) and self.llm:
                 try:
                     self.llm.metrics = llm_metrics_from_db
                 except Exception as e:
@@ -390,7 +389,9 @@ class Assistant(BaseModel):
                 self._api_log_assistant_run()
         return self.run_id
 
-    def _run(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
+    def _run(
+        self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any
+    ) -> Iterator[str]:
         logger.debug(f"*********** Run Start: {self.run_id} ***********")
         # Load run from storage
         self.read_from_storage()
@@ -415,7 +416,7 @@ class Assistant(BaseModel):
             current_task = task
 
             # -*- Prepare input message for the current_task
-            current_task_message: Optional[Union[List[Dict], str]] = None
+            current_task_message: Optional[Union[List, Dict, str]] = None
             if previous_task and previous_task.output is not None:
                 # Convert current_task_message to json if it is a BaseModel
                 if issubclass(previous_task.output.__class__, BaseModel):
@@ -439,12 +440,12 @@ class Assistant(BaseModel):
             # -*- Update LLMTask
             if isinstance(current_task, LLMTask):
                 # Update LLM
-                if current_task.llm is None:
+                if current_task.llm is None and self.llm is not None:
                     current_task.llm = self.llm.model_copy()
 
             # -*- Run Task
             if stream and current_task.streamable:
-                for chunk in current_task.run(message=current_task_message, stream=True):
+                for chunk in current_task.run(message=current_task_message, stream=True, **kwargs):
                     if current_task.show_output:
                         run_output += chunk if isinstance(chunk, str) else ""
                         yield chunk if isinstance(chunk, str) else ""
@@ -452,7 +453,7 @@ class Assistant(BaseModel):
                     yield "\n\n"
                     run_output += "\n\n"
             else:
-                current_task_response = current_task.run(message=current_task_message, stream=False)  # type: ignore
+                current_task_response = current_task.run(message=current_task_message, stream=False, **kwargs)  # type: ignore
                 current_task_response_str = ""
                 try:
                     if current_task_response:
@@ -494,7 +495,7 @@ class Assistant(BaseModel):
             "llm_response": run_output,
             "llm_response_type": llm_response_type,
             "info": event_info,
-            "metrics": self.llm.metrics,
+            "metrics": self.llm.metrics if self.llm else None,
         }
         self._api_log_assistant_event(event_type="run", event_data=event_data)
 
@@ -507,7 +508,7 @@ class Assistant(BaseModel):
         logger.debug(f"*********** Run End: {self.run_id} ***********")
 
     def run(
-        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True
+        self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any
     ) -> Union[Iterator[str], str, BaseModel]:
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
@@ -542,19 +543,24 @@ class Assistant(BaseModel):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True)
+                resp = self._run(message=message, stream=True, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, stream=False)
+                resp = self._run(message=message, stream=False, **kwargs)
                 return next(resp)
 
-    def chat(self, message: Union[List[Dict], str], stream: bool = True) -> Union[Iterator[str], str, BaseModel]:
-        return self.run(message=message, stream=stream)
+    def chat(
+        self, message: Union[List, Dict, str], stream: bool = True, **kwargs: Any
+    ) -> Union[Iterator[str], str, BaseModel]:
+        return self.run(message=message, stream=stream, **kwargs)
 
     def _chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
     ) -> Iterator[Dict]:
         logger.debug("*********** Assistant Chat Raw Start ***********")
+        if self.llm is None:
+            raise Exception("LLM not set")
+
         # Load run from storage
         self.read_from_storage()
 
@@ -633,6 +639,8 @@ class Assistant(BaseModel):
 
     def generate_name(self) -> str:
         """Generate a name for the run using the first 6 messages of the chat history"""
+        if self.llm is None:
+            raise Exception("LLM not set")
 
         _conv = "Conversation\n"
         _messages_for_generating_name = []
@@ -723,7 +731,11 @@ class Assistant(BaseModel):
     ###########################################################################
 
     def print_response(
-        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True, markdown: bool = True
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        stream: bool = True,
+        markdown: bool = True,
+        **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
         from rich.live import Live
@@ -744,7 +756,7 @@ class Assistant(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.run(message, stream=True):
+                for resp in self.run(message, stream=True, **kwargs):
                     response += resp if isinstance(resp, str) else ""
                     _response = response if not markdown else Markdown(response)
 
@@ -763,7 +775,7 @@ class Assistant(BaseModel):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.run(message, stream=False)  # type: ignore
+                response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = response if not markdown else Markdown(response)

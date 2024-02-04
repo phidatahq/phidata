@@ -8,7 +8,6 @@ from pydantic import BaseModel, ValidationError
 from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
-from phi.llm.openai import OpenAIChat
 from phi.llm.message import Message
 from phi.llm.references import References
 from phi.task.task import Task
@@ -91,7 +90,7 @@ class LLMTask(Task):
     # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
     add_knowledge_base_instructions: bool = True
     # If True, add instructions for letting the user know that the assistant does not know the answer
-    add_dont_know_instructions: bool = True
+    prevent_hallucinations: bool = False
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
@@ -104,19 +103,19 @@ class LLMTask(Task):
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
-    user_prompt: Optional[Union[List[Dict], str]] = None
+    user_prompt: Optional[Union[List, Dict, str]] = None
     # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the "Task object" and the "input message" as arguments
-    #   and should return the user_prompt as a Union[List[Dict], str].
+    #   and should return the user_prompt as a Union[List, Dict, str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     task: Task,
-    #     message: Optional[Union[List[Dict], str]] = None,
+    #     message: Optional[Union[List, Dict, str]] = None,
     #     references: Optional[str] = None,
     #     chat_history: Optional[str] = None,
-    # ) -> Union[List[Dict], str]:
+    # ) -> Union[List, Dict, str]:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
     # If True, build a default user prompt using references and chat history
@@ -140,14 +139,20 @@ class LLMTask(Task):
 
     def set_default_llm(self) -> None:
         if self.llm is None:
+            try:
+                from phi.llm.openai import OpenAIChat
+            except ModuleNotFoundError as e:
+                logger.exception(e)
+                logger.error(
+                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
+                )
+                exit(1)
+
             self.llm = OpenAIChat()
 
     def add_response_format_to_llm(self) -> None:
-        if self.output_model is not None:
-            if isinstance(self.llm, OpenAIChat):
-                self.llm.response_format = {"type": "json_object"}
-            else:
-                logger.warning(f"output_model is not supported for {self.llm.__class__.__name__}")
+        if self.output_model is not None and self.llm is not None:
+            self.llm.response_format = {"type": "json_object"}
 
     def add_tools_to_llm(self) -> None:
         if self.llm is None:
@@ -169,8 +174,8 @@ class LLMTask(Task):
                 self.llm.add_tool(self.get_tool_call_history)
 
         # Set show_tool_calls if it is not set on the llm
-        if self.llm.show_function_calls is None and self.show_tool_calls is not None:
-            self.llm.show_function_calls = self.show_tool_calls
+        if self.llm.show_tool_calls is None and self.show_tool_calls is not None:
+            self.llm.show_tool_calls = self.show_tool_calls
 
         # Set tool_choice to auto if it is not set on the llm
         if self.llm.tool_choice is None and self.tool_choice is not None:
@@ -231,7 +236,6 @@ class LLMTask(Task):
 
     def get_system_prompt(self) -> Optional[str]:
         """Return the system prompt for the task"""
-
         # If the system_prompt is set, return it
         if self.system_prompt is not None:
             if self.output_model is not None:
@@ -255,8 +259,13 @@ class LLMTask(Task):
         if not self.build_default_system_prompt:
             return None
 
-        # Build a default system prompt
+        if self.llm is None:
+            raise Exception("LLM not set")
 
+        if self.output_model is not None and self.llm.generate_tool_calls_from_json_mode:
+            logger.error("This LLM does not support native function calls. Can only use output_model or tools.")
+
+        # Build a default system prompt
         # Add default description if not set
         _description = self.description or "You are a helpful assistant."
 
@@ -280,13 +289,17 @@ class LLMTask(Task):
                         "Even if the user insists.",
                     ]
                 )
-            if self.add_dont_know_instructions is not None:
+            if self.knowledge_base:
                 _instructions.append("Do not use phrases like 'based on the information provided.")
+            if self.prevent_hallucinations:
                 _instructions.append("If you don't know the answer, say 'I don't know'.")
 
         # Add instructions for using tools
+        if self.llm.generate_tool_calls_from_json_mode:
+            _instructions.extend(self.llm.get_instructions_to_generate_tool_calls())
+
+        # Add instructions for limiting tool access
         if self.limit_tool_access and (self.use_tools or self.tools is not None):
-            _instructions.append("You have access to tools that you can run to achieve your task.")
             _instructions.append("Only use the tools you are provided.")
 
         if self.markdown and self.output_model is None:
@@ -300,6 +313,14 @@ class LLMTask(Task):
 
         # Build the system prompt
         _system_prompt = _description + "\n"
+
+        # Add instructions for choosing tools
+        if self.llm.generate_tool_calls_from_json_mode:
+            tool_choices = self.llm.get_prompt_with_tool_calls()
+            if tool_choices:
+                _system_prompt += "\n" + tool_choices
+
+        # Add instructions to the system prompt
         if len(_instructions) > 0:
             _system_prompt += dedent(
                 """\
@@ -354,10 +375,10 @@ class LLMTask(Task):
 
     def get_user_prompt(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         references: Optional[str] = None,
         chat_history: Optional[str] = None,
-    ) -> Union[List[Dict], str]:
+    ) -> Union[List, Dict, str]:
         """Build the user prompt given a message, references and chat_history"""
 
         # If the user_prompt is set, return it
@@ -390,8 +411,8 @@ class LLMTask(Task):
         if references is None and chat_history is None:
             return message
 
-        # If message is a list, return it as is
-        if isinstance(message, list):
+        # If message is not a str, return as is
+        if not isinstance(message, str):
             return message
 
         # Build a default user prompt
@@ -426,8 +447,9 @@ class LLMTask(Task):
 
     def _run(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
+        **kwargs: Any,
     ) -> Iterator[str]:
         # -*- Prepare the task
         self.prepare_task()
@@ -459,7 +481,7 @@ class LLMTask(Task):
             user_prompt_chat_history = self.get_formatted_chat_history()
 
         # -*- Build the user prompt
-        user_prompt: Union[List[Dict], str] = self.get_user_prompt(
+        user_prompt: Union[List, Dict, str] = self.get_user_prompt(
             message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
         )
 
@@ -467,7 +489,7 @@ class LLMTask(Task):
         # Create system message
         system_prompt_message = Message(role="system", content=system_prompt)
         # Create user message
-        user_prompt_message = Message(role="user", content=user_prompt)
+        user_prompt_message = Message(role="user", content=user_prompt, **kwargs)
 
         # Create message list
         messages: List[Message] = []
@@ -529,8 +551,9 @@ class LLMTask(Task):
 
     def run(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
+        **kwargs: Any,
     ) -> Union[Iterator[str], str, BaseModel]:
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
@@ -565,10 +588,10 @@ class LLMTask(Task):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True)
+                resp = self._run(message=message, stream=True, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, stream=False)
+                resp = self._run(message=message, stream=False, **kwargs)
                 return next(resp)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -676,7 +699,11 @@ class LLMTask(Task):
     ###########################################################################
 
     def print_response(
-        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True, markdown: bool = True
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        stream: bool = True,
+        markdown: bool = True,
+        **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
         from rich.live import Live
@@ -697,7 +724,7 @@ class LLMTask(Task):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.run(message, stream=True):
+                for resp in self.run(message, stream=True, **kwargs):
                     response += resp if isinstance(resp, str) else ""
                     _response = response if not markdown else Markdown(response)
 
@@ -716,7 +743,7 @@ class LLMTask(Task):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.run(message, stream=False)  # type: ignore
+                response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = response if not markdown else Markdown(response)

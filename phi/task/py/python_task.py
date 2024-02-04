@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Iterator, Callable, Union
+from typing import List, Optional, Dict, Iterator, Callable, Union, Any
 
 from pydantic import BaseModel
 
@@ -16,8 +16,9 @@ class PythonTask(Task):
 
     def run(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> Union[Iterator[str], str, BaseModel]:
         try:
             logger.debug(f"Running {self.task_name}...")

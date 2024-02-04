@@ -1,5 +1,7 @@
 ## Ollama
 
+> Note: Install ollama to run this: https://github.com/ollama/ollama?tab=readme-ov-file#macos
+
 1. Run ollama model or serve ollama
 
 ```shell

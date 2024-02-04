@@ -38,7 +38,7 @@ python cookbook/ollama/pydantic_output.py
 python cookbook/ollama/image.py
 ```
 
-6Test Tool Calls (experimental)
+6. Test Tool Calls (experimental)
 
 ```shell
 python cookbook/ollama/tool_call.py

@@ -43,6 +43,29 @@ class Function(BaseModel):
             entrypoint=validate_call(c),
         )
 
+    def get_type_name(self, t):
+        name = str(t)
+        if "list" in name or "dict" in name:
+            return name
+        else:
+            return t.__name__
+
+    def get_json_schema(self) -> Optional[str]:
+        """Returns the JSON schema for the function"""
+        import json
+
+        if self.entrypoint is None:
+            return None
+
+        type_hints = get_type_hints(self.entrypoint)
+        function_info = {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+            "returns": type_hints.get("return", "void").__name__,
+        }
+        return json.dumps(function_info, indent=2)
+
 
 class FunctionCall(BaseModel):
     """Model for Function Calls"""
@@ -53,6 +76,8 @@ class FunctionCall(BaseModel):
     arguments: Optional[Dict[str, Any]] = None
     # The result of the function call.
     result: Optional[Any] = None
+    # The ID of the function call.
+    call_id: Optional[str] = None
 
     # Error while parsing arguments or running the function.
     error: Optional[str] = None

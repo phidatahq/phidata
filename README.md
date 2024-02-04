@@ -21,13 +21,15 @@
 
 ## ✨ What is phidata?
 
-Phidata is a framework for building AI Assistants using function calling - a powerful paradigm that gives LLMs the ability to take actions and dynamically choose their path based on the response,
+Phidata is a toolkit for building autonomous AI applications using function calling.
+
+Function calling is a powerful approach that lets LLMs take actions and dynamically choose their path based on the response,
 just like how humans solve problems. For example:
 - To build a RAG chatbot, instead of stuffing the prompt every time, give the assistant functions to search its knowledge base for relevant context, which results in better responses.
 - To build text-to-SQL, give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
 - To build a customer support assistant, give the assistant functions to search the order history, product description or its knowledge base depending on the question.
 
-Assistants come with memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
+Phidata provides `Assistants` that come with memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
 
 ![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
 
@@ -53,6 +55,8 @@ Instead of wiring these tools manually, phidata provides **pre-built** templates
 
 ## 🚀 Demos
 
+- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
+- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">arXiv AI</a> that summarizes and answers questions about arXiv papers.
 - <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> that interacts with the HN API to summarize stories, users, find out what's trending, summarize topics.
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
@@ -657,7 +661,7 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ## Contributions
 
-We're open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+We're an open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
 
 ## Request a feature
 

@@ -20,7 +20,7 @@ class Task(BaseModel):
 
     # -*- Run state
     run_id: Optional[str] = None
-    run_message: Optional[Union[List[Dict], str]] = None
+    run_message: Optional[Union[List, Dict, str]] = None
     run_task_data: Optional[List[Dict[str, Any]]] = None
 
     # -*- Task Output Settings
@@ -58,8 +58,9 @@ class Task(BaseModel):
 
     def run(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> Union[Iterator[str], str, BaseModel]:
         raise NotImplementedError
 

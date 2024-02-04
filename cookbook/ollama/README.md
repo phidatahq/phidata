@@ -30,7 +30,13 @@ python cookbook/ollama/assistant.py
 python cookbook/ollama/pydantic_output.py
 ```
 
-5. Test Tool Calls (experimental)
+5. Test Image models
+
+```shell
+python cookbook/ollama/image.py
+```
+
+6Test Tool Calls (experimental)
 
 ```shell
 python cookbook/ollama/tool_call.py

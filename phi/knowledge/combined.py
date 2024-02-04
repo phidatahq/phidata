@@ -1,12 +1,12 @@
 from typing import List, Iterator
 
 from phi.document import Document
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 from phi.utils.log import logger
 
 
-class CombinedKnowledgeBase(KnowledgeBase):
-    sources: List[KnowledgeBase] = []
+class CombinedKnowledgeBase(AssistantKnowledge):
+    sources: List[AssistantKnowledge] = []
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:

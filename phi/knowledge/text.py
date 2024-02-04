@@ -3,12 +3,12 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.text import TextReader
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 
 
-class TextKnowledgeBase(KnowledgeBase):
+class TextKnowledgeBase(AssistantKnowledge):
     path: Union[str, Path]
-    formats: List[str] = [".doc", ".docx"]
+    formats: List[str] = [".txt"]
     reader: TextReader = TextReader()
 
     @property
@@ -26,5 +26,5 @@ class TextKnowledgeBase(KnowledgeBase):
             for _file in _file_path.glob("**/*"):
                 if _file.suffix in self.formats:
                     yield self.reader.read(path=_file)
-        elif _file_path.exists() and _file_path.is_file() and _file_path.suffix == ".pdf":
+        elif _file_path.exists() and _file_path.is_file() and _file_path.suffix in self.formats:
             yield self.reader.read(path=_file_path)

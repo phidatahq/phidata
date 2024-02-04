@@ -2,186 +2,234 @@
   phidata
 </h1>
 <h3 align="center">
-  Build AI products using language models
+  Function calling is all you need
 </h3>
 <p align="center">
-<a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
-</a>
-<a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/badge/python->=3.9-blue" alt="pythonversion">
-</a>
-<a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-    <img src="https://pepy.tech/badge/phidata" alt="downloads">
-</a>
-<a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
-    <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
-</a>
+  <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
+  </a>
+  <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/badge/python->=3.9-blue" alt="pythonversion">
+  </a>
+  <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
+      <img src="https://pepy.tech/badge/phidata" alt="downloads">
+  </a>
+  <a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
+      <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
+  </a>
 </p>
-
 
 ## ✨ What is phidata?
 
-A toolkit for building AI products using a human-like `Conversation` interface to language models.
-Like we have conversations with human specialists, phidata makes it possible to have conversations with AI specialists.
+Phidata is a toolkit for building autonomous AI applications using function calling.
 
-**Conversations** come with built-in **memory**, **knowledge**, **storage**, **tools** and can be used to build **RAG**, **Autonomous** or **Multimodal** applications. For example:
+Function calling is a powerful approach that lets LLMs take actions and dynamically choose their path based on the response,
+just like how humans solve problems. For example:
+- To build a RAG chatbot, instead of stuffing the prompt every time, give the assistant functions to search its knowledge base for relevant context, which results in better responses.
+- To build text-to-SQL, give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
+- To build a customer support assistant, give the assistant functions to search the order history, product description or its knowledge base depending on the question.
 
-- **PDF Assistants:** Answer questions using PDFs.
-- **Python Engineers:** Perform tasks by writing and running python scripts.
-- **Data Analysts:** Analyze data by writing and running SQL queries.
-- **Stock Analysts:** Analyze stocks and research companies.
-- **Marketing Analysts:** Provide marketing insights, copywriting and content ideas.
+Phidata provides `Assistants` that come with memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
 
-We then serve our conversations using **Streamlit**, **FastApi** or **Django** to build our AI product.
+![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
+
+### Use phidata to build
+
+- **Knowledge Assistants:** Answer questions from documents (PDFs, text)
+- **Data Assistants:** Analyze data by running SQL queries.
+- **Python Assistants:** Perform tasks by running python code.
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
+- **Research Assistants:** Perform research and summarize findings.
+- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
+- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
+- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
+
+## ✨ Templates
+
+After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
+Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
+
+- Create your AI App using a template: `phi ws create`
+- Run your app locally: `phi ws up`
+- Run your app on AWS: `phi ws up prd:aws`
+
+## 🚀 Demos
+
+- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
+- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">arXiv AI</a> that summarizes and answers questions about arXiv papers.
+- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> that interacts with the HN API to summarize stories, users, find out what's trending, summarize topics.
+- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
+- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
+
+[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
 
 ## 👩‍💻 Getting Started
 
-<details>
-
-<summary><h3>Installation</h3></summary>
-
-- Open the `Terminal` and create an `ai` directory with a python virtual environment.
-
-```shell
-mkdir ai && cd ai
-
-python3 -m venv aienv
-source aienv/bin/activate
-```
-
-- Install phidata
+### Installation
 
 ```shell
 pip install -U phidata
 ```
 
-</details>
+### Create a Simple Assistant
+
+- Create a file `assistant.py` and install openai using `pip install openai`
+
+```python
+from phi.assistant import Assistant
+
+assistant = Assistant(description="You help people with their health and fitness goals.")
+assistant.print_response("Share a quick healthy breakfast recipe.")
+```
+
+- Run the `assistant.py` file
+
+```shell
+python assistant.py
+```
 
 <details>
 
-<summary><h3>Create a Conversation</h3></summary>
-
-**Conversations** are a human-like interface to language models and come with built-in **memory**, **knowledge**, **storage** and access to **tools**.
-Giving LLMs the ability to have long-term, knowledge-based Conversations is the first step in our journey to AGI.
-
-- Create a file `conversation.py` and install openai using `pip install openai`
-
-```python
-from phi.conversation import Conversation
-
-conversation = Conversation()
-conversation.print_response('Share a quick healthy breakfast recipe.')
-```
-
-- Run the `conversation.py` file
+<summary><h4>Show output</h4></summary>
 
 ```shell
-python conversation.py
-```
-
-- See a simple conversation in action
-
-```shell
-╭──────────┬────────────────────────────────────────────────────────╮
-│ Message  │ Share a quick healthy breakfast recipe.                │
-├──────────┼────────────────────────────────────────────────────────┤
-│ Response │ Absolutely! Here's a quick and healthy breakfast       │
-│ (2.1s)   │ recipe for a yogurt parfait:                           │
-│          │                                                        │
-│          │                 Healthy Yogurt Parfait                 │
-│          │                                                        │
-│          │                      Ingredients:                      │
-│          │                                                        │
-│          │  • Greek yogurt                                        │
-│          │  • Fresh berries (e.g., strawberries, blueberries,     │
-│          │    raspberries)                                        │
-│          │  • Granola                                             │
-│          │  • Honey or maple syrup (optional)                     │
-│          │  • Chia seeds (optional)                               │
-│          │                                                        │
-│          │                     Instructions:                      │
-│          │                                                        │
-│          │  1 In a clear glass or bowl, layer Greek yogurt, fresh │
-│          │    berries, and granola.                               │
-│          │  2 Repeat the layers until the glass is filled.        │
-│          │  3 Drizzle with honey or maple syrup for sweetness, if │
-│          │    desired.                                            │
-│          │  4 Optional: Sprinkle with chia seeds for added        │
-│          │    nutritional benefits.                               │
-│          │                                                        │
-│          │ Enjoy your nutritious and delicious yogurt parfait!    │
-╰──────────┴────────────────────────────────────────────────────────╯
+╭──────────┬───────────────────────────────────────────────────────────────────╮
+│ Message  │ Share a quick healthy breakfast recipe.                           │
+├──────────┼───────────────────────────────────────────────────────────────────┤
+│ Response │ Sure! Here's a quick and healthy breakfast recipe for you:        │
+│ (3.3s)   │                                                                   │
+│          │ Greek Yogurt Parfait:                                             │
+│          │                                                                   │
+│          │ Ingredients:                                                      │
+│          │                                                                   │
+│          │  • 1 cup Greek yogurt                                             │
+│          │  • 1/2 cup fresh mixed berries (strawberries, blueberries,        │
+│          │    raspberries)                                                   │
+│          │  • 1/4 cup granola                                                │
+│          │  • 1 tablespoon honey                                             │
+│          │  • Optional: chia seeds or sliced almonds for extra nutrients     │
+│          │                                                                   │
+│          │ Instructions:                                                     │
+│          │                                                                   │
+│          │  1 In a glass or bowl, layer Greek yogurt, mixed berries, and     │
+│          │    granola.                                                       │
+│          │  2 Drizzle honey on top for some natural sweetness.               │
+│          │  3 Optional: Sprinkle with chia seeds or sliced almonds for added │
+│          │    texture and nutrients.                                         │
+│          │                                                                   │
+│          │ Enjoy your nutritious and delicious Greek yogurt parfait!         │
+╰──────────┴───────────────────────────────────────────────────────────────────╯
 ```
 
 </details>
 
+
+## 🚀 Examples
+
 <details>
 
-<summary><h3>Create a Python Engineer</h3></summary>
+<summary><h3>Create an Assistant with a function call</h3></summary>
 
-We can have Conversations with `Agents` designed for specific tasks. For example: the `PythonAgent` can perform virtually any task using python code.
-
-- Create a file `python_agent.py` and install pandas using `pip install pandas`
+- Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
 ```python
-from phi.agent.python import PythonAgent
-from phi.file.local.csv import CsvFile
+import json
+import httpx
 
-python_agent = PythonAgent(
-    files=[
-        CsvFile(
-            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-            description="Contains information about movies from IMDB.",
-        )
-    ],
-    pip_install=True,
-    show_function_calls=True,
-)
+from phi.assistant import Assistant
 
-python_agent.print_response("What is the average rating of movies?")
+
+def get_top_hackernews_stories(num_stories: int = 10) -> str:
+    """Use this function to get top stories from Hacker News.
+
+    Args:
+        num_stories (int): Number of stories to return. Defaults to 10.
+
+    Returns:
+        str: JSON string of top stories.
+    """
+
+    # Fetch top story IDs
+    response = httpx.get('https://hacker-news.firebaseio.com/v0/topstories.json')
+    story_ids = response.json()
+
+    # Fetch story details
+    stories = []
+    for story_id in story_ids[:num_stories]:
+        story_response = httpx.get(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json')
+        story = story_response.json()
+        if "text" in story:
+            story.pop("text", None)
+        stories.append(story)
+    return json.dumps(stories)
+
+assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True)
+assistant.print_response("Summarize the top stories on hackernews?")
 ```
 
-- Run the `python_agent.py` file
+- Run the `hn_assistant.py` file
 
 ```shell
-python python_agent.py
+python hn_assistant.py
 ```
 
 - See it work through the problem
 
 ```shell
-WARNING  PythonTools can run arbitrary code, please provide human supervision.
-INFO     Saved: .../average_rating.py
-INFO     Running .../average_rating.py
-╭──────────┬────────────────────────────────────────────────────────╮
-│ Message  │ What is the average rating of movies?                  │
-├──────────┼────────────────────────────────────────────────────────┤
-│ Response │                                                        │
-│ (4.1s)   │  • Running:                                            │
-│          │    save_to_file_and_run(file_name=average_rating,      │
-│          │    code=..., variable_to_return=average_rating)        │
-│          │                                                        │
-│          │ The average rating of the movies is approximately      │
-│          │ 6.72.                                                  │
-╰──────────┴────────────────────────────────────────────────────────╯
+╭──────────┬───────────────────────────────────────────────────────────────────╮
+│ Message  │ Summarize the top stories on hackernews?                          │
+├──────────┼───────────────────────────────────────────────────────────────────┤
+│ Response │                                                                   │
+│ (51.1s)  │  • Running: get_top_hackernews_stories(num_stories=5)             │
+│          │                                                                   │
+│          │ Here's a summary of the top stories on Hacker News:               │
+│          │                                                                   │
+│          │  1 Boeing Whistleblower: Max 9 Production Line Has "Enormous      │
+│          │    Volume of Defects" A whistleblower has revealed that Boeing's  │
+│          │    Max 9 production line is riddled with an "enormous volume of   │
+│          │    defects," with instances where bolts were not installed. The   │
+│          │    story has garnered attention with a score of 140. Read more    │
+│          │  2 Arno A. Penzias, 90, Dies; Nobel Physicist Confirmed Big Bang  │
+│          │    Theory Arno A. Penzias, a Nobel Prize-winning physicist known  │
+│          │    for his work that confirmed the Big Bang Theory, has passed    │
+│          │    away at the age of 90. His contributions to science have been  │
+│          │    significant, leading to discussions and tributes in the        │
+│          │    scientific community. The news has a score of 207. Read more   │
+│          │  3 Why the fuck are we templating YAML? (2019) This provocative   │
+│          │    article from 2019 questions the proliferation of YAML          │
+│          │    templating in software, sparking a larger conversation about   │
+│          │    the complexities and potential pitfalls of this practice. With │
+│          │    a substantial score of 149, it remains a hot topic of debate.  │
+│          │    Read more                                                      │
+│          │  4 Forging signed commits on GitHub Researchers have discovered a │
+│          │    method for forging signed commits on GitHub which is causing   │
+│          │    concern within the tech community about the implications for   │
+│          │    code security and integrity. The story has a current score of  │
+│          │    94. Read more                                                  │
+│          │  5 Qdrant, the Vector Search Database, raised $28M in a Series A  │
+│          │    round Qdrant, a company specializing in vector search          │
+│          │    databases, has successfully raised $28 million in a Series A   │
+│          │    funding round. This financial milestone indicates growing      │
+│          │    interest and confidence in their technology. The story has     │
+│          │    attracted attention with a score of 55. Read more              │
+╰──────────┴───────────────────────────────────────────────────────────────────╯
 ```
 
 </details>
 
 <details>
 
-<summary><h3>Create a Data Analyst</h3></summary>
+<summary><h3>Create an Assistant that can analyze data using SQL</h3></summary>
 
-Use the `DuckDbAgent` to perform data analysis using SQL queries.
+The `DuckDbAssistant` can perform data analysis using SQL queries.
 
-- Create a file `data_analyst.py` and install duckdb using `pip install duckdb`
+- Create a file `data_assistant.py` and install duckdb using `pip install duckdb`
 
 ```python
 import json
-from phi.agent.duckdb import DuckDbAgent
+from phi.assistant.duckdb import DuckDbAssistant
 
-duckdb_agent = DuckDbAgent(
+duckdb_assistant = DuckDbAssistant(
     semantic_model=json.dumps({
         "tables": [
             {
@@ -193,13 +241,13 @@ duckdb_agent = DuckDbAgent(
     }),
 )
 
-duckdb_agent.print_response("What is the average rating of movies? Show me the SQL.")
+duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.")
 ```
 
-- Run the `data_analyst.py` file
+- Run the `data_assistant.py` file
 
 ```shell
-python data_analyst.py
+python data_assistant.py
 ```
 
 - See it work through the problem
@@ -232,72 +280,118 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h3>Return a Pydantic Model as output</h3></summary>
+<summary><h3>Create an Assistant that achieves tasks using python</h3></summary>
 
-One of our favorite features is generating structured data from sparse information.
+The `PythonAssistant` can perform virtually any task using python code.
 
-Meaning we can use LLMs to fill in pydantic models and generate content which previously could not be possible.
-In this example, we generate an object of the `MovieScript` class.
+- Create a file `python_assistant.py` and install pandas using `pip install pandas`
 
-- Create a file `movie_generator.py`
+```python
+from phi.assistant.python import PythonAssistant
+from phi.file.local.csv import CsvFile
+
+python_assistant = PythonAssistant(
+    files=[
+        CsvFile(
+            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            description="Contains information about movies from IMDB.",
+        )
+    ],
+    pip_install=True,
+    show_tool_calls=True,
+)
+
+python_assistant.print_response("What is the average rating of movies?")
+```
+
+- Run the `python_assistant.py` file
+
+```shell
+python python_assistant.py
+```
+
+- See it work through the problem
+
+```shell
+WARNING  PythonTools can run arbitrary code, please provide human supervision.
+INFO     Saved: /Users/zu/ai/average_rating
+INFO     Running /Users/zu/ai/average_rating
+╭──────────┬───────────────────────────────────────────────────────────────────╮
+│ Message  │ What is the average rating of movies?                             │
+├──────────┼───────────────────────────────────────────────────────────────────┤
+│ Response │                                                                   │
+│ (4.1s)   │  • Running: save_to_file_and_run(file_name=average_rating,        │
+│          │    code=..., variable_to_return=average_rating)                   │
+│          │                                                                   │
+│          │ The average rating of movies is approximately 6.72.               │
+╰──────────┴───────────────────────────────────────────────────────────────────╯
+```
+
+</details>
+
+<details>
+
+<summary><h3>Generate pydantic models using an Assistant</h3></summary>
+
+One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
+Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
+In this example, our movie assistant generates an object of the `MovieScript` class.
+
+- Create a file `movie_assistant.py`
 
 ```python
 from typing import List
 from pydantic import BaseModel, Field
-from phi.conversation import Conversation
 from rich.pretty import pprint
+from phi.assistant import Assistant
 
 
 class MovieScript(BaseModel):
-    setting: str = Field(..., description="Setting of the movie. If not available, provide a random setting.")
+    setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
     ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
-    genre: str = Field(
-        ..., description="Genre of the movie. If not available, select action, thriller or romantic comedy."
-    )
+    genre: str = Field(..., description="Genre of the movie. If not available, select action, thriller or romantic comedy.")
     name: str = Field(..., description="Give a name to this movie")
     characters: List[str] = Field(..., description="Name of characters for this movie.")
-    storyline: str = Field(..., description="2 sentence story of the movie.")
+    storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-movie_generator = Conversation(
-    system_prompt="Generate a movie",
+movie_assistant = Assistant(
+    description="You help people write movie ideas.",
     output_model=MovieScript,
 )
 
-pprint(movie_generator.run("New York"))
+pprint(movie_assistant.run("New York"))
 ```
 
-- Run the `movie_generator.py` file
+- Run the `movie_assistant.py` file
 
 ```shell
-python movie_generator.py
+python movie_assistant.py
 ```
 
-- See how the conversation generates a structured output
+- See how the assistant generates a structured output
 
 ```shell
 MovieScript(
-│   setting='New York',
-│   ending='happy ending',
-│   genre='romantic comedy',
-│   name='Love in the City',
-│   characters=['Emma', 'Jack', 'Olivia', 'Michael'],
-│   storyline="In the bustling streets of New York, Emma, an ambitious young woman, meets Jack, a charming but jobless artist. As they navigate the city's challenges, their bond grows stronger, leading to unexpected romance and heartwarming adventures."
+│   setting='A bustling and vibrant New York City',
+│   ending='The protagonist saves the city and reconciles with their estranged family.',
+│   genre='action',
+│   name='City Pulse',
+│   characters=['Alex Mercer', 'Nina Castillo', 'Detective Mike Johnson'],
+│   storyline='In the heart of New York City, a former cop turned vigilante, Alex Mercer, teams up with a street-smart activist, Nina Castillo, to take down a corrupt political figure who threatens to destroy the city. As they navigate through the intricate web of power and deception, they uncover shocking truths that push them to the brink of their abilities. With time running out, they must race against the clock to save New York and confront their own demons.'
 )
 ```
 
 </details>
 
-## 🚀 Examples
-
 <details>
 
 <summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
 
-- **Knowledge Base:** information that the AI can search to improve its responses, typically provided by a vector db.
-- **Storage:** provides long term memory for `Conversations`, typically provided by a database.
+- **Knowledge Base:** information that the Assistant can search to improve its responses. Uses a vector db.
+- **Storage:** provides long term memory for Assistants. Uses a database.
 
-Let's run `PgVector` as it can provide both, knowledge and storage for our Conversations.
+Let's run `PgVector` as it can provide both, knowledge and storage for our Assistants.
 
 - Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
 - Create a file `resources.py` with the following contents
@@ -308,9 +402,9 @@ from phi.docker.resources import DockerResources
 
 # -*- PgVector running on port 5432:5432
 vector_db = PgVectorDb(
-    pg_user="llm",
-    pg_password="llm",
-    pg_database="llm",
+    pg_user="ai",
+    pg_password="ai",
+    pg_database="ai",
     debug_mode=True,
 )
 
@@ -330,9 +424,8 @@ phi start resources.py
 import typer
 from rich.prompt import Prompt
 from typing import Optional, List
-
-from phi.conversation import Conversation
-from phi.storage.conversation.postgres import PgConversationStorage
+from phi.assistant import Assistant
+from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector
 
@@ -346,46 +439,47 @@ knowledge_base = PDFUrlKnowledgeBase(
     ),
 )
 
-storage = PgConversationStorage(
-    table_name="recipe_conversations",
+storage = PgAssistantStorage(
+    table_name="recipe_assistant",
     db_url=vector_db.get_db_connection_local(),
 )
 
 
-def llm_app(new: bool = False, user: str = "user"):
-    conversation_id: Optional[str] = None
+def recipe_assistant(new: bool = False, user: str = "user"):
+    run_id: Optional[str] = None
 
     if not new:
-        existing_conversation_ids: List[str] = storage.get_all_conversation_ids(user)
-        if len(existing_conversation_ids) > 0:
-            conversation_id = existing_conversation_ids[0]
+        existing_run_ids: List[str] = storage.get_all_run_ids(user)
+        if len(existing_run_ids) > 0:
+            run_id = existing_run_ids[0]
 
-    conversation = Conversation(
-        user_name=user,
-        id=conversation_id,
+    assistant = Assistant(
+        run_id=run_id,
+        user_id=user,
         knowledge_base=knowledge_base,
         storage=storage,
+        # use_tools=True adds functions to
+        # search the knowledge base and chat history
+        use_tools=True,
+        show_tool_calls=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
-        function_calls=True,
-        show_function_calls=True,
     )
-    if conversation_id is None:
-        conversation_id = conversation.id
-        print(f"Started Conversation: {conversation_id}\n")
+    if run_id is None:
+        run_id = assistant.run_id
+        print(f"Started Run: {run_id}\n")
     else:
-        print(f"Continuing Conversation: {conversation_id}\n")
+        print(f"Continuing Run: {run_id}\n")
 
-    conversation.knowledge_base.load(recreate=False)
+    assistant.knowledge_base.load(recreate=False)
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
             break
-        conversation.print_response(message)
-
+        assistant.print_response(message)
 
 if __name__ == "__main__":
-    typer.run(llm_app)
+    typer.run(recipe_assistant)
 ```
 
 - Run the `pdf_assistant.py` file
@@ -400,15 +494,45 @@ python pdf_assistant.py
 How do I make chicken tikka salad?
 ```
 
+- See how the Assistant searches the knowledge base and returns a response.
+
+<details>
+
+<summary>Show output</summary>
+
+```shell
+Started Run: d28478ea-75ed-4710-8191-22564ebfb140
+
+INFO     Loading knowledge base
+INFO     Reading:
+         https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf
+INFO     Loaded 82 documents to knowledge base
+ 😎 user : How do I make chicken tikka salad?
+╭──────────┬─────────────────────────────────────────────────────────────────────────────────╮
+│ Message  │ How do I make chicken tikka salad?                                              │
+├──────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ Response │                                                                                 │
+│ (7.2s)   │  • Running: search_knowledge_base(query=chicken tikka salad)                    │
+│          │                                                                                 │
+│          │ I found a recipe for Chicken Tikka Salad that serves 2. Here are the            │
+│          │ ingredients and steps:                                                          │
+│          │                                                                                 │
+│          │ Ingredients:                                                                    │
+
+...
+```
+
+</details>
+
 - Message `bye` to exit, start the app again and ask:
 
 ```
 What was my last message?
 ```
 
-See how the app maintains storage across sessions.
+See how the assistant now maintains storage across sessions.
 
-- Run the `pdf_assistant.py` file with the `--new` flag to start a new conversation.
+- Run the `pdf_assistant.py` file with the `--new` flag to start a new run.
 
 ```shell
 python pdf_assistant.py --new
@@ -438,13 +562,13 @@ Let's build an **AI App** using GPT-4 as the LLM, Streamlit as the chat interfac
 
 ### Step 1: Create your codebase
 
-Create your codebase using the `llm-app` template pre-configured with FastApi, Streamlit and PgVector.
+Create your codebase using the `ai-app` template
 
 ```shell
-phi ws create -t llm-app -n llm-app
+phi ws create -t ai-app -n ai-app
 ```
 
-This will create a folder `llm-app` with a pre-built LLM App that you can customize and make your own.
+This will create a folder `ai-app` with a pre-built AI App that you can customize and make your own.
 
 ### Step 2: Serve your App using Streamlit
 
@@ -456,12 +580,12 @@ phi ws up --group app
 
 **Press Enter** to confirm and give a few minutes for the image to download.
 
-- Chat with PDFs
+#### PDF Assistant
 
 - Open <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">localhost:8501</a> to view streamlit apps that you can customize and make your own.
-- Click on **Chat with PDFs** in the sidebar
+- Click on **PDF Assistant** in the sidebar
 - Enter a username and wait for the knowledge base to load.
-- Choose the `RAG` or `Autonomous` Conversation type.
+- Choose either the `RAG` or `Autonomous` Assistant type.
 - Ask "How do I make chicken curry?"
 - Upload PDFs and ask questions
 
@@ -471,7 +595,7 @@ phi ws up --group app
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 
-Your LLM App comes ready-to-use with FastApi endpoints, start the `api` group using:
+Your AI App comes ready-to-use with FastApi endpoints, start the `api` group using:
 
 ```shell
 phi ws up --group api
@@ -482,13 +606,13 @@ phi ws up --group api
 - View API Endpoints
 
 - Open <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">localhost:8000/docs</a> to view the API Endpoints.
-- Load the knowledge base using `/v1/pdf/conversation/load-knowledge-base`
-- Test the `v1/pdf/conversation/chat` endpoint with `{"message": "How do I make chicken curry?"}`
+- Load the knowledge base using `/v1/assitants/load-knowledge-base`
+- Test the `v1/assitants/chat` endpoint with `{"message": "How do I make chicken curry?"}`
 - The Api comes pre-built with endpoints that you can integrate with your front-end.
 
 ### Optional: Run Jupyterlab
 
-A jupyter notebook is a must-have for AI development and your `llm-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
+A jupyter notebook is a must-have for AI development and your `ai-app` comes with a notebook pre-installed with the required dependencies. Enable it by updating the `workspace/settings.py` file:
 
 ```python
 ...
@@ -523,14 +647,28 @@ Play around and stop the workspace using:
 phi ws down
 ```
 
-### Step 5: Run your LLM App on AWS
+### Step 5: Run your AI App on AWS
 
-Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your LLM App on AWS</a>.
+Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your AI App on AWS</a>.
 
 </details>
 
-## 📚 Resources
+## 📚 Documentation
 
-- Read the <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">documentation</a>
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
-- Email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+- You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
+- You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
+- Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+
+## Contributions
+
+We're open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+
+## Request a feature
+
+- If you have a feature request, please open an issue or make a pull request.
+- If you have ideas on how we can improve, please create a discussion.
+
+## Roadmap
+
+Our roadmap is available <a href="https://github.com/orgs/phidatahq/projects/2/views/1" target="_blank" rel="noopener noreferrer">here</a>.
+If you have a feature request, please open an issue/discussion.

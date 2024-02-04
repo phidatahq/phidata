@@ -30,7 +30,7 @@ class PgVector(VectorDb):
     def __init__(
         self,
         collection: str,
-        schema: Optional[str] = "llm",
+        schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
@@ -126,10 +126,9 @@ class PgVector(VectorDb):
         Args:
             name (str): Name to validate
         """
-        columns = [self.table.c.name]
         with self.Session() as sess:
             with sess.begin():
-                stmt = select(*columns).where(self.table.c.name == name)
+                stmt = select(self.table.c.name).where(self.table.c.name == name)
                 result = sess.execute(stmt).first()
                 return result is not None
 

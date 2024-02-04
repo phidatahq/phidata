@@ -3,10 +3,10 @@ from typing import List, Iterator, Optional
 from phi.document import Document
 from phi.aws.resource.s3.bucket import S3Bucket
 from phi.aws.resource.s3.object import S3Object
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 
 
-class S3KnowledgeBase(KnowledgeBase):
+class S3KnowledgeBase(AssistantKnowledge):
     # Provide either bucket or bucket_name
     bucket: Optional[S3Bucket] = None
     bucket_name: Optional[str] = None

@@ -38,7 +38,7 @@ class OpenAIAssistant(BaseModel):
     # -*- OpenAIAssistant Tools
     # A list of tools provided to the assistant. There can be a maximum of 128 tools per assistant.
     # Tools can be of types code_interpreter, retrieval, or function.
-    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict]]] = None
+    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
     # -*- Functions available to the OpenAIAssistant to call
     # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
@@ -59,7 +59,7 @@ class OpenAIAssistant(BaseModel):
     # database_row: Optional[AssistantRow] = None
 
     # -*- OpenAIAssistant Knowledge Base
-    # knowledge_base: Optional[KnowledgeBase] = None
+    # knowledge_base: Optional[AssistantKnowledge] = None
 
     # Set of 16 key-value pairs that can be attached to an object.
     # This can be useful for storing additional information about the object in a structured format.
@@ -100,6 +100,9 @@ class OpenAIAssistant(BaseModel):
                 if isinstance(tool, ToolRegistry):
                     self.functions.update(tool.functions)
                     logger.debug(f"Functions from {tool.name} added to OpenAIAssistant.")
+                elif isinstance(tool, Function):
+                    self.functions[tool.name] = tool
+                    logger.debug(f"Function {tool.name} added to OpenAIAssistant.")
                 elif callable(tool):
                     f = Function.from_callable(tool)
                     self.functions[f.name] = f
@@ -135,6 +138,8 @@ class OpenAIAssistant(BaseModel):
             elif isinstance(tool, ToolRegistry):
                 for _f in tool.functions.values():
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
+            elif isinstance(tool, Function):
+                tools_for_api.append({"type": "function", "function": tool.to_dict()})
         return tools_for_api
 
     def create(self) -> "OpenAIAssistant":

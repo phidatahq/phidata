@@ -2,8 +2,8 @@ from enum import Enum
 
 
 class WorkspaceStarterTemplate(str, Enum):
-    llm_app = "llm-app"
-    api_app = "api-app"
+    ai_app = "ai-app"
+    ai_api = "ai-api"
     django_app = "django-app"
     streamlit_app = "streamlit-app"
     junior_de = "junior-de"

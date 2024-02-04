@@ -62,6 +62,8 @@ class DockerImage(DockerResource):
     extra_hosts: Optional[Dict[str, Any]] = None
     # Platform in the format os[/arch[/variant]].
     platform: Optional[str] = None
+    # List of platforms to use for build, uses buildx_image if multi-platform build is enabled.
+    platforms: Optional[List[str]] = None
     # Isolation technology used during build. Default: None.
     isolation: Optional[str] = None
     # If True, and if the docker client configuration file (~/.docker/config.json by default)
@@ -84,7 +86,87 @@ class DockerImage(DockerResource):
     def get_resource_name(self) -> str:
         return self.get_image_str()
 
+    def buildx(self, docker_client: Optional[DockerApiClient] = None) -> Optional[Any]:
+        """Builds the image using buildx
+
+        Args:
+            docker_client: The DockerApiClient for the current cluster
+
+        Options: https://docs.docker.com/engine/reference/commandline/buildx_build/#options
+        """
+        try:
+            import subprocess
+
+            tag = self.get_image_str()
+            nocache = self.skip_docker_cache or self.force
+            pull = self.pull or self.force
+
+            print_info(f"Building image: {tag}")
+            if self.path is not None:
+                print_info(f"\t  path: {self.path}")
+            if self.dockerfile is not None:
+                print_info(f"    dockerfile: {self.dockerfile}")
+            print_info(f"     platforms: {self.platforms}")
+            logger.debug(f"nocache: {nocache}")
+            logger.debug(f"pull: {pull}")
+
+            command = ["docker", "buildx", "build"]
+
+            # Add tag
+            command.extend(["--tag", tag])
+
+            # Add dockerfile option, if set
+            if self.dockerfile is not None:
+                command.extend(["--file", self.dockerfile])
+
+            # Add build arguments
+            if self.buildargs:
+                for key, value in self.buildargs.items():
+                    command.extend(["--build-arg", f"{key}={value}"])
+
+            # Add no-cache option, if set
+            if nocache:
+                command.append("--no-cache")
+
+            if not self.rm:
+                command.append("--rm=false")
+
+            if self.platforms:
+                command.append("--platform={}".format(",".join(self.platforms)))
+
+            if self.pull:
+                command.append("--pull")
+
+            if self.push_image:
+                command.append("--push")
+            else:
+                command.append("--load")
+
+            # Add path
+            if self.path is not None:
+                command.append(self.path)
+
+            # Run the command
+            logger.debug("Running command: {}".format(" ".join(command)))
+            result = subprocess.run(command)
+
+            # Handling output and errors
+            if result.returncode == 0:
+                print_info("Docker image built successfully.")
+                _docker_client = docker_client or self.get_docker_client()
+                return self._read(docker_client=_docker_client)
+            else:
+                logger.error("Error in building Docker image:")
+                return False
+        except Exception as e:
+            logger.error(e)
+            return None
+
     def build_image(self, docker_client: DockerApiClient) -> Optional[Any]:
+        if self.platforms is not None:
+            logger.debug("Using buildx for multi-platform build")
+            return self.buildx(docker_client=docker_client)
+
         from docker import DockerClient
         from docker.errors import BuildError, APIError
         from rich import box
@@ -106,6 +188,7 @@ class DockerImage(DockerResource):
         last_build_log = None
         build_log_output: List[Any] = []
         build_step_progress: List[str] = []
+        build_log_to_show_on_error: List[str] = []
         try:
             _api_client: DockerClient = docker_client.api_client
             build_stream = _api_client.api.build(
@@ -155,7 +238,7 @@ class DockerImage(DockerResource):
 
                     if build_log.get("error", None) is not None:
                         live_log.stop()
-                        # logger.error(build_log_output[-10:])
+                        logger.error(build_log_output[-50:])
                         logger.error(build_log["error"])
                         logger.error(f"Image build failed: {self.get_image_str()}")
                         return None
@@ -173,10 +256,20 @@ class DockerImage(DockerResource):
                         if len(build_step_progress) > 10:
                             build_step_progress.pop(0)
 
+                    build_log_to_show_on_error.append(stream)
+                    if len(build_log_to_show_on_error) > 50:
+                        build_log_to_show_on_error.pop(0)
+
                     if "error" in stream.lower():
                         print(stream)
                         live_log.stop()
-                        logger.error(f"Image build failed: {self.get_image_str()}")
+
+                        # Render error table
+                        error_table = Table(show_edge=False, show_header=False, show_lines=False)
+                        for line in build_log_to_show_on_error:
+                            error_table.add_row(line, style="dim")
+                        error_table.add_row(stream, style="bold red")
+                        console.print(error_table)
                         return None
                     if build_log.get("aux", None) is not None:
                         logger.debug("build_log['aux'] :{}".format(build_log["aux"]))

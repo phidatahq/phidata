@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.json import JSONReader
-from phi.knowledge.base import KnowledgeBase
+from phi.knowledge.base import AssistantKnowledge
 
 
-class JSONKnowledgeBase(KnowledgeBase):
+class JSONKnowledgeBase(AssistantKnowledge):
     path: Union[str, Path]
     reader: JSONReader = JSONReader()
 
@@ -24,5 +24,5 @@ class JSONKnowledgeBase(KnowledgeBase):
         if _json_path.exists() and _json_path.is_dir():
             for _pdf in _json_path.glob("*.json"):
                 yield self.reader.read(path=_pdf)
-        elif _json_path.exists() and _json_path.is_file() and _json_path.suffix == ".pdf":
+        elif _json_path.exists() and _json_path.is_file() and _json_path.suffix == ".json":
             yield self.reader.read(path=_json_path)

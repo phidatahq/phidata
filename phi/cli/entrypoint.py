@@ -207,7 +207,7 @@ def set(
     set_workspace_as_active(ws_dir_name=ws_name)
 
 
-@phi_cli.command(short_help="Chat with Phi AI", options_metavar="")
+@phi_cli.command(short_help="Chat with Phi AI", options_metavar="", hidden=True)
 def ai(
     start_new_conversation: bool = typer.Option(
         False,

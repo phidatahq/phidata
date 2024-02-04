@@ -17,18 +17,13 @@ class TextReader(Reader):
             raise FileNotFoundError(f"Could not find file: {path}")
 
         try:
-            import textract  # noqa: F401
-        except ImportError:
-            raise ImportError("`textract` not installed")
-
-        try:
             logger.info(f"Reading: {path}")
-            doc_name = path.name.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
-            doc_content = textract.process(path)
+            file_name = path.name.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
+            file_contents = path.read_text()
             documents = [
                 Document(
-                    name=doc_name,
-                    content=doc_content.decode("utf-8"),
+                    name=file_name,
+                    content=file_contents,
                 )
             ]
             if self.chunk:

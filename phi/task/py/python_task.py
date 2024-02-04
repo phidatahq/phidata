@@ -20,14 +20,14 @@ class PythonTask(Task):
         stream: bool = True,
     ) -> Union[Iterator[str], str, BaseModel]:
         try:
-            logger.debug(f"Running {self.name}...")
+            logger.debug(f"Running {self.task_name}...")
             self.prepare_task()
             timer = Timer()
             timer.start()
             self.output = self.entrypoint(message=message, stream=stream, task=self)
             timer.stop()
-            logger.debug(f"Finished {self.name} in {timer.elapsed_time}")
+            logger.debug(f"Finished {self.task_name} in {timer.elapsed_time}")
             return self.output
         except Exception as e:
-            logger.warning(f"Error running {self.name}: {e}")
+            logger.warning(f"Error running {self.task_name}: {e}")
             return str(e)

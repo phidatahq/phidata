@@ -155,6 +155,12 @@ def up(
         "--force",
         help="Force create resources where applicable.",
     ),
+    pull: Optional[bool] = typer.Option(
+        None,
+        "-p",
+        "--pull",
+        help="Pull images where applicable.",
+    ),
 ):
     """\b
     Create resources for the active workspace
@@ -267,6 +273,7 @@ def up(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
+    logger.debug(f"\tpull         : {pull}")
     print_heading("Starting workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
     start_workspace(
         phi_config=phi_config,
@@ -279,6 +286,7 @@ def up(
         dry_run=dry_run,
         auto_confirm=auto_confirm,
         force=force,
+        pull=pull,
     )
 
 
@@ -493,6 +501,12 @@ def patch(
         "--force",
         help="Force",
     ),
+    pull: Optional[bool] = typer.Option(
+        None,
+        "-p",
+        "--pull",
+        help="Pull images where applicable.",
+    ),
 ):
     """\b
     Update resources for the active workspace.
@@ -601,6 +615,7 @@ def patch(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
+    logger.debug(f"\tpull         : {pull}")
     print_heading("Updating workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
     update_workspace(
         phi_config=phi_config,
@@ -613,6 +628,7 @@ def patch(
         dry_run=dry_run,
         auto_confirm=auto_confirm,
         force=force,
+        pull=pull,
     )
 
 
@@ -659,6 +675,12 @@ def restart(
         "--force",
         help="Force",
     ),
+    pull: Optional[bool] = typer.Option(
+        None,
+        "-p",
+        "--pull",
+        help="Pull images where applicable.",
+    ),
 ):
     """\b
     Restarts the active workspace. i.e. runs `phi ws down` and then `phi ws up`.
@@ -697,6 +719,7 @@ def restart(
         auto_confirm=auto_confirm,
         print_debug_log=print_debug_log,
         force=force,
+        pull=pull,
     )
 
 

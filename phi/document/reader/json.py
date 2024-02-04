@@ -30,6 +30,7 @@ class JSONReader(Reader):
             documents = [
                 Document(
                     name=json_name,
+                    id=f"{json_name}_{page_number}",
                     meta_data={"page": page_number},
                     content=json.dumps(content),
                 )

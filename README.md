@@ -661,7 +661,7 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ## Contributions
 
-We're open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+We're an open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
 
 ## Request a feature
 

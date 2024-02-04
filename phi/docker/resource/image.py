@@ -350,21 +350,20 @@ class DockerImage(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
-        from docker.models.images import Image
-
         logger.debug("Creating: {}".format(self.get_resource_name()))
         try:
             image_object = self.build_image(docker_client)
-            if image_object is not None and isinstance(image_object, Image):
-                logger.debug("Image built: {}".format(image_object))
-                self.active_resource = image_object
+            if image_object is not None:
                 return True
+            return False
+            # if image_object is not None and isinstance(image_object, Image):
+            #     logger.debug("Image built: {}".format(image_object))
+            #     self.active_resource = image_object
+            #     return True
         except Exception as e:
             logger.exception(e)
             logger.error("Error while creating image: {}".format(e))
             raise
-
-        return False
 
     def _read(self, docker_client: DockerApiClient) -> Any:
         """Returns an Image object if available

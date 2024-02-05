@@ -23,6 +23,7 @@ class TextReader(Reader):
             documents = [
                 Document(
                     name=file_name,
+                    id=file_name,
                     content=file_contents,
                 )
             ]

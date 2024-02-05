@@ -29,7 +29,7 @@ class Streamlit(DockerApp):
     streamlit_server_port: Optional[int] = None
     streamlit_server_headless: bool = True
     streamlit_server_run_on_save: Optional[bool] = None
-    streamlit_server_max_upload_size: Optional[bool] = None
+    streamlit_server_max_upload_size: Optional[int] = None
     streamlit_browser_gather_usage_stats: bool = False
     # Browser settings
     streamlit_browser_server_port: Optional[str] = None

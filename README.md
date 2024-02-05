@@ -41,7 +41,7 @@ Function calling enables LLMs to achieve tasks by calling functions and intellig
 pip install -U phidata
 ```
 
-### Create a Simple Assistant
+### Create an Assistant
 
 - Create a file `assistant.py` and install openai using `pip install openai`
 
@@ -52,13 +52,32 @@ assistant = Assistant(description="You help people with their health and fitness
 assistant.print_response("Share a quick healthy breakfast recipe.")
 ```
 
-- Run the `assistant.py` file
+- Run the `Assistant`
 
 ```shell
 python assistant.py
 ```
 
+- Add the ability to search DuckDuckGo
+
+```python
+from phi.assistant import Assistant
+from phi.tools.duckduckgo import DuckDuckGo
+
+assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
+assistant.print_response("Whats happening in France?")
+```
+
+- Run the `Assistant`
+
+```shell
+pip install duckduckgo-search
+
+python assistant.py
+```
+
 ### [See more examples below](#-examples)
+### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
 
 ## ⭐️ Use phidata to build
 

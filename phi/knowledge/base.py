@@ -89,20 +89,21 @@ class AssistantKnowledge(BaseModel):
         logger.info("Loading knowledge base")
 
         # Upsert documents if upsert is True
-        if upsert:
-            if self.vector_db.upsert_available():
-                self.vector_db.upsert(documents=documents)
-                logger.info(f"Upserted {len(documents)} documents to knowledge base")
-            else:
-                logger.warning("Upsert not available for this vector db")
-            return
+        # if upsert:
+        #     if self.vector_db.upsert_available():
+        #         self.vector_db.upsert(documents=documents)
+        #         logger.info(f"Upserted {len(documents)} documents to knowledge base")
+        #     else:
+        #         logger.warning("Upsert not available for this vector db111")
+        #     return
 
         # Insert documents
         # Filter out documents which already exist in the vector db
         documents_to_load = (
-            [document for document in documents if not self.vector_db.doc_exists(document)]
-            if skip_existing
-            else documents
+            [document for document in documents]
+            # [document for document in documents if not self.vector_db.doc_exists(document)]
+            # if skip_existing
+            # else documents
         )
 
         # Insert documents

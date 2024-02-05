@@ -214,12 +214,12 @@ class CustomResourceDefinition(K8sResource):
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
         try:
-            v1_custom_resource_definition: V1CustomResourceDefinition = (
-                apiextensions_v1_api.create_custom_resource_definition(
-                    body=k8s_object,
-                    async_req=self.async_req,
-                    pretty=self.pretty,
-                )
+            v1_custom_resource_definition: (
+                V1CustomResourceDefinition
+            ) = apiextensions_v1_api.create_custom_resource_definition(
+                body=k8s_object,
+                async_req=self.async_req,
+                pretty=self.pretty,
             )
             # logger.debug("Created: {}".format(v1_custom_resource_definition))
             if v1_custom_resource_definition.metadata.creation_timestamp is not None:
@@ -260,13 +260,13 @@ class CustomResourceDefinition(K8sResource):
         k8s_object: V1CustomResourceDefinition = self.get_k8s_object()
 
         logger.debug("Updating: {}".format(crd_name))
-        v1_custom_resource_definition: V1CustomResourceDefinition = (
-            apiextensions_v1_api.patch_custom_resource_definition(
-                name=crd_name,
-                body=k8s_object,
-                async_req=self.async_req,
-                pretty=self.pretty,
-            )
+        v1_custom_resource_definition: (
+            V1CustomResourceDefinition
+        ) = apiextensions_v1_api.patch_custom_resource_definition(
+            name=crd_name,
+            body=k8s_object,
+            async_req=self.async_req,
+            pretty=self.pretty,
         )
         # logger.debug("Updated: {}".format(v1_custom_resource_definition))
         if v1_custom_resource_definition.metadata.creation_timestamp is not None:

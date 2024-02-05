@@ -53,9 +53,9 @@ class EksCluster(AwsResource):
     # create a default CloudFormationStack using vpc_stack_name, use "name-vpc-stack" if vpc_stack_name is None
     vpc_stack_name: Optional[str] = None
     # Default VPC Stack Template URL
-    vpc_stack_template_url: str = (
-        "https://s3.us-west-2.amazonaws.com/amazon-eks/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml"
-    )
+    vpc_stack_template_url: (
+        str
+    ) = "https://s3.us-west-2.amazonaws.com/amazon-eks/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml"
     use_public_subnets: bool = True
     use_private_subnets: bool = True
     subnet_az: Optional[Union[str, List[str]]] = None

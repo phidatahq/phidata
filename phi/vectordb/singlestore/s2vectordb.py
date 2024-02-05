@@ -19,7 +19,7 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.utils.log import logger
-from phi.vectordb.singlestore.index import Ivfflat, HNSW
+# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 
 
 class singlestore(VectorDb):
@@ -260,26 +260,18 @@ class singlestore(VectorDb):
         logger.debug(f"Query: {stmt}")
 
         # Get neighbors
-        # with self.Session() as sess:
-        #     with sess.begin():
-        #         # if self.index is not None:
-        #         #     if isinstance(self.index, Ivfflat):
-        #         #         sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
-        #         #     elif isinstance(self.index, HNSW):
-        #         #         sess.execute(text(f"SET LOCAL hnsw.ef_search  = {self.index.ef_search}"))
-        #         neighbors = sess.execute(stmt).fetchall() or []
-
+        # This will only work if embedding column is created with `vector` data type.
         with self.Session() as sess:
             with sess.begin():
-                if self.index is not None:
-                    if isinstance(self.index, Ivfflat):
-                        # Assuming 'nprobe' is a relevant parameter to be set for the session
-                        # Update the session settings based on the Ivfflat index configuration
-                        sess.execute(text(f"SET SESSION nprobe = {self.index.nprobe}"))
-                    elif isinstance(self.index, HNSW):
-                        # Assuming 'ef_search' is a relevant parameter to be set for the session
-                        # Update the session settings based on the HNSW index configuration
-                        sess.execute(text(f"SET SESSION ef_search = {self.index.ef_search}"))
+        #         if self.index is not None:
+        #             if isinstance(self.index, Ivfflat):
+        #                 # Assuming 'nprobe' is a relevant parameter to be set for the session
+        #                 # Update the session settings based on the Ivfflat index configuration
+        #                 sess.execute(text(f"SET SESSION nprobe = {self.index.nprobe}"))
+        #             elif isinstance(self.index, HNSWFlat):
+        #                 # Assuming 'ef_search' is a relevant parameter to be set for the session
+        #                 # Update the session settings based on the HNSW index configuration
+        #                 sess.execute(text(f"SET SESSION ef_search = {self.index.ef_search}"))
 
                 neighbors = sess.execute(stmt).fetchall() or []
 

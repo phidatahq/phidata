@@ -153,7 +153,9 @@ class WebsiteReader(Reader):
             if self.chunk:
                 documents.extend(
                     self.chunk_document(
-                        Document(name=url, id=str(crawled_url), meta_data={"url": str(crawled_url)}, content=crawled_content)
+                        Document(
+                            name=url, id=str(crawled_url), meta_data={"url": str(crawled_url)}, content=crawled_content
+                        )
                     )
                 )
             else:

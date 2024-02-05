@@ -1,25 +1,14 @@
 ## singlestore Assistant
 
-1. Run singlestore
+1. Install libraries
 
 ```shell
-phi start cookbook/singlestore-vector/resources.py -y
+pip install -U pypdf pymysql sqlalchemy openai
 ```
-
-2. Install libraries
-
-```shell
-pip install -U pypdf pymysql sqlalchemy
-```
+2. Edit the resources.py file and add your singlestore database credentials.
 
 3. Run singlestore Assistant
 
 ```shell
 python cookbook/singlestore-vector/assistant.py
-```
-
-4. Turn off singlestore
-
-```shell
-phi stop cookbook/singlestore-vector/resources.py -y
 ```

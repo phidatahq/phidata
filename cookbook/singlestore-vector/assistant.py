@@ -7,15 +7,22 @@ from phi.storage.assistant.singlestore import SingleStoreAssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.singlestore import singlestore
 
-# need help in setting up docker singelstore
-from resources import vector_db  # type: ignore
+from resources import config
+
+host = config['host']
+port = config['port']
+database = config['database']
+username = config['username']
+password = config['password']
+
+db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf"],
-    vector_db=singlestore(collection="recipes", db_url=vector_db.get_db_connection_local()),
+    vector_db=singlestore(collection="recipes", db_url=db_url),
 )
 
-storage = SingleStoreAssistantStorage(table_name="pdf_assistant", db_url=vector_db.get_db_connection_local())
+storage = SingleStoreAssistantStorage(table_name="pdf_assistant", db_url=db_url)
 
 
 def pdf_assistant(new: bool = False, user: str = "user"):

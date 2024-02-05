@@ -25,7 +25,7 @@ Phidata is a toolkit for building AI Assistants using function calling.
 
 Function calling enables LLMs to achieve tasks by calling functions and intelligently choosing their next step based on the response, just like how humans solve problems.
 
-![assistants](https://github.com/phidatahq/phidata/assets/22579644/a8406c12-efb3-435c-abfe-0f92b8e808f3)
+![assistants](https://github.com/phidatahq/phidata/assets/22579644/facb618c-17bd-4ab8-99eb-c4c8309e0f45)
 
 ## 💡How it works
 

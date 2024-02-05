@@ -23,10 +23,9 @@
 
 Phidata is a toolkit for building Autonomous AI applications using function calling.
 
-Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choosing their next step based on the response,
-just like how humans solve problems.
+Function calling enables LLMs to achieve tasks by taking actions (function calls) and intelligently choosing their path based on the response, just like how humans solve problems.
 
-## 🤔 How it works
+## 💡How it works
 
 - **Step 1:** Create an `Assistant`
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)

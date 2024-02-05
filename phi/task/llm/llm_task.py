@@ -103,19 +103,19 @@ class LLMTask(Task):
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
-    user_prompt: Optional[Union[List[Dict], str]] = None
+    user_prompt: Optional[Union[List, Dict, str]] = None
     # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the "Task object" and the "input message" as arguments
-    #   and should return the user_prompt as a Union[List[Dict], str].
+    #   and should return the user_prompt as a Union[List, Dict, str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     task: Task,
-    #     message: Optional[Union[List[Dict], str]] = None,
+    #     message: Optional[Union[List, Dict, str]] = None,
     #     references: Optional[str] = None,
     #     chat_history: Optional[str] = None,
-    # ) -> Union[List[Dict], str]:
+    # ) -> Union[List, Dict, str]:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
     # If True, build a default user prompt using references and chat history
@@ -375,10 +375,10 @@ class LLMTask(Task):
 
     def get_user_prompt(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         references: Optional[str] = None,
         chat_history: Optional[str] = None,
-    ) -> Union[List[Dict], str]:
+    ) -> Union[List, Dict, str]:
         """Build the user prompt given a message, references and chat_history"""
 
         # If the user_prompt is set, return it
@@ -411,8 +411,8 @@ class LLMTask(Task):
         if references is None and chat_history is None:
             return message
 
-        # If message is a list, return it as is
-        if isinstance(message, list):
+        # If message is not a str, return as is
+        if not isinstance(message, str):
             return message
 
         # Build a default user prompt
@@ -447,8 +447,9 @@ class LLMTask(Task):
 
     def _run(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
+        **kwargs: Any,
     ) -> Iterator[str]:
         # -*- Prepare the task
         self.prepare_task()
@@ -480,7 +481,7 @@ class LLMTask(Task):
             user_prompt_chat_history = self.get_formatted_chat_history()
 
         # -*- Build the user prompt
-        user_prompt: Union[List[Dict], str] = self.get_user_prompt(
+        user_prompt: Union[List, Dict, str] = self.get_user_prompt(
             message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
         )
 
@@ -488,7 +489,7 @@ class LLMTask(Task):
         # Create system message
         system_prompt_message = Message(role="system", content=system_prompt)
         # Create user message
-        user_prompt_message = Message(role="user", content=user_prompt)
+        user_prompt_message = Message(role="user", content=user_prompt, **kwargs)
 
         # Create message list
         messages: List[Message] = []
@@ -550,8 +551,9 @@ class LLMTask(Task):
 
     def run(
         self,
-        message: Optional[Union[List[Dict], str]] = None,
+        message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
+        **kwargs: Any,
     ) -> Union[Iterator[str], str, BaseModel]:
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
@@ -586,10 +588,10 @@ class LLMTask(Task):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True)
+                resp = self._run(message=message, stream=True, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, stream=False)
+                resp = self._run(message=message, stream=False, **kwargs)
                 return next(resp)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -697,7 +699,11 @@ class LLMTask(Task):
     ###########################################################################
 
     def print_response(
-        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True, markdown: bool = True
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        stream: bool = True,
+        markdown: bool = True,
+        **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
         from rich.live import Live
@@ -718,7 +724,7 @@ class LLMTask(Task):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.run(message, stream=True):
+                for resp in self.run(message, stream=True, **kwargs):
                     response += resp if isinstance(resp, str) else ""
                     _response = response if not markdown else Markdown(response)
 
@@ -737,7 +743,7 @@ class LLMTask(Task):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.run(message, stream=False)  # type: ignore
+                response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = response if not markdown else Markdown(response)

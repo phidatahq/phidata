@@ -129,19 +129,19 @@ class Assistant(BaseModel):
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
-    user_prompt: Optional[Union[List[Dict], str]] = None
+    user_prompt: Optional[Union[List, Dict, str]] = None
     # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the "Assistant object" and the "input message" as arguments
-    #   and should return the user_prompt as a Union[List[Dict], str].
+    #   and should return the user_prompt as a Union[List, Dict, str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
     #     assistant: Assistant,
-    #     message: Union[List[Dict], str],
+    #     message: Union[List, Dict, str],
     #     references: Optional[str] = None,
     #     chat_history: Optional[str] = None,
-    # ) -> Union[List[Dict], str]:
+    # ) -> Union[List, Dict, str]:
     #     ...
     user_prompt_function: Optional[Callable[..., str]] = None
     # If True, build a default user prompt using references and chat history
@@ -389,7 +389,9 @@ class Assistant(BaseModel):
                 self._api_log_assistant_run()
         return self.run_id
 
-    def _run(self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True) -> Iterator[str]:
+    def _run(
+        self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any
+    ) -> Iterator[str]:
         logger.debug(f"*********** Run Start: {self.run_id} ***********")
         # Load run from storage
         self.read_from_storage()
@@ -414,7 +416,7 @@ class Assistant(BaseModel):
             current_task = task
 
             # -*- Prepare input message for the current_task
-            current_task_message: Optional[Union[List[Dict], str]] = None
+            current_task_message: Optional[Union[List, Dict, str]] = None
             if previous_task and previous_task.output is not None:
                 # Convert current_task_message to json if it is a BaseModel
                 if issubclass(previous_task.output.__class__, BaseModel):
@@ -443,7 +445,7 @@ class Assistant(BaseModel):
 
             # -*- Run Task
             if stream and current_task.streamable:
-                for chunk in current_task.run(message=current_task_message, stream=True):
+                for chunk in current_task.run(message=current_task_message, stream=True, **kwargs):
                     if current_task.show_output:
                         run_output += chunk if isinstance(chunk, str) else ""
                         yield chunk if isinstance(chunk, str) else ""
@@ -451,7 +453,7 @@ class Assistant(BaseModel):
                     yield "\n\n"
                     run_output += "\n\n"
             else:
-                current_task_response = current_task.run(message=current_task_message, stream=False)  # type: ignore
+                current_task_response = current_task.run(message=current_task_message, stream=False, **kwargs)  # type: ignore
                 current_task_response_str = ""
                 try:
                     if current_task_response:
@@ -506,7 +508,7 @@ class Assistant(BaseModel):
         logger.debug(f"*********** Run End: {self.run_id} ***********")
 
     def run(
-        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True
+        self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any
     ) -> Union[Iterator[str], str, BaseModel]:
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
@@ -541,14 +543,16 @@ class Assistant(BaseModel):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True)
+                resp = self._run(message=message, stream=True, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, stream=False)
+                resp = self._run(message=message, stream=False, **kwargs)
                 return next(resp)
 
-    def chat(self, message: Union[List[Dict], str], stream: bool = True) -> Union[Iterator[str], str, BaseModel]:
-        return self.run(message=message, stream=stream)
+    def chat(
+        self, message: Union[List, Dict, str], stream: bool = True, **kwargs: Any
+    ) -> Union[Iterator[str], str, BaseModel]:
+        return self.run(message=message, stream=stream, **kwargs)
 
     def _chat_raw(
         self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
@@ -658,7 +662,7 @@ class Assistant(BaseModel):
 
         system_message = Message(
             role="system",
-            content="Please provide a suitable name for the conversation assistant in maximum 5 words. "
+            content="Please provide a suitable name for this conversation in maximum 5 words. "
             "Remember, do not exceed 5 words.",
         )
         user_message = Message(role="user", content=_conv)
@@ -727,7 +731,11 @@ class Assistant(BaseModel):
     ###########################################################################
 
     def print_response(
-        self, message: Optional[Union[List[Dict], str]] = None, stream: bool = True, markdown: bool = True
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        stream: bool = True,
+        markdown: bool = True,
+        **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
         from rich.live import Live
@@ -748,7 +756,7 @@ class Assistant(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.run(message, stream=True):
+                for resp in self.run(message, stream=True, **kwargs):
                     response += resp if isinstance(resp, str) else ""
                     _response = response if not markdown else Markdown(response)
 
@@ -767,7 +775,7 @@ class Assistant(BaseModel):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.run(message, stream=False)  # type: ignore
+                response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = response if not markdown else Markdown(response)

@@ -31,14 +31,17 @@ class AssistantKnowledge(BaseModel):
 
     def search(self, query: str, num_documents: Optional[int] = None) -> List[Document]:
         """Returns relevant documents matching the query"""
+        try:
+            if self.vector_db is None:
+                logger.warning("No vector db provided")
+                return []
 
-        if self.vector_db is None:
-            logger.warning("No vector db provided")
+            _num_documents = num_documents or self.num_documents
+            logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
+            return self.vector_db.search(query=query, limit=_num_documents)
+        except Exception as e:
+            logger.error(f"Error searching for documents: {e}")
             return []
-
-        _num_documents = num_documents or self.num_documents
-        logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
-        return self.vector_db.search(query=query, limit=_num_documents)
 
     def load(self, recreate: bool = False) -> None:
         """Load the knowledge base to the vector db"""
@@ -219,3 +222,11 @@ class AssistantKnowledge(BaseModel):
             logger.warning("No vector db provided")
             return False
         return self.vector_db.exists()
+
+    def clear(self) -> bool:
+        """Clear the knowledge base"""
+        if self.vector_db is None:
+            logger.warning("No vector db available")
+            return True
+
+        return self.vector_db.clear()

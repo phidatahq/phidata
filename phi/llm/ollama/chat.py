@@ -69,23 +69,26 @@ class Ollama(LLM):
             _dict["response_format"] = self.response_format
         return _dict
 
-    def to_ollama_message(self, message: Message) -> Dict[str, Any]:
-        return {
+    def to_llm_message(self, message: Message) -> Dict[str, Any]:
+        msg = {
             "role": message.role,
             "content": message.content,
         }
+        if message.model_extra is not None and "images" in message.model_extra:
+            msg["images"] = message.model_extra.get("images")
+        return msg
 
     def invoke_model(self, messages: List[Message]) -> Mapping[str, Any]:
         return self.client.chat(
             model=self.model,
-            messages=[self.to_ollama_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],
             **self.api_kwargs,
         )
 
     def invoke_model_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
         yield from self.client.chat(
             model=self.model,
-            messages=[self.to_ollama_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],
             stream=True,
             **self.api_kwargs,
         )  # type: ignore
@@ -197,6 +200,7 @@ class Ollama(LLM):
             m.log()
 
         assistant_message_content = ""
+        response_content: Optional[str] = None
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
@@ -207,7 +211,7 @@ class Ollama(LLM):
             # logger.info(f"Ollama partial response: {response}")
             # logger.info(f"Ollama partial response type: {type(response)}")
             response_message: Optional[dict] = response.get("message")
-            response_content: Optional[str] = response_message.get("content") if response_message else None
+            response_content = response_message.get("content") if response_message else None
             # logger.info(f"Ollama partial response content: {response_content}")
 
             # -*- Return content if present

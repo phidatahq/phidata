@@ -208,3 +208,6 @@ class Qdrant(VectorDb):
 
     def optimize(self) -> None:
         pass
+
+    def clear(self) -> bool:
+        return False

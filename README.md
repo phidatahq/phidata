@@ -21,47 +21,18 @@
 
 ## ✨ What is phidata?
 
-Phidata is a toolkit for building autonomous AI applications using function calling.
+Phidata is a toolkit for building Autonomous AI applications using function calling.
 
-Function calling is a powerful approach that lets LLMs take actions and dynamically choose their path based on the response,
-just like how humans solve problems. For example:
-- To build a RAG chatbot, instead of stuffing the prompt every time, give the assistant functions to search its knowledge base for relevant context, which results in better responses.
-- To build text-to-SQL, give the assistant functions to view and describe tables, search its knowledge base for context and finally, inspect and run queries to get the answer.
-- To build a customer support assistant, give the assistant functions to search the order history, product description or its knowledge base depending on the question.
+Function calling enables LLMs to achieve tasks by taking an action (function call) and intelligently choosing their next step based on the response,
+just like how humans solve problems.
 
-Phidata provides `Assistants` that come with memory, knowledge, storage and tools, making it easy to build intelligent AI applications.
+## 🤔 How it works
 
-![assistants-explanation](https://github.com/phidatahq/phidata/assets/22579644/7f420011-ab8c-410a-97cc-5ad2fc0fe9d8)
+- **Step 1:** Create an `Assistant`
+- **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
+- **Step 3:** Serve using Streamlit, FastApi or Django to build your AI application
 
-### Use phidata to build
-
-- **Knowledge Assistants:** Answer questions from documents (PDFs, text)
-- **Data Assistants:** Analyze data by running SQL queries.
-- **Python Assistants:** Perform tasks by running python code.
-- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
-- **Research Assistants:** Perform research and summarize findings.
-- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
-- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
-- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
-
-## ✨ Templates
-
-After building an Assistant, we serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
-Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
-
-- Create your AI App using a template: `phi ws create`
-- Run your app locally: `phi ws up`
-- Run your app on AWS: `phi ws up prd:aws`
-
-## 🚀 Demos
-
-- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
-- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">arXiv AI</a> that summarizes and answers questions about arXiv papers.
-- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> that interacts with the HN API to summarize stories, users, find out what's trending, summarize topics.
-- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
-- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
-
-[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
+![assistants](https://github.com/phidatahq/phidata/assets/22579644/a8406c12-efb3-435c-abfe-0f92b8e808f3)
 
 ## 👩‍💻 Getting Started
 
@@ -88,43 +59,39 @@ assistant.print_response("Share a quick healthy breakfast recipe.")
 python assistant.py
 ```
 
-<details>
+### [See more examples below](#-examples)
 
-<summary><h4>Show output</h4></summary>
+## ⭐️ Use phidata to build
 
-```shell
-╭──────────┬───────────────────────────────────────────────────────────────────╮
-│ Message  │ Share a quick healthy breakfast recipe.                           │
-├──────────┼───────────────────────────────────────────────────────────────────┤
-│ Response │ Sure! Here's a quick and healthy breakfast recipe for you:        │
-│ (3.3s)   │                                                                   │
-│          │ Greek Yogurt Parfait:                                             │
-│          │                                                                   │
-│          │ Ingredients:                                                      │
-│          │                                                                   │
-│          │  • 1 cup Greek yogurt                                             │
-│          │  • 1/2 cup fresh mixed berries (strawberries, blueberries,        │
-│          │    raspberries)                                                   │
-│          │  • 1/4 cup granola                                                │
-│          │  • 1 tablespoon honey                                             │
-│          │  • Optional: chia seeds or sliced almonds for extra nutrients     │
-│          │                                                                   │
-│          │ Instructions:                                                     │
-│          │                                                                   │
-│          │  1 In a glass or bowl, layer Greek yogurt, mixed berries, and     │
-│          │    granola.                                                       │
-│          │  2 Drizzle honey on top for some natural sweetness.               │
-│          │  3 Optional: Sprinkle with chia seeds or sliced almonds for added │
-│          │    texture and nutrients.                                         │
-│          │                                                                   │
-│          │ Enjoy your nutritious and delicious Greek yogurt parfait!         │
-╰──────────┴───────────────────────────────────────────────────────────────────╯
-```
+- **Data Assistants:** Analyze data by running SQL queries.
+- **Python Assistants:** Perform tasks by running python code.
+- **Knowledge Assistants:** Answer questions from documents (PDFs, text)
+- **Research Assistants:** Perform research and summarize findings.
+- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
+- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
+- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
+- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
-</details>
+## 🚀 Demos
 
+- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
+- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">arXiv AI</a> that summarizes and answers questions about arXiv papers.
+- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> that interacts with the HN API to summarize stories, users, find out what's trending, summarize topics.
+- <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
+- <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
 
-## 🚀 Examples
+[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
+
+## 🎖️ Templates
+
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build an AI application.
+Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
+
+- Create your AI App using a template: `phi ws create`
+- Run your app locally: `phi ws up`
+- Run your app on AWS: `phi ws up prd:aws`
+
+## 📖 Examples
 
 <details>
 

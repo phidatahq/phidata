@@ -1,5 +1,7 @@
 ## Ollama
 
+> Note: Install ollama to run this: https://github.com/ollama/ollama?tab=readme-ov-file#macos
+
 1. Run ollama model or serve ollama
 
 ```shell
@@ -30,7 +32,13 @@ python cookbook/ollama/assistant.py
 python cookbook/ollama/pydantic_output.py
 ```
 
-5. Test Tool Calls (experimental)
+5. Test Image models
+
+```shell
+python cookbook/ollama/image.py
+```
+
+6. Test Tool Calls (experimental)
 
 ```shell
 python cookbook/ollama/tool_call.py

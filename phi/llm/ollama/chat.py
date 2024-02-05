@@ -283,9 +283,9 @@ class Ollama(LLM):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    yield f"\n\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
                 elif len(function_calls_to_run) > 1:
-                    yield "\nRunning:"
+                    yield "\n\nRunning:"
                     for _f in function_calls_to_run:
                         yield f"\n - {_f.get_call_str()}"
 
@@ -293,6 +293,8 @@ class Ollama(LLM):
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
             self.format = ""
+            self.generate_tool_calls_from_json_mode = False
             # -*- Yield new response using results of tool calls
             yield from self.parsed_response_stream(messages=messages)
+            yield "\n"
         logger.debug("---------- Ollama Response End ----------")

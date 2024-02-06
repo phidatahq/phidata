@@ -1,8 +1,8 @@
 from phi.assistant import Assistant
 from phi.llm.ollama import Ollama
 
+prompt = "Who are you and who created you? Answer in 1 short sentence."
 temp = 0.3
-prompt = "Who are you? Answer in 1 sentence."
 models = ["phi", "llava", "llama2", "mixtral", "openhermes", "tinyllama"]
 
 for model in models:

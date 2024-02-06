@@ -7,4 +7,4 @@ models = ["phi", "llava", "llama2", "mixtral", "openhermes", "tinyllama"]
 
 for model in models:
     print(f"================ {model} ================")
-    Assistant(llm=Ollama(model=model, options={'temperature': temp}), system_prompt=prompt).print_response()
+    Assistant(llm=Ollama(model=model, options={"temperature": temp}), system_prompt=prompt).print_response()

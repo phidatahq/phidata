@@ -1,9 +1,6 @@
 from phi.assistant import Assistant
 from phi.llm.ollama import Ollama
 
-from phi.assistant import Assistant
-from phi.llm.ollama import Ollama
-
 temp = 0.3
 question = "Who are you? Answer in 1 sentence."
 models = ["phi", "llava", "llama2", "mixtral", "openhermes", "tinyllama"]

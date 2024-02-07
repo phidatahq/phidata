@@ -289,8 +289,8 @@ class LLMTask(Task):
                     ]
                 )
             if self.knowledge_base:
-                _instructions.append("Do not use phrases like 'based on the information provided.")
-                _instructions.append("Do not use phrases like 'from the knowledge base.")
+                _instructions.append("Do not use phrases like 'based on the information provided.'")
+                _instructions.append("Do not reveal that your information is 'from the knowledge base.'")
             if self.prevent_hallucinations:
                 _instructions.append("If you don't know the answer, say 'I don't know'.")
 

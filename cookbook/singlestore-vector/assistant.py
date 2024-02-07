@@ -9,11 +9,11 @@ from phi.vectordb.singlestore import singlestore
 
 from resources import config
 
-host = config['host']
-port = config['port']
-database = config['database']
-username = config['username']
-password = config['password']
+host = config["host"]
+port = config["port"]
+database = config["database"]
+username = config["username"]
+password = config["password"]
 
 db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
 

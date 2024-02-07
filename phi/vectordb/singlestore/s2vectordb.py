@@ -1,6 +1,7 @@
 from typing import Optional, List, Union, Dict, Any
 from hashlib import md5
 import json
+
 try:
     from sqlalchemy.dialects import mysql
     from sqlalchemy.engine import create_engine, Engine
@@ -84,7 +85,6 @@ class singlestore(VectorDb):
             logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
 
-
     def doc_exists(self, document: Document) -> bool:
         """
         Validating if the document exists or not
@@ -134,7 +134,7 @@ class singlestore(VectorDb):
                 cleaned_content = document.content.replace("\x00", "\uFFFD")
                 content_hash = md5(cleaned_content.encode()).hexdigest()
                 _id = document.id or content_hash
-                
+
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
                 embedding_json = json.dumps(document.embedding)
@@ -234,7 +234,9 @@ class singlestore(VectorDb):
             self.table.c.name,
             self.table.c.meta_data,
             self.table.c.content,
-            func.json_array_unpack(self.table.c.embedding).label("embedding"),  # Unpack embedding here # self.table.c.embedding,
+            func.json_array_unpack(self.table.c.embedding).label(
+                "embedding"
+            ),  # Unpack embedding here # self.table.c.embedding,
             self.table.c.usage,
         ]
 
@@ -250,7 +252,7 @@ class singlestore(VectorDb):
         if self.distance == Distance.cosine:
             embedding_json = json.dumps(query_embedding)
             dot_product_expr = func.dot_product(self.table.c.embedding, text("JSON_ARRAY_PACK(:embedding)"))
-            stmt = stmt.order_by(dot_product_expr.desc()) 
+            stmt = stmt.order_by(dot_product_expr.desc())
             stmt = stmt.params(embedding=embedding_json)
             # stmt = stmt.order_by(self.table.c.embedding.cosine_distance(query_embedding))
         if self.distance == Distance.max_inner_product:
@@ -263,15 +265,15 @@ class singlestore(VectorDb):
         # This will only work if embedding column is created with `vector` data type.
         with self.Session() as sess:
             with sess.begin():
-        #         if self.index is not None:
-        #             if isinstance(self.index, Ivfflat):
-        #                 # Assuming 'nprobe' is a relevant parameter to be set for the session
-        #                 # Update the session settings based on the Ivfflat index configuration
-        #                 sess.execute(text(f"SET SESSION nprobe = {self.index.nprobe}"))
-        #             elif isinstance(self.index, HNSWFlat):
-        #                 # Assuming 'ef_search' is a relevant parameter to be set for the session
-        #                 # Update the session settings based on the HNSW index configuration
-        #                 sess.execute(text(f"SET SESSION ef_search = {self.index.ef_search}"))
+                #         if self.index is not None:
+                #             if isinstance(self.index, Ivfflat):
+                #                 # Assuming 'nprobe' is a relevant parameter to be set for the session
+                #                 # Update the session settings based on the Ivfflat index configuration
+                #                 sess.execute(text(f"SET SESSION nprobe = {self.index.nprobe}"))
+                #             elif isinstance(self.index, HNSWFlat):
+                #                 # Assuming 'ef_search' is a relevant parameter to be set for the session
+                #                 # Update the session settings based on the HNSW index configuration
+                #                 sess.execute(text(f"SET SESSION ef_search = {self.index.ef_search}"))
 
                 neighbors = sess.execute(stmt).fetchall() or []
 
@@ -315,6 +317,7 @@ class singlestore(VectorDb):
 
     def optimize(self) -> None:
         pass
+        # # Below code is for when ANN comes out
         # logger.debug("==== Optimizing Vector DB ====")
 
         # if self.index is None:

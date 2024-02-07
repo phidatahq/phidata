@@ -1,5 +1,6 @@
 from typing import Optional, Any, List
 import json
+
 try:
     from sqlalchemy.dialects import mysql
     from sqlalchemy.engine import create_engine, Engine
@@ -164,7 +165,8 @@ class SingleStoreAssistantStorage(AssistantStorage):
 
         with self.Session() as sess, sess.begin():
             # Create an insert statement using SingleStore's ON DUPLICATE KEY UPDATE syntax
-            upsert_sql = text(f"""
+            upsert_sql = text(
+                f"""
             INSERT INTO {self.schema}.{self.table_name}
             (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
             VALUES
@@ -179,36 +181,43 @@ class SingleStoreAssistantStorage(AssistantStorage):
                 run_data = VALUES(run_data),
                 user_data = VALUES(user_data),
                 task_data = VALUES(task_data);
-            """)
+            """
+            )
 
             try:
-                sess.execute(upsert_sql, {
-                    'run_id': row.run_id,
-                    'name': row.name,
-                    'run_name': row.run_name,
-                    'user_id': row.user_id,
-                    'llm': json.dumps(row.llm) if row.llm is not None else None,
-                    'memory': json.dumps(row.memory) if row.memory is not None else None,
-                    'assistant_data': json.dumps(row.assistant_data) if row.assistant_data is not None else None,
-                    'run_data': json.dumps(row.run_data) if row.run_data is not None else None,
-                    'user_data': json.dumps(row.user_data) if row.user_data is not None else None,
-                    'task_data': json.dumps(row.task_data) if row.task_data is not None else None,
-                })
+                sess.execute(
+                    upsert_sql,
+                    {
+                        "run_id": row.run_id,
+                        "name": row.name,
+                        "run_name": row.run_name,
+                        "user_id": row.user_id,
+                        "llm": json.dumps(row.llm) if row.llm is not None else None,
+                        "memory": json.dumps(row.memory) if row.memory is not None else None,
+                        "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+                        "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+                        "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+                        "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+                    },
+                )
             except Exception:
                 # Create table and try again
                 self.create()
-                sess.execute(upsert_sql, {
-                    'run_id': row.run_id,
-                    'name': row.name,
-                    'run_name': row.run_name,
-                    'user_id': row.user_id,
-                    'llm': json.dumps(row.llm) if row.llm is not None else None,
-                    'memory': json.dumps(row.memory) if row.memory is not None else None,
-                    'assistant_data': json.dumps(row.assistant_data) if row.assistant_data is not None else None,
-                    'run_data': json.dumps(row.run_data) if row.run_data is not None else None,
-                    'user_data': json.dumps(row.user_data) if row.user_data is not None else None,
-                    'task_data': json.dumps(row.task_data) if row.task_data is not None else None,
-                })
+                sess.execute(
+                    upsert_sql,
+                    {
+                        "run_id": row.run_id,
+                        "name": row.name,
+                        "run_name": row.run_name,
+                        "user_id": row.user_id,
+                        "llm": json.dumps(row.llm) if row.llm is not None else None,
+                        "memory": json.dumps(row.memory) if row.memory is not None else None,
+                        "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+                        "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+                        "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+                        "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+                    },
+                )
         return self.read(run_id=row.run_id)
 
     def delete(self) -> None:

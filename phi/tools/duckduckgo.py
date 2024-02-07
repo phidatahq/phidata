@@ -11,10 +11,10 @@ except ImportError:
 
 
 class DuckDuckGo(ToolRegistry):
-    def __init__(self, ddgs: Optional[Any] = None):
+    def __init__(self, ddgs: Optional[Any] = None, **kwargs):
         super().__init__(name="duckduckgo")
 
-        self.ddgs = ddgs or DDGS()
+        self.ddgs = ddgs or DDGS(**kwargs)
         self.register(self.duckduckgo_search)
         self.register(self.duckduckgo_news)
 

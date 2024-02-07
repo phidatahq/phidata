@@ -125,7 +125,7 @@ class Assistant(BaseModel):
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
     # If markdown=true, add instructions to format the output using markdown
-    markdown: bool = True
+    markdown: bool = False
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function

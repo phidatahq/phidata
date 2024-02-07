@@ -99,7 +99,7 @@ class LLMTask(Task):
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
     # If markdown=true, add instructions to format the output using markdown
-    markdown: bool = True
+    markdown: bool = False
 
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
@@ -266,8 +266,7 @@ class LLMTask(Task):
             logger.error("This LLM does not support native function calls. Can only use output_model or tools.")
 
         # Build a default system prompt
-        # Add default description if not set
-        _description = self.description or "You are a helpful assistant."
+        _system_prompt = self.description + "\n" if self.description else ""
 
         # Add default instructions if not set
         _instructions = self.instructions
@@ -310,9 +309,6 @@ class LLMTask(Task):
 
         if self.extra_instructions is not None:
             _instructions.extend(self.extra_instructions)
-
-        # Build the system prompt
-        _system_prompt = _description + "\n"
 
         # Add instructions for choosing tools
         if self.llm.generate_tool_calls_from_json_mode:
@@ -514,13 +510,14 @@ class LLMTask(Task):
 
         # -*- Update task memory
         # Add user message to the task memory - this is added to the chat_history
-        user_message = Message(role="user", content=message)
-        self.memory.add_chat_message(message=user_message)
+        user_message = Message(role="user", content=message) if message is not None else None
+        if user_message is not None:
+            self.memory.add_chat_message(message=user_message)
         # Add llm messages to the task memory - this is added to the llm_messages
         self.memory.add_llm_messages(messages=messages)
         # Add llm response to the chat history
-        llm_message = Message(role="assistant", content=task_response)
-        self.memory.add_chat_message(message=llm_message)
+        llm_response_message = Message(role="assistant", content=task_response)
+        self.memory.add_chat_message(message=llm_response_message)
         # Add references to the task memory
         if references:
             self.memory.add_references(references=references)
@@ -528,11 +525,12 @@ class LLMTask(Task):
         # -*- Update assistant memory
         if self.assistant_memory is not None:
             # Add user message to the conversation memory
-            self.assistant_memory.add_chat_message(message=user_message)
+            if user_message is not None:
+                self.assistant_memory.add_chat_message(message=user_message)
             # Add llm messages to the conversation memory
             self.assistant_memory.add_llm_messages(messages=messages)
             # Add llm response to the chat history
-            self.assistant_memory.add_chat_message(message=llm_message)
+            self.assistant_memory.add_chat_message(message=llm_response_message)
             # Add references to the conversation memory
             if references:
                 self.assistant_memory.add_references(references=references)

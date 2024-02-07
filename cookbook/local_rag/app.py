@@ -63,7 +63,11 @@ def main() -> None:
         local_rag_assistant = st.session_state["local_rag_assistant"]
 
     # Create assistant run (i.e. log to database) and save run_id in session state
-    st.session_state["local_rag_assistant_run_id"] = local_rag_assistant.create_run()
+    try:
+        st.session_state["local_rag_assistant_run_id"] = local_rag_assistant.create_run()
+    except Exception:
+        st.warning("Could not create assistant, is the database running?")
+        return
 
     # Load existing messages
     assistant_chat_history = local_rag_assistant.memory.get_chat_history()

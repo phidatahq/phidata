@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "2.3.19"
-description = "Build AI assistants using function calling"
+version = "2.3.21"
+description = "Build AI Assistants using function calling"
 requires-python = ">=3.8"
 readme = "README.md"
 authors = [
@@ -78,6 +78,7 @@ module = [
   "bs4.*",
   "docker.*",
   "duckdb.*",
+  "duckduckgo_search.*",
   "kubernetes.*",
   "langchain.*",
   "langchain_core.*",

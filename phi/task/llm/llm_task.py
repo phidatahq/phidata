@@ -378,7 +378,7 @@ class LLMTask(Task):
         message: Optional[Union[List, Dict, str]] = None,
         references: Optional[str] = None,
         chat_history: Optional[str] = None,
-    ) -> Union[List, Dict, str]:
+    ) -> Optional[Union[List, Dict, str]]:
         """Build the user prompt given a message, references and chat_history"""
 
         # If the user_prompt is set, return it
@@ -401,7 +401,7 @@ class LLMTask(Task):
                 raise Exception("user_prompt_function returned None")
 
         if message is None:
-            raise Exception("Could not build user prompt. Please provide a user_prompt or an input message.")
+            return None
 
         # If build_default_user_prompt is False, return the message as is
         if not self.build_default_user_prompt:
@@ -481,7 +481,7 @@ class LLMTask(Task):
             user_prompt_chat_history = self.get_formatted_chat_history()
 
         # -*- Build the user prompt
-        user_prompt: Union[List, Dict, str] = self.get_user_prompt(
+        user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
             message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
         )
 
@@ -489,7 +489,7 @@ class LLMTask(Task):
         # Create system message
         system_prompt_message = Message(role="system", content=system_prompt)
         # Create user message
-        user_prompt_message = Message(role="user", content=user_prompt, **kwargs)
+        user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
 
         # Create message list
         messages: List[Message] = []
@@ -500,7 +500,8 @@ class LLMTask(Task):
                 messages += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
             elif self.memory is not None:
                 messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
-        messages += [user_prompt_message]
+        if user_prompt_message is not None:
+            messages += [user_prompt_message]
 
         # -*- Generate run response (includes running function calls)
         task_response = ""

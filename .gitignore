@@ -24,6 +24,9 @@
 /storage
 .images
 
+# ignore local dir
+local
+
 # ignore dist dir
 dist
 

@@ -51,7 +51,7 @@ streamlit run cookbook/local_rag/app.py
 7. Turn off pgvector
 
 ```shell
-phi stop cookbook/local_rag/resources.py -y****
+phi stop cookbook/local_rag/resources.py -y
 ```
 
 8. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions

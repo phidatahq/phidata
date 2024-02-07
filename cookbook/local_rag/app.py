@@ -5,7 +5,6 @@ from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.tools.streamlit.components import (
-    get_openai_key_sidebar,
     check_password,
     reload_button_sidebar,
     get_username_sidebar,
@@ -32,9 +31,6 @@ def restart_assistant():
 
 
 def main() -> None:
-    # Get OpenAI key from environment variable or user input
-    get_openai_key_sidebar()
-
     # Get username
     username = get_username_sidebar()
     if username:

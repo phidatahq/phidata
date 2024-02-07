@@ -413,9 +413,7 @@ class LLMTask(Task):
             return message
 
         # Build a default user prompt
-        _user_prompt = "Respond to the following message:\n"
-        if references:
-            _user_prompt = "Respond to the following message using the information in <knowledge_base>:\n"
+        _user_prompt = "Respond to the following message from a user:\n"
         _user_prompt += f"USER: {message}\n"
 
         # Add references to prompt

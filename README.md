@@ -27,7 +27,7 @@ Function calling enables LLMs to achieve tasks by calling functions and intellig
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/facb618c-17bd-4ab8-99eb-c4c8309e0f45)
 
-## 💡How it works
+## ⭐️ How it works
 
 - **Step 1:** Create an `Assistant`
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
@@ -78,17 +78,6 @@ python assistant.py
 
 ### [See more examples below](#-examples)
 ### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
-
-## ⭐️ Use phidata to build
-
-- **Knowledge Assistants:** Answer questions from documents (PDFs, text)
-- **Research Assistants:** Perform research and summarize findings.
-- **Data Assistants:** Analyze data by running SQL queries.
-- **Python Assistants:** Perform tasks by running python code.
-- **Customer Assistants:** Answer customer queries using product descriptions and purchase history.
-- **Marketing Assistants:** Provide marketing insights, copywriting and content ideas.
-- **Travel Assistants:** Help plan travel by researching destinations, flight and hotel prices.
-- **Meal Prep Assistants:** Help plan meals by researching recipes and adding ingredients to shopping lists.
 
 ## 🚀 Demos
 

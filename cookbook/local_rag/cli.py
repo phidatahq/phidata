@@ -13,16 +13,18 @@ knowledge_base = PDFUrlKnowledgeBase(
         collection="recipes", db_url=vector_db.get_db_connection_local(), embedder=OllamaEmbedder(model=model)
     ),
 )
-# knowledge_base.load(recreate=False)
+knowledge_base.load(recreate=False)
 
 assistant = Assistant(
     llm=Ollama(model=model),
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
-    debug_mode=True,
+    # Uncomment to enable debug mode that show system messages
+    # debug_mode=True,
 )
 
-assistant.print_response("Got any pad thai?")
+# Use this to print a single response
+# assistant.print_response("Got any pad thai?", markdown=True)
 
 # Use this to run a CLI application with multi-turn conversation
-# assistant.cli_app()
+assistant.cli_app(markdown=True)

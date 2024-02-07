@@ -19,7 +19,6 @@ except ImportError:
 
 from phi.document import Document
 from phi.embedder import Embedder
-from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
@@ -33,7 +32,7 @@ class PgVector2(VectorDb):
         schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
-        embedder: Embedder = OpenAIEmbedder(),
+        embedder: Optional[Embedder] = None,
         distance: Distance = Distance.cosine,
         index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
     ):
@@ -54,7 +53,12 @@ class PgVector2(VectorDb):
         self.metadata: MetaData = MetaData(schema=self.schema)
 
         # Embedder for embedding the document contents
-        self.embedder: Embedder = embedder
+        _embedder = embedder
+        if _embedder is None:
+            from phi.embedder.openai import OpenAIEmbedder
+
+            _embedder = OpenAIEmbedder()
+        self.embedder: Embedder = _embedder
         self.dimensions: int = self.embedder.dimensions
 
         # Distance metric

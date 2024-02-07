@@ -1,25 +1,58 @@
-## RAG Assistant
+## Fully Local RAG using Ollama & PgVector
 
-1. Run pgvector
+> Note: Fork and clone this repository if needed
 
-```shell
-phi start cookbook/rag/resources.py -y
-```
-
-2. Install libraries
+1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) and run ollama
 
 ```shell
-pip install -U pgvector pypdf psycopg sqlalchemy
+ollama run openhermes
 ```
 
-3. Run RAG Assistant
+2. Create a virtual environment
 
 ```shell
-python cookbook/rag/assistant.py
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
 ```
 
-4. Turn off pgvector
+3. Install libraries
 
 ```shell
-phi stop cookbook/rag/resources.py -y
+pip install -r cookbook/local_rag/requirements.txt
 ```
+
+4. Run pgvector
+
+```shell
+phi start cookbook/local_rag/resources.py -y
+```
+
+5. Run CLI application
+
+```shell
+python cookbook/local_rag/cli.py
+```
+
+- Ask questions about thai recipes
+
+```text
+Got any pad thai?
+```
+
+6. Run Streamlit application
+
+```shell
+python cookbook/local_rag/app.py
+```
+
+- Upload you own PDFs and as
+
+7. Turn off pgvector
+
+```shell
+phi stop cookbook/local_rag/resources.py -y
+```
+
+8. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+
+9. Star ⭐️ the project if you like it.

@@ -105,7 +105,7 @@ def main() -> None:
     if st.sidebar.button("New Run"):
         restart_assistant()
 
-    if local_rag_assistant.knowledge_base:
+    if local_rag_assistant.knowledge_base and local_rag_assistant.knowledge_base.vector_db:
         if st.sidebar.button("Clear Knowledge Base"):
             local_rag_assistant.knowledge_base.vector_db.clear()
             st.session_state["local_rag_knowledge_base_loaded"] = False

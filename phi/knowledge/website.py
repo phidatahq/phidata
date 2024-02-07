@@ -36,7 +36,7 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
         for _url in self.urls:
             yield self.reader.read(url=_url)
 
-    def load(self, recreate: bool = False) -> None:
+    def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
         """Load the website contents to the vector db"""
 
         if self.vector_db is None:

@@ -290,6 +290,7 @@ class LLMTask(Task):
                 )
             if self.knowledge_base:
                 _instructions.append("Do not use phrases like 'based on the information provided.")
+                _instructions.append("Do not use phrases like 'from the knowledge base.")
             if self.prevent_hallucinations:
                 _instructions.append("If you don't know the answer, say 'I don't know'.")
 
@@ -413,11 +414,13 @@ class LLMTask(Task):
 
         # Build a default user prompt
         _user_prompt = "Respond to the following message:\n"
+        if references:
+            _user_prompt = "Respond to the following message using the information in <knowledge_base>:\n"
         _user_prompt += f"USER: {message}\n"
 
         # Add references to prompt
         if references:
-            _user_prompt += "\nUse this information from the knowledge base if it helps:\n"
+            _user_prompt += "\nUse this information if it helps:\n"
             _user_prompt += "<knowledge_base>\n"
             _user_prompt += f"{references}\n"
             _user_prompt += "</knowledge_base>\n"

@@ -17,10 +17,10 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 st.set_page_config(
-    page_title="Local RAG using OpenHermes, Ollama and PgVector",
+    page_title="Local RAG",
     page_icon=":orange_heart:",
 )
-st.title("Local RAG")
+st.title("Local RAG using OpenHermes, Ollama and PgVector")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 

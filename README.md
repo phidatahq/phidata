@@ -33,7 +33,7 @@ Function calling enables LLMs to achieve tasks by calling functions and intellig
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
 - **Step 3:** Serve using Streamlit, FastApi or Django to build your AI application
 
-## Getting Started
+## Quickstart
 
 ### Installation
 

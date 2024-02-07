@@ -351,7 +351,7 @@ class LLMTask(Task):
         relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
         if len(relevant_docs) == 0:
             return None
-        return json.dumps([doc.to_dict() for doc in relevant_docs])
+        return json.dumps([doc.to_dict() for doc in relevant_docs], indent=2)
 
     def get_formatted_chat_history(self) -> Optional[str]:
         """Returns a formatted chat history to add to the user prompt"""
@@ -404,7 +404,7 @@ class LLMTask(Task):
             return message
 
         # If references and chat_history are None, return the message as is
-        if references is None and chat_history is None:
+        if not (self.add_references_to_prompt or self.add_chat_history_to_prompt):
             return message
 
         # If message is not a str, return as is
@@ -412,31 +412,29 @@ class LLMTask(Task):
             return message
 
         # Build a default user prompt
-        _user_prompt = ""
+        _user_prompt = "Respond to the following message:\n"
+        _user_prompt += f"USER: {message}\n"
 
         # Add references to prompt
         if references:
-            _user_prompt += f"""Use the following information from the knowledge base if it helps:
-                <knowledge_base>
-                {references}
-                </knowledge_base>
-                \n"""
+            _user_prompt += "\nUse this information from the knowledge base if it helps:\n"
+            _user_prompt += "<knowledge_base>\n"
+            _user_prompt += f"{references}\n"
+            _user_prompt += "</knowledge_base>\n"
 
         # Add chat_history to prompt
         if chat_history:
-            _user_prompt += f"""Use the following chat history to reference past messages:
-                <chat_history>
-                {chat_history}
-                </chat_history>
-                \n"""
+            _user_prompt += "\nUse the following chat history to reference past messages:\n"
+            _user_prompt += "<chat_history>\n"
+            _user_prompt += f"{chat_history}\n"
+            _user_prompt += "</chat_history>\n"
 
         # Add message to prompt
         if references or chat_history:
-            _user_prompt += "Respond to the following message:"
+            _user_prompt += "\nRemember, your task is to respond to the following message:"
             _user_prompt += f"\nUSER: {message}"
-            _user_prompt += "\nASSISTANT: "
-        else:
-            _user_prompt += message
+
+        _user_prompt += "\n\nASSISTANT: "
 
         # Return the user prompt
         return _user_prompt
@@ -712,8 +710,12 @@ class LLMTask(Task):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
 
+        if markdown:
+            self.markdown = True
+
         if self.output_model is not None:
             markdown = False
+            self.markdown = False
             stream = False
 
         if stream:

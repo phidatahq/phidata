@@ -170,13 +170,13 @@ class PgVector2(VectorDb):
                 # Commit every `batch_size` documents
                 if counter >= batch_size:
                     sess.commit()
-                    logger.debug(f"Committed {counter} documents")
+                    logger.info(f"Committed {counter} documents")
                     counter = 0
 
             # Commit any remaining documents
             if counter > 0:
                 sess.commit()
-                logger.debug(f"Committed {counter} documents")
+                logger.info(f"Committed {counter} documents")
 
     def upsert_available(self) -> bool:
         return True
@@ -224,13 +224,13 @@ class PgVector2(VectorDb):
                 # Commit every `batch_size` documents
                 if counter >= batch_size:
                     sess.commit()
-                    logger.debug(f"Committed {counter} documents")
+                    logger.info(f"Committed {counter} documents")
                     counter = 0
 
             # Commit any remaining documents
             if counter > 0:
                 sess.commit()
-                logger.debug(f"Committed {counter} documents")
+                logger.info(f"Committed {counter} documents")
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
@@ -264,14 +264,20 @@ class PgVector2(VectorDb):
         logger.debug(f"Query: {stmt}")
 
         # Get neighbors
-        with self.Session() as sess:
-            with sess.begin():
-                if self.index is not None:
-                    if isinstance(self.index, Ivfflat):
-                        sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
-                    elif isinstance(self.index, HNSW):
-                        sess.execute(text(f"SET LOCAL hnsw.ef_search  = {self.index.ef_search}"))
-                neighbors = sess.execute(stmt).fetchall() or []
+        try:
+            with self.Session() as sess:
+                with sess.begin():
+                    if self.index is not None:
+                        if isinstance(self.index, Ivfflat):
+                            sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
+                        elif isinstance(self.index, HNSW):
+                            sess.execute(text(f"SET LOCAL hnsw.ef_search  = {self.index.ef_search}"))
+                    neighbors = sess.execute(stmt).fetchall() or []
+        except Exception as e:
+            logger.error(f"Error searching for documents: {e}")
+            logger.error("Table might not exist, creating for future use")
+            self.create()
+            return []
 
         # Build search results
         search_results: List[Document] = []

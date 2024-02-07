@@ -50,11 +50,11 @@ class LangChainKnowledgeBase(AssistantKnowledge):
             )
         return documents
 
-    def load(self, recreate: bool = False) -> Any:
+    def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
         if self.loader is None:
             logger.error("No loader provided for LangChainKnowledgeBase")
             return
-        return self.loader()
+        self.loader()
 
     def exists(self) -> bool:
         logger.warning("LangChainKnowledgeBase.exists() not supported - please check the vectorstore manually.")

@@ -745,8 +745,12 @@ class Assistant(BaseModel):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
 
+        if markdown:
+            self.markdown = True
+
         if self.output_model is not None:
             markdown = False
+            self.markdown = False
             stream = False
 
         if stream:

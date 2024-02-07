@@ -58,7 +58,7 @@ assistant.print_response("Share a quick healthy breakfast recipe.")
 python assistant.py
 ```
 
-- Add the ability to search DuckDuckGo
+- Let it search the web
 
 ```python
 from phi.assistant import Assistant

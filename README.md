@@ -76,10 +76,9 @@ pip install duckduckgo-search
 python assistant.py
 ```
 
-### [See more examples below](#examples)
-### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
-
 ## Demos
+
+Checkout some of these applications showcasing the advantage of function calling:
 
 - <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
 - <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">ArXiv AI</a> that answers questions about ArXiv papers using the ArXiv API.
@@ -627,11 +626,23 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 </details>
 
+### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
+
 ## Documentation
 
 - You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
 - You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 - Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+
+## Building AI for your product?
+
+We've helped many companies build AI for their products, the general workflow is:
+
+1. **Train an assistant** with proprietary data to perform tasks specific to your product.
+2. **Connect your product** to the assistant via an API.
+3. **Customize, Monitor and Improve** the AI.
+
+We provide dedicated support and development for AI products. [Book a call](https://cal.com/phidata/intro) to get started.
 
 ## Contributions
 

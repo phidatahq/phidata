@@ -42,15 +42,16 @@ Got any pad thai?
 6. Run Streamlit application
 
 ```shell
-python cookbook/local_rag/app.py
+streamlit run cookbook/local_rag/app.py
 ```
 
-- Upload you own PDFs and as
+- Open [localhost:8501](http://localhost:8501) to view your local AI app.
+- Upload you own PDFs and ask questions
 
 7. Turn off pgvector
 
 ```shell
-phi stop cookbook/local_rag/resources.py -y
+phi stop cookbook/local_rag/resources.py -y****
 ```
 
 8. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions

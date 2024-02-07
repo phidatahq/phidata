@@ -19,7 +19,7 @@
   </a>
 </p>
 
-## ✨ What is phidata?
+## What is phidata?
 
 Phidata is a toolkit for building AI Assistants using function calling.
 
@@ -27,13 +27,13 @@ Function calling enables LLMs to achieve tasks by calling functions and intellig
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/facb618c-17bd-4ab8-99eb-c4c8309e0f45)
 
-## ⭐️ How it works
+## How it works
 
 - **Step 1:** Create an `Assistant`
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
 - **Step 3:** Serve using Streamlit, FastApi or Django to build your AI application
 
-## 👩‍💻 Getting Started
+## Getting Started
 
 ### Installation
 
@@ -79,7 +79,7 @@ python assistant.py
 ### [See more examples below](#-examples)
 ### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
 
-## 🚀 Demos
+## Demos
 
 - <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
 - <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">ArXiv AI</a> that answers questions about ArXiv papers using the ArXiv API.
@@ -89,7 +89,7 @@ python assistant.py
 
 [![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
 
-## 🎖️ Templates
+## Templates
 
 After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI application.
 Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
@@ -98,7 +98,7 @@ Instead of wiring these tools manually, phidata provides **pre-built** templates
 - Run your app locally: `phi ws up`
 - Run your app on AWS: `phi ws up prd:aws`
 
-## 📖 Examples
+## Examples
 
 <details>
 
@@ -627,7 +627,7 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 </details>
 
-## 📚 Documentation
+## Documentation
 
 - You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
 - You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>

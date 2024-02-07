@@ -102,7 +102,7 @@ Instead of wiring these tools manually, phidata provides **pre-built** templates
 
 <details>
 
-<summary><h4>Create an Assistant with a function call</h4></summary>
+<summary><h3>Create an Assistant with a function call</h3></summary>
 
 - Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
 
@@ -193,7 +193,7 @@ python hn_assistant.py
 
 <details>
 
-<summary><h4>Create an Assistant that can analyze data using SQL</h4></summary>
+<summary><h3>Create an Assistant that can analyze data using SQL</h3></summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -254,7 +254,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h4>Create an Assistant that achieves tasks using python</h4></summary>
+<summary><h3>Create an Assistant that achieves tasks using python</h3></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -305,7 +305,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 <details>
 
-<summary><h4>Generate pydantic models using an Assistant</h4></summary>
+<summary><h3>Generate pydantic models using an Assistant</h3></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -360,7 +360,7 @@ MovieScript(
 
 <details>
 
-<summary><h4>Create a PDF Assistant with Knowledge & Storage</h4></summary>
+<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
 
 - **Knowledge Base:** information that the Assistant can search to improve its responses. Uses a vector db.
 - **Storage:** provides long term memory for Assistants. Uses a database.
@@ -524,7 +524,7 @@ phi stop resources.py
 
 <details>
 
-<summary><h4>Build an AI App using Streamlit, FastApi and PgVector</h4></summary>
+<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
 
 Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
 

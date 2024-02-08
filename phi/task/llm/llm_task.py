@@ -4,6 +4,7 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, Union, cast
 from textwrap import dedent
 
 from pydantic import BaseModel, ValidationError
+from rich.pretty import pprint
 
 from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
@@ -215,6 +216,22 @@ class LLMTask(Task):
                                 if prop_name != "title"
                             }
                             output_model_properties[field_name] = formatted_field_properties
+                    json_schema_defs = json_schema.get("$defs")
+                    if json_schema_defs is not None:
+                        output_model_properties["$defs"] = {}
+                        for def_name, def_properties in json_schema_defs.items():
+                            def_fields = def_properties.get("properties")
+                            formatted_def_properties = {}
+                            if def_fields is not None:
+                                for field_name, field_properties in def_fields.items():
+                                    formatted_field_properties = {
+                                        prop_name: prop_value
+                                        for prop_name, prop_value in field_properties.items()
+                                        if prop_name != "title"
+                                    }
+                                    formatted_def_properties[field_name] = formatted_field_properties
+                            if len(formatted_def_properties) > 0:
+                                output_model_properties["$defs"][def_name] = formatted_def_properties
 
                     if len(output_model_properties) > 0:
                         json_output_prompt += "\n<json_fields>"

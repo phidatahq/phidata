@@ -537,15 +537,9 @@ phi stop resources.py -y
 
 <summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
 
-Phidata provides **pre-built templates** for AI Apps that you can use as a starting point. The general workflow is:
+Let's build an **AI App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the API and PgVector for knowledge and storage. Read the full tutorial <a href="https://docs.phidata.com/ai-app/run-local" target="_blank" rel="noopener noreferrer">here</a>.
 
-- Create your codebase using a template: `phi ws create`
-- Run your app locally: `phi ws up dev:docker`
-- Run your app on AWS: `phi ws up prd:aws`
-
-Let's build an **AI App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the backend and PgVector for knowledge and storage. Read the full tutorial <a href="https://docs.phidata.com/ai-app/run-local" target="_blank" rel="noopener noreferrer">here</a>.
-
-### Step 1: Create your codebase
+### Create your codebase
 
 Create your codebase using the `ai-app` template
 
@@ -555,7 +549,7 @@ phi ws create -t ai-app -n ai-app
 
 This will create a folder `ai-app` with a pre-built AI App that you can customize and make your own.
 
-### Step 2: Serve your App using Streamlit
+### Serve your App using Streamlit
 
 <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit</a> allows us to build micro front-ends and is extremely useful for building basic applications in pure python. Start the `app` group using:
 
@@ -571,16 +565,31 @@ phi ws up --group app
 - Click on **PDF Assistant** in the sidebar
 - Enter a username and wait for the knowledge base to load.
 - Choose either the `RAG` or `Autonomous` Assistant type.
-- Ask "How do I make chicken curry?"
+- Ask "How do I make pad thai?"
 - Upload PDFs and ask questions
+
+> We provide a default PDF of ThaiRecipes that you can clear using the `Clear Knowledge Base` button. The PDF is only for testing.
 
 <img width="800" alt="chat-with-pdf" src="https://github.com/phidatahq/phidata/assets/22579644/a8eff0ac-963c-43cb-a784-920bd6713a48">
 
-### Step 3: Serve your App using FastApi
+### Optional: Serve your App using FastApi
 
 Streamlit is great for building micro front-ends but any production application will be built using a front-end framework like `next.js` backed by a RestApi built using a framework like `FastApi`.
 
-Your AI App comes ready-to-use with FastApi endpoints, start the `api` group using:
+Your AI App comes ready-to-use with FastApi endpoints.
+
+- Update the `workspace/settings.py` file and set `dev_api_enabled=True`
+
+```python
+...
+ws_settings = WorkspaceSettings(
+    ...
+    # Uncomment the following line
+    dev_api_enabled=True,
+...
+```
+
+- Start the `api` group using:
 
 ```shell
 phi ws up --group api
@@ -624,7 +633,7 @@ phi ws up --group jupyter
 
 - Delete local resources
 
-### Step 4: Stop the workspace
+### Stop the workspace
 
 Play around and stop the workspace using:
 
@@ -632,7 +641,7 @@ Play around and stop the workspace using:
 phi ws down
 ```
 
-### Step 5: Run your AI App on AWS
+### Run your AI App on AWS
 
 Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank" rel="noopener noreferrer">run your AI App on AWS</a>.
 

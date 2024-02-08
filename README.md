@@ -101,7 +101,7 @@ Instead of wiring tools manually, phidata provides **pre-built** templates for A
 
 <details>
 
-<summary><h3>An Assistant that can call an API</h3></summary>
+<summary><h3>Assistant that can call an API</h3></summary>
 
 - Create a file `api_assistant.py` that can call the HackerNews API to get top stories.
 
@@ -192,7 +192,7 @@ python api_assistant.py
 
 <details>
 
-<summary><h3>An Assistant that can analyze data using SQL</h3></summary>
+<summary><h3>Assistant that can analyze data using SQL</h3></summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -253,7 +253,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h3>An Assistant that can run python code</h3></summary>
+<summary><h3>Assistant that can run python code</h3></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -304,7 +304,7 @@ INFO     Running /Users/zu/ai/average_rating
 
 <details>
 
-<summary><h3>An Assistant that can generate pydantic models</h3></summary>
+<summary><h3>Assistant that can generate pydantic models</h3></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.

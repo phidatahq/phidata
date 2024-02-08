@@ -78,7 +78,7 @@ python assistant.py
 
 ## Demos
 
-Checkout some of these applications showcasing the advantage of function calling:
+Checkout some applications showcasing the advantage of function calling:
 
 - <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
 - <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">ArXiv AI</a> that answers questions about ArXiv papers using the ArXiv API.

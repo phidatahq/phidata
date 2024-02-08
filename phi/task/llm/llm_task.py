@@ -4,7 +4,6 @@ from typing import List, Any, Optional, Dict, Iterator, Callable, Union, cast
 from textwrap import dedent
 
 from pydantic import BaseModel, ValidationError
-from rich.pretty import pprint
 
 from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge

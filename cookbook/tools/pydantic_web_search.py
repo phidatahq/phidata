@@ -26,7 +26,7 @@ news_assistant = Assistant(
     output_model=NewsItems,
     description="You are a news assistant that helps users find the latest news.",
     instructions=[
-        "Given a topic by the user, respond with 10 latest news items about that topic.",
+        "Given a topic by the user, respond with 2 latest news items about that topic.",
         "Make sure you provide only unique news items.",
         "Use the `duckduckgo_news` tool to get the latest news about a topic. " +
         "Search for 20 news items and select the top 10 unique items.",

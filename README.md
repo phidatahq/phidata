@@ -78,7 +78,7 @@ python assistant.py
 
 ## Demos
 
-Checkout some applications showcasing the advantage of function calling:
+Checkout these AI apps showcasing the advantage of function calling:
 
 - <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
 - <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">ArXiv AI</a> that answers questions about ArXiv papers using the ArXiv API.
@@ -88,10 +88,10 @@ Checkout some applications showcasing the advantage of function calling:
 
 [![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
 
-## Templates
+## AI Applications
 
 After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI application.
-Instead of wiring these tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
+Instead of wiring tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
 
 - Create your AI App using a template: `phi ws create`
 - Run your app locally: `phi ws up`

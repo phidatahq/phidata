@@ -48,6 +48,7 @@ class LLM(BaseModel):
     # Useful when we want to use LLMs that don't support function calls to generate tool calls.
     generate_tool_calls_from_json_mode: bool = False
 
+    phi_proxy: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property

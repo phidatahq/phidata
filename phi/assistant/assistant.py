@@ -734,7 +734,7 @@ class Assistant(BaseModel):
         self,
         message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
-        markdown: bool = True,
+        markdown: bool = False,
         **kwargs: Any,
     ) -> None:
         from phi.cli.console import console

@@ -3,11 +3,11 @@ from rich.prompt import Prompt
 from typing import Optional, List
 
 from phi.assistant import Assistant
-from phi.storage.assistant.singlestore import SingleStoreAssistantStorage
+from phi.storage.assistant.singlestore import S2AssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.singlestore import singlestore
+from phi.vectordb.singlestore import S2VectorDb
 
-from resources import config
+from resources import config  # type: ignore
 
 host = config["host"]
 port = config["port"]
@@ -19,10 +19,10 @@ db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf"],
-    vector_db=singlestore(collection="recipes", db_url=db_url),
+    vector_db=S2VectorDb(collection="recipes", db_url=db_url),
 )
 
-storage = SingleStoreAssistantStorage(table_name="pdf_assistant", db_url=db_url)
+storage = S2AssistantStorage(table_name="pdf_assistant", db_url=db_url)
 
 
 def pdf_assistant(new: bool = False, user: str = "user"):

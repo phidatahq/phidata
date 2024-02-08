@@ -1,6 +1,6 @@
-from typing import Optional, List, Union, Dict, Any
-from hashlib import md5
 import json
+from typing import Optional, List, Dict, Any
+from hashlib import md5
 
 try:
     from sqlalchemy.dialects import mysql
@@ -9,7 +9,7 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, func, select
-    from sqlalchemy.types import DateTime, String
+    from sqlalchemy.types import DateTime
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -20,10 +20,9 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.utils.log import logger
-# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 
 
-class singlestore(VectorDb):
+class S2VectorDb(VectorDb):
     def __init__(
         self,
         collection: str,
@@ -186,7 +185,7 @@ class singlestore(VectorDb):
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
                 embedding_json = json.dumps(document.embedding)
-                json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
+                # json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
 
                 stmt = mysql.insert(self.table).values(
                     id=_id,
@@ -357,3 +356,6 @@ class singlestore(VectorDb):
         #             logger.warning("Table does not exist. Cannot create vector index.")
 
         # logger.debug("==== Vector DB Optimized ====")
+
+    def clear(self) -> bool:
+        return True

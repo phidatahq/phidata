@@ -9,7 +9,7 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
-    from sqlalchemy.types import DateTime, String
+    from sqlalchemy.types import DateTime
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -18,7 +18,7 @@ from phi.storage.assistant.base import AssistantStorage
 from phi.utils.log import logger
 
 
-class SingleStoreAssistantStorage(AssistantStorage):
+class S2AssistantStorage(AssistantStorage):
     def __init__(
         self,
         table_name: str,

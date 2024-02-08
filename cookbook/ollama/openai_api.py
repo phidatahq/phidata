@@ -1,8 +1,10 @@
+# Please install dependencies using: pip install -U ollama phidata openai
 from phi.assistant import Assistant
 from phi.llm.ollama import OllamaOpenAI
 
 assistant = Assistant(
     llm=OllamaOpenAI(model="tinyllama"),
-    system_prompt="Who are you and who made you?"
+    system_prompt="Who are you and who made you?",
+    debug_mode=True,
 )
 assistant.print_response()

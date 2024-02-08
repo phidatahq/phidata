@@ -101,9 +101,9 @@ Instead of wiring tools manually, phidata provides **pre-built** templates for A
 
 <details>
 
-<summary><h3>Create an Assistant with a function call</h3></summary>
+<summary><h3>An Assistant that can call an API</h3></summary>
 
-- Create a file `hn_assistant.py` that can call a function to summarize the top stories on Hacker News
+- Create a file `api_assistant.py` that can call the HackerNews API to get top stories.
 
 ```python
 import json
@@ -140,10 +140,10 @@ assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True)
 assistant.print_response("Summarize the top stories on hackernews?")
 ```
 
-- Run the `hn_assistant.py` file
+- Run the `api_assistant.py` file
 
 ```shell
-python hn_assistant.py
+python api_assistant.py
 ```
 
 - See it work through the problem
@@ -192,7 +192,7 @@ python hn_assistant.py
 
 <details>
 
-<summary><h3>Create an Assistant that can analyze data using SQL</h3></summary>
+<summary><h3>An Assistant that can analyze data using SQL</h3></summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL queries.
 
@@ -253,7 +253,7 @@ INFO     Running: SELECT AVG(Rating) AS average_rating
 
 <details>
 
-<summary><h3>Create an Assistant that achieves tasks using python</h3></summary>
+<summary><h3>An Assistant that can run python code</h3></summary>
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -304,13 +304,13 @@ INFO     Running /Users/zu/ai/average_rating
 
 <details>
 
-<summary><h3>Generate pydantic models using an Assistant</h3></summary>
+<summary><h3>An Assistant that can generate pydantic models</h3></summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
 In this example, our movie assistant generates an object of the `MovieScript` class.
 
-- Create a file `movie_assistant.py`
+- Create a file `pydantic_assistant.py`
 
 ```python
 from typing import List
@@ -336,10 +336,10 @@ movie_assistant = Assistant(
 pprint(movie_assistant.run("New York"))
 ```
 
-- Run the `movie_assistant.py` file
+- Run the `pydantic_assistant.py` file
 
 ```shell
-python movie_assistant.py
+python pydantic_assistant.py
 ```
 
 - See how the assistant generates a structured output
@@ -359,12 +359,15 @@ MovieScript(
 
 <details>
 
-<summary><h3>Create a PDF Assistant with Knowledge & Storage</h3></summary>
+<summary><h3>A PDF Assistant with Knowledge & Storage</h3></summary>
 
-- **Knowledge Base:** information that the Assistant can search to improve its responses. Uses a vector db.
-- **Storage:** provides long term memory for Assistants. Uses a database.
+Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgVector` for knowledge and storage.
 
-Let's run `PgVector` as it can provide both, knowledge and storage for our Assistants.
+**Knowledge Base:** information that the Assistant can search to improve its responses (uses a vector db).
+
+**Storage:** provides long term memory for Assistants (uses a database).
+
+1. Run PgVector
 
 - Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
 - Create a file `resources.py` with the following contents
@@ -388,10 +391,12 @@ dev_docker_resources = DockerResources(apps=[vector_db])
 - Start `PgVector` using
 
 ```shell
-phi start resources.py
+phi start resources.py -y
 ```
 
-- Create a file `pdf_assistant.py` and install libraries using `pip install pgvector pypdf psycopg sqlalchemy`
+2. Create PDF Assistant
+
+- Create a file `pdf_assistant.py`
 
 ```python
 import typer
@@ -400,25 +405,27 @@ from typing import Optional, List
 from phi.assistant import Assistant
 from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector
+from phi.vectordb.pgvector import PgVector2
 
 from resources import vector_db
 
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf"],
-    vector_db=PgVector(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    vector_db=PgVector2(
         collection="recipes",
         db_url=vector_db.get_db_connection_local(),
     ),
 )
+# Comment out after first run
+knowledge_base.load(recreate=False)
 
 storage = PgAssistantStorage(
-    table_name="recipe_assistant",
+    table_name="pdf_assistant",
     db_url=vector_db.get_db_connection_local(),
 )
 
 
-def recipe_assistant(new: bool = False, user: str = "user"):
+def pdf_assistant(new: bool = False, user: str = "user"):
     run_id: Optional[str] = None
 
     if not new:
@@ -444,7 +451,6 @@ def recipe_assistant(new: bool = False, user: str = "user"):
     else:
         print(f"Continuing Run: {run_id}\n")
 
-    assistant.knowledge_base.load(recreate=False)
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
@@ -452,10 +458,16 @@ def recipe_assistant(new: bool = False, user: str = "user"):
         assistant.print_response(message)
 
 if __name__ == "__main__":
-    typer.run(recipe_assistant)
+    typer.run(pdf_assistant)
 ```
 
-- Run the `pdf_assistant.py` file
+3. Install libraries
+
+```shell
+pip install -U pgvector pypdf psycopg sqlalchemy
+```
+
+4. Run PDF Assistant
 
 ```shell
 python pdf_assistant.py
@@ -464,7 +476,7 @@ python pdf_assistant.py
 - Ask a question:
 
 ```
-How do I make chicken tikka salad?
+How do I make pad thai?
 ```
 
 - See how the Assistant searches the knowledge base and returns a response.
@@ -497,7 +509,7 @@ INFO     Loaded 82 documents to knowledge base
 
 </details>
 
-- Message `bye` to exit, start the app again and ask:
+- Message `bye` to exit, start the assistant again using `python pdf_assistant.py` and ask:
 
 ```
 What was my last message?
@@ -511,12 +523,12 @@ See how the assistant now maintains storage across sessions.
 python pdf_assistant.py --new
 ```
 
-- Stop PgVector
+5. Stop PgVector
 
 Play around and then stop `PgVector` using `phi stop resources.py`
 
 ```shell
-phi stop resources.py
+phi stop resources.py -y
 ```
 
 </details>

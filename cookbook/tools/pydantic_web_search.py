@@ -28,8 +28,8 @@ news_assistant = Assistant(
     instructions=[
         "Given a topic by the user, respond with 2 latest news items about that topic.",
         "Make sure you provide only unique news items.",
-        "Use the `duckduckgo_news` tool to get the latest news about a topic. " +
-        "Search for 20 news items and select the top 10 unique items.",
+        "Use the `duckduckgo_news` tool to get the latest news about a topic. "
+        + "Search for 20 news items and select the top 10 unique items.",
     ],
     # Uncomment the line below to run the assistant in debug mode.
     # Useful when running the first time to see the tool calls.

@@ -19,7 +19,9 @@ class MovieScripts(BaseModel):
 
 movie_assistant = Assistant(
     description="You help people write movie ideas.",
-    instructions=["Given a setting by the user, respond with 3 movie script with different genres.",],
+    instructions=[
+        "Given a setting by the user, respond with 3 movie script with different genres.",
+    ],
     output_model=MovieScripts,
 )
 

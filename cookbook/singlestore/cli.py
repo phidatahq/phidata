@@ -21,10 +21,10 @@ db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}?ssl_ca
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=S2VectorDb(collection="recipes", schema="phidata", db_url=db_url),
+    vector_db=S2VectorDb(collection="recipes", schema=database, db_url=db_url),
 )
 
-storage = S2AssistantStorage(table_name="pdf_assistant", schema="phidata", db_url=db_url)
+storage = S2AssistantStorage(table_name="pdf_assistant", schema=database, db_url=db_url)
 
 
 def pdf_assistant(new: bool = False, user: str = "user"):

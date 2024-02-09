@@ -12,7 +12,7 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U pypdf pymysql sqlalchemy openai phidata
+pip install -r cookbook/singlestore/requirements.txt
 ```
 
 3. Provide SingleStore database credentials
@@ -34,10 +34,19 @@ export SINGLESTORE_DATABASE="db"
 export SINGLESTORE_SSL_CERT=".certs/singlestore_bundle.pem"
 ```
 
-4. Run SingleStore Assistant
+4. Run AI as a CLI Application
 
 ```shell
 python cookbook/singlestore/cli.py
 ```
 
-5. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+5. Run Streamlit application
+
+```shell
+streamlit run cookbook/singlestore/app.py
+```
+
+- Open [localhost:8501](http://localhost:8501) to view your local AI app.
+- Upload you own PDFs and ask questions
+
+6. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions

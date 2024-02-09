@@ -70,7 +70,7 @@ def main() -> None:
                         world_container.markdown(world_description)
                 status.update(label=":orange[World generated!]", state="complete", expanded=True)
     else:
-        world_name = world.planet
+        world_name = world.name
         with st.expander(f":orange[{world_name}]", expanded=False):
             world_container = st.empty()
             world_description = ""

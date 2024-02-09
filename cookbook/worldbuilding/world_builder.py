@@ -8,7 +8,7 @@ from rich.pretty import pprint
 class World(BaseModel):
     name: str = Field(
         ...,
-        description="This is the name of the world Be as creative as possible. Do not use simple names like Futura, Earth, etc.",
+        description="This is the name of the world. Be as creative as possible. Do not use simple names like Futura, Earth, etc.",
     )
     characteristics: List[str] = Field(
         ..., description="These are the characteristics of the world. Be as creative as possible."
@@ -25,4 +25,4 @@ class World(BaseModel):
     )
 
 
-pprint(Assistant(llm=Ollama(model="openhermes", options={"temperature": 0}), output_model=World).run())
+pprint(Assistant(llm=Ollama(model="openhermes", options={"temperature": 0.1}), output_model=World).run())

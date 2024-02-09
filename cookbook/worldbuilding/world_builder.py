@@ -11,8 +11,7 @@ class World(BaseModel):
         description="This is the name of the world Be as creative as possible. Do not use simple names like Futura, Earth, etc.",
     )
     characteristics: List[str] = Field(
-        ...,
-        description="These are the characteristics of the world. Be as creative as possible.",
+        ..., description="These are the characteristics of the world. Be as creative as possible."
     )
     drugs: List[str] = Field(
         ..., description="These are the drugs the people in the world use. Be as creative as possible."

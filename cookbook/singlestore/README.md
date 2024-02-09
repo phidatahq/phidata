@@ -1,4 +1,4 @@
-## SingleStore Assistant
+## Use SingleStore as Vector Storage for AI Apps
 
 > Note: Fork and clone this repository if needed
 

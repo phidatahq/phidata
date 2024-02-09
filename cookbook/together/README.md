@@ -1,37 +1,25 @@
-## Ollama
+## Together
 
-1. Run ollama model or serve ollama
+1. Install libraries
 
 ```shell
-ollama run llama2
+pip install -U together
 ```
 
-OR
+2. Test Ollama Assistant
 
 ```shell
-ollama serve
+python cookbook/together/assistant.py
 ```
 
-2. Install libraries
+3. Test Structured output
 
 ```shell
-pip install -U ollama
+python cookbook/together/pydantic_output.py
 ```
 
-3. Test Ollama Assistant
+4. Test Tool Calls (experimental)
 
 ```shell
-python cookbook/ollama/assistant.py
-```
-
-4. Test Structured output
-
-```shell
-python cookbook/ollama/pydantic_output.py
-```
-
-5. Test Tool Calls (experimental)
-
-```shell
-python cookbook/ollama/tool_call.py
+python cookbook/together/tool_call.py
 ```

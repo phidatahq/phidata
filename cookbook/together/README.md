@@ -6,7 +6,7 @@
 pip install -U together
 ```
 
-2. Test Ollama Assistant
+2. Test Together Assistant
 
 ```shell
 python cookbook/together/assistant.py
@@ -16,10 +16,4 @@ python cookbook/together/assistant.py
 
 ```shell
 python cookbook/together/pydantic_output.py
-```
-
-4. Test Tool Calls (experimental)
-
-```shell
-python cookbook/together/tool_call.py
 ```

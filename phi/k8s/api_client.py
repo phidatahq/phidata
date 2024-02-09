@@ -53,7 +53,7 @@ class K8sApiClient:
             logger.error(e)
 
         if self._api_client is None:
-            logger.error("Failed to creat Kubernetes ApiClient")
+            logger.error("Failed to create Kubernetes ApiClient")
             exit(0)
         return self._api_client
 

@@ -6,33 +6,16 @@ from pydantic import BaseModel, Field
 
 
 class World(BaseModel):
-    planet: str = Field(
+    name: str = Field(
         ...,
-        description="This is the planet our world is based on. Examples: Exa, Heras, Titan, Coruscant etc. Be as creative as possible. Do not use simple names like Futura, Earth, etc.",
+        description="This is the name of our world Be as creative as possible. Do not use simple names like Futura, Earth, etc.",
     )
-    population: int = Field(..., description="This is the population of the world.")
     characteristics: List[str] = Field(
         ...,
         description="These are the characteristics of the world. Examples: Magical, Advanced, Peaceful, Wartorn, Abundant, etc. Be as creative as possible.",
     )
-    religions: List[str] = Field(
-        ...,
-        description="These are the religions followed by the people in the world. Examples: Sun Worship, Airbenders, etc.",
-    )
-    scandals: List[str] = Field(
-        ...,
-        description="These are the current scandals in the world. Think bollywood drama. Be as creative as possible.",
-    )
-    wars: List[str] = Field(
-        ...,
-        description="These are the old wars in the world. Think of how the world was shaped by these wars. Be as creative as possible.",
-    )
     drugs: List[str] = Field(
         ..., description="These are the drugs the people in the world use. Be as creative as possible."
-    )
-    climate: str = Field(..., description="This is the climate of the world. Examples: Tropical, Desert, Arctic, etc.")
-    cities: List[str] = Field(
-        ..., description="These are the names of the cities in the world. Be as creative as possible."
     )
     languages: List[str] = Field(
         ..., description="These are the languages spoken in the world. Be as creative as possible."
@@ -41,13 +24,6 @@ class World(BaseModel):
         ...,
         description="This is the history of the world. Be as creative as possible. Use events, wars, etc. to make it interesting. Make it at least 100000 years old. Provide a detailed history.",
     )
-    technology: str = Field(
-        ..., description="This is the technology used in the world. Provide details. Be as creative as possible."
-    )
-    economy: str = Field(
-        ..., description="This is the economy of the world. Provide details. Be as creative as possible."
-    )
-    timeline: str = Field(..., description="This is the timeline of the world.")
     power_structure: str = Field(..., description="This is the power structure of the world.")
 
 
@@ -61,9 +37,7 @@ def get_world_builder(
         llm=Ollama(model=model, options={"temperature": temperature}),
         description="You are an expert world builder designing an intricate and complex world.",
         instructions=[
-            "You are tasked with creating a world with the following characteristics: "
-            "planet, population, characteristics, religions, kingdoms, climate, cities, languages, history, technology, "
-            "economy, timeline and power structure",
+            "You are tasked with creating a completey unique and intricate world.",
             "Your world should wow the reader and make them want to explore it.",
             "Be as creative as possible and think of unique and interesting characteristics for your world.",
         ],

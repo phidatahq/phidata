@@ -30,13 +30,13 @@ streamlit run cookbook/worldbuilding/app.py
 - Open [localhost:8501](http://localhost:8501) to view your local AI app.
 - Upload you own PDFs and ask questions
 
-5. RunTest World Builder in the terminal
+5. Optional: Run World Builder in the terminal
 
 ```shell
 python cookbook/worldbuilding/world_builder.py
 ```
 
-6. Run World Explorer in the terminal
+6. Optional: Run World Explorer in the terminal
 
 ```shell
 python cookbook/worldbuilding/world_explorer.py

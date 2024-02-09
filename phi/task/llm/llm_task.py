@@ -278,9 +278,6 @@ class LLMTask(Task):
         if self.llm is None:
             raise Exception("LLM not set")
 
-        if self.output_model is not None and self.llm.generate_tool_calls_from_json_mode:
-            logger.error("This LLM does not support native function calls. Can only use output_model or tools.")
-
         # -*- Build a list of instructions for the Assistant
         _instructions = self.instructions
         # Add default instructions

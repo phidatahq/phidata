@@ -47,7 +47,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
         # Uncomment the following line to show debug logs
-        debug_mode=True,
+        # debug_mode=True,
     )
     if run_id is None:
         run_id = assistant.run_id
@@ -56,14 +56,14 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         print(f"Continuing Run: {run_id}\n")
 
     # Comment out after first run
-    if assistant.knowledge_base:
-        knowledge_base.load(recreate=False)
+    # if assistant.knowledge_base:
+    #     knowledge_base.load(recreate=False)
 
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
             break
-        assistant.print_response(message)
+        assistant.print_response(message, markdown=True)
 
 
 if __name__ == "__main__":

@@ -99,10 +99,10 @@ class S2AssistantStorage(AssistantStorage):
 
     def create(self) -> None:
         if not self.table_exists():
-            if self.schema is not None:
-                with self.Session() as sess, sess.begin():
-                    logger.debug(f"Creating schema: {self.schema}")
-                    sess.execute(text(f"create schema if not exists {self.schema};"))
+            # if self.schema is not None:
+            #     with self.Session() as sess, sess.begin():
+            #         logger.debug(f"Creating schema: {self.schema}")
+            #         sess.execute(text(f"create schema if not exists {self.schema};"))
             logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 

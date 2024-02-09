@@ -18,9 +18,11 @@ password = config["password"]
 db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
 
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://www.family-action.org.uk/content/uploads/2019/07/meals-more-recipes.pdf"],
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=S2VectorDb(collection="recipes", db_url=db_url),
 )
+# Comment out after first run
+knowledge_base.load(recreate=False)
 
 storage = S2AssistantStorage(table_name="pdf_assistant", db_url=db_url)
 
@@ -51,8 +53,6 @@ def pdf_assistant(new: bool = False, user: str = "user"):
     else:
         print(f"Continuing Run: {run_id}\n")
 
-    if assistant.knowledge_base:
-        assistant.knowledge_base.load(recreate=False)
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):

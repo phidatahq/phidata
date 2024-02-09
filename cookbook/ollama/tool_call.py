@@ -10,4 +10,4 @@ assistant = Assistant(
     instructions=["Make sure your answers are well formatted."],
     debug_mode=True,
 )
-assistant.print_response("Tell me about NousResearch", markdown=True)
+assistant.print_response("Whats happening in France.", markdown=True)

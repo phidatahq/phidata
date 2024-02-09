@@ -38,9 +38,9 @@ class LLM(BaseModel):
     # -*- Functions available to the LLM to call -*-
     # Functions extracted from the tools. Note: These are not sent to the LLM API and are only used for execution.
     functions: Optional[Dict[str, Function]] = None
-    # Maximum number of function calls allowed per task.
-    function_call_limit: int = 5
-    # Stack of function calls.
+    # Maximum number of function calls allowed across all iterations.
+    function_call_limit: int = 20
+    # Function call stack.
     function_call_stack: Optional[List[FunctionCall]] = None
 
     system_prompt: Optional[str] = None
@@ -130,7 +130,6 @@ class LLM(BaseModel):
                 self.function_call_stack = []
 
             # -*- Run function call
-            self.function_call_stack.append(function_call)
             _function_call_timer = Timer()
             _function_call_timer.start()
             function_call.execute()
@@ -147,11 +146,13 @@ class LLM(BaseModel):
                 self.metrics["tool_call_times"][function_call.function.name] = []
             self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
             function_call_results.append(_function_call_result)
+            self.function_call_stack.append(function_call)
 
             # -*- Check function call limit
             if len(self.function_call_stack) >= self.function_call_limit:
                 self.deactivate_function_calls()
-                break
+                break  # Exit early if we reach the function call limit
+
         return function_call_results
 
     def get_system_prompt_from_llm(self) -> Optional[str]:

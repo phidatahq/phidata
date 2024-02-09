@@ -341,6 +341,7 @@ class OpenAIChat(LLM):
                         final_response += "\nRunning:"
                         for _f in function_calls_to_run:
                             final_response += f"\n - {_f.get_call_str()}"
+                        final_response += "\n\n"
 
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:
@@ -585,6 +586,7 @@ class OpenAIChat(LLM):
                         yield "\nRunning:"
                         for _f in function_calls_to_run:
                             yield f"\n - {_f.get_call_str()}"
+                        yield "\n\n"
 
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:

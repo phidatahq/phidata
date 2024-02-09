@@ -26,8 +26,8 @@ class Ollama(LLM):
     keep_alive: Optional[Union[float, str]] = None
     client_kwargs: Optional[Dict[str, Any]] = None
     ollama_client: Optional[OllamaClient] = None
-    # Maximum number of function calls allowed per task.
-    function_call_limit: int = 1
+    # Maximum number of function calls allowed across all iterations.
+    function_call_limit: int = 10
 
     @property
     def client(self) -> OllamaClient:
@@ -193,6 +193,9 @@ class Ollama(LLM):
                 # Reconfigure messages so the LLM is reminded of the original task
                 messages = self.reconfigure_messages_for_llm(messages)
 
+            # Deactivate tool calls by turning off JSON mode after 1 tool call
+            self.deactivate_function_calls()
+
             # -*- Yield new response using results of tool calls
             final_response += self.parsed_response(messages=messages)
             return final_response
@@ -305,6 +308,9 @@ class Ollama(LLM):
                 messages.extend(function_call_results)
                 # Reconfigure messages so the LLM is reminded of the original task
                 messages = self.reconfigure_messages_for_llm(messages)
+
+            # Deactivate tool calls by turning off JSON mode after 1 tool call
+            self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
             yield from self.parsed_response_stream(messages=messages)

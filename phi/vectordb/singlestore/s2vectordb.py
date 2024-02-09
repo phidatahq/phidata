@@ -76,11 +76,11 @@ class S2VectorDb(VectorDb):
 
     def create(self) -> None:
         if not self.table_exists():
-            with self.Session() as sess:
-                with sess.begin():
-                    if self.schema is not None:
-                        logger.debug(f"Creating schema: {self.schema}")
-                        sess.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
+            # with self.Session() as sess:
+            #     with sess.begin():
+            #         if self.schema is not None:
+            #             logger.debug(f"Creating schema: {self.schema}")
+            #             sess.execute(text(f"CREATE DATABASE IF NOT EXISTS {self.schema};"))
             logger.debug(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
 
@@ -164,7 +164,7 @@ class S2VectorDb(VectorDb):
                 logger.debug(f"Committed {counter} documents")
 
     def upsert_available(self) -> bool:
-        return True
+        return False
 
     def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
         """
@@ -185,32 +185,20 @@ class S2VectorDb(VectorDb):
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
                 embedding_json = json.dumps(document.embedding)
-                # json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
+                json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
 
                 stmt = mysql.insert(self.table).values(
                     id=_id,
                     name=document.name,
                     meta_data=meta_data_json,
                     content=cleaned_content,
-                    embedding=embedding_json,
+                    embedding=json_array_pack,
                     usage=usage_json,
                     content_hash=content_hash,
                 )
-                # Update row when id matches but 'content_hash' is different
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["id"],
-                    set_=dict(
-                        name=stmt.excluded.name,
-                        meta_data=stmt.excluded.meta_data,
-                        content=stmt.excluded.content,
-                        embedding=stmt.excluded.embedding,
-                        usage=stmt.excluded.usage,
-                        content_hash=stmt.excluded.content_hash,
-                    ),
-                )
                 sess.execute(stmt)
                 counter += 1
-                logger.debug(f"Upserted document: {document.id} | {document.name} | {document.meta_data}")
+                logger.debug(f"Inserted document: {document.id} | {document.name} | {document.meta_data}")
 
                 # Commit every `batch_size` documents
                 if counter >= batch_size:

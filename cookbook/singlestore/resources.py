@@ -1,7 +1,8 @@
 config = {
-    "host": "",
+    "host": "host",
     "port": 3333,
-    "database": "",
-    "username": "",
-    "password": "",
+    "username": "user",
+    "password": "password",
+    "database": "db",
+    "ssl_ca": ".certs/singlestore_bundle.pem",
 }

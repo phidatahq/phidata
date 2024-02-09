@@ -15,7 +15,24 @@ source ~/.venvs/aienv/bin/activate
 pip install -U pypdf pymysql sqlalchemy openai phidata
 ```
 
-3. Edit the resources.py file and add your SingleStore database credentials.
+3. Provide SingleStore database credentials
+
+You can provide the SingleStore database credentials in the following ways:
+
+- Add the SingleStore database credentials to the resources.py file
+
+or
+
+- Export the SingleStore database credentials as environment variables
+
+```shell
+export SINGLESTORE_HOST="host"
+export SINGLESTORE_PORT="3333"
+export SINGLESTORE_USERNAME="user"
+export SINGLESTORE_PASSWORD="password"
+export SINGLESTORE_DATABASE="db"
+export SINGLESTORE_SSL_CERT=".certs/singlestore_bundle.pem"
+```
 
 4. Run SingleStore Assistant
 

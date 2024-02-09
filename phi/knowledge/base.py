@@ -43,8 +43,14 @@ class AssistantKnowledge(BaseModel):
             logger.error(f"Error searching for documents: {e}")
             return []
 
-    def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
-        """Load the knowledge base to the vector db"""
+    def load(self, recreate: bool = False, upsert: bool = False, skip_existing: bool = True) -> None:
+        """Load the knowledge base to the vector db
+
+        Args:
+            recreate (bool): If True, recreates the collection in the vector db. Defaults to False.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
+            skip_existing (bool): If True, skips documents which already exist in the vector db when inserting. Defaults to True.
+        """
 
         if self.vector_db is None:
             logger.warning("No vector db provided")
@@ -79,12 +85,12 @@ class AssistantKnowledge(BaseModel):
             logger.info("Optimizing Vector DB")
             self.vector_db.optimize()
 
-    def load_documents(self, documents: List[Document], upsert: bool = True, skip_existing: bool = True) -> None:
+    def load_documents(self, documents: List[Document], upsert: bool = False, skip_existing: bool = True) -> None:
         """Load documents to the knowledge base
 
         Args:
             documents (List[Document]): List of documents to load
-            upsert (bool): If True, upserts documents to the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
             skip_existing (bool): If True, skips documents which already exist in the vector db when inserting. Defaults to True.
         """
 
@@ -116,32 +122,32 @@ class AssistantKnowledge(BaseModel):
         else:
             logger.info("No new documents to load")
 
-    def load_document(self, document: Document, upsert: bool = True, skip_existing: bool = True) -> None:
+    def load_document(self, document: Document, upsert: bool = False, skip_existing: bool = True) -> None:
         """Load a document to the knowledge base
 
         Args:
             document (Document): Document to load
-            upsert (bool): If True, upserts documents to the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
         """
         self.load_documents(documents=[document], upsert=upsert, skip_existing=skip_existing)
 
-    def load_dict(self, document: Dict[str, Any], upsert: bool = True, skip_existing: bool = True) -> None:
+    def load_dict(self, document: Dict[str, Any], upsert: bool = False, skip_existing: bool = True) -> None:
         """Load a dictionary representation of a document to the knowledge base
 
         Args:
             document (Dict[str, Any]): Dictionary representation of a document
-            upsert (bool): If True, upserts documents to the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
         """
         self.load_documents(documents=[Document.from_dict(document)], upsert=upsert, skip_existing=skip_existing)
 
-    def load_json(self, document: str, upsert: bool = True, skip_existing: bool = True) -> None:
+    def load_json(self, document: str, upsert: bool = False, skip_existing: bool = True) -> None:
         """Load a json representation of a document to the knowledge base
 
         Args:
             document (str): Json representation of a document
-            upsert (bool): If True, upserts documents to the vector db. Defaults to True.
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
         """
         self.load_documents(documents=[Document.from_json(document)], upsert=upsert, skip_existing=skip_existing)

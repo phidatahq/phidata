@@ -1,4 +1,4 @@
-## Fully Local RAG using Ollama & PgVector
+## World Building using OpenHermes and Ollama
 
 > Note: Fork and clone this repository if needed
 
@@ -18,42 +18,36 @@ source ~/.venvs/aienv/bin/activate
 3. Install libraries
 
 ```shell
-pip install -r cookbook/local_rag/requirements.txt
+pip install -r cookbook/worldbuilding/requirements.txt
 ```
 
-4. Run pgvector
+4. Run World Builder
 
 ```shell
-phi start cookbook/local_rag/resources.py -y
-```
-
-5. Run CLI application
-
-```shell
-python cookbook/local_rag/cli.py
-```
-
-- Ask questions about thai recipes
-
-```text
-Got any pad thai?
-```
-
-6. Run Streamlit application
-
-```shell
-streamlit run cookbook/local_rag/app.py
+streamlit run cookbook/worldbuilding/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your local AI app.
 - Upload you own PDFs and ask questions
 
-7. Turn off pgvector
+5. Test World Builder
 
 ```shell
-phi stop cookbook/local_rag/resources.py -y
+python cookbook/worldbuilding/world_builder.py
 ```
 
-8. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+6. Test World Explorer
 
-9. Star ⭐️ the project if you like it.
+```shell
+python cookbook/worldbuilding/world_explorer.py
+```
+
+- Ask questions about your world
+
+```text
+Tell me about this world
+```
+
+7. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+
+8. Star ⭐️ the project if you like it.

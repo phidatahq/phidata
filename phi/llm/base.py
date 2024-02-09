@@ -1,4 +1,3 @@
-from textwrap import dedent
 from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict
@@ -39,14 +38,13 @@ class LLM(BaseModel):
     # -*- Functions available to the LLM to call -*-
     # Functions extracted from the tools. Note: These are not sent to the LLM API and are only used for execution.
     functions: Optional[Dict[str, Function]] = None
-    # Maximum number of function calls allowed.
-    function_call_limit: int = 25
+    # Maximum number of function calls allowed per task.
+    function_call_limit: int = 5
     # Stack of function calls.
     function_call_stack: Optional[List[FunctionCall]] = None
 
-    # This setting is an experimental feature to generate tool calls from JSON mode.
-    # Useful when we want to use LLMs that don't support function calls to generate tool calls.
-    generate_tool_calls_from_json_mode: bool = False
+    system_prompt: Optional[str] = None
+    instructions: Optional[List[str]] = None
 
     phi_proxy: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -120,24 +118,16 @@ class LLM(BaseModel):
                 self.tools.append({"type": "function", "function": func.to_dict()})
                 logger.debug(f"Function {func.name} added to LLM.")
 
+    def deactivate_function_calls(self) -> None:
+        # Deactivate tool calls by setting future tool calls to "none"
+        # This is triggered when the function call limit is reached.
+        self.tool_choice = "none"
+
     def run_function_calls(self, function_calls: List[FunctionCall], role: str = "tool") -> List[Message]:
         function_call_results: List[Message] = []
         for function_call in function_calls:
             if self.function_call_stack is None:
                 self.function_call_stack = []
-
-            # -*- Check function call limit
-            if len(self.function_call_stack) > self.function_call_limit:
-                # Set future tool calls to "none" if the function call limit is exceeded.
-                self.tool_choice = "none"
-                function_call_results.append(
-                    Message(
-                        role=role,
-                        tool_call_id=function_call.call_id,
-                        content=f"Tool call limit ({self.function_call_limit}) exceeded.",
-                    )
-                )
-                continue
 
             # -*- Run function call
             self.function_call_stack.append(function_call)
@@ -157,35 +147,15 @@ class LLM(BaseModel):
                 self.metrics["tool_call_times"][function_call.function.name] = []
             self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
             function_call_results.append(_function_call_result)
+
+            # -*- Check function call limit
+            if len(self.function_call_stack) >= self.function_call_limit:
+                self.deactivate_function_calls()
+                break
         return function_call_results
 
-    def get_instructions_to_generate_tool_calls(self) -> List[str]:
-        if self.functions is not None:
-            return [
-                "You can select one or more of the above tools to achieve your task.",
-                "If a tool is found, you must respond in the JSON format matching the following schema:\n"
-                + dedent(
-                    """\
-                    {{
-                        "tool_calls": [{
-                            "name": "<name of the selected tool>",
-                            "arguments": <parameters for the selected tool, matching the tool's JSON schema
-                        }]
-                    }}\
-                    """
-                ),
-                "Do not add any additional Notes or Explanations",
-                "REMEMBER: IF YOU USE A TOOL, YOU MUST RESPOND IN THE JSON FORMAT. START YOUR RESPONSE WITH '{' AND END IT WITH '}'.",
-            ]
-        return []
+    def get_system_prompt_from_llm(self) -> Optional[str]:
+        return self.system_prompt
 
-    def get_prompt_with_tool_calls(self) -> Optional[str]:
-        if self.functions is not None:
-            _tool_choice_prompt = "You have access to the following tools:"
-            for _f_name, _function in self.functions.items():
-                _function_json = _function.get_json_schema()
-                if _function_json:
-                    _tool_choice_prompt += f"\n{_function_json}"
-            _tool_choice_prompt += "\n\n"
-            return _tool_choice_prompt
-        return None
+    def get_instructions_from_llm(self) -> Optional[List[str]]:
+        return self.instructions

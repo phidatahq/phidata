@@ -50,8 +50,8 @@ class Function(BaseModel):
         else:
             return t.__name__
 
-    def get_json_schema(self) -> Optional[str]:
-        """Returns the JSON schema for the function"""
+    def get_definition_for_prompt(self) -> Optional[str]:
+        """Returns a function definition that can be used in a prompt."""
         import json
 
         if self.entrypoint is None:
@@ -61,7 +61,7 @@ class Function(BaseModel):
         function_info = {
             "name": self.name,
             "description": self.description,
-            "parameters": self.parameters,
+            "arguments": self.parameters.get("properties", {}),
             "returns": type_hints.get("return", "void").__name__,
         }
         return json.dumps(function_info, indent=2)

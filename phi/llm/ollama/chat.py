@@ -1,4 +1,5 @@
 import json
+from textwrap import dedent
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.llm.base import LLM
@@ -25,7 +26,8 @@ class Ollama(LLM):
     keep_alive: Optional[Union[float, str]] = None
     client_kwargs: Optional[Dict[str, Any]] = None
     ollama_client: Optional[OllamaClient] = None
-    generate_tool_calls_from_json_mode: bool = False
+    # Maximum number of function calls allowed per task.
+    function_call_limit: int = 1
 
     @property
     def client(self) -> OllamaClient:
@@ -49,7 +51,7 @@ class Ollama(LLM):
         elif self.response_format is not None:
             if self.response_format.get("type") == "json_object":
                 kwargs["format"] = "json"
-        elif self.generate_tool_calls_from_json_mode:
+        elif self.functions is not None:
             kwargs["format"] = "json"
         if self.options is not None:
             kwargs["options"] = self.options
@@ -92,6 +94,11 @@ class Ollama(LLM):
             stream=True,
             **self.api_kwargs,
         )  # type: ignore
+
+    def deactivate_function_calls(self) -> None:
+        # Deactivate tool calls by turning off JSON mode after 1 tool call
+        # This is triggered when the function call limit is reached.
+        self.format = ""
 
     def parsed_response(self, messages: List[Message]) -> str:
         logger.debug("---------- Ollama Response Start ----------")
@@ -183,7 +190,9 @@ class Ollama(LLM):
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
-            self.format = ""
+                # Reconfigure messages so the LLM is reminded of the original task
+                messages = self.reconfigure_messages_for_llm(messages)
+
             # -*- Yield new response using results of tool calls
             final_response += self.parsed_response(messages=messages)
             return final_response
@@ -291,10 +300,67 @@ class Ollama(LLM):
                     yield "\n\n"
 
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
+            # Add results of the function calls to the messages
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
-            self.format = ""
-            self.generate_tool_calls_from_json_mode = False
+                # Reconfigure messages so the LLM is reminded of the original task
+                messages = self.reconfigure_messages_for_llm(messages)
+
             # -*- Yield new response using results of tool calls
             yield from self.parsed_response_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
+
+    def reconfigure_messages_for_llm(self, messages: List[Message]) -> List[Message]:
+        # Add the original user message to the messages to remind the LLM of the original task
+        original_user_message_content = None
+        for m in messages:
+            if m.role == "user":
+                original_user_message_content = m.content
+                break
+        if original_user_message_content is not None:
+            _content = (
+                "Using the results of the tools above, respond to the original user message:"
+                f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
+            )
+            messages.append(Message(role="user", content=_content))
+
+        return messages
+
+    def get_instructions_to_generate_tool_calls(self) -> List[str]:
+        if self.functions is not None:
+            return [
+                "To respond to the users message, you can use one or more of the tools provided above.",
+                "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
+                + dedent(
+                    """\
+                    {{
+                        "tool_calls": [{
+                            "name": "<name of the selected tool>",
+                            "arguments": <parameters for the selected tool, matching the tool's JSON schema
+                        }]
+                    }}\
+                    """
+                ),
+                "To use a tool, just respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",
+                "After you use a tool, the next message you get will contain the result of the tool call.",
+                "REMEMBER: To use a tool, you must respond only in JSON format.",
+                "After you use a tool and receive the result back, respond regularly to answer the users question.",
+            ]
+        return []
+
+    def get_tool_calls_definition(self) -> Optional[str]:
+        if self.functions is not None:
+            _tool_choice_prompt = "To respond to the users message, you have access to the following tools:"
+            for _f_name, _function in self.functions.items():
+                _function_definition = _function.get_definition_for_prompt()
+                if _function_definition:
+                    _tool_choice_prompt += f"\n{_function_definition}"
+            _tool_choice_prompt += "\n\n"
+            return _tool_choice_prompt
+        return None
+
+    def get_system_prompt_from_llm(self) -> Optional[str]:
+        return self.get_tool_calls_definition()
+
+    def get_instructions_from_llm(self) -> Optional[List[str]]:
+        return self.get_instructions_to_generate_tool_calls()

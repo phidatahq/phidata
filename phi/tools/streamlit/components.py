@@ -23,10 +23,10 @@ def get_username_sidebar() -> Optional[str]:
     return username
 
 
-def reload_button_sidebar():
+def reload_button_sidebar(text: str = "Reload Session", **kwargs) -> None:
     """Sidebar component to show reload button"""
 
-    if st.sidebar.button("Reload Session"):
+    if st.sidebar.button(text, **kwargs):
         st.session_state.clear()
         st.rerun()
 

@@ -188,7 +188,7 @@ class SqlAssistantStorage(AssistantStorage):
             # Define the upsert if the run_id already exists
             # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
             stmt = stmt.on_conflict_do_update(
-                index_elements=["id"],
+                index_elements=["run_id"],
                 set_=dict(
                     name=row.name,
                     run_name=row.run_name,

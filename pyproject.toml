@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.3.32"
+version = "2.3.33"
 description = "Build AI Assistants using function calling"
 requires-python = ">=3.8"
 readme = "README.md"
@@ -54,6 +54,9 @@ include = ["phi*"]
 
 [tool.setuptools.package-data]
 phi = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = "tests"
 
 [tool.ruff]
 line-length = 120

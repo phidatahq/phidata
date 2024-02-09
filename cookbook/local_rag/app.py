@@ -145,6 +145,7 @@ def main() -> None:
             st.session_state["local_rag_assistant"] = get_local_rag_assistant(
                 model=local_rag_model,
                 user_id=username,
+                run_id=new_local_rag_assistant_run_id,
                 debug_mode=True,
             )
             st.rerun()

@@ -27,7 +27,7 @@ class World(BaseModel):
         ...,
         description="These are the old wars in the world. Think of how the world was shaped by these wars. Be as creative as possible.",
     )
-    drubs: List[str] = Field(
+    drugs: List[str] = Field(
         ..., description="These are the drugs the people in the world use. Be as creative as possible."
     )
     climate: str = Field(..., description="This is the climate of the world. Examples: Tropical, Desert, Arctic, etc.")

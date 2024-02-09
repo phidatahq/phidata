@@ -21,7 +21,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -r cookbook/worldbuilding/requirements.txt
 ```
 
-4. Run World Builder
+4. Run World Builder Streamlit app
 
 ```shell
 streamlit run cookbook/worldbuilding/app.py
@@ -30,13 +30,13 @@ streamlit run cookbook/worldbuilding/app.py
 - Open [localhost:8501](http://localhost:8501) to view your local AI app.
 - Upload you own PDFs and ask questions
 
-5. Test World Builder
+5. RunTest World Builder in the terminal
 
 ```shell
 python cookbook/worldbuilding/world_builder.py
 ```
 
-6. Test World Explorer
+6. Run World Explorer in the terminal
 
 ```shell
 python cookbook/worldbuilding/world_explorer.py

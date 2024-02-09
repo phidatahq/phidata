@@ -71,7 +71,7 @@ def main() -> None:
                 status.update(label=":orange[World generated!]", state="complete", expanded=True)
     else:
         world_name = world.planet
-        with st.expander(f":orange[{world_name}]", expanded=False):
+        with st.expander(f":orange[{world_name}]", expanded=True):
             world_container = st.empty()
             world_description = ""
             for key, value in world.model_dump(exclude_none=True).items():

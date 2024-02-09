@@ -37,7 +37,7 @@ export SINGLESTORE_SSL_CERT=".certs/singlestore_bundle.pem"
 4. Run SingleStore Assistant
 
 ```shell
-python cookbook/singlestore/assistant.py
+python cookbook/singlestore/cli.py
 ```
 
 5. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions

@@ -126,7 +126,7 @@ class OpenAIChat(LLM):
         return _dict
 
     def invoke_model(self, messages: List[Message]) -> ChatCompletion:
-        if self.phi_proxy and get_from_env("OPENAI_API_KEY") is None:
+        if self.phi_proxy and self.api_key is None and get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             response_json = None
             try:
@@ -157,7 +157,7 @@ class OpenAIChat(LLM):
             )
 
     def invoke_model_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
-        if self.phi_proxy and get_from_env("OPENAI_API_KEY") is None:
+        if self.phi_proxy and self.api_key is None and get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
                 from phi.api.llm import openai_chat_stream

@@ -8,6 +8,7 @@ class Embedder(BaseModel):
 
     dimensions: int = 1536
 
+    phi_proxy: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_embedding(self, text: str) -> List[float]:

@@ -6,7 +6,7 @@ from phi.utils.env import get_from_env
 from phi.utils.log import logger
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI as OpenAIClient
     from openai.types.create_embedding_response import CreateEmbeddingResponse
 except ImportError:
     raise ImportError("`openai` not installed")
@@ -17,11 +17,28 @@ class OpenAIEmbedder(Embedder):
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
     user: Optional[str] = None
-    openai: Optional[OpenAI] = None
+    api_key: Optional[str] = None
+    organization: Optional[str] = None
+    base_url: Optional[str] = None
+    client_kwargs: Optional[Dict[str, Any]] = None
+    openai_client: Optional[OpenAIClient] = None
+    phi_proxy: bool = True
 
     @property
-    def client(self) -> OpenAI:
-        return self.openai or OpenAI()
+    def client(self) -> OpenAIClient:
+        if self.openai_client:
+            return self.openai_client
+
+        _openai_params: Dict[str, Any] = {}
+        if self.api_key:
+            _openai_params["api_key"] = self.api_key
+        if self.organization:
+            _openai_params["organization"] = self.organization
+        if self.base_url:
+            _openai_params["base_url"] = self.base_url
+        if self.client_kwargs:
+            _openai_params.update(self.client_kwargs)
+        return OpenAIClient(**_openai_params)
 
     def _response(self, text: str) -> CreateEmbeddingResponse:
         params: Dict[str, Any] = {
@@ -34,7 +51,7 @@ class OpenAIEmbedder(Embedder):
         if self.model.startswith("text-embedding-3"):
             params["dimensions"] = self.dimensions
 
-        if get_from_env("OPENAI_API_KEY") is None:
+        if self.phi_proxy and self.api_key is None and get_from_env("OPENAI_API_KEY") is None:
             logger.debug("--o-o-- Using phi-proxy")
             try:
                 from phi.api.llm import openai_embedding

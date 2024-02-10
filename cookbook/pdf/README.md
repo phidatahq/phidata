@@ -1,12 +1,27 @@
 ## PDF Assistant with knowledge and storage
 
+> Note: Fork and clone this repository if needed
+
 Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgVector` for knowledge and storage.
 
 **Knowledge Base:** information that the Assistant can search to improve its responses (uses a vector db).
 
 **Storage:** provides long term memory for Assistants (uses a database).
 
-1. Run PgVector
+1. Create a virtual environment
+
+```shell
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
+```
+
+2. Install libraries
+
+```shell
+pip install -U pgvector pypdf psycopg sqlalchemy phidata openai
+```
+
+3. Run PgVector
 
 - Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
 
@@ -14,13 +29,7 @@ Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgV
 phi start cookbook/pdf/resources.py -y
 ```
 
-2. Install libraries
-
-```shell
-pip install -U pgvector pypdf psycopg sqlalchemy
-```
-
-3. Run PDF Assistant
+4. Run PDF Assistant
 
 ```shell
 python cookbook/pdf/assistant.py

@@ -38,6 +38,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         show_tool_calls=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
+        debug_mode=True,
     )
     if run_id is None:
         run_id = assistant.run_id
@@ -49,7 +50,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
             break
-        assistant.print_response(message)
+        assistant.print_response(message, markdown=True)
 
 
 if __name__ == "__main__":

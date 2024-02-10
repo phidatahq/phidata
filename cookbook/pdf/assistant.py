@@ -38,7 +38,6 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         show_tool_calls=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
-        debug_mode=True,
     )
     if run_id is None:
         run_id = assistant.run_id

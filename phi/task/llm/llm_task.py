@@ -441,7 +441,7 @@ class LLMTask(Task):
 
         # Add references to prompt
         if references:
-            _user_prompt += "\nUse this information if it helps:\n"
+            _user_prompt += "\nUse this information from the knowledge base if it helps:\n"
             _user_prompt += "<knowledge_base>\n"
             _user_prompt += f"{references}\n"
             _user_prompt += "</knowledge_base>\n"

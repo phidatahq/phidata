@@ -6,7 +6,6 @@ vector_db = PgVectorDb(
     pg_user="ai",
     pg_password="ai",
     pg_database="ai",
-    debug_mode=True,
 )
 
 # -*- DockerResources

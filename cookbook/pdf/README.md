@@ -55,7 +55,7 @@ What was my last message?
 python pdf_assistant.py --new
 ```
 
-4. Stop PgVector
+5. Stop PgVector
 
 ```shell
 phi stop cookbook/pdf/resources.py -y

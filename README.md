@@ -49,7 +49,7 @@ pip install -U phidata
 from phi.assistant import Assistant
 
 assistant = Assistant(description="You help people with their health and fitness goals.")
-assistant.print_response("Share a quick healthy breakfast recipe.")
+assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
 ```
 
 - Run the `Assistant`
@@ -65,7 +65,7 @@ from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
 
 assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
-assistant.print_response("Whats happening in France?")
+assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
 - Run the `Assistant`
@@ -137,7 +137,7 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
     return json.dumps(stories)
 
 assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True)
-assistant.print_response("Summarize the top stories on hackernews?")
+assistant.print_response("Summarize the top stories on hackernews?", markdown=True)
 ```
 
 - Run the `api_assistant.py` file
@@ -214,7 +214,7 @@ duckdb_assistant = DuckDbAssistant(
     }),
 )
 
-duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.")
+duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.", markdown=True)
 ```
 
 - Run the `data_assistant.py` file
@@ -274,7 +274,7 @@ python_assistant = PythonAssistant(
     show_tool_calls=True,
 )
 
-python_assistant.print_response("What is the average rating of movies?")
+python_assistant.print_response("What is the average rating of movies?", markdown=True)
 ```
 
 - Run the `python_assistant.py` file
@@ -455,7 +455,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
             break
-        assistant.print_response(message)
+        assistant.print_response(message, markdown=True)
 
 if __name__ == "__main__":
     typer.run(pdf_assistant)

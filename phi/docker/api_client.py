@@ -26,6 +26,12 @@ class DockerApiClient:
         except Exception as e:
             logger.error("Could not connect to docker. Please confirm docker is installed and running")
             logger.error(e)
+            logger.info("Fix:")
+            logger.info("- If docker is running, please check output of `ls -l /var/run/docker.sock`.")
+            logger.info(
+                '- If file does not exist, please run: `sudo ln -s "$HOME/.docker/run/docker.sock" /var/run/docker.sock`'
+            )
+            logger.info("- More info: https://docs.phidata.com/faq/could-not-connect-to-docker")
             exit(0)
         return self._api_client
 

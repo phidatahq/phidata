@@ -35,9 +35,9 @@ Please run this script before submitting a pull request.
    - Your Class will be in the `phi/vectordb/<your_db>/<your_db>.py` file.
    - The `VectorDb` interface is defined in `phi/vectordb/base
    - Import your `VectorDb` Class in `phi/vectordb/<your_db>/__init__.py`.
-   - Checkout the `phi/vectordb/pgvector` directory for an example.
+   - Checkout the [`phi/vectordb/pgvector/pgvector2`](https://github.com/phidatahq/phidata/blob/main/phi/vectordb/pgvector/pgvector2.py) file for an example.
 4. Add a recipe for using your `VectorDb` under `cookbook/<your_db>`.
-   - Checkout `phidata/cookbook/pgvector` for an example (you do not need to add the `resources.py` file).
+   - Checkout [`phidata/cookbook/pgvector`](https://github.com/phidatahq/phidata/tree/main/cookbook/pgvector) for an example (you do not need to add the `resources.py` file).
 5. Important: Format and validate your code by running `./scripts/format.sh`.
 6. Submit a pull request.
 
@@ -49,11 +49,11 @@ Please run this script before submitting a pull request.
    - Create a Class for your LLM provider that inherits the `OpenAILike` Class from `phi/llm/openai/like.py`.
    - Your Class will be in the `phi/llm/<your_llm>/<your_llm>.py` file.
    - Import your Class in the `phi/llm/<your_llm>/__init__.py` file.
-   - Checkout the `phi/llm/together/together.py` file for an example.
+   - Checkout the [`phi/llm/together/together.py`](https://github.com/phidatahq/phidata/blob/main/phi/llm/together/together.py) file for an example.
 4. If the LLM provider does not support the OpenAI API spec:
    - Reach out to us on [Discord](https://discord.gg/4MtYHHrgA8) or open an issue to discuss the best way to integrate your LLM provider.
 5. Add a recipe for using your LLM provider under `cookbook/<your_llm>`.
-   - Checkout `phidata/cookbook/together` for an example.
+   - Checkout [`phidata/cookbook/together`](https://github.com/phidatahq/phidata/tree/main/cookbook/together) for an example.
 6. Important: Format and validate your code by running `./scripts/format.sh`.
 7. Submit a pull request.
 

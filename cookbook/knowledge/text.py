@@ -2,6 +2,7 @@ from phi.knowledge.text import TextKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 from phi.assistant import Assistant
 from resources import vector_db
+from knowledge_base import knowledge_base
 from pathlib import Path
 
 

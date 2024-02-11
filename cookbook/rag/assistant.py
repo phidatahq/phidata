@@ -19,4 +19,4 @@ assistant = Assistant(
     add_references_to_prompt=True,
 )
 
-assistant.print_response("How do I make pad thai?")
+assistant.print_response("How do I make pad thai?", markdown=True)

@@ -96,6 +96,7 @@ module = [
   "sqlalchemy.*",
   "streamlit.*",
   "textract.*",
+  "langchain.*",
   "wikipedia.*",
 ]
 ignore_missing_imports = true

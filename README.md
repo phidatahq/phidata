@@ -86,6 +86,15 @@ Checkout these AI apps showcasing the advantage of function calling:
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
 
+## Tutorials
+
+### Build an AI App in 3 steps
+
+[![Build an AI App](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Build an AI App")
+
+### Build a Local RAG AI App using OpenHermes and Ollama
+[![Local AI App](https://img.youtube.com/vi/EVQLYncsDVI/0.jpg)](https://www.youtube.com/watch?v=EVQLYncsDVI&t "Local AI App")
+
 ## Examples
 
 <details>
@@ -637,15 +646,6 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 </details>
 
 ### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
-
-## Tutorials
-
-### Build an AI App in 3 steps
-
-[![Build an AI App](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Build an AI App")
-
-### Build a Local RAG AI App using OpenHermes and Ollama
-[![Local AI App](https://img.youtube.com/vi/EVQLYncsDVI/0.jpg)](https://www.youtube.com/watch?v=EVQLYncsDVI&t "Local AI App")
 
 ## Documentation
 

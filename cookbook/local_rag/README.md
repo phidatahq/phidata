@@ -35,6 +35,7 @@ streamlit run cookbook/local_rag/app.py
 
 - Open [localhost:8501](http://localhost:8501) to view your local AI app.
 - Upload you own PDFs and ask questions
+- Example PDF: https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf
 
 6. Optional: Run CLI application
 

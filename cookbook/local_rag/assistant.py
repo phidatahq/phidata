@@ -47,9 +47,6 @@ def get_local_rag_assistant(
         knowledge_base=get_knowledge_base_for_model(model),
         # This setting adds references from the knowledge_base to the user prompt
         add_references_to_prompt=True,
-        # This setting adds the last 4 messages from the chat history to the API call
-        add_chat_history_to_messages=True,
-        num_history_messages=4,
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         debug_mode=debug_mode,

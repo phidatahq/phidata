@@ -46,7 +46,7 @@ python cookbook/local_rag/cli.py
 - Ask questions about thai recipes
 
 ```text
-Got any pad thai?
+Share a pad thai recipe.
 ```
 
 7. Turn off pgvector

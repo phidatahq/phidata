@@ -1,6 +1,6 @@
 import json
 from uuid import uuid4
-from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple
+from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
@@ -152,6 +152,7 @@ class Assistant(BaseModel):
     # def references(assistant: Assistant, query: str) -> Optional[str]:
     #     ...
     references_function: Optional[Callable[..., Optional[str]]] = None
+    references_format: Literal["json", "yaml"] = "json"
     # Function to get the chat_history for the user prompt
     # This function, if provided, is called when add_chat_history_to_prompt is True
     # Signature:
@@ -232,6 +233,7 @@ class Assistant(BaseModel):
             user_prompt_function=self.user_prompt_function,
             build_default_user_prompt=self.build_default_user_prompt,
             references_function=self.references_function,
+            references_format=self.references_format,
             chat_history_function=self.chat_history_function,
             output_model=self.output_model,
         )

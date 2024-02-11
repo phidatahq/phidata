@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import List, Any, Optional, Dict, Iterator, Callable, Union, cast
+from typing import List, Any, Optional, Dict, Iterator, Callable, Union, cast, Literal
 from textwrap import dedent
 
 from pydantic import BaseModel, ValidationError
@@ -126,6 +126,7 @@ class LLMTask(Task):
     # def references(task: Task, query: str) -> Optional[str]:
     #     ...
     references_function: Optional[Callable[..., Optional[str]]] = None
+    references_format: Literal["json", "yaml"] = "json"
     # Function to get the chat_history for the user prompt
     # This function, if provided, is called when add_chat_history_to_prompt is True
     # Signature:
@@ -375,6 +376,12 @@ class LLMTask(Task):
         relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
         if len(relevant_docs) == 0:
             return None
+
+        if self.references_format == "yaml":
+            import yaml
+
+            return yaml.dump([doc.to_dict() for doc in relevant_docs])
+
         return json.dumps([doc.to_dict() for doc in relevant_docs], indent=2)
 
     def get_formatted_chat_history(self) -> Optional[str]:

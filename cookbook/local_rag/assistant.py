@@ -50,6 +50,6 @@ def get_local_rag_assistant(
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         debug_mode=debug_mode,
-        description="You are a AI called 'Phi' designed to help users answer questions from a knowledge base of PDFs.",
+        description="You are an AI called 'Phi' designed to help users answer questions from a knowledge base of PDFs.",
         assistant_data={"assistant_type": "rag"},
     )

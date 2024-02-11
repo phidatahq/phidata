@@ -86,17 +86,6 @@ Checkout these AI apps showcasing the advantage of function calling:
 - <a href="https://demo.aidev.run/" target="_blank" rel="noopener noreferrer">Demo Streamlit App</a> serving a PDF, Image and Website Assistant (password: admin)
 - <a href="https://api.aidev.run/docs" target="_blank" rel="noopener noreferrer">Demo FastApi </a> serving a PDF Assistant.
 
-[![Phidata Tutorial](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Phidata Tutorial")
-
-## AI Applications
-
-After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI application.
-Instead of wiring tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
-
-- Create your AI App using a template: `phi ws create`
-- Run your app locally: `phi ws up`
-- Run your app on AWS: `phi ws up prd:aws`
-
 ## Examples
 
 <details>
@@ -649,11 +638,29 @@ Read how to <a href="https://docs.phidata.com/quickstart/run-aws" target="_blank
 
 ### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
 
+## Tutorials
+
+### Build an AI App in 3 steps
+
+[![Build an AI App](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Build an AI App")
+
+### Build a Local RAG AI App using OpenHermes and Ollama
+[![Local AI App](https://img.youtube.com/vi/EVQLYncsDVI/0.jpg)](https://www.youtube.com/watch?v=EVQLYncsDVI&t "Local AI App")
+
 ## Documentation
 
 - You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
 - You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 - Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
+
+## AI Applications
+
+After building an Assistant, serve it using **Streamlit**, **FastApi** or **Django** to build your AI application.
+Instead of wiring tools manually, phidata provides **pre-built** templates for AI Apps that you can run locally or deploy to AWS with 1 command. Here's how they work:
+
+- Create your AI App using a template: `phi ws create`
+- Run your app locally: `phi ws up`
+- Run your app on AWS: `phi ws up prd:aws`
 
 ## Building AI for your product?
 

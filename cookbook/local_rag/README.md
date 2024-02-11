@@ -1,4 +1,4 @@
-## Fully Local RAG using Ollama & PgVector
+# Fully Local RAG with OpenHermes, Ollama & PgVector
 
 > Note: Fork and clone this repository if needed
 
@@ -27,7 +27,16 @@ pip install -r cookbook/local_rag/requirements.txt
 phi start cookbook/local_rag/resources.py -y
 ```
 
-5. Run CLI application
+5. Run Streamlit application
+
+```shell
+streamlit run cookbook/local_rag/app.py
+```
+
+- Open [localhost:8501](http://localhost:8501) to view your local AI app.
+- Upload you own PDFs and ask questions
+
+6. Optional: Run CLI application
 
 ```shell
 python cookbook/local_rag/cli.py
@@ -38,15 +47,6 @@ python cookbook/local_rag/cli.py
 ```text
 Got any pad thai?
 ```
-
-6. Run Streamlit application
-
-```shell
-streamlit run cookbook/local_rag/app.py
-```
-
-- Open [localhost:8501](http://localhost:8501) to view your local AI app.
-- Upload you own PDFs and ask questions
 
 7. Turn off pgvector
 

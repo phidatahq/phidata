@@ -30,4 +30,4 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
 
 
 assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True)
-assistant.print_response("Summarize the top stories on hackernews?")
+assistant.print_response("Summarize the top stories on hackernews?", markdown=True)

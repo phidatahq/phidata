@@ -27,5 +27,5 @@ give_story_a_name = LLMTask(
     system_prompt="Give this story a 2 word name. Format output as `Name: {name}`. Don't surround with quotes.",
 )
 
-story_assistant = Assistant(tasks=[get_story_theme, write_story, give_story_a_name])
-story_assistant.cli_app(user="Theme")
+story_generator = Assistant(tasks=[get_story_theme, write_story, give_story_a_name])
+story_generator.cli_app(user="Theme", markdown=True)

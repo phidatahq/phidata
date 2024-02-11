@@ -12,4 +12,4 @@ python_assistant = PythonAssistant(
     show_tool_calls=True,
 )
 
-python_assistant.print_response("What is the average rating of movies?")
+python_assistant.print_response("What is the average rating of movies?", markdown=True)

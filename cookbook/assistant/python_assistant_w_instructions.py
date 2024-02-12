@@ -16,13 +16,14 @@ def average_rating() -> AssistantResponse:
                 description="Contains information about movies from IMDB.",
             )
         ],
-        markdown=True,
         instructions=[
             "Only provide the result, do not need to provide any additional information.",
         ],
         run_code=True,
         save_and_run=False,
         output_model=AssistantResponse,
+        # Uncomment the following line to return result in markdown
+        # markdown=True,
         # Uncomment the following line to let the assistant install python packages
         # pip_install=True,
         # Uncomment the following line to show debug logs

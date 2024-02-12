@@ -18,6 +18,8 @@
 
 # Ignore .env files
 .env
+
+# Ignore .envrc files (used by direnv: https://direnv.net/)
 .envrc
 
 # ignore storage dir

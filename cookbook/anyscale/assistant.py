@@ -1,5 +1,5 @@
 from phi.assistant import Assistant
-from phi.llm.together import Anyscale
+from phi.llm.anyscale import Anyscale
 
 assistant = Assistant(
     llm=Anyscale(),

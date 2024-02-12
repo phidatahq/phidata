@@ -29,17 +29,22 @@ Please run this script before submitting a pull request.
 
 ## Adding a new Vector Database
 
-1. Setup your local environment by following the [Development setup](#development-setup).
-2. Create a new directory under `phi/vectordb` for the new vector database.
-3. Create a Class for your VectorDb that implements the `VectorDb` interface
-   - Your Class will be in the `phi/vectordb/<your_db>/<your_db>.py` file.
-   - The `VectorDb` interface is defined in `phi/vectordb/base
-   - Import your `VectorDb` Class in `phi/vectordb/<your_db>/__init__.py`.
-   - Checkout the [`phi/vectordb/pgvector/pgvector2`](https://github.com/phidatahq/phidata/blob/main/phi/vectordb/pgvector/pgvector2.py) file for an example.
-4. Add a recipe for using your `VectorDb` under `cookbook/<your_db>`.
-   - Checkout [`phidata/cookbook/pgvector`](https://github.com/phidatahq/phidata/tree/main/cookbook/pgvector) for an example (you do not need to add the `resources.py` file).
-5. Important: Format and validate your code by running `./scripts/format.sh`.
-6. Submit a pull request.
+1. Setup your local environment by following the Development setup.
+
+2. Create a new directory under phi/vectordb for the new vector database.
+
+3. Create a Class for your VectorDb that implements the VectorDb interface:
+
+4. Your Class will be in the phi/vectordb/<your_db>/<your_db>.py file.
+5. The VectorDb interface is defined in phi/vectordb/base.
+6. Import your VectorDb Class in phi/vectordb/<your_db>/__init__.py.
+7. Check out the phi/vectordb/pgvector/pgvector2 file for an example.
+8. Add a recipe for using your VectorDb under cookbook/<your_db>:
+
+9. Check out phidata/cookbook/pgvector for an example (you do not need to add the resources.py file).
+Important: Format and validate your code by running ./scripts/format.sh.
+
+Submit a pull request
 
 ## Adding a new LLM provider
 

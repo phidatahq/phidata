@@ -1,37 +1,20 @@
-## Ollama
+Note: Fork and clone this repository if needed
 
-1. Run ollama model or serve ollama
+Create a virtual environment
+  python3 -m venv ~/.venvs/aienv
+  source ~/.venvs/aienv/bin/activate
 
-```shell
-ollama run llama2
-```
+Install libraries
+  pip install -U anyscale phidata
 
-OR
+Test Anyscale Assistant
+  Streaming
+    python cookbook/anyscale/assistant.py
+  Without Streaming
+    python cookbook/anyscale/assistant_stream_off.py
 
-```shell
-ollama serve
-```
+Test Structured output
+  python cookbook/anyscale/pydantic_output.py
 
-2. Install libraries
-
-```shell
-pip install -U ollama
-```
-
-3. Test Ollama Assistant
-
-```shell
-python cookbook/ollama/assistant.py
-```
-
-4. Test Structured output
-
-```shell
-python cookbook/ollama/pydantic_output.py
-```
-
-5. Test Tool Calls (experimental)
-
-```shell
-python cookbook/ollama/tool_call.py
-```
+Test function calling
+python cookbook/anyscale/tool_call.py

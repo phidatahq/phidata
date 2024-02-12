@@ -35,5 +35,5 @@ knowledge_base = LangChainKnowledgeBase(retriever=retriever)
 # Create an assistant with the knowledge base
 assistant = Assistant(knowledge_base=knowledge_base, add_references_to_prompt=True)
 
-# Use the assistant to ask a question and print a response. 
+# Use the assistant to ask a question and print a response.
 assistant.print_response("What did the president say about technology?", markdown=True)

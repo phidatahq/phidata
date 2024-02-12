@@ -28,4 +28,4 @@ assistant = Assistant(
 assistant.knowledge_base.load(recreate=False)
 
 # Use the assistant
-assistant.print_response("Ask me about something from the knowledge base")
+assistant.print_response("Ask me about something from the knowledge base",markdown=True)

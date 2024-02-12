@@ -4,7 +4,7 @@ from typing import Optional
 from phi.llm.openai.like import OpenAILike
   
 
-class Together(OpenAILike):
+class Anyscale(OpenAILike):
     name: str = "Anyscale"
     model: str = "meta-llama/Llama-2-70b-chat-hf"
     api_key: Optional[str] = getenv("ANYSCALE_ENDPOINT_API_KEY")

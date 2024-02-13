@@ -288,7 +288,6 @@ def start(
     ),
     env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy"),
     infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
-    config_filter: Optional[str] = typer.Option(None, "-c", "--config", metavar="", help="Filter the config to deploy"),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
@@ -338,13 +337,22 @@ def start(
     from pathlib import Path
     from phi.cli.config import PhiCliConfig
     from phi.cli.console import log_config_not_available_msg
-    from phi.cli.operator import start_resources
+    from phi.cli.operator import start_resources, initialize_phi
     from phi.infra.type import InfraType
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        log_config_not_available_msg()
-        return
+        init_success = initialize_phi()
+        if not init_success:
+            from phi.cli.console import log_phi_init_failed_msg
+
+            log_phi_init_failed_msg()
+            return False
+        phi_config = PhiCliConfig.from_saved_config()
+        # If phi_config is still None, throw an error
+        if not phi_config:
+            log_config_not_available_msg()
+            return False
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -395,7 +403,6 @@ def stop(
     ),
     env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy"),
     infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
-    config_filter: Optional[str] = typer.Option(None, "-c", "--config", metavar="", help="Filter the config to deploy"),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
@@ -445,13 +452,22 @@ def stop(
     from pathlib import Path
     from phi.cli.config import PhiCliConfig
     from phi.cli.console import log_config_not_available_msg
-    from phi.cli.operator import stop_resources
+    from phi.cli.operator import stop_resources, initialize_phi
     from phi.infra.type import InfraType
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        log_config_not_available_msg()
-        return
+        init_success = initialize_phi()
+        if not init_success:
+            from phi.cli.console import log_phi_init_failed_msg
+
+            log_phi_init_failed_msg()
+            return False
+        phi_config = PhiCliConfig.from_saved_config()
+        # If phi_config is still None, throw an error
+        if not phi_config:
+            log_config_not_available_msg()
+            return False
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -552,13 +568,22 @@ def patch(
     from pathlib import Path
     from phi.cli.config import PhiCliConfig
     from phi.cli.console import log_config_not_available_msg
-    from phi.cli.operator import patch_resources
+    from phi.cli.operator import patch_resources, initialize_phi
     from phi.infra.type import InfraType
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        log_config_not_available_msg()
-        return
+        init_success = initialize_phi()
+        if not init_success:
+            from phi.cli.console import log_phi_init_failed_msg
+
+            log_phi_init_failed_msg()
+            return False
+        phi_config = PhiCliConfig.from_saved_config()
+        # If phi_config is still None, throw an error
+        if not phi_config:
+            log_config_not_available_msg()
+            return False
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -609,7 +634,6 @@ def restart(
     ),
     env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy"),
     infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
-    config_filter: Optional[str] = typer.Option(None, "-c", "--config", metavar="", help="Filter the config to deploy"),
     group_filter: Optional[str] = typer.Option(
         None, "-g", "--group", metavar="", help="Filter resources using group name."
     ),
@@ -660,7 +684,6 @@ def restart(
         resources_file=resources_file,
         env_filter=env_filter,
         infra_filter=infra_filter,
-        config_filter=config_filter,
         group_filter=group_filter,
         name_filter=name_filter,
         type_filter=type_filter,
@@ -675,7 +698,6 @@ def restart(
         resources_file=resources_file,
         env_filter=env_filter,
         infra_filter=infra_filter,
-        config_filter=config_filter,
         group_filter=group_filter,
         name_filter=name_filter,
         type_filter=type_filter,

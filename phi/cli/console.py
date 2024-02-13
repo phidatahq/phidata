@@ -48,7 +48,7 @@ def print_info(msg: str) -> None:
 
 
 def log_config_not_available_msg() -> None:
-    logger.error("Phi not initialized, please run `phi init`")
+    logger.error("phi not initialized, please run `phi init`")
 
 
 def log_active_workspace_not_available() -> None:

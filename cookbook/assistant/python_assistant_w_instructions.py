@@ -19,9 +19,12 @@ def average_rating() -> AssistantResponse:
         instructions=[
             "Only provide the result, do not need to provide any additional information.",
         ],
-        run_code=True,
-        save_and_run=False,
+        # This will make sure the output of this Assistant is an object of the `AssistantResponse` class
         output_model=AssistantResponse,
+        # This will allow the Assistant to directly run python code, risky but fun
+        run_code=True,
+        # This will allow the Assistant to save python code before running, less risky and you have a log of what was run
+        save_and_run=False,
         # Uncomment the following line to return result in markdown
         # markdown=True,
         # Uncomment the following line to let the assistant install python packages

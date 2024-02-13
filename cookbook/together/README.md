@@ -12,10 +12,16 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U together phidata
+pip install -U together phidata openai
 ```
 
-3. Test Together Assistant
+3. Export `TOGETHER_API_KEY`
+
+```text
+export TOGETHER_API_KEY=<together-api-key>
+```
+
+4.Test Together Assistant
 
 - Streaming
 
@@ -29,13 +35,15 @@ python cookbook/together/assistant.py
 python cookbook/together/assistant_stream_off.py
 ```
 
-4. Test Structured output
+5. Test Structured output
 
 ```shell
 python cookbook/together/pydantic_output.py
 ```
 
-5. Test function calling
+> WARNING: function calling with together is not working
+
+6. Test function calling
 
 ```shell
 python cookbook/together/tool_call.py

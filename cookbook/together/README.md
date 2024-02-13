@@ -1,4 +1,4 @@
-## Together
+## Together AI LLMs
 
 > Note: Fork and clone this repository if needed
 

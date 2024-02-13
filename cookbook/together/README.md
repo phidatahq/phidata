@@ -1,4 +1,4 @@
-## Together AI LLMs
+## Together AI
 
 > Note: Fork and clone this repository if needed
 
@@ -21,7 +21,7 @@ pip install -U together phidata openai
 export TOGETHER_API_KEY=<together-api-key>
 ```
 
-4.Test Together Assistant
+4. Test Together Assistant
 
 - Streaming
 
@@ -41,9 +41,15 @@ python cookbook/together/assistant_stream_off.py
 python cookbook/together/pydantic_output.py
 ```
 
+6. Test cli app
+
+```shell
+python cookbook/together/cli.py
+```
+
 > WARNING: function calling with together is not working
 
-6. Test function calling
+7. Test function calling
 
 ```shell
 python cookbook/together/tool_call.py

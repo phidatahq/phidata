@@ -5,4 +5,4 @@ assistant = Assistant(
     llm=Together(),
     description="You help people with their health and fitness goals.",
 )
-assistant.print_response("Share a quick healthy breakfast recipe.", stream=False)
+assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True, stream=False)

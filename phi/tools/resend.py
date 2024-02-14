@@ -4,7 +4,7 @@ from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 try:
-    import resend # type: ignore
+    import resend  # type: ignore
 except ImportError:
     raise ImportError("`resend` not installed. Please install using `pip install resend`.")
 

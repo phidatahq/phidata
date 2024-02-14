@@ -1,16 +1,23 @@
+from typing import Optional
+
 from phi.tools import ToolRegistry
 from phi.utils.log import logger
 
 try:
-    import resend
+    import resend # type: ignore
 except ImportError:
     raise ImportError("`resend` not installed. Please install using `pip install resend`.")
 
 
 class ResendTools(ToolRegistry):
-    def __init__(self, api_key: str):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+    ):
         super().__init__(name="resend_tools")
+
         self.api_key = api_key
+
         self.register(self.send_email)
 
     def send_email(self, email: str, subject: str, body: str) -> str:
@@ -22,6 +29,8 @@ class ResendTools(ToolRegistry):
         :return: A string indicating if the email was sent successfully or an error message.
         """
 
+        if not self.api_key:
+            return "Please provide an API key"
         if not email:
             return "Please provide an email address"
 

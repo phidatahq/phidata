@@ -31,6 +31,14 @@ class TTSTools(ToolRegistry):
 
         playsound(speech_file_path)
 
+        # with openai.audio.speech.with_streaming_response.create(
+        # model="tts-1",
+        # voice="alloy",
+        # input=text,
+        # ) as response:
+        #     response.stream_to_file(speech_file_path)
+        #     playsound(speech_file_path)
+
         return speech_file_path
 
     def read_audio(self, speech_file_path: str) -> str:

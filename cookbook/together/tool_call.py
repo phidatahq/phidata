@@ -34,6 +34,5 @@ assistant = Assistant(
     llm=Together(),
     tools=[get_top_hackernews_stories],
     show_tool_calls=True,
-    debug_mode=True,
 )
 assistant.print_response("Summarize the top stories on hackernews?")

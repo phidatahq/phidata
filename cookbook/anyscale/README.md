@@ -1,20 +1,48 @@
-Note: Fork and clone this repository if needed
+## Anyscale Endpoints
 
-Create a virtual environment
-  python3 -m venv ~/.venvs/aienv
-  source ~/.venvs/aienv/bin/activate
+> Note: Fork and clone this repository if needed
 
-Install libraries
-  pip install -U anyscale phidata
+1. Create a virtual environment
 
-Test Anyscale Assistant
-  Streaming
-    python cookbook/anyscale/assistant.py
-  Without Streaming
-    python cookbook/anyscale/assistant_stream_off.py
+```shell
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
+```
 
-Test Structured output
-  python cookbook/anyscale/pydantic_output.py
+2. Install libraries
 
-Test function calling
+```shell
+pip install -U phidata openai
+```
+
+3. Export `ANYSCALE_API_KEY`
+
+```text
+export ANYSCALE_API_KEY=<anyscale-api-key>
+```
+
+4. Test Anyscale Assistant
+
+- Streaming
+
+```shell
+python cookbook/anyscale/assistant.py
+```
+
+- Without Streaming
+
+```shell
+python cookbook/anyscale/assistant_stream_off.py
+```
+
+5. Test Structured output
+
+```shell
+python cookbook/anyscale/pydantic_output.py
+```
+
+6. Test function calling
+
+```shell
 python cookbook/anyscale/tool_call.py
+```

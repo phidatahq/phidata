@@ -660,7 +660,7 @@ class Assistant(BaseModel):
         for message in _messages_for_generating_name:
             _conv += f"{message.role.upper()}: {message.content}\n"
 
-        _conv += "\n\nConversation Name:"
+        _conv += "\n\nConversation Name: "
 
         system_message = Message(
             role="system",

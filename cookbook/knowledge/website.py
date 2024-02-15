@@ -5,7 +5,7 @@ from resources import vector_db
 
 
 knowledge_base = WebsiteKnowledgeBase(
-    urls=["https://docs.phidata.com/introduction"], 
+    urls=["https://docs.phidata.com/introduction"],
     # Number of links to follow from the seed URLs
     max_links=10,
     # Table name: ai.website_documents

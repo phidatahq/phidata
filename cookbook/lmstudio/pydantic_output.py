@@ -17,11 +17,7 @@ class MovieScript(BaseModel):
 
 
 movie_assistant = Assistant(
-    llm=OpenAILike(
-        model="phi-2",
-        base_url="http://localhost:1234/v1",
-        api_key="not-provided",
-    ),
+    llm=OpenAILike(base_url="http://localhost:1234/v1"),
     description="You help people write movie ideas.",
     output_model=MovieScript,
 )

@@ -2,7 +2,7 @@ from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
 from phi.assistant import Assistant
-from phi.llm.anyscale import Anyscale
+from phi.llm.openai.like import OpenAILike
 
 
 class MovieScript(BaseModel):
@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 movie_assistant = Assistant(
-    llm=Anyscale(),
+    llm=OpenAILike(base_url="http://localhost:1234/v1"),
     description="You help people write movie ideas.",
     output_model=MovieScript,
 )

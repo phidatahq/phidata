@@ -22,14 +22,14 @@ class NewsItems(BaseModel):
 
 news_assistant = Assistant(
     tools=[DuckDuckGo(timeout=120)],
-    show_tool_calls=True,
+    # show_tool_calls=True,
     output_model=NewsItems,
     description="You are a news assistant that helps users find the latest news.",
     instructions=[
         "Given a topic by the user, respond with 2 latest news items about that topic.",
         "Make sure you provide only unique news items.",
         "Use the `duckduckgo_news` tool to get the latest news about a topic. "
-        + "Search for 20 news items and select the top 10 unique items.",
+        + "Search for 5 news items and select the top 10 unique items.",
     ],
     # Uncomment the line below to run the assistant in debug mode.
     # Useful when running the first time to see the tool calls.

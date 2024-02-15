@@ -4,6 +4,5 @@ from phi.llm.anyscale import Anyscale
 assistant = Assistant(
     llm=Anyscale(),
     description="You help people with their health and fitness goals.",
-    debug_mode=True,
 )
-assistant.print_response("Share a quick healthy breakfast recipe.")
+assistant.print_response("Share a 2 sentence quick healthy breakfast recipe.", markdown=True)

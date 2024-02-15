@@ -1,4 +1,4 @@
-## Anyscale Endpoints
+## LM Studio
 
 > Note: Fork and clone this repository if needed
 
@@ -15,34 +15,30 @@ source ~/.venvs/aienv/bin/activate
 pip install -U phidata openai
 ```
 
-3. Export `ANYSCALE_API_KEY`
+3. Make sure [LM Studio](https://lmstudio.ai/) is installed and the Local Inference Server is running.
 
-```text
-export ANYSCALE_API_KEY=<anyscale-api-key>
-```
-
-4. Test Anyscale Assistant
+4. Test Assistant
 
 - Streaming
 
 ```shell
-python cookbook/anyscale/assistant.py
+python cookbook/lmstudio/assistant.py
 ```
 
 - Without Streaming
 
 ```shell
-python cookbook/anyscale/assistant_stream_off.py
+python cookbook/lmstudio/assistant_stream_off.py
 ```
 
 5. Test Structured output
 
 ```shell
-python cookbook/anyscale/pydantic_output.py
+python cookbook/lmstudio/pydantic_output.py
 ```
 
 6. Test function calling
 
 ```shell
-python cookbook/anyscale/tool_call.py
+python cookbook/lmstudio/tool_call.py
 ```

@@ -120,7 +120,7 @@ def main() -> None:
                 reader = PDFReader()
                 pdf_documents: List[Document] = reader.read(uploaded_file)
                 if pdf_documents:
-                    pdf_assistant.knowledge_base.load_documents(pdf_documents)
+                    pdf_assistant.knowledge_base.load_documents(pdf_documents, upsert=True)
                 else:
                     st.sidebar.error("Could not read PDF")
                 st.session_state[f"{pdf_name}_uploaded"] = True

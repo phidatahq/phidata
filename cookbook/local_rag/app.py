@@ -131,7 +131,7 @@ def main() -> None:
                 reader = PDFReader()
                 local_rag_documents: List[Document] = reader.read(uploaded_file)
                 if local_rag_documents:
-                    local_rag_assistant.knowledge_base.load_documents(local_rag_documents)
+                    local_rag_assistant.knowledge_base.load_documents(local_rag_documents, upsert=True)
                 else:
                     st.sidebar.error("Could not read PDF")
                 st.session_state[f"{local_rag_name}_uploaded"] = True

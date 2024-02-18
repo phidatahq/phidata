@@ -1,4 +1,4 @@
-## Together AI
+## Azure OpenAI
 
 > Note: Fork and clone this repository if needed
 

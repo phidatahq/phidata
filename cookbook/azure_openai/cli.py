@@ -9,5 +9,6 @@ assistant = Assistant(
         api_version=os.environ.get("OPENAI_API_VERSION"),
         api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
     ),
-    description="You help people with their health and fitness goals.")
+    description="You help people with their health and fitness goals.",
+)
 assistant.cli_app(markdown=True)

@@ -452,11 +452,15 @@ class OpenAIChat(LLM):
         for response in self.invoke_model_stream(messages=messages):
             completion_tokens += 1
 
-            # -*- Parse response
-            response_delta: ChoiceDelta = response.choices[0].delta
-            response_content: Optional[str] = response_delta.content
-            response_function_call: Optional[ChoiceDeltaFunctionCall] = response_delta.function_call
-            response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
+            response_content = None
+            response_function_call = None
+            response_tool_calls = None
+            if len(response.choices) > 0:
+                # -*- Parse response
+                response_delta: ChoiceDelta = response.choices[0].delta
+                response_content: Optional[str] = response_delta.content
+                response_function_call: Optional[ChoiceDeltaFunctionCall] = response_delta.function_call
+                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 
             # -*- Return content if present, otherwise get function call
             if response_content is not None:

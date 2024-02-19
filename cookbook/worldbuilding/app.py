@@ -53,7 +53,7 @@ def main() -> None:
     world_builder = get_world_builder(debug_mode=True)
     description = st.text_input(
         label="World description",
-        value="A sun kissed paradise, advanced futuristic city, distant planet, a dark history",
+        value="An advanced futuristic city on distant planet with only 1 island. Dark history. Population 1 trillion.",
         help="Provide a description for your world.",
     )
 

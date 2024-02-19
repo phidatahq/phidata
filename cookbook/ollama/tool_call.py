@@ -8,6 +8,6 @@ assistant = Assistant(
     tools=[DuckDuckGo()],
     show_tool_calls=True,
     instructions=["Make sure your answers are well formatted."],
-    debug_mode=True,
+    # debug_mode=True,
 )
-assistant.print_response("Whats happening in France.", markdown=True)
+assistant.print_response("Tell me about OpenAI Sora", markdown=True)

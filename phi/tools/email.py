@@ -1,10 +1,10 @@
 from typing import Optional
 
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
-class EmailTools(ToolRegistry):
+class EmailTools(Toolkit):
     def __init__(
         self,
         receiver_email: Optional[str] = None,

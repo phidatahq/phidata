@@ -14,6 +14,9 @@ st.set_page_config(
 )
 st.title("World Building using OpenHermes and Ollama")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
+with st.expander(":rainbow[:point_down: How to use]"):
+    st.markdown("- Generate a new world by providing a brief description")
+    st.markdown("- Ask questions about the world and explore it")
 st.write("\n")
 
 
@@ -47,10 +50,10 @@ def main() -> None:
 
     # Get the world builder
     world: Optional[World] = st.session_state["world"] if "world" in st.session_state else None
-    world_builder = get_world_builder()
+    world_builder = get_world_builder(debug_mode=True)
     description = st.text_input(
         label="World description",
-        value="A highly advanced futuristic city on a distant planet with a population of over 1 trillion.",
+        placeholder="A sun kissed paradise, advanced futuristic city, distant planet, a dark history",
         help="Provide a description for your world.",
     )
 
@@ -90,7 +93,7 @@ def main() -> None:
             model=model,
             temperature=temperature,
             world=world,
-            # debug_mode=True,
+            debug_mode=True,
         )
         st.session_state["world_explorer"] = world_explorer
     else:

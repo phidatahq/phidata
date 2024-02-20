@@ -16,8 +16,6 @@ duckdb_assistant = DuckDbAssistant(
     ),
     show_tool_calls=True,
     base_dir=Path(__file__).parent.joinpath("scratch"),
-    # Uncomment to show debug logs
-    # debug_mode=True,
 )
 
 duckdb_assistant.cli_app(markdown=True)

@@ -12,8 +12,6 @@ python_assistant = PythonAssistant(
     pip_install=True,
     show_tool_calls=True,
     base_dir=Path(__file__).parent.joinpath("scratch"),
-    # Uncomment to show debug logs
-    # debug_mode=True,
 )
 
 python_assistant.cli_app(markdown=True)

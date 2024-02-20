@@ -13,7 +13,7 @@ from phi.memory.assistant import AssistantMemory
 from phi.storage.assistant import AssistantStorage
 from phi.task.task import Task
 from phi.task.llm import LLMTask
-from phi.tools import Tool, ToolRegistry, Function
+from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
@@ -67,7 +67,7 @@ class Assistant(BaseModel):
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
-    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
+    tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
     # Allow the assistant to use tools
     use_tools: bool = False
     # Show tool calls in LLM messages.

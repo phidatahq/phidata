@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from phi.assistant.openai.file import File
 from phi.assistant.openai.exceptions import AssistantIdNotSet
-from phi.tools import Tool, ToolRegistry
+from phi.tools import Tool, Toolkit
 from phi.tools.function import Function
 from phi.utils.log import logger, set_log_level_to_debug
 
@@ -38,7 +38,7 @@ class OpenAIAssistant(BaseModel):
     # -*- OpenAIAssistant Tools
     # A list of tools provided to the assistant. There can be a maximum of 128 tools per assistant.
     # Tools can be of types code_interpreter, retrieval, or function.
-    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
+    tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
     # -*- Functions available to the OpenAIAssistant to call
     # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
@@ -97,7 +97,7 @@ class OpenAIAssistant(BaseModel):
             for tool in self.tools:
                 if self.functions is None:
                     self.functions = {}
-                if isinstance(tool, ToolRegistry):
+                if isinstance(tool, Toolkit):
                     self.functions.update(tool.functions)
                     logger.debug(f"Functions from {tool.name} added to OpenAIAssistant.")
                 elif isinstance(tool, Function):
@@ -135,7 +135,7 @@ class OpenAIAssistant(BaseModel):
             elif callable(tool):
                 func = Function.from_callable(tool)
                 tools_for_api.append({"type": "function", "function": func.to_dict()})
-            elif isinstance(tool, ToolRegistry):
+            elif isinstance(tool, Toolkit):
                 for _f in tool.functions.values():
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
             elif isinstance(tool, Function):

@@ -3,7 +3,7 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.message import Message
-from phi.tools import Tool, ToolRegistry
+from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
 from phi.utils.timer import Timer
 from phi.utils.log import logger
@@ -90,7 +90,7 @@ class LLM(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, ToolRegistry, Callable, Dict, Function]) -> None:
+    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function]) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -98,12 +98,12 @@ class LLM(BaseModel):
         if isinstance(tool, Tool) or isinstance(tool, Dict):
             self.tools.append(tool)
             logger.debug(f"Added tool {tool} to LLM.")
-        # If the tool is a Callable or ToolRegistry, add its functions to the LLM
-        elif callable(tool) or isinstance(tool, ToolRegistry) or isinstance(tool, Function):
+        # If the tool is a Callable or Toolkit, add its functions to the LLM
+        elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
-            if isinstance(tool, ToolRegistry):
+            if isinstance(tool, Toolkit):
                 self.functions.update(tool.functions)
                 for func in tool.functions.values():
                     self.tools.append({"type": "function", "function": func.to_dict()})

@@ -28,6 +28,10 @@ class Ollama(LLM):
     ollama_client: Optional[OllamaClient] = None
     # Maximum number of function calls allowed across all iterations.
     function_call_limit: int = 10
+    # Deactivate tool calls by turning off JSON mode after 1 tool call
+    deactivate_tools_after_use: bool = False
+    # After a tool call is run, add the user message as a reminder to the LLM
+    add_user_message_after_tool_call: bool = True
 
     @property
     def client(self) -> OllamaClient:
@@ -51,8 +55,8 @@ class Ollama(LLM):
         elif self.response_format is not None:
             if self.response_format.get("type") == "json_object":
                 kwargs["format"] = "json"
-        elif self.functions is not None:
-            kwargs["format"] = "json"
+        # elif self.functions is not None:
+        #     kwargs["format"] = "json"
         if self.options is not None:
             kwargs["options"] = self.options
         if self.keep_alive is not None:
@@ -152,6 +156,7 @@ class Ollama(LLM):
                             assistant_message.tool_calls = tool_calls
                             assistant_message.role = "assistant"
         except Exception:
+            logger.warning(f"Could not parse tool calls from response: {response_content}")
             pass
 
         # -*- Update usage metrics
@@ -191,10 +196,12 @@ class Ollama(LLM):
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
                 # Reconfigure messages so the LLM is reminded of the original task
-                messages = self.reconfigure_messages_for_llm(messages)
+                if self.add_user_message_after_tool_call:
+                    messages = self.add_original_user_message(messages)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
-            self.deactivate_function_calls()
+            if self.deactivate_tools_after_use:
+                self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
             final_response += self.parsed_response(messages=messages)
@@ -216,6 +223,9 @@ class Ollama(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
+        response_is_tool_call = False
+        tool_call_bracket_count = 0
+        is_last_tool_call_bracket = False
         for response in self.invoke_model_stream(messages=messages):
             completion_tokens += 1
 
@@ -226,10 +236,35 @@ class Ollama(LLM):
             response_content = response_message.get("content") if response_message else None
             # logger.info(f"Ollama partial response content: {response_content}")
 
-            # -*- Return content if present
+            if response_content is not None and response_content.strip().startswith("{") and not response_is_tool_call:
+                # logger.debug("Response is tool call")
+                response_is_tool_call = True
+
+            if response_content is not None and response_is_tool_call:
+                if "{" in response_content.strip():
+                    # logger.debug("Found {")
+                    # Add the number of opening brackets to the count
+                    tool_call_bracket_count += response_content.strip().count("{")
+                    # logger.debug(f"Tool call bracket count: {tool_call_bracket_count}")
+
+                if "}" in response_content.strip():
+                    # logger.debug("Found }")
+                    # Subtract the number of closing brackets from the count
+                    tool_call_bracket_count -= response_content.strip().count("}")
+                    if tool_call_bracket_count == 0:
+                        response_is_tool_call = False
+                        is_last_tool_call_bracket = True
+                    # logger.debug(f"Tool call bracket count: {tool_call_bracket_count}")
+
+            # -*- Yield content if present
             if response_content is not None:
                 assistant_message_content += response_content
-                yield response_content
+                if not response_is_tool_call:
+                    if is_last_tool_call_bracket and response_content.strip().endswith("}"):
+                        is_last_tool_call_bracket = False
+                        continue
+
+                    yield response_content
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
@@ -267,6 +302,7 @@ class Ollama(LLM):
                             assistant_message.tool_calls = tool_calls
                             assistant_message.role = "assistant"
         except Exception:
+            logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
             pass
 
         # -*- Update usage metrics
@@ -295,9 +331,9 @@ class Ollama(LLM):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield f"\n\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
                 elif len(function_calls_to_run) > 1:
-                    yield "\n\nRunning:"
+                    yield "\nRunning:"
                     for _f in function_calls_to_run:
                         yield f"\n - {_f.get_call_str()}"
                     yield "\n\n"
@@ -307,16 +343,18 @@ class Ollama(LLM):
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
                 # Reconfigure messages so the LLM is reminded of the original task
-                messages = self.reconfigure_messages_for_llm(messages)
+                if self.add_user_message_after_tool_call:
+                    messages = self.add_original_user_message(messages)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
-            self.deactivate_function_calls()
+            if self.deactivate_tools_after_use:
+                self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
             yield from self.parsed_response_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
 
-    def reconfigure_messages_for_llm(self, messages: List[Message]) -> List[Message]:
+    def add_original_user_message(self, messages: List[Message]) -> List[Message]:
         # Add the original user message to the messages to remind the LLM of the original task
         original_user_message_content = None
         for m in messages:

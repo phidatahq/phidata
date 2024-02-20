@@ -3,11 +3,11 @@ from typing import List, Optional
 
 from phi.document import Document
 from phi.knowledge.website import WebsiteKnowledgeBase
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
-class WebsiteTools(ToolRegistry):
+class WebsiteTools(Toolkit):
     def __init__(self, knowledge_base: Optional[WebsiteKnowledgeBase] = None):
         super().__init__(name="website_tools")
         self.knowledge_base: Optional[WebsiteKnowledgeBase] = knowledge_base

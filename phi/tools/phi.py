@@ -1,11 +1,11 @@
 import uuid
 from typing import Optional
 
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
-class PhiTools(ToolRegistry):
+class PhiTools(Toolkit):
     def __init__(self):
         super().__init__(name="phi_tools")
 

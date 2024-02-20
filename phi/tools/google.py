@@ -1,8 +1,8 @@
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
-class GoogleTools(ToolRegistry):
+class GoogleTools(Toolkit):
     def __init__(self):
         super().__init__(name="google_tools")
 

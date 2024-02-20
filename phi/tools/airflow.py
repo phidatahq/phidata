@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Optional, Union
 
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
-class AirflowTools(ToolRegistry):
+class AirflowToolkit(Toolkit):
     def __init__(self, dags_dir: Optional[Union[Path, str]] = None, save_dag: bool = True, read_dag: bool = True):
         super().__init__(name="AirflowTools")
 

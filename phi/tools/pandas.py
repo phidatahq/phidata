@@ -1,6 +1,6 @@
 from typing import Dict, Any
 
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 try:
@@ -9,7 +9,7 @@ except ImportError:
     raise ImportError("`pandas` not installed. Please install using `pip install pandas`.")
 
 
-class PandasTools(ToolRegistry):
+class PandasTools(Toolkit):
     def __init__(self):
         super().__init__(name="pandas_tools")
 

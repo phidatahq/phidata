@@ -12,11 +12,9 @@ class World(BaseModel):
     )
     characteristics: List[str] = Field(
         ...,
-        description="These are the characteristics of the world. Examples: Magical, Advanced, Peaceful, Wartorn, Abundant, etc. Be as creative as possible.",
+        description="These are the characteristics of the world. Examples: Magical, Advanced, Peaceful, War-torn, Abundant, etc. Be as creative as possible.",
     )
-    drugs: List[str] = Field(
-        ..., description="These are the drugs the people in the world use. Be as creative as possible."
-    )
+    currency: str = Field(..., description="This is the currency used in the world. Be as creative as possible.")
     languages: List[str] = Field(
         ..., description="These are the languages spoken in the world. Be as creative as possible."
     )
@@ -24,7 +22,10 @@ class World(BaseModel):
         ...,
         description="This is the history of the world. Be as creative as possible. Use events, wars, etc. to make it interesting. Make it at least 100000 years old. Provide a detailed history.",
     )
-    power_structure: str = Field(..., description="This is the power structure of the world.")
+    wars: List[str] = Field(..., description="These are the wars that shaped this world. Be as creative as possible.")
+    drugs: List[str] = Field(
+        ..., description="These are the drugs the people in the world use. Be as creative as possible."
+    )
 
 
 def get_world_builder(
@@ -37,9 +38,10 @@ def get_world_builder(
         llm=Ollama(model=model, options={"temperature": temperature}),
         description="You are an expert world builder designing an intricate and complex world.",
         instructions=[
-            "You are tasked with creating a completey unique and intricate world.",
+            "You are tasked with creating a completely unique and intricate world.",
             "Your world should wow the reader and make them want to explore it.",
             "Be as creative as possible and think of unique and interesting characteristics for your world.",
+            "Remember: BE AS CREATIVE AS POSSIBLE AND THINK OF UNIQUE AND INTERESTING CHARACTERISTICS FOR YOUR WORLD.",
         ],
         output_model=World,
         debug_mode=debug_mode,

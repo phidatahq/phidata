@@ -12,7 +12,7 @@ from phi.llm.message import Message
 from phi.llm.references import References
 from phi.task.task import Task
 from phi.memory.task.llm import LLMTaskMemory
-from phi.tools import Tool, ToolRegistry, Function
+from phi.tools import Tool, Toolkit, Function
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger
 from phi.utils.message import get_text_from_message
@@ -41,7 +41,7 @@ class LLMTask(Task):
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
-    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
+    tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
     # Allow the LLM to use tools
     use_tools: bool = False
     # Show tool calls in LLM messages.

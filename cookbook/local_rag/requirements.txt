@@ -104,8 +104,10 @@ pillow==10.2.0
     # via streamlit
 protobuf==4.25.2
     # via streamlit
-psycopg==3.1.18
+psycopg[binary]==3.1.18
     # via -r cookbook/local_rag/requirements.in
+psycopg-binary==3.1.18
+    # via psycopg
 pyarrow==15.0.0
     # via streamlit
 pydantic==2.6.1

@@ -2,6 +2,6 @@ ollama
 streamlit
 pgvector
 pypdf
-psycopg
+psycopg[binary]
 sqlalchemy
 phidata

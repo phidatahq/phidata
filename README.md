@@ -41,7 +41,7 @@ Function calling enables LLMs to achieve tasks by calling functions and intellig
 pip install -U phidata
 ```
 
-### Create an Assistant
+### Example 1: Assistant that can search the web
 
 - Create a file `assistant.py` and install openai using `pip install openai`
 
@@ -76,7 +76,7 @@ pip install duckduckgo-search
 python assistant.py
 ```
 
-### Assistant that can write and run python code
+### Example 2: Assistant that can write and run python code
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -106,7 +106,7 @@ python_assistant.print_response("What is the average rating of movies?", markdow
 python python_assistant.py
 ```
 
-### Assistant that can analyze data using SQL
+### Example 3: Assistant that can analyze data using SQL
 
 The `DuckDbAssistant` can perform data analysis using SQL.
 

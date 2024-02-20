@@ -68,12 +68,73 @@ assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
 assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
-- Run the `Assistant`
+- Install `duckduckgo-search` and run the `Assistant`
 
 ```shell
 pip install duckduckgo-search
 
 python assistant.py
+```
+
+### Assistant that can write and run python code
+
+The `PythonAssistant` can perform virtually any task using python code.
+
+- Create a file `python_assistant.py` and install pandas using `pip install pandas`
+
+```python
+from phi.assistant.python import PythonAssistant
+from phi.file.local.csv import CsvFile
+
+python_assistant = PythonAssistant(
+    files=[
+        CsvFile(
+            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            description="Contains information about movies from IMDB.",
+        )
+    ],
+    pip_install=True,
+    show_tool_calls=True,
+)
+
+python_assistant.print_response("What is the average rating of movies?", markdown=True)
+```
+
+- Run the `python_assistant.py` file
+
+```shell
+python python_assistant.py
+```
+
+### Assistant that can analyze data using SQL
+
+The `DuckDbAssistant` can perform data analysis using SQL.
+
+- Create a file `data_assistant.py` and install duckdb using `pip install duckdb`
+
+```python
+import json
+from phi.assistant.duckdb import DuckDbAssistant
+
+duckdb_assistant = DuckDbAssistant(
+    semantic_model=json.dumps({
+        "tables": [
+            {
+                "name": "movies",
+                "description": "Contains information about movies from IMDB.",
+                "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            }
+        ]
+    }),
+)
+
+duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.", markdown=True)
+```
+
+- Run the `data_assistant.py` file
+
+```shell
+python data_assistant.py
 ```
 
 ## Demos
@@ -183,118 +244,6 @@ python api_assistant.py
 │          │    funding round. This financial milestone indicates growing      │
 │          │    interest and confidence in their technology. The story has     │
 │          │    attracted attention with a score of 55. Read more              │
-╰──────────┴───────────────────────────────────────────────────────────────────╯
-```
-
-</details>
-
-<details>
-
-<summary><h3>Assistant that analyzes data using SQL</h3></summary>
-
-The `DuckDbAssistant` can perform data analysis using SQL queries.
-
-- Create a file `data_assistant.py` and install duckdb using `pip install duckdb`
-
-```python
-import json
-from phi.assistant.duckdb import DuckDbAssistant
-
-duckdb_assistant = DuckDbAssistant(
-    semantic_model=json.dumps({
-        "tables": [
-            {
-                "name": "movies",
-                "description": "Contains information about movies from IMDB.",
-                "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-            }
-        ]
-    }),
-)
-
-duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.", markdown=True)
-```
-
-- Run the `data_assistant.py` file
-
-```shell
-python data_assistant.py
-```
-
-- See it work through the problem
-
-```shell
-INFO     Running: SHOW TABLES
-INFO     Running: CREATE TABLE IF NOT EXISTS 'movies'
-         AS SELECT * FROM
-         'https://phidata-public.s3.amazonaws.com/demo_
-         data/IMDB-Movie-Data.csv'
-INFO     Running: DESCRIBE movies
-INFO     Running: SELECT AVG(Rating) AS average_rating
-         FROM movies
-╭──────────┬────────────────────────────────────────────────────────╮
-│ Message  │ What is the average rating of movies? Show me the SQL. │
-├──────────┼────────────────────────────────────────────────────────┤
-│ Response │ The average rating of movies in the dataset is 6.72.   │
-│ (7.6s)   │                                                        │
-│          │ Here is the SQL query used to calculate the average    │
-│          │ rating:                                                │
-│          │                                                        │
-│          │                                                        │
-│          │  SELECT AVG(Rating) AS average_rating                  │
-│          │  FROM movies;                                          │
-│          │                                                        │
-╰──────────┴────────────────────────────────────────────────────────╯
-```
-
-</details>
-
-<details>
-
-<summary><h3>Assistant that runs python code</h3></summary>
-
-The `PythonAssistant` can perform virtually any task using python code.
-
-- Create a file `python_assistant.py` and install pandas using `pip install pandas`
-
-```python
-from phi.assistant.python import PythonAssistant
-from phi.file.local.csv import CsvFile
-
-python_assistant = PythonAssistant(
-    files=[
-        CsvFile(
-            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-            description="Contains information about movies from IMDB.",
-        )
-    ],
-    pip_install=True,
-    show_tool_calls=True,
-)
-
-python_assistant.print_response("What is the average rating of movies?", markdown=True)
-```
-
-- Run the `python_assistant.py` file
-
-```shell
-python python_assistant.py
-```
-
-- See it work through the problem
-
-```shell
-WARNING  PythonTools can run arbitrary code, please provide human supervision.
-INFO     Saved: /Users/zu/ai/average_rating
-INFO     Running /Users/zu/ai/average_rating
-╭──────────┬───────────────────────────────────────────────────────────────────╮
-│ Message  │ What is the average rating of movies?                             │
-├──────────┼───────────────────────────────────────────────────────────────────┤
-│ Response │                                                                   │
-│ (4.1s)   │  • Running: save_to_file_and_run(file_name=average_rating,        │
-│          │    code=..., variable_to_return=average_rating)                   │
-│          │                                                                   │
-│          │ The average rating of movies is approximately 6.72.               │
 ╰──────────┴───────────────────────────────────────────────────────────────────╯
 ```
 

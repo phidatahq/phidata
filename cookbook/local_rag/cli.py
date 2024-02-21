@@ -21,13 +21,14 @@ knowledge_base = PDFUrlKnowledgeBase(
 # knowledge_base.load(recreate=False)
 
 
-def local_assistant(model: str = "openhermes"):
+def local_assistant(model: str = "openhermes", debug: bool = False):
     print(f"============= Running: {model} =============")
     Assistant(
         llm=Ollama(model=model),
         storage=storage,
         knowledge_base=knowledge_base,
         add_references_to_prompt=True,
+        debug_mode=debug,
     ).cli_app(markdown=True)
 
 

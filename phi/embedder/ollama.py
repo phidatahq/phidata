@@ -11,7 +11,7 @@ except ImportError:
 
 
 class OllamaEmbedder(Embedder):
-    model: str = "llama2"
+    model: str = "openhermes"
     dimensions: int = 4096
     host: Optional[str] = None
     timeout: Optional[Any] = None

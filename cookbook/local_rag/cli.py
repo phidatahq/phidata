@@ -1,30 +1,35 @@
+import typer
 from phi.assistant import Assistant
 from phi.llm.ollama import Ollama
 from phi.vectordb.pgvector import PgVector2
 from phi.embedder.ollama import OllamaEmbedder
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-
+from phi.storage.assistant.postgres import PgAssistantStorage
 from resources import vector_db  # type: ignore
 
-model = "openhermes"
+db_url = vector_db.get_db_connection_local()
+storage = PgAssistantStorage(table_name="pdf_assistant", db_url=db_url)
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector2(
-        collection="recipes", db_url=vector_db.get_db_connection_local(), embedder=OllamaEmbedder(model=model)
+        collection="recipes",
+        db_url=db_url,
+        embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
     ),
 )
-knowledge_base.load(recreate=False)
+# Comment after first run to avoid reloading the knowledge base
+# knowledge_base.load(recreate=False)
 
-assistant = Assistant(
-    llm=Ollama(model=model),
-    knowledge_base=knowledge_base,
-    add_references_to_prompt=True,
-    # Uncomment to enable debug mode that show system messages
-    # debug_mode=True,
-)
 
-# Use this to print a single response
-# assistant.print_response("Got any pad thai?", markdown=True)
+def local_assistant(model: str = "openhermes"):
+    print(f"============= Running: {model} =============")
+    Assistant(
+        llm=Ollama(model=model),
+        storage=storage,
+        knowledge_base=knowledge_base,
+        add_references_to_prompt=True,
+    ).cli_app(markdown=True)
 
-# Use this to run a CLI application with multi-turn conversation
-assistant.cli_app(markdown=True)
+
+if __name__ == "__main__":
+    typer.run(local_assistant)

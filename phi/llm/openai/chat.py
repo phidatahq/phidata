@@ -1,11 +1,9 @@
-import json
 import httpx
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.tools.function import FunctionCall
-from phi.utils.env import get_from_env
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
@@ -50,7 +48,6 @@ class OpenAIChat(LLM):
     base_url: Optional[Union[str, httpx.URL]] = None
     client_kwargs: Optional[Dict[str, Any]] = None
     openai_client: Optional[OpenAIClient] = None
-    phi_proxy: bool = True
 
     @property
     def client(self) -> OpenAIClient:
@@ -126,86 +123,19 @@ class OpenAIChat(LLM):
         return _dict
 
     def invoke_model(self, messages: List[Message]) -> ChatCompletion:
-        if (
-            self.phi_proxy
-            and self.api_key is None
-            and get_from_env("OPENAI_API_KEY") is None
-            and self.openai_client is None
-        ):
-            logger.debug("--o-o-- Using phi-proxy")
-            response_json = None
-            try:
-                from phi.api.llm import openai_chat
-
-                response_json = openai_chat(
-                    params={
-                        "model": self.model,
-                        "messages": [m.to_dict() for m in messages],
-                        **self.api_kwargs,
-                    }
-                )
-                if response_json is None:
-                    logger.error("Error: Could not reach Phidata Servers.")
-                    logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                    exit(1)
-                else:
-                    return ChatCompletion.model_validate_json(response_json)
-            except Exception:
-                logger.error(response_json)
-                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                exit(1)
-        else:
-            return self.client.chat.completions.create(
-                model=self.model,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                **self.api_kwargs,
-            )
+        return self.client.chat.completions.create(
+            model=self.model,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            **self.api_kwargs,
+        )
 
     def invoke_model_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
-        if (
-            self.phi_proxy
-            and self.api_key is None
-            and get_from_env("OPENAI_API_KEY") is None
-            and self.openai_client is None
-        ):
-            logger.debug("--o-o-- Using phi-proxy")
-            try:
-                from phi.api.llm import openai_chat_stream
-
-                for chunk in openai_chat_stream(
-                    params={
-                        "model": self.model,
-                        "messages": [m.to_dict() for m in messages],
-                        "stream": True,
-                        **self.api_kwargs,
-                    }
-                ):
-                    if chunk:
-                        # Sometimes we get multiple chunks in one response which is not valid JSON
-                        if "}{" in chunk:
-                            # logger.debug(f"Double chunk: {chunk}")
-                            chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for completion_chunk in json.loads(chunks):
-                                try:
-                                    yield ChatCompletionChunk.model_validate(completion_chunk)
-                                except Exception:
-                                    logger.error(chunk)
-                        else:
-                            try:
-                                yield ChatCompletionChunk.model_validate_json(chunk)
-                            except Exception:
-                                logger.error(chunk)
-            except Exception as e:
-                logger.exception(e)
-                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                exit(1)
-        else:
-            yield from self.client.chat.completions.create(
-                model=self.model,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                stream=True,
-                **self.api_kwargs,
-            )  # type: ignore
+        yield from self.client.chat.completions.create(
+            model=self.model,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            stream=True,
+            **self.api_kwargs,
+        )  # type: ignore
 
     def run_function(self, function_call: Dict[str, Any]) -> Tuple[Message, Optional[FunctionCall]]:
         _function_name = function_call.get("name")

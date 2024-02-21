@@ -46,7 +46,6 @@ class LLM(BaseModel):
     system_prompt: Optional[str] = None
     instructions: Optional[List[str]] = None
 
-    phi_proxy: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property

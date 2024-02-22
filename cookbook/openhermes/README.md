@@ -1,4 +1,8 @@
-# OpenHermes & Ollama
+# OpenHermes Cookbook
+
+OpenHermes is a 7B model fine-tuned by Teknium on Mistral with fully open datasets.
+Personal experience shows that OpenHermes perfoms spectacularly well on a wide range of tasks.
+Follow this cookbook to get test OpenHermes yourself.
 
 > Note: Fork and clone this repository if needed
 
@@ -23,7 +27,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U ollama phidata
 ```
 
-### 4. Test Completion
+### 4. Test Generation
 
 ```shell
 python cookbook/openhermes/assistant.py

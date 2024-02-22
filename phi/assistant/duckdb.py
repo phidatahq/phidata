@@ -195,7 +195,12 @@ class DuckDbAssistant(CustomAssistant):
                 _system_prompt += _system_prompt_from_llm
 
         # Then add instructions to the system prompt
-        _instructions = self.instructions or self.get_default_instructions()
+        _instructions = self.instructions
+        # Add default instructions
+        if _instructions is None:
+            _instructions = []
+
+        _instructions += self.get_default_instructions()
         if len(_instructions) > 0:
             _system_prompt += dedent(
                 """\

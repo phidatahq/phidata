@@ -75,6 +75,7 @@ exclude = ["phienv*", "aienv*"]
 
 [[tool.mypy.overrides]]
 module = [
+  "altair.*",
   "arxiv.*",
   "boto3.*",
   "botocore.*",
@@ -91,6 +92,7 @@ module = [
   "pgvector.*",
   "psycopg.*",
   "pypdf.*",
+  "numpy.*",
   "qdrant_client.*",
   "setuptools.*",
   "sqlalchemy.*",

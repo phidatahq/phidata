@@ -17,7 +17,7 @@ ollama serve
 2. Install libraries
 
 ```shell
-pip install -U ollama
+pip install -U ollama phidata
 ```
 
 3. Test Ollama Assistant

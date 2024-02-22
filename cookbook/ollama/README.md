@@ -28,10 +28,8 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -r pip install -U ollama phidata
+pip install -U ollama phidata
 ```
-
-> install duckduckgo-search if needed
 
 ### 4. Test Ollama Assistant
 
@@ -52,6 +50,8 @@ python cookbook/ollama/image.py
 ```
 
 ### 7. Test Tool Calls (experimental)
+
+> Run`pip install -U duckduckgo-search` first
 
 ```shell
 python cookbook/ollama/tool_call.py

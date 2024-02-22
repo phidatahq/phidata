@@ -7,6 +7,7 @@ from textwrap import dedent
 from phi.assistant.custom import CustomAssistant
 from phi.file import File
 from phi.tools.python import PythonTools
+from phi.utils.log import logger
 
 
 class PythonAssistant(CustomAssistant):
@@ -80,7 +81,15 @@ class PythonAssistant(CustomAssistant):
         return json.dumps(_files, indent=2)
 
     def get_default_instructions(self) -> List[str]:
-        _instructions = [
+        _instructions = []
+
+        # Add instructions specifically from the LLM
+        if self.llm is not None:
+            _llm_instructions = self.llm.get_instructions_from_llm()
+            if _llm_instructions is not None:
+                _instructions += _llm_instructions
+
+        _instructions += [
             "Determine if you can answer the question directly or if you need to run python code to accomplish the task.",
             "If you need to run code, **FIRST THINK** how you will accomplish the task and then write the code.",
         ]
@@ -137,35 +146,49 @@ class PythonAssistant(CustomAssistant):
             _instructions += ["After the script is ready, run it using the `run_python_code` function."]
         _instructions += ["Continue till you have accomplished the task."]
 
-        return _instructions
+        # Add instructions for using markdown
+        if self.markdown and self.output_model is None:
+            _instructions.append("Use markdown to format your answers.")
 
-    def get_system_prompt(self) -> Optional[str]:
-        """Return the system prompt for the python assistant"""
-
-        # Add default description if not set
-        _description = (
-            self.description or "You are an expert in Python and can accomplish any task that is asked of you."
-        )
-
-        # Add default instructions if not set
-        _instructions = self.instructions or self.get_default_instructions()
-
+        # Add extra instructions provided by the user
         if self.extra_instructions is not None:
             _instructions.extend(self.extra_instructions)
 
-        _system_prompt = _description + "\n\n"
-        _system_prompt += dedent(
-            """\
-        Your task is to respond to the message from the user in the best way possible.
-        This is an important task and must be done correctly.
+        return _instructions
 
-        YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
-        <instructions>
-        """
+    def get_system_prompt(self, **kwargs) -> Optional[str]:
+        """Return the system prompt for the python assistant"""
+
+        logger.debug("Building the system prompt for the PythonAssistant.")
+        # -*- Build the default system prompt
+        # First add the Assistant description
+        _system_prompt = (
+            self.description or "You are an expert in Python and can accomplish any task that is asked of you."
         )
-        for i, instruction in enumerate(_instructions):
-            _system_prompt += f"{i + 1}. {instruction}\n"
-        _system_prompt += "</instructions>\n"
+        _system_prompt += "\n"
+
+        # Then add the prompt specifically from the LLM
+        if self.llm is not None:
+            _system_prompt_from_llm = self.llm.get_system_prompt_from_llm()
+            if _system_prompt_from_llm is not None:
+                _system_prompt += _system_prompt_from_llm
+
+        # Then add instructions to the system prompt
+        _instructions = self.instructions or self.get_default_instructions()
+        if len(_instructions) > 0:
+            _system_prompt += dedent(
+                """\
+            YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
+            <instructions>
+            """
+            )
+            for i, instruction in enumerate(_instructions):
+                _system_prompt += f"{i + 1}. {instruction}\n"
+            _system_prompt += "</instructions>\n"
+
+        # Then add user provided additional information to the system prompt
+        if self.add_to_system_prompt is not None:
+            _system_prompt += "\n" + self.add_to_system_prompt
 
         _system_prompt += dedent(
             """

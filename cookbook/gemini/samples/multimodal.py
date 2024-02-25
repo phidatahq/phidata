@@ -1,10 +1,11 @@
 from os import getenv
+from typing import Optional
 
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 
 
-def multimodal_example(project: str, location: str) -> str:
+def multimodal_example(project: Optional[str], location: Optional[str]) -> str:
     # Initialize Vertex AI
     vertexai.init(project=project, location=location)
     # Load the model
@@ -13,9 +14,7 @@ def multimodal_example(project: str, location: str) -> str:
     response = multimodal_model.generate_content(
         [
             # Add an example image
-            Part.from_uri(
-                "gs://generativeai-downloads/images/scones.jpg", mime_type="image/jpeg"
-            ),
+            Part.from_uri("gs://generativeai-downloads/images/scones.jpg", mime_type="image/jpeg"),
             # Add an example query
             "what is shown in this image?",
         ]
@@ -24,6 +23,7 @@ def multimodal_example(project: str, location: str) -> str:
     print(response)
     print("============= RESPONSE =============")
     return response.text
+
 
 # *********** Get project and location ***********
 PROJECT_ID = getenv("PROJECT_ID")
@@ -35,4 +35,3 @@ if __name__ == "__main__":
     print("============= RESULT =============")
     print(result)
     print("============= RESULT =============")
-

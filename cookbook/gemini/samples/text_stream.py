@@ -1,11 +1,11 @@
 from os import getenv
-from typing import Iterable
+from typing import Iterable, Optional
 
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationResponse
 
 
-def generate(project: str, location: str) -> None:
+def generate(project: Optional[str], location: Optional[str]) -> None:
     # Initialize Vertex AI
     vertexai.init(project=project, location=location)
     # Load the model
@@ -16,6 +16,7 @@ def generate(project: str, location: str) -> None:
     for response in responses:
         print(response.text, end="")
     print(" ")
+
 
 # *********** Get project and location ***********
 PROJECT_ID = getenv("PROJECT_ID")

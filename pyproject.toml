@@ -99,6 +99,7 @@ module = [
   "streamlit.*",
   "textract.*",
   "langchain.*",
+  "vertexai.*",
   "wikipedia.*",
 ]
 ignore_missing_imports = true

@@ -41,7 +41,7 @@ pip install -U phidata
 
 ## Example 1: Assistant that can search the web
 
-Create a file `assistant.py` and install openai using `pip install openai`
+Create a file `assistant.py`:
 
 ```python
 from phi.assistant import Assistant
@@ -50,13 +50,15 @@ assistant = Assistant(description="You help people with their health and fitness
 assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
 ```
 
-Run the `Assistant`
+Install openai and run the `Assistant`
 
 ```shell
+pip install openai
+
 python assistant.py
 ```
 
-Add `DuckDuckGo` tools to let it search the web
+Add `DuckDuckGo` functions to let the `Assistant` search the web
 
 ```python
 from phi.assistant import Assistant
@@ -76,7 +78,7 @@ python assistant.py
 
 ## Example 2: Assistant that can write and run python code
 
-The `PythonAssistant` can perform virtually any task using python code. Create a file `python_assistant.py`:
+The `PythonAssistant` can achieve tasks using python code. Create a file `python_assistant.py`:
 
 ```python
 from phi.assistant.python import PythonAssistant

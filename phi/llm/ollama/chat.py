@@ -84,14 +84,14 @@ class Ollama(LLM):
             msg["images"] = message.model_extra.get("images")
         return msg
 
-    def invoke_model(self, messages: List[Message]) -> Mapping[str, Any]:
+    def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         return self.client.chat(
             model=self.model,
             messages=[self.to_llm_message(m) for m in messages],
             **self.api_kwargs,
         )
 
-    def invoke_model_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
+    def invoke_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
         yield from self.client.chat(
             model=self.model,
             messages=[self.to_llm_message(m) for m in messages],
@@ -104,7 +104,7 @@ class Ollama(LLM):
         # This is triggered when the function call limit is reached.
         self.format = ""
 
-    def parsed_response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> str:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -112,7 +112,7 @@ class Ollama(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: Mapping[str, Any] = self.invoke_model(messages=messages)
+        response: Mapping[str, Any] = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"Ollama response type: {type(response)}")
@@ -204,7 +204,7 @@ class Ollama(LLM):
                 self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
-            final_response += self.parsed_response(messages=messages)
+            final_response += self.response(messages=messages)
             return final_response
         logger.debug("---------- Ollama Response End ----------")
         # -*- Return content if no function calls are present
@@ -212,7 +212,7 @@ class Ollama(LLM):
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
-    def parsed_response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -226,7 +226,7 @@ class Ollama(LLM):
         response_is_tool_call = False
         tool_call_bracket_count = 0
         is_last_tool_call_bracket = False
-        for response in self.invoke_model_stream(messages=messages):
+        for response in self.invoke_stream(messages=messages):
             completion_tokens += 1
 
             # -*- Parse response
@@ -351,7 +351,7 @@ class Ollama(LLM):
                 self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
-            yield from self.parsed_response_stream(messages=messages)
+            yield from self.response_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
 
     def add_original_user_message(self, messages: List[Message]) -> List[Message]:

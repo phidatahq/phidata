@@ -29,7 +29,7 @@ except ImportError:
     raise
 
 
-class OpenAIChat(LLM):
+class Gemini(LLM):
     name: str = "OpenAIChat"
     model: str = "gpt-4-1106-preview"
     seed: Optional[int] = None

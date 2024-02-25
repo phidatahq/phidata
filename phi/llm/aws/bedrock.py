@@ -104,7 +104,7 @@ class AwsBedrock(LLM):
 
         return model_details["modelDetails"]
 
-    def invoke_model(self, prompt: str) -> Dict[str, Any]:
+    def invoke(self, prompt: str) -> Dict[str, Any]:
         body = {"prompt": prompt}
         body.update(self.api_kwargs)
         body_json = json.dumps(body)
@@ -122,7 +122,7 @@ class AwsBedrock(LLM):
 
         return json.loads(response_body.read())
 
-    def invoke_model_stream(self, prompt: str) -> Iterator[Dict[str, Any]]:
+    def invoke_stream(self, prompt: str) -> Iterator[Dict[str, Any]]:
         body = {"prompt": prompt}
         body.update(self.api_kwargs)
         body_json = json.dumps(body)
@@ -150,12 +150,12 @@ class AwsBedrock(LLM):
         logger.debug(f"PROMPT: {prompt}")
         return prompt
 
-    def parsed_response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> str:
         logger.debug("---------- Aws Response Start ----------")
 
         response_timer = Timer()
         response_timer.start()
-        response: Dict[str, Any] = self.invoke_model(prompt=self.build_prompt(messages))
+        response: Dict[str, Any] = self.invoke(prompt=self.build_prompt(messages))
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -206,12 +206,12 @@ class AwsBedrock(LLM):
         # -*- Return content
         return assistant_message.get_content_string()
 
-    def response_message(self, messages: List[Message]) -> Dict:
+    def generate(self, messages: List[Message]) -> Dict:
         logger.debug("---------- Aws Response Start ----------")
 
         response_timer = Timer()
         response_timer.start()
-        response: Dict[str, Any] = self.invoke_model(prompt=self.build_prompt(messages))
+        response: Dict[str, Any] = self.invoke(prompt=self.build_prompt(messages))
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -262,14 +262,14 @@ class AwsBedrock(LLM):
         # -*- Return content
         return response
 
-    def parsed_response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Aws Response Start ----------")
 
         assistant_message_content = ""
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for delta in self.invoke_model_stream(prompt=self.build_prompt(messages)):
+        for delta in self.invoke_stream(prompt=self.build_prompt(messages)):
             completion_tokens += 1
             # -*- Parse response
             delta_completion = delta.get("completion")
@@ -319,14 +319,14 @@ class AwsBedrock(LLM):
         assistant_message.log()
         logger.debug("---------- Aws Response End ----------")
 
-    def response_delta(self, messages: List[Message]) -> Iterator[Dict]:
+    def generate_stream(self, messages: List[Message]) -> Iterator[Dict]:
         logger.debug("---------- OpenAI Response Start ----------")
 
         assistant_message_content = ""
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for delta in self.invoke_model_stream(prompt=self.build_prompt(messages)):
+        for delta in self.invoke_stream(prompt=self.build_prompt(messages)):
             completion_tokens += 1
             # -*- Parse response
             delta_completion = delta.get("completion")

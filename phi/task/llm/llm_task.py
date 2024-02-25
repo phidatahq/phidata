@@ -531,11 +531,11 @@ class LLMTask(Task):
         # -*- Generate run response (includes running function calls)
         task_response = ""
         if stream:
-            for response_chunk in self.llm.parsed_response_stream(messages=messages):
+            for response_chunk in self.llm.response_stream(messages=messages):
                 task_response += response_chunk
                 yield response_chunk
         else:
-            task_response = self.llm.parsed_response(messages=messages)
+            task_response = self.llm.response(messages=messages)
 
         # -*- Update task memory
         # Add user message to the task memory - this is added to the chat_history

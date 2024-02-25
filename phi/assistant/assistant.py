@@ -573,10 +573,10 @@ class Assistant(BaseModel):
         # -*- Generate response
         batch_llm_response_message = {}
         if stream:
-            for response_delta in self.llm.response_delta(messages=messages):
+            for response_delta in self.llm.generate_stream(messages=messages):
                 yield response_delta
         else:
-            batch_llm_response_message = self.llm.response_message(messages=messages)
+            batch_llm_response_message = self.llm.generate(messages=messages)
 
         # -*- Add prompts and response to the memory - these are added to the llm_messages
         self.memory.add_llm_messages(messages=messages)
@@ -669,7 +669,7 @@ class Assistant(BaseModel):
         )
         user_message = Message(role="user", content=_conv)
         generate_name_messages = [system_message, user_message]
-        generated_name = self.llm.parsed_response(messages=generate_name_messages)
+        generated_name = self.llm.response(messages=generate_name_messages)
         if len(generated_name.split()) > 15:
             logger.error("Generated name is too long. Trying again.")
             return self.generate_name()

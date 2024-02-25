@@ -56,7 +56,7 @@ Run the `Assistant`
 python assistant.py
 ```
 
-Let it search the web
+Add `DuckDuckGo` tools to let it search the web
 
 ```python
 from phi.assistant import Assistant
@@ -76,7 +76,7 @@ python assistant.py
 
 ## Example 2: Assistant that can write and run python code
 
-The `PythonAssistant` can perform virtually any task using python code.
+#### The `PythonAssistant` can perform virtually any task using python code.
 
 Create a file `python_assistant.py` and install pandas using `pip install pandas`
 
@@ -106,7 +106,7 @@ python python_assistant.py
 
 ## Example 3: Assistant that can analyze data using SQL
 
-The `DuckDbAssistant` can perform data analysis using SQL.
+#### The `DuckDbAssistant` can perform data analysis using SQL.
 
 Create a file `data_assistant.py` and install duckdb using `pip install duckdb`
 

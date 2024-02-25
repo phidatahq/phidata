@@ -33,15 +33,13 @@ Function calling enables LLMs to achieve tasks by calling functions and intellig
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
 - **Step 3:** Serve using Streamlit, FastApi or Django to build your AI application
 
-## Quickstart
-
-### Installation
+## Installation
 
 ```shell
 pip install -U phidata
 ```
 
-### Example 1: Assistant that can search the web
+## Example 1: Assistant that can search the web
 
 Create a file `assistant.py` and install openai using `pip install openai`
 
@@ -76,7 +74,7 @@ pip install duckduckgo-search
 python assistant.py
 ```
 
-### Example 2: Assistant that can write and run python code
+## Example 2: Assistant that can write and run python code
 
 The `PythonAssistant` can perform virtually any task using python code.
 
@@ -106,7 +104,7 @@ Run the `python_assistant.py` file
 python python_assistant.py
 ```
 
-### Example 3: Assistant that can analyze data using SQL
+## Example 3: Assistant that can analyze data using SQL
 
 The `DuckDbAssistant` can perform data analysis using SQL.
 

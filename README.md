@@ -76,7 +76,7 @@ python assistant.py
 
 ## Example 2: Assistant that can write and run python code
 
-The `PythonAssistant` can perform virtually any task using python code. Create a file `python_assistant.py` and install pandas using `pip install pandas`
+The `PythonAssistant` can perform virtually any task using python code. Create a file `python_assistant.py`:
 
 ```python
 from phi.assistant.python import PythonAssistant
@@ -96,15 +96,17 @@ python_assistant = PythonAssistant(
 python_assistant.print_response("What is the average rating of movies?", markdown=True)
 ```
 
-Run the `python_assistant.py` file
+Install pandas and run the `python_assistant.py`:
 
 ```shell
+pip install pandas
+
 python python_assistant.py
 ```
 
 ## Example 3: Assistant that can analyze data using SQL
 
-The `DuckDbAssistant` can perform data analysis using SQL. Create a file `data_assistant.py` and install duckdb using `pip install duckdb`
+The `DuckDbAssistant` can perform data analysis using SQL. Create a file `data_assistant.py`:
 
 ```python
 import json
@@ -125,9 +127,11 @@ duckdb_assistant = DuckDbAssistant(
 duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL.", markdown=True)
 ```
 
-Run the `data_assistant.py` file
+Install duckdb and run the `data_assistant.py` file
 
 ```shell
+pip install duckdb
+
 python data_assistant.py
 ```
 

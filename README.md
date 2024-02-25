@@ -41,7 +41,7 @@ pip install -U phidata
 
 ## Example 1: Assistant that can search the web
 
-Create a file `assistant.py`:
+Create a file `assistant.py`
 
 ```python
 from phi.assistant import Assistant
@@ -78,7 +78,7 @@ python assistant.py
 
 ## Example 2: Assistant that can write and run python code
 
-The `PythonAssistant` can achieve tasks using python code. Create a file `python_assistant.py`:
+The `PythonAssistant` can achieve tasks using python code. Create a file `python_assistant.py`
 
 ```python
 from phi.assistant.python import PythonAssistant
@@ -98,7 +98,7 @@ python_assistant = PythonAssistant(
 python_assistant.print_response("What is the average rating of movies?", markdown=True)
 ```
 
-Install pandas and run the `python_assistant.py`:
+Install pandas and run the `python_assistant.py`
 
 ```shell
 pip install pandas
@@ -108,7 +108,7 @@ python python_assistant.py
 
 ## Example 3: Assistant that can analyze data using SQL
 
-The `DuckDbAssistant` can perform data analysis using SQL. Create a file `data_assistant.py`:
+The `DuckDbAssistant` can perform data analysis using SQL. Create a file `data_assistant.py`
 
 ```python
 import json

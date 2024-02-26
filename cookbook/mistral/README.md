@@ -17,16 +17,16 @@ source ~/.venvs/aienv/bin/activate
 export MISTRAL_API_KEY=xxx
 ```
 
-3. Start pgvector
-
-```shell
-phi start cookbook/mistral/resources.py -y
-```
-
-4. Install libraries
+3. Install libraries
 
 ```shell
 pip install -r cookbook/mistral/requirements.txt
+```
+
+4. Start pgvector
+
+```shell
+phi start cookbook/mistral/resources.py -y
 ```
 
 5. Run RAG App

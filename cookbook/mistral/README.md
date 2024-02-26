@@ -2,7 +2,7 @@
 
 > Note: Fork and clone this repository if needed
 
-## Build AI Assistants with Mistral
+## RAG AI App with Mistral & PgVector
 
 1. Create and activate a virtual environment
 
@@ -11,25 +11,59 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-2. Install libraries
-
-```shell
-pip install -U mistralai phidata
-```
-
-3. Export your Mistral API Key
+2. Export your Mistral API Key
 
 ```shell
 export MISTRAL_API_KEY=xxx
 ```
 
-4. Run Assistant
+3. Start pgvector
 
 ```shell
-python cookbook/mistral/assistant.py
+phi start cookbook/mistral/resources.py -y
 ```
 
-5. Run Assistant with Tool calls
+4. Install libraries
+
+```shell
+pip install -r cookbook/mistral/requirements.txt
+```
+
+5. Run RAG App
+
+```shell
+streamlit run cookbook/mistral/app.py
+```
+
+6. Stop pgvector
+
+```shell
+phi stop cookbook/mistral/resources.py -y
+```
+
+## Build AI Assistants with Mistral
+
+1. Install libraries
+
+```shell
+pip install -U mistralai phidata
+```
+
+2. Run Assistant
+
+```shell
+python cookbook/mistral/simple_assistant.py
+```
+
+3. Output Pydantic models
+
+```shell
+python cookbook/mistral/pydantic_output.py
+```
+
+4. Run Assistant with Tool calls
+
+> NOTE: currently not working
 
 ```shell
 pip install duckduckgo-search
@@ -37,28 +71,8 @@ pip install duckduckgo-search
 python cookbook/mistral/tool_call.py
 ```
 
-## Build RAG AI App with Mistral & PgVector
-
-1. Start pgvector
+Optional: View Mistral models
 
 ```shell
-phi start cookbook/mistral/resources.py -y
-```
-
-2. Install libraries
-
-```shell
-pip install -U pgvector pypdf psycopg sqlalchemy google-cloud-aiplatform phidata
-```
-
-3. Run RAG App
-
-```shell
-python cookbook/mistral/app.py
-```
-
-4. Stop pgvector
-
-```shell
-phi stop cookbook/mistral/resources.py -y
+python cookbook/mistral/list_models.py
 ```

@@ -63,6 +63,11 @@ class LLMTask(Task):
     # then a tool is added that allows the LLM to get the tool call history.
     read_tool_call_history: bool = False
 
+    # -*- Important: this setting determines if the input messages are formatted
+    # If True, phidata will add the system prompt, references, and chat history
+    # If False, the input messages are sent to the LLM as is
+    format_messages: bool = True
+
     #
     # -*- Prompt Settings
     #
@@ -434,12 +439,12 @@ class LLMTask(Task):
         if not self.build_default_user_prompt:
             return message
 
-        # If references and chat_history are None, return the message as is
-        if not (self.add_references_to_prompt or self.add_chat_history_to_prompt):
-            return message
-
         # If message is not a str, return as is
         if not isinstance(message, str):
+            return message
+
+        # If references and chat_history are None, return the message as is
+        if not (self.add_references_to_prompt or self.add_chat_history_to_prompt):
             return message
 
         # Build a default user prompt
@@ -482,51 +487,53 @@ class LLMTask(Task):
 
         logger.debug(f"*********** Task Start: {self.task_id} ***********")
 
-        # -*- Build the system prompt
-        system_prompt = self.get_system_prompt()
-
         # -*- References to add to the user_prompt and save to the task memory
         references: Optional[References] = None
+        if self.format_messages:
+            # -*- Build the system prompt
+            system_prompt = self.get_system_prompt()
 
-        # -*- Get references to add to the user_prompt
-        user_prompt_references = None
-        if self.add_references_to_prompt and message and isinstance(message, str):
-            reference_timer = Timer()
-            reference_timer.start()
-            user_prompt_references = self.get_references_from_knowledge_base(query=message)
-            reference_timer.stop()
-            references = References(
-                query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+            # -*- Get references to add to the user_prompt
+            user_prompt_references = None
+            if self.add_references_to_prompt and message and isinstance(message, str):
+                reference_timer = Timer()
+                reference_timer.start()
+                user_prompt_references = self.get_references_from_knowledge_base(query=message)
+                reference_timer.stop()
+                references = References(
+                    query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+                )
+                logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+
+            # -*- Get chat history to add to the user prompt
+            user_prompt_chat_history = None
+            if self.add_chat_history_to_prompt:
+                user_prompt_chat_history = self.get_formatted_chat_history()
+
+            # -*- Build the user prompt
+            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+                message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
             )
-            logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
 
-        # -*- Get chat history to add to the user prompt
-        user_prompt_chat_history = None
-        if self.add_chat_history_to_prompt:
-            user_prompt_chat_history = self.get_formatted_chat_history()
+            # -*- Build the messages to send to the LLM
+            # Create system message
+            system_prompt_message = Message(role="system", content=system_prompt)
+            # Create user message
+            user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
 
-        # -*- Build the user prompt
-        user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
-            message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
-        )
-
-        # -*- Build the messages to send to the LLM
-        # Create system message
-        system_prompt_message = Message(role="system", content=system_prompt)
-        # Create user message
-        user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
-
-        # Create message list
-        messages: List[Message] = []
-        if system_prompt_message.content and system_prompt_message.content != "":
-            messages.append(system_prompt_message)
-        if self.add_chat_history_to_messages:
-            if self.assistant_memory is not None:
-                messages += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
-            elif self.memory is not None:
-                messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
-        if user_prompt_message is not None:
-            messages += [user_prompt_message]
+            # Create message list
+            messages: List[Message] = []
+            if system_prompt_message.content and system_prompt_message.content != "":
+                messages.append(system_prompt_message)
+            if self.add_chat_history_to_messages:
+                if self.assistant_memory is not None:
+                    messages += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
+                elif self.memory is not None:
+                    messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+            if user_prompt_message is not None:
+                messages += [user_prompt_message]
+        else:
+            messages = [Message.model_validate(m) for m in message]
 
         # -*- Generate run response (includes running function calls)
         task_response = ""
@@ -574,7 +581,6 @@ class LLMTask(Task):
         # -*- Yield final response if not streaming
         if not stream:
             yield task_response
-
         logger.debug(f"*********** Task End: {self.task_id} ***********")
 
     def run(

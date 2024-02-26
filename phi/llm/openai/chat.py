@@ -32,6 +32,7 @@ except ImportError:
 class OpenAIChat(LLM):
     name: str = "OpenAIChat"
     model: str = "gpt-4-1106-preview"
+    # -*- Request parameters
     seed: Optional[int] = None
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
@@ -43,10 +44,17 @@ class OpenAIChat(LLM):
     top_p: Optional[float] = None
     logit_bias: Optional[Any] = None
     headers: Optional[Dict[str, Any]] = None
+    request_params: Optional[Dict[str, Any]] = None
+    # -*- Client parameters
     api_key: Optional[str] = None
     organization: Optional[str] = None
     base_url: Optional[Union[str, httpx.URL]] = None
-    client_kwargs: Optional[Dict[str, Any]] = None
+    timeout: Optional[float] = None
+    max_retries: Optional[int] = None
+    default_headers: Optional[Any] = None
+    default_query: Optional[Any] = None
+    client_params: Optional[Dict[str, Any]] = None
+    # -*- Provide the OpenAIClient manually
     openai_client: Optional[OpenAIClient] = None
 
     @property
@@ -54,49 +62,59 @@ class OpenAIChat(LLM):
         if self.openai_client:
             return self.openai_client
 
-        _openai_params: Dict[str, Any] = {}
+        _client_params: Dict[str, Any] = {}
         if self.api_key:
-            _openai_params["api_key"] = self.api_key
+            _client_params["api_key"] = self.api_key
         if self.organization:
-            _openai_params["organization"] = self.organization
+            _client_params["organization"] = self.organization
         if self.base_url:
-            _openai_params["base_url"] = self.base_url
-        if self.client_kwargs:
-            _openai_params.update(self.client_kwargs)
-        return OpenAIClient(**_openai_params)
+            _client_params["base_url"] = self.base_url
+        if self.timeout:
+            _client_params["timeout"] = self.timeout
+        if self.max_retries:
+            _client_params["max_retries"] = self.max_retries
+        if self.default_headers:
+            _client_params["default_headers"] = self.default_headers
+        if self.default_query:
+            _client_params["default_query"] = self.default_query
+        if self.client_params:
+            _client_params.update(self.client_params)
+        return OpenAIClient(**_client_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {}
+        _request_params: Dict[str, Any] = {}
         if self.seed:
-            kwargs["seed"] = self.seed
+            _request_params["seed"] = self.seed
         if self.max_tokens:
-            kwargs["max_tokens"] = self.max_tokens
+            _request_params["max_tokens"] = self.max_tokens
         if self.temperature:
-            kwargs["temperature"] = self.temperature
+            _request_params["temperature"] = self.temperature
         if self.response_format:
-            kwargs["response_format"] = self.response_format
+            _request_params["response_format"] = self.response_format
         if self.frequency_penalty:
-            kwargs["frequency_penalty"] = self.frequency_penalty
+            _request_params["frequency_penalty"] = self.frequency_penalty
         if self.presence_penalty:
-            kwargs["presence_penalty"] = self.presence_penalty
+            _request_params["presence_penalty"] = self.presence_penalty
         if self.stop:
-            kwargs["stop"] = self.stop
+            _request_params["stop"] = self.stop
         if self.user:
-            kwargs["user"] = self.user
+            _request_params["user"] = self.user
         if self.top_p:
-            kwargs["top_p"] = self.top_p
+            _request_params["top_p"] = self.top_p
         if self.logit_bias:
-            kwargs["logit_bias"] = self.logit_bias
+            _request_params["logit_bias"] = self.logit_bias
         if self.headers:
-            kwargs["headers"] = self.headers
+            _request_params["headers"] = self.headers
         if self.tools:
-            kwargs["tools"] = self.get_tools_for_api()
+            _request_params["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
-                kwargs["tool_choice"] = "auto"
+                _request_params["tool_choice"] = "auto"
             else:
-                kwargs["tool_choice"] = self.tool_choice
-        return kwargs
+                _request_params["tool_choice"] = self.tool_choice
+        if self.request_params:
+            _request_params.update(self.request_params)
+        return _request_params
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()

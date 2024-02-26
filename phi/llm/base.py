@@ -16,7 +16,7 @@ class LLM(BaseModel):
     name: Optional[str] = None
     # Metrics collected for this LLM. Note: This is not sent to the LLM API.
     metrics: Dict[str, Any] = {}
-    response_format: Optional[Dict[str, Any]] = None
+    response_format: Optional[Any] = None
 
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.

@@ -486,9 +486,10 @@ class LLMTask(Task):
         self.llm = cast(LLM, self.llm)
 
         logger.debug(f"*********** Task Start: {self.task_id} ***********")
-
         # -*- References to add to the user_prompt and save to the task memory
         references: Optional[References] = None
+
+        # -*- Format the system and user prompts if format_messages is True
         if self.format_messages:
             # -*- Build the system prompt
             system_prompt = self.get_system_prompt()
@@ -533,7 +534,7 @@ class LLMTask(Task):
             if user_prompt_message is not None:
                 messages += [user_prompt_message]
         else:
-            messages = [Message.model_validate(m) for m in message]
+            messages = [Message.model_validate(m) for m in message] if message is not None else []
 
         # -*- Generate run response (includes running function calls)
         task_response = ""

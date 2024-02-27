@@ -236,35 +236,37 @@ class Ollama(LLM):
             response_content = response_message.get("content") if response_message else None
             # logger.info(f"Ollama partial response content: {response_content}")
 
-            if response_content is not None and response_content.strip().startswith("{") and not response_is_tool_call:
-                # logger.debug("Response is tool call")
+            # Add response content to assistant message
+            if response_content is not None:
+                assistant_message_content += response_content
+
+            # Strip out tool calls from the response
+            # If the response is a tool call, it will start with a {
+            if not response_is_tool_call and assistant_message_content.strip().startswith("{"):
                 response_is_tool_call = True
 
-            if response_content is not None and response_is_tool_call:
+            # If the response is a tool call, count the number of brackets
+            if response_is_tool_call and response_content is not None:
                 if "{" in response_content.strip():
-                    # logger.debug("Found {")
                     # Add the number of opening brackets to the count
                     tool_call_bracket_count += response_content.strip().count("{")
                     # logger.debug(f"Tool call bracket count: {tool_call_bracket_count}")
-
                 if "}" in response_content.strip():
-                    # logger.debug("Found }")
                     # Subtract the number of closing brackets from the count
                     tool_call_bracket_count -= response_content.strip().count("}")
+                    # Check if the response is the last bracket
                     if tool_call_bracket_count == 0:
                         response_is_tool_call = False
                         is_last_tool_call_bracket = True
                     # logger.debug(f"Tool call bracket count: {tool_call_bracket_count}")
 
-            # -*- Yield content if present
-            if response_content is not None:
-                assistant_message_content += response_content
-                if not response_is_tool_call:
-                    if is_last_tool_call_bracket and response_content.strip().endswith("}"):
-                        is_last_tool_call_bracket = False
-                        continue
+            # -*- Yield content if not a tool call and content is not None
+            if not response_is_tool_call and response_content is not None:
+                if is_last_tool_call_bracket and response_content.strip().endswith("}"):
+                    is_last_tool_call_bracket = False
+                    continue
 
-                    yield response_content
+                yield response_content
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")

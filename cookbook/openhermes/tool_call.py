@@ -9,4 +9,3 @@ assistant = Assistant(
     # debug_mode=True
 )
 assistant.print_response("Tell me about OpenAI Sora", markdown=True)
-assistant.print_response("Whats the latest about OpenAI Sora", markdown=True)

@@ -48,29 +48,3 @@ pip install duckduckgo-search
 
 python cookbook/gemini/tool_call.py
 ```
-
-## Build RAG AI App using Gemini + PgVector
-
-1. Start pgvector
-
-```shell
-phi start cookbook/gemini/resources.py -y
-```
-
-2. Install libraries
-
-```shell
-pip install -U pgvector pypdf psycopg sqlalchemy google-cloud-aiplatform phidata
-```
-
-3. Run RAG App
-
-```shell
-python cookbook/gemini/app.py
-```
-
-4. Stop pgvector
-
-```shell
-phi stop cookbook/gemini/resources.py -y
-```

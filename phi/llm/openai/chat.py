@@ -31,7 +31,7 @@ except ImportError:
 
 class OpenAIChat(LLM):
     name: str = "OpenAIChat"
-    model: str = "gpt-4-1106-preview"
+    model: str = "gpt-4-turbo-preview"
     # -*- Request parameters
     seed: Optional[int] = None
     max_tokens: Optional[int] = None

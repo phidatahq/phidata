@@ -8,7 +8,7 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
 from phi.utils.tools import get_function_call_for_tool_call
-
+from groq import groq
 try:
     from openai import OpenAI as OpenAIClient
     from openai.types.completion_usage import CompletionUsage
@@ -127,27 +127,40 @@ class OpenAIChat(LLM):
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()
-        # TODO (yash) - Add request parameters to the dict
-        if self.seed:
-            _dict["seed"] = self.seed
-        if self.max_tokens:
-            _dict["max_tokens"] = self.max_tokens
-        if self.temperature:
-            _dict["temperature"] = self.temperature
-        if self.response_format:
-            _dict["response_format"] = self.response_format
         if self.frequency_penalty:
             _dict["frequency_penalty"] = self.frequency_penalty
+        if self.logit_bias:
+            _dict["logit_bias"] = self.logit_bias
+        if self.logprobs:
+            _dict["logprobs"] = self.logprobs
+        if self.max_tokens:
+            _dict["max_tokens"] = self.max_tokens
         if self.presence_penalty:
             _dict["presence_penalty"] = self.presence_penalty
+        if self.response_format:
+            _dict["response_format"] = self.response_format
+        if self.seed:
+            _dict["seed"] = self.seed
         if self.stop:
             _dict["stop"] = self.stop
+        if self.temperature:
+            _dict["temperature"] = self.temperature
+        if self.top_logprobs:
+            _dict["top_logprobs"] = self.top_logprobs
         if self.user:
             _dict["user"] = self.user
         if self.top_p:
             _dict["top_p"] = self.top_p
-        if self.logit_bias:
-            _dict["logit_bias"] = self.logit_bias
+        if self.extra_headers:
+            _dict["extra_headers"] = self.extra_headers
+        if self.extra_query:
+            _dict["extra_query"] = self.extra_query
+        if self.tools:
+            _dict["tools"] = self.get_tools_for_api()
+            if self.tool_choice is None:
+                _dict["tool_choice"] = "auto"
+            else:
+                _dict["tool_choice"] = self.tool_choice
         return _dict
 
     def invoke(self, messages: List[Message]) -> ChatCompletion:

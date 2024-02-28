@@ -83,6 +83,7 @@ module = [
   "docker.*",
   "duckdb.*",
   "duckduckgo_search.*",
+  "groq.*",
   "kubernetes.*",
   "langchain.*",
   "langchain.*",

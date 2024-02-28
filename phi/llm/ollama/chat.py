@@ -18,7 +18,7 @@ except ImportError:
 
 class Ollama(LLM):
     name: str = "Ollama"
-    model: str = "llama2"
+    model: str = "openhermes"
     host: Optional[str] = None
     timeout: Optional[Any] = None
     format: Optional[str] = None
@@ -143,10 +143,9 @@ class Ollama(LLM):
                             for tool_call in assistant_tool_calls:
                                 tool_call_name = tool_call.get("name")
                                 tool_call_args = tool_call.get("arguments")
-                                _function_def = {
-                                    "name": tool_call_name,
-                                    "arguments": json.dumps(tool_call_args),
-                                }
+                                _function_def = {"name": tool_call_name}
+                                if tool_call_args is not None:
+                                    _function_def["arguments"] = json.dumps(tool_call_args)
                                 tool_calls.append(
                                     {
                                         "type": "function",
@@ -291,10 +290,9 @@ class Ollama(LLM):
                             for tool_call in assistant_tool_calls:
                                 tool_call_name = tool_call.get("name")
                                 tool_call_args = tool_call.get("arguments")
-                                _function_def = {
-                                    "name": tool_call_name,
-                                    "arguments": json.dumps(tool_call_args),
-                                }
+                                _function_def = {"name": tool_call_name}
+                                if tool_call_args is not None:
+                                    _function_def["arguments"] = json.dumps(tool_call_args)
                                 tool_calls.append(
                                     {
                                         "type": "function",

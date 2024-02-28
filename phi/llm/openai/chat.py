@@ -8,7 +8,6 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
 from phi.utils.tools import get_function_call_for_tool_call
-from groq import groq
 try:
     from openai import OpenAI as OpenAIClient
     from openai.types.completion_usage import CompletionUsage

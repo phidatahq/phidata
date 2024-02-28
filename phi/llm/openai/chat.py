@@ -33,17 +33,20 @@ class OpenAIChat(LLM):
     name: str = "OpenAIChat"
     model: str = "gpt-4-turbo-preview"
     # -*- Request parameters
-    seed: Optional[int] = None
-    max_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-    response_format: Optional[Dict[str, Any]] = None
     frequency_penalty: Optional[float] = None
+    logit_bias: Optional[Any] = None
+    logprobs: Optional[bool] = None
+    max_tokens: Optional[int] = None
     presence_penalty: Optional[float] = None
+    response_format: Optional[Dict[str, Any]] = None
+    seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
+    temperature: Optional[float] = None
+    top_logprobs: Optional[int] = None
     user: Optional[str] = None
     top_p: Optional[float] = None
-    logit_bias: Optional[Any] = None
-    headers: Optional[Dict[str, Any]] = None
+    extra_headers: Optional[Any] = None
+    extra_query: Optional[Any] = None
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
     api_key: Optional[str] = None
@@ -84,28 +87,34 @@ class OpenAIChat(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
-        if self.seed:
-            _request_params["seed"] = self.seed
-        if self.max_tokens:
-            _request_params["max_tokens"] = self.max_tokens
-        if self.temperature:
-            _request_params["temperature"] = self.temperature
-        if self.response_format:
-            _request_params["response_format"] = self.response_format
         if self.frequency_penalty:
             _request_params["frequency_penalty"] = self.frequency_penalty
+        if self.logit_bias:
+            _request_params["logit_bias"] = self.logit_bias
+        if self.logprobs:
+            _request_params["logprobs"] = self.logprobs
+        if self.max_tokens:
+            _request_params["max_tokens"] = self.max_tokens
         if self.presence_penalty:
             _request_params["presence_penalty"] = self.presence_penalty
+        if self.response_format:
+            _request_params["response_format"] = self.response_format
+        if self.seed:
+            _request_params["seed"] = self.seed
         if self.stop:
             _request_params["stop"] = self.stop
+        if self.temperature:
+            _request_params["temperature"] = self.temperature
+        if self.top_logprobs:
+            _request_params["top_logprobs"] = self.top_logprobs
         if self.user:
             _request_params["user"] = self.user
         if self.top_p:
             _request_params["top_p"] = self.top_p
-        if self.logit_bias:
-            _request_params["logit_bias"] = self.logit_bias
-        if self.headers:
-            _request_params["headers"] = self.headers
+        if self.extra_headers:
+            _request_params["extra_headers"] = self.extra_headers
+        if self.extra_query:
+            _request_params["extra_query"] = self.extra_query
         if self.tools:
             _request_params["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
@@ -118,6 +127,7 @@ class OpenAIChat(LLM):
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()
+        # TODO (yash) - Add request parameters to the dict
         if self.seed:
             _dict["seed"] = self.seed
         if self.max_tokens:

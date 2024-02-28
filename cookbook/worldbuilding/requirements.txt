@@ -95,7 +95,7 @@ pandas==2.2.0
     # via
     #   altair
     #   streamlit
-phidata==2.3.43
+phidata==2.3.45
     # via -r cookbook/worldbuilding/requirements.in
 pillow==10.2.0
     # via streamlit

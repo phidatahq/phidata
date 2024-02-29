@@ -50,7 +50,7 @@ class Together(OpenAILike):
                 # logger.debug(f"Together response content: {response_content}")
                 # logger.debug(f"Together response_is_tool_call: {response_tool_call}")
             except Exception:
-                response_content += response.choices[0].delta.content
+                response_content = response.choices[0].delta.content
 
             # -*- Add response content to assistant message
             if response_content is not None:

@@ -238,7 +238,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
 
         workspace_dir_path = get_workspace_dir_path(ws_root_path)
         if workspace_dir_path is None:
-            logger.error(f"Could not find workspace dir at: {ws_root_path}")
+            logger.error(f"Could not find a workspace directory in: {ws_root_path}")
             return False
 
         # In this case, the local workspace directory exists but PhiCliConfig does not have a record

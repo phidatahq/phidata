@@ -408,6 +408,8 @@ class OpenAIChat(LLM):
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
+            # logger.debug(f"OpenAI response type: {type(response)}")
+            # logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1
 
             # -*- Parse response

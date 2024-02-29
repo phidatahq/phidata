@@ -125,7 +125,7 @@ class Assistant(BaseModel):
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
-    limit_tool_access: bool = True
+    limit_tool_access: bool = False
     # If True, add the current datetime to the prompt to give the assistant a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False

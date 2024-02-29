@@ -28,7 +28,7 @@ class Ollama(LLM):
     ollama_client: Optional[OllamaClient] = None
     # Maximum number of function calls allowed across all iterations.
     function_call_limit: int = 10
-    # Deactivate tool calls by turning off JSON mode after 1 tool call
+    # Deactivate tool calls after 1 tool call
     deactivate_tools_after_use: bool = False
     # After a tool call is run, add the user message as a reminder to the LLM
     add_user_message_after_tool_call: bool = True
@@ -218,13 +218,12 @@ class Ollama(LLM):
             m.log()
 
         assistant_message_content = ""
-        response_content: Optional[str] = None
-        completion_tokens = 0
-        response_timer = Timer()
-        response_timer.start()
         response_is_tool_call = False
         tool_call_bracket_count = 0
         is_last_tool_call_bracket = False
+        completion_tokens = 0
+        response_timer = Timer()
+        response_timer.start()
         for response in self.invoke_stream(messages=messages):
             completion_tokens += 1
 
@@ -277,7 +276,7 @@ class Ollama(LLM):
         )
         # Check if the response is a tool call
         try:
-            if response_content is not None:
+            if response_is_tool_call and assistant_message_content != "":
                 _tool_call_content = assistant_message_content.strip()
                 if _tool_call_content.startswith("{") and _tool_call_content.endswith("}"):
                     _tool_call_content_json = json.loads(_tool_call_content)
@@ -300,7 +299,6 @@ class Ollama(LLM):
                                     }
                                 )
                             assistant_message.tool_calls = tool_calls
-                            assistant_message.role = "assistant"
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
             pass
@@ -363,7 +361,7 @@ class Ollama(LLM):
                 break
         if original_user_message_content is not None:
             _content = (
-                "Using the results of the tools above, respond to the original user message:"
+                "Using the results of the tools above, respond to the following message:"
                 f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
             )
             messages.append(Message(role="user", content=_content))

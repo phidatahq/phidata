@@ -4,8 +4,6 @@ from phi.assistant import Assistant
 
 from resources import vector_db
 
-# install `wikipedia` via `pip install wikipedia` first
-
 knowledge_base = WikipediaKnowledgeBase(
     topics=["Manchester United", "Real Madrid"],
     # Table name: ai.wikipedia_documents

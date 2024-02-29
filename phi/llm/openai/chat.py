@@ -467,14 +467,11 @@ class OpenAIChat(LLM):
 
                 tool_call_at_index = tool_calls[_index] if len(tool_calls) > _index else None
                 if tool_call_at_index is None:
-                    tool_call_at_index_function_dict = (
-                        {
-                            "name": _tool_call_function_name,
-                            "arguments": _tool_call_function_arguments_str,
-                        }
-                        if _tool_call_function_name is not None or _tool_call_function_arguments_str is not None
-                        else None
-                    )
+                    tool_call_at_index_function_dict = {}
+                    if _tool_call_function_name is not None:
+                        tool_call_at_index_function_dict["name"] = _tool_call_function_name
+                    if _tool_call_function_arguments_str is not None:
+                        tool_call_at_index_function_dict["arguments"] = _tool_call_function_arguments_str
                     tool_call_at_index_dict = {
                         "id": _tool_call.id,
                         "type": _tool_call_type,
@@ -483,9 +480,15 @@ class OpenAIChat(LLM):
                     tool_calls.insert(_index, tool_call_at_index_dict)
                 else:
                     if _tool_call_function_name is not None:
-                        tool_call_at_index["function"]["name"] += _tool_call_function_name
+                        if "name" not in tool_call_at_index["function"]:
+                            tool_call_at_index["function"]["name"] = _tool_call_function_name
+                        else:
+                            tool_call_at_index["function"]["name"] += _tool_call_function_name
                     if _tool_call_function_arguments_str is not None:
-                        tool_call_at_index["function"]["arguments"] += _tool_call_function_arguments_str
+                        if "arguments" not in tool_call_at_index["function"]:
+                            tool_call_at_index["function"]["arguments"] = _tool_call_function_arguments_str
+                        else:
+                            tool_call_at_index["function"]["arguments"] += _tool_call_function_arguments_str
                     if _tool_call_id is not None:
                         tool_call_at_index["id"] = _tool_call_id
                     if _tool_call_type is not None:

@@ -47,8 +47,8 @@ class Together(OpenAILike):
                 response_tool_call = response_token.get("tool_call")
                 if response_tool_call:
                     response_is_tool_call = True
-                logger.debug(f"Together response content: {response_content}")
-                logger.debug(f"Together response_is_tool_call: {response_tool_call}")
+                # logger.debug(f"Together response content: {response_content}")
+                # logger.debug(f"Together response_is_tool_call: {response_tool_call}")
             except Exception:
                 response_content: Optional[str] = response.choices[0].delta.content
 

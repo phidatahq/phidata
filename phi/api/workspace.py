@@ -212,5 +212,5 @@ def log_workspace_event(user: UserSchema, workspace_event: WorkspaceEvent) -> bo
                 return True
             return False
         except Exception as e:
-            logger.debug(f"Could not log workspace wvent: {e}")
+            logger.debug(f"Could not log workspace event: {e}")
     return False

@@ -6,4 +6,3 @@ class OpenAILike(OpenAIChat):
     name: str = "OpenAILike"
     model: str = "not-provided"
     api_key: Optional[str] = "not-provided"
-    phi_proxy: bool = False

@@ -89,6 +89,11 @@ class Assistant(BaseModel):
     # then a tool is added that allows the LLM to get the tool call history.
     read_tool_call_history: bool = False
 
+    # -*- Important: this setting determines if the input messages are formatted
+    # If True, phidata will add the system prompt, references, and chat history
+    # If False, the input messages are sent to the LLM as is
+    format_messages: bool = True
+
     #
     # -*- Prompt Settings
     #
@@ -120,7 +125,7 @@ class Assistant(BaseModel):
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
     # If True, add instructions for limiting tool access to the default system prompt if tools are provided
-    limit_tool_access: bool = True
+    limit_tool_access: bool = False
     # If True, add the current datetime to the prompt to give the assistant a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
@@ -219,6 +224,7 @@ class Assistant(BaseModel):
             tool_choice=self.tool_choice,
             update_knowledge_base=self.update_knowledge_base,
             read_tool_call_history=self.read_tool_call_history,
+            format_messages=self.format_messages,
             system_prompt=self.system_prompt,
             system_prompt_function=self.system_prompt_function,
             build_default_system_prompt=self.build_default_system_prompt,
@@ -418,6 +424,11 @@ class Assistant(BaseModel):
 
             # Set previous_task and current_task
             previous_task = current_task
+            if previous_task is not None and previous_task.show_output:
+                if stream:
+                    yield "\n\n"
+                run_output += "\n\n"
+
             current_task = task
 
             # -*- Prepare input message for the current_task
@@ -454,9 +465,6 @@ class Assistant(BaseModel):
                     if current_task.show_output:
                         run_output += chunk if isinstance(chunk, str) else ""
                         yield chunk if isinstance(chunk, str) else ""
-                if current_task.show_output:
-                    yield "\n\n"
-                    run_output += "\n\n"
             else:
                 current_task_response = current_task.run(message=current_task_message, stream=False, **kwargs)  # type: ignore
                 current_task_response_str = ""
@@ -474,10 +482,8 @@ class Assistant(BaseModel):
                         if current_task.show_output:
                             if stream:
                                 yield current_task_response_str
-                                yield "\n\n"
                             else:
                                 run_output += current_task_response_str
-                                run_output += "\n\n"
                 except Exception as e:
                     logger.debug(f"Failed to convert task response to json: {e}")
 
@@ -576,10 +582,10 @@ class Assistant(BaseModel):
         # -*- Generate response
         batch_llm_response_message = {}
         if stream:
-            for response_delta in self.llm.response_delta(messages=messages):
+            for response_delta in self.llm.generate_stream(messages=messages):
                 yield response_delta
         else:
-            batch_llm_response_message = self.llm.response_message(messages=messages)
+            batch_llm_response_message = self.llm.generate(messages=messages)
 
         # -*- Add prompts and response to the memory - these are added to the llm_messages
         self.memory.add_llm_messages(messages=messages)
@@ -672,7 +678,7 @@ class Assistant(BaseModel):
         )
         user_message = Message(role="user", content=_conv)
         generate_name_messages = [system_message, user_message]
-        generated_name = self.llm.parsed_response(messages=generate_name_messages)
+        generated_name = self.llm.response(messages=generate_name_messages)
         if len(generated_name.split()) > 15:
             logger.error("Generated name is too long. Trying again.")
             return self.generate_name()
@@ -766,7 +772,8 @@ class Assistant(BaseModel):
                 response_timer = Timer()
                 response_timer.start()
                 for resp in self.run(message, stream=True, **kwargs):
-                    response += resp if isinstance(resp, str) else ""
+                    if isinstance(resp, str):
+                        response += resp
                     _response = response if not markdown else Markdown(response)
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)

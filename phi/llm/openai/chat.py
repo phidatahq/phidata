@@ -1,16 +1,13 @@
-import json
 import httpx
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.tools.function import FunctionCall
-from phi.utils.env import get_from_env
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.functions import get_function_call
 from phi.utils.tools import get_function_call_for_tool_call
-
 try:
     from openai import OpenAI as OpenAIClient
     from openai.types.completion_usage import CompletionUsage
@@ -33,179 +30,152 @@ except ImportError:
 
 class OpenAIChat(LLM):
     name: str = "OpenAIChat"
-    model: str = "gpt-4-1106-preview"
-    seed: Optional[int] = None
-    max_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-    response_format: Optional[Dict[str, Any]] = None
+    model: str = "gpt-4-turbo-preview"
+    # -*- Request parameters
     frequency_penalty: Optional[float] = None
+    logit_bias: Optional[Any] = None
+    logprobs: Optional[bool] = None
+    max_tokens: Optional[int] = None
     presence_penalty: Optional[float] = None
+    response_format: Optional[Dict[str, Any]] = None
+    seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
+    temperature: Optional[float] = None
+    top_logprobs: Optional[int] = None
     user: Optional[str] = None
     top_p: Optional[float] = None
-    logit_bias: Optional[Any] = None
-    headers: Optional[Dict[str, Any]] = None
+    extra_headers: Optional[Any] = None
+    extra_query: Optional[Any] = None
+    request_params: Optional[Dict[str, Any]] = None
+    # -*- Client parameters
     api_key: Optional[str] = None
     organization: Optional[str] = None
     base_url: Optional[Union[str, httpx.URL]] = None
-    client_kwargs: Optional[Dict[str, Any]] = None
+    timeout: Optional[float] = None
+    max_retries: Optional[int] = None
+    default_headers: Optional[Any] = None
+    default_query: Optional[Any] = None
+    client_params: Optional[Dict[str, Any]] = None
+    # -*- Provide the OpenAIClient manually
     openai_client: Optional[OpenAIClient] = None
-    phi_proxy: bool = True
 
     @property
     def client(self) -> OpenAIClient:
         if self.openai_client:
             return self.openai_client
 
-        _openai_params: Dict[str, Any] = {}
+        _client_params: Dict[str, Any] = {}
         if self.api_key:
-            _openai_params["api_key"] = self.api_key
+            _client_params["api_key"] = self.api_key
         if self.organization:
-            _openai_params["organization"] = self.organization
+            _client_params["organization"] = self.organization
         if self.base_url:
-            _openai_params["base_url"] = self.base_url
-        if self.client_kwargs:
-            _openai_params.update(self.client_kwargs)
-        return OpenAIClient(**_openai_params)
+            _client_params["base_url"] = self.base_url
+        if self.timeout:
+            _client_params["timeout"] = self.timeout
+        if self.max_retries:
+            _client_params["max_retries"] = self.max_retries
+        if self.default_headers:
+            _client_params["default_headers"] = self.default_headers
+        if self.default_query:
+            _client_params["default_query"] = self.default_query
+        if self.client_params:
+            _client_params.update(self.client_params)
+        return OpenAIClient(**_client_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {}
-        if self.seed:
-            kwargs["seed"] = self.seed
-        if self.max_tokens:
-            kwargs["max_tokens"] = self.max_tokens
-        if self.temperature:
-            kwargs["temperature"] = self.temperature
-        if self.response_format:
-            kwargs["response_format"] = self.response_format
+        _request_params: Dict[str, Any] = {}
         if self.frequency_penalty:
-            kwargs["frequency_penalty"] = self.frequency_penalty
-        if self.presence_penalty:
-            kwargs["presence_penalty"] = self.presence_penalty
-        if self.stop:
-            kwargs["stop"] = self.stop
-        if self.user:
-            kwargs["user"] = self.user
-        if self.top_p:
-            kwargs["top_p"] = self.top_p
+            _request_params["frequency_penalty"] = self.frequency_penalty
         if self.logit_bias:
-            kwargs["logit_bias"] = self.logit_bias
-        if self.headers:
-            kwargs["headers"] = self.headers
+            _request_params["logit_bias"] = self.logit_bias
+        if self.logprobs:
+            _request_params["logprobs"] = self.logprobs
+        if self.max_tokens:
+            _request_params["max_tokens"] = self.max_tokens
+        if self.presence_penalty:
+            _request_params["presence_penalty"] = self.presence_penalty
+        if self.response_format:
+            _request_params["response_format"] = self.response_format
+        if self.seed:
+            _request_params["seed"] = self.seed
+        if self.stop:
+            _request_params["stop"] = self.stop
+        if self.temperature:
+            _request_params["temperature"] = self.temperature
+        if self.top_logprobs:
+            _request_params["top_logprobs"] = self.top_logprobs
+        if self.user:
+            _request_params["user"] = self.user
+        if self.top_p:
+            _request_params["top_p"] = self.top_p
+        if self.extra_headers:
+            _request_params["extra_headers"] = self.extra_headers
+        if self.extra_query:
+            _request_params["extra_query"] = self.extra_query
         if self.tools:
-            kwargs["tools"] = self.get_tools_for_api()
+            _request_params["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
-                kwargs["tool_choice"] = "auto"
+                _request_params["tool_choice"] = "auto"
             else:
-                kwargs["tool_choice"] = self.tool_choice
-        return kwargs
+                _request_params["tool_choice"] = self.tool_choice
+        if self.request_params:
+            _request_params.update(self.request_params)
+        return _request_params
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()
-        if self.seed:
-            _dict["seed"] = self.seed
-        if self.max_tokens:
-            _dict["max_tokens"] = self.max_tokens
-        if self.temperature:
-            _dict["temperature"] = self.temperature
-        if self.response_format:
-            _dict["response_format"] = self.response_format
         if self.frequency_penalty:
             _dict["frequency_penalty"] = self.frequency_penalty
+        if self.logit_bias:
+            _dict["logit_bias"] = self.logit_bias
+        if self.logprobs:
+            _dict["logprobs"] = self.logprobs
+        if self.max_tokens:
+            _dict["max_tokens"] = self.max_tokens
         if self.presence_penalty:
             _dict["presence_penalty"] = self.presence_penalty
+        if self.response_format:
+            _dict["response_format"] = self.response_format
+        if self.seed:
+            _dict["seed"] = self.seed
         if self.stop:
             _dict["stop"] = self.stop
+        if self.temperature:
+            _dict["temperature"] = self.temperature
+        if self.top_logprobs:
+            _dict["top_logprobs"] = self.top_logprobs
         if self.user:
             _dict["user"] = self.user
         if self.top_p:
             _dict["top_p"] = self.top_p
-        if self.logit_bias:
-            _dict["logit_bias"] = self.logit_bias
+        if self.extra_headers:
+            _dict["extra_headers"] = self.extra_headers
+        if self.extra_query:
+            _dict["extra_query"] = self.extra_query
+        if self.tools:
+            _dict["tools"] = self.get_tools_for_api()
+            if self.tool_choice is None:
+                _dict["tool_choice"] = "auto"
+            else:
+                _dict["tool_choice"] = self.tool_choice
         return _dict
 
-    def invoke_model(self, messages: List[Message]) -> ChatCompletion:
-        if (
-            self.phi_proxy
-            and self.api_key is None
-            and get_from_env("OPENAI_API_KEY") is None
-            and self.openai_client is None
-        ):
-            logger.debug("--o-o-- Using phi-proxy")
-            response_json = None
-            try:
-                from phi.api.llm import openai_chat
+    def invoke(self, messages: List[Message]) -> ChatCompletion:
+        return self.client.chat.completions.create(
+            model=self.model,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            **self.api_kwargs,
+        )
 
-                response_json = openai_chat(
-                    params={
-                        "model": self.model,
-                        "messages": [m.to_dict() for m in messages],
-                        **self.api_kwargs,
-                    }
-                )
-                if response_json is None:
-                    logger.error("Error: Could not reach Phidata Servers.")
-                    logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                    exit(1)
-                else:
-                    return ChatCompletion.model_validate_json(response_json)
-            except Exception:
-                logger.error(response_json)
-                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                exit(1)
-        else:
-            return self.client.chat.completions.create(
-                model=self.model,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                **self.api_kwargs,
-            )
-
-    def invoke_model_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
-        if (
-            self.phi_proxy
-            and self.api_key is None
-            and get_from_env("OPENAI_API_KEY") is None
-            and self.openai_client is None
-        ):
-            logger.debug("--o-o-- Using phi-proxy")
-            try:
-                from phi.api.llm import openai_chat_stream
-
-                for chunk in openai_chat_stream(
-                    params={
-                        "model": self.model,
-                        "messages": [m.to_dict() for m in messages],
-                        "stream": True,
-                        **self.api_kwargs,
-                    }
-                ):
-                    if chunk:
-                        # Sometimes we get multiple chunks in one response which is not valid JSON
-                        if "}{" in chunk:
-                            # logger.debug(f"Double chunk: {chunk}")
-                            chunks = "[" + chunk.replace("}{", "},{") + "]"
-                            for completion_chunk in json.loads(chunks):
-                                try:
-                                    yield ChatCompletionChunk.model_validate(completion_chunk)
-                                except Exception:
-                                    logger.error(chunk)
-                        else:
-                            try:
-                                yield ChatCompletionChunk.model_validate_json(chunk)
-                            except Exception:
-                                logger.error(chunk)
-            except Exception as e:
-                logger.exception(e)
-                logger.info("Please message us on https://discord.gg/4MtYHHrgA8 for help.")
-                exit(1)
-        else:
-            yield from self.client.chat.completions.create(
-                model=self.model,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                stream=True,
-                **self.api_kwargs,
-            )  # type: ignore
+    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
+        yield from self.client.chat.completions.create(
+            model=self.model,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            stream=True,
+            **self.api_kwargs,
+        )  # type: ignore
 
     def run_function(self, function_call: Dict[str, Any]) -> Tuple[Message, Optional[FunctionCall]]:
         _function_name = function_call.get("name")
@@ -250,7 +220,7 @@ class OpenAIChat(LLM):
             return _function_call_message, _function_call
         return Message(role="function", content="Function name is None."), None
 
-    def parsed_response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> str:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -258,7 +228,7 @@ class OpenAIChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: ChatCompletion = self.invoke_model(messages=messages)
+        response: ChatCompletion = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"OpenAI response type: {type(response)}")
@@ -326,7 +296,7 @@ class OpenAIChat(LLM):
                 final_response = ""
                 if self.show_tool_calls and function_call is not None:
                     final_response += f"\n - Running: {function_call.get_call_str()}\n\n"
-                final_response += self.parsed_response(messages=messages)
+                final_response += self.response(messages=messages)
                 return final_response
             elif assistant_message.tool_calls is not None:
                 final_response = ""
@@ -357,7 +327,7 @@ class OpenAIChat(LLM):
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
                 # -*- Get new response using result of tool call
-                final_response += self.parsed_response(messages=messages)
+                final_response += self.response(messages=messages)
                 return final_response
         logger.debug("---------- OpenAI Response End ----------")
         # -*- Return content if no function calls are present
@@ -365,7 +335,7 @@ class OpenAIChat(LLM):
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
-    def response_message(self, messages: List[Message]) -> Dict:
+    def generate(self, messages: List[Message]) -> Dict:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -373,7 +343,7 @@ class OpenAIChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: ChatCompletion = self.invoke_model(messages=messages)
+        response: ChatCompletion = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"OpenAI response type: {type(response)}")
@@ -436,7 +406,7 @@ class OpenAIChat(LLM):
         logger.debug("---------- OpenAI Response End ----------")
         return response_message_dict
 
-    def parsed_response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -449,7 +419,9 @@ class OpenAIChat(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for response in self.invoke_model_stream(messages=messages):
+        for response in self.invoke_stream(messages=messages):
+            # logger.debug(f"OpenAI response type: {type(response)}")
+            # logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1
 
             # -*- Parse response
@@ -507,14 +479,11 @@ class OpenAIChat(LLM):
 
                 tool_call_at_index = tool_calls[_index] if len(tool_calls) > _index else None
                 if tool_call_at_index is None:
-                    tool_call_at_index_function_dict = (
-                        {
-                            "name": _tool_call_function_name,
-                            "arguments": _tool_call_function_arguments_str,
-                        }
-                        if _tool_call_function_name is not None or _tool_call_function_arguments_str is not None
-                        else None
-                    )
+                    tool_call_at_index_function_dict = {}
+                    if _tool_call_function_name is not None:
+                        tool_call_at_index_function_dict["name"] = _tool_call_function_name
+                    if _tool_call_function_arguments_str is not None:
+                        tool_call_at_index_function_dict["arguments"] = _tool_call_function_arguments_str
                     tool_call_at_index_dict = {
                         "id": _tool_call.id,
                         "type": _tool_call_type,
@@ -523,9 +492,15 @@ class OpenAIChat(LLM):
                     tool_calls.insert(_index, tool_call_at_index_dict)
                 else:
                     if _tool_call_function_name is not None:
-                        tool_call_at_index["function"]["name"] += _tool_call_function_name
+                        if "name" not in tool_call_at_index["function"]:
+                            tool_call_at_index["function"]["name"] = _tool_call_function_name
+                        else:
+                            tool_call_at_index["function"]["name"] += _tool_call_function_name
                     if _tool_call_function_arguments_str is not None:
-                        tool_call_at_index["function"]["arguments"] += _tool_call_function_arguments_str
+                        if "arguments" not in tool_call_at_index["function"]:
+                            tool_call_at_index["function"]["arguments"] = _tool_call_function_arguments_str
+                        else:
+                            tool_call_at_index["function"]["arguments"] += _tool_call_function_arguments_str
                     if _tool_call_id is not None:
                         tool_call_at_index["id"] = _tool_call_id
                     if _tool_call_type is not None:
@@ -573,7 +548,7 @@ class OpenAIChat(LLM):
                 if self.show_tool_calls and function_call is not None:
                     yield f"\n - Running: {function_call.get_call_str()}\n\n"
                 # -*- Yield new response using result of function call
-                yield from self.parsed_response_stream(messages=messages)
+                yield from self.response_stream(messages=messages)
             elif assistant_message.tool_calls is not None:
                 function_calls_to_run: List[FunctionCall] = []
                 for tool_call in assistant_message.tool_calls:
@@ -602,10 +577,10 @@ class OpenAIChat(LLM):
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
                 # -*- Yield new response using results of tool calls
-                yield from self.parsed_response_stream(messages=messages)
+                yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
 
-    def response_delta(self, messages: List[Message]) -> Iterator[Dict]:
+    def generate_stream(self, messages: List[Message]) -> Iterator[Dict]:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -618,7 +593,7 @@ class OpenAIChat(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for response in self.invoke_model_stream(messages=messages):
+        for response in self.invoke_stream(messages=messages):
             # logger.debug(f"OpenAI response type: {type(response)}")
             # logger.debug(f"OpenAI response: {response}")
             completion_tokens += 1

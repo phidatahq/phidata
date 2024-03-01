@@ -16,7 +16,7 @@ class LLM(BaseModel):
     name: Optional[str] = None
     # Metrics collected for this LLM. Note: This is not sent to the LLM API.
     metrics: Dict[str, Any] = {}
-    response_format: Optional[Dict[str, Any]] = None
+    response_format: Optional[Any] = None
 
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
@@ -46,29 +46,28 @@ class LLM(BaseModel):
     system_prompt: Optional[str] = None
     instructions: Optional[List[str]] = None
 
-    phi_proxy: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def invoke_model(self, *args, **kwargs) -> Any:
+    def invoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
-    def invoke_model_stream(self, *args, **kwargs) -> Iterator[Any]:
+    def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
         raise NotImplementedError
 
-    def parsed_response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> str:
         raise NotImplementedError
 
-    def response_message(self, messages: List[Message]) -> Dict:
+    def response_stream(self, messages: List[Message]) -> Iterator[str]:
         raise NotImplementedError
 
-    def parsed_response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def generate(self, messages: List[Message]) -> Dict:
         raise NotImplementedError
 
-    def response_delta(self, messages: List[Message]) -> Iterator[Dict]:
+    def generate_stream(self, messages: List[Message]) -> Iterator[Dict]:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:

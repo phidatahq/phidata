@@ -38,4 +38,7 @@ venv*
 phienv*
 aienv*
 
+# ignore scratch dir
+scratch
+
 .ipynb_checkpoints

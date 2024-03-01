@@ -193,6 +193,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
     """
     from phi.cli.operator import initialize_phi
     from phi.utils.git import get_remote_origin_for_dir
+    from phi.workspace.helpers import get_workspace_dir_path
 
     print_heading("Running workspace setup\n")
 
@@ -234,6 +235,11 @@ def setup_workspace(ws_root_path: Path) -> bool:
         # - The user is setting up a workspace not previously setup on this machine
         # - OR the user ran `phi init -r` which erases existing records of workspaces
         logger.debug(f"Could not find an existing workspace at: {ws_root_path}")
+
+        workspace_dir_path = get_workspace_dir_path(ws_root_path)
+        if workspace_dir_path is None:
+            logger.error(f"Could not find a workspace directory in: {ws_root_path}")
+            return False
 
         # In this case, the local workspace directory exists but PhiCliConfig does not have a record
         print_info(f"Adding {str(ws_root_path.stem)} as a workspace")

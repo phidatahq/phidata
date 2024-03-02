@@ -1,10 +1,10 @@
 from typing import List
 
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
-class ShellTools(ToolRegistry):
+class ShellTools(Toolkit):
     def __init__(self):
         super().__init__(name="shell_tools")
         self.register(self.run_shell_command)

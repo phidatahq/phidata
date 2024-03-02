@@ -1,44 +1,57 @@
-## Ollama
+# Ollama
 
-> Note: Install ollama to run this: https://github.com/ollama/ollama?tab=readme-ov-file#macos
+> Note: Fork and clone this repository if needed
 
-1. Run ollama model or serve ollama
+### 1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama and run models
 
-```shell
-ollama run llama2
-```
-
-OR
+Run you embedding model
 
 ```shell
-ollama serve
+ollama run nomic-embed-text
 ```
 
-2. Install libraries
+Run your chat model
 
 ```shell
-pip install -U ollama
+ollama run openhermes
 ```
 
-3. Test Ollama Assistant
+Message `/bye` to exit the chat model
+
+### 2. Create a virtual environment
+
+```shell
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
+```
+
+### 3. Install libraries
+
+```shell
+pip install -U ollama phidata
+```
+
+### 4. Test Ollama Assistant
 
 ```shell
 python cookbook/ollama/assistant.py
 ```
 
-4. Test Structured output
+### 5. Test Structured output
 
 ```shell
 python cookbook/ollama/pydantic_output.py
 ```
 
-5. Test Image models
+### 6. Test Image models
 
 ```shell
 python cookbook/ollama/image.py
 ```
 
-6. Test Tool Calls (experimental)
+### 7. Test Tool Calls (experimental)
+
+> Run`pip install -U duckduckgo-search` first
 
 ```shell
 python cookbook/ollama/tool_call.py

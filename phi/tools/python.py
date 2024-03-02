@@ -3,7 +3,7 @@ import functools
 from pathlib import Path
 from typing import Optional
 
-from phi.tools import ToolRegistry
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
@@ -12,7 +12,7 @@ def warn() -> None:
     logger.warning("PythonTools can run arbitrary code, please provide human supervision.")
 
 
-class PythonTools(ToolRegistry):
+class PythonTools(Toolkit):
     def __init__(
         self,
         base_dir: Optional[Path] = None,

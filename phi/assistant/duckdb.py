@@ -7,6 +7,7 @@ from textwrap import dedent
 from phi.assistant.custom import CustomAssistant
 from phi.tools.duckdb import DuckDbTools
 from phi.tools.file import FileTools
+from phi.utils.log import logger
 
 try:
     import duckdb
@@ -100,9 +101,17 @@ class DuckDbAssistant(CustomAssistant):
         return self.connection
 
     def get_default_instructions(self) -> List[str]:
-        _instructions = [
+        _instructions = []
+
+        # Add instructions specifically from the LLM
+        if self.llm is not None:
+            _llm_instructions = self.llm.get_instructions_from_llm()
+            if _llm_instructions is not None:
+                _instructions += _llm_instructions
+
+        _instructions += [
             "Determine if you can answer the question directly or if you need to run a query to accomplish the task.",
-            "If you need to run a query, **fIRST THINK** about how you will accomplish the task and then write the query.",
+            "If you need to run a query, **FIRST THINK** about how you will accomplish the task and then write the query.",
         ]
 
         if self.semantic_model is not None:
@@ -150,7 +159,7 @@ class DuckDbAssistant(CustomAssistant):
         _instructions += [
             "Inspect the query using `inspect_query` to confirm it is correct.",
             "If the query is valid, RUN the query using the `run_query` function",
-            "Analyse the results and return the answer in markdown format.",
+            "Analyse the results and return the answer to the user.",
             "If the user wants to save the query, use the `save_contents_to_file` function.",
             "Remember to give a relevant name to the file with `.sql` extension and make sure you add a `;` at the end of the query."
             + " Tell the user the file name.",
@@ -158,35 +167,54 @@ class DuckDbAssistant(CustomAssistant):
             "Show the user the SQL you ran",
         ]
 
-        return _instructions
+        # Add instructions for using markdown
+        if self.markdown and self.output_model is None:
+            _instructions.append("Use markdown to format your answers.")
 
-    def get_system_prompt(self) -> Optional[str]:
-        """Return the system prompt for the duckdb assistant"""
-
-        # Add default description if not set
-        _description = (
-            self.description or "You are a Data Engineering assistant designed to perform tasks using DuckDb."
-        )
-
-        # Add default instructions if not set
-        _instructions = self.instructions or self.get_default_instructions()
-
+        # Add extra instructions provided by the user
         if self.extra_instructions is not None:
             _instructions.extend(self.extra_instructions)
 
-        _system_prompt = _description + "\n\n"
-        _system_prompt += dedent(
-            """\
-        Your task is to respond to the message from the user in the best way possible.
-        This is an important task and must be done correctly.
+        return _instructions
 
-        YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
-        <instructions>
-        """
+    def get_system_prompt(self, **kwargs) -> Optional[str]:
+        """Return the system prompt for the duckdb assistant"""
+
+        logger.debug("Building the system prompt for the DuckDbAssistant.")
+        # -*- Build the default system prompt
+        # First add the Assistant description
+        _system_prompt = (
+            self.description or "You are a Data Engineering assistant designed to perform tasks using DuckDb."
         )
-        for i, instruction in enumerate(_instructions):
-            _system_prompt += f"{i + 1}. {instruction}\n"
-        _system_prompt += "</instructions>\n"
+        _system_prompt += "\n"
+
+        # Then add the prompt specifically from the LLM
+        if self.llm is not None:
+            _system_prompt_from_llm = self.llm.get_system_prompt_from_llm()
+            if _system_prompt_from_llm is not None:
+                _system_prompt += _system_prompt_from_llm
+
+        # Then add instructions to the system prompt
+        _instructions = self.instructions
+        # Add default instructions
+        if _instructions is None:
+            _instructions = []
+
+        _instructions += self.get_default_instructions()
+        if len(_instructions) > 0:
+            _system_prompt += dedent(
+                """\
+            YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
+            <instructions>
+            """
+            )
+            for i, instruction in enumerate(_instructions):
+                _system_prompt += f"{i + 1}. {instruction}\n"
+            _system_prompt += "</instructions>\n"
+
+        # Then add user provided additional information to the system prompt
+        if self.add_to_system_prompt is not None:
+            _system_prompt += "\n" + self.add_to_system_prompt
 
         _system_prompt += dedent(
             """

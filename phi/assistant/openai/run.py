@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from phi.assistant.openai.assistant import OpenAIAssistant
 from phi.assistant.openai.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
-from phi.tools import Tool, ToolRegistry
+from phi.tools import Tool, Toolkit
 from phi.tools.function import Function
 from phi.utils.functions import get_function_call
 from phi.utils.log import logger
@@ -72,7 +72,7 @@ class Run(BaseModel):
     instructions: Optional[str] = None
     # Override the tools the assistant can use for this run.
     # This is useful for modifying the behavior on a per-run basis.
-    tools: Optional[List[Union[Tool, ToolRegistry, Callable, Dict, Function]]] = None
+    tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
     # Functions extracted from the tools which can be executed locally by the assistant.
     functions: Optional[Dict[str, Function]] = None
 
@@ -104,7 +104,7 @@ class Run(BaseModel):
             for tool in self.tools:
                 if self.functions is None:
                     self.functions = {}
-                if isinstance(tool, ToolRegistry):
+                if isinstance(tool, Toolkit):
                     self.functions.update(tool.functions)
                     logger.debug(f"Functions from {tool.name} added to OpenAIAssistant.")
                 elif isinstance(tool, Function):
@@ -144,7 +144,7 @@ class Run(BaseModel):
             elif callable(tool):
                 func = Function.from_callable(tool)
                 tools_for_api.append({"type": "function", "function": func.to_dict()})
-            elif isinstance(tool, ToolRegistry):
+            elif isinstance(tool, Toolkit):
                 for _f in tool.functions.values():
                     tools_for_api.append({"type": "function", "function": _f.to_dict()})
             elif isinstance(tool, Function):

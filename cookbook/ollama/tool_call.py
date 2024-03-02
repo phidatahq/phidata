@@ -1,13 +1,18 @@
+import typer
 from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.llm.ollama import Ollama
 
 
-assistant = Assistant(
-    llm=Ollama(model="openhermes"),
-    tools=[DuckDuckGo()],
-    show_tool_calls=True,
-    instructions=["Make sure your answers are well formatted."],
-    debug_mode=True,
-)
-assistant.print_response("Whats happening in France.", markdown=True)
+def tool_call(model: str = "openhermes", debug: bool = False):
+    print(f"============= Running: {model} =============")
+    Assistant(
+        llm=Ollama(model=model),
+        tools=[DuckDuckGo()],
+        show_tool_calls=True,
+        debug_mode=debug,
+    ).cli_app(markdown=True)
+
+
+if __name__ == "__main__":
+    typer.run(tool_call)

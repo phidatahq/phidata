@@ -1,4 +1,4 @@
-# World Building using OpenHermes and Ollama
+# Exploring new worlds with OpenHermes and Ollama
 
 > Note: Fork and clone this repository if needed
 

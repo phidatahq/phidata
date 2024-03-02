@@ -3,7 +3,7 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.message import Message
-from phi.tools import Tool, ToolRegistry
+from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
 from phi.utils.timer import Timer
 from phi.utils.log import logger
@@ -16,7 +16,7 @@ class LLM(BaseModel):
     name: Optional[str] = None
     # Metrics collected for this LLM. Note: This is not sent to the LLM API.
     metrics: Dict[str, Any] = {}
-    response_format: Optional[Dict[str, Any]] = None
+    response_format: Optional[Any] = None
 
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
@@ -46,29 +46,28 @@ class LLM(BaseModel):
     system_prompt: Optional[str] = None
     instructions: Optional[List[str]] = None
 
-    phi_proxy: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def invoke_model(self, *args, **kwargs) -> Any:
+    def invoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
-    def invoke_model_stream(self, *args, **kwargs) -> Iterator[Any]:
+    def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
         raise NotImplementedError
 
-    def parsed_response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> str:
         raise NotImplementedError
 
-    def response_message(self, messages: List[Message]) -> Dict:
+    def response_stream(self, messages: List[Message]) -> Iterator[str]:
         raise NotImplementedError
 
-    def parsed_response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def generate(self, messages: List[Message]) -> Dict:
         raise NotImplementedError
 
-    def response_delta(self, messages: List[Message]) -> Iterator[Dict]:
+    def generate_stream(self, messages: List[Message]) -> Iterator[Dict]:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:
@@ -90,7 +89,7 @@ class LLM(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, ToolRegistry, Callable, Dict, Function]) -> None:
+    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function]) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -98,12 +97,12 @@ class LLM(BaseModel):
         if isinstance(tool, Tool) or isinstance(tool, Dict):
             self.tools.append(tool)
             logger.debug(f"Added tool {tool} to LLM.")
-        # If the tool is a Callable or ToolRegistry, add its functions to the LLM
-        elif callable(tool) or isinstance(tool, ToolRegistry) or isinstance(tool, Function):
+        # If the tool is a Callable or Toolkit, add its functions to the LLM
+        elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
-            if isinstance(tool, ToolRegistry):
+            if isinstance(tool, Toolkit):
                 self.functions.update(tool.functions)
                 for func in tool.functions.values():
                     self.tools.append({"type": "function", "function": func.to_dict()})

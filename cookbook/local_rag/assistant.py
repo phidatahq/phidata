@@ -15,19 +15,17 @@ local_assistant_storage = PgAssistantStorage(
     table_name="local_rag_assistant",
 )
 
-
-def get_knowledge_base_for_model(model: str) -> AssistantKnowledge:
-    return AssistantKnowledge(
-        vector_db=PgVector2(
-            db_url=vector_db.get_db_connection_local(),
-            # Store embeddings in table: ai.local_{model}_documents
-            collection=f"local_{model}_documents",
-            # Use the OllamaEmbedder to get embeddings
-            embedder=OllamaEmbedder(model=model),
-        ),
-        # 5 references are added to the prompt
-        num_documents=5,
-    )
+local_assistant_knowledge = AssistantKnowledge(
+    vector_db=PgVector2(
+        db_url=vector_db.get_db_connection_local(),
+        # Store embeddings in table: ai.local_rag_documents
+        collection="local_rag_documents",
+        # Use the OllamaEmbedder to get embeddings
+        embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
+    ),
+    # 5 references are added to the prompt
+    num_documents=5,
+)
 
 
 def get_local_rag_assistant(
@@ -44,7 +42,7 @@ def get_local_rag_assistant(
         user_id=user_id,
         llm=Ollama(model=model),
         storage=local_assistant_storage,
-        knowledge_base=get_knowledge_base_for_model(model),
+        knowledge_base=local_assistant_knowledge,
         # This setting adds references from the knowledge_base to the user prompt
         add_references_to_prompt=True,
         # This setting tells the LLM to format messages in markdown

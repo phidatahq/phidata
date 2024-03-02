@@ -181,7 +181,7 @@ class Assistant(BaseModel):
     task_data: Optional[Dict[str, Any]] = None
 
     # -*- Team settings
-    team_role: Optional[str] = None
+    role: Optional[str] = None
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False

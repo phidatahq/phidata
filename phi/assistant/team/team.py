@@ -1,9 +1,11 @@
 from uuid import uuid4
+from textwrap import dedent
 from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
 from phi.assistant.assistant import Assistant
+from phi.tools.function import Function
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.message import get_text_from_message
 from phi.utils.timer import Timer
@@ -49,11 +51,22 @@ class Team(BaseModel):
     def streamable(self) -> bool:
         return True
 
-    def create_delegation_function(self, assistant: Assistant) -> Callable:
-        def _delegation_function(message: str) -> str:
-            return assistant.run(message, stream=False)
+    def assistant_delegation_function(self, assistant: Assistant, index: int) -> Function:
+        def _delegate_task_to_assistant(task_description: str) -> str:
+            return assistant.run(task_description, stream=False)
 
-        return _delegation_function
+        assistant_name = assistant.name.replace(" ", "_").lower() if assistant.name else f"assistant_{index}"
+        delegation_function = Function.from_callable(_delegate_task_to_assistant)
+        delegation_function.name = f"delegate_task_to_{assistant_name}"
+        delegation_function.description = dedent(
+            f"""Use this function to delegate a task to {assistant_name}
+        Args:
+            task_description (str): A clear and concise description of the task the assistant should achieve.
+        Returns:
+            str: The result of the delegated task.
+        """
+        )
+        return delegation_function
 
     @property
     def leader(self) -> Assistant:
@@ -64,29 +77,36 @@ class Team(BaseModel):
 
         _delegation_functions = []
 
-        _system_prompt = "You are the leader of this team "
-        if self.name:
-            _system_prompt += f"called {self.name} "
+        _system_prompt = ""
+        if self.assistants and len(self.assistants) > 0:
+            _system_prompt += "You are the leader of a team of AI Assistants "
+            if self.name:
+                _system_prompt += f"called '{self.name}'"
+        else:
+            _system_prompt += "You are an AI Assistant"
 
-        _system_prompt += "and are responsible for accomplishing the users request.\n"
+        _system_prompt += "and your goal is to respond to the users message in the best way possible. "
+        _system_prompt += "This is an important task and must be done with correctly.\n\n"
 
         if self.assistants and len(self.assistants) > 0:
-            _system_prompt += "You can delegate tasks to a set of assistants depending on their role and tools available to them. "
-            _system_prompt += "Here are the assistants available to you:\n"
-            _system_prompt += "\n<assistants>"
-            for i, assistant in enumerate(self.assistants):
-                _system_prompt += f"\nAssistant {i+1}:\n"
+            _system_prompt += (
+                "Given a user message you can respond directly or delegate tasks to the following assistants depending on their role "
+                "and the tools available to them. "
+            )
+            _system_prompt += "\n\n<assistants>"
+            for assistant_index, assistant in enumerate(self.assistants):
+                _system_prompt += f"\nAssistant {assistant_index+1}:\n"
                 if assistant.name:
                     _system_prompt += f"Name: {assistant.name}\n"
-                if assistant.team_role:
-                    _system_prompt += f"Role: {assistant.team_role}\n"
+                if assistant.role:
+                    _system_prompt += f"Role: {assistant.role}\n"
                 if assistant.tools is not None:
                     _tools = []
                     for _tool in assistant.tools:
                         if callable(_tool):
                             _tools.append(_tool.__name__)
-                    _system_prompt += f"Tools: {', '.join(_tools)}\n"
-                _delegation_functions.append(self.create_delegation_function(assistant))
+                    _system_prompt += f"Available tools: {', '.join(_tools)}\n"
+                _delegation_functions.append(self.assistant_delegation_function(assistant, assistant_index))
             _system_prompt += "</assistants>\n"
 
         if self.reviewer is None:

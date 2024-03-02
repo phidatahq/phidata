@@ -1,34 +1,27 @@
-# Knowledge base dependencies 
-from phi.knowledge.pdf import PDFKnowledgeBase, PDFReader
-from phi.vectordb.pgvector import PgVector2 
-from resources import vector_db 
-# Assistant dependencies 
 from phi.assistant import Assistant
+from phi.knowledge.pdf import PDFKnowledgeBase, PDFReader
+from phi.vectordb.pgvector import PgVector2
 
+from resources import vector_db  # type: ignore
 
-# Setting up knowledge base. 
-pdf_knowledge_base = PDFKnowledgeBase(
-    path = "data/pdfs",
-    vector_db = PgVector2(
-        collection = "pdf_documents", 
-        db_url = vector_db.get_db_connection_local(),
+# Create a knowledge base with the PDFs from the data/pdfs directory
+knowledge_base = PDFKnowledgeBase(
+    path="data/pdfs",
+    vector_db=PgVector2(
+        collection="pdf_documents",
+        # Can inspect database via psql e.g. "psql -h localhost -p 5432 -U ai -d ai"
+        db_url=vector_db.get_db_connection_local(),
     ),
-    reader = PDFReader(chunk=True),
+    reader=PDFReader(chunk=True),
 )
-# Instantiating an assistant to use the knowledge base 
+
+# Create an assistant with the knowledge base
 assistant = Assistant(
-    knowledge_base = pdf_knowledge_base,
-    add_references_to_prompt = True,
+    knowledge_base=knowledge_base,
+    add_references_to_prompt=True,
 )
-
-# reference to database
-print(vector_db.get_db_connection_local()) # can inspect database further via psql e.g. "psql -h localhost -p 5432 -U ai -d ai"
-
-#calling assistant 
+# Load the knowledge base
 assistant.knowledge_base.load(recreate=False)
-assistant.print_response("what are the building hints from the lego building book?")
 
-
-
-
-
+# Ask the assistant about the knowledge base
+assistant.print_response("Ask me about something from the knowledge base", markdown=True)

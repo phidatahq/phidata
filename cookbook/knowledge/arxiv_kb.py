@@ -1,12 +1,10 @@
+from phi.assistant import Assistant
 from phi.knowledge.arxiv import ArxivKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
-from resources import vector_db
+from resources import vector_db  # type: ignore
 
-from phi.assistant import Assistant
-from knowledge_base import knowledge_base
-
-
+# Create a knowledge base with the ArXiv documents
 knowledge_base = ArxivKnowledgeBase(
     queries=["Generative AI", "Machine Learning"],
     # Table name: ai.arxiv_documents
@@ -16,12 +14,13 @@ knowledge_base = ArxivKnowledgeBase(
     ),
 )
 
-#Creating an assistant with the knowledge base
+# Create an assistant with the knowledge base
 assistant = Assistant(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
-
+# Load the knowledge base
 assistant.knowledge_base.load(recreate=False)
 
-assistant.print_response("Ask me about something from the knowledge base",markdown=True)
+# Ask the assistant about the knowledge base
+assistant.print_response("Ask me about something from the knowledge base", markdown=True)

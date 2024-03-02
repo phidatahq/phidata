@@ -1,9 +1,10 @@
 from phi.knowledge.website import WebsiteKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 from phi.assistant import Assistant
-from resources import vector_db
 
+from resources import vector_db  # type: ignore
 
+# Create a knowledge base with the seed URLs
 knowledge_base = WebsiteKnowledgeBase(
     urls=["https://docs.phidata.com/introduction"],
     # Number of links to follow from the seed URLs
@@ -15,12 +16,13 @@ knowledge_base = WebsiteKnowledgeBase(
     ),
 )
 
-# Make an assistant for above knowledge base
+# Create an assistant with the knowledge base
 assistant = Assistant(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
-
+# Load the knowledge base
 assistant.knowledge_base.load(recreate=False)
 
+# Ask the assistant about the knowledge base
 assistant.print_response("How does phidata work?")

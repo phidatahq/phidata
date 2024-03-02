@@ -2,8 +2,7 @@ import json
 import httpx
 
 from phi.assistant import Assistant
-from phi.llm.azure_openai import AzureOpenAIChat
-import os
+from phi.llm.azure import AzureOpenAIChat
 
 
 def get_top_hackernews_stories(num_stories: int = 10) -> str:
@@ -23,9 +22,7 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
     # Fetch story details
     stories = []
     for story_id in story_ids[:num_stories]:
-        story_response = httpx.get(
-            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
-        )
+        story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
         story = story_response.json()
         if "text" in story:
             story.pop("text", None)
@@ -34,12 +31,7 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
 
 
 assistant = Assistant(
-    llm=AzureOpenAIChat(
-        azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
-        azure_deployment=os.environ.get("AZURE_DEPLOYMENT"),
-        api_version=os.environ.get("OPENAI_API_VERSION"),
-        api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
-    ),
+    llm=AzureOpenAIChat(model="gpt-35-turbo"),  # model="deployment_name"
     tools=[get_top_hackernews_stories],
     show_tool_calls=True,
 )

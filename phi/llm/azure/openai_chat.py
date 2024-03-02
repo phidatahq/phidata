@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any, Callable
+from os import getenv
+from typing import Optional, Dict, Any
 from phi.utils.log import logger
 from phi.llm.openai.like import OpenAILike
 
@@ -8,19 +9,17 @@ except ImportError:
     logger.error("`azure openai` not installed")
     raise
 
-AzureADTokenProvider = Callable[[], str]
-
 
 class AzureOpenAIChat(OpenAILike):
     name: str = "AzureOpenAIChat"
-    model: str = "esri-gpt4-dev"
-    api_key: Optional[str] = None
-    api_version: Optional[str] = None
-    azure_endpoint: Optional[str] = None
-    azure_deployment: Optional[str] = None
+    model: str
+    api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")
+    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2023-12-01-preview")
+    azure_endpoint: Optional[str] = getenv("AZURE_OPENAI_ENDPOINT")
+    azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
     base_url: Optional[str] = None
     azure_ad_token: Optional[str] = None
-    azure_ad_token_provider: Optional[AzureADTokenProvider] = None
+    azure_ad_token_provider: Optional[Any] = None
     openai_client: AzureOpenAIClient = None
 
     @property

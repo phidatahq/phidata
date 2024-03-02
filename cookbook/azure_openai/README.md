@@ -1,4 +1,4 @@
-## Azure OpenAI
+# Azure OpenAI
 
 > Note: Fork and clone this repository if needed
 
@@ -12,49 +12,47 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U azure_openai phidata openai, azureChatGPT
+pip install -U phidata openai
 ```
 
-3. Export `AZURE_OPENAI_API_KEY` </br>
-   Export `OPENAI_API_VERSION`</br>
-   Export `AZURE_OPENAI_ENDPOINT`</br>
-   Export `AZURE_DEPLOYMENT`
+3. Export Azure Credentials (`AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` are required)
 
-```text
-export AZURE_OPENAI_API_KEY=<azure_openai-api-key>
-export OPENAI_API_VERSION=<openai-api-version>
-export AZURE_OPENAI_ENDPOINT=<azure_openai-endpoint>
-export AZURE_DEPLOYMENT=<azure_deployment>
+```shell
+export AZURE_OPENAI_API_KEY=<azure-api-key>
+export AZURE_OPENAI_ENDPOINT=<azure-endpoint>
+# Optional:
+# export AZURE_OPENAI_API_VERSION=<openai-api-version>
+# export AZURE_DEPLOYMENT=<azure_deployment>
 ```
 
-4. Test AzureChatGPT Assistant
+4. Test Azure Assistant
 
 - Streaming
 
 ```shell
-python cookbook/azure_openai/assistant.py
+python cookbook/azure/assistant.py
 ```
 
 - Without Streaming
 
 ```shell
-python cookbook/azure_openai/assistant_stream_off.py
+python cookbook/azure/assistant_stream_off.py
 ```
 
 5. Test Structured output
 
 ```shell
-python cookbook/azure_openai/pydantic_output.py
+python cookbook/azure/pydantic_output.py
 ```
 
 6. Test cli app
 
 ```shell
-python cookbook/azure_openai/cli.py
+python cookbook/azure/cli.py
 ```
 
 7. Test function calling
 
 ```shell
-python cookbook/azure_openai/tool_call.py
+python cookbook/azure/tool_call.py
 ```

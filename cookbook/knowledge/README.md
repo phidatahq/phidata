@@ -30,7 +30,7 @@ phi start cookbook/knowledge/resources.py -y
 - Install libraries
 
 ```shell
-pypdf sqlalchemy pgvector psycopg-binary
+pip install -U pypdf sqlalchemy pgvector psycopg-binary bs4
 ```
 
 - Run the PDF URL script

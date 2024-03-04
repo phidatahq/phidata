@@ -20,7 +20,7 @@ class AzureOpenAIChat(OpenAILike):
     base_url: Optional[str] = None
     azure_ad_token: Optional[str] = None
     azure_ad_token_provider: Optional[Any] = None
-    openai_client: AzureOpenAIClient = None
+    openai_client: Optional[AzureOpenAIClient] = None
 
     @property
     def client(self) -> AzureOpenAIClient:

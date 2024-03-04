@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any, Union, Tuple
 
-from pydantic import Field, field_validator, ValidationInfo
+from pydantic import Field, field_validator, FieldValidationInfo
 
 from phi.app.group import AppGroup
 from phi.resource.group import ResourceGroup
@@ -40,7 +40,7 @@ class K8sResources(InfraResources):
         return self._api_client
 
     @field_validator("context", mode="before")
-    def update_context(cls, context, info: ValidationInfo):
+    def update_context(cls, context, info: FieldValidationInfo):
         if context is not None:
             return context
 
@@ -55,7 +55,7 @@ class K8sResources(InfraResources):
         return context
 
     @field_validator("kubeconfig", mode="before")
-    def update_kubeconfig(cls, kubeconfig, info: ValidationInfo):
+    def update_kubeconfig(cls, kubeconfig, info: FieldValidationInfo):
         if kubeconfig is not None:
             return kubeconfig
 

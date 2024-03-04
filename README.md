@@ -162,7 +162,7 @@ Checkout these AI apps showcasing the advantage of function calling:
 
 <details>
 
-<summary>View Code</summary>
+<summary>Show details</summary>
 
 - Create a file `api_assistant.py` that can call the HackerNews API to get top stories.
 
@@ -255,7 +255,7 @@ python api_assistant.py
 
 <details>
 
-<summary>View Code</summary>
+<summary>Show details</summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -312,7 +312,7 @@ MovieScript(
 
 <details>
 
-<summary>View Code</summary>
+<summary>Show details</summary>
 
 Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgVector` for knowledge and storage.
 
@@ -485,9 +485,11 @@ phi stop resources.py -y
 
 </details>
 
+### Build an AI App using Streamlit, FastApi and PgVector
+
 <details>
 
-<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
+<summary>Show details</summary>
 
 Let's build an **AI App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the API and PgVector for knowledge and storage. Read the full tutorial <a href="https://docs.phidata.com/ai-app/run-local" target="_blank" rel="noopener noreferrer">here</a>.
 

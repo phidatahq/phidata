@@ -1,6 +1,5 @@
 import json
 import httpx
-from typing import Optional
 
 from phi.assistant.team import Assistant, Team
 from phi.utils.log import logger
@@ -96,5 +95,5 @@ hn_user_researcher = Assistant(
     show_tool_calls=True,
 )
 
-team = Team(name="HackerNews", assistants=[hn_top_stories, hn_user_researcher], debug_mode=True, show_tool_calls=True)
+team = Team(name="HackerNews", assistants=[hn_top_stories, hn_user_researcher], debug_mode=True)
 team.print_response("Tell me about the users with the top 2 stores on hackernews?", markdown=True)

@@ -53,7 +53,7 @@ class Team(BaseModel):
 
     def assistant_delegation_function(self, assistant: Assistant, index: int) -> Function:
         def _delegate_task_to_assistant(task_description: str) -> str:
-            return assistant.run(task_description, stream=False)
+            return assistant.run(task_description, stream=False)  # type: ignore
 
         assistant_name = assistant.name.replace(" ", "_").lower() if assistant.name else f"assistant_{index}"
         delegation_function = Function.from_callable(_delegate_task_to_assistant)
@@ -138,10 +138,10 @@ class Team(BaseModel):
             try:
                 leader_response = leader.run(message=message, stream=False, **kwargs)
                 if stream:
-                    yield leader_response
+                    yield leader_response  # type: ignore
                     yield "\n\n"
                 else:
-                    run_output += leader_response
+                    run_output += leader_response  # type: ignore
                     run_output += "\n\n"
             except Exception as e:
                 logger.debug(f"Failed to convert task response to json: {e}")

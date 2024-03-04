@@ -14,14 +14,14 @@ knowledge_base = PDFKnowledgeBase(
     ),
     reader=PDFReader(chunk=True),
 )
+# Load the knowledge base
+knowledge_base.load(recreate=False)
 
 # Create an assistant with the knowledge base
 assistant = Assistant(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
-# Load the knowledge base
-assistant.knowledge_base.load(recreate=False)
 
 # Ask the assistant about the knowledge base
 assistant.print_response("Ask me about something from the knowledge base", markdown=True)

@@ -119,7 +119,7 @@ class PgVector2(VectorDb):
         columns = [self.table.c.name, self.table.c.content_hash]
         with self.Session() as sess:
             with sess.begin():
-                cleaned_content = document.content.replace("\x00", "\uFFFD")
+                cleaned_content = document.content.replace("\x00", "\ufffd")
                 stmt = select(*columns).where(self.table.c.content_hash == md5(cleaned_content.encode()).hexdigest())
                 result = sess.execute(stmt).first()
                 return result is not None
@@ -155,7 +155,7 @@ class PgVector2(VectorDb):
             counter = 0
             for document in documents:
                 document.embed(embedder=self.embedder)
-                cleaned_content = document.content.replace("\x00", "\uFFFD")
+                cleaned_content = document.content.replace("\x00", "\ufffd")
                 content_hash = md5(cleaned_content.encode()).hexdigest()
                 _id = document.id or content_hash
                 stmt = postgresql.insert(self.table).values(
@@ -197,7 +197,7 @@ class PgVector2(VectorDb):
             counter = 0
             for document in documents:
                 document.embed(embedder=self.embedder)
-                cleaned_content = document.content.replace("\x00", "\uFFFD")
+                cleaned_content = document.content.replace("\x00", "\ufffd")
                 content_hash = md5(cleaned_content.encode()).hexdigest()
                 _id = document.id or content_hash
                 stmt = postgresql.insert(self.table).values(

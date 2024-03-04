@@ -2,6 +2,7 @@
 
 This is the entrypoint for the `phi` cli application.
 """
+
 from typing import Optional
 
 import typer

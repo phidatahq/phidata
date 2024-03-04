@@ -771,7 +771,7 @@ class Assistant(BaseModel):
                 for resp in self.run(message, stream=True, **kwargs):
                     if isinstance(resp, str):
                         response += resp
-                    _response = response if not markdown else Markdown(response)
+                    _response = Markdown(response) if self.markdown else response
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
                     if message:
@@ -791,7 +791,7 @@ class Assistant(BaseModel):
                 response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
-            _response = response if not markdown else Markdown(response)
+            _response = Markdown(response) if self.markdown else response
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message:

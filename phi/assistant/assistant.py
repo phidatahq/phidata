@@ -180,6 +180,9 @@ class Assistant(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
+    # -*- Team settings
+    role: Optional[str] = None
+
     # debug_mode=True enables debug logs
     debug_mode: bool = False
     # monitoring=True logs Assistant runs on phidata.com

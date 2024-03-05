@@ -9,22 +9,29 @@ from phi.api.schemas.prompt import (
     PromptTemplateSchema,
 )
 from phi.prompt.template import PromptTemplate
+from phi.prompt.exceptions import PromptUpdateException, PromptNotFoundException
 from phi.utils.log import logger
 
 
 class PromptRegistry:
-    def __init__(self, name: str, templates: Optional[List[PromptTemplate]] = None, sync: bool = True):
+    def __init__(self, name: str, prompts: Optional[List[PromptTemplate]] = None, sync: bool = True):
         if name is None:
             raise ValueError("PromptRegistry must have a name.")
 
         self.name: str = name
+        # Prompts initialized with the registry
+        # NOTE: These prompts cannot be updated
         self.prompts: Dict[str, PromptTemplate] = {}
-        # Add templates to prompts
-        if templates:
-            for template in templates:
-                if template.id is None:
+        # Add prompts to prompts
+        if prompts:
+            for _prompt in prompts:
+                if _prompt.id is None:
                     raise ValueError("PromptTemplate cannot be added to Registry without an id.")
-                self.prompts[template.id] = template
+                self.prompts[_prompt.id] = _prompt
+
+        # All prompts in the registry, including those synced from phidata
+        self.all_prompts: Dict[str, PromptTemplate] = {}
+        self.all_prompts.update(self.prompts)
 
         # If the registry should sync with phidata
         self._sync = sync
@@ -35,19 +42,36 @@ class PromptRegistry:
             self.sync_registry()
         logger.debug(f"Initialized prompt registry: {name}")
 
+    def get(self, id: str) -> Optional[PromptTemplate]:
+        logger.debug(f"Getting prompt: {id}")
+        return self.all_prompts.get(id, None)
+
+    def get_all(self) -> Dict[str, PromptTemplate]:
+        return self.all_prompts
+
     def add(self, prompt: PromptTemplate):
         prompt_id = prompt.id
         if prompt_id is None:
             raise ValueError("PromptTemplate cannot be added to Registry without an id.")
 
-        self.prompts[prompt_id] = prompt
+        self.all_prompts[prompt_id] = prompt
         if self._sync:
-            self.sync_template(prompt_id, prompt)
+            self._sync_template(prompt_id, prompt)
         logger.debug(f"Added prompt: {prompt_id}")
 
-    def get(self, id: str) -> Optional[PromptTemplate]:
-        logger.debug(f"Getting prompt: {id}")
-        return self.prompts.get(id, None)
+    def update(self, id: str, prompt: PromptTemplate, upsert: bool = True):
+        # Check if the prompt exists in the initial registry and should not be updated
+        if id in self.prompts:
+            raise PromptUpdateException(f"Prompt Id: {id} cannot be updated as it is initialized with the registry.")
+        # If upsert is False and the prompt is not found, raise an exception
+        if not upsert and id not in self.all_prompts:
+            raise PromptNotFoundException(f"Prompt Id: {id} not found in registry.")
+        # Update or insert the prompt
+        self.all_prompts[id] = prompt
+        # Sync the template if sync is enabled
+        if self._sync:
+            self._sync_template(id, prompt)
+        logger.debug(f"Updated prompt: {id}")
 
     def sync_registry(self):
         logger.debug(f"Syncing registry with phidata: {self.name}")
@@ -62,21 +86,23 @@ class PromptRegistry:
         )
         if self._remote_templates is not None:
             for k, v in self._remote_templates.items():
-                self.prompts[k] = PromptTemplate.model_validate(v.template_data)
+                self.all_prompts[k] = PromptTemplate.model_validate(v.template_data)
         logger.debug(f"Synced registry with phidata: {self.name}")
 
-    def sync_template(self, id: str, prompt: PromptTemplate):
+    def _sync_template(self, id: str, prompt: PromptTemplate):
         logger.debug(f"Syncing template: {id} with registry: {self.name}")
-        if self._remote_templates is not None and id in self._remote_templates:
-            if self._remote_templates[id].template_data != prompt.model_dump(exclude_none=True):
-                _prompt_template: PromptTemplateSchema = sync_prompt_template_api(
-                    registry=PromptRegistrySync(registry_name=self.name),
-                    prompt_template=PromptTemplateSync(
-                        template_id=id, template_data=prompt.model_dump(exclude_none=True)
-                    ),
-                )
-                self._remote_templates[id] = _prompt_template
-        else:
+
+        # Determine if the template needs to be synced either because
+        # remote templates are not available, or
+        # template is not in remote templates, or
+        # the template_data has changed.
+        needs_sync = (
+            self._remote_templates is None
+            or id not in self._remote_templates
+            or self._remote_templates[id].template_data != prompt.model_dump(exclude_none=True)
+        )
+
+        if needs_sync:
             _prompt_template: PromptTemplateSchema = sync_prompt_template_api(
                 registry=PromptRegistrySync(registry_name=self.name),
                 prompt_template=PromptTemplateSync(template_id=id, template_data=prompt.model_dump(exclude_none=True)),

@@ -61,7 +61,9 @@ def sync_prompt_registry_api(
     return None, None
 
 
-def sync_prompt_template_api(registry: PromptRegistrySync, prompt_template: PromptTemplateSync) -> Optional[PromptTemplateSchema]:
+def sync_prompt_template_api(
+    registry: PromptRegistrySync, prompt_template: PromptTemplateSync
+) -> Optional[PromptTemplateSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 

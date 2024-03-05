@@ -46,3 +46,9 @@ class WorkspaceSchema(BaseModel):
     git_url: Optional[str] = None
     ws_hash: Optional[str] = None
     ws_data: Optional[Dict[str, Any]] = None
+
+
+class WorkspaceIdentifier(BaseModel):
+    ws_key: Optional[str] = None
+    id_workspace: Optional[int] = None
+    ws_hash: Optional[str] = None

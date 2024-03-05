@@ -103,13 +103,14 @@ class PromptRegistry:
         )
 
         if needs_sync:
-            _prompt_template: PromptTemplateSchema = sync_prompt_template_api(
+            _prompt_template: Optional[PromptTemplateSchema] = sync_prompt_template_api(
                 registry=PromptRegistrySync(registry_name=self.name),
                 prompt_template=PromptTemplateSync(template_id=id, template_data=prompt.model_dump(exclude_none=True)),
             )
-            if self._remote_templates is None:
-                self._remote_templates = {}
-            self._remote_templates[id] = _prompt_template
+            if _prompt_template is not None:
+                if self._remote_templates is None:
+                    self._remote_templates = {}
+                self._remote_templates[id] = _prompt_template
 
     def __getitem__(self, id) -> Optional[PromptTemplate]:
         return self.get(id)

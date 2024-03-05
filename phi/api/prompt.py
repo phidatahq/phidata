@@ -44,7 +44,7 @@ def sync_prompt_registry_api(
             if invalid_response(r):
                 return None, None
 
-            response_dict: Union[Dict, List] = r.json()
+            response_dict: Dict = r.json()
             if response_dict is None:
                 return None, None
 

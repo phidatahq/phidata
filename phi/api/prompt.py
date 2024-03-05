@@ -57,15 +57,15 @@ def sync_prompt_registry_api(
             }
             return registry_response, templates_response
         except Exception as e:
-            logger.debug(f"Could not create assistant run: {e}")
+            logger.debug(f"Could not sync prompt registry: {e}")
     return None, None
 
 
-def sync_prompt_template_api(registry_name: str, prompt_template: PromptTemplateSync) -> Optional[PromptTemplateSchema]:
+def sync_prompt_template_api(registry: PromptRegistrySync, prompt_template: PromptTemplateSync) -> Optional[PromptTemplateSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Adding Prompt Template --o-o--")
+    logger.debug("--o-o-- Syncing Prompt Template --o-o--")
     with api.AuthenticatedClient() as api_client:
         try:
             workspace_identifier = WorkspaceIdentifier(
@@ -76,7 +76,7 @@ def sync_prompt_template_api(registry_name: str, prompt_template: PromptTemplate
             r: Response = api_client.post(
                 ApiRoutes.PROMPT_TEMPLATE_SYNC,
                 json={
-                    "registry_name": registry_name,
+                    "registry": registry.model_dump(exclude_none=True),
                     "template": prompt_template.model_dump(exclude_none=True),
                     "workspace": workspace_identifier.model_dump(exclude_none=True),
                 },
@@ -91,5 +91,5 @@ def sync_prompt_template_api(registry_name: str, prompt_template: PromptTemplate
             # logger.debug(f"Response: {response_dict}")
             return PromptTemplateSchema.model_validate(response_dict)
         except Exception as e:
-            logger.debug(f"Could not create assistant run: {e}")
+            logger.debug(f"Could not sync prompt template: {e}")
     return None

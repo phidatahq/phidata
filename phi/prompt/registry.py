@@ -42,19 +42,8 @@ class PromptRegistry:
 
         self.prompts[prompt_id] = prompt
         if self._sync:
-            if self._remote_templates is not None:
-                if prompt_id in self._remote_templates and self._remote_templates[
-                    prompt_id
-                ].template_data != prompt.model_dump(exclude_none=True):
-                    logger.debug(f"Syncing template: {prompt_id} with registry: {self.name}")
-                    _prompt_template: PromptTemplateSchema = sync_prompt_template_api(
-                        registry_name=self.name,
-                        prompt_template=PromptTemplateSync(
-                            template_id=prompt_id, template_data=prompt.model_dump(exclude_none=True)
-                        ),
-                    )
-                    self._remote_templates[prompt_id] = _prompt_template
-        logger.debug(f"Registered prompt: {prompt_id}")
+            self.sync_template(prompt_id, prompt)
+        logger.debug(f"Added prompt: {prompt_id}")
 
     def get(self, id: str) -> Optional[PromptTemplate]:
         logger.debug(f"Getting prompt: {id}")
@@ -78,12 +67,10 @@ class PromptRegistry:
 
     def sync_template(self, id: str, prompt: PromptTemplate):
         logger.debug(f"Syncing template: {id} with registry: {self.name}")
-        if self._remote_templates is not None:
-            if id in self._remote_templates and self._remote_templates[id].template_data != prompt.model_dump(
-                exclude_none=True
-            ):
+        if self._remote_templates is not None and id in self._remote_templates:
+            if self._remote_templates[id].template_data != prompt.model_dump(exclude_none=True):
                 _prompt_template: PromptTemplateSchema = sync_prompt_template_api(
-                    registry_name=self.name,
+                    registry=PromptRegistrySync(registry_name=self.name),
                     prompt_template=PromptTemplateSync(
                         template_id=id, template_data=prompt.model_dump(exclude_none=True)
                     ),
@@ -91,10 +78,12 @@ class PromptRegistry:
                 self._remote_templates[id] = _prompt_template
         else:
             _prompt_template: PromptTemplateSchema = sync_prompt_template_api(
-                registry_name=self.name,
+                registry=PromptRegistrySync(registry_name=self.name),
                 prompt_template=PromptTemplateSync(template_id=id, template_data=prompt.model_dump(exclude_none=True)),
             )
-            self._remote_templates = {id: _prompt_template}
+            if self._remote_templates is None:
+                self._remote_templates = {}
+            self._remote_templates[id] = _prompt_template
 
     def __getitem__(self, id) -> Optional[PromptTemplate]:
         return self.get(id)

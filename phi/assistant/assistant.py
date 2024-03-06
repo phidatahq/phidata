@@ -10,6 +10,7 @@ from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.llm.references import References  # noqa: F401
 from phi.memory.assistant import AssistantMemory
+from phi.prompt.template import PromptTemplate
 from phi.storage.assistant import AssistantStorage
 from phi.task.task import Task
 from phi.task.llm import LLMTask
@@ -99,6 +100,8 @@ class Assistant(BaseModel):
     #
     # -*- System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
+    # -*- System prompt template: provide the system prompt as a PromptTemplate
+    system_prompt_template: Optional[PromptTemplate] = None
     # -*- System prompt function: provide the system prompt as a function
     # This function is provided the "Assistant object" as an argument
     #   and should return the system_prompt as a string.
@@ -135,6 +138,8 @@ class Assistant(BaseModel):
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
     user_prompt: Optional[Union[List, Dict, str]] = None
+    # -*- User prompt template: provide the user prompt as a PromptTemplate
+    user_prompt_template: Optional[PromptTemplate] = None
     # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the "Assistant object" and the "input message" as arguments
     #   and should return the user_prompt as a Union[List, Dict, str].
@@ -180,6 +185,9 @@ class Assistant(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
+    # -*- Team settings
+    role: Optional[str] = None
+
     # debug_mode=True enables debug logs
     debug_mode: bool = False
     # monitoring=True logs Assistant runs on phidata.com
@@ -223,6 +231,7 @@ class Assistant(BaseModel):
             read_tool_call_history=self.read_tool_call_history,
             format_messages=self.format_messages,
             system_prompt=self.system_prompt,
+            system_prompt_template=self.system_prompt_template,
             system_prompt_function=self.system_prompt_function,
             build_default_system_prompt=self.build_default_system_prompt,
             description=self.description,
@@ -236,6 +245,7 @@ class Assistant(BaseModel):
             add_datetime_to_instructions=self.add_datetime_to_instructions,
             markdown=self.markdown,
             user_prompt=self.user_prompt,
+            user_prompt_template=self.user_prompt_template,
             user_prompt_function=self.user_prompt_function,
             build_default_user_prompt=self.build_default_user_prompt,
             references_function=self.references_function,
@@ -771,7 +781,7 @@ class Assistant(BaseModel):
                 for resp in self.run(message, stream=True, **kwargs):
                     if isinstance(resp, str):
                         response += resp
-                    _response = response if not markdown else Markdown(response)
+                    _response = Markdown(response) if self.markdown else response
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
                     if message:
@@ -791,7 +801,7 @@ class Assistant(BaseModel):
                 response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
-            _response = response if not markdown else Markdown(response)
+            _response = Markdown(response) if self.markdown else response
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message:

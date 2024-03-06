@@ -156,11 +156,13 @@ Checkout these AI apps showcasing the advantage of function calling:
 ### Build a Local RAG AI App using OpenHermes and Ollama
 [![Local AI App](https://img.youtube.com/vi/EVQLYncsDVI/0.jpg)](https://www.youtube.com/watch?v=EVQLYncsDVI&t "Local AI App")
 
-## Examples
+## More Examples
+
+### Assistant that calls the HackerNews API
 
 <details>
 
-<summary><h3>Assistant that calls the HackerNews API</h3></summary>
+<summary>Show details</summary>
 
 - Create a file `api_assistant.py` that can call the HackerNews API to get top stories.
 
@@ -249,9 +251,11 @@ python api_assistant.py
 
 </details>
 
+### Assistant that generates pydantic models
+
 <details>
 
-<summary><h3>Assistant that generates pydantic models</h3></summary>
+<summary>Show details</summary>
 
 One of our favorite features is generating structured data (i.e. a pydantic model) from sparse information.
 Meaning we can use Assistants to return pydantic models and generate content which previously could not be possible.
@@ -304,9 +308,11 @@ MovieScript(
 
 </details>
 
+### A PDF Assistant with Knowledge & Storage
+
 <details>
 
-<summary><h3>A PDF Assistant with Knowledge & Storage</h3></summary>
+<summary>Show details</summary>
 
 Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgVector` for knowledge and storage.
 
@@ -328,7 +334,6 @@ vector_db = PgVectorDb(
     pg_user="ai",
     pg_password="ai",
     pg_database="ai",
-    debug_mode=True,
 )
 
 # -*- DockerResources
@@ -480,9 +485,11 @@ phi stop resources.py -y
 
 </details>
 
+### Build an AI App using Streamlit, FastApi and PgVector
+
 <details>
 
-<summary><h3>Build an AI App using Streamlit, FastApi and PgVector</h3></summary>
+<summary>Show details</summary>
 
 Let's build an **AI App** using GPT-4 as the LLM, Streamlit as the chat interface, FastApi as the API and PgVector for knowledge and storage. Read the full tutorial <a href="https://docs.phidata.com/ai-app/run-local" target="_blank" rel="noopener noreferrer">here</a>.
 

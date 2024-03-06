@@ -13,14 +13,14 @@ knowledge_base = WikipediaKnowledgeBase(
         db_url=vector_db.get_db_connection_local(),
     ),
 )
+# Load the knowledge base
+knowledge_base.load(recreate=False)
 
 # Create an assistant with the knowledge base
 assistant = Assistant(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
-# Load the knowledge base
-assistant.knowledge_base.load(recreate=False)
 
 # Ask the assistant about the knowledge base
 assistant.print_response("Which team is objectively better, Manchester United or Real Madrid?")

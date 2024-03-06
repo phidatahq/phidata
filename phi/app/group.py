@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from phi.app.base import AppBase
 
@@ -12,8 +12,7 @@ class AppGroup(BaseModel):
     enabled: bool = True
     apps: Optional[List[AppBase]] = None
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_apps(self) -> List[AppBase]:
         if self.enabled and self.apps is not None:

@@ -109,7 +109,7 @@ class Qdrant(VectorDb):
             document (Document): Document to validate
         """
         if self.client:
-            cleaned_content = document.content.replace("\x00", "\uFFFD")
+            cleaned_content = document.content.replace("\x00", "\ufffd")
             doc_id = md5(cleaned_content.encode()).hexdigest()
             collection_points = self.client.retrieve(
                 collection_name=self.collection,
@@ -126,7 +126,7 @@ class Qdrant(VectorDb):
         points = []
         for document in documents:
             document.embed(embedder=self.embedder)
-            cleaned_content = document.content.replace("\x00", "\uFFFD")
+            cleaned_content = document.content.replace("\x00", "\ufffd")
             doc_id = md5(cleaned_content.encode()).hexdigest()
             points.append(
                 models.PointStruct(

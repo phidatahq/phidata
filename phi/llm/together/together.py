@@ -40,7 +40,7 @@ class Together(OpenAILike):
             # -*- Parse response
             response_content: Optional[str]
             try:
-                response_token = response.token
+                response_token = response.token  # type: ignore
                 # logger.debug(f"Together response: {response_token}")
                 # logger.debug(f"Together response type: {type(response_token)}")
                 response_content = response_token.get("text")

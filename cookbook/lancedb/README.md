@@ -1,4 +1,4 @@
-## Pgvector Assistant
+## Lancedb Assistant
 
 1. Create a virtual environment
 

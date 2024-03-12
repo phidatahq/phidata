@@ -31,9 +31,9 @@ class EcsVolume(AwsResource):
         if self.efs_volume_configuration is not None:
             volume_definition["efsVolumeConfiguration"] = self.efs_volume_configuration
         if self.fsx_windows_file_server_volume_configuration is not None:
-            volume_definition[
-                "fsxWindowsFileServerVolumeConfiguration"
-            ] = self.fsx_windows_file_server_volume_configuration
+            volume_definition["fsxWindowsFileServerVolumeConfiguration"] = (
+                self.fsx_windows_file_server_volume_configuration
+            )
 
         return volume_definition
 

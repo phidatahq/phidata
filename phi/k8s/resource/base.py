@@ -94,7 +94,7 @@ class K8sResource(ResourceBase, K8sObject):
 
     def _read(self, k8s_client: K8sApiClient) -> Any:
         logger.error(f"@_read method not defined for {self.get_resource_name()}")
-        return True
+        return None
 
     def read(self, k8s_client: K8sApiClient) -> Any:
         """Reads the resource from the k8s cluster
@@ -122,7 +122,7 @@ class K8sResource(ResourceBase, K8sObject):
 
     def _create(self, k8s_client: K8sApiClient) -> bool:
         logger.error(f"@_create method not defined for {self.get_resource_name()}")
-        return True
+        return False
 
     def create(self, k8s_client: K8sApiClient) -> bool:
         """Creates the resource on the k8s Cluster"""
@@ -158,7 +158,7 @@ class K8sResource(ResourceBase, K8sObject):
 
     def _update(self, k8s_client: K8sApiClient) -> Any:
         logger.error(f"@_update method not defined for {self.get_resource_name()}")
-        return True
+        return False
 
     def update(self, k8s_client: K8sApiClient) -> bool:
         """Updates the resource on the k8s Cluster"""
@@ -191,7 +191,7 @@ class K8sResource(ResourceBase, K8sObject):
 
     def _delete(self, k8s_client: K8sApiClient) -> Any:
         logger.error(f"@_delete method not defined for {self.get_resource_name()}")
-        return True
+        return False
 
     def delete(self, k8s_client: K8sApiClient) -> bool:
         """Deletes the resource from the k8s cluster"""

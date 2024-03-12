@@ -401,20 +401,20 @@ class CacheCluster(AwsResource):
                 logger.error(e)
         return True
 
-    def get_cache_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[List]:
+    def get_cache_endpoint(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         """Returns the CacheCluster endpoint
 
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-        cache_endpoint = []
+        cache_endpoint = None
         try:
             client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
             describe_response = self.get_service_client(client).describe_cache_clusters(
                 CacheClusterId=cache_cluster_id, ShowCacheNodeInfo=True
             )
-            logger.debug(f"CacheCluster: {describe_response}")
+            # logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
             if resource_list is not None and isinstance(resource_list, list):
@@ -422,27 +422,29 @@ class CacheCluster(AwsResource):
                     _cluster_identifier = resource.get("CacheClusterId", None)
                     if _cluster_identifier == cache_cluster_id:
                         for node in resource.get("CacheNodes", []):
-                            cache_endpoint.append(node.get("Endpoint", {}).get("Address", None))
+                            cache_endpoint = node.get("Endpoint", {}).get("Address", None)
+                            if cache_endpoint is not None and isinstance(cache_endpoint, str):
+                                return cache_endpoint
                         break
         except Exception as e:
             logger.error(f"Error reading {self.get_resource_type()}.")
             logger.error(e)
         return cache_endpoint
 
-    def get_cache_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[List]:
+    def get_cache_port(self, aws_client: Optional[AwsApiClient] = None) -> Optional[int]:
         """Returns the CacheCluster port
 
         Args:
             aws_client: The AwsApiClient for the current cluster
         """
-        cache_port = []
+        cache_port = None
         try:
             client: AwsApiClient = aws_client or self.get_aws_client()
             cache_cluster_id = self.get_cache_cluster_id()
             describe_response = self.get_service_client(client).describe_cache_clusters(
                 CacheClusterId=cache_cluster_id, ShowCacheNodeInfo=True
             )
-            logger.debug(f"CacheCluster: {describe_response}")
+            # logger.debug(f"CacheCluster: {describe_response}")
             resource_list = describe_response.get("CacheClusters", None)
 
             if resource_list is not None and isinstance(resource_list, list):
@@ -450,7 +452,9 @@ class CacheCluster(AwsResource):
                     _cluster_identifier = resource.get("CacheClusterId", None)
                     if _cluster_identifier == cache_cluster_id:
                         for node in resource.get("CacheNodes", []):
-                            cache_port.append(node.get("Endpoint", {}).get("Port", None))
+                            cache_port = node.get("Endpoint", {}).get("Port", None)
+                            if cache_port is not None and isinstance(cache_port, int):
+                                return cache_port
                         break
         except Exception as e:
             logger.error(f"Error reading {self.get_resource_type()}.")

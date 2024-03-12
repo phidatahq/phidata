@@ -7,7 +7,7 @@ try:
     import pyarrow as pa
 except ImportError:
     raise ImportError(
-        "The `lancedb` package is not installed. " "Please install it via `pip install pip install lancedb`."
+        "The `lancedb` package is not installed. " "Please install it via `pip install lancedb`."
     )
 
 from phi.document import Document

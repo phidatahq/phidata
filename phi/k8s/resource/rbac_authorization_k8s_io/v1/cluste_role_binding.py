@@ -8,7 +8,7 @@ from kubernetes.client.models.v1_cluster_role_binding_list import (
     V1ClusterRoleBindingList,
 )
 from kubernetes.client.models.v1_role_ref import V1RoleRef
-from kubernetes.client.models.v1_subject import V1Subject
+from kubernetes.client.models.rbac_v1_subject import RbacV1Subject
 from kubernetes.client.models.v1_status import V1Status
 
 from phi.k8s.enums.api_group import ApiGroup
@@ -49,10 +49,10 @@ class Subject(K8sObject):
     def get_kind_value(self, v) -> str:
         return v.value
 
-    def get_k8s_object(self) -> V1Subject:
-        # Return a V1Subject object
-        # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_subject.py
-        _v1_subject = V1Subject(
+    def get_k8s_object(self) -> RbacV1Subject:
+        # Return a RbacV1Subject object
+        # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/rbac_v1_subject.py
+        _v1_subject = RbacV1Subject(
             api_group=self.api_group.value if self.api_group else None,
             kind=self.kind.value,
             name=self.name,

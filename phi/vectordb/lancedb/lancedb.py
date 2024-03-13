@@ -6,9 +6,7 @@ try:
     import lancedb
     import pyarrow as pa
 except ImportError:
-    raise ImportError(
-        "The `lancedb` package is not installed. " "Please install it via `pip install lancedb`."
-    )
+    raise ImportError("`lancedb` not installed.")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -181,7 +179,7 @@ class LanceDb(VectorDb):
                 return True
         return False
 
-    def get_count(self) -> int:
+    def get_count(self) -> Optional[int]:
         if self.exists():
             return self.client.table(self.table_name).count_rows()
 

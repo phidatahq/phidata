@@ -48,7 +48,7 @@ class LanceDb(VectorDb):
             self.connection = connection
             self.table_name = self.connection.name
             self._vector_col = self.connection.schema.names[0]
-            self._id = self.tbl.schema.names[1]
+            self._id = self.tbl.schema.names[1] # type: ignore
 
         else:
             self.table_name = table_name

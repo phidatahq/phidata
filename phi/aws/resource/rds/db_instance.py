@@ -459,7 +459,7 @@ class DbInstance(AwsResource):
         try:
             resource_identifier = self.get_db_instance_identifier()
             describe_response = service_client.describe_db_instances(DBInstanceIdentifier=resource_identifier)
-            logger.debug(f"DbInstance: {describe_response}")
+            # logger.debug(f"DbInstance: {describe_response}")
             resources_list = describe_response.get("DBInstances", None)
 
             if resources_list is not None and isinstance(resources_list, list):

@@ -16,6 +16,7 @@ knowledge_base = JSONKnowledgeBase(
     ),
     num_documents=5,
 )
+knowledge_base.load(recreate=True, upsert=True)
 
 assistant = Assistant(
     tools=[sql_toolkit],
@@ -30,7 +31,5 @@ assistant = Assistant(
     ],
     knowledge_base=knowledge_base,
 )
-
-assistant.knowledge_base.load(recreate=True, upsert=True)
 
 assistant.print_response("Can you show me the contents of task_document_json table?", markdown=True)

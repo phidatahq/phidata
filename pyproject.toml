@@ -99,6 +99,7 @@ module = [
   "psycopg.*",
   "pypdf.*",
   "qdrant_client.*",
+  "simplejson.*",
   "setuptools.*",
   "sqlalchemy.*",
   "streamlit.*",

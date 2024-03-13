@@ -10,8 +10,9 @@ from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.llm.references import References
-from phi.task.task import Task
 from phi.memory.task.llm import LLMTaskMemory
+from phi.prompt.template import PromptTemplate
+from phi.task.task import Task
 from phi.tools import Tool, Toolkit, Function
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger
@@ -73,6 +74,8 @@ class LLMTask(Task):
     #
     # -*- System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
+    # -*- System prompt template: provide the system prompt as a PromptTemplate
+    system_prompt_template: Optional[PromptTemplate] = None
     # -*- System prompt function: provide the system prompt as a function
     # This function is provided the "Task object" as an argument
     #   and should return the system_prompt as a string.
@@ -109,6 +112,8 @@ class LLMTask(Task):
     # -*- User prompt: provide the user prompt as a string
     # Note: this will ignore the input message provided to the run function
     user_prompt: Optional[Union[List, Dict, str]] = None
+    # -*- User prompt template: provide the user prompt as a PromptTemplate
+    user_prompt_template: Optional[PromptTemplate] = None
     # -*- User prompt function: provide the user prompt as a function.
     # This function is provided the "Task object" and the "input message" as arguments
     #   and should return the user_prompt as a Union[List, Dict, str].
@@ -266,6 +271,17 @@ class LLMTask(Task):
                 return sys_prompt
             return self.system_prompt
 
+        # If the system_prompt_template is set, return the system_prompt from the template
+        if self.system_prompt_template is not None:
+            system_prompt_kwargs = {"task": self}
+            _system_prompt_from_template = self.system_prompt_template.get_prompt(**system_prompt_kwargs)
+            if _system_prompt_from_template is not None:
+                if self.output_model is not None:
+                    _system_prompt_from_template += f"\n{self.get_json_output_prompt()}"
+                return _system_prompt_from_template
+            else:
+                raise Exception("system_prompt_template returned None")
+
         # If the system_prompt_function is set, return the system_prompt from the function
         if self.system_prompt_function is not None:
             system_prompt_kwargs = {"task": self}
@@ -417,6 +433,20 @@ class LLMTask(Task):
         # Note: this ignores the message provided to the run function
         if self.user_prompt is not None:
             return self.user_prompt
+
+        # If the user_prompt_template is set, return the user_prompt from the template
+        if self.user_prompt_template is not None:
+            user_prompt_kwargs = {
+                "task": self,
+                "message": message,
+                "references": references,
+                "chat_history": chat_history,
+            }
+            _user_prompt_from_template = self.user_prompt_template.get_prompt(**user_prompt_kwargs)
+            if _user_prompt_from_template is not None:
+                return _user_prompt_from_template
+            else:
+                raise Exception("user_prompt_template returned None")
 
         # If the user_prompt_function is set, return the user_prompt from the function
         if self.user_prompt_function is not None:

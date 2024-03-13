@@ -9,6 +9,7 @@ from phi.k8s.app.context import K8sBuildContext
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.resource.base import K8sResource
+from phi.k8s.helm.chart import HelmChart
 from phi.infra.resources import InfraResources
 from phi.utils.log import logger
 
@@ -16,6 +17,7 @@ from phi.utils.log import logger
 class K8sResources(InfraResources):
     apps: Optional[List[Union[K8sApp, AppGroup]]] = None
     resources: Optional[List[Union[K8sResource, CreateK8sResource, ResourceGroup]]] = None
+    charts: Optional[List[HelmChart]] = None
 
     # K8s namespace to use
     namespace: str = "default"
@@ -193,7 +195,7 @@ class K8sResources(InfraResources):
                 deduped_resources_to_create.append(r)
 
         # Implement dependency sorting
-        final_k8s_resources: List[K8sResource] = []
+        final_k8s_resources: List[Union[K8sResource, HelmChart]] = []
         logger.debug("-*- Building K8sResources dependency graph")
         for k8s_resource in deduped_resources_to_create:
             # Logic to follow if resource has dependencies
@@ -214,6 +216,18 @@ class K8sResources(InfraResources):
                 if k8s_resource not in final_k8s_resources:
                     logger.debug(f"-*- Adding {k8s_resource.name}")
                     final_k8s_resources.append(k8s_resource)
+
+        # Build a list of HelmCharts to create
+        if self.charts is not None:
+            for chart in self.charts:
+                if chart.group is None and self.name is not None:
+                    chart.group = self.name
+                if chart.should_create(group_filter=group_filter):
+                    if chart not in final_k8s_resources:
+                        chart.set_workspace_settings(workspace_settings=self.workspace_settings)
+                        if chart.namespace is None:
+                            chart.namespace = self.namespace
+                        final_k8s_resources.append(chart)
 
         # Track the total number of K8sResources to create for validation
         num_resources_to_create: int = len(final_k8s_resources)
@@ -257,7 +271,7 @@ class K8sResources(InfraResources):
                         return num_resources_created, num_resources_to_create
             except Exception as e:
                 logger.error(f"Failed to create {resource.get_resource_type()}: {resource.get_resource_name()}")
-                logger.error(e)
+                logger.exception(e)
                 logger.error("Please fix and try again...")
 
         print_heading(f"\n--**-- Resources created: {num_resources_created}/{num_resources_to_create}")
@@ -390,7 +404,7 @@ class K8sResources(InfraResources):
                 deduped_resources_to_delete.append(r)
 
         # Implement dependency sorting
-        final_k8s_resources: List[K8sResource] = []
+        final_k8s_resources: List[Union[K8sResource, HelmChart]] = []
         logger.debug("-*- Building K8sResources dependency graph")
         for k8s_resource in deduped_resources_to_delete:
             # Logic to follow if resource has dependencies
@@ -420,6 +434,18 @@ class K8sResources(InfraResources):
                 if k8s_resource not in final_k8s_resources:
                     logger.debug(f"-*- Adding {k8s_resource.name}")
                     final_k8s_resources.append(k8s_resource)
+
+        # Build a list of HelmCharts to create
+        if self.charts is not None:
+            for chart in self.charts:
+                if chart.group is None and self.name is not None:
+                    chart.group = self.name
+                if chart.should_create(group_filter=group_filter):
+                    if chart not in final_k8s_resources:
+                        chart.set_workspace_settings(workspace_settings=self.workspace_settings)
+                        if chart.namespace is None:
+                            chart.namespace = self.namespace
+                        final_k8s_resources.append(chart)
 
         # Track the total number of K8sResources to delete for validation
         num_resources_to_delete: int = len(final_k8s_resources)
@@ -463,7 +489,7 @@ class K8sResources(InfraResources):
                         return num_resources_deleted, num_resources_to_delete
             except Exception as e:
                 logger.error(f"Failed to delete {resource.get_resource_type()}: {resource.get_resource_name()}")
-                logger.error(e)
+                logger.exception(e)
                 logger.error("Please fix and try again...")
 
         print_heading(f"\n--**-- Resources deleted: {num_resources_deleted}/{num_resources_to_delete}")
@@ -598,7 +624,7 @@ class K8sResources(InfraResources):
                 deduped_resources_to_update.append(r)
 
         # Implement dependency sorting
-        final_k8s_resources: List[K8sResource] = []
+        final_k8s_resources: List[Union[K8sResource, HelmChart]] = []
         logger.debug("-*- Building K8sResources dependency graph")
         for k8s_resource in deduped_resources_to_update:
             # Logic to follow if resource has dependencies
@@ -619,6 +645,18 @@ class K8sResources(InfraResources):
                 if k8s_resource not in final_k8s_resources:
                     logger.debug(f"-*- Adding {k8s_resource.name}")
                     final_k8s_resources.append(k8s_resource)
+
+        # Build a list of HelmCharts to create
+        if self.charts is not None:
+            for chart in self.charts:
+                if chart.group is None and self.name is not None:
+                    chart.group = self.name
+                if chart.should_create(group_filter=group_filter):
+                    if chart not in final_k8s_resources:
+                        chart.set_workspace_settings(workspace_settings=self.workspace_settings)
+                        if chart.namespace is None:
+                            chart.namespace = self.namespace
+                        final_k8s_resources.append(chart)
 
         # Track the total number of K8sResources to update for validation
         num_resources_to_update: int = len(final_k8s_resources)
@@ -662,7 +700,7 @@ class K8sResources(InfraResources):
                         return num_resources_updated, num_resources_to_update
             except Exception as e:
                 logger.error(f"Failed to update {resource.get_resource_type()}: {resource.get_resource_name()}")
-                logger.error(e)
+                logger.exception(e)
                 logger.error("Please fix and try again...")
 
         print_heading(f"\n--**-- Resources updated: {num_resources_updated}/{num_resources_to_update}")
@@ -834,7 +872,7 @@ class K8sResources(InfraResources):
                     num_resources_saved += 1
             except Exception as e:
                 logger.error(f"Failed to save {resource.get_resource_type()}: {resource.get_resource_name()}")
-                logger.error(e)
+                logger.exception(e)
                 logger.error("Please fix and try again...")
 
         print_heading(f"\n--**-- Resources saved: {num_resources_saved}/{num_resources_to_save}")

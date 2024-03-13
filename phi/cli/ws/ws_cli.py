@@ -2,6 +2,7 @@
 
 This is the entrypoint for the `phi ws` application.
 """
+
 from pathlib import Path
 from typing import Optional, cast, List
 

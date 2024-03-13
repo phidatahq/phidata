@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.3.48"
+version = "2.3.52"
 description = "Build AI Assistants using function calling"
 requires-python = ">=3.8"
 readme = "README.md"
@@ -85,6 +85,7 @@ module = [
   "duckduckgo_search.*",
   "groq.*",
   "kubernetes.*",
+  "lancedb.*",
   "langchain.*",
   "langchain.*",
   "langchain_core.*",
@@ -93,6 +94,7 @@ module = [
   "ollama.*",
   "openai.*",
   "pandas.*",
+  "pyarrow.*",
   "pgvector.*",
   "psycopg.*",
   "pypdf.*",

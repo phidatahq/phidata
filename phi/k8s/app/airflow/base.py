@@ -106,22 +106,30 @@ class AirflowBase(K8sApp):
     load_examples: bool = False
 
     def get_db_user(self) -> Optional[str]:
-        return self.db_user or self.get_secret_from_file("DB_USER")
+        return self.db_user or self.get_secret_from_file("DATABASE_USER") or self.get_secret_from_file("DB_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return self.db_password or self.get_secret_from_file("DB_PASSWORD")
+        return (
+            self.db_password
+            or self.get_secret_from_file("DATABASE_PASSWORD")
+            or self.get_secret_from_file("DB_PASSWORD")
+        )
 
     def get_db_database(self) -> Optional[str]:
-        return self.db_database or self.get_secret_from_file("DB_DATABASE")
+        return self.db_database or self.get_secret_from_file("DATABASE_DB") or self.get_secret_from_file("DB_DATABASE")
 
     def get_db_driver(self) -> Optional[str]:
-        return self.db_driver or self.get_secret_from_file("DB_DRIVER")
+        return self.db_driver or self.get_secret_from_file("DATABASE_DRIVER") or self.get_secret_from_file("DB_DRIVER")
 
     def get_db_host(self) -> Optional[str]:
-        return self.db_host or self.get_secret_from_file("DB_HOST")
+        return self.db_host or self.get_secret_from_file("DATABASE_HOST") or self.get_secret_from_file("DB_HOST")
 
     def get_db_port(self) -> Optional[int]:
-        return self.db_port or str_to_int(self.get_secret_from_file("DB_PORT"))
+        return (
+            self.db_port
+            or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
+            or str_to_int(self.get_secret_from_file("DB_PORT"))
+        )
 
     def get_redis_password(self) -> Optional[str]:
         return self.redis_password or self.get_secret_from_file("REDIS_PASSWORD")

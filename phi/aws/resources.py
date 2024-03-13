@@ -14,21 +14,21 @@ class AwsResources(InfraResources):
     apps: Optional[List[Union[AwsApp, AppGroup]]] = None
     resources: Optional[List[Union[AwsResource, ResourceGroup]]] = None
 
+    aws_region: Optional[str] = None
+    aws_profile: Optional[str] = None
+
     # -*- Cached Data
-    _aws_region: Optional[str] = None
-    _aws_profile: Optional[str] = None
     _api_client: Optional[AwsApiClient] = None
 
-    @property
-    def aws_region(self) -> Optional[str]:
+    def get_aws_region(self) -> Optional[str]:
         # Priority 1: Use aws_region from ResourceGroup (or cached value)
-        if self._aws_region:
-            return self._aws_region
+        if self.aws_region:
+            return self.aws_region
 
         # Priority 2: Get aws_region from workspace settings
         if self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
-            self._aws_region = self.workspace_settings.aws_region
-            return self._aws_region
+            self.aws_region = self.workspace_settings.aws_region
+            return self.aws_region
 
         # Priority 3: Get aws_region from env
         from os import getenv
@@ -37,23 +37,18 @@ class AwsResources(InfraResources):
         aws_region_env = getenv(AWS_REGION_ENV_VAR)
         if aws_region_env is not None:
             logger.debug(f"{AWS_REGION_ENV_VAR}: {aws_region_env}")
-            self._aws_region = aws_region_env
-        return self._aws_region
+            self.aws_region = aws_region_env
+        return self.aws_region
 
-    @aws_region.setter
-    def aws_region(self, value: str) -> None:
-        self._aws_region = value
-
-    @property
-    def aws_profile(self) -> Optional[str]:
+    def get_aws_profile(self) -> Optional[str]:
         # Priority 1: Use aws_region from ResourceGroup (or cached value)
-        if self._aws_profile:
-            return self._aws_profile
+        if self.aws_profile:
+            return self.aws_profile
 
         # Priority 2: Get aws_profile from workspace settings
         if self.workspace_settings is not None and self.workspace_settings.aws_profile is not None:
-            self._aws_profile = self.workspace_settings.aws_profile
-            return self._aws_profile
+            self.aws_profile = self.workspace_settings.aws_profile
+            return self.aws_profile
 
         # Priority 3: Get aws_profile from env
         from os import getenv
@@ -62,17 +57,13 @@ class AwsResources(InfraResources):
         aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)
         if aws_profile_env is not None:
             logger.debug(f"{AWS_PROFILE_ENV_VAR}: {aws_profile_env}")
-            self._aws_profile = aws_profile_env
-        return self._aws_profile
-
-    @aws_profile.setter
-    def aws_profile(self, value: str) -> None:
-        self._aws_profile = value
+            self.aws_profile = aws_profile_env
+        return self.aws_profile
 
     @property
     def aws_client(self) -> AwsApiClient:
         if self._api_client is None:
-            self._api_client = AwsApiClient(aws_region=self.aws_region, aws_profile=self.aws_profile)
+            self._api_client = AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
         return self._api_client
 
     def create_resources(
@@ -146,7 +137,7 @@ class AwsResources(InfraResources):
             for app in apps_to_create:
                 app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
-                    build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
+                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
                 )
                 if len(app_resources) > 0:
                     # If the app has dependencies, add the resources from the
@@ -157,7 +148,7 @@ class AwsResources(InfraResources):
                                 dep.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 dep_resources = dep.get_resources(
                                     build_context=AwsBuildContext(
-                                        aws_region=self.aws_region, aws_profile=self.aws_profile
+                                        aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile()
                                     )
                                 )
                                 if len(dep_resources) > 0:
@@ -214,10 +205,10 @@ class AwsResources(InfraResources):
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
-            if self.aws_region:
-                print_info(f"Region: {self.aws_region}")
-            if self.aws_profile:
-                print_info(f"Profile: {self.aws_profile}")
+            if self.get_aws_region():
+                print_info(f"Region: {self.get_aws_region()}")
+            if self.get_aws_profile():
+                print_info(f"Profile: {self.get_aws_profile()}")
             print_info(f"Total {num_resources_to_create} resources")
             return 0, 0
 
@@ -227,10 +218,10 @@ class AwsResources(InfraResources):
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
-            if self.aws_region:
-                print_info(f"Region: {self.aws_region}")
-            if self.aws_profile:
-                print_info(f"Profile: {self.aws_profile}")
+            if self.get_aws_region():
+                print_info(f"Region: {self.get_aws_region()}")
+            if self.get_aws_profile():
+                print_info(f"Profile: {self.get_aws_profile()}")
             print_info(f"Total {num_resources_to_create} resources")
             confirm = confirm_yes_no("\nConfirm deploy")
             if not confirm:
@@ -334,7 +325,7 @@ class AwsResources(InfraResources):
             for app in apps_to_delete:
                 app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
-                    build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
+                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
                 )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
@@ -395,10 +386,10 @@ class AwsResources(InfraResources):
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
-            if self.aws_region:
-                print_info(f"Region: {self.aws_region}")
-            if self.aws_profile:
-                print_info(f"Profile: {self.aws_profile}")
+            if self.get_aws_region():
+                print_info(f"Region: {self.get_aws_region()}")
+            if self.get_aws_profile():
+                print_info(f"Profile: {self.get_aws_profile()}")
             print_info(f"Total {num_resources_to_delete} resources")
             return 0, 0
 
@@ -408,10 +399,10 @@ class AwsResources(InfraResources):
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
-            if self.aws_region:
-                print_info(f"Region: {self.aws_region}")
-            if self.aws_profile:
-                print_info(f"Profile: {self.aws_profile}")
+            if self.get_aws_region():
+                print_info(f"Region: {self.get_aws_region()}")
+            if self.get_aws_profile():
+                print_info(f"Profile: {self.get_aws_profile()}")
             print_info(f"Total {num_resources_to_delete} resources")
             confirm = confirm_yes_no("\nConfirm delete")
             if not confirm:
@@ -516,7 +507,7 @@ class AwsResources(InfraResources):
             for app in apps_to_update:
                 app.set_workspace_settings(workspace_settings=self.workspace_settings)
                 app_resources = app.get_resources(
-                    build_context=AwsBuildContext(aws_region=self.aws_region, aws_profile=self.aws_profile)
+                    build_context=AwsBuildContext(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
                 )
                 if len(app_resources) > 0:
                     for app_resource in app_resources:
@@ -568,10 +559,10 @@ class AwsResources(InfraResources):
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
-            if self.aws_region:
-                print_info(f"Region: {self.aws_region}")
-            if self.aws_profile:
-                print_info(f"Profile: {self.aws_profile}")
+            if self.get_aws_region():
+                print_info(f"Region: {self.get_aws_region()}")
+            if self.get_aws_profile():
+                print_info(f"Profile: {self.get_aws_profile()}")
             print_info(f"Total {num_resources_to_update} resources")
             return 0, 0
 
@@ -581,10 +572,10 @@ class AwsResources(InfraResources):
             for resource in final_aws_resources:
                 print_info(f"  -+-> {resource.get_resource_type()}: {resource.get_resource_name()}")
             print_info("")
-            if self.aws_region:
-                print_info(f"Region: {self.aws_region}")
-            if self.aws_profile:
-                print_info(f"Profile: {self.aws_profile}")
+            if self.get_aws_region():
+                print_info(f"Region: {self.get_aws_region()}")
+            if self.get_aws_profile():
+                print_info(f"Profile: {self.get_aws_profile()}")
             print_info(f"Total {num_resources_to_update} resources")
             confirm = confirm_yes_no("\nConfirm patch")
             if not confirm:

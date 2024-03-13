@@ -1,7 +1,12 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
-if TYPE_CHECKING:
+try:
     import kubernetes
+except ImportError:
+    raise ImportError(
+        "The `kubernetes` package is not installed. "
+        "Install using `pip install kubernetes` or `pip install phidata[k8s]`."
+    )
 
 from phi.utils.log import logger
 
@@ -9,15 +14,6 @@ from phi.utils.log import logger
 class K8sApiClient:
     def __init__(self, context: Optional[str] = None, kubeconfig_path: Optional[str] = None):
         super().__init__()
-
-        try:
-            import kubernetes
-        except ImportError:
-            logger.error(
-                "The `kubernetes` package is not installed. "
-                "Install using `pip install kubernetes` or `pip install phidata[k8s]`."
-            )
-            exit(0)
 
         self.context: Optional[str] = context
         self.kubeconfig_path: Optional[str] = kubeconfig_path

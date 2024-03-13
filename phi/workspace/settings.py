@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import field_validator, Extra, ValidationInfo
+from pydantic import field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from phi.api.schemas.workspace import WorkspaceSchema
@@ -159,7 +159,7 @@ class WorkspaceSettings(BaseSettings):
     # WorkspaceSchema provided by the api
     ws_schema: Optional[WorkspaceSchema] = None
 
-    model_config = SettingsConfigDict(extra=Extra.allow)
+    model_config = SettingsConfigDict(extra="allow")
 
     @field_validator("dev_key", mode="before")
     def set_dev_key(cls, dev_key, info: ValidationInfo):

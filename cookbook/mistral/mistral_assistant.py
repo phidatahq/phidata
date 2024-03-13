@@ -28,7 +28,7 @@ mistral_assistant_knowledge = AssistantKnowledge(
 
 
 def get_mistral_assistant(
-    model: str = "mistral-large-latest",
+    model: Optional[str] = "mistral-large-latest",
     user_id: Optional[str] = None,
     run_id: Optional[str] = None,
     debug_mode: bool = False,

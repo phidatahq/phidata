@@ -34,6 +34,10 @@ class ApiRoutes:
     ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"
     ASSISTANT_EVENT_CREATE: str = "/v1/assistant/event/create"
 
+    # prompt paths
+    PROMPT_REGISTRY_SYNC: str = "/v1/prompt/registry/sync"
+    PROMPT_TEMPLATE_SYNC: str = "/v1/prompt/template/sync"
+
     # ai paths
     AI_CONVERSATION_CREATE: str = "/v1/ai/conversation/create"
     AI_CONVERSATION_CHAT: str = "/v1/ai/conversation/chat"

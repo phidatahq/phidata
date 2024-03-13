@@ -367,9 +367,9 @@ class K8sApp(AppBase):
                 service_annotations = OrderedDict()
             if self.use_nlb:
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-type"] = "nlb"
-                service_annotations[
-                    "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"
-                ] = self.nlb_target_type
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] = (
+                    self.nlb_target_type
+                )
 
             if self.load_balancer_scheme is not None:
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] = self.load_balancer_scheme
@@ -382,14 +382,14 @@ class K8sApp(AppBase):
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-access-log-enabled"] = "true"
                 lb_attributes = "access_logs.s3.enabled=true"
                 if self.access_logs_s3_bucket is not None:
-                    service_annotations[
-                        "service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name"
-                    ] = self.access_logs_s3_bucket
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name"] = (
+                        self.access_logs_s3_bucket
+                    )
                     lb_attributes += f",access_logs.s3.bucket={self.access_logs_s3_bucket}"
                 if self.access_logs_s3_bucket_prefix is not None:
-                    service_annotations[
-                        "service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-prefix"
-                    ] = self.access_logs_s3_bucket_prefix
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-prefix"] = (
+                        self.access_logs_s3_bucket_prefix
+                    )
                     lb_attributes += f",access_logs.s3.prefix={self.access_logs_s3_bucket_prefix}"
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-attributes"] = lb_attributes
 
@@ -401,9 +401,9 @@ class K8sApp(AppBase):
 
                 # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
                 if self.acm_certificate_arn is not None:
-                    service_annotations[
-                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
-                    ] = self.acm_certificate_arn
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = (
+                        self.acm_certificate_arn
+                    )
                 # if acm_certificate_summary_file is provided, use that
                 if self.acm_certificate_summary_file is not None and isinstance(
                     self.acm_certificate_summary_file, Path

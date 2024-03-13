@@ -52,16 +52,16 @@ class SupersetBase(K8sApp):
     db_app: Optional[DbApp] = None
     # Provide database connection details manually
     # db_user can be provided here or as the
-    # DATABASE_USER or DB_USER env var in the secrets_file
+    # DB_USER env var in the secrets_file
     db_user: Optional[str] = None
     # db_password can be provided here or as the
-    # DATABASE_PASSWORD or DB_PASSWORD env var in the secrets_file
+    # DB_PASSWORD env var in the secrets_file
     db_password: Optional[str] = None
     # db_database can be provided here or as the
-    # DATABASE_DB or DB_DATABASE env var in the secrets_file
+    # DB_DATABASE env var in the secrets_file
     db_database: Optional[str] = None
     # db_host can be provided here or as the
-    # DATABASE_HOST or DB_HOST env var in the secrets_file
+    # DB_HOST env var in the secrets_file
     db_host: Optional[str] = None
     # db_port can be provided here or as the
     # DATABASE_PORT or DB_PORT env var in the secrets_file

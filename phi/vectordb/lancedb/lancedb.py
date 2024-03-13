@@ -179,9 +179,10 @@ class LanceDb(VectorDb):
                 return True
         return False
 
-    def get_count(self) -> Optional[int]:
+    def get_count(self) -> int:
         if self.exists():
             return self.client.table(self.table_name).count_rows()
+        return 0
 
     def optimize(self) -> None:
         pass

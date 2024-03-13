@@ -6,9 +6,7 @@ try:
     import lancedb
     import pyarrow as pa
 except ImportError:
-    raise ImportError(
-        "The `lancedb` package is not installed. " "Please install it via `pip install lancedb`."
-    )
+    raise ImportError("The `lancedb` package is not installed. " "Please install it via `pip install lancedb`.")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -50,8 +48,8 @@ class LanceDb(VectorDb):
             self.connection = connection
             self.table_name = self.connection.name
             self._vector_col = self.connection.schema.names[0]
-            self._id = self.tbl.schema.names[1]
-
+            # @raghav: This is throwing a type error and should be fixed
+            self._id = self.tbl.schema.names[1]  # type: ignore
         else:
             self.table_name = table_name
             self.connection = self._init_table()
@@ -184,6 +182,7 @@ class LanceDb(VectorDb):
     def get_count(self) -> int:
         if self.exists():
             return self.client.table(self.table_name).count_rows()
+        return 0
 
     def optimize(self) -> None:
         pass

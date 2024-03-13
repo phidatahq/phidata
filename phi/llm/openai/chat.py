@@ -340,6 +340,10 @@ class OpenAIChat(LLM):
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
+
+                if any([f.function.break_after_run for f in function_calls_to_run]):
+                    return final_response
+
                 # -*- Get new response using result of tool call
                 final_response += self.response(messages=messages)
                 return final_response
@@ -603,6 +607,10 @@ class OpenAIChat(LLM):
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
+
+                if any([f.function.break_after_run for f in function_calls_to_run]):
+                    return
+
                 # -*- Yield new response using results of tool calls
                 yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")

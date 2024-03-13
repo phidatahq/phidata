@@ -17,6 +17,8 @@ class Function(BaseModel):
     parameters: Dict[str, Any] = {"type": "object", "properties": {}}
     entrypoint: Optional[Callable] = None
 
+    break_after_run: bool = False
+
     # If True, the arguments are sanitized before being passed to the function.
     sanitize_arguments: bool = True
 
@@ -41,6 +43,27 @@ class Function(BaseModel):
             description=getdoc(c),
             parameters=parameters,
             entrypoint=validate_call(c),
+        )
+
+    @classmethod
+    def build(cls, c: Callable, break_after_run: bool = False) -> "Function":
+        from inspect import getdoc
+        from phi.utils.json_schema import get_json_schema
+
+        parameters = {"type": "object", "properties": {}}
+        try:
+            type_hints = get_type_hints(c)
+            parameters = get_json_schema(type_hints)
+            # logger.debug(f"Type hints for {c.__name__}: {type_hints}")
+        except Exception as e:
+            logger.warning(f"Could not parse args for {c.__name__}: {e}")
+
+        return cls(
+            name=c.__name__,
+            description=getdoc(c),
+            parameters=parameters,
+            entrypoint=validate_call(c),
+            break_after_run=break_after_run,
         )
 
     def get_type_name(self, t):

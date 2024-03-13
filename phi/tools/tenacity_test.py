@@ -1,10 +1,9 @@
 import random
 from tenacity import retry
 from phi.tools import Toolkit
-import json
 from phi.utils.log import logger
 
-ß
+
 class TestFunction(Toolkit):
     def __init__(self):
         super().__init__(name="test_function")

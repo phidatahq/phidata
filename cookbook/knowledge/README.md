@@ -25,12 +25,14 @@ pip install -U openai phidata
 phi start cookbook/knowledge/resources.py -y
 ```
 
-4. PDF URL Knowledge Base
+4. Test knowledge cookbooks
+
+Eg: PDF URL Knowledge Base
 
 - Install libraries
 
 ```shell
-pip install -U pypdf sqlalchemy pgvector psycopg-binary bs4
+pip install -U pypdf sqlalchemy pgvector 'psycopg[binary]' bs4
 ```
 
 - Run the PDF URL script

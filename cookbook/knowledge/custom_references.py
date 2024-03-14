@@ -1,3 +1,10 @@
+"""
+This cookbook shows how to use a custom function to generate references for RAG.
+
+You can use the custom_references_function to generate references for the RAG model.
+The function takes a query and returns a list of references from the knowledge base.
+"""
+
 import json
 from typing import List, Optional
 

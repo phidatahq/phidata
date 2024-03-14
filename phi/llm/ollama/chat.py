@@ -7,7 +7,7 @@ from phi.llm.message import Message
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
-from phi.utils.tools import get_function_call_for_tool_call
+from phi.utils.tools import get_function_call_for_tool_call, extract_tool_call_from_string
 
 try:
     from ollama import Client as OllamaClient
@@ -128,34 +128,60 @@ class Ollama(LLM):
             role=response_role or "assistant",
             content=response_content,
         )
-        # Check if the response is a tool call
+        # Check if the response contains a tool call
         try:
             if response_content is not None:
-                _tool_call_content = response_content.strip()
-                if _tool_call_content.startswith("{") and _tool_call_content.endswith("}"):
-                    _tool_call_content_json = json.loads(_tool_call_content)
-                    if "tool_calls" in _tool_call_content_json:
-                        assistant_tool_calls = _tool_call_content_json.get("tool_calls")
-                        if isinstance(assistant_tool_calls, list):
-                            # Build tool calls
-                            tool_calls: List[Dict[str, Any]] = []
-                            logger.debug(f"Building tool calls from {assistant_tool_calls}")
-                            for tool_call in assistant_tool_calls:
-                                tool_call_name = tool_call.get("name")
-                                tool_call_args = tool_call.get("arguments")
-                                _function_def = {"name": tool_call_name}
-                                if tool_call_args is not None:
-                                    _function_def["arguments"] = json.dumps(tool_call_args)
-                                tool_calls.append(
-                                    {
-                                        "type": "function",
-                                        "function": _function_def,
-                                    }
-                                )
-                            assistant_message.tool_calls = tool_calls
-                            assistant_message.role = "assistant"
-        except Exception:
-            logger.warning(f"Could not parse tool calls from response: {response_content}")
+                _response_content_clean = response_content.strip()
+                if "<tool_call>" in _response_content_clean and "</tool_call>" in _response_content_clean:
+                    # Extract tool call string from response
+                    tool_call_content = extract_tool_call_from_string(_response_content_clean)
+                    # Convert the extracted string to a dictionary
+                    try:
+                        logger.debug(f"Tool call content: {tool_call_content}")
+                        tool_call_dict = json.loads(tool_call_content)
+                    except json.JSONDecodeError:
+                        raise ValueError("The content between <tool_call> tags is not a valid JSON string.")
+
+                    tool_calls: List[Dict[str, Any]] = []
+                    tool_call_name = tool_call_dict.get("name")
+                    tool_call_args = tool_call_dict.get("arguments")
+                    function_def = {"name": tool_call_name}
+                    if tool_call_args is not None:
+                        function_def["arguments"] = json.dumps(tool_call_args)
+                    tool_calls.append(
+                        {
+                            "type": "function",
+                            "function": function_def,
+                        }
+                    )
+                    assistant_message.tool_calls = tool_calls
+                    assistant_message.role = "assistant"
+                # ----------------- OLD DO NOT USE -----------------
+                # if _tool_call_content.startswith("{") and _tool_call_content.endswith("}"):
+                #     _tool_call_content_json = json.loads(_tool_call_content)
+                #     if "tool_calls" in _tool_call_content_json:
+                #         assistant_tool_calls = _tool_call_content_json.get("tool_calls")
+                #         if isinstance(assistant_tool_calls, list):
+                #             # Build tool calls
+                #             tool_calls: List[Dict[str, Any]] = []
+                #             logger.debug(f"Building tool calls from {assistant_tool_calls}")
+                #             for tool_call in assistant_tool_calls:
+                #                 tool_call_name = tool_call.get("name")
+                #                 tool_call_args = tool_call.get("arguments")
+                #                 _function_def = {"name": tool_call_name}
+                #                 if tool_call_args is not None:
+                #                     _function_def["arguments"] = json.dumps(tool_call_args)
+                #                 tool_calls.append(
+                #                     {
+                #                         "type": "function",
+                #                         "function": _function_def,
+                #                     }
+                #                 )
+                #             assistant_message.tool_calls = tool_calls
+                #             assistant_message.role = "assistant"
+        except Exception as e:
+            logger.warning(f"Could not parse tool calls from: {response_content}")
+            logger.warning(e)
             pass
 
         # -*- Update usage metrics
@@ -193,14 +219,17 @@ class Ollama(LLM):
 
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
             if len(function_call_results) > 0:
-                messages.extend(function_call_results)
+                for _fc_message in function_call_results:
+                    _fc_content = _fc_message.content
+                    _fc_message.content = "<tool_response>\n" + _fc_content + "\n</tool_response>"
+                    messages.append(_fc_message)
                 # Reconfigure messages so the LLM is reminded of the original task
-                if self.add_user_message_after_tool_call:
-                    messages = self.add_original_user_message(messages)
+                # if self.add_user_message_after_tool_call:
+                #     messages = self.add_original_user_message(messages)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
-            if self.deactivate_tools_after_use:
-                self.deactivate_function_calls()
+            # if self.deactivate_tools_after_use:
+            #     self.deactivate_function_calls()
 
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages)
@@ -369,40 +398,49 @@ class Ollama(LLM):
         return messages
 
     def get_instructions_to_generate_tool_calls(self) -> List[str]:
+        tool_call_format = """<tool_call>{{"arguments": <args-dict>, "name": <function-name>}}</tool_call>"""
         if self.functions is not None:
             return [
                 "To respond to the users message, you can use one or more of the tools provided above.",
-                "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
-                + dedent(
-                    """\
-                    {{
-                        "tool_calls": [{
-                            "name": "name of the selected tool",
-                            "arguments": "parameters for the selected tool, matching the tool's JSON schema"
-                        }]
-                    }}\
-                    """
-                ),
-                "To use a tool, just respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",
+                "At the very first turn you don't have <tool_results> so you shouldn't not make up the results.",
+                "If you decide to use a tool, you must return a json object with function name and arguments within <tool_call></tool_call> XML tags as follows: "
+                + "\n"
+                + tool_call_format,
+                "When using a tool, only respond with the tool call. Nothing else. Do not add any additional notes, explanations or white space.",
                 "After you use a tool, the next message you get will contain the result of the tool call.",
-                "REMEMBER: To use a tool, you must respond only in JSON format.",
+                "Do not stop calling functions until the task has been accomplished or you've reached max iteration of 10.",
+                "Calling multiple functions at once can overload the system and increase cost so call one function at a time please.",
                 "After you use a tool and receive the result back, respond regularly to answer the users question.",
             ]
         return []
 
-    def get_tool_calls_definition(self) -> Optional[str]:
-        if self.functions is not None:
-            _tool_choice_prompt = "To respond to the users message, you have access to the following tools:"
+    def get_tool_call_prompt(self) -> Optional[str]:
+        if self.functions is not None and len(self.functions) > 0:
+            tool_call_prompt = dedent("""\
+            You are a function calling AI model with self-recursion. You are provided with function signatures within <tools></tools> XML tags.
+            To help with the user query, you can call one function at a time and analyse data you get from function response in the next iteration.
+            Do not make assumptions about what values to plug into functions.
+
+            Once you have called a function, results will be provided to you within <tool_response></tool_response> XML tags.
+            Do not make assumptions about tool results if <tool_response> XML tags are not present since the function is not yet executed.
+            Analyze the data once you get the results and call another function if needed.
+            At each iteration please continue adding the your analysis to previous summary.
+            Your final response should directly answer the user query.
+            """)
+            tool_call_prompt += "\nHere are the available tools:"
+            tool_call_prompt += "\n<tools>\n"
+            tool_definitions: List[str] = []
             for _f_name, _function in self.functions.items():
-                _function_definition = _function.get_definition_for_prompt()
-                if _function_definition:
-                    _tool_choice_prompt += f"\n{_function_definition}"
-            _tool_choice_prompt += "\n\n"
-            return _tool_choice_prompt
+                _function_def = _function.get_definition_for_prompt()
+                if _function_def:
+                    tool_definitions.append(_function_def)
+            tool_call_prompt += "\n".join(tool_definitions)
+            tool_call_prompt += "\n</tools>\n\n"
+            return tool_call_prompt
         return None
 
     def get_system_prompt_from_llm(self) -> Optional[str]:
-        return self.get_tool_calls_definition()
+        return self.get_tool_call_prompt()
 
     def get_instructions_from_llm(self) -> Optional[List[str]]:
         return self.get_instructions_to_generate_tool_calls()

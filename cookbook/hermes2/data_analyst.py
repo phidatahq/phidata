@@ -16,7 +16,7 @@ assistant = Assistant(
     Here are the tables you have access to:
     - movies: Contains information about movies from IMDB.
     """,
-    debug_mode=True,
+    # debug_mode=True,
 )
 assistant.print_response("What is the average rating of movies?", markdown=True)
 assistant.print_response("Show me a histogram of ratings, decide a good bucket size.", markdown=True)

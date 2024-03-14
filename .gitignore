@@ -40,5 +40,6 @@ aienv*
 
 # ignore scratch dir
 scratch
+junk
 
 .ipynb_checkpoints

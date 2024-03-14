@@ -377,8 +377,8 @@ class Ollama(LLM):
                     """\
                     {{
                         "tool_calls": [{
-                            "name": "<name of the selected tool>",
-                            "arguments": <parameters for the selected tool, matching the tool's JSON schema
+                            "name": "name of the selected tool",
+                            "arguments": "parameters for the selected tool, matching the tool's JSON schema"
                         }]
                     }}\
                     """

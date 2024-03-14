@@ -89,7 +89,7 @@ class FunctionCall(BaseModel):
 
         trimmed_arguments = {}
         for k, v in self.arguments.items():
-            if isinstance(v, str) and len(v) > 50:
+            if isinstance(v, str) and len(v) > 100:
                 trimmed_arguments[k] = "..."
             else:
                 trimmed_arguments[k] = v

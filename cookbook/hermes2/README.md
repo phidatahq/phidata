@@ -1,0 +1,53 @@
+# Hermes 2 Pro Function Calling and JSON Structured Outputs
+
+Hermes 2 Pro is the new flagship 7B Hermes that maintains its excellent general task and conversation capabilities
+but also excels at Function Calling, JSON Structured Outputs, and has improved on several other metrics as well,
+scoring a 90% on the function calling evaluation built in partnership with Fireworks.AI,
+and an 81% on the structured JSON Output evaluation.
+
+> Note: Fork and clone this repository if needed
+
+### 1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama and run hermes2pro
+
+```shell
+ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
+```
+
+This will run a model, provide a response to "Hey!" and then exit.
+
+### 2. Create a virtual environment
+
+```shell
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
+```
+
+### 3. Install libraries
+
+```shell
+pip install -U ollama phidata duckduckgo-search
+```
+
+### 4. Web search using function calling
+
+```shell
+python cookbook/hermes2/tool_call.py
+```
+
+### 5. Structured output
+
+```shell
+python cookbook/hermes2/structured_output.py
+```
+
+### 6. Data Analysis
+
+```shell
+python cookbook/hermes2/web_search.py
+```
+
+### 7. Test Embeddings
+
+```shell
+python cookbook/hermes2/embeddings.py
+```

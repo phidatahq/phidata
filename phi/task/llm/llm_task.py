@@ -388,7 +388,7 @@ class LLMTask(Task):
         """Return a list of references from the knowledge base"""
 
         if self.references_function is not None:
-            reference_kwargs = {"task": self, "query": query}
+            reference_kwargs = {"task": self, "query": query, "num_documents": num_documents}
             return remove_indent(self.references_function(**reference_kwargs))
 
         if self.knowledge_base is None:

@@ -18,10 +18,10 @@ class DuckDbTools(Toolkit):
         read_only: bool = False,
         config: Optional[dict] = None,
         run_queries: bool = True,
-        inspect_queries: bool = True,
+        inspect_queries: bool = False,
         create_tables: bool = True,
         summarize_tables: bool = True,
-        export_tables: bool = True,
+        export_tables: bool = False,
     ):
         super().__init__(name="duckdb_tools")
 

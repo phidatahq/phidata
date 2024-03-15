@@ -39,7 +39,7 @@ class LLM(BaseModel):
     # Functions extracted from the tools. Note: These are not sent to the LLM API and are only used for execution.
     functions: Optional[Dict[str, Function]] = None
     # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 20
+    function_call_limit: int = 10
     # Function call stack.
     function_call_stack: Optional[List[FunctionCall]] = None
 
@@ -135,8 +135,9 @@ class LLM(BaseModel):
             _function_call_timer.stop()
             _function_call_result = Message(
                 role=role,
-                tool_call_id=function_call.call_id,
                 content=function_call.result,
+                tool_call_id=function_call.call_id,
+                tool_call_name=function_call.function.name,
                 metrics={"time": _function_call_timer.elapsed},
             )
             if "tool_call_times" not in self.metrics:

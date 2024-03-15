@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.3.54"
+version = "2.3.55"
 description = "Build AI Assistants using function calling"
 requires-python = ">=3.8"
 readme = "README.md"
@@ -106,5 +106,6 @@ module = [
   "textract.*",
   "vertexai.*",
   "wikipedia.*",
+  "yfinance.*",
 ]
 ignore_missing_imports = true

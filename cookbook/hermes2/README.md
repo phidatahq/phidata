@@ -25,25 +25,25 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -U ollama phidata duckduckgo-search
+pip install -U ollama phidata duckduckgo-search yfinance
 ```
 
-### 4. Web search using function calling
-
-```shell
-python cookbook/hermes2/tool_call.py
-```
-
-### 5. Structured output
-
-```shell
-python cookbook/hermes2/structured_output.py
-```
-
-### 6. Data Analysis
+### 4. Web search function calling
 
 ```shell
 python cookbook/hermes2/web_search.py
+```
+
+### 5. Stock price function calling
+
+```shell
+python cookbook/hermes2/stock_price.py
+```
+
+### 6. Structured output
+
+```shell
+python cookbook/hermes2/structured_output.py
 ```
 
 ### 7. Test Embeddings

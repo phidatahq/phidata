@@ -2,7 +2,7 @@ from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
 from phi.assistant import Assistant
-from phi.llm.ollama import Ollama
+from phi.llm.ollama import Hermes
 
 
 class MovieScript(BaseModel):
@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 movie_assistant = Assistant(
-    llm=Ollama(model="adrienbrault/nous-hermes2pro:Q8_0"),
+    llm=Hermes(model="adrienbrault/nous-hermes2pro:Q8_0"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
     # debug_mode=True,

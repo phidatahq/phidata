@@ -34,10 +34,10 @@ pip install -U ollama phidata duckduckgo-search yfinance
 python cookbook/hermes2/web_search.py
 ```
 
-### 5. Stock price function calling
+### 5. YFinance function calling
 
 ```shell
-python cookbook/hermes2/stock_price.py
+python cookbook/hermes2/finance.py
 ```
 
 ### 6. Structured output

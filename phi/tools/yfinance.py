@@ -169,18 +169,20 @@ class YFinanceTools(Toolkit):
         except Exception as e:
             return f"Error fetching company news for {symbol}: {e}"
 
-    def get_technical_indicators(self, symbol: str) -> str:
+    def get_technical_indicators(self, symbol: str, period: str = "3mo") -> str:
         """
         Get technical indicators for a given stock symbol.
 
         Args:
         symbol (str): The stock symbol.
+        period (str): The time period for which to retrieve technical indicators.
+            Valid periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo.
 
         Returns:
         str: JSON containing technical indicators.
         """
         try:
-            indicators = yf.Ticker(symbol).history(period="max")
+            indicators = yf.Ticker(symbol).history(period=period)
             return indicators.to_json(orient="index")
         except Exception as e:
             return f"Error fetching technical indicators for {symbol}: {e}"

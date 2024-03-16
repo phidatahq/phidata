@@ -7,11 +7,13 @@ from phi.utils.log import logger
 try:
     from exa_py import Exa
 except ImportError:
-    raise ImportError("`exa_py` not installed. Please install using `pip install exa_py`.")
+    raise ImportError("`exa_py` not installed. Please install using `pip install exa_py`")
+
 
 def process_exa_results(results):
     links = [result.url for result in results.results]
     return "\n".join(links)
+
 
 class ExaTools(Toolkit):
     def __init__(

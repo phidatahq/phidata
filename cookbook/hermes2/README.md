@@ -46,7 +46,15 @@ python cookbook/hermes2/finance.py
 python cookbook/hermes2/structured_output.py
 ```
 
-### 7. Test Embeddings
+### 7. Exa Search
+
+```shell
+pip install -U exa_py bs4
+
+python cookbook/hermes2/exa_kg.py
+```
+
+### 8. Test Embeddings
 
 ```shell
 python cookbook/hermes2/embeddings.py

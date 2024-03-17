@@ -15,8 +15,9 @@ class ExaTools(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        search: bool = False,
-        search_with_contents: bool = True,
+        search: bool = True,
+        search_with_contents: bool = False,
+        show_results: bool = False,
     ):
         super().__init__(name="exa")
 
@@ -24,6 +25,7 @@ class ExaTools(Toolkit):
         if not self.api_key:
             logger.error("No Exa API key provided")
 
+        self.show_results = show_results
         if search:
             self.register(self.search_exa)
         if search_with_contents:
@@ -44,7 +46,10 @@ class ExaTools(Toolkit):
             logger.debug(f"Searching exa for: {query}")
             exa_results = exa.search(query, num_results=num_results)
             exa_search_urls = [result.url for result in exa_results.results]
-            return "\n".join(exa_search_urls)
+            parsed_results = "\n".join(exa_search_urls)
+            if self.show_results:
+                logger.info(parsed_results)
+            return parsed_results
         except Exception as e:
             logger.error(f"Failed to search exa {e}")
             return f"Error: {e}"
@@ -75,7 +80,10 @@ class ExaTools(Toolkit):
                     result_dict["title"] = result.title
                 exa_results_parsed.append(result_dict)
 
-            return json.dumps(exa_results_parsed, indent=2)
+            parsed_results = json.dumps(exa_results_parsed, indent=2)
+            if self.show_results:
+                logger.info(parsed_results)
+            return parsed_results
         except Exception as e:
             logger.error(f"Failed to search exa {e}")
             return f"Error: {e}"

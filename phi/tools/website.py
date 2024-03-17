@@ -15,7 +15,7 @@ class WebsiteTools(Toolkit):
         if self.knowledge_base is not None and isinstance(self.knowledge_base, WebsiteKnowledgeBase):
             self.register(self.add_website_to_knowledge_base)
         else:
-            self.register(self.read_website)
+            self.register(self.read_url)
 
     def add_website_to_knowledge_base(self, url: str) -> str:
         """This function adds a websites content to the knowledge base.
@@ -35,8 +35,8 @@ class WebsiteTools(Toolkit):
         self.knowledge_base.load(recreate=False)
         return "Success"
 
-    def read_website(self, url: str) -> str:
-        """This function reads a website and returns the content.
+    def read_url(self, url: str) -> str:
+        """This function reads a url and returns the content.
 
         :param url: The url of the website to read.
         :return: Relevant documents from the website.

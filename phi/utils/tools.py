@@ -1,5 +1,7 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, Callable
 
+from phi.tools.tool import Tool
+from phi.tools.toolkit import Toolkit
 from phi.tools.function import Function, FunctionCall
 from phi.utils.functions import get_function_call
 
@@ -38,3 +40,17 @@ def remove_tool_calls_from_string(text: str, start_tag: str = "<tool_call>", end
         end_index = text.find(end_tag) + len(end_tag)
         text = text[:start_index] + text[end_index:]
     return text
+
+
+def get_tool_name(tool: Union[Tool, Toolkit, Callable, Function, Dict]) -> Optional[str]:
+    if isinstance(tool, Tool) and tool.function is not None:
+        return tool.function.get("name")
+    elif isinstance(tool, Toolkit):
+        return tool.name
+    elif callable(tool):
+        return tool.__name__
+    elif isinstance(tool, Function):
+        return tool.name
+    elif isinstance(tool, dict):
+        return tool.get("name")
+    return None

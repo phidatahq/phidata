@@ -108,9 +108,10 @@ class Hermes(LLM):
 
     def response(self, messages: List[Message]) -> str:
         logger.debug("---------- Hermes Response Start ----------")
-        # -*- Log messages for debugging
-        for m in messages:
-            m.log()
+        # -*- Log messages for debugging if this is the first iteration
+        if len(messages) <= 2:
+            for m in messages:
+                m.log()
 
         response_timer = Timer()
         response_timer.start()
@@ -240,9 +241,10 @@ class Hermes(LLM):
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Hermes Response Start ----------")
-        # -*- Log messages for debugging
-        for m in messages:
-            m.log()
+        # -*- Log messages for debugging if this is the first iteration
+        if len(messages) <= 2:
+            for m in messages:
+                m.log()
 
         assistant_message_content = ""
         response_is_tool_call = False

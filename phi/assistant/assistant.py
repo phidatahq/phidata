@@ -185,7 +185,8 @@ class Assistant(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
-    # -*- Team settings
+    # -*- Group settings
+    # Role of the assistant in the group
     role: Optional[str] = None
 
     # debug_mode=True enables debug logs

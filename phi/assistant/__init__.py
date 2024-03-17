@@ -10,3 +10,4 @@ from phi.assistant.assistant import (
     Tool,
     Toolkit,
 )
+from phi.assistant.group.group import AssistantGroup

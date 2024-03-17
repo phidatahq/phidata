@@ -54,7 +54,7 @@ class ExaTools(Toolkit):
 
         :param query: The query to search for.
         :param num_results: The number of results to return. Defaults to 2.
-        :param text_length_limit: The maximum length of the text to return. Defaults to 1000.
+        :param text_length_limit: The length of the text to return. Defaults to 1000.
         :return: JSON string of the search results.
         """
         if not self.api_key:

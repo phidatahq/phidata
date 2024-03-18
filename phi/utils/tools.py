@@ -38,3 +38,47 @@ def remove_tool_calls_from_string(text: str, start_tag: str = "<tool_call>", end
         end_index = text.find(end_tag) + len(end_tag)
         text = text[:start_index] + text[end_index:]
     return text
+
+
+def extract_tool_from_xml(xml_str):
+    # Find tool_name
+    tool_name_start = xml_str.find("<tool_name>") + len("<tool_name>")
+    tool_name_end = xml_str.find("</tool_name>")
+    tool_name = xml_str[tool_name_start:tool_name_end].strip()
+
+    # Find and process parameters block
+    params_start = xml_str.find("<parameters>") + len("<parameters>")
+    params_end = xml_str.find("</parameters>")
+    parameters_block = xml_str[params_start:params_end].strip()
+
+    # Extract individual parameters
+    arguments = {}
+    while parameters_block:
+        # Find the next tag and its closing
+        tag_start = parameters_block.find("<") + 1
+        tag_end = parameters_block.find(">")
+        tag_name = parameters_block[tag_start:tag_end]
+
+        # Find the tag's closing counterpart
+        value_start = tag_end + 1
+        value_end = parameters_block.find(f"</{tag_name}>")
+        value = parameters_block[value_start:value_end].strip()
+
+        # Add to arguments
+        arguments[tag_name] = value
+
+        # Move past this tag
+        parameters_block = parameters_block[value_end + len(f"</{tag_name}>") :].strip()
+
+    return {"tool_name": tool_name, "parameters": arguments}
+
+
+def remove_function_calls_from_string(
+    text: str, start_tag: str = "<function_calls>", end_tag: str = "</function_calls>"
+):
+    """Remove multiple function calls from a string."""
+    while start_tag in text and end_tag in text:
+        start_index = text.find(start_tag)
+        end_index = text.find(end_tag) + len(end_tag)
+        text = text[:start_index] + text[end_index:]
+    return text

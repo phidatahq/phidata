@@ -6,6 +6,5 @@ assistant = Assistant(
     llm=Claude(model="claude-3-opus-20240229"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
-    debug_mode=True,
 )
 assistant.print_response("Tell me about OpenAI Sora? Also tell me some news about it", markdown=True)

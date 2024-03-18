@@ -20,7 +20,7 @@ movie_assistant = Assistant(
     llm=Claude(model="claude-3-opus-20240229"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
-    debug_mode=True,
+    # debug_mode=True,
 )
 
 pprint(movie_assistant.run("New York"))

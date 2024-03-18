@@ -13,7 +13,7 @@ and an 81% on the structured JSON Output evaluation.
 ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
 ```
 
-This will run a model, provide a response to "Hey!" and then exit.
+This will run the `hermes2pro` model, respond to "Hey!" and then exit.
 
 ### 2. Create a virtual environment
 

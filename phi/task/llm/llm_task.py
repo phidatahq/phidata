@@ -57,6 +57,12 @@ class LLMTask(Task):
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     # -*- Available tools
+    # If use_tools is True and read_chat_history_tool is True,
+    # then a tool is added that allows the LLM to read the chat history.
+    read_chat_history_tool: bool = True
+    # If use_tools is True and search_knowledge_base_tool is True,
+    # then a tool is added that allows the LLM to search the knowledge base.
+    search_knowledge_base_tool: bool = True
     # If use_tools is True and update_knowledge_base is True,
     # then a tool is added that allows the LLM to update the knowledge base.
     update_knowledge_base: bool = False
@@ -175,10 +181,11 @@ class LLMTask(Task):
                 self.llm.add_tool(tool)
 
         if self.use_tools:
-            if self.memory is not None:
+            if self.read_chat_history_tool and self.memory is not None:
                 self.llm.add_tool(self.get_chat_history)
             if self.knowledge_base is not None:
-                self.llm.add_tool(self.search_knowledge_base)
+                if self.search_knowledge_base_tool:
+                    self.llm.add_tool(self.search_knowledge_base)
                 if self.update_knowledge_base:
                     self.llm.add_tool(self.add_to_knowledge_base)
             if self.read_tool_call_history:

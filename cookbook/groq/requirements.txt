@@ -108,7 +108,7 @@ pandas==2.2.1
     #   streamlit
 pgvector==0.2.5
     # via -r cookbook/groq/requirements.in
-phidata==2.3.46
+phidata==2.3.59
     # via -r cookbook/groq/requirements.in
 pillow==10.2.0
     # via streamlit

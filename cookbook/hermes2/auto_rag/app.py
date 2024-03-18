@@ -19,8 +19,8 @@ st.set_page_config(
     page_title="Auto RAG",
     page_icon=":orange_heart:",
 )
-st.title("Autonomous RAG using Hermes 2 Pro")
-st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
+st.title("Hermes 2 Pro Autonomous RAG")
+st.markdown("##### :orange_heart: built with [phidata](https://github.com/phidatahq/phidata)")
 
 
 def restart_assistant():

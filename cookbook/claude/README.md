@@ -20,13 +20,13 @@ export ANTHROPIC_API_KEY=xxx
 ### 3. Install libraries
 
 ```shell
-pip install -r cookbook/claude/requirements.txt
+pip install -U anthropic phidata duckduckgo-search duckdb yfinance
 ```
 
 ### 4. Web search function calling
 
 ```shell
-pip install -U anthropic phidata duckduckgo-search duckdb yfinance
+python cookbook/claude/web_search.py
 ```
 
 ### 5. YFinance function calling
@@ -41,7 +41,7 @@ python cookbook/claude/finance.py
 python cookbook/claude/structured_output.py
 ```
 
-### 7. Data Analystß
+### 7. Data Analyst
 
 ```shell
 python cookbook/claude/data_analyst.py

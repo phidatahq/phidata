@@ -251,6 +251,7 @@ class Claude(LLM):
                 if stream_delta is not None:
                     assistant_message_content += stream_delta
 
+                # Logic to avoid <function_calls> tag being yielded.
                 if stream_delta == "<function":
                     function_call_flag = True
 
@@ -258,7 +259,7 @@ class Claude(LLM):
                     function_call_flag = False
 
                 if not function_call_flag:
-                    # If the response is a tool call, it will start with a "<function" token
+                    # If the response is a tool call, it will start with a "<function" token followed by a "<invoke" token
                     # If response == "<invoke", set response_is_function_call to True
                     if "<invoke" in stream_delta:
                         if assistant_message_content.count("<invoke") > assistant_message_content.count("</invoke>"):

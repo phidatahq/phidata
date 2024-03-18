@@ -25,11 +25,11 @@ class Claude(LLM):
     name: str = "claude"
     model: str = "claude-3-opus-20240229"
     # -*- Request parameters
-    max_tokens: int = 1024
-    temperature: float = 0.0
-    stop_sequences: List[str] = None
-    top_p: float = None
-    top_k: int = None
+    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = None
+    stop_sequences: Optional[List[str]] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
     api_key: Optional[str] = None
@@ -65,10 +65,10 @@ class Claude(LLM):
             _request_params.update(self.request_params)
         return _request_params
 
-    def to_dict(self) -> Dict[str, Any]:
-        _dict = super().to_dict
-        # Unsure about what to add here
-        return _dict
+    # def to_dict(self) -> Dict[str, Any]:
+    #     _dict = super().to_dict
+    #     # Unsure about what to add here
+    #     return _dict
 
     def invoke(self, messages: List[Message]) -> Dict[str, Any]:
         system_message: Message

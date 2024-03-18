@@ -89,11 +89,11 @@ class Claude(LLM):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        response_content = response.content[0].text # type: ignore
+        response_content = response.content[0].text  # type: ignore
 
         # -*- Create assistant message
         assistant_message = Message(
-            role=response.role or "assistant", # type: ignore
+            role=response.role or "assistant",  # type: ignore
             content=response_content,
         )
 
@@ -105,7 +105,7 @@ class Claude(LLM):
                     tool_calls: List[Dict[str, Any]] = []
 
                     # Add function call closing tag to the assistant message
-                    assistant_message.content += "</function_calls>" # type: ignore
+                    assistant_message.content += "</function_calls>"  # type: ignore
 
                     # If the assistant is calling multiple functions, the response will contain multiple <invoke> tags
                     response_content = response_content.split("</invoke>")
@@ -147,7 +147,7 @@ class Claude(LLM):
         # -*- Parse and run function call
         if assistant_message.tool_calls is not None and self.run_tools:
             # Remove the tool call from the response content
-            final_response = remove_function_calls_from_string(assistant_message.content) # type: ignore
+            final_response = remove_function_calls_from_string(assistant_message.content)  # type: ignore
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -174,8 +174,8 @@ class Claude(LLM):
 
                 for _fc_message in function_call_results:
                     fc_responses += "<result>"
-                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>" # type: ignore
-                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>" # type: ignore
+                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"  # type: ignore
+                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"  # type: ignore
                     fc_responses += "</result>"
                 fc_responses += "</function_results>"
 
@@ -203,6 +203,7 @@ class Claude(LLM):
         response_is_function_call = False
         tool_calls_in_response = 0
         is_closing_tool_call = False
+        function_call_flag = False
 
         response = self.invoke_stream(messages=messages)
 
@@ -214,23 +215,30 @@ class Claude(LLM):
                 if stream_delta is not None:
                     assistant_message_content += stream_delta
 
-                # If the response is a tool call, it will start with a "<function" token
-                # If response == "<invoke", set response_is_function_call to True
-                if "<invoke" in stream_delta:
-                    if assistant_message_content.count("<invoke") > assistant_message_content.count("</invoke>"):
-                        response_is_function_call = True
-                        tool_calls_in_response += 1
+                if stream_delta == "<function":
+                    function_call_flag = True
 
-                if response_is_function_call:
-                    if assistant_message_content.count("<invoke") == assistant_message_content.count("</invoke>"):
-                        response_is_function_call = False
-                        is_closing_tool_call = True
+                if stream_delta == ">":
+                    function_call_flag = False
 
-                if not response_is_function_call:
-                    if is_closing_tool_call and stream_delta.strip().endswith(">"):
-                        is_closing_tool_call = False
+                if not function_call_flag:
+                    # If the response is a tool call, it will start with a "<function" token
+                    # If response == "<invoke", set response_is_function_call to True
+                    if "<invoke" in stream_delta:
+                        if assistant_message_content.count("<invoke") > assistant_message_content.count("</invoke>"):
+                            response_is_function_call = True
+                            tool_calls_in_response += 1
 
-                    yield stream_delta
+                    if response_is_function_call:
+                        if assistant_message_content.count("<invoke") == assistant_message_content.count("</invoke>"):
+                            response_is_function_call = False
+                            is_closing_tool_call = True
+
+                    if not response_is_function_call:
+                        if is_closing_tool_call and stream_delta.strip().endswith(">"):
+                            is_closing_tool_call = False
+
+                        yield stream_delta
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
@@ -322,8 +330,8 @@ class Claude(LLM):
 
                 for _fc_message in function_call_results:
                     fc_responses += "<result>"
-                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>" # type: ignore
-                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>" # type: ignore
+                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"  # type: ignore
+                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"  # type: ignore
                     fc_responses += "</result>"
                 fc_responses += "</function_results>"
 

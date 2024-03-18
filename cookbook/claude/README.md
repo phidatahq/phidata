@@ -1,5 +1,7 @@
 # Claude 
 
+[[Model overview](https://docs.anthropic.com/claude/docs/models-overview)] 
+
 > Note: Fork and clone this repository if needed
 
 ### 1. Create and activate a virtual environment
@@ -24,7 +26,7 @@ pip install -r cookbook/claude/requirements.txt
 ### 4. Web search function calling
 
 ```shell
-python cookbook/claude/web_search.py
+pip install -U anthropic phidata duckduckgo-search duckdb yfinance
 ```
 
 ### 5. YFinance function calling
@@ -37,4 +39,10 @@ python cookbook/claude/finance.py
 
 ```shell
 python cookbook/claude/structured_output.py
+```
+
+### 7. Data Analystß
+
+```shell
+python cookbook/claude/data_analyst.py
 ```

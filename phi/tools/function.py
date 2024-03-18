@@ -68,7 +68,6 @@ class Function(BaseModel):
 
     def get_definition_for_prompt_dict(self) -> Optional[Dict[str, Any]]:
         """Returns a function definition that can be used in a prompt."""
-        import json
 
         if self.entrypoint is None:
             return None

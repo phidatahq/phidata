@@ -9,7 +9,7 @@ duckdb_tools.create_table_from_path(
 )
 
 assistant = Assistant(
-    llm=Claude(),
+    llm=Claude(model="claude-3-opus-20240229"),
     tools=[duckdb_tools],
     show_tool_calls=True,
     add_to_system_prompt="""

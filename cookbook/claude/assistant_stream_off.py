@@ -2,8 +2,7 @@ from phi.assistant import Assistant
 from phi.llm.anthropic import Claude
 
 assistant = Assistant(
-    llm=Claude(),
+    llm=Claude(model="claude-3-opus-20240229"),
     description="You help people with their health and fitness goals.",
-    debug_mode=True,
 )
 assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True, stream=False)

@@ -101,7 +101,7 @@ pandas==2.2.1
     #   streamlit
 pgvector==0.2.5
     # via -r cookbook/mistral/requirements.in
-phidata==2.3.59
+phidata==2.3.60
     # via -r cookbook/mistral/requirements.in
 pillow==10.2.0
     # via streamlit

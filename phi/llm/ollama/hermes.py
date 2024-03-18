@@ -31,7 +31,7 @@ class Hermes(LLM):
     client_kwargs: Optional[Dict[str, Any]] = None
     ollama_client: Optional[OllamaClient] = None
     # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 10
+    function_call_limit: int = 5
     # After a tool call is run, add the user message as a reminder to the LLM
     add_user_message_after_tool_call: bool = True
 
@@ -414,9 +414,7 @@ class Hermes(LLM):
                 "At the very first turn you don't have <tool_results> so you shouldn't not make up the results.",
                 "To respond to the users message, you can use only one tool at a time.",
                 "When using a tool, only respond with the tool call. Nothing else. Do not add any additional notes, explanations or white space.",
-                "Remember, when using a tool your message should only contain the tool call. It should start with <tool_call> and end with </tool_call>.",
                 "Do not stop calling functions until the task has been accomplished or you've reached max iteration of 10.",
-                "Calling multiple functions at once can overload the system and increase cost so only call one function at a time please.",
             ]
         return []
 

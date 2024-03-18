@@ -17,12 +17,16 @@ class DuckDuckGo(Toolkit):
         headers: Optional[Any] = None,
         proxies: Optional[Any] = None,
         timeout: Optional[int] = 10,
+        search: bool = True,
+        news: bool = True,
     ):
         super().__init__(name="duckduckgo")
 
         self.ddgs = ddgs or DDGS(headers=headers, proxies=proxies, timeout=timeout)
-        self.register(self.duckduckgo_search)
-        self.register(self.duckduckgo_news)
+        if search:
+            self.register(self.duckduckgo_search)
+        if news:
+            self.register(self.duckduckgo_news)
 
     def duckduckgo_search(self, query: str, max_results: Optional[int] = 5) -> str:
         """Use this function to search DuckDuckGo for a query.

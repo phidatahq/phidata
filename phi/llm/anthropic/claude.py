@@ -24,14 +24,53 @@ except ImportError:
 class Claude(LLM):
     name: str = "claude"
     model: str = "claude-3-opus-20240229"
-    max_tokens: int = 200
+    # -*- Request parameters
+    max_tokens: int = 1024
+    temperature: float = 0.0
+    stop_sequences: List[str] = None
+    top_p: float = None
+    top_k: int = None
+    request_params: Optional[Dict[str, Any]] = None
+    # Maximum number of function calls allowed across all iterations.
+    function_call_limit: int = 10
+    # -*- Client parameters
+    api_key: Optional[str] = None
+    client_params: Optional[Dict[str, Any]] = None
+    # -*- Provide the client manually
     claude_client: Optional[anthropic.Anthropic] = None
 
     @property
     def client(self) -> anthropic.Anthropic:
-        if self.claude_client is None:
-            self.claude_client = anthropic.Anthropic()
-        return self.claude_client
+        if self.claude_client:
+            return self.claude_client
+
+        _client_params: Dict[str, Any] = {}
+        if self.api_key:
+            _client_params["api_key"] = self.api_key
+
+        return anthropic.Anthropic(**_client_params)
+
+    @property
+    def api_kwargs(self) -> Dict[str, Any]:
+        _request_params: Dict[str, Any] = {}
+        if self.max_tokens:
+            _request_params["max_tokens"] = self.max_tokens
+        if self.temperature:
+            _request_params["temperature"] = self.temperature
+        if self.stop_sequences:
+            _request_params["stop_sequences"] = self.stop_sequences
+        if self.top_p:
+            _request_params["top_p"] = self.top_p
+        if self.top_k:
+            _request_params["top_k"] = self.top_k
+        if self.request_params:
+            _request_params.update(self.request_params)
+        return _request_params
+
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = super().to_dict
+        # Unsure about what to add here
+        return _dict
 
     def invoke(self, messages: List[Message]) -> Dict[str, Any]:
         system_message: Message
@@ -511,7 +550,7 @@ class Claude(LLM):
                 _function_def = _function.get_definition_for_prompt_dict()
                 if _function_def:
                     tool_call_prompt += "\n<tool_description>\n"
-                    tool_call_prompt += f"<tool_name>{_function_def.get("name")}</tool_name>\n"
+                    tool_call_prompt += f"<tool_name>{_function_def.get('name')}</tool_name>\n"
                     tool_call_prompt += f"<description>{_function_def.get("description")}</description>\n"
                     arugments = _function_def.get("arguments")
                     tool_call_prompt += "\n<parameters>"

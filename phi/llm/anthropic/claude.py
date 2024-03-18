@@ -45,7 +45,6 @@ class Claude(LLM):
         _client_params: Dict[str, Any] = {}
         if self.api_key:
             _client_params["api_key"] = self.api_key
-
         return anthropic.Anthropic(**_client_params)
 
     @property

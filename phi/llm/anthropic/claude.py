@@ -31,8 +31,6 @@ class Claude(LLM):
     top_p: float = None
     top_k: int = None
     request_params: Optional[Dict[str, Any]] = None
-    # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 10
     # -*- Client parameters
     api_key: Optional[str] = None
     client_params: Optional[Dict[str, Any]] = None
@@ -551,7 +549,7 @@ class Claude(LLM):
                 if _function_def:
                     tool_call_prompt += "\n<tool_description>\n"
                     tool_call_prompt += f"<tool_name>{_function_def.get('name')}</tool_name>\n"
-                    tool_call_prompt += f"<description>{_function_def.get("description")}</description>\n"
+                    tool_call_prompt += f"<description>{_function_def.get('description')}</description>\n"
                     arugments = _function_def.get("arguments")
                     tool_call_prompt += "\n<parameters>"
                     if arugments:
@@ -559,9 +557,9 @@ class Claude(LLM):
                             tool_call_prompt += "\n<parameter>"
                             tool_call_prompt += f"<name>{arg}</name>\n"
                             if isinstance(arugments.get(arg).get("type"), str):
-                                tool_call_prompt += f"<type>{arugments.get(arg).get("type")}</type>\n"
+                                tool_call_prompt += f"<type>{arugments.get(arg).get('type')}</type>\n"
                             else:
-                                tool_call_prompt += f"<type>{arugments.get(arg).get("type")[0]}</type>\n"
+                                tool_call_prompt += f"<type>{arugments.get(arg).get('type')[0]}</type>\n"
                             tool_call_prompt += "</parameter>"
                     tool_call_prompt += "</parameters>"
                     tool_call_prompt += "</tool_description>"

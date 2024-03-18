@@ -3,7 +3,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.llm.anthropic import Claude
 
 assistant = Assistant(
-    llm=Claude(model="claude-3-opus-20240229", max_tokens=5),
+    llm=Claude(model="claude-3-opus-20240229"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
     debug_mode=True,

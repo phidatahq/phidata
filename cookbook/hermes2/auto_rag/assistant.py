@@ -34,8 +34,8 @@ def get_hermes_assistant(
 ) -> Assistant:
     """Get an Autonomous Hermes 2 Assistant."""
 
-    introduction = "Hi, I'm an Autonomous RAG Assistant, built by [phidata](https://github.com/phidatahq/phidata)."
-    introduction += " I'm here to help you with any questions you have. Ask me anything!"
+    introduction = "Hi, I'm an Autonomous RAG Assistant that uses function calling to answer questions.\n\n"
+    introduction += "Upload a PDF and ask me questions."
     instructions = [
         f"You are interacting with the user: {user_id}",
         "When the user asks a question, search your knowledge base using the `search_knowledge_base` tool and provide a concise and relevant answer.",

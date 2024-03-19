@@ -245,9 +245,9 @@ class Hermes(LLM):
             m.log()
 
         assistant_message_content = ""
+        tool_calls_counter = 0
         response_is_tool_call = False
         is_closing_tool_call_tag = False
-        tool_calls_in_response = 0
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
@@ -265,20 +265,28 @@ class Hermes(LLM):
             if response_content is not None:
                 assistant_message_content += response_content
 
+            # Detect if response is a tool call
             # If the response is a tool call, it will start a <tool token
-            # If response == <tool token set response_is_tool_call to True
-            if not response_is_tool_call and "<tool" in assistant_message_content:
-                if assistant_message_content.count("<tool") > assistant_message_content.count("</tool_call>"):
-                    response_is_tool_call = True
-                    tool_calls_in_response += 1
-                    # logger.debug(f"Response inside tool call: {response_is_tool_call}")
+            if not response_is_tool_call and "<tool" in response_content:
+                response_is_tool_call = True
+                # logger.debug(f"Response is tool call: {response_is_tool_call}")
 
-            # If response_is_tool_call is True, look for the closing tag
+            # If response is a tool call, count the number of tool calls
             if response_is_tool_call:
-                if assistant_message_content.count("<tool") == assistant_message_content.count("</tool_call>"):
+                # If the response is an opening tool call tag, increment the tool call counter
+                if "<tool" in response_content:
+                    tool_calls_counter += 1
+
+                # If the response is a closing tool call tag, decrement the tool call counter
+                if assistant_message_content.strip().endswith("</tool_call>"):
+                    tool_calls_counter -= 1
+
+                # If the response is a closing tool call tag and the tool call counter is 0,
+                # tool call response is complete
+                if tool_calls_counter == 0 and response_content.strip().endswith(">"):
                     response_is_tool_call = False
+                    # logger.debug(f"Response is tool call: {response_is_tool_call}")
                     is_closing_tool_call_tag = True
-                    # logger.debug(f"Response inside tool call: {response_is_tool_call}")
 
             # -*- Yield content if not a tool call and content is not None
             if not response_is_tool_call and response_content is not None:
@@ -300,42 +308,41 @@ class Hermes(LLM):
         )
         # Check if the response is a tool call
         try:
-            if tool_calls_in_response > 0:
-                if "<tool_call>" in assistant_message_content and "</tool_call>" in assistant_message_content:
-                    # List of tool calls added to the assistant message
-                    tool_calls: List[Dict[str, Any]] = []
-                    # Break the response into tool calls
-                    tool_call_responses = assistant_message_content.split("</tool_call>")
-                    for tool_call_response in tool_call_responses:
-                        # Add back the closing tag if this is not the last tool call
-                        if tool_call_response != tool_call_responses[-1]:
-                            tool_call_response += "</tool_call>"
+            if "<tool_call>" in assistant_message_content and "</tool_call>" in assistant_message_content:
+                # List of tool calls added to the assistant message
+                tool_calls: List[Dict[str, Any]] = []
+                # Break the response into tool calls
+                tool_call_responses = assistant_message_content.split("</tool_call>")
+                for tool_call_response in tool_call_responses:
+                    # Add back the closing tag if this is not the last tool call
+                    if tool_call_response != tool_call_responses[-1]:
+                        tool_call_response += "</tool_call>"
 
-                        if "<tool_call>" in tool_call_response and "</tool_call>" in tool_call_response:
-                            # Extract tool call string from response
-                            tool_call_content = extract_tool_call_from_string(tool_call_response)
-                            # Convert the extracted string to a dictionary
-                            try:
-                                logger.debug(f"Tool call content: {tool_call_content}")
-                                tool_call_dict = json.loads(tool_call_content)
-                            except json.JSONDecodeError:
-                                raise ValueError(f"Could not parse tool call from: {tool_call_content}")
+                    if "<tool_call>" in tool_call_response and "</tool_call>" in tool_call_response:
+                        # Extract tool call string from response
+                        tool_call_content = extract_tool_call_from_string(tool_call_response)
+                        # Convert the extracted string to a dictionary
+                        try:
+                            logger.debug(f"Tool call content: {tool_call_content}")
+                            tool_call_dict = json.loads(tool_call_content)
+                        except json.JSONDecodeError:
+                            raise ValueError(f"Could not parse tool call from: {tool_call_content}")
 
-                            tool_call_name = tool_call_dict.get("name")
-                            tool_call_args = tool_call_dict.get("arguments")
-                            function_def = {"name": tool_call_name}
-                            if tool_call_args is not None:
-                                function_def["arguments"] = json.dumps(tool_call_args)
-                            tool_calls.append(
-                                {
-                                    "type": "function",
-                                    "function": function_def,
-                                }
-                            )
+                        tool_call_name = tool_call_dict.get("name")
+                        tool_call_args = tool_call_dict.get("arguments")
+                        function_def = {"name": tool_call_name}
+                        if tool_call_args is not None:
+                            function_def["arguments"] = json.dumps(tool_call_args)
+                        tool_calls.append(
+                            {
+                                "type": "function",
+                                "function": function_def,
+                            }
+                        )
 
-                    # If tool call parsing is successful, add tool calls to the assistant message
-                    if len(tool_calls) > 0:
-                        assistant_message.tool_calls = tool_calls
+                # If tool call parsing is successful, add tool calls to the assistant message
+                if len(tool_calls) > 0:
+                    assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
             pass

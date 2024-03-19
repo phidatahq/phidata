@@ -8,4 +8,4 @@ assistant = Assistant(
     show_tool_calls=True,
     debug_mode=True,
 )
-assistant.print_response("Tell me about OpenAI Sora? Also tell me some news about it", markdown=True)
+assistant.print_response("Share 1 story from france and 1 from germany?", markdown=True, stream=False)

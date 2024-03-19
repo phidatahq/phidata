@@ -54,11 +54,11 @@ class ExaTools(Toolkit):
             logger.error(f"Failed to search exa {e}")
             return f"Error: {e}"
 
-    def search_exa_with_contents(self, query: str, num_results: int = 2, text_length_limit: int = 1000) -> str:
+    def search_exa_with_contents(self, query: str, num_results: int = 3, text_length_limit: int = 1000) -> str:
         """Searches Exa for a query and returns the contents from the search results.
 
         :param query: The query to search for.
-        :param num_results: The number of results to return. Defaults to 2.
+        :param num_results: The number of results to return. Defaults to 3.
         :param text_length_limit: The length of the text to return. Defaults to 1000.
         :return: JSON string of the search results.
         """

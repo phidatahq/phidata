@@ -49,34 +49,27 @@ Create a file `assistant.py`
 
 ```python
 from phi.assistant import Assistant
-
-assistant = Assistant(description="You help people with their health and fitness goals.")
-assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
-```
-
-Install openai and run the `Assistant`
-
-```shell
-pip install openai
-
-python assistant.py
-```
-
-Add `DuckDuckGo` functions to let the `Assistant` search the web
-
-```python
-from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
 
 assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
 assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
-Install `duckduckgo-search` and run the `Assistant`
+Install libraries
 
 ```shell
-pip install duckduckgo-search
+pip install openai duckduckgo-search
+```
 
+Export your OPENAI_API_KEY
+
+```shell
+export OPENAI_API_KEY=sk-xxxx
+```
+
+Run the `Assistant` which can search the web using `DuckDuckGo`
+
+```shell
 python assistant.py
 ```
 

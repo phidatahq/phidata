@@ -132,7 +132,7 @@ class Claude(LLM):
 
                     # Add function call closing tag to the assistant message
                     # This is because we add </function_calls> as a stop sequence
-                    assistant_message.content += "</function_calls>"
+                    assistant_message.content += "</function_calls>"  # type: ignore
 
                     # If the assistant is calling multiple functions, the response will contain multiple <invoke> tags
                     response_content = response_content.split("</invoke>")
@@ -200,8 +200,8 @@ class Claude(LLM):
 
                 for _fc_message in function_call_results:
                     fc_responses += "<result>"
-                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"
-                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"
+                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"  # type: ignore
+                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"  # type: ignore
                     fc_responses += "</result>"
                 fc_responses += "</function_results>"
 

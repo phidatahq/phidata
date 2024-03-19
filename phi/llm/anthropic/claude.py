@@ -27,7 +27,7 @@ class Claude(LLM):
     # -*- Request parameters
     max_tokens: Optional[int] = 1024
     temperature: Optional[float] = None
-    stop_sequences: Optional[List[str]] = None
+    stop_sequences: Optional[List[str]] = ["</function_calls>"]
     top_p: Optional[float] = None
     top_k: Optional[int] = None
     request_params: Optional[Dict[str, Any]] = None
@@ -56,12 +56,15 @@ class Claude(LLM):
             _request_params["temperature"] = self.temperature
         if self.stop_sequences:
             _request_params["stop_sequences"] = self.stop_sequences
+            if "</function_calls>" not in  _request_params["stop_sequences"]:
+                _request_params["stop_sequences"].append("</function_calls>")
         if self.top_p:
             _request_params["top_p"] = self.top_p
         if self.top_k:
             _request_params["top_k"] = self.top_k
         if self.request_params:
             _request_params.update(self.request_params)
+        logger.debug(f"Request Params: {_request_params}")
         return _request_params
 
     # def to_dict(self) -> Dict[str, Any]:
@@ -87,8 +90,7 @@ class Claude(LLM):
             ],
             system=system_message.content,
             model=self.model,
-            max_tokens=self.max_tokens,
-            stop_sequences=["</function_calls>"],
+            **self.api_kwargs,
         )
 
     def invoke_stream(self, messages: List[Message]) -> Any:
@@ -102,7 +104,6 @@ class Claude(LLM):
                 user_assistant_message.append(message)
 
         return self.client.messages.stream(
-            max_tokens=self.max_tokens,
             model=self.model,
             messages=[
                 {"role": dump.get("role"), "content": dump.get("content")}
@@ -110,7 +111,7 @@ class Claude(LLM):
                 for dump in [m.model_dump()]
             ],
             system=system_message.content,
-            stop_sequences=["</function_calls>"],
+            **self.api_kwargs,
         )
 
     def response(self, messages: List[Message]) -> str:

@@ -23,7 +23,10 @@
 
 Phidata is a toolkit for building AI Assistants with function calling and connecting LLMs to external tools.
 
-Function calling enables LLMs to achieve tasks by calling external tools and intelligently choosing their path based on the response from the tool, just like how humans solve problems.
+Use phidata to let LLMs do web search, data analysis, send emails or access your application specific logic.
+
+Function calling connects LLMs to external tools and enables them to intelligently solve problems using the available tools.
+
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/facb618c-17bd-4ab8-99eb-c4c8309e0f45)
 

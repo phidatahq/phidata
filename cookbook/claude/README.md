@@ -20,7 +20,7 @@ export ANTHROPIC_API_KEY=xxx
 ### 3. Install libraries
 
 ```shell
-pip install -U anthropic phidata duckduckgo-search duckdb yfinance
+pip install -U anthropic phidata duckduckgo-search duckdb yfinance exa_py
 ```
 
 ### 4. Web search function calling
@@ -45,4 +45,10 @@ python cookbook/claude/structured_output.py
 
 ```shell
 python cookbook/claude/data_analyst.py
+```
+
+### 8. Exa Search
+
+```shell
+python cookbook/claude/exa_search.py
 ```

@@ -15,8 +15,8 @@ class ExaTools(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        search: bool = True,
-        search_with_contents: bool = False,
+        search: bool = False,
+        search_with_contents: bool = True,
         show_results: bool = False,
     ):
         super().__init__(name="exa")

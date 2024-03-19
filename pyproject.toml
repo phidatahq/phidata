@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.3.61"
+version = "2.3.62"
 description = "Build AI Assistants using function calling"
 requires-python = ">=3.8"
 readme = "README.md"

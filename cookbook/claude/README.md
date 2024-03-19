@@ -1,6 +1,6 @@
-# Claude 
+# Claude function calling
 
-[Models overview](https://docs.anthropic.com/claude/docs/models-overview) 
+[Models overview](https://docs.anthropic.com/claude/docs/models-overview)
 
 > Note: Fork and clone this repository if needed
 

@@ -420,7 +420,8 @@ class Hermes(LLM):
 
     def get_tool_call_prompt(self) -> Optional[str]:
         if self.functions is not None and len(self.functions) > 0:
-            tool_call_prompt = dedent("""\
+            tool_call_prompt = dedent(
+                """\
             You are a function calling AI model with self-recursion.
             You are provided with function signatures within <tools></tools> XML tags.
             You can call only one function at a time to achieve your task.
@@ -431,7 +432,8 @@ class Hermes(LLM):
             Do not make assumptions about tool results if <tool_response> XML tags are not present since the function is not yet executed.
             Analyze the results once you get them and call another function if needed.
             Your final response should directly answer the user query with an analysis or summary of the results of function calls.
-            """)
+            """
+            )
             tool_call_prompt += "\nHere are the available tools:"
             tool_call_prompt += "\n<tools>\n"
             tool_definitions: List[str] = []
@@ -441,13 +443,15 @@ class Hermes(LLM):
                     tool_definitions.append(_function_def)
             tool_call_prompt += "\n".join(tool_definitions)
             tool_call_prompt += "\n</tools>\n\n"
-            tool_call_prompt += dedent("""\
+            tool_call_prompt += dedent(
+                """\
             Use the following pydantic model json schema for each tool call you will make: {'title': 'FunctionCall', 'type': 'object', 'properties': {'arguments': {'title': 'Arguments', 'type': 'object'}, 'name': {'title': 'Name', 'type': 'string'}}, 'required': ['arguments', 'name']}
             For each function call return a json object with function name and arguments within <tool_call></tool_call> XML tags as follows:
             <tool_call>
             {"arguments": <args-dict>, "name": <function-name>}
             </tool_call>\n
-            """)
+            """
+            )
             return tool_call_prompt
         return None
 

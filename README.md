@@ -25,9 +25,9 @@ Phidata is a toolkit for building AI Assistants with function calling and connec
 
 Use phidata to let LLMs do **web search, data analysis, send emails or access your application specific logic.**
 
-Function calling connects LLMs to external tools and enables them to intelligently solve problems using the available tools.
-It lets us **go beyond text generation and build AI applications that can take actions**.
-
+<h4 align="center">
+  Go beyond text generation and build AI applications that can take actions
+</h4>
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/facb618c-17bd-4ab8-99eb-c4c8309e0f45)
 
@@ -67,7 +67,7 @@ Export your OPENAI_API_KEY
 export OPENAI_API_KEY=sk-xxxx
 ```
 
-Run the `Assistant` which can search the web using `DuckDuckGo`
+Run the `Assistant` and let it search the web using `DuckDuckGo`
 
 ```shell
 python assistant.py

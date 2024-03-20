@@ -1,4 +1,4 @@
-## Fireworks AI
+## Fireworks AI Function Calling
 
 > Note: Fork and clone this repository if needed
 
@@ -12,7 +12,7 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U phidata openai
+pip install -U openai yfinance exa_py duckduckgo-search streamlit phidata
 ```
 
 3. Export `FIREWORKS_API_KEY`

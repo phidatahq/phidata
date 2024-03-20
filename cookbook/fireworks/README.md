@@ -21,7 +21,21 @@ pip install -U openai yfinance exa_py duckduckgo-search streamlit phidata
 export FIREWORKS_API_KEY=<fireworks-api-key>
 ```
 
-4. Test Fireworks Assistant
+> If you want to use Exa Search, export `EXA_API_KEY` as well
+
+```text
+export EXA_API_KEY=<exa-api-key>
+```
+
+4. Run streamlit app
+
+```shell
+streamlit run cookbook/fireworks/app.py
+```
+
+---
+
+5. Test Fireworks Assistant
 
 - Streaming
 
@@ -35,13 +49,13 @@ python cookbook/fireworks/assistant.py
 python cookbook/fireworks/assistant_stream_off.py
 ```
 
-5. Test Structured output
+6. Test Structured output
 
 ```shell
 python cookbook/fireworks/pydantic_output.py
 ```
 
-6. Test function calling
+7. Test function calling
 
 ```shell
 python cookbook/fireworks/tool_call.py

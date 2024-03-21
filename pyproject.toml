@@ -82,6 +82,7 @@ module = [
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "cohere.*",
   "docker.*",
   "duckdb.*",
   "exa_py.*",

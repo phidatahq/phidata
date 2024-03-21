@@ -84,7 +84,7 @@ class Cohere(LLM):
                 "description": function.description,
                 "parameter_definitions": {
                     param_name: {
-                        "description": "",  # Assuming description is to be added or fetched from somewhere
+                        "description": "",
                         "type": param_info["type"] if isinstance(param_info["type"], str) else param_info["type"][0],
                         "required": "null" not in param_info["type"],
                     }
@@ -94,7 +94,7 @@ class Cohere(LLM):
             for f_name, function in self.functions.items()
         ]
 
-    def invoke(self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None) -> Chat:
+    def invoke(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> Chat:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_kwargs["chat_history"] = []
         user_message: List = []
@@ -125,7 +125,7 @@ class Cohere(LLM):
         return self.client.chat(model=self.model, message=" ".join(user_message), **api_kwargs)
 
     def invoke_stream(
-        self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None
+        self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None
     ) -> StreamingChat:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_kwargs["chat_history"] = []
@@ -160,7 +160,7 @@ class Cohere(LLM):
             **api_kwargs,
         )
 
-    def response(self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None) -> str:
+    def response(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> str:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -258,7 +258,7 @@ class Cohere(LLM):
         return "Something went wrong, please try again."
 
     def response_stream(
-        self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None
+        self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None
     ) -> Any:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging

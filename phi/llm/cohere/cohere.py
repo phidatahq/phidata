@@ -14,7 +14,14 @@ from phi.utils.tools import (
 
 try:
     from cohere import Client as CohereClient
-    from cohere.responses.chat import StreamTextGeneration, ChatToolCallsGenerationEvent, Chat, StreamingChat, ToolCall
+    from cohere.responses.chat import (
+        StreamTextGeneration,
+        ChatToolCallsGenerationEvent,
+        Chat,
+        StreamingChat,
+        ToolCall,
+        ChatRequestToolResultsItem,
+    )
 except ImportError:
     logger.error("`cohere` not installed")
     raise
@@ -87,7 +94,7 @@ class Cohere(LLM):
             for f_name, function in self.functions.items()
         ]
 
-    def invoke(self, messages: List[Message], tool_results: Optional[List] = None) -> Chat:
+    def invoke(self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None) -> Chat:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_kwargs["chat_history"] = []
         user_message: List = []
@@ -115,11 +122,11 @@ class Cohere(LLM):
         if last_user_message:
             user_message.append(last_user_message)
 
-        logger.debug(f"API KWARGS: {api_kwargs}")
-
         return self.client.chat(model=self.model, message=" ".join(user_message), **api_kwargs)
 
-    def invoke_stream(self, messages: List[Message], tool_results: Optional[List] = None) -> StreamingChat:
+    def invoke_stream(
+        self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None
+    ) -> StreamingChat:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_kwargs["chat_history"] = []
         user_message: List = []
@@ -146,8 +153,6 @@ class Cohere(LLM):
         if last_user_message:
             user_message.append(last_user_message)
 
-        logger.debug(f"API KWARGS: {json.dumps(api_kwargs)}")
-
         return self.client.chat(
             model=self.model,
             message=" ".join(user_message),
@@ -155,7 +160,7 @@ class Cohere(LLM):
             **api_kwargs,
         )
 
-    def response(self, messages: List[Message], tool_results: Optional[List] = None) -> str:
+    def response(self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None) -> str:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -166,8 +171,6 @@ class Cohere(LLM):
         response: Chat = self.invoke(messages=messages, tool_results=tool_results)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-
-        logger.debug(f"Response: {response}")
 
         # -*- Parse response
         response_content = response.text
@@ -243,6 +246,8 @@ class Cohere(LLM):
 
                 messages.append(Message(role="user", content=" "))
 
+                # logger.debug(f"Tool results: {tool_results}")
+
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages, tool_results=tool_results)
             return final_response
@@ -252,7 +257,9 @@ class Cohere(LLM):
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
-    def response_stream(self, messages: List[Message], tool_results: Optional[List] = None) -> Any:
+    def response_stream(
+        self, messages: List[Message], tool_results: Optional[ChatRequestToolResultsItem] = None
+    ) -> Any:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -341,9 +348,9 @@ class Cohere(LLM):
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
 
-                logger.debug(f"Tool Results: {tool_results}")
-
                 messages.append(Message(role="user", content="This is a tool result"))
+
+                # logger.debug(f"Tool results: {tool_results}")
 
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages, tool_results=tool_results)

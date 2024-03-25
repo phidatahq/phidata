@@ -11,7 +11,7 @@ index_name = "recipes"
 
 vector_db = PineconeDB(
     name=index_name,
-    dimension=768,
+    dimension=1536,
     spec={
         "region": "us-west-2",
         "pod_type": "p1.x1",
@@ -35,7 +35,6 @@ def pdf_assistant(user: str = "user"):
         run_id=run_id,
         user_id=user,
         knowledge_base=knowledge_base,
-        storage=vector_db,
         # tool_calls=True adds functions to
         # search the knowledge base and chat history
         use_tools=True,

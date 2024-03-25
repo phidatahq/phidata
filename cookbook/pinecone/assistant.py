@@ -28,12 +28,8 @@ knowledge_base = PDFUrlKnowledgeBase(
 # Comment out after first run
 # knowledge_base.load(recreate=False)
 
-def pdf_assistant(new: bool = False, user: str = "user"):
+def pdf_assistant(user: str = "user"):
     run_id: Optional[str] = None
-    if not new:
-        existing_run_ids: List[str] = storage.get_all_run_ids(user)
-        if len(existing_run_ids) > 0:
-            run_id = existing_run_ids[0]
 
     assistant = Assistant(
         run_id=run_id,

@@ -2,7 +2,6 @@ import typer
 from rich.prompt import Prompt
 from typing import Optional, List
 from phi.assistant import Assistant
-from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pineconedb import PineconeDB
 import os
@@ -29,8 +28,6 @@ knowledge_base = PDFUrlKnowledgeBase(
 # Comment out after first run
 # knowledge_base.load(recreate=False)
 
-storage = PgAssistantStorage(table_name="pdf_assistant", db_url=vector_db.get_db_connection_local())
-
 def pdf_assistant(new: bool = False, user: str = "user"):
     run_id: Optional[str] = None
     if not new:
@@ -42,7 +39,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         run_id=run_id,
         user_id=user,
         knowledge_base=knowledge_base,
-        storage=storage,
+        storage=vector_db,
         # tool_calls=True adds functions to
         # search the knowledge base and chat history
         use_tools=True,

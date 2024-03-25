@@ -78,6 +78,7 @@ module = [
   "altair.*",
   "arxiv.*",
   "anthropic.*",
+  "apify_client.*",
   "boto3.*",
   "botocore.*",
   "bs4.*",

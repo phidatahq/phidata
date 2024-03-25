@@ -4,8 +4,7 @@ try:
     from pinecone import Pinecone
 except ImportError:
     raise ImportError(
-        "The `pinecone-client` package is not installed. "
-        "Please install it via `pip install pinecone-client`."
+        "The `pinecone-client` package is not installed. " "Please install it via `pip install pinecone-client`."
     )
 
 from phi.document import Document
@@ -187,10 +186,7 @@ class PineconeDB(VectorDb):
             show_progress (bool, optional): Whether to show progress during upsert. Defaults to False.
 
         """
-        vectors = [
-            {"id": doc.id, "values": doc.embedding, "metadata": doc.metadata}
-            for doc in documents
-        ]
+        vectors = [{"id": doc.id, "values": doc.embedding, "metadata": doc.metadata} for doc in documents]
         self.index.upsert(
             vectors=vectors,
             namespace=namespace,
@@ -219,9 +215,7 @@ class PineconeDB(VectorDb):
             NotImplementedError: This method is not supported by Pinecone.
 
         """
-        raise NotImplementedError(
-            "Pinecone does not support insert operations. Use upsert instead."
-        )
+        raise NotImplementedError("Pinecone does not support insert operations. Use upsert instead.")
 
     def search(
         self,
@@ -255,8 +249,7 @@ class PineconeDB(VectorDb):
             include_metadata=include_metadata,
         )
         return [
-            Document(id=result.id, embedding=result.values, metadata=result.metadata)
-            for result in response.matches
+            Document(id=result.id, embedding=result.values, metadata=result.metadata) for result in response.matches
         ]
 
     def optimize(self) -> None:

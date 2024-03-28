@@ -27,7 +27,7 @@ class TraefikRouter(K8sApp):
 
     # -*- Install traefik CRDs
     # See: https://doc.traefik.io/traefik/providers/kubernetes-crd/#configuration-requirements
-    install_crds: bool = True
+    install_crds: bool = False
 
     # -*- Traefik Configuration
     domain_name: Optional[str] = None
@@ -78,8 +78,58 @@ class TraefikRouter(K8sApp):
     dashboard_auth_users: Optional[str] = None
     insecure_api_access: bool = False
 
+    # -*- Service Configuration
+    create_service: bool = True
+
     def get_dashboard_auth_users(self) -> Optional[str]:
         return self.dashboard_auth_users or self.get_secret_from_file("DASHBOARD_AUTH_USERS")
+
+    def get_ingress_rules(self) -> List[Any]:
+        from kubernetes.client.models.v1_ingress_rule import V1IngressRule
+        from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
+        from kubernetes.client.models.v1_ingress_service_backend import V1IngressServiceBackend
+        from kubernetes.client.models.v1_http_ingress_path import V1HTTPIngressPath
+        from kubernetes.client.models.v1_http_ingress_rule_value import V1HTTPIngressRuleValue
+        from kubernetes.client.models.v1_service_port import V1ServicePort
+
+        ingress_rules = [
+            V1IngressRule(
+                http=V1HTTPIngressRuleValue(
+                    paths=[
+                        V1HTTPIngressPath(
+                            path="/",
+                            path_type="Prefix",
+                            backend=V1IngressBackend(
+                                service=V1IngressServiceBackend(
+                                    name=self.get_service_name(),
+                                    port=V1ServicePort(
+                                        name=self.https_key if self.https_enabled else self.http_key,
+                                        port=self.https_service_port if self.https_enabled else self.http_service_port,
+                                    ),
+                                )
+                            ),
+                        ),
+                    ]
+                ),
+            )
+        ]
+        if self.dashboard_enabled:
+            ingress_rules[0].http.paths.append(
+                V1HTTPIngressPath(
+                    path="/",
+                    path_type="Prefix",
+                    backend=V1IngressBackend(
+                        service=V1IngressServiceBackend(
+                            name=self.get_service_name(),
+                            port=V1ServicePort(
+                                name=self.dashboard_key,
+                                port=self.dashboard_service_port,
+                            ),
+                        )
+                    ),
+                )
+            )
+        return ingress_rules
 
     def get_cr_policy_rules(self) -> List[Any]:
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import (
@@ -314,7 +364,6 @@ class TraefikRouter(K8sApp):
                 name=self.dashboard_ingress_name,
                 crd=ingressroute_crd,
                 spec={
-                    # "entryPoints": [dashboard_entrypoint],
                     "routes": dashboard_routes,
                 },
                 app_name=self.get_app_name(),

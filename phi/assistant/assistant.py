@@ -83,6 +83,12 @@ class Assistant(BaseModel):
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     # -*- Available tools
+    # If use_tools is True and read_chat_history_tool is True,
+    # then a tool is added that allows the LLM to read the chat history.
+    read_chat_history_tool: bool = True
+    # If use_tools is True and search_knowledge_base_tool is True,
+    # then a tool is added that allows the LLM to search the knowledge base.
+    search_knowledge_base_tool: bool = True
     # If use_tools is True and update_knowledge_base is True,
     # then a tool is added that allows the LLM to update the knowledge base.
     update_knowledge_base: bool = False
@@ -227,6 +233,8 @@ class Assistant(BaseModel):
             tool_call_limit=self.tool_call_limit,
             tools=self.tools,
             tool_choice=self.tool_choice,
+            read_chat_history_tool=self.read_chat_history_tool,
+            search_knowledge_base_tool=self.search_knowledge_base_tool,
             update_knowledge_base=self.update_knowledge_base,
             read_tool_call_history=self.read_tool_call_history,
             format_messages=self.format_messages,
@@ -354,9 +362,6 @@ class Assistant(BaseModel):
 
         if self.storage is not None and self.run_id is not None:
             self.db_row = self.storage.read(run_id=self.run_id)
-            if self.user_id is not None and self.db_row is not None and self.db_row.user_id != self.user_id:
-                logger.error(f"SECURITY ERROR: User id mismatch: {self.user_id} != {self.db_row.user_id}")
-                return None
             if self.db_row is not None:
                 logger.debug(f"-*- Loading run: {self.db_row.run_id}")
                 self.from_database_row(row=self.db_row)

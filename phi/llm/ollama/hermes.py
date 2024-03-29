@@ -31,7 +31,7 @@ class Hermes(LLM):
     client_kwargs: Optional[Dict[str, Any]] = None
     ollama_client: Optional[OllamaClient] = None
     # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 10
+    function_call_limit: int = 5
     # After a tool call is run, add the user message as a reminder to the LLM
     add_user_message_after_tool_call: bool = True
 
@@ -245,9 +245,9 @@ class Hermes(LLM):
             m.log()
 
         assistant_message_content = ""
+        tool_calls_counter = 0
         response_is_tool_call = False
         is_closing_tool_call_tag = False
-        tool_calls_in_response = 0
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
@@ -265,20 +265,28 @@ class Hermes(LLM):
             if response_content is not None:
                 assistant_message_content += response_content
 
+            # Detect if response is a tool call
             # If the response is a tool call, it will start a <tool token
-            # If response == <tool token set response_is_tool_call to True
-            if not response_is_tool_call and "<tool" in assistant_message_content:
-                if assistant_message_content.count("<tool") > assistant_message_content.count("</tool_call>"):
-                    response_is_tool_call = True
-                    tool_calls_in_response += 1
-                    # logger.debug(f"Response inside tool call: {response_is_tool_call}")
+            if not response_is_tool_call and "<tool" in response_content:
+                response_is_tool_call = True
+                # logger.debug(f"Response is tool call: {response_is_tool_call}")
 
-            # If response_is_tool_call is True, look for the closing tag
+            # If response is a tool call, count the number of tool calls
             if response_is_tool_call:
-                if assistant_message_content.count("<tool") == assistant_message_content.count("</tool_call>"):
+                # If the response is an opening tool call tag, increment the tool call counter
+                if "<tool" in response_content:
+                    tool_calls_counter += 1
+
+                # If the response is a closing tool call tag, decrement the tool call counter
+                if assistant_message_content.strip().endswith("</tool_call>"):
+                    tool_calls_counter -= 1
+
+                # If the response is a closing tool call tag and the tool call counter is 0,
+                # tool call response is complete
+                if tool_calls_counter == 0 and response_content.strip().endswith(">"):
                     response_is_tool_call = False
+                    # logger.debug(f"Response is tool call: {response_is_tool_call}")
                     is_closing_tool_call_tag = True
-                    # logger.debug(f"Response inside tool call: {response_is_tool_call}")
 
             # -*- Yield content if not a tool call and content is not None
             if not response_is_tool_call and response_content is not None:
@@ -300,42 +308,41 @@ class Hermes(LLM):
         )
         # Check if the response is a tool call
         try:
-            if tool_calls_in_response > 0:
-                if "<tool_call>" in assistant_message_content and "</tool_call>" in assistant_message_content:
-                    # List of tool calls added to the assistant message
-                    tool_calls: List[Dict[str, Any]] = []
-                    # Break the response into tool calls
-                    tool_call_responses = assistant_message_content.split("</tool_call>")
-                    for tool_call_response in tool_call_responses:
-                        # Add back the closing tag if this is not the last tool call
-                        if tool_call_response != tool_call_responses[-1]:
-                            tool_call_response += "</tool_call>"
+            if "<tool_call>" in assistant_message_content and "</tool_call>" in assistant_message_content:
+                # List of tool calls added to the assistant message
+                tool_calls: List[Dict[str, Any]] = []
+                # Break the response into tool calls
+                tool_call_responses = assistant_message_content.split("</tool_call>")
+                for tool_call_response in tool_call_responses:
+                    # Add back the closing tag if this is not the last tool call
+                    if tool_call_response != tool_call_responses[-1]:
+                        tool_call_response += "</tool_call>"
 
-                        if "<tool_call>" in tool_call_response and "</tool_call>" in tool_call_response:
-                            # Extract tool call string from response
-                            tool_call_content = extract_tool_call_from_string(tool_call_response)
-                            # Convert the extracted string to a dictionary
-                            try:
-                                logger.debug(f"Tool call content: {tool_call_content}")
-                                tool_call_dict = json.loads(tool_call_content)
-                            except json.JSONDecodeError:
-                                raise ValueError(f"Could not parse tool call from: {tool_call_content}")
+                    if "<tool_call>" in tool_call_response and "</tool_call>" in tool_call_response:
+                        # Extract tool call string from response
+                        tool_call_content = extract_tool_call_from_string(tool_call_response)
+                        # Convert the extracted string to a dictionary
+                        try:
+                            logger.debug(f"Tool call content: {tool_call_content}")
+                            tool_call_dict = json.loads(tool_call_content)
+                        except json.JSONDecodeError:
+                            raise ValueError(f"Could not parse tool call from: {tool_call_content}")
 
-                            tool_call_name = tool_call_dict.get("name")
-                            tool_call_args = tool_call_dict.get("arguments")
-                            function_def = {"name": tool_call_name}
-                            if tool_call_args is not None:
-                                function_def["arguments"] = json.dumps(tool_call_args)
-                            tool_calls.append(
-                                {
-                                    "type": "function",
-                                    "function": function_def,
-                                }
-                            )
+                        tool_call_name = tool_call_dict.get("name")
+                        tool_call_args = tool_call_dict.get("arguments")
+                        function_def = {"name": tool_call_name}
+                        if tool_call_args is not None:
+                            function_def["arguments"] = json.dumps(tool_call_args)
+                        tool_calls.append(
+                            {
+                                "type": "function",
+                                "function": function_def,
+                            }
+                        )
 
-                    # If tool call parsing is successful, add tool calls to the assistant message
-                    if len(tool_calls) > 0:
-                        assistant_message.tool_calls = tool_calls
+                # If tool call parsing is successful, add tool calls to the assistant message
+                if len(tool_calls) > 0:
+                    assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
             pass
@@ -414,15 +421,14 @@ class Hermes(LLM):
                 "At the very first turn you don't have <tool_results> so you shouldn't not make up the results.",
                 "To respond to the users message, you can use only one tool at a time.",
                 "When using a tool, only respond with the tool call. Nothing else. Do not add any additional notes, explanations or white space.",
-                "Remember, when using a tool your message should only contain the tool call. It should start with <tool_call> and end with </tool_call>.",
                 "Do not stop calling functions until the task has been accomplished or you've reached max iteration of 10.",
-                "Calling multiple functions at once can overload the system and increase cost so only call one function at a time please.",
             ]
         return []
 
     def get_tool_call_prompt(self) -> Optional[str]:
         if self.functions is not None and len(self.functions) > 0:
-            tool_call_prompt = dedent("""\
+            tool_call_prompt = dedent(
+                """\
             You are a function calling AI model with self-recursion.
             You are provided with function signatures within <tools></tools> XML tags.
             You can call only one function at a time to achieve your task.
@@ -433,7 +439,8 @@ class Hermes(LLM):
             Do not make assumptions about tool results if <tool_response> XML tags are not present since the function is not yet executed.
             Analyze the results once you get them and call another function if needed.
             Your final response should directly answer the user query with an analysis or summary of the results of function calls.
-            """)
+            """
+            )
             tool_call_prompt += "\nHere are the available tools:"
             tool_call_prompt += "\n<tools>\n"
             tool_definitions: List[str] = []
@@ -443,13 +450,15 @@ class Hermes(LLM):
                     tool_definitions.append(_function_def)
             tool_call_prompt += "\n".join(tool_definitions)
             tool_call_prompt += "\n</tools>\n\n"
-            tool_call_prompt += dedent("""\
+            tool_call_prompt += dedent(
+                """\
             Use the following pydantic model json schema for each tool call you will make: {'title': 'FunctionCall', 'type': 'object', 'properties': {'arguments': {'title': 'Arguments', 'type': 'object'}, 'name': {'title': 'Name', 'type': 'string'}}, 'required': ['arguments', 'name']}
             For each function call return a json object with function name and arguments within <tool_call></tool_call> XML tags as follows:
             <tool_call>
             {"arguments": <args-dict>, "name": <function-name>}
             </tool_call>\n
-            """)
+            """
+            )
             return tool_call_prompt
         return None
 

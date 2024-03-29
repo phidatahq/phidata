@@ -13,7 +13,7 @@ and an 81% on the structured JSON Output evaluation.
 ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
 ```
 
-This will run a model, provide a response to "Hey!" and then exit.
+This will run the `hermes2pro` model, respond to "Hey!" and then exit.
 
 ### 2. Create a virtual environment
 
@@ -46,7 +46,15 @@ python cookbook/hermes2/finance.py
 python cookbook/hermes2/structured_output.py
 ```
 
-### 7. Test Embeddings
+### 7. Exa Search
+
+```shell
+pip install -U exa_py bs4
+
+python cookbook/hermes2/exa_kg.py
+```
+
+### 8. Test Embeddings
 
 ```shell
 python cookbook/hermes2/embeddings.py

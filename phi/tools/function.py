@@ -66,6 +66,21 @@ class Function(BaseModel):
         }
         return json.dumps(function_info, indent=2)
 
+    def get_definition_for_prompt_dict(self) -> Optional[Dict[str, Any]]:
+        """Returns a function definition that can be used in a prompt."""
+
+        if self.entrypoint is None:
+            return None
+
+        type_hints = get_type_hints(self.entrypoint)
+        function_info = {
+            "name": self.name,
+            "description": self.description,
+            "arguments": self.parameters.get("properties", {}),
+            "returns": type_hints.get("return", "void").__name__,
+        }
+        return function_info
+
 
 class FunctionCall(BaseModel):
     """Model for Function Calls"""

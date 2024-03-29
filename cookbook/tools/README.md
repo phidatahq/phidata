@@ -1,4 +1,4 @@
-## Fireworks AI Function Calling
+## Tool Calling
 
 > Note: Fork and clone this repository if needed
 
@@ -15,10 +15,12 @@ source ~/.venvs/aienv/bin/activate
 pip install -U openai yfinance exa_py duckduckgo-search streamlit phidata
 ```
 
-3. Export `FIREWORKS_API_KEY`
+3. Export `OPENAI_API_KEY`
 
 ```text
-export FIREWORKS_API_KEY=<fireworks-api-key>
+
+```text
+export OPENAI_API_KEY=<openai-api-key>
 ```
 
 > If you want to use Exa Search, export `EXA_API_KEY` as well

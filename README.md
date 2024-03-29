@@ -21,9 +21,11 @@
 
 ## What is phidata?
 
-Phidata is a toolkit for building AI Assistants using function calling.
+Phidata is a toolkit for building AI Assistants with function calling and connecting LLMs to external tools.
 
-Function calling enables LLMs to achieve tasks by calling functions and intelligently choosing their next step based on the response, just like how humans solve problems.
+Use phidata to let LLMs do **web search, data analysis, send emails or access your application specific logic.**
+
+Phidata Assistants come with built-in memory, storage, knowledge and access to tools. Go beyond text generation and build AI applications that can take actions
 
 ![assistants](https://github.com/phidatahq/phidata/assets/22579644/facb618c-17bd-4ab8-99eb-c4c8309e0f45)
 
@@ -45,34 +47,27 @@ Create a file `assistant.py`
 
 ```python
 from phi.assistant import Assistant
-
-assistant = Assistant(description="You help people with their health and fitness goals.")
-assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
-```
-
-Install openai and run the `Assistant`
-
-```shell
-pip install openai
-
-python assistant.py
-```
-
-Add `DuckDuckGo` functions to let the `Assistant` search the web
-
-```python
-from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
 
 assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
 assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
-Install `duckduckgo-search` and run the `Assistant`
+Install libraries
 
 ```shell
-pip install duckduckgo-search
+pip install openai duckduckgo-search
+```
 
+Export your OPENAI_API_KEY
+
+```shell
+export OPENAI_API_KEY=sk-xxxx
+```
+
+Run the `Assistant` and let it search the web using `DuckDuckGo`
+
+```shell
 python assistant.py
 ```
 

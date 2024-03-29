@@ -7,13 +7,15 @@ from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.storage.assistant.singlestore import S2AssistantStorage
 from resources import config  # type: ignore
 
-db_url = f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
-storage = S2AssistantStorage(table_name="pdf_assistant", schema=config['database'], db_url=db_url)
+db_url = (
+    f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+)
+storage = S2AssistantStorage(table_name="pdf_assistant", schema=config["database"], db_url=db_url)
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=S2VectorDb(
         collection="recipes",
-        schema=config['database'],
+        schema=config["database"],
         db_url=db_url,
         embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
     ),

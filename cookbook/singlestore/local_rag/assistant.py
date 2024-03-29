@@ -10,18 +10,20 @@ from phi.vectordb.singlestore import S2VectorDb
 from resources import config  # type: ignore
 
 # Setup SingleStore connection
-db_url = f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+db_url = (
+    f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+)
 
 local_assistant_storage = S2AssistantStorage(
     table_name="local_rag_assistant",
-    schema=config['database'],
+    schema=config["database"],
     db_url=db_url,
 )
 
 local_assistant_knowledge = AssistantKnowledge(
     vector_db=S2VectorDb(
         collection="local_rag_documents",
-        schema=config['database'],
+        schema=config["database"],
         db_url=db_url,
         # Assuming OllamaEmbedder or a compatible embedder is used for SingleStore
         embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),

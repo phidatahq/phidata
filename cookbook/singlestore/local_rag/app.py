@@ -53,11 +53,7 @@ def main() -> None:
     local_rag_assistant: Assistant
     if "local_rag_assistant" not in st.session_state or st.session_state["local_rag_assistant"] is None:
         logger.info(f"---*--- Creating {local_rag_model} Assistant ---*---")
-        local_rag_assistant = get_local_rag_assistant(
-            model=local_rag_model,
-            user_id=username,
-            debug_mode=True
-        )
+        local_rag_assistant = get_local_rag_assistant(model=local_rag_model, user_id=username, debug_mode=True)
         st.session_state["local_rag_assistant"] = local_rag_assistant
     else:
         local_rag_assistant = st.session_state["local_rag_assistant"]

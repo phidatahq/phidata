@@ -102,6 +102,7 @@ module = [
   "pypdf.*",
   "qdrant_client.*",
   "simplejson.*",
+  "serpapi.*",
   "setuptools.*",
   "sqlalchemy.*",
   "streamlit.*",

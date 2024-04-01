@@ -362,9 +362,6 @@ class Assistant(BaseModel):
 
         if self.storage is not None and self.run_id is not None:
             self.db_row = self.storage.read(run_id=self.run_id)
-            if self.user_id is not None and self.db_row is not None and self.db_row.user_id != self.user_id:
-                logger.error(f"SECURITY ERROR: User id mismatch: {self.user_id} != {self.db_row.user_id}")
-                return None
             if self.db_row is not None:
                 logger.debug(f"-*- Loading run: {self.db_row.run_id}")
                 self.from_database_row(row=self.db_row)

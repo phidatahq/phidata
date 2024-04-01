@@ -1,8 +1,6 @@
 from typing import Any
 
 from phi.file import File
-from phi.utils.log import logger
-
 
 class TextFile(File):
     path: str

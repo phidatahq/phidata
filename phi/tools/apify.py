@@ -27,7 +27,7 @@ class ApifyTools(Toolkit):
         if web_scraper:
             self.register(self.web_scrapper)
 
-    def website_content_crawler(self, urls: List[str] = None, timeout: Optional[int] = 60) -> str:
+    def website_content_crawler(self, urls: List[str], timeout: Optional[int] = 60) -> str:
         if self.api_key is None:
             return "No API key provided"
 
@@ -52,7 +52,7 @@ class ApifyTools(Toolkit):
 
         return results
 
-    def web_scrapper(self, urls: List[str] = None, timeout: Optional[int] = 60) -> str:
+    def web_scrapper(self, urls: List[str], timeout: Optional[int] = 60) -> str:
         """
         Scrapes a website using Apify's web-scraper actor.
 

@@ -23,7 +23,8 @@ class ApifyTools(Toolkit):
         if not self.api_key:
             logger.error("No Apify API key provided")
 
-        self.register(self.website_content_crawler)
+        if website_content_crawler:
+            self.register(self.website_content_crawler)
         if web_scraper:
             self.register(self.web_scrapper)
 
@@ -73,8 +74,28 @@ class ApifyTools(Toolkit):
 
         formatted_urls = [{"url": url} for url in urls]
 
+        page_function_string = """
+            async function pageFunction(context) {
+                const $ = context.jQuery;
+                const pageTitle = $('title').first().text();
+                const h1 = $('h1').first().text();
+                const first_h2 = $('h2').first().text();
+                const random_text_from_the_page = $('p').first().text();
+
+                context.log.info(`URL: ${context.request.url}, TITLE: ${pageTitle}`);
+
+                return {
+                    url: context.request.url,
+                    pageTitle,
+                    h1,
+                    first_h2,
+                    random_text_from_the_page
+                };
+            }
+        """
+
         run_input = {
-            "pageFunction": "// The function accepts a single argument: the \"context\" object.\n// For a complete list of its properties and functions,\n// see https://apify.com/apify/web-scraper#page-function \nasync function pageFunction(context) {\n    // This statement works as a breakpoint when you're trying to debug your code. Works only with Run mode: DEVELOPMENT!\n    // debugger; \n\n    // jQuery is handy for finding DOM elements and extracting data from them.\n    // To use it, make sure to enable the \"Inject jQuery\" option.\n    const $ = context.jQuery;\n    const pageTitle = $('title').first().text();\n    const h1 = $('h1').first().text();\n    const first_h2 = $('h2').first().text();\n    const random_text_from_the_page = $('p').first().text();\n\n\n    // Print some information to actor log\n    context.log.info(`URL: ${context.request.url}, TITLE: ${pageTitle}`);\n\n    // Manually add a new page to the queue for scraping.\n   await context.enqueueRequest({ url: 'http://www.example.com' });\n\n    // Return an object with the data extracted from the page.\n    // It will be stored to the resulting dataset.\n    return {\n        url: context.request.url,\n        pageTitle,\n        h1,\n        first_h2,\n        random_text_from_the_page\n    };\n}",
+            "pageFunction": page_function_string,
             "startUrls": formatted_urls,
         }
 

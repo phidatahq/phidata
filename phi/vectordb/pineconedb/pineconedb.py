@@ -57,6 +57,7 @@ class PineconeDB(VectorDb):
         metric: Optional[str] = "cosine",
         additional_headers: Optional[Dict[str, str]] = {},
         pool_threads: Optional[int] = 1,
+        namespace: Optional[str] = None,
         timeout: Optional[int] = None,
         index_api: Optional[ManageIndexesApi] = None,
         api_key: Optional[str] = None,
@@ -71,6 +72,7 @@ class PineconeDB(VectorDb):
         self.config: Optional[Config] = config
         self.additional_headers: Optional[Dict[str, str]] = additional_headers
         self.pool_threads: Optional[int] = pool_threads
+        self.namespace: Optional[str] = namespace
         self.index_api: Optional[ManageIndexesApi] = index_api
         self.name: str = name
         self.dimension: int = dimension

@@ -1,13 +1,15 @@
-from typing import Optional, Dict, Config, Union, List
+from typing import Optional, Dict, Union, List
 
 try:
     from pinecone import Pinecone
+    from pinecone.config import Config
 except ImportError:
     raise ImportError(
-        "The `pinecone-client` package is not installed. " "Please install it via `pip install pinecone-client`."
+        "The `pinecone-client` package is not installed, please install using `pip install pinecone-client`."
     )
 
 from phi.document import Document
+from phi.embedder import Embedder
 from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
 from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
@@ -46,7 +48,6 @@ class PineconeDB(VectorDb):
         metric (Optional[str]): The metric used for similarity search.
         timeout (Optional[int]): The timeout for Pinecone operations.
         kwargs (Optional[Dict[str, str]]): Additional keyword arguments.
-
     """
 
     def __init__(
@@ -54,8 +55,9 @@ class PineconeDB(VectorDb):
         name: str,
         dimension: int,
         spec: Union[Dict, ServerlessSpec, PodSpec],
+        embedder: Optional[Embedder] = None,
         metric: Optional[str] = "cosine",
-        additional_headers: Optional[Dict[str, str]] = {},
+        additional_headers: Optional[Dict[str, str]] = None,
         pool_threads: Optional[int] = 1,
         namespace: Optional[str] = None,
         timeout: Optional[int] = None,
@@ -70,7 +72,7 @@ class PineconeDB(VectorDb):
         self.api_key: Optional[str] = api_key
         self.host: Optional[str] = host
         self.config: Optional[Config] = config
-        self.additional_headers: Optional[Dict[str, str]] = additional_headers
+        self.additional_headers: Dict[str, str] = additional_headers or {}
         self.pool_threads: Optional[int] = pool_threads
         self.namespace: Optional[str] = namespace
         self.index_api: Optional[ManageIndexesApi] = index_api
@@ -80,6 +82,14 @@ class PineconeDB(VectorDb):
         self.metric: Optional[str] = metric
         self.timeout: Optional[int] = timeout
         self.kwargs: Optional[Dict[str, str]] = kwargs
+
+        # Embedder for embedding the document contents
+        _embedder = embedder
+        if _embedder is None:
+            from phi.embedder.openai import OpenAIEmbedder
+
+            _embedder = OpenAIEmbedder()
+        self.embedder: Embedder = _embedder
 
     @property
     def client(self) -> Pinecone:
@@ -188,7 +198,7 @@ class PineconeDB(VectorDb):
             show_progress (bool, optional): Whether to show progress during upsert. Defaults to False.
 
         """
-        vectors = [{"id": doc.id, "values": doc.embedding, "metadata": doc.metadata} for doc in documents]
+        vectors = [{"id": doc.id, "values": doc.embedding, "metadata": doc.meta_data} for doc in documents]
         self.index.upsert(
             vectors=vectors,
             namespace=namespace,
@@ -221,7 +231,7 @@ class PineconeDB(VectorDb):
 
     def search(
         self,
-        query_vector: List[float],
+        query: str,
         limit: int = 5,
         namespace: Optional[str] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
@@ -231,7 +241,7 @@ class PineconeDB(VectorDb):
         """Search for similar documents in the index.
 
         Args:
-            query_vector (List[float]): The query vector.
+            query (str): The query to search for.
             limit (int, optional): The maximum number of results to return. Defaults to 5.
             namespace (Optional[str], optional): The namespace to search in. Defaults to None.
             filter (Optional[Dict[str, Union[str, float, int, bool, List, dict]]], optional): The filter for the search. Defaults to None.
@@ -242,8 +252,13 @@ class PineconeDB(VectorDb):
             List[Document]: The list of matching documents.
 
         """
+        query_embedding = self.embedder.get_embedding(query)
+        if query_embedding is None:
+            logger.error(f"Error getting embedding for Query: {query}")
+            return []
+
         response = self.index.query(
-            vector=query_vector,
+            vector=query_embedding,
             top_k=limit,
             namespace=namespace,
             filter=filter,
@@ -251,7 +266,7 @@ class PineconeDB(VectorDb):
             include_metadata=include_metadata,
         )
         return [
-            Document(id=result.id, embedding=result.values, metadata=result.metadata) for result in response.matches
+            Document(id=result.id, embedding=result.values, meta_data=result.metadata) for result in response.matches
         ]
 
     def optimize(self) -> None:

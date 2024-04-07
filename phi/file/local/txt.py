@@ -2,6 +2,7 @@ from typing import Any
 
 from phi.file import File
 
+
 class TextFile(File):
     path: str
     type: str = "TEXT"

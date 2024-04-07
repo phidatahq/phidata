@@ -98,6 +98,7 @@ module = [
   "ollama.*",
   "openai.*",
   "pandas.*",
+  "pinecone.*",
   "pyarrow.*",
   "pgvector.*",
   "psycopg.*",

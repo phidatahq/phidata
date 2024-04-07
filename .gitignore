@@ -27,7 +27,7 @@
 .images
 
 # ignore local dir
-local
+# local
 
 # ignore dist dir
 dist

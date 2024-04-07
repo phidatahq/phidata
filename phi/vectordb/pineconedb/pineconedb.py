@@ -266,7 +266,13 @@ class PineconeDB(VectorDb):
             include_metadata=include_metadata,
         )
         return [
-            Document(id=result.id, embedding=result.values, meta_data=result.metadata) for result in response.matches
+            Document(
+                content=result.metadata.get("text", "") if result.metadata is not None else "",
+                id=result.id,
+                embedding=result.values,
+                meta_data=result.metadata,
+            )
+            for result in response.matches
         ]
 
     def optimize(self) -> None:
@@ -277,11 +283,15 @@ class PineconeDB(VectorDb):
         """
         pass
 
-    def clear(self, namespace: Optional[str] = None) -> None:
+    def clear(self, namespace: Optional[str] = None) -> bool:
         """Clear the index.
 
         Args:
             namespace (Optional[str], optional): The namespace to clear. Defaults to None.
 
         """
-        self.index.delete(delete_all=True, namespace=namespace)
+        try:
+            self.index.delete(delete_all=True, namespace=namespace)
+            return True
+        except Exception:
+            return False

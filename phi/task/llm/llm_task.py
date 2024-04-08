@@ -112,6 +112,8 @@ class LLMTask(Task):
     # If True, add the current datetime to the prompt to give the assistant a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
+    # Add instructions for delegating tasks to another assistant
+    add_delegation_instructions: bool = True
     # If markdown=true, add instructions to format the output using markdown
     markdown: bool = False
 
@@ -149,6 +151,8 @@ class LLMTask(Task):
     # def chat_history(conversation: Conversation) -> str:
     #     ...
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
+
+    delegation_prompt: Optional[str] = None
 
     @property
     def streamable(self) -> bool:
@@ -312,6 +316,13 @@ class LLMTask(Task):
         # Add default instructions
         if _instructions is None:
             _instructions = []
+            # Add instructions for delegating tasks to another assistant
+            if self.delegation_prompt and self.add_delegation_instructions:
+                _instructions.append(
+                    "You are the leader of a team of AI Assistants. You can either respond directly or "
+                    "delegate tasks to the assistants below depending on their role and the tools "
+                    "available to them."
+                )
             # Add instructions for using the knowledge base
             if self.add_references_to_prompt:
                 _instructions.append("Use the information from the knowledge base to help respond to the message")
@@ -379,6 +390,10 @@ class LLMTask(Task):
         # Then add user provided additional information to the system prompt
         if self.add_to_system_prompt is not None:
             _system_prompt += "\n" + self.add_to_system_prompt
+
+        # Then add the delegation_prompt to the system prompt
+        if self.delegation_prompt is not None:
+            _system_prompt += "\n\n" + self.delegation_prompt
 
         # Then add the json output prompt if output_model is set
         if self.output_model is not None:

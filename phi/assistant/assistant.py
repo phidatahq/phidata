@@ -1,4 +1,5 @@
 import json
+from textwrap import dedent
 from uuid import uuid4
 from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple, Literal
 
@@ -191,8 +192,12 @@ class Assistant(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
-    # -*- Team settings
+    # -*- Assistant Team
+    team: Optional[List["Assistant"]] = None
+    # When the assistant is part of a team, this is the role of the assistant in the team
     role: Optional[str] = None
+    # Add instructions for delegating tasks to another assistant
+    add_delegation_instructions: bool = True
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
@@ -220,6 +225,13 @@ class Assistant(BaseModel):
     def llm_task(self) -> LLMTask:
         """Returns an LLMTask for this assistant"""
 
+        tools = self.tools
+        if self.team and len(self.team) > 0:
+            if tools is None:
+                tools = []
+            for assistant_index, assistant in enumerate(self.team):
+                tools.append(self.get_delegation_function(assistant, assistant_index))
+
         _llm_task = LLMTask(
             llm=self.llm.model_copy() if self.llm is not None else None,
             assistant_name=self.name,
@@ -231,7 +243,7 @@ class Assistant(BaseModel):
             use_tools=self.use_tools,
             show_tool_calls=self.show_tool_calls,
             tool_call_limit=self.tool_call_limit,
-            tools=self.tools,
+            tools=tools,
             tool_choice=self.tool_choice,
             read_chat_history_tool=self.read_chat_history_tool,
             search_knowledge_base_tool=self.search_knowledge_base_tool,
@@ -251,6 +263,7 @@ class Assistant(BaseModel):
             prevent_prompt_injection=self.prevent_prompt_injection,
             limit_tool_access=self.limit_tool_access,
             add_datetime_to_instructions=self.add_datetime_to_instructions,
+            add_delegation_instructions=self.add_delegation_instructions,
             markdown=self.markdown,
             user_prompt=self.user_prompt,
             user_prompt_template=self.user_prompt_template,
@@ -260,8 +273,46 @@ class Assistant(BaseModel):
             references_format=self.references_format,
             chat_history_function=self.chat_history_function,
             output_model=self.output_model,
+            delegation_prompt=self.get_delegation_prompt(),
         )
         return _llm_task
+
+    def get_delegation_function(self, assistant: "Assistant", index: int) -> Function:
+        def _delegate_task_to_assistant(task_description: str) -> str:
+            return assistant.run(task_description, stream=False)  # type: ignore
+
+        assistant_name = assistant.name.replace(" ", "_").lower() if assistant.name else f"assistant_{index}"
+        delegation_function = Function.from_callable(_delegate_task_to_assistant)
+        delegation_function.name = f"delegate_task_to_{assistant_name}"
+        delegation_function.description = dedent(
+            f"""Use this function to delegate a task to {assistant_name}
+        Args:
+            task_description (str): A clear and concise description of the task the assistant should achieve.
+        Returns:
+            str: The result of the delegated task.
+        """
+        )
+        return delegation_function
+
+    def get_delegation_prompt(self) -> Optional[str]:
+        if self.team and len(self.team) > 0:
+            delegation_prompt = "You can delegate tasks to the following assistants:"
+            delegation_prompt += "\n<assistants>"
+            for assistant_index, assistant in enumerate(self.team):
+                delegation_prompt += f"\nAssistant {assistant_index + 1}:\n"
+                if assistant.name:
+                    delegation_prompt += f"Name: {assistant.name}\n"
+                if assistant.role:
+                    delegation_prompt += f"Role: {assistant.role}\n"
+                if assistant.tools is not None:
+                    _tools = []
+                    for _tool in assistant.tools:
+                        if callable(_tool):
+                            _tools.append(_tool.__name__)
+                    delegation_prompt += f"Available tools: {', '.join(_tools)}\n"
+            delegation_prompt += "</assistants>"
+            return delegation_prompt
+        return None
 
     def to_database_row(self) -> AssistantRun:
         """Create a AssistantRun for the current Assistant (to save to the database)"""

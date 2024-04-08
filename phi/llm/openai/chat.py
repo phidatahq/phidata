@@ -603,6 +603,11 @@ class OpenAIChat(LLM):
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
+                    # Code to show function call results
+                    # for f in function_call_results:
+                    #     yield "\n"
+                    #     yield f.get_content_string()
+                    #     yield "\n"
                 # -*- Yield new response using results of tool calls
                 yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")

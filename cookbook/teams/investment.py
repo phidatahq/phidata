@@ -24,7 +24,7 @@ stock_analyst = Assistant(
         "Save it to a file in markdown format with the the name `company_name.md`.",
         "Let the investment lead know the file name of the report.",
     ],
-    debug_mode=True,
+    # debug_mode=True,
 )
 research_analyst = Assistant(
     name="Research Analyst",
@@ -39,7 +39,7 @@ research_analyst = Assistant(
         "Then think deeply about whether a stock is valuable or not. Be discerning, you are a skeptical investor.",
         "Finally, save your research report to a file called `research_report.md`.",
     ],
-    debug_mode=True,
+    # debug_mode=True,
 )
 
 investment_lead = Assistant(

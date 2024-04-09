@@ -21,7 +21,7 @@ search_journalist = Assistant(
         "For a search topic, return the top 3 URLs.",
     ],
     tools=[SerpApiToolkit()],
-    debug_mode=True,
+    # debug_mode=True,
 )
 research_journalist = Assistant(
     name="Research Journalist",
@@ -30,9 +30,8 @@ research_journalist = Assistant(
     description="You are a world-class research journalist. You retrieve the text from the URLs.",
     instructions=["For a list of URLs, return the text of the articles."],
     tools=[NewspaperToolkit()],
-    debug_mode=True,
+    # debug_mode=True,
 )
-
 
 editor = Assistant(
     name="Editor",

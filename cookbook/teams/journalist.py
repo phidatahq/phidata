@@ -63,10 +63,3 @@ editor = Assistant(
 )
 
 editor.print_response("Write an acticle about the Anthropic claude.")
-
-# test = Assistant(
-#     tools=[get_article_text],
-#     debug_mode=True,
-# )
-
-# test.print_response("https://en.wikipedia.org/wiki/Solar_eclipse_of_April_8,_2024")

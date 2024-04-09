@@ -70,7 +70,7 @@ investment_lead = Assistant(
         "If the research analyst has not completed the report, ask them to complete it before you can answer the users question.",
         "Produce a nicely formatted response to the user, use markdown to format the response.",
     ],
-    debug_mode=True,
+    # debug_mode=True,
 )
 investment_lead.print_response(
     "How would you invest $10000 in META, GOOG, NVDA and TSLA? Tell me the exact amount you'd invest in each.",

@@ -1,7 +1,15 @@
+"""
+Inspired by the fantastic work by Matt Shumer (@mattshumer_): https://twitter.com/mattshumer_/status/1771204395285246215
+
+Please run:
+pip install openai anthropic newspaper3k lxml_html_clean phidata
+"""
+
 from pathlib import Path
 from shutil import rmtree
 from phi.assistant.team import Assistant
 from phi.tools.yfinance import YFinanceTools
+from phi.tools.newspaper_toolkit import NewspaperToolkit
 from phi.tools.file import FileTools
 from phi.llm.anthropic import Claude
 
@@ -17,20 +25,21 @@ stock_analyst = Assistant(
     role="Get current stock price, analyst recommendations and news for a company.",
     tools=[
         YFinanceTools(stock_price=True, analyst_recommendations=True, company_news=True),
+        NewspaperToolkit(),
         FileTools(base_dir=reports_dir),
     ],
     description="You are an stock analyst tasked with producing factual reports on companies.",
     instructions=[
         "The investment lead will provide you with a list of companies to write reports on.",
         "Get the current stock price, analyst recommendations and news for the company",
-        "Save it to a file in markdown format with the the name `company_name.md`.",
+        "If you find any news urls, read the article and include it in the report.",
+        "Save your report to a file in markdown format with the the name `company_name.md` in lower case.",
         "Let the investment lead know the file name of the report.",
     ],
     # debug_mode=True,
 )
 research_analyst = Assistant(
     name="Research Analyst",
-    llm=Claude(model="claude-3-opus-20240229"),
     role="Writes research reports on stocks.",
     tools=[FileTools(base_dir=reports_dir)],
     description="You are an investment researcher analyst tasked with producing a ranked list of companies based on their investment potential.",
@@ -39,7 +48,7 @@ research_analyst = Assistant(
         "The investment lead will provide you with the files saved by the stock analyst."
         "If no files are provided, list all files in the entire folder and read the files with names matching company names.",
         "Read each file 1 by 1.",
-        "Then think deeply about whether a stock is valuable or not. Be discerning, you are a skeptical investor.",
+        "Then think deeply about whether a stock is valuable or not. Be discerning, you are a skeptical investor focused on maximising growth.",
         "Finally, save your research report to a file called `research_report.md`.",
     ],
     # debug_mode=True,
@@ -61,7 +70,7 @@ investment_lead = Assistant(
         "If the research analyst has not completed the report, ask them to complete it before you can answer the users question.",
         "Produce a nicely formatted response to the user, use markdown to format the response.",
     ],
-    # debug_mode=True,
+    debug_mode=True,
 )
 investment_lead.print_response(
     "How would you invest $10000 in META, GOOG, NVDA and TSLA? Tell me the exact amount you'd invest in each.",

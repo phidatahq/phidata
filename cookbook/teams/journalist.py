@@ -45,7 +45,7 @@ editor = Assistant(
         "The article should be extremely articulate and well written. "
         "Focus on clarity, coherence, and overall quality.",
     ],
-    debug_mode=True,
+    # debug_mode=True,
     markdown=True,
 )
 editor.print_response("Write an article about latest developments in AI.")

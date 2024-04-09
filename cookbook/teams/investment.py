@@ -3,6 +3,7 @@ from shutil import rmtree
 from phi.assistant.team import Assistant
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.file import FileTools
+from phi.llm.anthropic import Claude
 
 
 reports_dir = Path(__file__).parent.parent.parent.joinpath("junk", "reports")
@@ -12,6 +13,7 @@ reports_dir.mkdir(parents=True, exist_ok=True)
 
 stock_analyst = Assistant(
     name="Stock Analyst",
+    llm=Claude(model="claude-3-haiku-20240307"),
     role="Get current stock price, analyst recommendations and news for a company.",
     tools=[
         YFinanceTools(stock_price=True, analyst_recommendations=True, company_news=True),
@@ -28,6 +30,7 @@ stock_analyst = Assistant(
 )
 research_analyst = Assistant(
     name="Research Analyst",
+    llm=Claude(model="claude-3-haiku-20240307"),
     role="Writes research reports on stocks.",
     tools=[FileTools(base_dir=reports_dir)],
     description="You are an investment researcher analyst tasked with producing a ranked list of companies based on their investment potential.",
@@ -58,7 +61,7 @@ investment_lead = Assistant(
         "If the research analyst has not completed the report, ask them to complete it before you can answer the users question.",
         "Produce a nicely formatted response to the user, use markdown to format the response.",
     ],
-    debug_mode=True,
+    # debug_mode=True,
 )
 investment_lead.print_response(
     "How would you invest $10000 in META, GOOG, NVDA and TSLA? Tell me the exact amount you'd invest in each.",

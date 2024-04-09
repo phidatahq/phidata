@@ -2,15 +2,12 @@ import json
 from textwrap import dedent
 from typing import Optional, List, Dict, Any
 
-
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
-from phi.utils.tools import (
-    get_function_call_for_tool_call,
-)
+from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from cohere import Client as CohereClient
@@ -27,10 +24,10 @@ except ImportError:
     raise
 
 
-class Cohere(LLM):
+class CohereChat(LLM):
     name: str = "cohere"
     model: str = "command-r"
-    # # -*- Request parameters
+    # -*- Request parameters
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     top_k: Optional[int] = None
@@ -38,10 +35,12 @@ class Cohere(LLM):
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
     request_params: Optional[Dict[str, Any]] = None
+    # Use cohere conversation_id to create a persistent conversation
+    use_conversation_id: bool = True
     # -*- Client parameters
     api_key: Optional[str] = None
     client_params: Optional[Dict[str, Any]] = None
-    # -*- Provide the client manually
+    # -*- Provide the Cohere client manually
     cohere_client: Optional[CohereClient] = None
 
     @property
@@ -57,6 +56,8 @@ class Cohere(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
+        if self.use_conversation_id and self.run_id is not None:
+            _request_params["conversation_id"] = self.run_id
         if self.temperature:
             _request_params["temperature"] = self.temperature
         if self.max_tokens:
@@ -96,7 +97,26 @@ class Cohere(LLM):
 
     def invoke(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> Chat:
         api_kwargs: Dict[str, Any] = self.api_kwargs
-        api_kwargs["chat_history"] = []
+        chat_message = None
+
+        if not self.use_conversation_id or self.run_id is None:
+            logger.debug("Providing chat_history to cohere.")
+            chat_history = []
+            for m in messages:
+                if m.role == "system":
+                    api_kwargs["preamble"] = m.content
+                elif m.role == "user":
+                    if last_user_message is not None:
+                        # Append the previously tracked user message to chat_history before updating it
+                        api_kwargs["chat_history"].append({"role": "USER", "message": last_user_message})
+                    # Update the last user message
+                    last_user_message = m.content
+                else:
+                    api_kwargs["chat_history"].append({"role": "CHATBOT", "message": m.content or ""})
+
+            api_kwargs["chat_history"] = chat_history
+
+
         user_message: List = []
         # Track the last user message to prevent adding it to chat_history
         last_user_message = None

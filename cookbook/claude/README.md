@@ -20,35 +20,51 @@ export ANTHROPIC_API_KEY=xxx
 ### 3. Install libraries
 
 ```shell
-pip install -U anthropic phidata duckduckgo-search duckdb yfinance exa_py
+pip install -U anthropic duckduckgo-search duckdb yfinance exa_py phidata
 ```
 
-### 4. Web search function calling
+### 4. Run Assistant
+
+- stream on
+
+```shell
+python cookbook/claude/assistant.py
+```
+
+- stream off
+
+```shell
+python cookbook/claude/assistant_stream_off.py
+```
+
+### 5. Run Assistant with Tools
+
+- Web search
 
 ```shell
 python cookbook/claude/web_search.py
 ```
 
-### 5. YFinance function calling
+- YFinance
 
 ```shell
 python cookbook/claude/finance.py
 ```
 
-### 6. Structured output
-
-```shell
-python cookbook/claude/structured_output.py
-```
-
-### 7. Data Analyst
+- Data Analyst
 
 ```shell
 python cookbook/claude/data_analyst.py
 ```
 
-### 8. Exa Search
+- Exa Search
 
 ```shell
 python cookbook/claude/exa_search.py
+```
+
+### 6. Run Assistant with Structured output
+
+```shell
+python cookbook/claude/structured_output.py
 ```

@@ -57,7 +57,7 @@ class OpenAIChat(LLM):
     default_headers: Optional[Any] = None
     default_query: Optional[Any] = None
     client_params: Optional[Dict[str, Any]] = None
-    # -*- Provide the OpenAIClient manually
+    # -*- Provide the OpenAI client manually
     openai_client: Optional[OpenAIClient] = None
 
     @property

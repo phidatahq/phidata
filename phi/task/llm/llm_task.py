@@ -171,19 +171,21 @@ class LLMTask(Task):
 
             self.llm = OpenAIChat()
 
-    def add_response_format_to_llm(self) -> None:
-        if self.output_model is not None and self.llm is not None:
-            self.llm.response_format = {"type": "json_object"}
-
-    def add_tools_to_llm(self) -> None:
+    def update_llm(self) -> None:
         if self.llm is None:
             logger.error(f"Task LLM is None: {self.__class__.__name__}")
             return
 
+        # Set response_format if it is not set on the llm
+        if self.output_model is not None and self.llm.response_format is None:
+            self.llm.response_format = {"type": "json_object"}
+
+        # Add tools to the LLM
         if self.tools is not None:
             for tool in self.tools:
                 self.llm.add_tool(tool)
 
+        # Add default tools to the LLM
         if self.use_tools:
             if self.read_chat_history_tool and self.memory is not None:
                 self.llm.add_tool(self.get_chat_history)
@@ -207,11 +209,13 @@ class LLMTask(Task):
         if self.tool_call_limit is not None and self.tool_call_limit < self.llm.function_call_limit:
             self.llm.function_call_limit = self.tool_call_limit
 
+        if self.run_id is not None:
+            self.llm.run_id = self.run_id
+
     def prepare_task(self) -> None:
         self.set_task_id()
         self.set_default_llm()
-        self.add_response_format_to_llm()
-        self.add_tools_to_llm()
+        self.update_llm()
 
     def get_json_output_prompt(self) -> str:
         json_output_prompt = "\nProvide your output as a JSON containing the following fields:"

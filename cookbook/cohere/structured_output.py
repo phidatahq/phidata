@@ -2,7 +2,7 @@ from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
 from phi.assistant import Assistant
-from phi.llm.cohere import Cohere
+from phi.llm.cohere import CohereChat
 
 
 class MovieScript(BaseModel):
@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 movie_assistant = Assistant(
-    llm=Cohere(model="command-r"),
+    llm=CohereChat(model="command-r"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
     # debug_mode=True,

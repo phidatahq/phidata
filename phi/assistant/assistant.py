@@ -575,11 +575,11 @@ class Assistant(BaseModel):
 
         # -*- Update run output
         self.output = run_output
+        logger.debug(f"*********** Run End: {self.run_id} ***********")
 
         # -*- Yield final response if not streaming
         if not stream:
             yield run_output
-        logger.debug(f"*********** Run End: {self.run_id} ***********")
 
     def run(
         self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any

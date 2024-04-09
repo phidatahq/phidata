@@ -2,9 +2,7 @@ from shutil import rmtree
 from phi.assistant.team import Assistant
 from phi.tools.serpapi_toolkit import SerpapiToolkit
 
-
 from newspaper import Article
-
 
 def get_article_text(url):
     """Get the text of an article from a URL.

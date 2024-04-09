@@ -308,7 +308,11 @@ class Assistant(BaseModel):
                 if assistant.tools is not None:
                     _tools = []
                     for _tool in assistant.tools:
-                        if callable(_tool):
+                        if isinstance(_tool, Toolkit):
+                            _tools.extend(list(_tool.functions.keys()))
+                        elif isinstance(_tool, Function):
+                            _tools.append(_tool.name)
+                        elif callable(_tool):
                             _tools.append(_tool.__name__)
                     delegation_prompt += f"Available tools: {', '.join(_tools)}\n"
             delegation_prompt += "</assistants>"

@@ -1,5 +1,6 @@
-from typing import Optional
 import json
+from os import getenv
+from typing import Optional
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -7,20 +8,20 @@ from phi.utils.log import logger
 try:
     import serpapi
 except ImportError:
-    raise ImportError("`serpapi` not installed.")
+    raise ImportError("`google-search-results` not installed.")
 
 
-class SerpapiToolkit(Toolkit):
+class SerpApiToolkit(Toolkit):
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Optional[str] = getenv("SERPAPI_KEY"),
         search_youtube: bool = False,
     ):
         super().__init__(name="serpapi_tools")
 
         self.api_key = api_key
         if not self.api_key:
-            logger.error("No Serpapi API key provided")
+            logger.warning("No Serpapi API key provided")
 
         self.register(self.search_google)
         if search_youtube:

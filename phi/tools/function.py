@@ -58,11 +58,16 @@ class Function(BaseModel):
             return None
 
         type_hints = get_type_hints(self.entrypoint)
+        return_type = type_hints.get("return", None)
+        returns = None
+        if return_type is not None:
+            returns = self.get_type_name(return_type)
+
         function_info = {
             "name": self.name,
             "description": self.description,
             "arguments": self.parameters.get("properties", {}),
-            "returns": type_hints.get("return", "void").__name__,
+            "returns": returns,
         }
         return json.dumps(function_info, indent=2)
 
@@ -73,11 +78,16 @@ class Function(BaseModel):
             return None
 
         type_hints = get_type_hints(self.entrypoint)
+        return_type = type_hints.get("return", None)
+        returns = None
+        if return_type is not None:
+            returns = self.get_type_name(return_type)
+
         function_info = {
             "name": self.name,
             "description": self.description,
             "arguments": self.parameters.get("properties", {}),
-            "returns": type_hints.get("return", "void").__name__,
+            "returns": returns,
         }
         return function_info
 
@@ -128,7 +138,7 @@ class FunctionCall(BaseModel):
                 return True
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
-                logger.error(e)
+                logger.exception(e)
                 self.result = str(e)
                 return False
 
@@ -137,6 +147,6 @@ class FunctionCall(BaseModel):
             return True
         except Exception as e:
             logger.warning(f"Could not run function {self.get_call_str()}")
-            logger.error(e)
+            logger.exception(e)
             self.result = str(e)
             return False

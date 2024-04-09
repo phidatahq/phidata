@@ -94,6 +94,7 @@ module = [
   "langchain.*",
   "langchain_core.*",
   "mistralai.*",
+  "newspaper.*",
   "numpy.*",
   "ollama.*",
   "openai.*",

@@ -1,14 +1,9 @@
-from pathlib import Path
 from shutil import rmtree
 from phi.assistant.team import Assistant
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.file import FileTools
 from phi.tools.serpapi_toolkit import SerpapiToolkit
 
-import requests
-from bs4 import BeautifulSoup
+
 from newspaper import Article
-import ast
 
 
 def get_article_text(url):

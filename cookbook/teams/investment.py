@@ -30,7 +30,7 @@ stock_analyst = Assistant(
 )
 research_analyst = Assistant(
     name="Research Analyst",
-    llm=Claude(model="claude-3-haiku-20240307"),
+    llm=Claude(model="claude-3-opus-20240229"),
     role="Writes research reports on stocks.",
     tools=[FileTools(base_dir=reports_dir)],
     description="You are an investment researcher analyst tasked with producing a ranked list of companies based on their investment potential.",

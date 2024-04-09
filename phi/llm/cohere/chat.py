@@ -1,6 +1,6 @@
 import json
 from textwrap import dedent
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Iterator
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -11,14 +11,17 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from cohere import Client as CohereClient
-    from cohere.responses.chat import (
-        StreamTextGeneration,
-        ChatToolCallsGenerationEvent,
-        Chat,
-        StreamingChat,
-        ToolCall,
-        ChatRequestToolResultsItem,
+    from cohere.types.tool import Tool as CohereTool
+    from cohere.types.tool_call import ToolCall as CohereToolCall
+    from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
+    from cohere.types.streamed_chat_response import (
+        StreamedChatResponse,
+        StreamedChatResponse_StreamStart,
+        StreamedChatResponse_TextGeneration,
+        StreamedChatResponse_ToolCallsGeneration,
     )
+    from cohere.types.chat_request_tool_results_item import ChatRequestToolResultsItem
+    from cohere.types.tool_parameter_definitions_value import ToolParameterDefinitionsValue
 except ImportError:
     logger.error("`cohere` not installed")
     raise
@@ -35,8 +38,8 @@ class CohereChat(LLM):
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
     request_params: Optional[Dict[str, Any]] = None
-    # Use cohere conversation_id to create a persistent conversation
-    use_conversation_id: bool = True
+    # Add chat history to the cohere messages instead of using the conversation_id
+    add_chat_history: bool = False
     # -*- Client parameters
     api_key: Optional[str] = None
     client_params: Optional[Dict[str, Any]] = None
@@ -56,7 +59,7 @@ class CohereChat(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
-        if self.use_conversation_id and self.run_id is not None:
+        if self.run_id is not None:
             _request_params["conversation_id"] = self.run_id
         if self.temperature:
             _request_params["temperature"] = self.temperature
@@ -74,52 +77,58 @@ class CohereChat(LLM):
             _request_params.update(self.request_params)
         return _request_params
 
-    def get_tools(self) -> Optional[List[Dict[str, Any]]]:
+    def get_tools(self) -> Optional[List[CohereTool]]:
         if not self.functions:
             return None
 
         # Returns the tools in the format required by the Cohere API
         return [
-            {
-                "name": f_name,
-                "description": function.description,
-                "parameter_definitions": {
-                    param_name: {
-                        "description": "",
-                        "type": param_info["type"] if isinstance(param_info["type"], str) else param_info["type"][0],
-                        "required": "null" not in param_info["type"],
-                    }
+            CohereTool(
+                name=f_name,
+                description=function.description or "",
+                parameter_definitions={
+                    param_name: ToolParameterDefinitionsValue(
+                        type=param_info["type"] if isinstance(param_info["type"], str) else param_info["type"][0],
+                        required="null" not in param_info["type"],
+                    )
                     for param_name, param_info in function.parameters.get("properties", {}).items()
                 },
-            }
+            )
             for f_name, function in self.functions.items()
         ]
 
-    def invoke(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> Chat:
+    def invoke(
+        self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None
+    ) -> NonStreamedChatResponse:
         api_kwargs: Dict[str, Any] = self.api_kwargs
-        chat_message = None
+        chat_message: Optional[str] = None
 
-        if not self.use_conversation_id or self.run_id is None:
-            logger.debug("Providing chat_history to cohere.")
+        if self.add_chat_history:
+            logger.debug("Providing chat_history to cohere")
             chat_history = []
             for m in messages:
-                if m.role == "system":
+                if m.role == "system" and "preamble" not in api_kwargs:
                     api_kwargs["preamble"] = m.content
                 elif m.role == "user":
-                    if last_user_message is not None:
-                        # Append the previously tracked user message to chat_history before updating it
-                        api_kwargs["chat_history"].append({"role": "USER", "message": last_user_message})
-                    # Update the last user message
-                    last_user_message = m.content
+                    if chat_message is not None:
+                        # Add the existing chat_message to the chat_history
+                        chat_history.append({"role": "USER", "message": chat_message})
+                    # Update the chat_message to the new user message
+                    chat_message = m.get_content_string()
                 else:
-                    api_kwargs["chat_history"].append({"role": "CHATBOT", "message": m.content or ""})
-
+                    chat_history.append({"role": "CHATBOT", "message": m.get_content_string() or ""})
             api_kwargs["chat_history"] = chat_history
-
-
-        user_message: List = []
-        # Track the last user message to prevent adding it to chat_history
-        last_user_message = None
+        else:
+            # Set first system message as preamble
+            for m in messages:
+                if m.role == "system" and "preamble" not in api_kwargs:
+                    api_kwargs["preamble"] = m.get_content_string()
+                    break
+            # Set last user message as chat_message
+            for m in reversed(messages):
+                if m.role == "user":
+                    chat_message = m.get_content_string()
+                    break
 
         if self.tools:
             api_kwargs["tools"] = self.get_tools()
@@ -127,31 +136,40 @@ class CohereChat(LLM):
         if tool_results:
             api_kwargs["tool_results"] = tool_results
 
-        for m in messages:
-            if m.role == "system":
-                api_kwargs["preamble"] = m.content
-            elif m.role == "user":
-                if last_user_message is not None:
-                    # Append the previously tracked user message to chat_history before updating it
-                    api_kwargs["chat_history"].append({"role": "USER", "message": last_user_message})
-                # Update the last user message
-                last_user_message = m.content
-            else:
-                api_kwargs["chat_history"].append({"role": "CHATBOT", "message": m.content or ""})
-
-        if last_user_message:
-            user_message.append(last_user_message)
-
-        return self.client.chat(model=self.model, message=" ".join(user_message), **api_kwargs)
+        return self.client.chat(message=chat_message or "", model=self.model, **api_kwargs)
 
     def invoke_stream(
         self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None
-    ) -> StreamingChat:
+    ) -> Iterator[StreamedChatResponse]:
         api_kwargs: Dict[str, Any] = self.api_kwargs
-        api_kwargs["chat_history"] = []
-        user_message: List = []
-        # Track the last user message
-        last_user_message = None
+        chat_message: Optional[str] = None
+
+        if self.add_chat_history:
+            logger.debug("Providing chat_history to cohere")
+            chat_history = []
+            for m in messages:
+                if m.role == "system" and "preamble" not in api_kwargs:
+                    api_kwargs["preamble"] = m.get_content_string()
+                elif m.role == "user":
+                    if chat_message is not None:
+                        # Add the existing chat_message to the chat_history
+                        chat_history.append({"role": "USER", "message": chat_message})
+                    # Update the chat_message to the new user message
+                    chat_message = m.get_content_string()
+                else:
+                    chat_history.append({"role": "CHATBOT", "message": m.get_content_string() or ""})
+            api_kwargs["chat_history"] = chat_history
+        else:
+            # Set first system message as preamble
+            for m in messages:
+                if m.role == "system" and "preamble" not in api_kwargs:
+                    api_kwargs["preamble"] = m.get_content_string()
+                    break
+            # Set last user message as chat_message
+            for m in reversed(messages):
+                if m.role == "user":
+                    chat_message = m.get_content_string()
+                    break
 
         if self.tools:
             api_kwargs["tools"] = self.get_tools()
@@ -159,26 +177,8 @@ class CohereChat(LLM):
         if tool_results:
             api_kwargs["tool_results"] = tool_results
 
-        for m in messages:
-            if m.role == "system":
-                api_kwargs["preamble"] = m.content
-            elif m.role == "user":
-                if last_user_message is not None:
-                    # Append the previously tracked user message to chat_history before updating it
-                    api_kwargs["chat_history"].append({"role": "USER", "message": last_user_message})
-                last_user_message = m.content  # Update the last user message
-            else:
-                api_kwargs["chat_history"].append({"role": "CHATBOT", "message": m.content or ""})
-
-        if last_user_message:
-            user_message.append(last_user_message)
-
-        return self.client.chat(
-            model=self.model,
-            message=" ".join(user_message),
-            stream=True,
-            **api_kwargs,
-        )
+        logger.debug(f"Chat message: {chat_message}")
+        return self.client.chat_stream(message=chat_message or "", model=self.model, **api_kwargs)
 
     def response(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> str:
         logger.debug("---------- Cohere Response Start ----------")
@@ -188,23 +188,20 @@ class CohereChat(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: Chat = self.invoke(messages=messages, tool_results=tool_results)
+        response: NonStreamedChatResponse = self.invoke(messages=messages, tool_results=tool_results)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Parse response
         response_content = response.text
+        response_tool_calls: Optional[List[CohereToolCall]] = response.tool_calls
 
         # -*- Create assistant message
-        assistant_message = Message(
-            role="assistant",
-            content=response_content or " ",
-        )
+        assistant_message = Message(role="assistant", content=response_content)
 
-        # -*- Create tool calls from response
-        tool_calls: List[Dict[str, Any]] = []
-        if response.tool_calls:
-            response_tool_calls: List[ToolCall] = response.tool_calls
+        # -*- Get tool calls from response
+        if response_tool_calls:
+            tool_calls: List[Dict[str, Any]] = []
             for tools in response_tool_calls:
                 tool_calls.append(
                     {
@@ -215,9 +212,8 @@ class CohereChat(LLM):
                         },
                     }
                 )
-
-        if len(tool_calls) > 0:
-            assistant_message.tool_calls = tool_calls
+            if len(tool_calls) > 0:
+                assistant_message.tool_calls = tool_calls
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -256,16 +252,16 @@ class CohereChat(LLM):
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
 
             # Making sure the length of tool calls and function call results are the same to avoid unexpected behavior
-            if len(function_call_results) > 0 and len(response_tool_calls) == len(function_call_results):
+            if response_tool_calls is not None and 0 < len(function_call_results) == len(response_tool_calls):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    {"call": tool_call, "outputs": [tool_call["parameters"], {"result": fn_result.content}]}
+                    ChatRequestToolResultsItem(
+                        call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}]
+                    )
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
-
-                messages.append(Message(role="user", content=" "))
-
+                messages.append(Message(role="user", content="Tool result"))
                 # logger.debug(f"Tool results: {tool_results}")
 
             # -*- Yield new response using results of tool calls
@@ -287,27 +283,32 @@ class CohereChat(LLM):
 
         assistant_message_content = ""
         tool_calls: List[Dict[str, Any]] = []
+        response_tool_calls: List[CohereToolCall] = []
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages, tool_results=tool_results):
-            # Detect if response is text
-            if isinstance(response, StreamTextGeneration):
+            # logger.debug(f"Cohere response type: {type(response)}")
+            # logger.debug(f"Cohere response: {response}")
+
+            if isinstance(response, StreamedChatResponse_StreamStart):
+                pass
+
+            if isinstance(response, StreamedChatResponse_TextGeneration):
                 if response.text is not None:
                     assistant_message_content += response.text
 
                     yield response.text
 
             # Detect if response is a tool call
-            if isinstance(response, ChatToolCallsGenerationEvent):
-                response_tool_calls: List[ToolCall] = response.tool_calls
-
-                for tools in response_tool_calls:
+            if isinstance(response, StreamedChatResponse_ToolCallsGeneration):
+                for tc in response.tool_calls:
+                    response_tool_calls.append(tc)
                     tool_calls.append(
                         {
                             "type": "function",
                             "function": {
-                                "name": tools.name,
-                                "arguments": json.dumps(tools.parameters),
+                                "name": tc.name,
+                                "arguments": json.dumps(tc.parameters),
                             },
                         }
                     )
@@ -316,11 +317,8 @@ class CohereChat(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
-        assistant_message = Message(
-            role="assistant",
-            content=assistant_message_content or "This is a tool call",
-        )
-
+        assistant_message = Message(role="assistant", content=assistant_message_content)
+        # -*- Add tool calls to assistant message
         if len(tool_calls) > 0:
             assistant_message.tool_calls = tool_calls
 
@@ -360,32 +358,32 @@ class CohereChat(LLM):
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
 
             # Making sure the length of tool calls and function call results are the same to avoid unexpected behavior
-            if len(function_call_results) > 0 and len(response_tool_calls) == len(function_call_results):
+            if response_tool_calls is not None and 0 < len(function_call_results) == len(tool_calls):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    {"call": tool_call, "outputs": [tool_call["parameters"], {"result": fn_result.content}]}
+                    ChatRequestToolResultsItem(
+                        call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}]
+                    )
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
-
-                messages.append(Message(role="user", content="This is a tool result"))
-
+                messages.append(Message(role="user", content="Tool result"))
                 # logger.debug(f"Tool results: {tool_results}")
 
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages, tool_results=tool_results)
-
         logger.debug("---------- Cohere Response End ----------")
 
     def get_tool_call_prompt(self) -> Optional[str]:
         if self.functions is not None and len(self.functions) > 0:
-            preamble = """
+            preamble = """\
             ## Task & Context
             You help people answer their questions and other requests interactively. You will be asked a very wide array of requests on all kinds of topics. You will be equipped with a wide range of search engines or similar tools to help you, which you use to research your answer. You should focus on serving the user's needs as best you can, which will be wide-ranging.
 
 
             ## Style Guide
             Unless the user asks for a different style of answer, you should answer in full sentences, using proper grammar and spelling.
+
             """
             return dedent(preamble)
 

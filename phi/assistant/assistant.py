@@ -1,4 +1,5 @@
 import json
+from os import getenv
 from textwrap import dedent
 from uuid import uuid4
 from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple, Literal
@@ -202,7 +203,7 @@ class Assistant(BaseModel):
     # debug_mode=True enables debug logs
     debug_mode: bool = False
     # monitoring=True logs Assistant runs on phidata.com
-    monitoring: bool = False
+    monitoring: bool = getenv("PHI_MONITORING", "false").lower() == "true"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

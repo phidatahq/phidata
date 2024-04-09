@@ -10,7 +10,7 @@ from phi.tools.streamlit.components import (
     get_username_sidebar,
 )
 
-from cookbook.mistral.mistral_assistant import get_mistral_assistant  # type: ignore
+from mistral_assistant import get_mistral_assistant  # type: ignore
 from logging import getLogger
 
 logger = getLogger(__name__)

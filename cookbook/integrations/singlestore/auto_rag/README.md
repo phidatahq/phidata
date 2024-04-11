@@ -71,6 +71,15 @@ export ANTHROPIC_API_KEY="sk-..."
 streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 ```
 
+### 7. Provide a web page URL and ask questions
+
+Example URL:
+
+Example Questions:
+
+-
+
+
 ### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 8. Star ⭐️ the project if you like it.

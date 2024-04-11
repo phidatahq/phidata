@@ -114,7 +114,7 @@ pandas==2.2.2
     # via
     #   altair
     #   streamlit
-phidata==2.3.65
+phidata==2.3.66
     # via -r cookbook/integrations/singlestore/auto_rag/requirements.in
 pillow==10.3.0
     # via streamlit

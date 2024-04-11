@@ -22,12 +22,13 @@
 # Ignore .envrc files (used by direnv: https://direnv.net/)
 .envrc
 
+
 # ignore storage dir
 /storage
 .images
 
-# ignore local dir
-# local
+# ignore wip dir
+wip
 
 # ignore dist dir
 dist

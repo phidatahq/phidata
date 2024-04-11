@@ -43,8 +43,6 @@ class LLMTask(Task):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
-    # Allow the LLM to use tools
-    use_tools: bool = False
     # Show tool calls in LLM messages.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -56,19 +54,17 @@ class LLMTask(Task):
     #   forces the model to call that function.
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-    # -*- Available tools
-    # If use_tools is True and read_chat_history_tool is True,
-    # then a tool is added that allows the LLM to read the chat history.
-    read_chat_history_tool: bool = True
-    # If use_tools is True and search_knowledge_base_tool is True,
-    # then a tool is added that allows the LLM to search the knowledge base.
-    search_knowledge_base_tool: bool = True
-    # If use_tools is True and update_knowledge_base is True,
-    # then a tool is added that allows the LLM to update the knowledge base.
-    update_knowledge_base: bool = False
-    # If use_tools is True and read_tool_call_history is True,
-    # then a tool is added that allows the LLM to get the tool call history.
+    # -*- Default tools
+    # Add a tool that allows the LLM to get the chat history.
+    read_chat_history: bool = True
+    # Add a tool that allows the LLM to search the knowledge base.
+    search_knowledge: bool = True
+    # Add a tool that allows the LLM to update the knowledge base.
+    update_knowledge: bool = False
+    # Add a tool is added that allows the LLM to get the tool call history.
     read_tool_call_history: bool = False
+    # -*- Deprecated: use_tools is deprecated, please set read_chat_history or search_knowledge manually
+    use_tools: bool = False
 
     # -*- Important: this setting determines if the input messages are formatted
     # If True, phidata will add the system prompt, references, and chat history
@@ -187,15 +183,19 @@ class LLMTask(Task):
 
         # Add default tools to the LLM
         if self.use_tools:
-            if self.read_chat_history_tool and self.memory is not None:
+            self.read_chat_history = True
+            self.search_knowledge = True
+
+        if self.memory is not None:
+            if self.read_chat_history:
                 self.llm.add_tool(self.get_chat_history)
-            if self.knowledge_base is not None:
-                if self.search_knowledge_base_tool:
-                    self.llm.add_tool(self.search_knowledge_base)
-                if self.update_knowledge_base:
-                    self.llm.add_tool(self.add_to_knowledge_base)
             if self.read_tool_call_history:
                 self.llm.add_tool(self.get_tool_call_history)
+        if self.knowledge_base is not None:
+            if self.search_knowledge:
+                self.llm.add_tool(self.search_knowledge_base)
+            if self.update_knowledge:
+                self.llm.add_tool(self.add_to_knowledge_base)
 
         # Set show_tool_calls if it is not set on the llm
         if self.llm.show_tool_calls is None and self.show_tool_calls is not None:

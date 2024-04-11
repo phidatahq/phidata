@@ -304,46 +304,6 @@ class S2VectorDb(VectorDb):
 
     def optimize(self) -> None:
         pass
-        # # Below code is for when ANN comes out
-        # logger.debug("==== Optimizing Vector DB ====")
-
-        # if self.index is None:
-        #     return
-
-        # if self.index.name is None:
-        #     self.index.name = f"{self.collection}_vector_index"
-
-        # metric_type = "EUCLIDEAN_DISTANCE"
-        # if self.distance == Distance.cosine:
-        #     metric_type = "COSINE_SIMILARITY"
-        # elif self.distance == Distance.max_inner_product:
-        #     metric_type = "DOT_PRODUCT"
-
-        # # Example configuration for IVF_FLAT. Adjust according to the specific index type used
-        # index_options = {
-        #     "index_type": self.index.type,  # e.g., "IVF_FLAT"
-        #     "metric_type": metric_type,
-        #     "nlist": self.index.nlist if hasattr(self.index, "nlist") else 128,
-        #     "nprobe": self.index.nprobe if hasattr(self.index, "nprobe") else 8,
-        #     # Include other parameters as needed
-        # }
-        # index_options_json = json.dumps(index_options)
-
-        # with self.Session() as sess:
-        #     with sess.begin():
-        #         if self.table_exists():
-        #             logger.debug(f"Creating or updating vector index: {self.index.name}")
-        #             sess.execute(
-        #                 text(
-        #                     f"ALTER TABLE {self.schema}.{self.collection} "
-        #                     f"ADD VECTOR INDEX ({self.table.c.embedding.name}) "
-        #                     f"INDEX_OPTIONS '{index_options_json}';"
-        #                 )
-        #             )
-        #         else:
-        #             logger.warning("Table does not exist. Cannot create vector index.")
-
-        # logger.debug("==== Vector DB Optimized ====")
 
     def clear(self) -> bool:
         return True

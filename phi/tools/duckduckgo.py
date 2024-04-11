@@ -28,7 +28,7 @@ class DuckDuckGo(Toolkit):
         if news:
             self.register(self.duckduckgo_news)
 
-    def duckduckgo_search(self, query: str, max_results: Optional[int] = 5) -> str:
+    def duckduckgo_search(self, query: str, max_results: int = 5) -> str:
         """Use this function to search DuckDuckGo for a query.
 
         Args:
@@ -42,7 +42,7 @@ class DuckDuckGo(Toolkit):
         results = [r for r in self.ddgs.text(keywords=query, max_results=max_results)]
         return json.dumps(results, indent=2)
 
-    def duckduckgo_news(self, query: str, max_results: Optional[int] = 5) -> str:
+    def duckduckgo_news(self, query: str, max_results: int = 5) -> str:
         """Use this function to get the latest news from DuckDuckGo.
 
         Args:

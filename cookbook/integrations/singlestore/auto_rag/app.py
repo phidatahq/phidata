@@ -3,80 +3,64 @@ from typing import List
 import streamlit as st
 from phi.assistant import Assistant
 from phi.document import Document
+from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
-from phi.tools.streamlit.components import (
-    check_password,
-    reload_button_sidebar,
-    get_username_sidebar,
-)
+from phi.tools.streamlit.components import reload_button_sidebar
+from phi.utils.log import logger
 
-from assistant import get_local_rag_assistant  # Adjust the import statement as needed
-from logging import getLogger
-
-logger = getLogger(__name__)
+from assistant import get_assistant  # type: ignore
 
 st.set_page_config(
-    page_title="Local RAG with Web Scraping \n Using SingleStore as a backend databse",
+    page_title="Autonomous RAG",
     page_icon=":orange_heart:",
 )
-st.title("Local RAG with Web Scraping")
+st.title("Autonomous RAG with SingleStore")
 st.markdown("##### :orange_heart: Built using [phidata](https://github.com/phidatahq/phidata)")
 
 
 def restart_assistant():
-    st.session_state["web_assistant"] = None
-    st.session_state["web_assistant_run_id"] = None
+    st.session_state["assistant"] = None
+    st.session_state["assistant_run_id"] = None
     st.session_state["url_scrape_key"] += 1
+    st.session_state["file_uploader_key"] += 1
     st.rerun()
 
 
 def main() -> None:
-    # Get username
-    username = get_username_sidebar()
-    if username:
-        st.sidebar.info(f":technologist: User: {username}")
-    else:
-        st.write(":technologist: Please enter a username")
-        return
-
-    # Get model
-    local_rag_model = st.sidebar.selectbox("Select Model", options=["GPT-4", "Hermes2", "Claude"])
-    # Set assistant_type in session state
-    if "local_rag_model" not in st.session_state:
-        st.session_state["local_rag_model"] = local_rag_model
-    # Restart the assistant if assistant_type has changed
-    elif st.session_state["local_rag_model"] != local_rag_model:
-        st.session_state["local_rag_model"] = local_rag_model
+    # Get LLM Model
+    llm = st.sidebar.selectbox("Select Model", options=["GPT-4", "GPT-3.5", "Hermes2"])
+    # Set llm in session state
+    if "llm" not in st.session_state:
+        st.session_state["llm"] = llm
+    # Restart the assistant if llm changes
+    elif st.session_state["llm"] != llm:
+        st.session_state["llm"] = llm
         restart_assistant()
 
     # Get the assistant
-    web_assistant: Assistant
-    if "web_assistant" not in st.session_state or st.session_state["web_assistant"] is None:
-        logger.info("---*--- Creating Web Assistant ---*---")
-        web_assistant = get_local_rag_assistant(
-            model=local_rag_model,
-            user_id=username,
-            debug_mode=True,
-        )
-        st.session_state["web_assistant"] = web_assistant
+    assistant: Assistant
+    if "assistant" not in st.session_state or st.session_state["assistant"] is None:
+        logger.info("---*--- Creating Assistant ---*---")
+        assistant = get_assistant(model=llm)
+        st.session_state["assistant"] = assistant
     else:
-        web_assistant = st.session_state["web_assistant"]
+        assistant = st.session_state["assistant"]
 
     # Create assistant run (i.e. log to database) and save run_id in session state
     try:
-        st.session_state["web_assistant_run_id"] = web_assistant.create_run()
+        st.session_state["assistant_run_id"] = assistant.create_run()
     except Exception:
         st.warning("Could not create assistant, is the database running?")
         return
 
     # Load existing messages
-    assistant_chat_history = web_assistant.memory.get_chat_history()
+    assistant_chat_history = assistant.memory.get_chat_history()
     if len(assistant_chat_history) > 0:
         logger.debug("Loading chat history")
         st.session_state["messages"] = assistant_chat_history
     else:
         logger.debug("No chat history found")
-        st.session_state["messages"] = [{"role": "web_assistant", "content": "Ask me anything..."}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "Ask me anything..."}]
 
     # Prompt for user input
     if prompt := st.chat_input():
@@ -93,61 +77,83 @@ def main() -> None:
     last_message = st.session_state["messages"][-1]
     if last_message.get("role") == "user":
         question = last_message["content"]
-        with st.chat_message("web_assistant"):
+        with st.chat_message("assistant"):
             response = ""
             resp_container = st.empty()
-            for delta in web_assistant.run(question):
+            for delta in assistant.run(question):
                 response += delta  # type: ignore
                 resp_container.markdown(response)
 
-            st.session_state["messages"].append({"role": "web_assistant", "content": response})
+            st.session_state["messages"].append({"role": "assistant", "content": response})
+
+    # Load knowledge base
+    if assistant.knowledge_base:
+        # -*- Add websites to knowledge base
+        if "url_scrape_key" not in st.session_state:
+            st.session_state["url_scrape_key"] = 0
+
+        input_url = st.sidebar.text_input(
+            "Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"]
+        )
+        add_url_button = st.sidebar.button("Add URL")
+        if add_url_button:
+            if input_url is not None:
+                alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
+                if f"{input_url}_scraped" not in st.session_state:
+                    scraper = WebsiteReader()
+                    web_documents: List[Document] = scraper.read(input_url)
+                    if web_documents:
+                        assistant.knowledge_base.load_documents(web_documents, upsert=True)
+                    else:
+                        st.sidebar.error("Could not read website")
+                    st.session_state[f"{input_url}_uploaded"] = True
+                alert.empty()
+
+        # Add PDFs to knowledge base
+        if "file_uploader_key" not in st.session_state:
+            st.session_state["file_uploader_key"] = 100
+
+        uploaded_file = st.sidebar.file_uploader(
+            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
+        )
+        if uploaded_file is not None:
+            alert = st.sidebar.info("Processing PDF...", icon="ℹ️")
+            pdf_name = uploaded_file.name.split(".")[0]
+            if f"{pdf_name}_uploaded" not in st.session_state:
+                reader = PDFReader()
+                pdf_documents: List[Document] = reader.read(uploaded_file)
+                if pdf_documents:
+                    assistant.knowledge_base.load_documents(documents=pdf_documents, upsert=True)
+                else:
+                    st.sidebar.error("Could not read PDF")
+                st.session_state[f"{pdf_name}_uploaded"] = True
+            alert.empty()
+            st.sidebar.success(":information_source: If the PDF throws an error, try uploading it again")
+
+    if assistant.storage:
+        assistant_run_ids: List[str] = assistant.storage.get_all_run_ids()
+        new_assistant_run_id = st.sidebar.selectbox("Run ID", options=assistant_run_ids)
+        if new_assistant_run_id is not None and st.session_state["assistant_run_id"] != new_assistant_run_id:
+            logger.info(f"---*--- Loading run: {new_assistant_run_id} ---*---")
+            st.session_state["assistant"] = get_assistant(model=llm, run_id=new_assistant_run_id)
+            st.rerun()
+
+    assistant_run_name = assistant.run_name
+    if assistant_run_name:
+        st.sidebar.write(f":thread: {assistant_run_name}")
 
     if st.sidebar.button("New Run"):
         restart_assistant()
 
     if st.sidebar.button("Auto Rename"):
-        web_assistant.auto_rename_run()
+        assistant.auto_rename_run()
 
-    # Upload Web Content
-    if web_assistant.knowledge_base:
-        if "url_scrape_key" not in st.session_state:
-            st.session_state["url_scrape_key"] = 0
-
-        scraped_url = st.sidebar.text_input("Input URL", type="default", key=st.session_state["url_scrape_key"])
-        append_button = st.sidebar.button("Search URL")
-        if append_button:
-            if scraped_url is not None:
-                alert = st.sidebar.info("Processing URLs...", icon="🧠")
-                if f"{scraped_url}_scraped" not in st.session_state:
-                    scraper = WebsiteReader()
-                    web_documents: List[Document] = scraper.read(scraped_url)
-                    if web_documents:
-                        web_assistant.knowledge_base.load_documents(web_documents, upsert=True, skip_existing=True)
-                    else:
-                        st.sidebar.error("Could not read Website")
-                    st.session_state[f"{scraped_url}_uploaded"] = True
-                alert.empty()
-
-    if web_assistant.storage:
-        web_assistant_run_ids: List[str] = web_assistant.storage.get_all_run_ids(user_id=username)
-        new_web_assistant_run_id = st.sidebar.selectbox("Run ID", options=web_assistant_run_ids)
-        if st.session_state["web_assistant_run_id"] != new_web_assistant_run_id:
-            logger.info(f"---*--- Loading run: {new_web_assistant_run_id} ---*---")
-            st.session_state["web_assistant"] = get_local_rag_assistant(
-                model=local_rag_model,
-                user_id=username,
-                run_id=new_web_assistant_run_id,
-                debug_mode=True,
-            )
-            st.rerun()
-
-    web_assistant_run_name = web_assistant.run_name
-    if web_assistant_run_name:
-        st.sidebar.write(f":thread: {web_assistant_run_name}")
+    if assistant.knowledge_base:
+        if st.sidebar.button("Clear Knowledge Base"):
+            assistant.knowledge_base.clear()
 
     # Show reload button
     reload_button_sidebar()
 
 
-if check_password():
-    main()
+main()

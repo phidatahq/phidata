@@ -130,7 +130,7 @@ class DuckDbAssistant(CustomAssistant):
                 _instructions += [
                     "If needed, search the `knowledge_base` for {table_name} to get information about that table.",
                 ]
-            if self.update_knowledge_base:
+            if self.update_knowledge:
                 _instructions += [
                     "If needed, search the `knowledge_base` for results of previous queries.",
                     "If you find any information that is missing from the `knowledge_base`, add it using the `add_to_knowledge_base` function.",

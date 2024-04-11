@@ -71,8 +71,6 @@ class Assistant(BaseModel):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
-    # Allow the assistant to use tools
-    use_tools: bool = False
     # Show tool calls in LLM messages.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -84,19 +82,17 @@ class Assistant(BaseModel):
     #   forces the model to call that tool.
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-    # -*- Available tools
-    # If use_tools is True and read_chat_history_tool is True,
-    # then a tool is added that allows the LLM to read the chat history.
-    read_chat_history_tool: bool = True
-    # If use_tools is True and search_knowledge_base_tool is True,
-    # then a tool is added that allows the LLM to search the knowledge base.
-    search_knowledge_base_tool: bool = True
-    # If use_tools is True and update_knowledge_base is True,
-    # then a tool is added that allows the LLM to update the knowledge base.
-    update_knowledge_base: bool = False
-    # If use_tools is True and read_tool_call_history is True,
-    # then a tool is added that allows the LLM to get the tool call history.
+    # -*- Default tools
+    # Add a tool that allows the LLM to get the chat history.
+    read_chat_history: bool = False
+    # Add a tool that allows the LLM to search the knowledge base.
+    search_knowledge: bool = False
+    # Add a tool that allows the LLM to update the knowledge base.
+    update_knowledge: bool = False
+    # Add a tool is added that allows the LLM to get the tool call history.
     read_tool_call_history: bool = False
+    # If use_tools = True, set read_chat_history and search_knowledge = True
+    use_tools: bool = False
 
     # -*- Important: this setting determines if the input messages are formatted
     # If True, phidata will add the system prompt, references, and chat history
@@ -246,9 +242,9 @@ class Assistant(BaseModel):
             tool_call_limit=self.tool_call_limit,
             tools=tools,
             tool_choice=self.tool_choice,
-            read_chat_history_tool=self.read_chat_history_tool,
-            search_knowledge_base_tool=self.search_knowledge_base_tool,
-            update_knowledge_base=self.update_knowledge_base,
+            read_chat_history=self.read_chat_history,
+            search_knowledge=self.search_knowledge,
+            update_knowledge=self.update_knowledge,
             read_tool_call_history=self.read_tool_call_history,
             format_messages=self.format_messages,
             system_prompt=self.system_prompt,

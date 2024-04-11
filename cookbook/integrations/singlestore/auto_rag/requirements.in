@@ -5,4 +5,5 @@ pymysql
 sqlalchemy
 phidata
 ollama
-anthropic
+bs4
+duckduckgo-search

@@ -35,7 +35,14 @@ def main() -> None:
     # Restart the assistant if llm changes
     elif st.session_state["llm"] != llm:
         st.session_state["llm"] = llm
+        st.session_state["llm_updated"] = True
         restart_assistant()
+
+    if "llm_updated" in st.session_state:
+        st.sidebar.success(
+            ":information_source: When changing LLM providers, please reload the knowledge base as the vector store table is updated."
+        )
+        del st.session_state["llm_updated"]
 
     # Get the assistant
     assistant: Assistant

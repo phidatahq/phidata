@@ -74,11 +74,11 @@ streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 ### 7. Provide a web page URL and ask questions
 
 Example URL:
+- https://docs.singlestore.com/cloud/developer-resources/functional-extensions/working-with-vector-data/
 
 Example Questions:
-
--
-
+- How do I Loading, Inserting, and Updating Vectors in SingleStore?
+- Tell me about hybrid search in SingleStore?
 
 ### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

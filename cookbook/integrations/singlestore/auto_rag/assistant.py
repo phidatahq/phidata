@@ -56,7 +56,7 @@ def get_assistant(
             db_url=db_url,
             embedder=embedder,
         ),
-        num_documents=5,
+        num_documents=2 if model == "Hermes2" else 5,
     )
 
     return Assistant(

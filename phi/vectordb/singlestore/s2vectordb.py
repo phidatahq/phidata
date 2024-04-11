@@ -306,4 +306,9 @@ class S2VectorDb(VectorDb):
         pass
 
     def clear(self) -> bool:
-        return True
+        logger.debug(f"Deleting table: {self.collection}")
+        with self.Session() as sess:
+            with sess.begin():
+                stmt = self.table.delete()
+                sess.execute(stmt)
+                return True

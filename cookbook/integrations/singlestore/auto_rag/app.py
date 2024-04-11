@@ -37,6 +37,8 @@ def main() -> None:
         st.session_state["llm"] = llm
         st.session_state["llm_updated"] = True
         restart_assistant()
+    # Set chunk size based on llm
+    chunk_size = 2000 if llm == "Hermes2" else 3000
 
     if "llm_updated" in st.session_state:
         st.sidebar.success(
@@ -44,11 +46,19 @@ def main() -> None:
         )
         del st.session_state["llm_updated"]
 
+    # Check if web search is enabled
+    web_search = st.sidebar.checkbox("Enable Web Search")
+    if "web_search" not in st.session_state:
+        st.session_state["web_search"] = web_search
+    elif st.session_state["web_search"] != web_search:
+        st.session_state["web_search"] = web_search
+        restart_assistant()
+
     # Get the assistant
     assistant: Assistant
     if "assistant" not in st.session_state or st.session_state["assistant"] is None:
         logger.info("---*--- Creating Assistant ---*---")
-        assistant = get_assistant(model=llm)
+        assistant = get_assistant(model=llm, web_search=web_search)
         st.session_state["assistant"] = assistant
     else:
         assistant = st.session_state["assistant"]
@@ -107,7 +117,7 @@ def main() -> None:
             if input_url is not None:
                 alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
                 if f"{input_url}_scraped" not in st.session_state:
-                    scraper = WebsiteReader()
+                    scraper = WebsiteReader(chunk_size=chunk_size)
                     web_documents: List[Document] = scraper.read(input_url)
                     if web_documents:
                         assistant.knowledge_base.load_documents(web_documents, upsert=True)
@@ -127,7 +137,7 @@ def main() -> None:
             alert = st.sidebar.info("Processing PDF...", icon="ℹ️")
             pdf_name = uploaded_file.name.split(".")[0]
             if f"{pdf_name}_uploaded" not in st.session_state:
-                reader = PDFReader()
+                reader = PDFReader(chunk_size=chunk_size)
                 pdf_documents: List[Document] = reader.read(uploaded_file)
                 if pdf_documents:
                     assistant.knowledge_base.load_documents(documents=pdf_documents, upsert=True)
@@ -142,7 +152,7 @@ def main() -> None:
         new_assistant_run_id = st.sidebar.selectbox("Run ID", options=assistant_run_ids)
         if new_assistant_run_id is not None and st.session_state["assistant_run_id"] != new_assistant_run_id:
             logger.info(f"---*--- Loading run: {new_assistant_run_id} ---*---")
-            st.session_state["assistant"] = get_assistant(model=llm, run_id=new_assistant_run_id)
+            st.session_state["assistant"] = get_assistant(model=llm, run_id=new_assistant_run_id, web_search=web_search)
             st.rerun()
 
     assistant_run_name = assistant.run_name

@@ -180,7 +180,7 @@ class Run(BaseModel):
         self.openai_run = self.client.beta.threads.runs.create(
             thread_id=_thread_id, assistant_id=_assistant_id, **request_body
         )
-        self.load_from_openai(self.openai_run)
+        self.load_from_openai(self.openai_run)  # type: ignore
         logger.debug(f"Run created: {self.id}")
         return self
 

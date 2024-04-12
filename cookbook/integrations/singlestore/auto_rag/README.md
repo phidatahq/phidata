@@ -5,7 +5,6 @@ This cookbook shows how to build an Autonomous RAG application with SingleStore 
 We'll use the following LLMs:
 - GPT-4 by OpenAI (needs an API key)
 - Hermes2 running locally using Ollama (no API key needed)
-- Claude3 by Anthropic (needs an API key)
 
 > Note: Fork and clone this repository if needed
 
@@ -57,12 +56,6 @@ export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
 
 ```shell
 export OPENAI_API_KEY="sk-..."
-```
-
-- To use Anthropic Claude3, provide your ANTHROPIC_API_KEY
-
-```shell
-export ANTHROPIC_API_KEY="sk-..."
 ```
 
 ### 6. Run Streamlit application

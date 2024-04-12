@@ -1,0 +1,32 @@
+{
+    "TABLE_INFORMATION": "Use this information to query the nyc_payroll_aggregated table.",
+    "table_name": "nyc_payroll_aggregated",
+    "table_description": "Contains aggregated payroll data for NYC agencies.",
+    "table_columns": [
+      {
+          "name": "agency_name",
+          "type": "varchar",
+          "description": "Name of the NYC agency."
+      },
+      {
+          "name": "fiscal_year",
+          "type": "bigint",
+          "description": "Fiscal year of the payroll data."
+      },
+      {
+          "name": "total_other_pay",
+          "type": "double",
+          "description": "Total other pay of the employees in the agency."
+      },
+      {
+          "name": "total_overtime_pay",
+          "type": "double",
+          "description": "Total overtime pay of the employees in the agency."
+      },
+      {
+          "name": "total_regular_gross_pay",
+          "type": "double",
+          "description": "Total regular gross pay of the employees in the agency."
+      }
+  ]
+}

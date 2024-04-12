@@ -1,0 +1,52 @@
+{
+    "TABLE_INFORMATION": "Use this information to query the wegovnyc_citywide_payroll table.",
+    "table_name": "wegovnyc_citywide_payroll",
+    "table_description": "Contains raw payroll data for NYC agencies.",
+    "table_columns": [
+        {
+            "name": "agency_name",
+            "type": "varchar",
+            "description": "Name of the NYC agency."
+        },
+        {
+            "name": "agency_start_date",
+            "type": "date",
+            "description": "Date the employee started working for the agency."
+        },
+        {
+            "name": "base_salary",
+            "type": "double",
+            "description": "Base salary of the employee."
+        },
+        {
+            "name": "first_name",
+            "type": "varchar",
+            "description": "First name of the employee."
+        },
+        {
+            "name": "fiscal_year",
+            "type": "bigint",
+            "description": "Fiscal year of the payroll data."
+        },
+        {
+            "name": "last_name",
+            "type": "varchar",
+            "description": "Last name of the employee."
+        },
+        {
+            "name": "leave_status_as_of_june_30",
+            "type": "varchar",
+            "description": "Leave status of the employee as of June 30."
+        },
+        {
+            "name": "ot_hours",
+            "type": "double",
+            "description": "Overtime hours worked by the employee."
+        },
+        {
+            "name": "pay_basis",
+            "type": "varchar",
+            "description": "Pay basis of the employee."
+        }
+    ]
+}

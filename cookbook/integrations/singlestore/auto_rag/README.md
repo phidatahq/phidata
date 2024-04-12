@@ -25,7 +25,7 @@ pip install -r cookbook/integrations/singlestore/auto_rag/requirements.txt
 
 - For SingleStore
 
-> Note: Please make sure you provide a certificate file for SSL connection [Read more](https://docs.singlestore.com/cloud/connect-to-your-workspace/connect-with-mysql/connect-with-mysql-client/connect-to-singlestore-helios-using-tls-ssl/)
+> Note: If using a shared tier, please provide a certificate file for SSL connection [Read more](https://docs.singlestore.com/cloud/connect-to-your-workspace/connect-with-mysql/connect-with-mysql-client/connect-to-singlestore-helios-using-tls-ssl/)
 
 ```shell
 export SINGLESTORE_HOST="host"
@@ -67,7 +67,7 @@ streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 ### 5. Provide a web page URL and ask questions
 
 Example URL:
-- https://docs.singlestore.com/cloud/developer-resources/functional-extensions/working-with-vector-data/
+- https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
 
 Example Questions:
 - How do I load, insert, and update vectors in SingleStore?

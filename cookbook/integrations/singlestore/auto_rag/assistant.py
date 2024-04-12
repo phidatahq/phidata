@@ -10,6 +10,7 @@ from phi.embedder.ollama import OllamaEmbedder
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.assistant.singlestore import S2AssistantStorage
 from phi.vectordb.singlestore import S2VectorDb
+from phi.utils.log import logger
 
 
 # -*- SingleStore Configuration -*-
@@ -18,9 +19,11 @@ PASSWORD = getenv("SINGLESTORE_PASSWORD")
 HOST = getenv("SINGLESTORE_HOST")
 PORT = getenv("SINGLESTORE_PORT")
 DATABASE = getenv("SINGLESTORE_DATABASE")
-SSL_CERT = getenv("SINGLESTORE_SSL_CERT")
+SSL_CERT = getenv("SINGLESTORE_SSL_CERT", None)
 # -*- SingleStore DB URL
-db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}?ssl_ca={SSL_CERT}&ssl_verify_cert=true"
+db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}"
+if SSL_CERT:
+    db_url += f"?ssl_ca={SSL_CERT}&ssl_verify_cert=true"
 
 
 def get_assistant(
@@ -31,6 +34,9 @@ def get_assistant(
     web_search: bool = False,
 ) -> Assistant:
     """Get a Phidata Assistant with SingleStore backend."""
+
+    logger.info(f"Creating Assistant with model: {model}")
+    logger.info(f"Connecting to SingleStore DB: {db_url}")
 
     if model == "Hermes2":
         return Assistant(

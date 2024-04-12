@@ -119,7 +119,7 @@ def main() -> None:
             if input_url is not None:
                 alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
                 if f"{input_url}_scraped" not in st.session_state:
-                    scraper = WebsiteReader(chunk_size=chunk_size)
+                    scraper = WebsiteReader(chunk_size=chunk_size, max_links=5, max_depth=2)
                     web_documents: List[Document] = scraper.read(input_url)
                     if web_documents:
                         assistant.knowledge_base.load_documents(web_documents, upsert=True)

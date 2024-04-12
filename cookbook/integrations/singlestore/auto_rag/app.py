@@ -86,7 +86,7 @@ def main() -> None:
         st.session_state["messages"] = ss_assistant_chat_history
     else:
         logger.debug("No chat history found")
-        st.session_state["messages"] = [{"role": "ss_assistant", "content": "Ask me anything..."}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "Ask me anything..."}]
 
     # Prompt for user input
     if prompt := st.chat_input():

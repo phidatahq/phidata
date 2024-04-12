@@ -21,8 +21,10 @@ st.markdown("##### :orange_heart: Built using [phidata](https://github.com/phida
 def restart_assistant():
     st.session_state["assistant"] = None
     st.session_state["assistant_run_id"] = None
-    st.session_state["url_scrape_key"] += 1
-    st.session_state["file_uploader_key"] += 1
+    if "url_scrape_key" in st.session_state:
+        st.session_state["url_scrape_key"] += 1
+    if "file_uploader_key" in st.session_state:
+        st.session_state["file_uploader_key"] += 1
     st.rerun()
 
 
@@ -117,7 +119,7 @@ def main() -> None:
             if input_url is not None:
                 alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
                 if f"{input_url}_scraped" not in st.session_state:
-                    scraper = WebsiteReader(chunk_size=chunk_size)
+                    scraper = WebsiteReader(chunk_size=chunk_size, max_links=5, max_depth=2)
                     web_documents: List[Document] = scraper.read(input_url)
                     if web_documents:
                         assistant.knowledge_base.load_documents(web_documents, upsert=True)

@@ -68,6 +68,7 @@ streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 
 Example URL:
 - https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
+- https://www.singlestore.com/blog/singlestore-vector-data-type-support/
 
 Example Questions:
 - How do I load, insert, and update vectors in SingleStore?

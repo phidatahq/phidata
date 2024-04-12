@@ -85,8 +85,8 @@ class Team(BaseModel):
         else:
             _system_prompt += "You are an AI Assistant"
 
-        _system_prompt += "and your goal is to respond to the users message in the best way possible. "
-        _system_prompt += "This is an important task and must be done with correctly.\n\n"
+        _system_prompt += " and your goal is to respond to the users message in the best way possible. "
+        _system_prompt += "This is an important task and must be done correctly.\n\n"
 
         if self.assistants and len(self.assistants) > 0:
             _system_prompt += (
@@ -110,7 +110,9 @@ class Team(BaseModel):
             _system_prompt += "</assistants>\n"
 
         if self.reviewer is None:
-            _system_prompt += "You must always review the responses from the assistants and re-run tasks if the result is not satisfactory."
+            _system_prompt += (
+                "You must review the responses from the assistants and re-run tasks if the result is not satisfactory."
+            )
 
         return Assistant(
             system_prompt=_system_prompt,

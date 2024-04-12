@@ -43,8 +43,6 @@ class LLMTask(Task):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
-    # Allow the LLM to use tools
-    use_tools: bool = False
     # Show tool calls in LLM messages.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -56,19 +54,17 @@ class LLMTask(Task):
     #   forces the model to call that function.
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-    # -*- Available tools
-    # If use_tools is True and read_chat_history_tool is True,
-    # then a tool is added that allows the LLM to read the chat history.
-    read_chat_history_tool: bool = True
-    # If use_tools is True and search_knowledge_base_tool is True,
-    # then a tool is added that allows the LLM to search the knowledge base.
-    search_knowledge_base_tool: bool = True
-    # If use_tools is True and update_knowledge_base is True,
-    # then a tool is added that allows the LLM to update the knowledge base.
-    update_knowledge_base: bool = False
-    # If use_tools is True and read_tool_call_history is True,
-    # then a tool is added that allows the LLM to get the tool call history.
+    # -*- Default tools
+    # Add a tool that allows the LLM to get the chat history.
+    read_chat_history: bool = True
+    # Add a tool that allows the LLM to search the knowledge base.
+    search_knowledge: bool = True
+    # Add a tool that allows the LLM to update the knowledge base.
+    update_knowledge: bool = False
+    # Add a tool is added that allows the LLM to get the tool call history.
     read_tool_call_history: bool = False
+    # -*- Deprecated: use_tools is deprecated, please set read_chat_history or search_knowledge manually
+    use_tools: bool = False
 
     # -*- Important: this setting determines if the input messages are formatted
     # If True, phidata will add the system prompt, references, and chat history
@@ -112,6 +108,8 @@ class LLMTask(Task):
     # If True, add the current datetime to the prompt to give the assistant a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
+    # Add instructions for delegating tasks to another assistant
+    add_delegation_instructions: bool = True
     # If markdown=true, add instructions to format the output using markdown
     markdown: bool = False
 
@@ -150,6 +148,8 @@ class LLMTask(Task):
     #     ...
     chat_history_function: Optional[Callable[..., Optional[str]]] = None
 
+    delegation_prompt: Optional[str] = None
+
     @property
     def streamable(self) -> bool:
         return self.output_model is None
@@ -167,29 +167,35 @@ class LLMTask(Task):
 
             self.llm = OpenAIChat()
 
-    def add_response_format_to_llm(self) -> None:
-        if self.output_model is not None and self.llm is not None:
-            self.llm.response_format = {"type": "json_object"}
-
-    def add_tools_to_llm(self) -> None:
+    def update_llm(self) -> None:
         if self.llm is None:
             logger.error(f"Task LLM is None: {self.__class__.__name__}")
             return
 
+        # Set response_format if it is not set on the llm
+        if self.output_model is not None and self.llm.response_format is None:
+            self.llm.response_format = {"type": "json_object"}
+
+        # Add tools to the LLM
         if self.tools is not None:
             for tool in self.tools:
                 self.llm.add_tool(tool)
 
+        # Add default tools to the LLM
         if self.use_tools:
-            if self.read_chat_history_tool and self.memory is not None:
+            self.read_chat_history = True
+            self.search_knowledge = True
+
+        if self.memory is not None:
+            if self.read_chat_history:
                 self.llm.add_tool(self.get_chat_history)
-            if self.knowledge_base is not None:
-                if self.search_knowledge_base_tool:
-                    self.llm.add_tool(self.search_knowledge_base)
-                if self.update_knowledge_base:
-                    self.llm.add_tool(self.add_to_knowledge_base)
             if self.read_tool_call_history:
                 self.llm.add_tool(self.get_tool_call_history)
+        if self.knowledge_base is not None:
+            if self.search_knowledge:
+                self.llm.add_tool(self.search_knowledge_base)
+            if self.update_knowledge:
+                self.llm.add_tool(self.add_to_knowledge_base)
 
         # Set show_tool_calls if it is not set on the llm
         if self.llm.show_tool_calls is None and self.show_tool_calls is not None:
@@ -203,11 +209,13 @@ class LLMTask(Task):
         if self.tool_call_limit is not None and self.tool_call_limit < self.llm.function_call_limit:
             self.llm.function_call_limit = self.tool_call_limit
 
+        if self.run_id is not None:
+            self.llm.run_id = self.run_id
+
     def prepare_task(self) -> None:
         self.set_task_id()
         self.set_default_llm()
-        self.add_response_format_to_llm()
-        self.add_tools_to_llm()
+        self.update_llm()
 
     def get_json_output_prompt(self) -> str:
         json_output_prompt = "\nProvide your output as a JSON containing the following fields:"
@@ -312,6 +320,13 @@ class LLMTask(Task):
         # Add default instructions
         if _instructions is None:
             _instructions = []
+            # Add instructions for delegating tasks to another assistant
+            if self.delegation_prompt and self.add_delegation_instructions:
+                _instructions.append(
+                    "You are the leader of a team of AI Assistants. You can either respond directly or "
+                    "delegate tasks to the assistants below depending on their role and the tools "
+                    "available to them."
+                )
             # Add instructions for using the knowledge base
             if self.add_references_to_prompt:
                 _instructions.append("Use the information from the knowledge base to help respond to the message")
@@ -379,6 +394,10 @@ class LLMTask(Task):
         # Then add user provided additional information to the system prompt
         if self.add_to_system_prompt is not None:
             _system_prompt += "\n" + self.add_to_system_prompt
+
+        # Then add the delegation_prompt to the system prompt
+        if self.delegation_prompt is not None:
+            _system_prompt += "\n\n" + self.delegation_prompt
 
         # Then add the json output prompt if output_model is set
         if self.output_model is not None:

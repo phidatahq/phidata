@@ -107,7 +107,7 @@ class PythonAssistant(CustomAssistant):
                 _instructions += [
                     "Search the `knowledge_base` for `files` to get the files you have access to.",
                 ]
-            if self.update_knowledge_base:
+            if self.update_knowledge:
                 _instructions += [
                     "If needed, search the `knowledge_base` for results of previous queries.",
                     "If you find any information that is missing from the `knowledge_base`, add it using the `add_to_knowledge_base` function.",

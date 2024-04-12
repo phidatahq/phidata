@@ -11,7 +11,7 @@ class FileTools(Toolkit):
         base_dir: Optional[Path] = None,
         save_files: bool = True,
         read_files: bool = True,
-        list_files: bool = False,
+        list_files: bool = True,
     ):
         super().__init__(name="file_tools")
 

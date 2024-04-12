@@ -21,8 +21,10 @@ st.markdown("##### :orange_heart: Built using [phidata](https://github.com/phida
 def restart_assistant():
     st.session_state["assistant"] = None
     st.session_state["assistant_run_id"] = None
-    st.session_state["url_scrape_key"] += 1
-    st.session_state["file_uploader_key"] += 1
+    if "url_scrape_key" in st.session_state:
+        st.session_state["url_scrape_key"] += 1
+    if "file_uploader_key" in st.session_state:
+        st.session_state["file_uploader_key"] += 1
     st.rerun()
 
 

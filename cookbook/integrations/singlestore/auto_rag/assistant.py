@@ -10,6 +10,7 @@ from phi.embedder.ollama import OllamaEmbedder
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.assistant.singlestore import S2AssistantStorage
 from phi.vectordb.singlestore import S2VectorDb
+from phi.utils.log import logger
 
 
 # -*- SingleStore Configuration -*-
@@ -18,9 +19,11 @@ PASSWORD = getenv("SINGLESTORE_PASSWORD")
 HOST = getenv("SINGLESTORE_HOST")
 PORT = getenv("SINGLESTORE_PORT")
 DATABASE = getenv("SINGLESTORE_DATABASE")
-SSL_CERT = getenv("SINGLESTORE_SSL_CERT")
+SSL_CERT = getenv("SINGLESTORE_SSL_CERT", None)
 # -*- SingleStore DB URL
-db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}?ssl_ca={SSL_CERT}&ssl_verify_cert=true"
+db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}"
+if SSL_CERT:
+    db_url += f"?ssl_ca={SSL_CERT}&ssl_verify_cert=true"
 
 
 def get_assistant(
@@ -31,6 +34,9 @@ def get_assistant(
     web_search: bool = False,
 ) -> Assistant:
     """Get a Phidata Assistant with SingleStore backend."""
+
+    logger.info(f"Creating Assistant. Model: {model} | Run ID: {run_id}")
+    logger.info(f"SingleStore DB: {db_url}")
 
     if model == "Hermes2":
         return Assistant(
@@ -57,10 +63,11 @@ def get_assistant(
                 "Share links where possible and use bullet points to make information easier to read.",
                 "Keep your conversation light hearted and fun.",
             ],
+            # This setting will add the references from the vector store to the prompt
             add_references_to_prompt=True,
         )
     else:
-        model_name = "gpt-4-turbo-preview" if model == "GPT-4" else "gpt-3.5-turbo-0125"
+        model_name = "gpt-4-turbo" if model == "GPT-4" else "gpt-3.5-turbo-0125"
         instructions = [
             "When a user asks a question, always search your knowledge base using `search_knowledge_base` tool to find relevant information.",
             "If you find information relevant to the user's question, provide a clear and concise answer to the user.",
@@ -94,6 +101,7 @@ def get_assistant(
                 ),
                 num_documents=5,
             ),
+            # This setting adds chat history to the messages
             add_chat_history_to_messages=True,
             num_history_messages=4,
             markdown=True,

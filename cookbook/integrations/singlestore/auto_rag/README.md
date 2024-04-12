@@ -21,27 +21,11 @@ source ~/.venvs/aienv/bin/activate
 pip install -r cookbook/integrations/singlestore/auto_rag/requirements.txt
 ```
 
-### 3. To use a local model, install and run Ollama
-
-- [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama
-
-- Run you embedding model
-
-```shell
-ollama run nomic-embed-text
-```
-
-- Run your chat model
-
-```shell
-ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
-```
-
-### 4. Provide credentials
+### 3. Add credentials
 
 - For SingleStore
 
-> Note: Please make sure you provide a certificate file for SSL connection [Read more](https://docs.singlestore.com/cloud/connect-to-your-workspace/connect-with-mysql/connect-with-mysql-client/connect-to-singlestore-helios-using-tls-ssl/)
+> Note: If using a shared tier, please provide a certificate file for SSL connection [Read more](https://docs.singlestore.com/cloud/connect-to-your-workspace/connect-with-mysql/connect-with-mysql-client/connect-to-singlestore-helios-using-tls-ssl/)
 
 ```shell
 export SINGLESTORE_HOST="host"
@@ -58,21 +42,47 @@ export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
 export OPENAI_API_KEY="sk-..."
 ```
 
-### 6. Run Streamlit application
+### Optional: To use a local model, install and run Ollama
+
+- [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama
+
+- Run you embedding model
+
+```shell
+ollama run nomic-embed-text
+```
+
+- Run your chat model
+
+```shell
+ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
+```
+
+### 4. Run Streamlit application
 
 ```shell
 streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 ```
 
-### 7. Provide a web page URL and ask questions
+### 5. Provide a web page URL and ask questions
 
-Example URL:
-- https://docs.singlestore.com/cloud/developer-resources/functional-extensions/working-with-vector-data/
+Examples:
 
-Example Questions:
-- How do I Loading, Inserting, and Updating Vectors in SingleStore?
+URL:
+- https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
+Question:
+- Help me choose a vector database
+
+URL:
+- https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
+Question:
 - Tell me about hybrid search in SingleStore?
 
-### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+URL:
+- https://www.singlestore.com/blog/singlestore-vector-data-type-support/
+Questions:
+- Tell me about vector type in SingleStore?
 
-### 8. Star ⭐️ the project if you like it.
+### 6. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+
+### 7. Star ⭐️ the project if you like it.

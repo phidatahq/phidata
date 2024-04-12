@@ -5,7 +5,6 @@ This cookbook shows how to build an Autonomous RAG application with SingleStore 
 We'll use the following LLMs:
 - GPT-4 by OpenAI (needs an API key)
 - Hermes2 running locally using Ollama (no API key needed)
-- Claude3 by Anthropic (needs an API key)
 
 > Note: Fork and clone this repository if needed
 
@@ -22,23 +21,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -r cookbook/integrations/singlestore/auto_rag/requirements.txt
 ```
 
-### 3. To use a local model, install and run Ollama
-
-- [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama
-
-- Run you embedding model
-
-```shell
-ollama run nomic-embed-text
-```
-
-- Run your chat model
-
-```shell
-ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
-```
-
-### 4. Provide credentials
+### 3. Add credentials
 
 - For SingleStore
 
@@ -59,27 +42,37 @@ export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
 export OPENAI_API_KEY="sk-..."
 ```
 
-- To use Anthropic Claude3, provide your ANTHROPIC_API_KEY
+### Optional: To use a local model, install and run Ollama
+
+- [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama
+
+- Run you embedding model
 
 ```shell
-export ANTHROPIC_API_KEY="sk-..."
+ollama run nomic-embed-text
 ```
 
-### 6. Run Streamlit application
+- Run your chat model
+
+```shell
+ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
+```
+
+### 4. Run Streamlit application
 
 ```shell
 streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 ```
 
-### 7. Provide a web page URL and ask questions
+### 5. Provide a web page URL and ask questions
 
 Example URL:
 - https://docs.singlestore.com/cloud/developer-resources/functional-extensions/working-with-vector-data/
 
 Example Questions:
-- How do I Loading, Inserting, and Updating Vectors in SingleStore?
+- How do I load, insert, and update vectors in SingleStore?
 - Tell me about hybrid search in SingleStore?
 
-### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+### 6. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
-### 8. Star ⭐️ the project if you like it.
+### 7. Star ⭐️ the project if you like it.

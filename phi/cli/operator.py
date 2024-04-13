@@ -176,6 +176,7 @@ def start_resources(
     dry_run: Optional[bool] = False,
     auto_confirm: Optional[bool] = False,
     force: Optional[bool] = None,
+    pull: Optional[bool] = False,
 ) -> None:
     print_heading(f"Starting resources in: {resources_file_path}")
     logger.debug(f"\ttarget_env   : {target_env}")
@@ -186,6 +187,7 @@ def start_resources(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
+    logger.debug(f"\tpull         : {pull}")
 
     from phi.workspace.config import WorkspaceConfig
 
@@ -221,6 +223,7 @@ def start_resources(
             dry_run=dry_run,
             auto_confirm=auto_confirm,
             force=force,
+            pull=pull,
         )
         if _num_resources_created > 0:
             num_rgs_created += 1

@@ -1,7 +1,7 @@
 ## SQL Assistant
 
-This cookbook shows how to build a SQL Assistant that can connect to a database, run queries, and display the results.
-It also uses RAG to provide the Assistant with information about your table and schema.
+This cookbook showcases a SQL Assistant that can write and run SQL queries.
+It uses RAG to provide additional information and rules that can be used to improve the responses.
 
 1. Create a virtual environment
 

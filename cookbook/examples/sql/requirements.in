@@ -1,4 +1,8 @@
 openai
+pandas
+phidata
 streamlit
 sqlalchemy
-phidata
+simplejson
+pgvector
+"psycopg[binary]"

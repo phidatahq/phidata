@@ -1,11 +1,12 @@
+from typing import List, Optional, Dict, Any
+
+from phi.tools import Toolkit
+from phi.utils.log import logger
+
 try:
     import simplejson as json
 except ImportError:
     raise ImportError("`simplejson` not installed")
-from typing import List, Optional, Dict, Any, Union
-
-from phi.tools import Toolkit
-from phi.utils.log import logger
 
 try:
     from sqlalchemy import create_engine, Engine, Row
@@ -28,6 +29,9 @@ class SQLToolkit(Toolkit):
         schema: Optional[str] = None,
         dialect: Optional[str] = None,
         tables: Optional[Dict[str, Any]] = None,
+        list_tables: bool = True,
+        describe_table: bool = True,
+        run_sql_query: bool = True,
     ):
         super().__init__(name="sql_toolkit")
 
@@ -52,14 +56,15 @@ class SQLToolkit(Toolkit):
         self.tables: Optional[Dict[str, Any]] = tables
 
         # Register functions in the toolkit
-        self.register(self.run_sql_query)
-        self.register(self.run_sql_query_and_get_result)
-        self.register(self.get_table_names)
-        self.register(self.describe_table)
+        if list_tables:
+            self.register(self.list_tables)
+        if describe_table:
+            self.register(self.describe_table)
+        if run_sql_query:
+            self.register(self.run_sql_query)
 
-    def get_table_names(self) -> str:
-        """
-        Use this function to get a list of table names you have access to.
+    def list_tables(self) -> str:
+        """Use this function to get a list of table names in the database.
 
         Returns:
             str: list of tables in the database.
@@ -70,15 +75,13 @@ class SQLToolkit(Toolkit):
         try:
             table_names = inspect(self.db_engine).get_table_names()
             logger.debug(f"table_names: {table_names}")
+            return json.dumps(table_names)
         except Exception as e:
             logger.error(f"Error getting tables: {e}")
             return f"Error getting tables: {e}"
 
-        return json.dumps(table_names)
-
     def describe_table(self, table_name: str) -> str:
-        """
-        Use this function to get the schema of an existing table.
+        """Use this function to describe a table.
 
         Args:
             table_name (str): The name of the table to get the schema for.
@@ -90,78 +93,55 @@ class SQLToolkit(Toolkit):
         try:
             table_names = inspect(self.db_engine)
             table_schema = table_names.get_columns(table_name)
-
+            return json.dumps([str(column) for column in table_schema])
         except Exception as e:
             logger.error(f"Error getting table schema: {e}")
             return f"Error getting table schema: {e}"
 
-        return json.dumps([str(column) for column in table_schema])
-
-    def run_sql_query(self, query: str) -> str:
-        """
-        Use this function to run a SQL query, it does not return any output.
-
-        Args:
-            query (str): The query to run.
-
-        Returns:
-            str: Result of the SQL query.
-        """
-
-        try:
-            return json.dumps(self._run_sql(sql=query, output=False))
-        except Exception as e:
-            logger.error(f"Error running query: {e}")
-            return f"Error running query: {e}"
-
-    def run_sql_query_and_get_result(self, query: str, limit: Optional[int] = 10) -> str:
-        """
-        Use this function to run a SQL query, it returns output of the query.
+    def run_sql_query(self, query: str, limit: Optional[int] = 10) -> str:
+        """Use this function to run a SQL query and return the result.
 
         Args:
             query (str): The query to run.
             limit (int, optional): The number of rows to return. Defaults to 10. Use `None` to show all results.
-
         Returns:
             str: Result of the SQL query.
+        Notes:
+            - The result may be empty if the query does not return any data.
         """
+
         try:
-            return json.dumps(str(self._run_sql(sql=query, limit=limit, output=True)))
+            return json.dumps(self.run_sql(sql=query, limit=limit))
         except Exception as e:
             logger.error(f"Error running query: {e}")
             return f"Error running query: {e}"
 
-    def _run_sql(
-        self, sql: str, limit: Optional[int] = None, output: Optional[bool] = None
-    ) -> Optional[Union[List, Dict]]:
+    def run_sql(self, sql: str, limit: Optional[int] = None) -> List[dict]:
         """Internal function to run a sql query.
 
         Args:
             sql (str): The sql query to run.
             limit (int, optional): The number of rows to return. Defaults to None.
-            output (bool, optional): Whether the query requires an output. Defaults to None.
 
         Returns:
             List[dict]: The result of the query.
         """
         logger.debug(f"Running sql |\n{sql}")
 
-        with self.Session.begin() as session:
-            if output:
-                if limit is None:
-                    sql_result = session.execute(text(sql)).fetchall()
-                else:
-                    sql_result = session.execute(text(sql)).fetchmany(limit)
+        result = None
+        with self.Session() as sess, sess.begin():
+            if limit:
+                result = sess.execute(text(sql)).fetchmany(limit)
             else:
-                sql_result = session.execute(text(sql))  # type: ignore
+                result = sess.execute(text(sql)).fetchall()
 
-        logger.debug(f"SQL result: {sql_result}")
-        if sql_result is None:
-            return None
-        elif isinstance(sql_result, list):
-            return [row._asdict() for row in sql_result]
-        elif isinstance(sql_result, Row):
-            return sql_result._asdict()
+        logger.debug(f"SQL result: {result}")
+        if result is None:
+            return []
+        elif isinstance(result, list):
+            return [row._asdict() for row in result]
+        elif isinstance(result, Row):
+            return result._asdict()
         else:
-            logger.debug(f"SQL result type: {type(sql_result)}")
-            return None
+            logger.debug(f"SQL result type: {type(result)}")
+            return []

@@ -324,6 +324,12 @@ def start(
         "--force",
         help="Force",
     ),
+    pull: Optional[bool] = typer.Option(
+        None,
+        "-p",
+        "--pull",
+        help="Pull images where applicable.",
+    ),
 ):
     """\b
     Start resources defined in a resources.py file
@@ -392,6 +398,7 @@ def start(
         dry_run=dry_run,
         auto_confirm=auto_confirm,
         force=force,
+        pull=pull,
     )
 
 

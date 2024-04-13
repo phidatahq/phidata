@@ -7,4 +7,4 @@ class PgVectorDb(PostgresDb):
 
     # -*- Image Configuration
     image_name: str = "phidata/pgvector"
-    image_tag: str = "15"
+    image_tag: str = "16"

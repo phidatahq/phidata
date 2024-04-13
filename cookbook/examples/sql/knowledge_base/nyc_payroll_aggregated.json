@@ -1,5 +1,5 @@
 {
-    "TABLE_INFORMATION": "Use this information to query the nyc_payroll_aggregated table.",
+    "table_information": "Use this information to query the nyc_payroll_aggregated table.",
     "table_name": "nyc_payroll_aggregated",
     "table_description": "Contains aggregated payroll data for NYC agencies.",
     "table_columns": [
@@ -7,7 +7,7 @@
           "name": "agency_name",
           "type": "varchar",
           "description": "Name of the NYC agency."
-      },
+      },w
       {
           "name": "fiscal_year",
           "type": "bigint",

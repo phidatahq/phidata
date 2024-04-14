@@ -31,7 +31,7 @@ except ImportError:
 
 class OpenAIChat(LLM):
     name: str = "OpenAIChat"
-    model: str = "gpt-4-turbo-preview"
+    model: str = "gpt-4-turbo"
     # -*- Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None

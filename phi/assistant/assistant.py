@@ -71,7 +71,7 @@ class Assistant(BaseModel):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
-    # Show tool calls in LLM messages.
+    # Show tool calls in LLM response.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
     tool_call_limit: Optional[int] = None
@@ -116,18 +116,18 @@ class Assistant(BaseModel):
     # If True, build a default system prompt using instructions and extra_instructions
     build_default_system_prompt: bool = True
     # -*- Settings for building the default system prompt
-    # Assistant description for the default system prompt
+    # A description of the Assistant that is added to top the system prompt.
     description: Optional[str] = None
-    # List of instructions for the default system prompt
+    # List of instructions added to the system prompt in `<instructions>` tags.
     instructions: Optional[List[str]] = None
     # List of extra_instructions added to the default system prompt
-    # Use these when you want to use the default prompt but also add some extra instructions
+    # Use these when you want to add some extra instructions at the end of the default instructions.
     extra_instructions: Optional[List[str]] = None
     # Add a string to the end of the default system prompt
     add_to_system_prompt: Optional[str] = None
-    # If True, add instructions for using the knowledge base to the default system prompt if knowledge base is provided
+    # If True, add instructions for using the knowledge base to the system prompt if knowledge base is provided
     add_knowledge_base_instructions: bool = True
-    # If True, add instructions for letting the user know that the assistant does not know the answer
+    # If True, add instructions to return "I dont know" when the assistant does not know the answer.
     prevent_hallucinations: bool = False
     # If True, add instructions to prevent prompt injection attacks
     prevent_prompt_injection: bool = False
@@ -140,7 +140,7 @@ class Assistant(BaseModel):
     markdown: bool = False
 
     # -*- User prompt: provide the user prompt as a string
-    # Note: this will ignore the input message provided to the run function
+    # Note: this will ignore the message sent to the run function
     user_prompt: Optional[Union[List, Dict, str]] = None
     # -*- User prompt template: provide the user prompt as a PromptTemplate
     user_prompt_template: Optional[PromptTemplate] = None

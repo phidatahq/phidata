@@ -1,6 +1,8 @@
 from typing import Optional
 from os import getenv
 
+from sqlalchemy.engine import create_engine
+
 from phi.assistant import Assistant
 from phi.knowledge import AssistantKnowledge
 from phi.llm.openai import OpenAIChat
@@ -8,10 +10,9 @@ from phi.llm.ollama import Ollama
 from phi.embedder.openai import OpenAIEmbedder
 from phi.embedder.ollama import OllamaEmbedder
 from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.assistant.singlestore import S2AssistantStorage
+from phi.storage.assistant.singlestore import S2AssistantStorage  # noqa
 from phi.vectordb.singlestore import S2VectorDb
 from phi.utils.log import logger
-
 
 # -*- SingleStore Configuration -*-
 USERNAME = getenv("SINGLESTORE_USERNAME")
@@ -21,9 +22,11 @@ PORT = getenv("SINGLESTORE_PORT")
 DATABASE = getenv("SINGLESTORE_DATABASE")
 SSL_CERT = getenv("SINGLESTORE_SSL_CERT", None)
 # -*- SingleStore DB URL
-db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}"
+db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}?charset=utf8mb4"
 if SSL_CERT:
-    db_url += f"?ssl_ca={SSL_CERT}&ssl_verify_cert=true"
+    db_url += f"&ssl_ca={SSL_CERT}&ssl_verify_cert=true"
+# -*- SingleStore DB Engine
+db_engine = create_engine(db_url)
 
 
 def get_assistant(
@@ -44,12 +47,12 @@ def get_assistant(
             run_id=run_id,
             user_id=user_id,
             llm=Ollama(model="adrienbrault/nous-hermes2pro:Q8_0"),
-            storage=S2AssistantStorage(table_name="auto_rag_assistant_hermes2", schema=DATABASE, db_url=db_url),
+            # storage=S2AssistantStorage(table_name="auto_rag_assistant_hermes2", schema=DATABASE, db_engine=db_engine),
             knowledge_base=AssistantKnowledge(
                 vector_db=S2VectorDb(
                     collection="auto_rag_documents_nomic",
                     schema=DATABASE,
-                    db_url=db_url,
+                    db_engine=db_engine,
                     embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
                 ),
                 num_documents=2,
@@ -62,6 +65,7 @@ def get_assistant(
                 "Using this information provide a clear and concise answer to the user.",
                 "Share links where possible and use bullet points to make information easier to read.",
                 "Keep your conversation light hearted and fun.",
+                "Do not use emojis or slang in your responses.",
             ],
             # This setting will add the references from the vector store to the prompt
             add_references_to_prompt=True,
@@ -83,6 +87,7 @@ def get_assistant(
                 "Share links where possible and use bullet points to make information easier to read.",
                 "Keep your conversation light hearted and fun.",
                 "Always aim to please the user",
+                "Do not use emojis or slang in your responses.",
             ]
         )
 
@@ -91,12 +96,12 @@ def get_assistant(
             run_id=run_id,
             user_id=user_id,
             llm=OpenAIChat(model=model_name),
-            storage=S2AssistantStorage(table_name="auto_rag_assistant_openai", schema=DATABASE, db_url=db_url),
+            # storage=S2AssistantStorage(table_name="auto_rag_assistant_openai", schema=DATABASE, db_engine=db_engine),
             knowledge_base=AssistantKnowledge(
                 vector_db=S2VectorDb(
                     collection="auto_rag_documents_openai",
                     schema=DATABASE,
-                    db_url=db_url,
+                    db_engine=db_engine,
                     embedder=OpenAIEmbedder(model="text-embedding-3-small", dimensions=1536),
                 ),
                 num_documents=5,

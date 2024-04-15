@@ -15,7 +15,15 @@ source ~/.venvs/aienv/bin/activate
 pip install -U phidata openai
 ```
 
-## Assistants with Tools
+3. Run PgVector (If using Assistant with Knowledge and/or Memory)
+
+- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+
+```shell
+cookbook/assistants/run_pgvector.sh
+```
+
+## Assistant
 
 - Basic Assistant
 
@@ -23,20 +31,48 @@ pip install -U phidata openai
 python cookbook/assistants/basic.py
 ```
 
-- Data Analysis Assistant
+## Assistants with Tools
+
+- Data Analyst Assistant
 
 ```shell
-python cookbook/assistants/data_analysis.py
+pip install -U duckdb
+```
+
+```shell
+python cookbook/assistants/data_analyst.py
+```
+
+- Web Search Assistant
+
+```shell
+pip install -U duckduckgo-search
+```
+
+```shell
+python cookbook/assistants/web_search.py
 ```
 
 ## Assistants with Knowledge
 
-4. Run PgVector
-
-- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+- RAG Assistant
 
 ```shell
-phi start cookbook/examples/pgvector/resources.py -y
+pip install -U sqlalchemy pgvector "psycopg[binary]"
+```
+
+```shell
+python cookbook/assistants/rag_assistant.py
 ```
 
 ## Assistants with Memory, Knowledge and Tools
+
+- PDF Assistant
+
+```shell
+pip install -U sqlalchemy pgvector "psycopg[binary]" pypdf
+```
+
+```shell
+python cookbook/assistants/pdf_assistant.py
+```

@@ -5,7 +5,9 @@ from pydantic import BaseModel, Field
 
 
 class StoryTheme(BaseModel):
-    setting: str = Field(..., description="This is the context of the story. If not available, provide a random setting.")
+    setting: str = Field(
+        ..., description="This is the context of the story. If not available, provide a random setting."
+    )
     genre: str = Field(..., description="This is the genre of the story. If not provided, select horror.")
 
 

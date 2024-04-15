@@ -31,10 +31,15 @@ dev = [
     "ruff",
     "types-pyyaml"
 ]
+docker = [
+    "docker"
+]
 aws = [
+    "docker",
     "boto3"
 ]
 k8s = [
+    "docker",
     "kubernetes"
 ]
 

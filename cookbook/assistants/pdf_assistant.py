@@ -1,5 +1,4 @@
 import typer
-from rich.prompt import Prompt
 from typing import Optional, List
 from phi.assistant import Assistant
 from phi.storage.assistant.postgres import PgAssistantStorage
@@ -44,11 +43,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
     else:
         print(f"Continuing Run: {run_id}\n")
 
-    while True:
-        message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
-        if message in ("exit", "bye"):
-            break
-        assistant.print_response(message, markdown=True)
+    assistant.cli_app(markdown=True)
 
 
 if __name__ == "__main__":

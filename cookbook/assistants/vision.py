@@ -1,8 +1,7 @@
 from phi.assistant import Assistant
 from phi.llm.openai import OpenAIChat
 
-
-assistant = Assistant(llm=OpenAIChat(model="gpt-4-vision-preview"))
+assistant = Assistant(llm=OpenAIChat(model="gpt-4-turbo"))
 
 # Single Image
 assistant.print_response(

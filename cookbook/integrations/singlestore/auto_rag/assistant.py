@@ -35,8 +35,8 @@ def get_assistant(
 ) -> Assistant:
     """Get a Phidata Assistant with SingleStore backend."""
 
-    logger.info(f"Creating Assistant with model: {model}")
-    logger.info(f"Connecting to SingleStore DB: {db_url}")
+    logger.info(f"Creating Assistant. Model: {model} | Run ID: {run_id}")
+    logger.info(f"SingleStore DB: {db_url}")
 
     if model == "Hermes2":
         return Assistant(

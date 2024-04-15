@@ -3,5 +3,5 @@ config = {
     "port": 3306,
     "username": "admin",
     "password": "Single#123",
-    "database": "ai",
+    "database": "ai_test",
 }

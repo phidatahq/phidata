@@ -11,8 +11,14 @@ from resources import config  # type: ignore
 
 # Setup SingleStore connection
 db_url = (
-    f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+    f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}?charset=utf8mb4"
 )
+# db_url = (
+#     f"mysql+pymysql://{config['username']}:{config['password']}@"
+#     f"{config['host']}:{config['port']}/{config['database']}?"
+#     "charset=utf8mb4&collation=utf8mb4_general_ci"
+# )
+
 
 local_assistant_storage = S2AssistantStorage(
     table_name="local_rag_assistant",
@@ -22,7 +28,7 @@ local_assistant_storage = S2AssistantStorage(
 
 local_assistant_knowledge = AssistantKnowledge(
     vector_db=S2VectorDb(
-        collection="local_rag_documents",
+        collection="web_documents_singlestore",
         schema=config["database"],
         db_url=db_url,
         # Assuming OllamaEmbedder or a compatible embedder is used for SingleStore
@@ -38,8 +44,7 @@ def get_local_rag_assistant(
     run_id: Optional[str] = None,
     debug_mode: bool = False,
 ) -> Assistant:
-    """Get a Local RAG Assistant with SingleStore backend."""
-
+    """Get a Local URL RAG Assistant with SingleStore backend."""
     return Assistant(
         name="local_rag_assistant",
         run_id=run_id,
@@ -47,12 +52,12 @@ def get_local_rag_assistant(
         llm=Ollama(model=model),
         storage=local_assistant_storage,
         knowledge_base=local_assistant_knowledge,
-        # This setting adds references from the knowledge_base to the user prompt
+        add_chat_history_to_messages=False,
         add_references_to_prompt=True,
-        # This setting tells the LLM to format messages in markdown
+        num_history_messages=4,
         markdown=True,
         debug_mode=debug_mode,
-        description="You are an AI called 'Phi' designed to help users answer questions from a knowledge base of PDFs.",
+        description="You are an AI called 'Phi' designed to help users answer questions from a knowledge base.",
         assistant_data={"assistant_type": "rag"},
         use_tools=True,
         show_tool_calls=True,

@@ -13,5 +13,5 @@ pip install -U lancedb pypdf pandas openai phidata
 
 3. Run Assistant
 ```shell
-python cookbook/lancedb/assistant.py
+python cookbook/integrations/lancedb/assistant.py
 ```

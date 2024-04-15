@@ -16,7 +16,7 @@ password = getenv("SINGLESTORE_PASSWORD", config["password"])
 database = getenv("SINGLESTORE_DATABASE", config["database"])
 ssl_ca = getenv("SINGLESTORE_SSL_CA", config["ssl_ca"])
 
-db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}?ssl_ca={ssl_ca}&ssl_verify_cert=true"
+db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}?ssl_ca={ssl_ca}&ssl_verify_cert=true&charset=utf8mb4"
 
 assistant_storage = S2AssistantStorage(table_name="pdf_assistant", schema=database, db_url=db_url)
 

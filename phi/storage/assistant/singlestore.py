@@ -103,40 +103,39 @@ class S2AssistantStorage(AssistantStorage):
             #     with self.Session() as sess, sess.begin():
             #         logger.debug(f"Creating schema: {self.schema}")
             #         sess.execute(text(f"create schema if not exists {self.schema};"))
-            logger.debug(f"Creating table: {self.table_name}")
+            logger.info(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
     def _read(self, session: Session, run_id: str) -> Optional[Row[Any]]:
         stmt = select(self.table).where(self.table.c.run_id == run_id)
         try:
             return session.execute(stmt).first()
-        except Exception:
+        except Exception as e:
+            logger.debug(e)
             # Create table if it does not exist
             self.create()
         return None
 
     def read(self, run_id: str) -> Optional[AssistantRun]:
-        with self.Session() as sess:
-            with sess.begin():
-                existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-                return AssistantRun.model_validate(existing_row) if existing_row is not None else None
+        with self.Session.begin() as sess:
+            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
+            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    # get all run_ids for this user
-                    stmt = select(self.table)
-                    if user_id is not None:
-                        stmt = stmt.where(self.table.c.user_id == user_id)
-                    # order by created_at desc
-                    stmt = stmt.order_by(self.table.c.created_at.desc())
-                    # execute query
-                    rows = sess.execute(stmt).fetchall()
-                    for row in rows:
-                        if row is not None and row.run_id is not None:
-                            run_ids.append(row.run_id)
+            with self.Session.begin() as sess:
+                # get all run_ids for this user
+                stmt = select(self.table)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                for row in rows:
+                    if row is not None and row.run_id is not None:
+                        run_ids.append(row.run_id)
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
         return run_ids
@@ -144,19 +143,18 @@ class S2AssistantStorage(AssistantStorage):
     def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
         runs: List[AssistantRun] = []
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    # get all runs for this user
-                    stmt = select(self.table)
-                    if user_id is not None:
-                        stmt = stmt.where(self.table.c.user_id == user_id)
-                    # order by created_at desc
-                    stmt = stmt.order_by(self.table.c.created_at.desc())
-                    # execute query
-                    rows = sess.execute(stmt).fetchall()
-                    for row in rows:
-                        if row.run_id is not None:
-                            runs.append(AssistantRun.model_validate(row))
+            with self.Session.begin() as sess:
+                # get all runs for this user
+                stmt = select(self.table)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                for row in rows:
+                    if row.run_id is not None:
+                        runs.append(AssistantRun.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
         return runs
@@ -166,69 +164,64 @@ class S2AssistantStorage(AssistantStorage):
         Create a new assistant run if it does not exist, otherwise update the existing assistant.
         """
 
-        with self.Session() as sess:
-            with sess.begin():
-                # Create an insert statement using SingleStore's ON DUPLICATE KEY UPDATE syntax
-                upsert_sql = text(
-                    f"""
-                INSERT INTO {self.schema}.{self.table_name}
-                (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
-                VALUES
-                (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
-                ON DUPLICATE KEY UPDATE
-                    name = VALUES(name),
-                    run_name = VALUES(run_name),
-                    user_id = VALUES(user_id),
-                    llm = VALUES(llm),
-                    memory = VALUES(memory),
-                    assistant_data = VALUES(assistant_data),
-                    run_data = VALUES(run_data),
-                    user_data = VALUES(user_data),
-                    task_data = VALUES(task_data);
-                """
-                )
+        with self.Session.begin() as sess:
+            # Create an insert statement using SingleStore's ON DUPLICATE KEY UPDATE syntax
+            upsert_sql = text(
+                f"""
+            INSERT INTO {self.schema}.{self.table_name}
+            (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
+            VALUES
+            (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
+            ON DUPLICATE KEY UPDATE
+                name = VALUES(name),
+                run_name = VALUES(run_name),
+                user_id = VALUES(user_id),
+                llm = VALUES(llm),
+                memory = VALUES(memory),
+                assistant_data = VALUES(assistant_data),
+                run_data = VALUES(run_data),
+                user_data = VALUES(user_data),
+                task_data = VALUES(task_data);
+            """
+            )
 
-                try:
-                    sess.execute(
-                        upsert_sql,
-                        {
-                            "run_id": row.run_id,
-                            "name": row.name,
-                            "run_name": row.run_name,
-                            "user_id": row.user_id,
-                            "llm": json.dumps(row.llm) if row.llm is not None else None,
-                            "memory": json.dumps(row.memory) if row.memory is not None else None,
-                            "assistant_data": json.dumps(row.assistant_data)
-                            if row.assistant_data is not None
-                            else None,
-                            "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
-                            "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
-                            "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
-                        },
-                    )
-                except Exception:
-                    # Create table and try again
-                    self.create()
-                    sess.execute(
-                        upsert_sql,
-                        {
-                            "run_id": row.run_id,
-                            "name": row.name,
-                            "run_name": row.run_name,
-                            "user_id": row.user_id,
-                            "llm": json.dumps(row.llm) if row.llm is not None else None,
-                            "memory": json.dumps(row.memory) if row.memory is not None else None,
-                            "assistant_data": json.dumps(row.assistant_data)
-                            if row.assistant_data is not None
-                            else None,
-                            "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
-                            "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
-                            "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
-                        },
-                    )
+            try:
+                sess.execute(
+                    upsert_sql,
+                    {
+                        "run_id": row.run_id,
+                        "name": row.name,
+                        "run_name": row.run_name,
+                        "user_id": row.user_id,
+                        "llm": json.dumps(row.llm) if row.llm is not None else None,
+                        "memory": json.dumps(row.memory) if row.memory is not None else None,
+                        "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+                        "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+                        "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+                        "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+                    },
+                )
+            except Exception:
+                # Create table and try again
+                self.create()
+                sess.execute(
+                    upsert_sql,
+                    {
+                        "run_id": row.run_id,
+                        "name": row.name,
+                        "run_name": row.run_name,
+                        "user_id": row.user_id,
+                        "llm": json.dumps(row.llm) if row.llm is not None else None,
+                        "memory": json.dumps(row.memory) if row.memory is not None else None,
+                        "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+                        "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+                        "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+                        "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+                    },
+                )
         return self.read(run_id=row.run_id)
 
     def delete(self) -> None:
         if self.table_exists():
-            logger.debug(f"Deleting table: {self.table_name}")
+            logger.info(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)

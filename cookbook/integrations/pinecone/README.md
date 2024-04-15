@@ -16,5 +16,5 @@ pip install -U pinecone-client pypdf openai phidata
 3. Run Pinecone Assistant
 
 ```shell
-python cookbook/pinecone/assistant.py
+python cookbook/integrations/pinecone/assistant.py
 ```

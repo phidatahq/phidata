@@ -18,7 +18,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/integrations/singlestore/auto_rag/requirements.txt
+pip install -r cookbook/integrations/integrations/singlestore/auto_rag/requirements.txt
 ```
 
 ### 3. Add credentials
@@ -61,7 +61,7 @@ ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
 ### 4. Run Streamlit application
 
 ```shell
-streamlit run cookbook/integrations/singlestore/auto_rag/app.py
+streamlit run cookbook/integrations/integrations/singlestore/auto_rag/app.py
 ```
 
 ### 5. Provide a web page URL and ask questions

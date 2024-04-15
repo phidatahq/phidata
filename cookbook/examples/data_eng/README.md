@@ -12,13 +12,13 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -r cookbook/data_eng/requirements.txt
+pip install -r cookbook/examples/data_eng/requirements.txt
 ```
 
 3. Run Python Assistant
 
 ```shell
-python cookbook/data_eng/python_assistant.py
+python cookbook/examples/data_eng/python_assistant.py
 ```
 
 Ask:
@@ -30,7 +30,7 @@ What is the average rating of movies?
 4. Run DuckDb Assistant
 
 ```shell
-python cookbook/data_eng/duckdb_assistant.py
+python cookbook/examples/data_eng/duckdb_assistant.py
 ```
 
 Ask:

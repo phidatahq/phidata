@@ -9,11 +9,11 @@ pip install -U openai phidata
 2. Create single pydantic model
 
 ```shell
-python cookbook/structured_output/movie_generator.py
+python cookbook/examples/structured_output/movie_generator.py
 ```
 
 3. Create list of pydantic models
 
 ```shell
-python cookbook/structured_output/movie_list_generator.py
+python cookbook/examples/structured_output/movie_list_generator.py
 ```

@@ -12,7 +12,7 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -r cookbook/singlestore/requirements.txt
+pip install -r cookbook/integrations/singlestore/requirements.txt
 ```
 
 3. Provide SingleStore database credentials
@@ -37,13 +37,13 @@ export SINGLESTORE_SSL_CERT=".certs/singlestore_bundle.pem"
 4. Run AI as a CLI Application
 
 ```shell
-python cookbook/singlestore/cli.py
+python cookbook/integrations/singlestore/cli.py
 ```
 
 5. Run Streamlit application
 
 ```shell
-streamlit run cookbook/singlestore/app.py
+streamlit run cookbook/integrations/singlestore/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your local AI app.

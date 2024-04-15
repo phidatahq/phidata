@@ -28,19 +28,19 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -r cookbook/local_rag/requirements.txt
+pip install -r cookbook/examples/local_rag/requirements.txt
 ```
 
 ### 4. Run pgvector
 
 ```shell
-phi start cookbook/local_rag/resources.py -y
+phi start cookbook/examples/local_rag/resources.py -y
 ```
 
 ### 5. Run Streamlit application
 
 ```shell
-streamlit run cookbook/local_rag/app.py
+streamlit run cookbook/examples/local_rag/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your local AI app.
@@ -50,7 +50,7 @@ streamlit run cookbook/local_rag/app.py
 ### 6. Optional: Run CLI application
 
 ```shell
-python cookbook/local_rag/cli.py
+python cookbook/examples/local_rag/cli.py
 ```
 
 Ask questions about thai recipes
@@ -62,13 +62,13 @@ Share a pad thai recipe.
 Run CLI with a different model
 
 ```shell
-python cookbook/local_rag/cli.py --model gemma:7b
+python cookbook/examples/local_rag/cli.py --model gemma:7b
 ```
 
 ### 7. Turn off pgvector
 
 ```shell
-phi stop cookbook/local_rag/resources.py -y
+phi stop cookbook/examples/local_rag/resources.py -y
 ```
 
 ### 8. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions

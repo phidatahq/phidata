@@ -26,13 +26,13 @@ pip install -U pgvector pypdf psycopg[binary] sqlalchemy openai phidata
 - Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
 
 ```shell
-phi start cookbook/pdf/resources.py -y
+phi start cookbook/examples/pdf/resources.py -y
 ```
 
 4. Run PDF Assistant
 
 ```shell
-python cookbook/pdf/assistant.py
+python cookbook/examples/pdf/assistant.py
 ```
 
 - Ask a question:
@@ -43,7 +43,7 @@ How do I make pad thai?
 
 - See how the Assistant searches the knowledge base and returns a response.
 
-- Message `bye` to exit, start the assistant again using `python cookbook/pdf/assistant.py` and ask:
+- Message `bye` to exit, start the assistant again using `python cookbook/examples/pdf/assistant.py` and ask:
 
 ```
 What was my last message?
@@ -58,5 +58,5 @@ python pdf_assistant.py --new
 5. Stop PgVector
 
 ```shell
-phi stop cookbook/pdf/resources.py -y
+phi stop cookbook/examples/pdf/resources.py -y
 ```

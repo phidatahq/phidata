@@ -2,15 +2,13 @@ from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
-from resources import vector_db
-
 knowledge_base = PDFUrlKnowledgeBase(
     # Read PDFs from URLs
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     # Store embeddings in the `ai.recipes` table
     vector_db=PgVector2(
         collection="recipes",
-        db_url=vector_db.get_db_connection_local()
+        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
     ),
 )
 # Load the knowledge base

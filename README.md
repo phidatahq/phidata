@@ -1,6 +1,11 @@
 <h1 align="center">
   phidata
 </h1>
+
+<h4 align="center">
+Phidata is a framework for building AI Assistants with memory, knowledge and tools.
+</h4>
+
 <p align="center">
   <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
       <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
@@ -16,11 +21,9 @@
   </a>
 </p>
 
-## What is phidata
+![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
-Phidata is a framework for adding memory, knowledge and tools to LLMs.
-
-## Why use phidata
+## Why phidata
 
 **Problem:** LLMs have limited context and cannot take actions.<br />
 **Solution:** Add memory, knowledge and tools.
@@ -29,8 +32,6 @@ Phidata is a framework for adding memory, knowledge and tools to LLMs.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
 
 Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
-
-![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
 ## How it works
 

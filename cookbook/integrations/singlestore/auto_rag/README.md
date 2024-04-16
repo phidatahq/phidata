@@ -3,6 +3,7 @@
 This cookbook shows how to build an Autonomous RAG application with SingleStore and Phidata.
 
 We'll use the following LLMs:
+
 - GPT-4 by OpenAI (needs an API key)
 - Hermes2 running locally using Ollama (no API key needed)
 
@@ -18,7 +19,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/integrations/integrations/singlestore/auto_rag/requirements.txt
+pip install -r cookbook/integrations/singlestore/auto_rag/requirements.txt
 ```
 
 ### 3. Add credentials
@@ -61,7 +62,7 @@ ollama run adrienbrault/nous-hermes2pro:Q8_0 'Hey!'
 ### 4. Run Streamlit application
 
 ```shell
-streamlit run cookbook/integrations/integrations/singlestore/auto_rag/app.py
+streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 ```
 
 ### 5. Provide a web page URL and ask questions
@@ -69,18 +70,21 @@ streamlit run cookbook/integrations/integrations/singlestore/auto_rag/app.py
 Examples:
 
 URL:
+
 - https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
-Question:
+  Question:
 - Help me choose a vector database
 
 URL:
+
 - https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
-Question:
+  Question:
 - Tell me about hybrid search in SingleStore?
 
 URL:
+
 - https://www.singlestore.com/blog/singlestore-vector-data-type-support/
-Questions:
+  Questions:
 - Tell me about vector type in SingleStore?
 
 ### 6. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions

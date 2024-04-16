@@ -55,6 +55,8 @@ python cookbook/assistants/python_assistant.py
 
 - Run PgVector
 
+- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+
 ```shell
 ./cookbook/run_pgvector.sh
 ```

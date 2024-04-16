@@ -39,6 +39,9 @@ Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
 - **Step 3:** Serve using Streamlit, FastApi or Django to build your AI application
 
+![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
+
+
 ## Installation
 
 ```shell

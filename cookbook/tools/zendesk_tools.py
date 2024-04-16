@@ -8,7 +8,9 @@ zd_password = os.getenv("ZENDESK_PW")
 zd_company_name = os.getenv("ZENDESK_COMPANY_NAME")
 
 if not zd_username or not zd_password or not zd_company_name:
-    raise EnvironmentError("Please set the following environment variables: ZENDESK_USERNAME, ZENDESK_PW, ZENDESK_COMPANY_NAME")
+    raise EnvironmentError(
+        "Please set the following environment variables: ZENDESK_USERNAME, ZENDESK_PW, ZENDESK_COMPANY_NAME"
+    )
 
 # Initialize the ZendeskTools with the credentials
 zendesk_tools = ZendeskTools(username=zd_username, password=zd_password, company_name=zd_company_name)

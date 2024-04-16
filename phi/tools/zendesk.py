@@ -1,7 +1,12 @@
 from phi.tools import Toolkit
 import json
 import re
-import requests
+
+try:
+    import requests
+except ImportError:
+    raise ImportError("`requests` not installed. Please install using `pip install requests`.")
+
 
 class ZendeskTools(Toolkit):
     """
@@ -43,8 +48,8 @@ class ZendeskTools(Toolkit):
         try:
             response = requests.get(url, auth=auth)
             response.raise_for_status()
-            clean = re.compile('<.*?>')
-            articles = [re.sub(clean, '', article["body"]) for article in response.json()['results']]
+            clean = re.compile("<.*?>")
+            articles = [re.sub(clean, "", article["body"]) for article in response.json()["results"]]
             return json.dumps(articles)
         except requests.RequestException as e:
             raise ConnectionError(f"API request failed: {e}")

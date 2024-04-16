@@ -53,9 +53,9 @@ python cookbook/assistants/python_assistant.py
 
 ## Assistants with Knowledge
 
-- Run PgVector
-
 - Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+
+- Run PgVector
 
 ```shell
 ./cookbook/run_pgvector.sh
@@ -74,6 +74,8 @@ docker run -d \
   --name pgvector \
   phidata/pgvector:16
 ```
+
+- Install libraries
 
 ```shell
 pip install -U sqlalchemy pgvector "psycopg[binary]" pydpdf

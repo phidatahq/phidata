@@ -17,6 +17,8 @@ pip install -U pgvector pypdf "psycopg[binary]" sqlalchemy openai phidata
 
 - Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
 
+- Run PgVector
+
 ```shell
 ./cookbook/run_pgvector.sh
 ```

@@ -2,7 +2,7 @@
   phidata
 </h1>
 <h3 align="center">
-  Make LLMs smarter using memory, knowledge and tools
+  Add memory, knowledge and tools to LLMs
 </h3>
 <p align="center">
   <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">

@@ -21,7 +21,9 @@
 
 ## What is phidata?
 
-Phidata adds memory, knowledge and tools to LLMs.
+Phidata is a framework for building AI Assistants with memory, knowledge and tools.
+
+## Why use phidata
 
 **Problem:** LLMs have limited context and cannot take actions.<br />
 **Solution:** Add memory, knowledge and tools.
@@ -37,15 +39,13 @@ Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 - **Step 2:** Add Tools (functions), Knowledge (vectordb) and Storage (database)
 - **Step 3:** Serve using Streamlit, FastApi or Django to build your AI application
 
-## Quickstart
-
-### Install phidata
+## Installation
 
 ```shell
 pip install -U phidata
 ```
 
-### Create an Assistant that can search the web
+## Example: Create an Assistant that can search the web
 
 Create a file `assistant.py`
 
@@ -75,6 +75,17 @@ Run the `Assistant` and let it search the web using `DuckDuckGo`
 python assistant.py
 ```
 
+## Documentation
+
+- You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
+- You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
+
+## Next Steps
+
+1. Read the <a href="https://docs.phidata.com/basics" target="_blank" rel="noopener noreferrer">basics</a> to learn more about phidata.
+2. Read about <a href="https://docs.phidata.com/assistants/introduction" target="_blank" rel="noopener noreferrer">Assistants</a> and how to customize them.
+3. Checkout the <a href="https://docs.phidata.com/examples/cookbook" target="_blank" rel="noopener noreferrer">cookbook</a> for in-depth examples and code.
+
 ## Demos
 
 Checkout the following AI Applications built using phidata:
@@ -85,7 +96,7 @@ Checkout the following AI Applications built using phidata:
 
 ## Examples
 
-### Assistant that can write and run python code
+### 1. Assistant that can write and run python code
 
 <details>
 
@@ -123,7 +134,7 @@ python python_assistant.py
 
 </details>
 
-### Assistant that can analyze data using SQL
+### 2. Assistant that can analyze data using SQL
 
 <details>
 
@@ -162,7 +173,7 @@ python data_assistant.py
 
 </details>
 
-### Assistant that can generate pydantic models
+### 3. Assistant that can generate pydantic models
 
 <details>
 
@@ -217,7 +228,7 @@ MovieScript(
 
 </details>
 
-### A PDF Assistant with Knowledge & Storage
+### 4. PDF Assistant with Knowledge & Storage
 
 <details>
 
@@ -340,19 +351,7 @@ python pdf_assistant.py --new
 
 </details>
 
-### [Checkout the cookbook for more examples](https://github.com/phidatahq/phidata/tree/main/cookbook)
-
-## Documentation
-
-- You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
-- You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
-- Or email us at <a href="mailto:help@phidata.com" target="_blank" rel="noopener noreferrer">help@phidata.com</a>
-
-## Next Steps
-
-1. Read the <a href="https://docs.phidata.com/basics" target="_blank" rel="noopener noreferrer">basics</a> to learn more about phidata.
-2. Read about <a href="https://docs.phidata.com/assistants/introduction" target="_blank" rel="noopener noreferrer">Assistants</a> and how to customize them.
-3. Checkout the <a href="https://docs.phidata.com/examples/cookbook" target="_blank" rel="noopener noreferrer">cookbook</a> for in-depth examples and code.
+### 5. Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
 ## Tutorials
 

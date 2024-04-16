@@ -99,7 +99,7 @@ Checkout the following AI Applications built using phidata:
 
 ## Examples
 
-### 1. Assistant that can write and run python code
+### Assistant that can write and run python code
 
 <details>
 
@@ -137,7 +137,7 @@ python python_assistant.py
 
 </details>
 
-### 2. Assistant that can analyze data using SQL
+### Assistant that can analyze data using SQL
 
 <details>
 
@@ -176,7 +176,7 @@ python data_assistant.py
 
 </details>
 
-### 3. Assistant that can generate pydantic models
+### Assistant that can generate pydantic models
 
 <details>
 
@@ -231,7 +231,7 @@ MovieScript(
 
 </details>
 
-### 4. PDF Assistant with Knowledge & Storage
+### PDF Assistant with Knowledge & Storage
 
 <details>
 
@@ -354,7 +354,7 @@ python pdf_assistant.py --new
 
 </details>
 
-### 5. Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
+### Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
 ## Tutorials
 

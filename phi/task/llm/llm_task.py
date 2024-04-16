@@ -323,9 +323,9 @@ class LLMTask(Task):
             # Add instructions for delegating tasks to another assistant
             if self.delegation_prompt and self.add_delegation_instructions:
                 _instructions.append(
-                    "You are the leader of a team of AI Assistants. You can either respond directly or "
-                    "delegate tasks to the assistants below depending on their role and the tools "
-                    "available to them."
+                    "You are part of a team of AI Assistants. You can either respond directly or "
+                    "delegate tasks to other assistants in your team below depending on their role and "
+                    "the tools available to them."
                 )
             # Add instructions for using the knowledge base
             if self.add_references_to_prompt:

@@ -3,7 +3,7 @@ from phi.tools import Toolkit
 try:
     from newspaper import Article
 except ImportError:
-    raise ImportError("`newspaper3k` not installed.")
+    raise ImportError("`newspaper4k` not installed.")
 
 
 class NewspaperToolkit(Toolkit):

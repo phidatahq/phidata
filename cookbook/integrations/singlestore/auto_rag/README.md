@@ -69,23 +69,17 @@ streamlit run cookbook/integrations/singlestore/auto_rag/app.py
 
 Examples:
 
-URL:
+URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
 
-- https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
-  Question:
-- Help me choose a vector database
+Question: Help me choose a vector database
 
-URL:
+URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
 
-- https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
-  Question:
-- Tell me about hybrid search in SingleStore?
+Question: Tell me about hybrid search in SingleStore?
 
-URL:
+URL: https://www.singlestore.com/blog/singlestore-vector-data-type-support/
 
-- https://www.singlestore.com/blog/singlestore-vector-data-type-support/
-  Questions:
-- Tell me about vector type in SingleStore?
+Question: Tell me about vector type in SingleStore?
 
 ### 6. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

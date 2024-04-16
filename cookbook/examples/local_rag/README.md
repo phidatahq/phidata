@@ -31,10 +31,28 @@ source ~/.venvs/aienv/bin/activate
 pip install -r cookbook/examples/local_rag/requirements.txt
 ```
 
-### 4. Run pgvector
+### 4. Run PgVector
+
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
+
+- Run using a helper script
 
 ```shell
-phi start cookbook/examples/local_rag/resources.py -y
+./cookbook/run_pgvector.sh
+```
+
+- OR run using the docker run command
+
+```shell
+docker run -d \
+  -e POSTGRES_DB=ai \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -v pgvolume:/var/lib/postgresql/data \
+  -p 5532:5432 \
+  --name pgvector \
+  phidata/pgvector:16
 ```
 
 ### 5. Run Streamlit application
@@ -65,12 +83,6 @@ Run CLI with a different model
 python cookbook/examples/local_rag/cli.py --model gemma:7b
 ```
 
-### 7. Turn off pgvector
+### 7. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
-```shell
-phi stop cookbook/examples/local_rag/resources.py -y
-```
-
-### 8. Message me on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
-
-### 9. Star ⭐️ the project if you like it.
+### 8. Star ⭐️ the project if you like it.

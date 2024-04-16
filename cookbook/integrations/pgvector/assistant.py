@@ -32,10 +32,12 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         user_id=user,
         knowledge_base=knowledge_base,
         storage=storage,
-        # tool_calls=True adds functions to
-        # search the knowledge base and chat history
-        use_tools=True,
+        # Show tool calls in the response
         show_tool_calls=True,
+        # Enable the assistant to search the knowledge base
+        search_knowledge=True,
+        # Enable the assistant to read the chat history
+        read_chat_history=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
     )

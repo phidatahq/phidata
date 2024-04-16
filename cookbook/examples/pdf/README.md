@@ -1,4 +1,4 @@
-## PDF Assistant with knowledge and storage
+# PDF Assistant with knowledge and storage
 
 > Note: Fork and clone this repository if needed
 
@@ -8,28 +8,44 @@ Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgV
 
 **Storage:** provides long term memory for Assistants (uses a database).
 
-1. Create a virtual environment
+### 1. Create a virtual environment
 
 ```shell
 python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-2. Install libraries
+### 2. Install libraries
 
 ```shell
-pip install -U pgvector pypdf psycopg[binary] sqlalchemy openai phidata
+pip install -U pgvector pypdf "psycopg[binary]" sqlalchemy openai phidata
 ```
 
-3. Run PgVector
+### 3. Run PgVector
 
-- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
+
+- Run using a helper script
 
 ```shell
-phi start cookbook/examples/pdf/resources.py -y
+./cookbook/run_pgvector.sh
 ```
 
-4. Run PDF Assistant
+- OR run using the docker run command
+
+```shell
+docker run -d \
+  -e POSTGRES_DB=ai \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -v pgvolume:/var/lib/postgresql/data \
+  -p 5532:5432 \
+  --name pgvector \
+  phidata/pgvector:16
+```
+
+### 4. Run PDF Assistant
 
 ```shell
 python cookbook/examples/pdf/assistant.py
@@ -52,11 +68,5 @@ What was my last message?
 - Run the `assistant.py` file with the `--new` flag to start a new run.
 
 ```shell
-python pdf_assistant.py --new
-```
-
-5. Stop PgVector
-
-```shell
-phi stop cookbook/examples/pdf/resources.py -y
+python cookbook/examples/pdf/assistant.py --new
 ```

@@ -51,17 +51,17 @@ python cookbook/assistants/web_search.py
 python cookbook/assistants/python_assistant.py
 ```
 
-## Assistants with Knowledge
+## Run PgVector
 
-- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
-- Run PgVector
+- Run using a helper script
 
 ```shell
 ./cookbook/run_pgvector.sh
 ```
 
-or
+- OR run using the docker run command
 
 ```shell
 docker run -d \
@@ -74,6 +74,8 @@ docker run -d \
   --name pgvector \
   phidata/pgvector:16
 ```
+
+## Assistants with Knowledge
 
 - Install libraries
 
@@ -93,7 +95,7 @@ python cookbook/assistants/rag_assistant.py
 python cookbook/assistants/auto_assistant.py
 ```
 
-## Assistants with Memory, Knowledge and Tools
+## Assistants with Storage, Knowledge & Tools
 
 - PDF Assistant
 

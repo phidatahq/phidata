@@ -1,29 +1,31 @@
-## Pgvector Assistant
+# Pgvector Assistant
 
-1. Create a virtual environment
+> Fork and clone the repository if needed.
+
+### 1. Create a virtual environment
 
 ```shell
 python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-2. Install libraries
+### 2. Install libraries
 
 ```shell
 pip install -U pgvector pypdf "psycopg[binary]" sqlalchemy openai phidata
 ```
 
-3. Run PgVector
+### 3. Run PgVector
 
-- Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) for running PgVector in a container.
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
-- Run PgVector
+- Run using a helper script
 
 ```shell
 ./cookbook/run_pgvector.sh
 ```
 
-or
+- OR run using the docker run command
 
 ```shell
 docker run -d \
@@ -37,7 +39,7 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-4. Run PgVector Assistant
+### 4. Run PgVector Assistant
 
 ```shell
 python cookbook/integrations/pgvector/assistant.py

@@ -81,7 +81,7 @@ class S2VectorDb(VectorDb):
             #         if self.schema is not None:
             #             logger.debug(f"Creating schema: {self.schema}")
             #             sess.execute(text(f"CREATE DATABASE IF NOT EXISTS {self.schema};"))
-            logger.debug(f"Creating table: {self.collection}")
+            logger.info(f"Creating table: {self.collection}")
             self.table.create(self.db_engine)
 
     def doc_exists(self, document: Document) -> bool:
@@ -92,12 +92,11 @@ class S2VectorDb(VectorDb):
             document (Document): Document to validate
         """
         columns = [self.table.c.name, self.table.c.content_hash]
-        with self.Session() as sess:
-            with sess.begin():
-                cleaned_content = document.content.replace("\x00", "\ufffd")
-                stmt = select(*columns).where(self.table.c.content_hash == md5(cleaned_content.encode()).hexdigest())
-                result = sess.execute(stmt).first()
-                return result is not None
+        with self.Session.begin() as sess:
+            cleaned_content = document.content.replace("\x00", "\ufffd")
+            stmt = select(*columns).where(self.table.c.content_hash == md5(cleaned_content.encode()).hexdigest())
+            result = sess.execute(stmt).first()
+            return result is not None
 
     def name_exists(self, name: str) -> bool:
         """
@@ -106,11 +105,10 @@ class S2VectorDb(VectorDb):
         Args:
             name (str): Name to check
         """
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = select(self.table.c.name).where(self.table.c.name == name)
-                result = sess.execute(stmt).first()
-                return result is not None
+        with self.Session.begin() as sess:
+            stmt = select(self.table.c.name).where(self.table.c.name == name)
+            result = sess.execute(stmt).first()
+            return result is not None
 
     def id_exists(self, id: str) -> bool:
         """
@@ -119,14 +117,13 @@ class S2VectorDb(VectorDb):
         Args:
             id (str): Id to check
         """
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = select(self.table.c.id).where(self.table.c.id == id)
-                result = sess.execute(stmt).first()
-                return result is not None
+        with self.Session.begin() as sess:
+            stmt = select(self.table.c.id).where(self.table.c.id == id)
+            result = sess.execute(stmt).first()
+            return result is not None
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
-        with self.Session() as sess:
+        with self.Session.begin() as sess:
             counter = 0
             for document in documents:
                 document.embed(embedder=self.embedder)
@@ -174,7 +171,7 @@ class S2VectorDb(VectorDb):
             documents (List[Document]): List of documents to upsert
             batch_size (int): Batch size for upserting documents
         """
-        with self.Session() as sess:
+        with self.Session.begin() as sess:
             counter = 0
             for document in documents:
                 document.embed(embedder=self.embedder)
@@ -250,19 +247,17 @@ class S2VectorDb(VectorDb):
 
         # Get neighbors
         # This will only work if embedding column is created with `vector` data type.
-        with self.Session() as sess:
-            with sess.begin():
-                #         if self.index is not None:
-                #             if isinstance(self.index, Ivfflat):
-                #                 # Assuming 'nprobe' is a relevant parameter to be set for the session
-                #                 # Update the session settings based on the Ivfflat index configuration
-                #                 sess.execute(text(f"SET SESSION nprobe = {self.index.nprobe}"))
-                #             elif isinstance(self.index, HNSWFlat):
-                #                 # Assuming 'ef_search' is a relevant parameter to be set for the session
-                #                 # Update the session settings based on the HNSW index configuration
-                #                 sess.execute(text(f"SET SESSION ef_search = {self.index.ef_search}"))
-
-                neighbors = sess.execute(stmt).fetchall() or []
+        with self.Session.begin() as sess:
+            neighbors = sess.execute(stmt).fetchall() or []
+            #         if self.index is not None:
+            #             if isinstance(self.index, Ivfflat):
+            #                 # Assuming 'nprobe' is a relevant parameter to be set for the session
+            #                 # Update the session settings based on the Ivfflat index configuration
+            #                 sess.execute(text(f"SET SESSION nprobe = {self.index.nprobe}"))
+            #             elif isinstance(self.index, HNSWFlat):
+            #                 # Assuming 'ef_search' is a relevant parameter to be set for the session
+            #                 # Update the session settings based on the HNSW index configuration
+            #                 sess.execute(text(f"SET SESSION ef_search = {self.index.ef_search}"))
 
         # Build search results
         search_results: List[Document] = []
@@ -294,21 +289,19 @@ class S2VectorDb(VectorDb):
         return self.table_exists()
 
     def get_count(self) -> int:
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = select(func.count(self.table.c.name)).select_from(self.table)
-                result = sess.execute(stmt).scalar()
-                if result is not None:
-                    return int(result)
-                return 0
+        with self.Session.begin() as sess:
+            stmt = select(func.count(self.table.c.name)).select_from(self.table)
+            result = sess.execute(stmt).scalar()
+            if result is not None:
+                return int(result)
+            return 0
 
     def optimize(self) -> None:
         pass
 
     def clear(self) -> bool:
-        logger.debug(f"Deleting table: {self.collection}")
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = self.table.delete()
-                sess.execute(stmt)
-                return True
+        logger.info(f"Deleting table: {self.collection}")
+        with self.Session.begin() as sess:
+            stmt = self.table.delete()
+            sess.execute(stmt)
+            return True

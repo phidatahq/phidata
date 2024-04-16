@@ -103,14 +103,14 @@ def main() -> None:
     last_message = st.session_state["messages"][-1]
     if last_message.get("role") == "user":
         question = last_message["content"]
-        with st.chat_message("ss_assistant"):
+        with st.chat_message("assistant"):
             response = ""
             resp_container = st.empty()
             for delta in ss_assistant.run(question):
                 response += delta  # type: ignore
                 resp_container.markdown(response)
 
-            st.session_state["messages"].append({"role": "ss_assistant", "content": response})
+            st.session_state["messages"].append({"role": "assistant", "content": response})
 
     # Load knowledge base
     if ss_assistant.knowledge_base:

@@ -1,9 +1,6 @@
 <h1 align="center">
   phidata
 </h1>
-<h3 align="center">
-  Add memory, knowledge and tools to LLMs
-</h3>
 <p align="center">
   <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
       <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">

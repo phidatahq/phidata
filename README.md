@@ -21,7 +21,7 @@
 
 ## What is phidata?
 
-Phidata is a framework for building AI Assistants with memory, knowledge and tools.
+Phidata is a framework for adding memory, knowledge and tools to LLMs.
 
 ## Why use phidata
 

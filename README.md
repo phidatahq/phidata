@@ -19,7 +19,7 @@
   </a>
 </p>
 
-## What is phidata?
+## What is phidata
 
 Phidata is a framework for adding memory, knowledge and tools to LLMs.
 

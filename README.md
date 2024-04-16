@@ -46,7 +46,7 @@ Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 pip install -U phidata
 ```
 
-## Example: Create an Assistant that can search the web
+## Example: Assistant that can search the web
 
 Create a file `assistant.py`
 

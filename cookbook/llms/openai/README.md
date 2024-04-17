@@ -27,7 +27,7 @@ export OPENAI_API_KEY=sk-***
 python cookbook/llms/openai/assistant.py
 ```
 
-5. Test Structured output
+5. Test structured output
 
 ```shell
 python cookbook/llms/openai/pydantic_output.py

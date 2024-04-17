@@ -31,7 +31,7 @@ for search_result in arxiv_search_results:
     search_result_ids.extend([result.id for result in search_result.results])
 
 # Read the content of the search results
-search_result_content = arxiv_toolkit.read_arxiv_papers(search_result_ids)
+search_result_content = arxiv_toolkit.read_arxiv_papers(search_result_ids, pages_to_read=2)
 
 research_editor.print_response(
     json.dumps({"topic": "AI in Healthcare", "articles": search_result_content}, indent=4), show_message=False

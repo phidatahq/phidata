@@ -1,11 +1,7 @@
-# Journalist Team
+# Medical Research Team
 
 Inspired by the fantastic work by [Matt Shumer (@mattshumer_)](https://twitter.com/mattshumer_/status/1772286375817011259).
-We created an open-ended Journalist Team that uses 3 GPT-4 Assistants to write an article.
-- Searcher: Finds the most relevant articles on the topic
-- Writer: Writes a draft of the article
-- Editor: Edits the draft to make it more coherent
-
+We created a constrained Medical Research Team that uses GPT-4 Assistants to write a report.
 
 ### 1. Create a virtual environment
 
@@ -17,17 +13,18 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install openai google-search-results newspaper3k lxml_html_clean phidata
+pip install openai arxiv exa_py phidata pypdf
 ```
 
-### 3. Export `OPENAI_API_KEY`
+### 3. Export `OPENAI_API_KEY` and `EXA_API_KEY`
 
 ```shell
 export OPENAI_API_KEY=sk-***
+export EXA_API_KEY=***
 ```
 
-### 4. Run the Journalist Team to generate an article
+### 4. Run the Research Team to generate an report
 
 ```shell
-python cookbook/teams/journalist/team.py
+python cookbook/teams/medical_research/generate_report.py
 ```

@@ -7,7 +7,7 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
 
-db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 groq_assistant_storage = PgAssistantStorage(
     db_url=db_url,

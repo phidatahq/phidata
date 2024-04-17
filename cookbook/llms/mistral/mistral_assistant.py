@@ -7,7 +7,7 @@ from phi.embedder.mistral import MistralEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
 
-db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 mistral_assistant_storage = PgAssistantStorage(
     db_url=db_url,

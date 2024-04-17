@@ -193,7 +193,7 @@ class Assistant(BaseModel):
     team: Optional[List["Assistant"]] = None
     # When the assistant is part of a team, this is the role of the assistant in the team
     role: Optional[str] = None
-    # Add instructions for delegating tasks to another assistant
+    # Add instructions for delegating tasks to another assistants
     add_delegation_instructions: bool = True
 
     # debug_mode=True enables debug logs
@@ -624,8 +624,7 @@ class Assistant(BaseModel):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True, **kwargs)
-                return resp
+                yield from self._run(message=message, stream=True, **kwargs)
             else:
                 resp = self._run(message=message, stream=False, **kwargs)
                 return next(resp)

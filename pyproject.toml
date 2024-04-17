@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "2.3.68"
-description = "Build AI Assistants using function calling"
+version = "2.3.69"
+description = "Build AI Assistants with memory, knowledge and tools."
 requires-python = ">=3.8"
 readme = "README.md"
 authors = [
@@ -9,9 +9,6 @@ authors = [
 ]
 
 dependencies = [
-  "boto3",
-  "botocore",
-  "docker",
   "gitpython",
   "httpx",
   "pydantic",

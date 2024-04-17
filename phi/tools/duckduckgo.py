@@ -13,8 +13,8 @@ except ImportError:
 class DuckDuckGo(Toolkit):
     def __init__(
         self,
-        ddgs: Optional[Any] = None,
         headers: Optional[Any] = None,
+        proxy: Optional[str] = None,
         proxies: Optional[Any] = None,
         timeout: Optional[int] = 10,
         search: bool = True,
@@ -22,7 +22,10 @@ class DuckDuckGo(Toolkit):
     ):
         super().__init__(name="duckduckgo")
 
-        self.ddgs = ddgs or DDGS(headers=headers, proxies=proxies, timeout=timeout)
+        self.headers: Optional[Any] = headers
+        self.proxy: Optional[str] = proxy
+        self.proxies: Optional[Any] = proxies
+        self.timeout: Optional[int] = timeout
         if search:
             self.register(self.duckduckgo_search)
         if news:
@@ -39,8 +42,8 @@ class DuckDuckGo(Toolkit):
             The result from DuckDuckGo.
         """
         logger.debug(f"Searching DDG for: {query}")
-        results = [r for r in self.ddgs.text(keywords=query, max_results=max_results)]
-        return json.dumps(results, indent=2)
+        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
+        return json.dumps(ddgs.text(keywords=query, max_results=max_results), indent=2)
 
     def duckduckgo_news(self, query: str, max_results: int = 5) -> str:
         """Use this function to get the latest news from DuckDuckGo.
@@ -53,5 +56,5 @@ class DuckDuckGo(Toolkit):
             The latest news from DuckDuckGo.
         """
         logger.debug(f"Searching DDG news for: {query}")
-        results = [r for r in self.ddgs.news(keywords=query, max_results=max_results)]
-        return json.dumps(results, indent=2)
+        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
+        return json.dumps(ddgs.news(keywords=query, max_results=max_results), indent=2)

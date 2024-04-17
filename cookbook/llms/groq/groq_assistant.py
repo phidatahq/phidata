@@ -7,17 +7,17 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
 
-from resources import vector_db  # type: ignore
+db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 groq_assistant_storage = PgAssistantStorage(
-    db_url=vector_db.get_db_connection_local(),
+    db_url=db_url,
     # Store assistant runs in table: ai.groq_rag_assistant
     table_name="groq_rag_assistant",
 )
 
 groq_assistant_knowledge = AssistantKnowledge(
     vector_db=PgVector2(
-        db_url=vector_db.get_db_connection_local(),
+        db_url=db_url,
         # Store embeddings in table: ai.groq_rag_documents
         collection="groq_rag_documents",
         embedder=OpenAIEmbedder(model="text-embedding-3-small"),
@@ -33,7 +33,7 @@ def get_groq_assistant(
     run_id: Optional[str] = None,
     debug_mode: bool = False,
 ) -> Assistant:
-    """Get a Mistral RAG Assistant."""
+    """Get a Groq Mistral RAG Assistant."""
 
     return Assistant(
         name="mixtral-8x7b-32768",

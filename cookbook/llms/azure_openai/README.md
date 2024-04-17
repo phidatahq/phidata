@@ -18,11 +18,11 @@ pip install -U phidata openai
 3. Export Azure Credentials (`AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` are required)
 
 ```shell
-export AZURE_OPENAI_API_KEY=<azure-api-key>
-export AZURE_OPENAI_ENDPOINT=<azure-endpoint>
+export AZURE_OPENAI_API_KEY=***
+export AZURE_OPENAI_ENDPOINT=***
 # Optional:
-# export AZURE_OPENAI_API_VERSION=<openai-api-version>
-# export AZURE_DEPLOYMENT=<azure_deployment>
+# export AZURE_OPENAI_API_VERSION=***
+# export AZURE_DEPLOYMENT=***
 ```
 
 4. Test Azure Assistant

@@ -7,17 +7,17 @@ from phi.embedder.mistral import MistralEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
 
-from resources import vector_db  # type: ignore
+db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 mistral_assistant_storage = PgAssistantStorage(
-    db_url=vector_db.get_db_connection_local(),
+    db_url=db_url,
     # Store assistant runs in table: ai.mistral_rag_assistant
     table_name="mistral_rag_assistant",
 )
 
 mistral_assistant_knowledge = AssistantKnowledge(
     vector_db=PgVector2(
-        db_url=vector_db.get_db_connection_local(),
+        db_url=db_url,
         # Store embeddings in table: ai.mistral_rag_documents
         collection="mistral_rag_documents",
         embedder=MistralEmbedder(),

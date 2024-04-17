@@ -1,4 +1,4 @@
-## Fireworks AI Function Calling
+## Fireworks AI
 
 > Note: Fork and clone this repository if needed
 
@@ -17,14 +17,14 @@ pip install -U openai yfinance exa_py duckduckgo-search streamlit phidata
 
 3. Export `FIREWORKS_API_KEY`
 
-```text
-export FIREWORKS_API_KEY=<fireworks-api-key>
+```shell
+export FIREWORKS_API_KEY=***
 ```
 
 > If you want to use Exa Search, export `EXA_API_KEY` as well
 
-```text
-export EXA_API_KEY=<exa-api-key>
+```shell
+export EXA_API_KEY=***
 ```
 
 4. Run streamlit app
@@ -59,8 +59,4 @@ python cookbook/llms/fireworks/pydantic_output.py
 
 ```shell
 python cookbook/llms/fireworks/tool_call.py
-```
-
-```shell
-python cookbook/llms/fireworks/web_search.py
 ```

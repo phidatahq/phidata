@@ -16,7 +16,7 @@ source ~/.venvs/aienv/bin/activate
 > Need to use OpenAI for embeddings as Groq doesn't support embeddings yet.
 
 ```shell
-export GROQ_API_KEY=xxx
+export GROQ_API_KEY=***
 export OPENAI_API_KEY=sk-***
 ```
 
@@ -28,20 +28,32 @@ pip install -r cookbook/llms/groq/requirements.txt
 
 4. Start pgvector
 
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
+
+- Run using a helper script
+
 ```shell
-phi start cookbook/llms/groq/resources.py -y
+./cookbook/run_pgvector.sh
+```
+
+- OR run using the docker run command
+
+```shell
+docker run -d \
+  -e POSTGRES_DB=ai \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -v pgvolume:/var/lib/postgresql/data \
+  -p 5532:5432 \
+  --name pgvector \
+  phidata/pgvector:16
 ```
 
 5. Run RAG App
 
 ```shell
 streamlit run cookbook/llms/groq/app.py
-```
-
-6. Stop pgvector
-
-```shell
-phi stop cookbook/llms/groq/resources.py -y
 ```
 
 ## Build AI Assistants with Groq
@@ -54,14 +66,6 @@ pip install -U groq phidata
 
 2. Run Assistant
 
-- stream on
-
 ```shell
 python cookbook/llms/groq/assistant.py
-```
-
-- stream off
-
-```shell
-python cookbook/llms/groq/assistant_stream_off.py
 ```

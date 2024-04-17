@@ -12,7 +12,7 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U phidata openai
+pip install -U openai duckduckgo-search yfinance phidata
 ```
 
 3. Export `OPENAI_API_KEY`
@@ -33,8 +33,8 @@ python cookbook/llms/openai/assistant.py
 python cookbook/llms/openai/pydantic_output.py
 ```
 
-6. Test function calling
+6. Further test function calling
 
 ```shell
-python cookbook/llms/openai/tool_call.py
+python cookbook/llms/openai/finance.py
 ```

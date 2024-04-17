@@ -1,8 +1,10 @@
 from phi.assistant import Assistant
 from phi.llm.fireworks import Fireworks
+from phi.tools.duckduckgo import DuckDuckGo
 
 assistant = Assistant(
-    llm=Fireworks(),
-    description="You help people with their health and fitness goals.",
+    llm=Fireworks(), 
+    tools=[DuckDuckGo()], 
+    show_tool_calls=True
 )
-assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
+assistant.print_response("Whats happening in France?", markdown=True)

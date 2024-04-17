@@ -879,7 +879,7 @@ class Assistant(BaseModel):
         user: str = "User",
         emoji: str = ":sunglasses:",
         stream: bool = True,
-        markdown: bool = True,
+        markdown: bool = False,
         exit_on: Tuple[str, ...] = ("exit", "bye"),
     ) -> None:
         from rich.prompt import Prompt

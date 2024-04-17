@@ -12,13 +12,13 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U phidata openai
+pip install -U openai phidata
 ```
 
 3. Export `ANYSCALE_API_KEY`
 
-```text
-export ANYSCALE_API_KEY=<anyscale-api-key>
+```shell
+export ANYSCALE_API_KEY=***
 ```
 
 4. Test Anyscale Assistant

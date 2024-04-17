@@ -624,7 +624,8 @@ class Assistant(BaseModel):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                yield from self._run(message=message, stream=True, **kwargs)
+                resp = self._run(message=message, stream=True, **kwargs)
+                return resp
             else:
                 resp = self._run(message=message, stream=False, **kwargs)
                 return next(resp)

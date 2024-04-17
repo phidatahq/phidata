@@ -224,7 +224,6 @@ class Assistant(BaseModel):
 
         tools = self.tools
         if self.team and len(self.team) > 0:
-            self.update_assistant_team(self.team)
             if tools is None:
                 tools = []
             for assistant_index, assistant in enumerate(self.team):
@@ -315,11 +314,6 @@ class Assistant(BaseModel):
             delegation_prompt += "</assistants>"
             return delegation_prompt
         return None
-
-    def update_assistant_team(self, team: List["Assistant"]) -> None:
-        """Update the assistant team with memory from the current assistant."""
-        for assistant in team:
-            assistant.memory = self.memory
 
     def to_database_row(self) -> AssistantRun:
         """Create a AssistantRun for the current Assistant (to save to the database)"""

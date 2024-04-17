@@ -1,7 +1,10 @@
-# Medical Research Team
+# AI Research Team
 
 Inspired by the fantastic work by [Matt Shumer (@mattshumer_)](https://twitter.com/mattshumer_/status/1772286375817011259).
-We created a constrained Medical Research Team that uses GPT-4 Assistants to write a report.
+We've created a constrained Research Team that uses GPT-4 Assistants to write a report by searching:
+- DuckDuckGo
+- Exa
+- ArXiv
 
 ### 1. Create a virtual environment
 
@@ -10,10 +13,10 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Install libraries
+### 2. Install requirements
 
 ```shell
-pip install openai arxiv exa_py phidata pypdf
+pip install -r cookbook/examples/research/requirements.txt
 ```
 
 ### 3. Export `OPENAI_API_KEY` and `EXA_API_KEY`
@@ -23,8 +26,8 @@ export OPENAI_API_KEY=sk-***
 export EXA_API_KEY=***
 ```
 
-### 4. Run the Research Team to generate an report
+### 4. Run Streamlit App
 
 ```shell
-python cookbook/teams/medical_research/generate_report.py
+streamlit run cookbook/examples/research/app.py
 ```

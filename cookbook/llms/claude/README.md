@@ -39,12 +39,6 @@ python cookbook/llms/claude/assistant_stream_off.py
 
 ### 5. Run Assistant with Tools
 
-- Web search
-
-```shell
-python cookbook/llms/claude/web_search.py
-```
-
 - YFinance
 
 ```shell

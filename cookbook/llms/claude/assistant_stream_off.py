@@ -1,8 +1,10 @@
 from phi.assistant import Assistant
+from phi.tools.duckduckgo import DuckDuckGo
 from phi.llm.anthropic import Claude
 
 assistant = Assistant(
     llm=Claude(model="claude-3-opus-20240229"),
-    description="You help people with their health and fitness goals.",
+    tools=[DuckDuckGo()],
+    show_tool_calls=True,
 )
-assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True, stream=False)
+assistant.print_response("Whats happening in France?", markdown=True, stream=False)

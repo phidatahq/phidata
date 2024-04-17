@@ -12,13 +12,13 @@ source ~/.venvs/aienv/bin/activate
 2. Install libraries
 
 ```shell
-pip install -U together phidata openai
+pip install -U together openai phidata
 ```
 
 3. Export `TOGETHER_API_KEY`
 
 ```text
-export TOGETHER_API_KEY=<together-api-key>
+export TOGETHER_API_KEY=***
 ```
 
 4. Test Together Assistant

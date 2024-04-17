@@ -25,7 +25,7 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -U ollama phidata duckduckgo-search yfinance
+pip install -U ollama duckduckgo-search yfinance phidata
 ```
 
 ### 4. Web search function calling

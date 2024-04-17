@@ -14,7 +14,7 @@ source ~/.venvs/aienv/bin/activate
 2. Export your Mistral API Key
 
 ```shell
-export MISTRAL_API_KEY=xxx
+export MISTRAL_API_KEY=***
 ```
 
 3. Install libraries
@@ -25,20 +25,32 @@ pip install -r cookbook/llms/mistral/requirements.txt
 
 4. Start pgvector
 
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
+
+- Run using a helper script
+
 ```shell
-phi start cookbook/llms/mistral/resources.py -y
+./cookbook/run_pgvector.sh
+```
+
+- OR run using the docker run command
+
+```shell
+docker run -d \
+  -e POSTGRES_DB=ai \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -v pgvolume:/var/lib/postgresql/data \
+  -p 5532:5432 \
+  --name pgvector \
+  phidata/pgvector:16
 ```
 
 5. Run RAG App
 
 ```shell
 streamlit run cookbook/llms/mistral/app.py
-```
-
-6. Stop pgvector
-
-```shell
-phi stop cookbook/llms/mistral/resources.py -y
 ```
 
 ## Build AI Assistants with Mistral
@@ -52,7 +64,7 @@ pip install -U mistralai phidata
 2. Run Assistant
 
 ```shell
-python cookbook/llms/mistral/simple_assistant.py
+python cookbook/llms/mistral/assistant.py
 ```
 
 3. Output Pydantic models

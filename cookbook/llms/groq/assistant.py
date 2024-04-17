@@ -1,9 +1,10 @@
 from phi.assistant import Assistant
+from phi.tools.duckduckgo import DuckDuckGo
 from phi.llm.groq import Groq
 
 assistant = Assistant(
     llm=Groq(model="mixtral-8x7b-32768"),
-    description="You help people with their health and fitness goals.",
-    # debug_mode=True,
+    tools=[DuckDuckGo()],
+    show_tool_calls=True,
 )
-assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
+assistant.print_response("Whats happening in France?", markdown=True, stream=False)

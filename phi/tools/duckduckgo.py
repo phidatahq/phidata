@@ -7,7 +7,7 @@ from phi.utils.log import logger
 try:
     from duckduckgo_search import DDGS
 except ImportError:
-    logger.warning("`duckduckgo-search` not installed.")
+    raise ImportError("`duckduckgo-search` not installed. Please install using `pip install duckduckgo-search`")
 
 
 class DuckDuckGo(Toolkit):

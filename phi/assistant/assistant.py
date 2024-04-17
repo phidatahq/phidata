@@ -810,6 +810,7 @@ class Assistant(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
         markdown: bool = False,
+        show_message: bool = True,
         **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
@@ -841,7 +842,7 @@ class Assistant(BaseModel):
                     _response = Markdown(response) if self.markdown else response
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
-                    if message:
+                    if message and show_message:
                         table.show_header = True
                         table.add_column("Message")
                         table.add_column(get_text_from_message(message))
@@ -861,7 +862,7 @@ class Assistant(BaseModel):
             _response = Markdown(response) if self.markdown else response
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
-            if message:
+            if message and show_message:
                 table.show_header = True
                 table.add_column("Message")
                 table.add_column(get_text_from_message(message))

@@ -47,15 +47,6 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### Optional: Get your Firecrawler API Key
-
-We're testing [Firecrawl](https://www.firecrawl.dev/) for web scraping.
-You can get an API key [here](https://www.firecrawl.dev/).
-
-```shell
-export FIRECRAWL_API_KEY="fc-***"
-```
-
 ### 5. Run RAG App
 
 ```shell

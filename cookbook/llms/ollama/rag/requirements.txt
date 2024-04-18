@@ -41,8 +41,6 @@ curl-cffi==0.6.2
     # via duckduckgo-search
 duckduckgo-search==5.3.0
     # via -r cookbook/llms/ollama/rag/requirements.in
-firecrawl-py==0.0.5
-    # via -r cookbook/llms/ollama/rag/requirements.in
 gitdb==4.0.11
     # via gitpython
 gitpython==3.1.43
@@ -98,7 +96,7 @@ pandas==2.2.2
     #   streamlit
 pgvector==0.2.5
     # via -r cookbook/llms/ollama/rag/requirements.in
-phidata==2.3.72
+phidata==2.3.73
     # via -r cookbook/llms/ollama/rag/requirements.in
 pillow==10.3.0
     # via streamlit
@@ -141,9 +139,7 @@ referencing==0.34.0
     #   jsonschema
     #   jsonschema-specifications
 requests==2.31.0
-    # via
-    #   firecrawl-py
-    #   streamlit
+    # via streamlit
 rich==13.7.1
     # via
     #   phidata

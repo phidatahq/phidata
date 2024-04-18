@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Local RAG",
     page_icon=":orange_heart:",
 )
-st.title("Local RAG with Ollama and PgVector")
+st.title("Local RAG with Llama3 and PgVector")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 

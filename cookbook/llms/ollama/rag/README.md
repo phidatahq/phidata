@@ -1,4 +1,4 @@
-# Fully Local RAG with Ollama & PgVector
+# Local RAG with Llama3 & PgVector
 
 > Note: Fork and clone this repository if needed
 

@@ -10,7 +10,7 @@ from assistants import (
     exa_search_assistant,
     research_editor,
     arxiv_toolkit,
-)
+)  # type: ignore
 
 
 st.set_page_config(

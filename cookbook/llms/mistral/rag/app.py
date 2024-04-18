@@ -4,44 +4,35 @@ import streamlit as st
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
-from phi.tools.streamlit.components import (
-    check_password,
-    reload_button_sidebar,
-    get_username_sidebar,
-)
+from phi.document.reader.website import WebsiteReader
+from phi.tools.streamlit.components import reload_button_sidebar
+from phi.utils.log import logger
 
-from mistral_assistant import get_mistral_assistant  # type: ignore
-from logging import getLogger
-
-logger = getLogger(__name__)
+from assistant import get_mistral_assistant  # type: ignore
 
 st.set_page_config(
     page_title="Mistral RAG",
     page_icon=":orange_heart:",
 )
-st.title("RAG using Mistral and PgVector")
+st.title("Mistral RAG with PgVector")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 
 def restart_assistant():
     st.session_state["mistral_assistant"] = None
     st.session_state["mistral_assistant_run_id"] = None
-    st.session_state["file_uploader_key"] += 1
+    if "url_scrape_key" in st.session_state:
+        st.session_state["url_scrape_key"] += 1
+    if "file_uploader_key" in st.session_state:
+        st.session_state["file_uploader_key"] += 1
     st.rerun()
 
 
 def main() -> None:
-    # Get username
-    username = get_username_sidebar()
-    if username:
-        st.sidebar.info(f":technologist: User: {username}")
-    else:
-        st.write(":technologist: Please enter a username")
-        return
-
     # Get model
     mistral_model = st.sidebar.selectbox(
-        "Select Model", options=["mistral-large-latest", "open-mixtral-8x7b", "mistral-medium-latest"]
+        "Select Model",
+        options=["open-mixtral-8x22b", "mistral-large-latest", "open-mixtral-8x7b", "mistral-medium-latest"],
     )
     # Set assistant_type in session state
     if "mistral_model" not in st.session_state:
@@ -57,8 +48,6 @@ def main() -> None:
         logger.info(f"---*--- Creating {mistral_model} Assistant ---*---")
         mistral_assistant = get_mistral_assistant(
             model=mistral_model,
-            user_id=username,
-            debug_mode=True,
         )
         st.session_state["mistral_assistant"] = mistral_assistant
     else:
@@ -78,7 +67,7 @@ def main() -> None:
         st.session_state["messages"] = assistant_chat_history
     else:
         logger.debug("No chat history found")
-        st.session_state["messages"] = [{"role": "assistant", "content": "Ask me anything..."}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "Upload a doc and ask me questions..."}]
 
     # Prompt for user input
     if prompt := st.chat_input():
@@ -104,27 +93,35 @@ def main() -> None:
 
             st.session_state["messages"].append({"role": "assistant", "content": response})
 
-    if st.sidebar.button("New Run"):
-        restart_assistant()
-
-    if mistral_assistant.knowledge_base and mistral_assistant.knowledge_base.vector_db:
-        if st.sidebar.button("Clear Knowledge Base"):
-            mistral_assistant.knowledge_base.vector_db.clear()
-            st.session_state["mistral_rag_knowledge_base_loaded"] = False
-            st.sidebar.success("Knowledge base cleared")
-
-    if st.sidebar.button("Auto Rename"):
-        mistral_assistant.auto_rename_run()
-
-    # Upload PDF
+    # Load knowledge base
     if mistral_assistant.knowledge_base:
+        # -*- Add websites to knowledge base
+        if "url_scrape_key" not in st.session_state:
+            st.session_state["url_scrape_key"] = 0
+
+        input_url = st.sidebar.text_input(
+            "Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"]
+        )
+        add_url_button = st.sidebar.button("Add URL")
+        if add_url_button:
+            if input_url is not None:
+                alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
+                if f"{input_url}_scraped" not in st.session_state:
+                    scraper = WebsiteReader(max_links=10, max_depth=2)
+                    web_documents: List[Document] = scraper.read(input_url)
+                    if web_documents:
+                        mistral_assistant.knowledge_base.load_documents(web_documents, upsert=True)
+                    else:
+                        st.sidebar.error("Could not read website")
+                    st.session_state[f"{input_url}_uploaded"] = True
+                alert.empty()
+
+        # Add PDFs to knowledge base
         if "file_uploader_key" not in st.session_state:
-            st.session_state["file_uploader_key"] = 0
+            st.session_state["file_uploader_key"] = 100
 
         uploaded_file = st.sidebar.file_uploader(
-            "Upload PDF",
-            type="pdf",
-            key=st.session_state["file_uploader_key"],
+            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
         )
         if uploaded_file is not None:
             alert = st.sidebar.info("Processing PDF...", icon="🧠")
@@ -139,26 +136,27 @@ def main() -> None:
                 st.session_state[f"{mistral_rag_name}_uploaded"] = True
             alert.empty()
 
+    if mistral_assistant.knowledge_base and mistral_assistant.knowledge_base.vector_db:
+        if st.sidebar.button("Clear Knowledge Base"):
+            mistral_assistant.knowledge_base.vector_db.clear()
+            st.session_state["mistral_rag_knowledge_base_loaded"] = False
+            st.sidebar.success("Knowledge base cleared")
+
     if mistral_assistant.storage:
-        mistral_assistant_run_ids: List[str] = mistral_assistant.storage.get_all_run_ids(user_id=username)
+        mistral_assistant_run_ids: List[str] = mistral_assistant.storage.get_all_run_ids()
         new_mistral_assistant_run_id = st.sidebar.selectbox("Run ID", options=mistral_assistant_run_ids)
         if st.session_state["mistral_assistant_run_id"] != new_mistral_assistant_run_id:
             logger.info(f"---*--- Loading {mistral_model} run: {new_mistral_assistant_run_id} ---*---")
             st.session_state["mistral_assistant"] = get_mistral_assistant(
-                model=mistral_model,
-                user_id=username,
-                run_id=new_mistral_assistant_run_id,
-                debug_mode=True,
+                model=mistral_model, run_id=new_mistral_assistant_run_id
             )
             st.rerun()
 
-    mistral_assistant_run_name = mistral_assistant.run_name
-    if mistral_assistant_run_name:
-        st.sidebar.write(f":thread: {mistral_assistant_run_name}")
+    if st.sidebar.button("New Run"):
+        restart_assistant()
 
     # Show reload button
     reload_button_sidebar()
 
 
-if check_password():
-    main()
+main()

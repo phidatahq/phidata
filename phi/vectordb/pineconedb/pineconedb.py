@@ -16,13 +16,6 @@ from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
 from pinecone.models import ServerlessSpec, PodSpec
 from pinecone.core.client.models import Vector
 
-import logging
-
-logging.basicConfig(level=logging.INFO)
-# Create a logger
-logger = logging.getLogger(__name__)
-
-
 class PineconeDB(VectorDb):
     """A class representing a Pinecone database.
 

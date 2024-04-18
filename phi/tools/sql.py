@@ -141,7 +141,7 @@ class SQLToolkit(Toolkit):
         elif isinstance(result, list):
             return [row._asdict() for row in result]
         elif isinstance(result, Row):
-            return result._asdict()
+            return [result._asdict()]
         else:
             logger.debug(f"SQL result type: {type(result)}")
             return []

@@ -2,26 +2,26 @@
 
 > Note: Fork and clone this repository if needed
 
-1. Create and activate a virtual environment
+### 1. Create and activate a virtual environment
 
 ```shell
 python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-2. Export your Mistral API Key
+### 2. Export your Mistral API Key
 
 ```shell
 export MISTRAL_API_KEY=***
 ```
 
-3. Install libraries
+### 3. Install libraries
 
 ```shell
 pip install -r cookbook/llms/mistral/rag/requirements.txt
 ```
 
-4. Start pgvector
+### 4. Run PgVector
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
@@ -45,7 +45,7 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-5. Run RAG App
+### 5. Run RAG App
 
 ```shell
 streamlit run cookbook/llms/mistral/rag/app.py

@@ -14,6 +14,33 @@ from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
 from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
 from pinecone.models import ServerlessSpec, PodSpec
+from pinecone.core.client.models import Vector
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+# Create a logger
+logger = logging.getLogger(__name__)
+
+# Set the logging level
+logger.setLevel(logging.DEBUG)
+
+# Create a file handler
+file_handler = logging.FileHandler("pinecone.log")
+file_handler.setLevel(logging.DEBUG)
+
+# Create a console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+
+# Create a formatter and add it to the handlers
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Add the handlers to the logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 
 class PineconeDB(VectorDb):
@@ -189,7 +216,7 @@ class PineconeDB(VectorDb):
         batch_size: Optional[int] = None,
         show_progress: bool = False,
     ) -> None:
-        """Upsert documents into the index.
+        """insert documents into the index.
 
         Args:
             documents (List[Document]): The documents to upsert.
@@ -198,7 +225,18 @@ class PineconeDB(VectorDb):
             show_progress (bool, optional): Whether to show progress during upsert. Defaults to False.
 
         """
-        vectors = [{"id": doc.id, "values": doc.embedding, "metadata": doc.meta_data} for doc in documents]
+
+        vectors = []
+        for document in documents:
+            document.embed(embedder=self.embedder)
+            document.meta_data["text"] = document.content
+            vectors.append(
+                Vector(
+                    id=document.id,
+                    values=document.embedding,
+                    metadata=document.meta_data,
+                )
+            )
         self.index.upsert(
             vectors=vectors,
             namespace=namespace,
@@ -227,7 +265,9 @@ class PineconeDB(VectorDb):
             NotImplementedError: This method is not supported by Pinecone.
 
         """
-        raise NotImplementedError("Pinecone does not support insert operations. Use upsert instead.")
+        raise NotImplementedError(
+            "Pinecone does not support insert operations. Use upsert instead."
+        )
 
     def search(
         self,
@@ -236,7 +276,6 @@ class PineconeDB(VectorDb):
         namespace: Optional[str] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         include_values: Optional[bool] = None,
-        include_metadata: Optional[bool] = None,
     ) -> List[Document]:
         """Search for similar documents in the index.
 
@@ -253,6 +292,7 @@ class PineconeDB(VectorDb):
 
         """
         query_embedding = self.embedder.get_embedding(query)
+
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
@@ -263,11 +303,15 @@ class PineconeDB(VectorDb):
             namespace=namespace,
             filter=filter,
             include_values=include_values,
-            include_metadata=include_metadata,
+            include_metadata=True,
         )
         return [
             Document(
-                content=result.metadata.get("text", "") if result.metadata is not None else "",
+                content=(
+                    result.metadata.get("text", "")
+                    if result.metadata is not None
+                    else ""
+                ),
                 id=result.id,
                 embedding=result.values,
                 meta_data=result.metadata,

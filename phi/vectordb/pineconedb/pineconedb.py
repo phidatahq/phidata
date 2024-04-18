@@ -18,29 +18,9 @@ from pinecone.core.client.models import Vector
 
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 # Create a logger
 logger = logging.getLogger(__name__)
-
-# Set the logging level
-logger.setLevel(logging.DEBUG)
-
-# Create a file handler
-file_handler = logging.FileHandler("pinecone.log")
-file_handler.setLevel(logging.DEBUG)
-
-# Create a console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-
-# Create a formatter and add it to the handlers
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-console_handler.setFormatter(formatter)
-
-# Add the handlers to the logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
 
 
 class PineconeDB(VectorDb):
@@ -265,9 +245,7 @@ class PineconeDB(VectorDb):
             NotImplementedError: This method is not supported by Pinecone.
 
         """
-        raise NotImplementedError(
-            "Pinecone does not support insert operations. Use upsert instead."
-        )
+        raise NotImplementedError("Pinecone does not support insert operations. Use upsert instead.")
 
     def search(
         self,
@@ -307,11 +285,7 @@ class PineconeDB(VectorDb):
         )
         return [
             Document(
-                content=(
-                    result.metadata.get("text", "")
-                    if result.metadata is not None
-                    else ""
-                ),
+                content=(result.metadata.get("text", "") if result.metadata is not None else ""),
                 id=result.id,
                 embedding=result.values,
                 meta_data=result.metadata,

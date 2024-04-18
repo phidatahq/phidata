@@ -4,26 +4,28 @@ from typing import Optional
 from rich.prompt import Prompt
 
 from phi.assistant import Assistant
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pineconedb import PineconeDB
 
-api_key    = os.getenv("PINECONE_API_KEY")
-index_name = "recipe-index"
+api_key = os.getenv("PINECONE_API_KEY")
+index_name = "thai-recipe-index"
 
 vector_db = PineconeDB(
     name=index_name,
     dimension=1536,
     metric="cosine",
-    spec={'serverless': {'cloud': 'aws', 'region': 'us-west-2'}},
+    spec={"serverless": {"cloud": "aws", "region": "us-west-2"}},
     api_key=api_key,
 )
 
-knowledge_base = AssistantKnowledge(
+knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
 
 # Comment out after first run
 knowledge_base.load(recreate=False, upsert=True)
+
 
 def pinecone_assistant(user: str = "user"):
     run_id: Optional[str] = None
@@ -51,6 +53,7 @@ def pinecone_assistant(user: str = "user"):
         if message in ("exit", "bye"):
             break
         assistant.print_response(message)
+
 
 if __name__ == "__main__":
     typer.run(pinecone_assistant)

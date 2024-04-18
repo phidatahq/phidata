@@ -1,13 +1,13 @@
 import typer
 from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
-from phi.llm.ollama import Ollama
+from phi.llm.ollama import OllamaTools
 
 
 def tool_call(model: str = "openhermes", debug: bool = False):
     print(f"============= Running: {model} =============")
     Assistant(
-        llm=Ollama(model=model),
+        llm=OllamaTools(model=model),
         tools=[DuckDuckGo()],
         show_tool_calls=True,
         debug_mode=debug,

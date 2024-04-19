@@ -134,8 +134,14 @@ class AwsBedrock(LLM):
     def parse_response_message(self, response: Dict[str, Any]) -> Message:
         raise NotImplementedError("Please use a subclass of AwsBedrock")
 
+    def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
+        raise NotImplementedError("Please use a subclass of AwsBedrock")
+
     def response(self, messages: List[Message]) -> str:
         logger.debug("---------- Bedrock Response Start ----------")
+        # -*- Log messages for debugging
+        for m in messages:
+            m.log()
 
         response_timer = Timer()
         response_timer.start()
@@ -192,15 +198,13 @@ class AwsBedrock(LLM):
         response_timer = Timer()
         response_timer.start()
         for delta in self.invoke_stream(body=self.get_request_body(messages)):
-            logger.debug(f"Delta: {delta}")
-            logger.debug(f"Delta type: {type(delta)}")
             completion_tokens += 1
             # -*- Parse response
-            delta_completion = delta.get("completion")
+            content = self.parse_response_delta(delta)
             # -*- Yield completion
-            if delta_completion is not None:
-                assistant_message_content += delta_completion
-                yield delta_completion
+            if content is not None:
+                assistant_message_content += content
+                yield content
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")

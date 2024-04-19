@@ -2,7 +2,6 @@ from typing import Optional, Dict, Any, List
 
 from phi.llm.message import Message
 from phi.llm.aws.bedrock import AwsBedrock
-from phi.utils.log import logger
 
 
 class Claude(AwsBedrock):
@@ -62,18 +61,30 @@ class Claude(AwsBedrock):
         }
         if system_prompt:
             request_body["system"] = system_prompt
-        logger.info(f"Request body: {request_body}")
         return request_body
 
     def parse_response_message(self, response: Dict[str, Any]) -> Message:
-        logger.debug(f"Response: {response}")
-        logger.debug(f"Response type: {type(response)}")
         if response.get("type") == "message":
             response_message = Message(role=response.get("role"))
+            content: Optional[str] = ""
             if response.get("content"):
-                response_message.content = response.get("content")
+                _content = response.get("content")
+                if isinstance(_content, str):
+                    content = _content
+                elif isinstance(_content, dict):
+                    content = _content.get("text", "")
+                elif isinstance(_content, list):
+                    content = "\n".join([c.get("text") for c in _content])
+
+            response_message.content = content
+            return response_message
 
         return Message(
             role="assistant",
             content=response.get("completion"),
         )
+
+    def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
+        if "delta" in response:
+            return response.get("delta", {}).get("text")
+        return response.get("completion")

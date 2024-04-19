@@ -16,6 +16,7 @@ from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
 from pinecone.models import ServerlessSpec, PodSpec
 from pinecone.core.client.models import Vector
 
+
 class PineconeDB(VectorDb):
     """A class representing a Pinecone database.
 

@@ -108,6 +108,7 @@ module = [
   "psycopg.*",
   "pypdf.*",
   "qdrant_client.*",
+  "requests.*",
   "simplejson.*",
   "serpapi.*",
   "setuptools.*",

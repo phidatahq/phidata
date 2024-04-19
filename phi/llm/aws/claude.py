@@ -1,16 +1,23 @@
 from typing import Optional, Dict, Any, List
 
+from phi.llm.message import Message
 from phi.llm.aws.bedrock import AwsBedrock
+from phi.utils.log import logger
 
 
-class AnthropicClaude(AwsBedrock):
-    name: str = "AwsBedrockClaude"
-    model: str = "anthropic.claude-v2"
+class Claude(AwsBedrock):
+    name: str = "AwsBedrockAnthropicClaude"
+    model: str = "anthropic.claude-3-sonnet-20240229-v1:0"
+    # -*- Request parameters
     max_tokens: int = 8192
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None
     stop_sequences: Optional[List[str]] = None
+    anthropic_version: str = "bedrock-2023-05-31"
+    request_params: Optional[Dict[str, Any]] = None
+    # -*- Client parameters
+    client_params: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()
@@ -23,15 +30,50 @@ class AnthropicClaude(AwsBedrock):
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {}
-        if self.max_tokens:
-            kwargs["max_tokens_to_sample"] = self.max_tokens
+        _request_params: Dict[str, Any] = {
+            "max_tokens": self.max_tokens,
+            "anthropic_version": self.anthropic_version,
+        }
         if self.temperature:
-            kwargs["temperature"] = self.temperature
+            _request_params["temperature"] = self.temperature
         if self.top_p:
-            kwargs["top_p"] = self.top_p
+            _request_params["top_p"] = self.top_p
         if self.top_k:
-            kwargs["top_k"] = self.top_k
+            _request_params["top_k"] = self.top_k
         if self.stop_sequences:
-            kwargs["stop_sequences"] = self.stop_sequences
-        return kwargs
+            _request_params["stop_sequences"] = self.stop_sequences
+        if self.request_params:
+            _request_params.update(self.request_params)
+        return _request_params
+
+    def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
+        system_prompt = None
+        messages_for_api = []
+        for m in messages:
+            if m.role == "system":
+                system_prompt = m.content
+            else:
+                messages_for_api.append({"role": m.role, "content": m.content})
+
+        # -*- Build request body
+        request_body = {
+            "messages": messages_for_api,
+            **self.api_kwargs,
+        }
+        if system_prompt:
+            request_body["system"] = system_prompt
+        logger.info(f"Request body: {request_body}")
+        return request_body
+
+    def parse_response_message(self, response: Dict[str, Any]) -> Message:
+        logger.debug(f"Response: {response}")
+        logger.debug(f"Response type: {type(response)}")
+        if response.get("type") == "message":
+            response_message = Message(role=response.get("role"))
+            if response.get("content"):
+                response_message.content = response.get("content")
+
+        return Message(
+            role="assistant",
+            content=response.get("completion"),
+        )

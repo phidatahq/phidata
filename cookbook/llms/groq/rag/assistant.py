@@ -9,39 +9,36 @@ from phi.storage.assistant.postgres import PgAssistantStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
-groq_assistant_storage = PgAssistantStorage(
-    db_url=db_url,
-    # Store assistant runs in table: ai.groq_rag_assistant
-    table_name="groq_rag_assistant",
-)
-
-groq_assistant_knowledge = AssistantKnowledge(
-    vector_db=PgVector2(
-        db_url=db_url,
-        # Store embeddings in table: ai.groq_rag_documents
-        collection="groq_rag_documents",
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
-    ),
-    # 5 references are added to the prompt
-    num_documents=5,
-)
-
 
 def get_groq_assistant(
-    model: str = "groq-large-latest",
+    model: str = "llama3",
     user_id: Optional[str] = None,
     run_id: Optional[str] = None,
-    debug_mode: bool = False,
+    debug_mode: bool = True,
 ) -> Assistant:
-    """Get a Groq Mistral RAG Assistant."""
+    """Get a Local RAG Assistant."""
 
     return Assistant(
-        name="mixtral-8x7b-32768",
+        name="groq_rag_assistant",
         run_id=run_id,
         user_id=user_id,
         llm=Groq(model=model),
-        storage=groq_assistant_storage,
-        knowledge_base=groq_assistant_knowledge,
+        storage=PgAssistantStorage(table_name="groq_rag_assistant", db_url=db_url),
+        knowledge_base=AssistantKnowledge(
+            vector_db=PgVector2(
+                db_url=db_url,
+                collection="groq_rag_documents",
+                embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+            ),
+            # 2 references are added to the prompt
+            num_documents=2,
+        ),
+        description="You are an AI called 'GroqRAG' and your task is to answer questions from a knowledge base",
+        instructions=[
+            "When a user asks a question, you will be provided with information from the knowledge base.",
+            "Using this information provide a clear and concise answer to the user.",
+            "Do not use phrases like 'based on my knowledge' or 'depending on the article'.",
+        ],
         # This setting adds references from the knowledge_base to the user prompt
         add_references_to_prompt=True,
         # This setting tells the LLM to format messages in markdown
@@ -50,6 +47,6 @@ def get_groq_assistant(
         add_chat_history_to_messages=True,
         # This setting adds 4 previous messages from chat history to the messages
         num_history_messages=4,
+        add_datetime_to_instructions=True,
         debug_mode=debug_mode,
-        description="You are an AI called 'Phi' designed to help users answer questions from a knowledge base of PDFs.",
     )

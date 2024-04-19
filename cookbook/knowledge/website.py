@@ -2,7 +2,7 @@ from phi.knowledge.website import WebsiteKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 from phi.assistant import Assistant
 
-from resources import vector_db  # type: ignore
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Create a knowledge base with the seed URLs
 knowledge_base = WebsiteKnowledgeBase(
@@ -12,7 +12,7 @@ knowledge_base = WebsiteKnowledgeBase(
     # Table name: ai.website_documents
     vector_db=PgVector2(
         collection="website_documents",
-        db_url=vector_db.get_db_connection_local(),
+        db_url=db_url,
     ),
 )
 # Load the knowledge base

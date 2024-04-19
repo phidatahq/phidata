@@ -16,11 +16,13 @@ except ImportError:
 
 class AwsBedrock(LLM):
     name: str = "AwsBedrock"
-    model: str = "anthropic.claude-v2"
+    model: str
 
     aws_region: Optional[str] = None
     aws_profile: Optional[str] = None
     aws_client: Optional[AwsApiClient] = None
+    # -*- Request parameters
+    request_params: Optional[Dict[str, Any]] = None
 
     _bedrock_client: Optional[Any] = None
     _bedrock_runtime_client: Optional[Any] = None
@@ -104,69 +106,45 @@ class AwsBedrock(LLM):
 
         return model_details["modelDetails"]
 
-    def invoke(self, prompt: str) -> Dict[str, Any]:
-        body = {"prompt": prompt}
-        body.update(self.api_kwargs)
-        body_json = json.dumps(body)
-
+    def invoke(self, body: Dict[str, Any]) -> Dict[str, Any]:
         response = self.bedrock_runtime_client.invoke_model(
-            body=body_json,
-            modelId="anthropic.claude-v2",
+            body=json.dumps(body),
+            modelId=self.model,
             accept="application/json",
             contentType="application/json",
         )
-
         response_body = response.get("body")
         if response_body is None:
             return {}
-
         return json.loads(response_body.read())
 
-    def invoke_stream(self, prompt: str) -> Iterator[Dict[str, Any]]:
-        body = {"prompt": prompt}
-        body.update(self.api_kwargs)
-        body_json = json.dumps(body)
-
+    def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         response = self.bedrock_runtime_client.invoke_model_with_response_stream(
-            body=body_json,
-            modelId="anthropic.claude-v2",
+            body=json.dumps(body),
+            modelId=self.model,
         )
-
         for event in response.get("body"):
             chunk = event.get("chunk")
             if chunk:
                 yield json.loads(chunk.get("bytes").decode())
 
-    def build_prompt(self, messages: List[Message]) -> str:
-        """Build prompt from messages"""
+    def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
+        raise NotImplementedError("Please use a subclass of AwsBedrock")
 
-        prompt = ""
-        for m in messages:
-            if m.role == "user":
-                if m.content is not None:
-                    prompt += m.get_content_string()
-
-        # -*- Log prompt for debugging
-        logger.debug(f"PROMPT: {prompt}")
-        return prompt
+    def parse_response_message(self, response: Dict[str, Any]) -> Message:
+        raise NotImplementedError("Please use a subclass of AwsBedrock")
 
     def response(self, messages: List[Message]) -> str:
-        logger.debug("---------- Aws Response Start ----------")
+        logger.debug("---------- Bedrock Response Start ----------")
 
         response_timer = Timer()
         response_timer.start()
-        response: Dict[str, Any] = self.invoke(prompt=self.build_prompt(messages))
+        response: Dict[str, Any] = self.invoke(body=self.get_request_body(messages))
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        # -*- Parse response
-        response_completion = response.get("completion")
-
         # -*- Create assistant message
-        assistant_message = Message(
-            role="assistant",
-            content=response_completion,
-        )
+        assistant_message = self.parse_response_message(response)
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -202,74 +180,20 @@ class AwsBedrock(LLM):
         messages.append(assistant_message)
         assistant_message.log()
 
-        logger.debug("---------- Aws Response End ----------")
+        logger.debug("---------- Bedrock Response End ----------")
         # -*- Return content
         return assistant_message.get_content_string()
 
-    def generate(self, messages: List[Message]) -> Dict:
-        logger.debug("---------- Aws Response Start ----------")
-
-        response_timer = Timer()
-        response_timer.start()
-        response: Dict[str, Any] = self.invoke(prompt=self.build_prompt(messages))
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-
-        # -*- Parse response
-        response_completion = response.get("completion")
-
-        # -*- Create assistant message
-        assistant_message = Message(
-            role="assistant",
-            content=response_completion,
-        )
-
-        # -*- Update usage metrics
-        # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer.elapsed)
-
-        # Add token usage to metrics
-        prompt_tokens = 0
-        if prompt_tokens is not None:
-            assistant_message.metrics["prompt_tokens"] = prompt_tokens
-            if "prompt_tokens" not in self.metrics:
-                self.metrics["prompt_tokens"] = prompt_tokens
-            else:
-                self.metrics["prompt_tokens"] += prompt_tokens
-        completion_tokens = 0
-        if completion_tokens is not None:
-            assistant_message.metrics["completion_tokens"] = completion_tokens
-            if "completion_tokens" not in self.metrics:
-                self.metrics["completion_tokens"] = completion_tokens
-            else:
-                self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = prompt_tokens + completion_tokens
-        if total_tokens is not None:
-            assistant_message.metrics["total_tokens"] = total_tokens
-            if "total_tokens" not in self.metrics:
-                self.metrics["total_tokens"] = total_tokens
-            else:
-                self.metrics["total_tokens"] += total_tokens
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-        assistant_message.log()
-
-        logger.debug("---------- Aws Response End ----------")
-        # -*- Return content
-        return response
-
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
-        logger.debug("---------- Aws Response Start ----------")
+        logger.debug("---------- Bedrock Response Start ----------")
 
         assistant_message_content = ""
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for delta in self.invoke_stream(prompt=self.build_prompt(messages)):
+        for delta in self.invoke_stream(body=self.get_request_body(messages)):
+            logger.debug(f"Delta: {delta}")
+            logger.debug(f"Delta type: {type(delta)}")
             completion_tokens += 1
             # -*- Parse response
             delta_completion = delta.get("completion")
@@ -317,61 +241,4 @@ class AwsBedrock(LLM):
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
-        logger.debug("---------- Aws Response End ----------")
-
-    def generate_stream(self, messages: List[Message]) -> Iterator[Dict]:
-        logger.debug("---------- OpenAI Response Start ----------")
-
-        assistant_message_content = ""
-        completion_tokens = 0
-        response_timer = Timer()
-        response_timer.start()
-        for delta in self.invoke_stream(prompt=self.build_prompt(messages)):
-            completion_tokens += 1
-            # -*- Parse response
-            delta_completion = delta.get("completion")
-            # -*- Yield completion
-            if delta_completion is not None:
-                assistant_message_content += delta_completion
-                yield delta
-
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-
-        # -*- Create assistant message
-        assistant_message = Message(role="assistant")
-        # -*- Add content to assistant message
-        if assistant_message_content != "":
-            assistant_message.content = assistant_message_content
-
-        # -*- Update usage metrics
-        # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer.elapsed)
-
-        # Add token usage to metrics
-        prompt_tokens = 0
-        assistant_message.metrics["prompt_tokens"] = prompt_tokens
-        if "prompt_tokens" not in self.metrics:
-            self.metrics["prompt_tokens"] = prompt_tokens
-        else:
-            self.metrics["prompt_tokens"] += prompt_tokens
-        logger.debug(f"Estimated completion tokens: {completion_tokens}")
-        assistant_message.metrics["completion_tokens"] = completion_tokens
-        if "completion_tokens" not in self.metrics:
-            self.metrics["completion_tokens"] = completion_tokens
-        else:
-            self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = prompt_tokens + completion_tokens
-        assistant_message.metrics["total_tokens"] = total_tokens
-        if "total_tokens" not in self.metrics:
-            self.metrics["total_tokens"] = total_tokens
-        else:
-            self.metrics["total_tokens"] += total_tokens
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-        assistant_message.log()
-        logger.debug("---------- Aws Response End ----------")
+        logger.debug("---------- Bedrock Response End ----------")

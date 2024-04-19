@@ -33,7 +33,7 @@ stock_analyst = Assistant(
         "The investment lead will provide you with a list of companies to write reports on.",
         "Get the current stock price, analyst recommendations and news for the company",
         "If you find any news urls, read the article and include it in the report.",
-        "Save your report to a file in markdown format with the the name `company_name.md` in lower case.",
+        "Save your report to a file in markdown format with the name `company_name.md` in lower case.",
         "Let the investment lead know the file name of the report.",
     ],
     # debug_mode=True,
@@ -61,7 +61,7 @@ investment_lead = Assistant(
     description="You are an investment lead tasked with producing a research report on companies for investment purposes.",
     instructions=[
         "Given a list of companies, first ask the stock analyst to get the current stock price, analyst recommendations and news for these companies.",
-        "Ask the stock analyst to write its results to files in markdown format with the the name `company_name.md`.",
+        "Ask the stock analyst to write its results to files in markdown format with the name `company_name.md`.",
         "If the stock analyst has not saved the file or saved it with an incorrect name, ask them to save the file again before proceeding."
         "Then ask the research_analyst to write a report on these companies based on the information provided by the stock analyst.",
         "Make sure to provide the research analyst with the files saved by the stock analyst and ask it to read the files directly."

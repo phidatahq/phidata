@@ -2,24 +2,14 @@
   phidata
 </h1>
 
+<p align="center">
+<a href="https://trendshift.io/repositories/7569" target="_blank"><img src="https://trendshift.io/api/badge/repositories/7569" alt="phidatahq%2Fphidata | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
 <h4 align="center">
 Phidata is a framework for building AI Assistants with memory, knowledge and tools.
 </h4>
 
-<p align="center">
-  <a href="https://python.org/pypi/phidata" target="_blank" rel="noopener noreferrer">
-      <img src="https://img.shields.io/pypi/v/phidata?color=blue&label=version" alt="version">
-  </a>
-  <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-      <img src="https://img.shields.io/badge/python->=3.9-blue" alt="pythonversion">
-  </a>
-  <a href="https://github.com/phidatahq/phidata" target="_blank" rel="noopener noreferrer">
-      <img src="https://pepy.tech/badge/phidata" alt="downloads">
-  </a>
-  <a href="https://github.com/phidatahq/phidata/actions/workflows/build.yml" target="_blank" rel="noopener noreferrer">
-      <img src="https://github.com/phidatahq/phidata/actions/workflows/build.yml/badge.svg" alt="build-status">
-  </a>
-</p>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 

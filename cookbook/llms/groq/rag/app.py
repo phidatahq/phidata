@@ -30,7 +30,7 @@ def restart_assistant():
 def main() -> None:
     # Get model
     rag_model = st.sidebar.selectbox(
-        "Select Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
+        "Select Model", options=["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768"]
     )
     # Set assistant_type in session state
     if "rag_model" not in st.session_state:

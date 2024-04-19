@@ -1,4 +1,4 @@
-# RAG with Groq & PgVector
+# RAG with Llama3 on Groq
 
 > Note: Fork and clone this repository if needed
 

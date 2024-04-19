@@ -34,3 +34,15 @@ python cookbook/llms/groq/assistant.py
 ```shell
 python cookbook/llms/groq/structured_output.py
 ```
+
+### 4. Financial analyst
+
+Run using:
+
+```shell
+python cookbook/llms/groq/finance.py
+```
+
+Ask questions like:
+- What's the NVDA stock price
+- Summarize fundamentals for TSLA

@@ -805,6 +805,14 @@ class Assistant(BaseModel):
     # Print Response
     ###########################################################################
 
+    def convert_response_to_string(self, response: Any) -> str:
+        if isinstance(response, str):
+            return response
+        elif isinstance(response, BaseModel):
+            return response.model_dump_json(exclude_none=True, indent=4)
+        else:
+            return json.dumps(response, indent=4)
+
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
@@ -859,7 +867,7 @@ class Assistant(BaseModel):
                 response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
-            _response = Markdown(response) if self.markdown else response
+            _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:

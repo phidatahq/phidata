@@ -7,4 +7,5 @@ assistant = Assistant(
     tools=[DuckDuckGo()],
     show_tool_calls=True,
 )
-assistant.print_response("Whats happening in France?", markdown=True, stream=False)
+assistant.cli_app(markdown=True, stream=False)
+# assistant.print_response("Whats happening in France?", markdown=True, stream=False)

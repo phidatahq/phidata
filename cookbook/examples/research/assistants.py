@@ -41,11 +41,13 @@ class WebSearchResults(BaseModel):
 
 search_term_generator = Assistant(
     name="Search Term Generator",
-    description=dedent("""\
+    description=dedent(
+        """\
     You are a world-class researcher assigned a very important task.
     Given a topic, generate a list of 2 search terms that will be used to search the web for
     relevant articles regarding the topic.
-    """),
+    """
+    ),
     add_datetime_to_instructions=True,
     output_model=SearchTerms,
     debug_mode=True,
@@ -53,11 +55,13 @@ search_term_generator = Assistant(
 
 arxiv_search_assistant = Assistant(
     name="Arxiv Search Assistant",
-    description=dedent("""\
+    description=dedent(
+        """\
     You are a world-class researcher assigned a very important task.
     Given a topic, search ArXiv for the top 10 articles about that topic and return the 3 most relevant articles.
     This is an important task and your output should be highly relevant to the original topic.
-    """),
+    """
+    ),
     tools=[arxiv_toolkit],
     output_model=ArxivSearchResults,
     # debug_mode=True,
@@ -65,12 +69,14 @@ arxiv_search_assistant = Assistant(
 
 exa_search_assistant = Assistant(
     name="Exa Search Assistant",
-    description=dedent("""\
+    description=dedent(
+        """\
     You are a world-class researcher assigned a very important task.
     Given a topic, search Exa for the top 10 articles about that topic and return the 3 most relevant articles.
     You should return the article title, summary, and the content of the article.
     This is an important task and your output should be highly relevant to the original topic.
-    """),
+    """
+    ),
     tools=[ExaTools()],
     output_model=WebSearchResults,
     # debug_mode=True,
@@ -78,12 +84,14 @@ exa_search_assistant = Assistant(
 
 ddg_search_assistant = Assistant(
     name="DuckDuckGo Search Assistant",
-    description=dedent("""\
+    description=dedent(
+        """\
     You are a world-class researcher assigned a very important task.
     Given a topic, search duckduckgo for the top 10 articles about that topic and return the 3 most relevant articles.
     You should return the article title, summary, and the content of the article.
     This is an important task and your output should be highly relevant to the original topic.
-    """),
+    """
+    ),
     tools=[DuckDuckGo()],
     output_model=WebSearchResults,
     # debug_mode=True,

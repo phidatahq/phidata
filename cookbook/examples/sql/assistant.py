@@ -112,10 +112,12 @@ def get_sql_assistant(
         debug_mode=debug_mode,
         add_chat_history_to_messages=True,
         num_history_messages=4,
-        description=dedent("""\
+        description=dedent(
+            """\
         You are an expert Data Engineer called `Phi` and your goal is to help users analyze data using PostgreSQL queries.
         You have access to a knowledge base with table rules and information that you MUST follow in every circumstance.
-        """),
+        """
+        ),
         instructions=[
             "When a user messages you, first determine if you need should run a query to accomplish the task.",
             "If you need to run a query, **THINK STEP BY STEP** about how to accomplish the task using the `semantic_model` provided below.",
@@ -140,7 +142,8 @@ def get_sql_assistant(
             "Show results as a table or a chart if possible.",
             "If the users asks about the tables you have access to, simply share the table names from the `semantic_model`.",
         ],
-        add_to_system_prompt=dedent(f"""
+        add_to_system_prompt=dedent(
+            f"""
 Additional set of guidelines you should follow:
 <rules>
 - Do not use phrases like "based on the information provided" or "from the knowledge base".
@@ -161,5 +164,6 @@ The following `semantic_model` contains information about tables and the relatio
 After finishing your task, ask the user relevant followup questions like "was the result okay, would you like me to fix any problems?"
 If the user says yes, get the previous query using the `get_tool_call_history(num_calls=3)` function and fix the problems.
 If the user wants to see the SQL, get it using the `get_tool_call_history(num_calls=3)` function.
-"""),
+"""
+        ),
     )

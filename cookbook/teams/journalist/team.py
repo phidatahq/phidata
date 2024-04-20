@@ -7,11 +7,13 @@ from phi.tools.newspaper_toolkit import NewspaperToolkit
 searcher = Assistant(
     name="Searcher",
     role="Searches for top URLs based on a topic",
-    description=dedent("""\
+    description=dedent(
+        """\
     You are a world-class journalist for the New York Times. Given a topic, generate a list of 3 search terms
     for writing an article on that topic. Then search the web for each term, analyse the results
     and return the 10 most relevant URLs.
-    """),
+    """
+    ),
     instructions=[
         "Given a topic, first generate a list of 3 search terms related to that topic.",
         "For each search term, `search_google` and analyze the results."
@@ -24,10 +26,12 @@ searcher = Assistant(
 writer = Assistant(
     name="Writer",
     role="Retrieves text from URLs and writes a high-quality article",
-    description=dedent("""\
+    description=dedent(
+        """\
     You are a senior writer for the New York Times. Given a topic and a list of URLs,
     your goal is to write a high-quality NYT-worthy article on the topic.
-    """),
+    """
+    ),
     instructions=[
         "Given a topic and a list of URLs, first read the article using `get_article_text`."
         "Then write a high-quality NYT-worthy article on the topic."

@@ -6,10 +6,9 @@
 <a href="https://trendshift.io/repositories/7569" target="_blank"><img src="https://trendshift.io/api/badge/repositories/7569" alt="phidatahq%2Fphidata | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<h4 align="center">
+<h3 align="center">
 Phidata is a framework for building AI Assistants with memory, knowledge and tools.
-</h4>
-
+</h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 

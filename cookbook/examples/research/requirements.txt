@@ -99,7 +99,7 @@ pandas==2.2.2
     # via
     #   altair
     #   streamlit
-phidata==2.3.75
+phidata==2.3.78
     # via -r cookbook/examples/research/requirements.in
 pillow==10.3.0
     # via streamlit

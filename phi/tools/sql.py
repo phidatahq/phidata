@@ -17,7 +17,7 @@ except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
 
-class SQLToolkit(Toolkit):
+class SQLTools(Toolkit):
     def __init__(
         self,
         db_url: Optional[str] = None,
@@ -33,7 +33,7 @@ class SQLToolkit(Toolkit):
         describe_table: bool = True,
         run_sql_query: bool = True,
     ):
-        super().__init__(name="sql_toolkit")
+        super().__init__(name="sql_tools")
 
         # Get the database engine
         _engine: Optional[Engine] = db_engine

@@ -1,11 +1,11 @@
 from phi.assistant import Assistant
-from phi.tools.sql import SQLToolkit
+from phi.tools.sql import SQLTools
 from phi.knowledge.json import JSONKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
 from resources import vector_db  # type: ignore
 
-sql_toolkit = SQLToolkit(db_url=vector_db.get_db_connection_local())
+sql_toolkit = SQLTools(db_url=vector_db.get_db_connection_local())
 
 
 knowledge_base = JSONKnowledgeBase(

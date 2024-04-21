@@ -1,9 +1,9 @@
 from phi.assistant import Assistant
-from phi.tools.sql import SQLToolkit
+from phi.tools.sql import SQLTools
 
 from resources import vector_db  # type: ignore
 
-sql_toolkit = SQLToolkit(db_url=vector_db.get_db_connection_local())
+sql_toolkit = SQLTools(db_url=vector_db.get_db_connection_local())
 
 assistant = Assistant(
     tools=[sql_toolkit],

@@ -4,7 +4,7 @@ from textwrap import dedent
 from pathlib import Path
 
 from phi.assistant import Assistant
-from phi.tools.sql import SQLToolkit
+from phi.tools.sql import SQLTools
 from phi.tools.file import FileTools
 from phi.llm.openai import OpenAIChat
 from phi.embedder.openai import OpenAIEmbedder
@@ -108,7 +108,7 @@ def get_sql_assistant(
         read_chat_history=True,
         # search_knowledge=True,
         read_tool_call_history=True,
-        tools=[SQLToolkit(db_url=vector_db.get_db_connection_local()), FileTools(base_dir=sql_queries_dir)],
+        tools=[SQLTools(db_url=vector_db.get_db_connection_local()), FileTools(base_dir=sql_queries_dir)],
         debug_mode=debug_mode,
         add_chat_history_to_messages=True,
         num_history_messages=4,

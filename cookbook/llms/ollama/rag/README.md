@@ -55,6 +55,10 @@ streamlit run cookbook/llms/ollama/rag/app.py
 
 - Open [localhost:8501](http://localhost:8501) to view your local RAG app.
 
+- Add websites or PDFs and ask question.
+- Example PDF: https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf
+- Example Website: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/?guccounter=1
+
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 7. Star ⭐️ the project if you like it.

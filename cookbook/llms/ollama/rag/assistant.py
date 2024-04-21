@@ -41,9 +41,9 @@ def get_rag_assistant(
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         debug_mode=debug_mode,
-        description="You are an AI called 'RAGit' and your task is to answer questions from a knowledge",
+        description="You are an AI called 'RAGit' and your task is to answer questions from a knowledge base",
         instructions=[
-            "When a user asks a question, you will be provided with information from the knowledge base.",
+            "When a user asks a question, you will be provided with information from a knowledge base.",
             "Using this information provide a clear and concise answer to the user.",
             "Do not use phrases like 'based on my knowledge' or 'depending on the article'.",
         ],

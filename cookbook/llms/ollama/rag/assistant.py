@@ -22,7 +22,7 @@ def get_rag_assistant(
         vector_db=PgVector2(
             db_url=db_url,
             # Store embeddings in table: ai.local_rag_documents
-            collection="local_rag_documents",
+            collection=f"local_rag_documents_{model}",
             embedder=OllamaEmbedder(model=model, dimensions=4096),
         ),
         # 2 references are added to the prompt

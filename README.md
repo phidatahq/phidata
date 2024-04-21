@@ -339,15 +339,6 @@ python pdf_assistant.py --new
 
 ### Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
-## Tutorials
-
-### Build an AI App in 3 steps
-
-[![Build an AI App](https://img.youtube.com/vi/VNoBVR5t1yI/0.jpg)](https://www.youtube.com/watch?v=VNoBVR5t1yI&t "Build an AI App")
-
-### Build a Local RAG AI App using OpenHermes and Ollama
-[![Local AI App](https://img.youtube.com/vi/EVQLYncsDVI/0.jpg)](https://www.youtube.com/watch?v=EVQLYncsDVI&t "Local AI App")
-
 ## Looking to build an AI product?
 
 We've helped many companies build AI products, the general workflow is:

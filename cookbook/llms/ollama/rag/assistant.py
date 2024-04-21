@@ -25,8 +25,8 @@ def get_rag_assistant(
             collection=f"local_rag_documents_{model}",
             embedder=OllamaEmbedder(model=model, dimensions=4096),
         ),
-        # 2 references are added to the prompt
-        num_documents=2,
+        # 3 references are added to the prompt
+        num_documents=3,
     )
 
     return Assistant(

@@ -18,9 +18,16 @@ def get_rag_assistant(
 ) -> Assistant:
     """Get a Local RAG Assistant."""
 
-    embedder = OllamaEmbedder(model=model, dimensions=4096)
-    if model == "nomic-embed-text":
-        embedder.dimensions = 768
+    knowledge = AssistantKnowledge(
+        vector_db=PgVector2(
+            db_url=db_url,
+            # Store embeddings in table: ai.local_rag_documents
+            collection="local_rag_documents",
+            embedder=OllamaEmbedder(model=model, dimensions=4096),
+        ),
+        # 2 references are added to the prompt
+        num_documents=2,
+    )
 
     return Assistant(
         name="local_rag_assistant",
@@ -28,15 +35,7 @@ def get_rag_assistant(
         user_id=user_id,
         llm=Ollama(model=model),
         storage=PgAssistantStorage(table_name="local_rag_assistant", db_url=db_url),
-        knowledge_base=AssistantKnowledge(
-            vector_db=PgVector2(
-                db_url=db_url,
-                collection="local_rag_documents",
-                embedder=embedder,
-            ),
-            # 2 references are added to the prompt
-            num_documents=2,
-        ),
+        knowledge_base=knowledge,
         # This setting adds references from the knowledge_base to the user prompt
         add_references_to_prompt=True,
         # This setting tells the LLM to format messages in markdown

@@ -2,10 +2,6 @@
   phidata
 </h1>
 
-<p align="center">
-<a href="https://trendshift.io/repositories/7569" target="_blank"><img src="https://trendshift.io/api/badge/repositories/7569" alt="phidatahq%2Fphidata | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
 <h3 align="center">
 Phidata is a framework for building AI Assistants with memory, knowledge and tools.
 </h3>

@@ -22,22 +22,22 @@ def get_research_assistant(
         ],
         add_to_system_prompt=dedent("""
         <report_format>
-        ## [Report Title]
+        ## Title
 
         - **Overview** Brief introduction of the topic.
         - **Importance** Why is this topic significant now?
 
-        ### [Section 1]
+        ### Section 1
         - **Detail 1**
         - **Detail 2**
         - **Detail 3**
 
-        ### [Section 2]
+        ### Section 2
         - **Detail 1**
         - **Detail 2**
         - **Detail 3**
 
-        ### [Section 3k]
+        ### Section 3
         - **Detail 1**
         - **Detail 2**
         - **Detail 3**

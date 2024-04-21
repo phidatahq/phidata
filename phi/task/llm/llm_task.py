@@ -550,41 +550,43 @@ class LLMTask(BaseTask):
         # -*- Messages to send to the LLM
         messages_for_llm: List[Message] = []
 
-        # If messages are provided, build the messages list using them
+        # -*- Build prompts to send to the LLM -*-
+
+        # -*- System prompt
+        # Get the system prompt
+        system_prompt = self.get_system_prompt()
+        # Create system prompt message
+        system_prompt_message = Message(role="system", content=system_prompt)
+        # Add system prompt message to the messages list
+        if system_prompt_message.content and system_prompt_message.content != "":
+            messages_for_llm.append(system_prompt_message)
+
+        # -*- Add extra messages to the messages list
+        if self.add_messages is not None:
+            for _m in self.add_messages:
+                if isinstance(_m, Message):
+                    messages_for_llm.append(_m)
+                elif isinstance(_m, dict):
+                    messages_for_llm.append(Message.model_validate(_m))
+
+        # -*- Add chat history to the messages list
+        if self.add_chat_history_to_messages:
+            if self.assistant_memory is not None:
+                messages_for_llm += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
+            elif self.memory is not None:
+                messages_for_llm += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+
+        # -*- User prompt
+        # If messages are provided, simply use them
         if messages is not None:
             for _m in messages:
                 if isinstance(_m, Message):
                     messages_for_llm.append(_m)
                 elif isinstance(_m, dict):
                     messages_for_llm.append(Message.model_validate(_m))
-        # Otherwise, build the messages list using the system and user prompts
+        # Otherwise, build the user prompt message
         else:
-            # -*- System prompt
-            # -*- Build the system prompt
-            system_prompt = self.get_system_prompt()
-            # Create system message
-            system_prompt_message = Message(role="system", content=system_prompt)
-            # Add system prompt message to the messages list
-            if system_prompt_message.content and system_prompt_message.content != "":
-                messages_for_llm.append(system_prompt_message)
-
-            # -*- Add extra messages to the messages list
-            if self.add_messages is not None:
-                for _m in self.add_messages:
-                    if isinstance(_m, Message):
-                        messages_for_llm.append(_m)
-                    elif isinstance(_m, dict):
-                        messages_for_llm.append(Message.model_validate(_m))
-
-            # -*- Add chat history to the messages list
-            if self.add_chat_history_to_messages:
-                if self.assistant_memory is not None:
-                    messages_for_llm += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
-                elif self.memory is not None:
-                    messages_for_llm += self.memory.get_last_n_messages(last_n=self.num_history_messages)
-
-            # -*- User prompt
-            # -*- Get references to add to the user_prompt
+            # Get references to add to the user_prompt
             user_prompt_references = None
             if self.add_references_to_prompt and message and isinstance(message, str):
                 reference_timer = Timer()
@@ -595,15 +597,15 @@ class LLMTask(BaseTask):
                     query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
                 )
                 logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-            # -*- Get chat history to add to the user prompt
+            # Add chat history to the user prompt
             user_prompt_chat_history = None
             if self.add_chat_history_to_prompt:
                 user_prompt_chat_history = self.get_formatted_chat_history()
-            # -*- Build the user prompt
+            # Get the user prompt
             user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
                 message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
             )
-            # Create user message
+            # Create user prompt message
             user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
             # Add user prompt message to the messages list
             if user_prompt_message is not None:

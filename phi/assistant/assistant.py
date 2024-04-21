@@ -836,6 +836,7 @@ class Assistant(BaseModel):
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = True,
         markdown: bool = False,
         show_message: bool = True,
@@ -864,7 +865,7 @@ class Assistant(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.run(message, stream=True, **kwargs):
+                for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
                     if isinstance(resp, str):
                         response += resp
                     _response = Markdown(response) if self.markdown else response
@@ -884,7 +885,7 @@ class Assistant(BaseModel):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.run(message, stream=False, **kwargs)  # type: ignore
+                response = self.run(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)

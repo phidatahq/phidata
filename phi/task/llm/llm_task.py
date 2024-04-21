@@ -12,7 +12,7 @@ from phi.llm.message import Message
 from phi.llm.references import References
 from phi.memory.task.llm import LLMTaskMemory
 from phi.prompt.template import PromptTemplate
-from phi.task.task import Task
+from phi.task.base import BaseTask
 from phi.tools import Tool, Toolkit, Function
 from phi.utils.format_str import remove_indent
 from phi.utils.log import logger
@@ -20,11 +20,11 @@ from phi.utils.message import get_text_from_message
 from phi.utils.timer import Timer
 
 
-class LLMTask(Task):
+class LLMTask(BaseTask):
     # -*- LLM to use for this task
     llm: Optional[LLM] = None
 
-    # -*- Task Memory
+    # -*- LLMTask Memory
     memory: LLMTaskMemory = LLMTaskMemory()
     # add_chat_history_to_messages=True adds the chat history to the messages sent to the LLM.
     add_chat_history_to_messages: bool = False
@@ -33,12 +33,12 @@ class LLMTask(Task):
     # Number of previous messages to add to the prompt or messages.
     num_history_messages: int = 8
 
-    # -*- Task Knowledge Base
+    # -*- LLMTask Knowledge Base
     knowledge_base: Optional[AssistantKnowledge] = None
     # Enable RAG by adding references from the knowledge base to the prompt.
     add_references_to_prompt: bool = False
 
-    # -*- Task Tools
+    # -*- LLMTask Tools
     # A list of tools provided to the LLM.
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
@@ -66,10 +66,12 @@ class LLMTask(Task):
     # -*- Deprecated: use_tools is deprecated, please set read_chat_history or search_knowledge manually
     use_tools: bool = False
 
-    # -*- Important: this setting determines if the input messages are formatted
-    # If True, phidata will add the system prompt, references, and chat history
-    # If False, the input messages are sent to the LLM as is
-    format_messages: bool = True
+    #
+    # -*- Assistant Messages
+    #
+    # -*- List of messages added to the messages list after the system prompt.
+    # Use these for few-shot learning or to provide additional context to the LLM.
+    add_messages: Optional[List[Union[Dict, Message]]] = None
 
     #
     # -*- Prompt Settings
@@ -79,10 +81,10 @@ class LLMTask(Task):
     # -*- System prompt template: provide the system prompt as a PromptTemplate
     system_prompt_template: Optional[PromptTemplate] = None
     # -*- System prompt function: provide the system prompt as a function
-    # This function is provided the "Task object" as an argument
+    # This function is provided the "LLMTask object" as an argument
     #   and should return the system_prompt as a string.
     # Signature:
-    # def system_prompt_function(task: Task) -> str:
+    # def system_prompt_function(task: LLMTask) -> str:
     #    ...
     system_prompt_function: Optional[Callable[..., Optional[str]]] = None
     # If True, the build the system prompt using the description and instructions
@@ -119,13 +121,13 @@ class LLMTask(Task):
     # -*- User prompt template: provide the user prompt as a PromptTemplate
     user_prompt_template: Optional[PromptTemplate] = None
     # -*- User prompt function: provide the user prompt as a function.
-    # This function is provided the "Task object" and the "input message" as arguments
+    # This function is provided the "LLMTask object" and the "input message" as arguments
     #   and should return the user_prompt as a Union[List, Dict, str].
     # If add_references_to_prompt is True, then references are also provided as an argument.
     # If add_chat_history_to_prompt is True, then chat_history is also provided as an argument.
     # Signature:
     # def custom_user_prompt_function(
-    #     task: Task,
+    #     task: LLMTask,
     #     message: Optional[Union[List, Dict, str]] = None,
     #     references: Optional[str] = None,
     #     chat_history: Optional[str] = None,
@@ -137,7 +139,7 @@ class LLMTask(Task):
     # Function to get references for the user_prompt
     # This function, if provided, is called when add_references_to_prompt is True
     # Signature:
-    # def references(task: Task, query: str) -> Optional[str]:
+    # def references(task: LLMTask, query: str) -> Optional[str]:
     #     ...
     references_function: Optional[Callable[..., Optional[str]]] = None
     references_format: Literal["json", "yaml"] = "json"
@@ -169,7 +171,7 @@ class LLMTask(Task):
 
     def update_llm(self) -> None:
         if self.llm is None:
-            logger.error(f"Task LLM is None: {self.__class__.__name__}")
+            logger.error(f"LLMTask LLM is None: {self.__class__.__name__}")
             return
 
         # Set response_format if it is not set on the llm
@@ -534,6 +536,7 @@ class LLMTask(Task):
     def _run(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = True,
         **kwargs: Any,
     ) -> Iterator[str]:
@@ -541,15 +544,46 @@ class LLMTask(Task):
         self.prepare_task()
         self.llm = cast(LLM, self.llm)
 
-        logger.debug(f"*********** Task Start: {self.task_id} ***********")
+        logger.debug(f"*********** LLMTask Start: {self.task_id} ***********")
         # -*- References to add to the user_prompt and save to the task memory
         references: Optional[References] = None
+        # -*- Messages to send to the LLM
+        messages_for_llm: List[Message] = []
 
-        # -*- Format the system and user prompts if format_messages is True
-        if self.format_messages:
+        # If messages are provided, build the messages list using them
+        if messages is not None:
+            for _m in messages:
+                if isinstance(_m, Message):
+                    messages_for_llm.append(_m)
+                elif isinstance(_m, dict):
+                    messages_for_llm.append(Message.model_validate(_m))
+        # Otherwise, build the messages list using the system and user prompts
+        else:
+            # -*- System prompt
             # -*- Build the system prompt
             system_prompt = self.get_system_prompt()
+            # Create system message
+            system_prompt_message = Message(role="system", content=system_prompt)
+            # Add system prompt message to the messages list
+            if system_prompt_message.content and system_prompt_message.content != "":
+                messages_for_llm.append(system_prompt_message)
 
+            # -*- Add extra messages to the messages list
+            if self.add_messages is not None:
+                for _m in self.add_messages:
+                    if isinstance(_m, Message):
+                        messages_for_llm.append(_m)
+                    elif isinstance(_m, dict):
+                        messages_for_llm.append(Message.model_validate(_m))
+
+            # -*- Add chat history to the messages list
+            if self.add_chat_history_to_messages:
+                if self.assistant_memory is not None:
+                    messages_for_llm += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
+                elif self.memory is not None:
+                    messages_for_llm += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+
+            # -*- User prompt
             # -*- Get references to add to the user_prompt
             user_prompt_references = None
             if self.add_references_to_prompt and message and isinstance(message, str):
@@ -561,53 +595,37 @@ class LLMTask(Task):
                     query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
                 )
                 logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-
             # -*- Get chat history to add to the user prompt
             user_prompt_chat_history = None
             if self.add_chat_history_to_prompt:
                 user_prompt_chat_history = self.get_formatted_chat_history()
-
             # -*- Build the user prompt
             user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
                 message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
             )
-
-            # -*- Build the messages to send to the LLM
-            # Create system message
-            system_prompt_message = Message(role="system", content=system_prompt)
             # Create user message
             user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
-
-            # Create message list
-            messages: List[Message] = []
-            if system_prompt_message.content and system_prompt_message.content != "":
-                messages.append(system_prompt_message)
-            if self.add_chat_history_to_messages:
-                if self.assistant_memory is not None:
-                    messages += self.assistant_memory.get_last_n_messages(last_n=self.num_history_messages)
-                elif self.memory is not None:
-                    messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+            # Add user prompt message to the messages list
             if user_prompt_message is not None:
-                messages += [user_prompt_message]
-        else:
-            messages = [Message.model_validate(m) for m in message] if message is not None else []
+                messages_for_llm += [user_prompt_message]
 
         # -*- Generate run response (includes running function calls)
         task_response = ""
         if stream:
-            for response_chunk in self.llm.response_stream(messages=messages):
+            for response_chunk in self.llm.response_stream(messages=messages_for_llm):
                 task_response += response_chunk
                 yield response_chunk
         else:
-            task_response = self.llm.response(messages=messages)
+            task_response = self.llm.response(messages=messages_for_llm)
 
         # -*- Update task memory
+
         # Add user message to the task memory - this is added to the chat_history
         user_message = Message(role="user", content=message) if message is not None else None
         if user_message is not None:
             self.memory.add_chat_message(message=user_message)
         # Add llm messages to the task memory - this is added to the llm_messages
-        self.memory.add_llm_messages(messages=messages)
+        self.memory.add_llm_messages(messages=messages_for_llm)
         # Add llm response to the chat history
         llm_response_message = Message(role="assistant", content=task_response)
         self.memory.add_chat_message(message=llm_response_message)
@@ -621,7 +639,7 @@ class LLMTask(Task):
             if user_message is not None:
                 self.assistant_memory.add_chat_message(message=user_message)
             # Add llm messages to the conversation memory
-            self.assistant_memory.add_llm_messages(messages=messages)
+            self.assistant_memory.add_llm_messages(messages=messages_for_llm)
             # Add llm response to the chat history
             self.assistant_memory.add_chat_message(message=llm_response_message)
             # Add references to the conversation memory
@@ -638,18 +656,19 @@ class LLMTask(Task):
         # -*- Yield final response if not streaming
         if not stream:
             yield task_response
-        logger.debug(f"*********** Task End: {self.task_id} ***********")
+        logger.debug(f"*********** LLMTask End: {self.task_id} ***********")
 
     def run(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = True,
         **kwargs: Any,
     ) -> Union[Iterator[str], str, BaseModel]:
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
-            json_resp = next(self._run(message=message, stream=False))
+            json_resp = next(self._run(message=message, messages=messages, stream=False, **kwargs))
             try:
                 structured_llm_output = None
                 if (
@@ -679,10 +698,10 @@ class LLMTask(Task):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True, **kwargs)
+                resp = self._run(message=message, messages=messages, stream=True, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, stream=False, **kwargs)
+                resp = self._run(message=message, messages=messages, stream=False, **kwargs)
                 return next(resp)
 
     def to_dict(self) -> Dict[str, Any]:

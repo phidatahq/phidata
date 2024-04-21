@@ -5,7 +5,7 @@ from phi.assistant.assistant import (
     AssistantStorage,
     AssistantKnowledge,
     LLMTask,
-    Task,
+    BaseTask,
     Function,
     Tool,
     Toolkit,

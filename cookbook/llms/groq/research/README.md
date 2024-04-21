@@ -1,4 +1,4 @@
-# RAG with Llama3 on Groq
+# Groq Researcher
 
 > Note: Fork and clone this repository if needed
 

@@ -15,7 +15,13 @@ source ~/.venvs/aienv/bin/activate
 pip install -U groq phidata
 ```
 
-### 3. Run Assistants
+### 3. Export GROQ API Key
+
+```shell
+export GROQ_API_KEY=***
+```
+
+### 4. Run Assistants
 
 - basic
 
@@ -35,7 +41,13 @@ python cookbook/llms/groq/assistant.py
 python cookbook/llms/groq/structured_output.py
 ```
 
-### 4. Financial analyst
+### 5. Financial analyst
+
+Install libraries
+
+```shell
+pip install -U yfinance
+```
 
 Run using:
 
@@ -46,3 +58,22 @@ python cookbook/llms/groq/finance.py
 Ask questions like:
 - What's the NVDA stock price
 - Summarize fundamentals for TSLA
+
+### 6. Data analyst
+
+Install libraries
+
+```shell
+pip install -U duckdb
+```
+
+Run using:
+
+```shell
+python cookbook/llms/groq/data_analyst.py
+```
+
+Ask questions like:
+- What is the average rating of movies?
+- Who is the most popular actor?
+- Show me a histogram of movie ratings

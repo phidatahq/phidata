@@ -1,4 +1,4 @@
-# Groq Researcher
+# Llama Researcher powered by Groq & Tavily
 
 > Note: Fork and clone this repository if needed
 

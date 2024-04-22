@@ -4,10 +4,10 @@ from phi.tools.tavily import TavilyTools
 from assistant import get_research_assistant  # type: ignore
 
 st.set_page_config(
-    page_title="Llama Researcher",
+    page_title="Research Assistant",
     page_icon=":orange_heart:",
 )
-st.title("Llama Researcher powered by Groq")
+st.title("Research Assistant powered by Groq")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 

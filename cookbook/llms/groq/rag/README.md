@@ -1,6 +1,7 @@
 # RAG with Llama3 on Groq
 
 This cookbook shows how to do retrieval-augmented generation (RAG) using Llama3 on Groq.
+
 For embeddings we can either use Ollama or OpenAI.
 
 > Note: Fork and clone this repository if needed

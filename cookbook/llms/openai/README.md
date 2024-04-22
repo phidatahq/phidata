@@ -17,7 +17,7 @@ pip install -U openai duckduckgo-search yfinance phidata
 
 3. Export `OPENAI_API_KEY`
 
-```text
+```shell
 export OPENAI_API_KEY=sk-***
 ```
 

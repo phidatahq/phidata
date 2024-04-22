@@ -1,5 +1,6 @@
 groq
 openai
+ollama
 pgvector
 phidata
 psycopg[binary]

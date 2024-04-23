@@ -108,7 +108,7 @@ def get_sql_assistant(
         knowledge_base=assistant_knowledge,
         show_tool_calls=True,
         read_chat_history=True,
-        # search_knowledge=True,
+        search_knowledge=True,
         read_tool_call_history=True,
         tools=[SQLTools(db_url=db_url), FileTools(base_dir=sql_queries_dir)],
         debug_mode=debug_mode,

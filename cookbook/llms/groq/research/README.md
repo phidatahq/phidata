@@ -13,7 +13,7 @@ source ~/.venvs/aienv/bin/activate
 
 ```shell
 export GROQ_API_KEY=***
-export TAVILY_API_KEY=sk-***
+export TAVILY_API_KEY=***
 ```
 
 ### 3. Install libraries

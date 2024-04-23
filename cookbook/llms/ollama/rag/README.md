@@ -17,7 +17,7 @@ ollama pull llama3
 Pull the Embeddings model:
 
 ```shell
-ollama run nomic-embed-text
+ollama pull nomic-embed-text
 ```
 
 ### 2. Create a virtual environment

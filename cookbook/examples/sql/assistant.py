@@ -124,7 +124,7 @@ def get_sql_assistant(
             "When a user messages you, first determine if you need to run a query to accomplish the task.",
             "If you need to run a query, **THINK STEP BY STEP** about how to accomplish the task using the `semantic_model` provided below.",
             "Once you've mapped a chain of thought, start the process of writing a query.",
-            "Always first search your knowledge base using the `search_knowledge_base` tool to get information and rules about the table you want to query.",
+            "FIRST, ALWAYS search your knowledge base using the `search_knowledge_base` tool to get information and rules about the table you want to query.",
             "If the `search_knowledge_base` tool returns example queries, use them as a reference.",
             "If you need more information about a table, use the `describe_table` tool.",
             "Using the table information and rules, create one single syntactically correct PostgreSQL query to accomplish your task.",

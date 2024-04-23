@@ -5,4 +5,4 @@ streamlit
 sqlalchemy
 simplejson
 pgvector
-"psycopg[binary]"
+psycopg[binary]

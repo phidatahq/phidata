@@ -1,4 +1,4 @@
-## SQL Assistant
+# SQL Assistant
 
 This cookbook showcases a SQL Assistant that can write and run SQL queries.
 It uses RAG to provide additional information and rules that can be used to improve the responses.

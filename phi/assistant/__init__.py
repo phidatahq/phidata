@@ -9,4 +9,5 @@ from phi.assistant.assistant import (
     Function,
     Tool,
     Toolkit,
+    Message,
 )

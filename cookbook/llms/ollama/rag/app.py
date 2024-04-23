@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Local RAG",
     page_icon=":orange_heart:",
 )
-st.title("Local RAG with Llama3 and PgVector")
+st.title("Local RAG with Ollama and PgVector")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 
@@ -29,20 +29,35 @@ def restart_assistant():
 
 def main() -> None:
     # Get model
-    rag_model = st.sidebar.selectbox("Select Model", options=["llama3", "openhermes", "llama2"])
+    llm_model = st.sidebar.selectbox("Select Model", options=["llama3", "phi3", "openhermes", "llama2"])
     # Set assistant_type in session state
-    if "rag_model" not in st.session_state:
-        st.session_state["rag_model"] = rag_model
+    if "llm_model" not in st.session_state:
+        st.session_state["llm_model"] = llm_model
     # Restart the assistant if assistant_type has changed
-    elif st.session_state["rag_model"] != rag_model:
-        st.session_state["rag_model"] = rag_model
+    elif st.session_state["llm_model"] != llm_model:
+        st.session_state["llm_model"] = llm_model
+        restart_assistant()
+
+    # Get Embeddings model
+    embeddings_model = st.sidebar.selectbox(
+        "Select Embeddings",
+        options=["nomic-embed-text", "llama3", "openhermes", "phi3"],
+        help="When you change the embeddings model, the documents will need to be added again.",
+    )
+    # Set assistant_type in session state
+    if "embeddings_model" not in st.session_state:
+        st.session_state["embeddings_model"] = embeddings_model
+    # Restart the assistant if assistant_type has changed
+    elif st.session_state["embeddings_model"] != embeddings_model:
+        st.session_state["embeddings_model"] = embeddings_model
+        st.session_state["embeddings_model_updated"] = True
         restart_assistant()
 
     # Get the assistant
     rag_assistant: Assistant
     if "rag_assistant" not in st.session_state or st.session_state["rag_assistant"] is None:
-        logger.info(f"---*--- Creating {rag_model} Assistant ---*---")
-        rag_assistant = get_rag_assistant(model=rag_model)
+        logger.info(f"---*--- Creating {llm_model} Assistant ---*---")
+        rag_assistant = get_rag_assistant(llm_model=llm_model, embeddings_model=embeddings_model)
         st.session_state["rag_assistant"] = rag_assistant
     else:
         rag_assistant = st.session_state["rag_assistant"]
@@ -138,8 +153,10 @@ def main() -> None:
         rag_assistant_run_ids: List[str] = rag_assistant.storage.get_all_run_ids()
         new_rag_assistant_run_id = st.sidebar.selectbox("Run ID", options=rag_assistant_run_ids)
         if st.session_state["rag_assistant_run_id"] != new_rag_assistant_run_id:
-            logger.info(f"---*--- Loading {rag_model} run: {new_rag_assistant_run_id} ---*---")
-            st.session_state["rag_assistant"] = get_rag_assistant(model=rag_model, run_id=new_rag_assistant_run_id)
+            logger.info(f"---*--- Loading {llm_model} run: {new_rag_assistant_run_id} ---*---")
+            st.session_state["rag_assistant"] = get_rag_assistant(
+                llm_model=llm_model, embeddings_model=embeddings_model, run_id=new_rag_assistant_run_id
+            )
             st.rerun()
 
     if st.sidebar.button("New Run"):

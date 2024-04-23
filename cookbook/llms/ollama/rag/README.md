@@ -1,13 +1,23 @@
-# Local RAG with Llama3 & PgVector
+# Local RAG with Ollama & PgVector
+
+This cookbook shows how to do fully local retrieval-augmented generation (RAG) with Ollama & PgVector.
 
 > Note: Fork and clone this repository if needed
 
-### 1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama and run models
+### 1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama and pull models
 
-Run llama3
+Pull the LLM you'd like to use:
 
 ```shell
-ollama run llama3 'Hey!'
+ollama pull phi3
+
+ollama pull llama3
+```
+
+Pull the Embeddings model:
+
+```shell
+ollama run nomic-embed-text
 ```
 
 ### 2. Create a virtual environment
@@ -57,7 +67,9 @@ streamlit run cookbook/llms/ollama/rag/app.py
 
 - Add websites or PDFs and ask question.
 - Example PDF: https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf
-- Example Website: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/?guccounter=1
+- Example Websites:
+  - https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/?guccounter=1
+  - https://www.theverge.com/2024/4/23/24137534/microsoft-phi-3-launch-small-ai-language-model
 
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

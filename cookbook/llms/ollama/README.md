@@ -7,7 +7,7 @@
 Run you embedding model
 
 ```shell
-ollama run nomic-embed-text
+ollama pull nomic-embed-text
 ```
 
 Run your chat model

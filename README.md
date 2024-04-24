@@ -3,7 +3,7 @@
 </h1>
 
 <h3 align="center">
-Phidata provides memory, knowledge and tools for LLMs.
+Phidata provides memory, knowledge and tools for LLMs
 </h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)

@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
 version = "2.3.82"
-description = "Build AI Assistants with memory, knowledge and tools."
+description = "Add memory, knowledge and tools to LLMs."
 requires-python = ">=3.8"
 readme = "README.md"
 authors = [

@@ -98,6 +98,7 @@ module = [
   "langchain_core.*",
   "mistralai.*",
   "newspaper.*",
+  "nest_asyncio.*",
   "numpy.*",
   "ollama.*",
   "openai.*",

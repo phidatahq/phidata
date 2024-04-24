@@ -1,0 +1,13 @@
+bs4
+duckduckgo-search
+groq
+ollama
+openai
+phidata
+pymysql
+pypdf
+sqlalchemy
+streamlit
+yfinance
+tavily-python
+nest_asyncio

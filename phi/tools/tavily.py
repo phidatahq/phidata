@@ -22,7 +22,7 @@ class TavilyTools(Toolkit):
         format: Literal["json", "markdown"] = "markdown",
         use_search_context: bool = False,
     ):
-        super().__init__(name="exa")
+        super().__init__(name="tavily_tools")
 
         self.api_key = api_key or getenv("TAVILY_API_KEY")
         if not self.api_key:

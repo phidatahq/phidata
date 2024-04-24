@@ -23,7 +23,7 @@ except ImportError:
 
 class OllamaTools(LLM):
     name: str = "OllamaTools"
-    model: str = "adrienbrault/nous-hermes2pro:Q8_0"
+    model: str = "llama3"
     host: Optional[str] = None
     timeout: Optional[Any] = None
     format: Optional[str] = None
@@ -355,7 +355,7 @@ class OllamaTools(LLM):
                 if len(tool_calls) > 0:
                     assistant_message.tool_calls = tool_calls
         except Exception as e:
-            yield e
+            yield str(e)
             logger.warning(e)
             pass
 

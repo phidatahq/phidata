@@ -22,7 +22,7 @@ def get_local_assistant(
 
     tools: List[Any] = []
     if ddg_search:
-        tools.append(DuckDuckGo())
+        tools.append(DuckDuckGo(fixed_max_results=3))
     if tavily_search:
         tools.append(TavilyTools())
     if yfinance:

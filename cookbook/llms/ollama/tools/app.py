@@ -33,9 +33,7 @@ def restart_assistant():
 def main() -> None:
     # Get LLM Model
     llm_model = (
-        st.sidebar.selectbox(
-            "Select LLM", options=["llama3", "openhermes", "adrienbrault/nous-hermes2pro:Q8_0"]
-        )
+        st.sidebar.selectbox("Select LLM", options=["llama3", "openhermes", "adrienbrault/nous-hermes2pro:Q8_0"])
         or "llama3"
     )
     # Set llm in session state
@@ -52,7 +50,7 @@ def main() -> None:
 
     # Add ddg_search_enabled to session state
     if "ddg_search_enabled" not in st.session_state:
-        st.session_state["ddg_search_enabled"] = False
+        st.session_state["ddg_search_enabled"] = True
     # Get ddg_search_enabled from session state if set
     ddg_search_enabled = st.session_state["ddg_search_enabled"]
     # Checkbox for enabling web search

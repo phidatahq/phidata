@@ -111,3 +111,5 @@ Add URLs and ask questions.
 ### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 8. Star ⭐️ the project if you like it.
+
+### 9. Share this cookbook using: https://git.new/s2-phi

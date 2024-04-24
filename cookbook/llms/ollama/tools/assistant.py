@@ -26,7 +26,9 @@ def get_local_assistant(
     if tavily_search:
         tools.append(TavilyTools())
     if yfinance:
-        tools.append(YFinanceTools(stock_price=True, stock_fundamentals=True, analyst_recommendations=True))
+        tools.append(
+            YFinanceTools(stock_price=True, stock_fundamentals=True, analyst_recommendations=True, company_news=True)
+        )
 
     assistant = Assistant(
         name="local_assistant",

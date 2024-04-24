@@ -25,7 +25,7 @@ def restart_assistant():
         if "tavily_search_enabled" in st.session_state:
             st.session_state["tavily_search_enabled"] = False
         if "yfinance_tools_enabled" in st.session_state:
-            st.session_state["yfinance_tools_enabled"] = False
+            st.session_state["yfinance_tools_enabled"] = True
         del st.session_state["llm_updated"]
     st.rerun()
 

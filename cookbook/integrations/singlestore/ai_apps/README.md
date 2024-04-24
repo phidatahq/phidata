@@ -79,37 +79,27 @@ streamlit run cookbook/integrations/singlestore/ai_apps/Home.py
 
 ### 5 Click on the Research Assistant
 
-Add this URL to the knowledge base: https://www.singlestore.com/blog/singlestore-indexed-ann-vector-search/
+Add URLs to the Knowledge Base & Generate reports.
 
-Generate a report on: SingleStore Vector Search
-
-Add URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
-
-Topic: How to choose a vector database
-
-Add URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
-
-Topic: Hybrid Search
-
-URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
-
-Topic: SingleStore Vector Search
+- URL: https://www.singlestore.com/blog/singlestore-indexed-ann-vector-search/
+  - Topic: SingleStore Vector Search
+- URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
+  - Topic: How to choose a vector database
+- URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
+  - Topic: Hybrid Search
+- URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
+  - Topic: SingleStore Vector Search
 
 ### 6 Click on the RAG Assistant
 
 Add URLs and ask questions.
 
-URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
-
-Topic: Tell me about SingleStore vector search performance
-
-URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
-
-Question: Help me choose a vector database
-
-URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
-
-Question: Tell me about hybrid search in SingleStore?
+- URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
+  - Question: Tell me about SingleStore vector search performance
+- URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
+  - Question: Help me choose a vector database
+- URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
+  - Question: Tell me about hybrid search in SingleStore?
 
 ### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

@@ -3,7 +3,7 @@
 </h1>
 
 <h3 align="center">
-Phidata is a framework for building AI Assistants with memory, knowledge and tools.
+Phidata adds memory, knowledge and tools to LLMs.
 </h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)

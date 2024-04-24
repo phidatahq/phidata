@@ -4,6 +4,7 @@ from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
+from phi.llm.exceptions import InvalidToolCallException
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -22,7 +23,7 @@ except ImportError:
 
 class OllamaTools(LLM):
     name: str = "OllamaTools"
-    model: str = "adrienbrault/nous-hermes2pro:Q8_0"
+    model: str = "llama3"
     host: Optional[str] = None
     timeout: Optional[Any] = None
     format: Optional[str] = None
@@ -306,7 +307,17 @@ class OllamaTools(LLM):
             role="assistant",
             content=assistant_message_content,
         )
-        # Check if the response is a tool call
+        # -*- Update usage metrics
+        # Add response time to metrics
+        assistant_message.metrics["time"] = response_timer.elapsed
+        if "response_times" not in self.metrics:
+            self.metrics["response_times"] = []
+        self.metrics["response_times"].append(response_timer.elapsed)
+
+        # -*- Add assistant message to messages
+        messages.append(assistant_message)
+
+        # Parse tool calls from the assistant message content
         try:
             if "<tool_call>" in assistant_message_content and "</tool_call>" in assistant_message_content:
                 # List of tool calls added to the assistant message
@@ -325,8 +336,8 @@ class OllamaTools(LLM):
                         try:
                             logger.debug(f"Tool call content: {tool_call_content}")
                             tool_call_dict = json.loads(tool_call_content)
-                        except json.JSONDecodeError:
-                            raise ValueError(f"Could not parse tool call from: {tool_call_content}")
+                        except json.JSONDecodeError as e:
+                            raise InvalidToolCallException(f"Error parsing tool call: {tool_call_content}. Error: {e}")
 
                         tool_call_name = tool_call_dict.get("name")
                         tool_call_args = tool_call_dict.get("arguments")
@@ -343,19 +354,11 @@ class OllamaTools(LLM):
                 # If tool call parsing is successful, add tool calls to the assistant message
                 if len(tool_calls) > 0:
                     assistant_message.tool_calls = tool_calls
-        except Exception:
-            logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
+        except Exception as e:
+            yield str(e)
+            logger.warning(e)
             pass
 
-        # -*- Update usage metrics
-        # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer.elapsed)
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
         assistant_message.log()
 
         # -*- Parse and run function call

@@ -57,16 +57,18 @@ export GROQ_API_KEY="xxx"
 
 - [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama
 
-- Pull you embedding model
+- Pull the embedding model
 
 ```shell
 ollama pull nomic-embed-text
 ```
 
-- Pull the Llama3:8B model
+- Pull the Llama3 and Phi3 models
 
 ```shell
 ollama pull llama3
+
+ollama pull phi3
 ```
 
 ### 4. Run Streamlit application

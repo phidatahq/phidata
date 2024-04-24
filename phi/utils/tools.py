@@ -28,7 +28,7 @@ def extract_tool_call_from_string(text: str, start_tag: str = "<tool_call>", end
     end_index = text.find(end_tag)
 
     # Extracting the content between the tags
-    return text[start_index:end_index].strip().replace("'", '"')
+    return text[start_index:end_index].strip()
 
 
 def remove_tool_calls_from_string(text: str, start_tag: str = "<tool_call>", end_tag: str = "</tool_call>"):

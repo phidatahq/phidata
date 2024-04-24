@@ -9,11 +9,11 @@ This cookbook shows how to do function calling with local models.
 Pull the LLM you'd like to use:
 
 ```shell
-ollama pull phi3
-
 ollama pull llama3
 
 ollama pull openhermes
+
+ollama pull adrienbrault/nous-hermes2pro:Q8_0
 ```
 
 ### 2. Create a virtual environment
@@ -36,11 +36,11 @@ streamlit run cookbook/llms/ollama/tools/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your local RAG app.
-
+- Select your model.
 - Ask questions like:
-- Whats NVDA stock price?
-- What are analysts saying about TSLA?
-- Summarize fundamentals for TSLA?
+  - Whats NVDA stock price?
+  - What are analysts saying about TSLA?
+  - Summarize fundamentals for TSLA?
 
 ### 5. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

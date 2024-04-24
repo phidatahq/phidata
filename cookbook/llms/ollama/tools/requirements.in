@@ -9,3 +9,4 @@ bs4
 duckduckgo-search
 tavily-python
 yfinance
+nest_asyncio

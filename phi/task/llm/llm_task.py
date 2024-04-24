@@ -10,6 +10,7 @@ from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.llm.references import References
+from phi.llm.exceptions import InvalidToolCallException
 from phi.memory.task.llm import LLMTaskMemory
 from phi.prompt.template import PromptTemplate
 from phi.task.task import Task
@@ -592,14 +593,37 @@ class LLMTask(Task):
         else:
             messages = [Message.model_validate(m) for m in message] if message is not None else []
 
+        try_number = 1
+        num_retries = 3
+        response_success = False
         # -*- Generate run response (includes running function calls)
         task_response = ""
-        if stream:
-            for response_chunk in self.llm.response_stream(messages=messages):
-                task_response += response_chunk
-                yield response_chunk
-        else:
-            task_response = self.llm.response(messages=messages)
+        while try_number <= num_retries and not response_success:
+            try:
+                if stream:
+                    for response_chunk in self.llm.response_stream(messages=messages):
+                        task_response += response_chunk
+                        yield response_chunk
+                else:
+                    task_response = self.llm.response(messages=messages)
+                response_success = True
+            except InvalidToolCallException as e:
+                logger.warning(e)
+                try_number += 1
+                if try_number <= num_retries:
+                    logger.warning(f"Attempting to run task again. Try number: {try_number}")
+                    messages.append(Message(role="user", content=f"Please try the tool call again. Your previous tool call resulted in an error: {e}"))
+                else:
+                    logger.error(f"Failed to run task after 3 tries: {e}")
+
+        # # -*- Generate run response (includes running function calls)
+        # task_response = ""
+        # if stream:
+        #     for response_chunk in self.llm.response_stream(messages=messages):
+        #         task_response += response_chunk
+        #         yield response_chunk
+        # else:
+        #     task_response = self.llm.response(messages=messages)
 
         # -*- Update task memory
         # Add user message to the task memory - this is added to the chat_history

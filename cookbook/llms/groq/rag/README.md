@@ -57,7 +57,7 @@ pip install -r cookbook/llms/groq/rag/requirements.txt
 ```shell
 docker run -d \
   -e POSTGRES_DB=ai \
-  -e POSTGRES_USER=ai \[app.py](..%2Fapp.py)
+  -e POSTGRES_USER=ai \
   -e POSTGRES_PASSWORD=ai \
   -e PGDATA=/var/lib/postgresql/data/pgdata \
   -v pgvolume:/var/lib/postgresql/data \

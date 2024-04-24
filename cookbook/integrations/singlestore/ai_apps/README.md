@@ -41,17 +41,24 @@ export SINGLESTORE_DATABASE="db"
 export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
 ```
 
-- To use OpenAI GPT-4, export your OPENAI_API_KEY
+- To use OpenAI GPT-4, export your OPENAI_API_KEY (get it from [here](https://platform.openai.com/api-keys))
 
 ```shell
 export OPENAI_API_KEY="xxx"
 ```
 
-- To use Groq, export your GROQ_API_KEY
+- To use Groq, export your GROQ_API_KEY (get it from [here](https://console.groq.com/))
 
 ```shell
 export GROQ_API_KEY="xxx"
 ```
+
+- To use Tavily Search, export your TAVILY_API_KEY (get it from [here](https://app.tavily.com/))
+
+```shell
+export TAVILY_API_KEY="xxx"
+```
+
 
 ### 4. Install Ollama and run local models
 
@@ -88,7 +95,7 @@ Add URLs to the Knowledge Base & Generate reports.
 - URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
   - Topic: Hybrid Search
 - URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
-  - Topic: SingleStore Vector Search
+  - Topic: SingleStore Vector Search Performance
 
 ### 6 Click on the RAG Assistant
 

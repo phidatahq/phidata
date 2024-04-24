@@ -48,9 +48,20 @@ def main() -> None:
     # Sidebar checkboxes for selecting tools
     st.sidebar.markdown("### Select Tools")
 
+    # Add yfinance_tools_enabled to session state
+    if "yfinance_tools_enabled" not in st.session_state:
+        st.session_state["yfinance_tools_enabled"] = True
+    # Get yfinance_tools_enabled from session state if set
+    yfinance_tools_enabled = st.session_state["yfinance_tools_enabled"]
+    # Checkbox for enabling web search
+    yfinance_tools = st.sidebar.checkbox("Yfinance", value=yfinance_tools_enabled)
+    if yfinance_tools_enabled != yfinance_tools:
+        st.session_state["yfinance_tools_enabled"] = yfinance_tools
+        restart_assistant()
+
     # Add ddg_search_enabled to session state
     if "ddg_search_enabled" not in st.session_state:
-        st.session_state["ddg_search_enabled"] = True
+        st.session_state["ddg_search_enabled"] = False
     # Get ddg_search_enabled from session state if set
     ddg_search_enabled = st.session_state["ddg_search_enabled"]
     # Checkbox for enabling web search
@@ -73,17 +84,6 @@ def main() -> None:
     )
     if tavily_search_enabled != tavily_search:
         st.session_state["tavily_search_enabled"] = tavily_search
-        restart_assistant()
-
-    # Add yfinance_tools_enabled to session state
-    if "yfinance_tools_enabled" not in st.session_state:
-        st.session_state["yfinance_tools_enabled"] = False
-    # Get yfinance_tools_enabled from session state if set
-    yfinance_tools_enabled = st.session_state["yfinance_tools_enabled"]
-    # Checkbox for enabling web search
-    yfinance_tools = st.sidebar.checkbox("Yfinance", value=yfinance_tools_enabled)
-    if yfinance_tools_enabled != yfinance_tools:
-        st.session_state["yfinance_tools_enabled"] = yfinance_tools
         restart_assistant()
 
     # Get the assistant

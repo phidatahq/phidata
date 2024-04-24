@@ -2,7 +2,6 @@ import json
 from textwrap import dedent
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.llm.exceptions import InvalidToolCallException
@@ -355,8 +354,6 @@ class OllamaTools(LLM):
                 # If tool call parsing is successful, add tool calls to the assistant message
                 if len(tool_calls) > 0:
                     assistant_message.tool_calls = tool_calls
-        except InvalidToolCallException as e:
-            raise e
         except Exception as e:
             yield e
             logger.warning(e)

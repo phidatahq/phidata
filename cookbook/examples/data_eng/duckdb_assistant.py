@@ -14,8 +14,12 @@ duckdb_assistant = DuckDbAssistant(
             ]
         }
     ),
+    markdown=True,
     show_tool_calls=True,
     base_dir=Path(__file__).parent.joinpath("scratch"),
 )
 
-duckdb_assistant.cli_app(markdown=True)
+# duckdb_assistant.cli_app()
+duckdb_assistant.print_response("What is the average rating of movies? Show me the SQL?")
+duckdb_assistant.print_response("Show me a histogram of movie ratings?")
+duckdb_assistant.print_response("What are the top 5 movies?")

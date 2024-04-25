@@ -3,7 +3,7 @@ from phi.llm.ollama import Ollama
 
 prompt = "Who are you and who created you? Answer in 1 short sentence."
 temp = 0.3
-models = ["phi", "llava", "llama2", "mixtral", "openhermes", "tinyllama"]
+models = ["llama3", "phi3", "llava", "llama2", "mixtral", "openhermes", "tinyllama"]
 
 for model in models:
     print(f"================ {model} ================")

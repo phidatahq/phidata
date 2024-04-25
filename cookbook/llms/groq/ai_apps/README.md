@@ -1,9 +1,9 @@
 # Groq AI Apps
 
-This cookbook shows how to build the AI Apps with Groq:
+This cookbook shows how to build the following AI Apps with Groq:
 
-1. Research Assistant: Generate research reports about complex topics
-2. RAG Assistant: Chat with Websites and PDFs
+1. RAG Research: Generate research reports about complex topics
+2. RAG Chat: Chat with Websites and PDFs
 
 > Note: Fork and clone this repository if needed
 
@@ -17,44 +17,24 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/integrations/singlestore/ai_apps/requirements.txt
+pip install -r cookbook/llms/groq/ai_apps/requirements.txt
 ```
 
-### 3. Add credentials
-
-- For SingleStore
-
-> Note: If using a shared tier, please provide a certificate file for SSL connection [Read more](https://docs.singlestore.com/cloud/connect-to-your-workspace/connect-with-mysql/connect-with-mysql-client/connect-to-singlestore-helios-using-tls-ssl/)
+### 3. Export your Groq API Key
 
 ```shell
-export SINGLESTORE_HOST="host"
-export SINGLESTORE_PORT="3333"
-export SINGLESTORE_USERNAME="user"
-export SINGLESTORE_PASSWORD="password"
-export SINGLESTORE_DATABASE="db"
-export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
+export GROQ_API_KEY=***
 ```
 
-- To use OpenAI GPT-4, export your OPENAI_API_KEY (get it from [here](https://platform.openai.com/api-keys))
+- The Research Assistant can parse Websites and PDFs, but if you want to us Tavily Search as well, export your TAVILY_API_KEY (get it from [here](https://app.tavily.com/))
 
 ```shell
-export OPENAI_API_KEY="xxx"
+export TAVILY_API_KEY=xxx
 ```
 
-- To use Groq, export your GROQ_API_KEY (get it from [here](https://console.groq.com/))
+### 4. Install Ollama to run the local embedding model
 
-```shell
-export GROQ_API_KEY="xxx"
-```
-
-- To use Tavily Search, export your TAVILY_API_KEY (get it from [here](https://app.tavily.com/))
-
-```shell
-export TAVILY_API_KEY="xxx"
-```
-
-
-### 4. Install Ollama and run local models
+Groq currently does not support embeddings, so lets use Ollama to serve embeddings using `nomic-embed-text`
 
 - [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama
 
@@ -64,46 +44,59 @@ export TAVILY_API_KEY="xxx"
 ollama pull nomic-embed-text
 ```
 
-- Pull the Llama3 and Phi3 models
+### 5. Run PgVector
+
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
+
+- Run using a helper script
 
 ```shell
-ollama pull llama3
-
-ollama pull phi3
+./cookbook/run_pgvector.sh
 ```
 
-### 4. Run Streamlit application
+- OR run using the docker run command
 
 ```shell
-streamlit run cookbook/integrations/singlestore/ai_apps/Home.py
+docker run -d \
+  -e POSTGRES_DB=ai \
+  -e POSTGRES_USER=ai \
+  -e POSTGRES_PASSWORD=ai \
+  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -v pgvolume:/var/lib/postgresql/data \
+  -p 5532:5432 \
+  --name pgvector \
+  phidata/pgvector:16
 ```
 
-### 5 Click on the Research Assistant
+### 6. Run Streamlit application
 
-Add URLs to the Knowledge Base & Generate reports.
+```shell
+streamlit run cookbook/llms/groq/ai_apps/Home.py
+```
 
-- URL: https://www.singlestore.com/blog/singlestore-indexed-ann-vector-search/
-  - Topic: SingleStore Vector Search
+### 7. Click on the RAG Research Assistant
+
+Add URLs and PDFs to the Knowledge Base & Generate reports.
+
+Examples:
+- URL: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
+  - Topic: Llama 3
 - URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
   - Topic: How to choose a vector database
-- URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
-  - Topic: Hybrid Search
-- URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
-  - Topic: SingleStore Vector Search Performance
 
-### 6 Click on the RAG Assistant
+- PDF: Download the embeddings PDF from [https://vickiboykis.com/what_are_embeddings/](https://vickiboykis.com/what_are_embeddings/)
+  - Topic: Embeddings
 
-Add URLs and ask questions.
+### 8. Click on the RAG Chat Assistant
 
-- URL: https://www.singlestore.com/blog/singlestore-high-performance-vector-search/
-  - Question: Tell me about SingleStore vector search performance
+Add URLs and PDFs and ask questions.
+
+Examples:
+- URL: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
+  - Question: What did Meta release?
 - URL: https://www.singlestore.com/blog/choosing-a-vector-database-for-your-gen-ai-stack/
   - Question: Help me choose a vector database
-- URL: https://www.singlestore.com/blog/hybrid-search-vector-full-text-search/
-  - Question: Tell me about hybrid search in SingleStore?
 
-### 7. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+### 9. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
-### 8. Star ⭐️ the project if you like it.
-
-### 9. Share this cookbook using: https://git.new/s2-phi
+### 10. Star ⭐️ the project if you like it.

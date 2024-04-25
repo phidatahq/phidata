@@ -149,16 +149,9 @@ class S2VectorDb(VectorDb):
                 counter += 1
                 logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-                # Commit every `batch_size` documents
-                if counter >= batch_size:
-                    sess.commit()
-                    logger.debug(f"Committed {counter} documents")
-                    counter = 0
-
-            # Commit any remaining documents
-            if counter > 0:
-                sess.commit()
-                logger.debug(f"Committed {counter} documents")
+            # Commit all documents
+            sess.commit()
+            logger.debug(f"Committed {counter} documents")
 
     def upsert_available(self) -> bool:
         return False
@@ -197,16 +190,9 @@ class S2VectorDb(VectorDb):
                 counter += 1
                 logger.debug(f"Inserted document: {document.id} | {document.name} | {document.meta_data}")
 
-                # Commit every `batch_size` documents
-                if counter >= batch_size:
-                    sess.commit()
-                    logger.debug(f"Committed {counter} documents")
-                    counter = 0
-
-            # Commit any remaining documents
-            if counter > 0:
-                sess.commit()
-                logger.debug(f"Committed {counter} documents")
+            # Commit all remaining documents
+            sess.commit()
+            logger.debug(f"Committed {counter} documents")
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)

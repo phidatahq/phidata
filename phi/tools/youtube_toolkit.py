@@ -15,9 +15,9 @@ class YouTubeToolkit(Toolkit):
     ):
         super().__init__(name="youtube_toolkit")
 
-        self.register(self.get_captions)
+        self.register(self.get_video_captions)
 
-    def get_captions(self, url: str) -> str:
+    def get_video_captions(self, url: str) -> str:
         """
         Gets the captions of a YouTube video.
 

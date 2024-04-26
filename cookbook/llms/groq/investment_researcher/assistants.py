@@ -49,7 +49,7 @@ def get_invstment_research_assistant(
         {analyze the company's growth prospects and future potential}
 
         ### News and Updates
-        {highlight any recent news or updates that may impact the stock}
+        {share important news articles relevant to the stock}
 
         ### Upgrades and Downgrades
         {share 2 upgrades or downgrades including the firm, and what they upgraded/downgraded to}

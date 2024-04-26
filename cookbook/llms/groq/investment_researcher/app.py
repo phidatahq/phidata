@@ -116,7 +116,7 @@ def main() -> None:
                         report_input += "This section contains information about the company.\n\n"
                         report_input += company_info_md
                         report_input += "---\n"
-                status.update(label="Company Info Available", state="complete", expanded=False)
+                status.update(label="Company Info available", state="complete", expanded=False)
 
         if get_company_news:
             with st.status("Getting Company News", expanded=True) as status:
@@ -142,7 +142,7 @@ def main() -> None:
                         report_input += "This section contains the most recent news articles about the company.\n\n"
                         report_input += company_news_md
                         report_input += "---\n"
-                status.update(label="Company News Available", state="complete", expanded=False)
+                status.update(label="Company News available", state="complete", expanded=False)
 
         if get_analyst_recommendations:
             with st.status("Getting Analyst Recommendations", expanded=True) as status:
@@ -156,7 +156,7 @@ def main() -> None:
                         report_input += "This table outlines the most recent analyst recommendations for the stock.\n\n"
                         report_input += f"{analyst_recommendations_md}\n"
                     report_input += "---\n"
-                status.update(label="Analyst Recommendations Available", state="complete", expanded=False)
+                status.update(label="Analyst Recommendations available", state="complete", expanded=False)
 
         if get_upgrades_downgrades:
             with st.status("Getting Upgrades/Downgrades", expanded=True) as status:
@@ -170,7 +170,7 @@ def main() -> None:
                         report_input += "This table outlines the most recent upgrades and downgrades for the stock.\n\n"
                         report_input += f"{upgrades_downgrades_md}\n"
                     report_input += "---\n"
-                status.update(label="Upgrades/Downgrades Available", state="complete", expanded=False)
+                status.update(label="Upgrades/Downgrades available", state="complete", expanded=False)
 
         with st.status("Generating Draft", expanded=True) as status:
             with st.container():

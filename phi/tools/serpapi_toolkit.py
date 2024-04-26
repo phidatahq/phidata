@@ -25,7 +25,7 @@ class SerpApiToolkit(Toolkit):
 
         self.register(self.search_google)
         if search_youtube:
-            self.register(self.seach_youtube)
+            self.register(self.search_youtube)
 
     def search_google(self, query: str) -> str:
         """
@@ -70,7 +70,7 @@ class SerpApiToolkit(Toolkit):
         except Exception as e:
             return f"Error searching for the query {query}: {e}"
 
-    def seach_youtube(self, query: str) -> str:
+    def search_youtube(self, query: str) -> str:
         """
         Search Youtube using the Serpapi API. Returns the search results.
 

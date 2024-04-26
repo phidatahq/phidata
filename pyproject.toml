@@ -121,5 +121,6 @@ module = [
   "vertexai.*",
   "wikipedia.*",
   "yfinance.*",
+  "youtube_transcript_api.*",
 ]
 ignore_missing_imports = true

@@ -35,3 +35,5 @@ Example: `NVDA, AAPL, MSFT, GOOGL, AMZN, TSLA`
 ### 5. Message us on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 6. Star ⭐️ the project if you like it.
+
+### 7. Share with your friends: https://git.new/groq-investor

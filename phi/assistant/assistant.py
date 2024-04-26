@@ -829,6 +829,72 @@ class Assistant(BaseModel):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
 
+        # logger.info("print_response is being deprecated. Use response instead.")
+
+        if markdown:
+            self.markdown = True
+
+        if self.output_model is not None:
+            markdown = False
+            self.markdown = False
+            stream = False
+
+        if stream:
+            response = ""
+            with Live() as live_log:
+                status = Status("Working...", spinner="dots")
+                live_log.update(status)
+                response_timer = Timer()
+                response_timer.start()
+                for resp in self.run(message, stream=True, **kwargs):
+                    if isinstance(resp, str):
+                        response += resp
+                    _response = Markdown(response) if self.markdown else response
+
+                    table = Table(box=ROUNDED, border_style="blue", show_header=False)
+                    if message and show_message:
+                        table.show_header = True
+                        table.add_column("Message")
+                        table.add_column(get_text_from_message(message))
+                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
+                    live_log.update(table)
+                response_timer.stop()
+        else:
+            response_timer = Timer()
+            response_timer.start()
+            with Progress(
+                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
+            ) as progress:
+                progress.add_task("Working...")
+                response = self.run(message, stream=False, **kwargs)  # type: ignore
+
+            response_timer.stop()
+            _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)
+
+            table = Table(box=ROUNDED, border_style="blue", show_header=False)
+            if message and show_message:
+                table.show_header = True
+                table.add_column("Message")
+                table.add_column(get_text_from_message(message))
+            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
+            console.print(table)
+
+    def response(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        stream: bool = True,
+        markdown: bool = False,
+        show_message: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        from phi.cli.console import console
+        from rich.live import Live
+        from rich.table import Table
+        from rich.status import Status
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.box import ROUNDED
+        from rich.markdown import Markdown
+
         if markdown:
             self.markdown = True
 
@@ -886,6 +952,31 @@ class Assistant(BaseModel):
         exit_on: Tuple[str, ...] = ("exit", "bye"),
     ) -> None:
         from rich.prompt import Prompt
+
+        while True:
+            message = Prompt.ask(f"[bold] {emoji} {user} [/bold]")
+            if message in exit_on:
+                break
+
+            self.print_response(message=message, stream=stream, markdown=markdown)
+
+    def conversation(
+        self,
+        message: Optional[str] = None,
+        user: str = "User",
+        emoji: str = ":sunglasses:",
+        stream: bool = True,
+        markdown: bool = False,
+        exit_on: Tuple[str, ...] = ("exit", "bye"),
+    ) -> None:
+        from rich.prompt import Prompt
+        from rich.console import Console
+
+        console = Console()
+
+        if message:
+            console.print(f"[bold] {emoji} {user} [/bold] : {message}")
+            self.print_response(message=message, stream=stream, markdown=markdown)
 
         while True:
             message = Prompt.ask(f"[bold] {emoji} {user} [/bold]")

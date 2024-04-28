@@ -2,12 +2,13 @@ from typing import List, Optional, Dict, Iterator, Callable, Union, Any
 
 from pydantic import BaseModel
 
-from phi.task.task import Task
+from phi.task.base import BaseTask
+from phi.llm.message import Message
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 
-class PythonTask(Task):
+class PythonTask(BaseTask):
     entrypoint: Callable[..., Union[Iterator[str], str, BaseModel]]
 
     @property
@@ -17,6 +18,7 @@ class PythonTask(Task):
     def run(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Union[Iterator[str], str, BaseModel]:

@@ -14,7 +14,7 @@ from phi.llm.references import References  # noqa: F401
 from phi.memory.assistant import AssistantMemory
 from phi.prompt.template import PromptTemplate
 from phi.storage.assistant import AssistantStorage
-from phi.task.task import Task
+from phi.task.base import BaseTask
 from phi.task.llm import LLMTask
 from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug
@@ -94,10 +94,12 @@ class Assistant(BaseModel):
     # If use_tools = True, set read_chat_history and search_knowledge = True
     use_tools: bool = False
 
-    # -*- Important: this setting determines if the input messages are formatted
-    # If True, phidata will add the system prompt, references, and chat history
-    # If False, the input messages are sent to the LLM as is
-    format_messages: bool = True
+    #
+    # -*- Assistant Messages
+    #
+    # -*- List of messages added to the messages list after the system prompt.
+    # Use these for few-shot learning or to provide additional context to the LLM.
+    add_messages: Optional[List[Union[Dict, Message]]] = None
 
     #
     # -*- Prompt Settings
@@ -185,7 +187,7 @@ class Assistant(BaseModel):
     # -*- Assistant Tasks
     # Tasks allow the Assistant to generate a response using a list of tasks
     # If tasks is None or empty, a single default LLM task is created for this assistant
-    tasks: Optional[List[Task]] = None
+    tasks: Optional[List[BaseTask]] = None
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
@@ -246,7 +248,7 @@ class Assistant(BaseModel):
             search_knowledge=self.search_knowledge,
             update_knowledge=self.update_knowledge,
             read_tool_call_history=self.read_tool_call_history,
-            format_messages=self.format_messages,
+            add_messages=self.add_messages,
             system_prompt=self.system_prompt,
             system_prompt_template=self.system_prompt_template,
             system_prompt_function=self.system_prompt_function,
@@ -465,7 +467,11 @@ class Assistant(BaseModel):
         return self.run_id
 
     def _run(
-        self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        stream: bool = True,
+        **kwargs: Any,
     ) -> Iterator[str]:
         logger.debug(f"*********** Run Start: {self.run_id} ***********")
         # Load run from storage
@@ -482,7 +488,7 @@ class Assistant(BaseModel):
         run_output = ""
 
         # -*- Generate response by running tasks
-        current_task: Optional[Task] = None
+        current_task: Optional[BaseTask] = None
         for idx, task in enumerate(_tasks, start=1):
             logger.debug(f"*********** Task {idx} Start ***********")
 
@@ -525,12 +531,14 @@ class Assistant(BaseModel):
 
             # -*- Run Task
             if stream and current_task.streamable:
-                for chunk in current_task.run(message=current_task_message, stream=True, **kwargs):
+                for chunk in current_task.run(message=current_task_message, messages=messages, stream=True, **kwargs):
                     if current_task.show_output:
                         run_output += chunk if isinstance(chunk, str) else ""
                         yield chunk if isinstance(chunk, str) else ""
             else:
-                current_task_response = current_task.run(message=current_task_message, stream=False, **kwargs)  # type: ignore
+                current_task_response = current_task.run(
+                    message=current_task_message, messages=messages, stream=False, **kwargs
+                )  # type: ignore
                 current_task_response_str = ""
                 try:
                     if current_task_response:
@@ -565,10 +573,18 @@ class Assistant(BaseModel):
         event_info = {
             "tasks": task_data,
         }
+        messages_for_log = []
+        if messages:
+            for m in messages:
+                if isinstance(m, Message):
+                    messages_for_log.append(m.model_dump(exclude_none=True))
+                else:
+                    messages_for_log.append(m)
         event_data = {
             "user_message": message,
             "llm_response": run_output,
             "llm_response_type": llm_response_type,
+            "messages": messages_for_log,
             "info": event_info,
             "metrics": self.llm.metrics if self.llm else None,
         }
@@ -583,12 +599,16 @@ class Assistant(BaseModel):
             yield run_output
 
     def run(
-        self, message: Optional[Union[List, Dict, str]] = None, stream: bool = True, **kwargs: Any
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        stream: bool = True,
+        **kwargs: Any,
     ) -> Union[Iterator[str], str, BaseModel]:
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
-            json_resp = next(self._run(message=message, stream=False))
+            json_resp = next(self._run(message=message, messages=messages, stream=False, **kwargs))
             try:
                 structured_output = None
                 if (
@@ -618,10 +638,10 @@ class Assistant(BaseModel):
             return self.output or json_resp
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True, **kwargs)
+                resp = self._run(message=message, messages=messages, stream=True, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, stream=False, **kwargs)
+                resp = self._run(message=message, messages=messages, stream=False, **kwargs)
                 return next(resp)
 
     def chat(
@@ -816,6 +836,7 @@ class Assistant(BaseModel):
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = True,
         markdown: bool = False,
         show_message: bool = True,
@@ -844,7 +865,7 @@ class Assistant(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                for resp in self.run(message, stream=True, **kwargs):
+                for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
                     if isinstance(resp, str):
                         response += resp
                     _response = Markdown(response) if self.markdown else response
@@ -864,7 +885,7 @@ class Assistant(BaseModel):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                response = self.run(message, stream=False, **kwargs)  # type: ignore
+                response = self.run(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)

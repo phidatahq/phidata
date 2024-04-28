@@ -14,7 +14,7 @@ def task(*args, **kwargs):
             try:
                 name = func.__name__
                 entrypoint = partial(func, *func_args, **func_kwargs)
-                python_task = PythonTask(name=name, entrypoint=entrypoint)
+                python_task = PythonTask(task_name=name, entrypoint=entrypoint)
                 return python_task
             except Exception as e:
                 logger.error(f"Could not create task: {func.__name__}")
@@ -31,7 +31,7 @@ def task(*args, **kwargs):
                 try:
                     name = func.__name__
                     entrypoint = partial(func, *func_args, **func_kwargs)
-                    python_task = PythonTask(name=name, entrypoint=entrypoint, **kwargs)
+                    python_task = PythonTask(task_name=name, entrypoint=entrypoint, **kwargs)
                     return python_task
                 except Exception as e:
                     logger.error(f"Could not create task: {func.__name__}")

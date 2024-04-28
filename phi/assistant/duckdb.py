@@ -4,7 +4,7 @@ from pathlib import Path
 from pydantic import model_validator
 from textwrap import dedent
 
-from phi.assistant.custom import CustomAssistant
+from phi.assistant import Assistant
 from phi.tools.duckdb import DuckDbTools
 from phi.tools.file import FileTools
 from phi.utils.log import logger
@@ -15,7 +15,7 @@ except ImportError:
     raise ImportError("`duckdb` not installed. Please install using `pip install duckdb`.")
 
 
-class DuckDbAssistant(CustomAssistant):
+class DuckDbAssistant(Assistant):
     name: str = "DuckDbAssistant"
     semantic_model: Optional[str] = None
 

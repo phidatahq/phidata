@@ -4,13 +4,13 @@ from pathlib import Path
 from pydantic import model_validator
 from textwrap import dedent
 
-from phi.assistant.custom import CustomAssistant
+from phi.assistant import Assistant
 from phi.file import File
 from phi.tools.python import PythonTools
 from phi.utils.log import logger
 
 
-class PythonAssistant(CustomAssistant):
+class PythonAssistant(Assistant):
     name: str = "PythonAssistant"
 
     files: Optional[List[File]] = None

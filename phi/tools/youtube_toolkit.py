@@ -6,7 +6,9 @@ from phi.utils.log import logger
 try:
     from youtube_transcript_api import YouTubeTranscriptApi
 except ImportError:
-    raise ImportError("`youtube_transcript_api` not installed. Please install using `pip install youtube_transcript_api`")
+    raise ImportError(
+        "`youtube_transcript_api` not installed. Please install using `pip install youtube_transcript_api`"
+    )
 
 
 class YouTubeToolkit(Toolkit):
@@ -23,7 +25,7 @@ class YouTubeToolkit(Toolkit):
 
         Args:
             url: The URL of the YouTube video.
-        
+
         Returns:
             The captions of the YouTube video.
         """
@@ -50,7 +52,7 @@ class YouTubeToolkit(Toolkit):
 
         Args:
             url: The URL of the YouTube video.
-        
+
         Returns:
             The video ID of the YouTube video.
         """

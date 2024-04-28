@@ -3,19 +3,19 @@ from phi.llm.groq import Groq
 from phi.assistant import Assistant
 
 
-def get_research_assistant(
+def get_youtube_assistant(
     model: str = "llama3-70b-8192",
     debug_mode: bool = True,
 ) -> Assistant:
     """Get a Groq Research Assistant."""
 
     return Assistant(
-        name="groq_research_assistant",
+        name="groq_youtube_assistant",
         llm=Groq(model=model),
-        description="You are a Senior NYT Editor tasked with writing a NYT cover story worthy report due tomorrow.",
+        description="You are a Senior NYT Reporter tasked with writing reports about youtube videos.",
         instructions=[
-            "You will be provided with a topic and search results from junior researchers.",
-            "Carefully read the results and generate a final - NYT cover story worthy report.",
+            "You will be provided with a youtube video link and its transcript.",
+            "Carefully read the transcript and generate a final New York Times worthy report.",
             "Make your report engaging, informative, and well-structured.",
             "Your report should follow the format provided below."
             "Remember: you are writing for the New York Times, so the quality of the report is important.",

@@ -1,8 +1,8 @@
 from phi.assistant import Assistant
-from phi.tools.youtube_toolkit import YouTubeToolkit
+from phi.tools.youtube_toolkit import YouTubeTools
 
 assistant = Assistant(
-    tools=[YouTubeToolkit()],
+    tools=[YouTubeTools()],
     show_tool_calls=True,
     description="You are a YouTube assistant. Obtain the captions of a YouTube video and answer questions.",
     debug_mode=True,

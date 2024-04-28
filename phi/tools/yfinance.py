@@ -19,6 +19,7 @@ class YFinanceTools(Toolkit):
         company_news: bool = False,
         technical_indicators: bool = False,
         company_profile: bool = False,
+        historical_prices: bool = False,
     ):
         super().__init__(name="yfinance_tools")
 
@@ -38,6 +39,8 @@ class YFinanceTools(Toolkit):
             self.register(self.get_technical_indicators)
         if company_profile:
             self.register(self.get_company_profile)
+        if historical_prices:
+            self.register(self.get_historical_stock_prices)
 
     def get_current_stock_price(self, symbol: str) -> str:
         """
@@ -56,6 +59,27 @@ class YFinanceTools(Toolkit):
             return f"{current_price:.4f}" if current_price else f"Could not fetch current price for {symbol}"
         except Exception as e:
             return f"Error fetching current price for {symbol}: {e}"
+
+    def get_historical_stock_prices(self, symbol: str, period: str = "1mo", interval: str = "1d") -> str:
+        """
+        Get the historical stock price for a given symbol.
+
+        Args:
+            symbol (str): The stock symbol.
+            period (str): The period for which to retrieve historical prices. Defaults to "1mo".
+                        Valid periods: 1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max
+            interval (str): The interval between data points. Defaults to "1d".
+                        Valid intervals: 1d,5d,1wk,1mo,3mo
+
+        Returns:
+          str: The current stock price or error message.
+        """
+        try:
+            stock = yf.Ticker(symbol)
+            historical_price = stock.history(period="1d")
+            return historical_price.to_json(orient="index")
+        except Exception as e:
+            return f"Error fetching historical prices for {symbol}: {e}"
 
     def get_stock_fundamentals(self, symbol: str) -> str:
         """

@@ -57,7 +57,7 @@ def main() -> None:
         video_captions = None
         video_summarizer = get_video_summarizer(model=llm_model)
 
-        with st.status("Parsing Video", expanded=True) as status:
+        with st.status("Parsing Video", expanded=False) as status:
             with st.container():
                 video_container = st.empty()
                 video_container.video(_url)
@@ -68,7 +68,7 @@ def main() -> None:
                 video_data_container.json(video_data)
             status.update(label="Video", state="complete", expanded=False)
 
-        with st.status("Reading Captions", expanded=True) as status:
+        with st.status("Reading Captions", expanded=False) as status:
             video_captions = youtube_tools.get_youtube_video_captions(_url)
             with st.container():
                 video_captions_container = st.empty()
@@ -89,7 +89,7 @@ def main() -> None:
         if num_chunks > 1:
             chunk_summaries = []
             for i in range(num_chunks):
-                with st.status(f"Summarizing chunk: {i+1}", expanded=True) as status:
+                with st.status(f"Summarizing chunk: {i+1}", expanded=False) as status:
                     chunk_summary = ""
                     chunk_container = st.empty()
                     chunk_summarizer = get_chunk_summarizer(model=llm_model)

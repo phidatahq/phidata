@@ -33,7 +33,9 @@ def restart_assistant():
 def main() -> None:
     # Get LLM Model
     llm_model = (
-        st.sidebar.selectbox("Select LLM", options=["llama3", "openhermes", "adrienbrault/nous-hermes2pro:Q8_0"])
+        st.sidebar.selectbox(
+            "Select LLM", options=["gpt-4", "llama3-groq", "openhermes", "adrienbrault/nous-hermes2pro:Q8_0"]
+        )
         or "llama3"
     )
     # Set llm in session state

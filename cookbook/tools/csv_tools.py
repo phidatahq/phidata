@@ -21,5 +21,5 @@ assistant = Assistant(
     # debug_mode=True,
 )
 assistant.print_response(
-    "First get the columns in the imdb file. After you've checked the columns then give find the details about the movie 'Rogue One'"
+    "First get the columns in the imdb file. After you've checked the columns then find the details about the movie 'Rogue One'"
 )

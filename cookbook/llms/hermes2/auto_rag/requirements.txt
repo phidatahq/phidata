@@ -98,7 +98,7 @@ pandas==2.2.0
     #   streamlit
 pgvector==0.2.4
     # via -r cookbook/llms/hermes2/auto_rag/requirements.in
-phidata==2.3.83
+phidata==2.3.84
     # via -r cookbook/llms/hermes2/auto_rag/requirements.in
 pillow==10.2.0
     # via streamlit

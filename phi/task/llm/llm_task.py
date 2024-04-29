@@ -435,7 +435,7 @@ class LLMTask(Task):
         """Returns a formatted chat history to add to the user prompt"""
 
         if self.chat_history_function is not None:
-            chat_history_kwargs = {"conversation": self}
+            chat_history_kwargs = {"task": self}
             return remove_indent(self.chat_history_function(**chat_history_kwargs))
 
         formatted_history = ""
@@ -515,7 +515,7 @@ class LLMTask(Task):
             _user_prompt += "</knowledge_base>\n"
 
         # Add chat_history to prompt
-        if chat_history:
+        if chat_history and chat_history != "":
             _user_prompt += "\nUse the following chat history to reference past messages:\n"
             _user_prompt += "<chat_history>\n"
             _user_prompt += f"{chat_history}\n"

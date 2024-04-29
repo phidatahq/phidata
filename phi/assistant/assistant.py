@@ -234,6 +234,7 @@ class Assistant(BaseModel):
             assistant_name=self.name,
             assistant_memory=self.memory,
             add_references_to_prompt=self.add_references_to_prompt,
+            add_chat_history_to_prompt=self.add_chat_history_to_prompt,
             add_chat_history_to_messages=self.add_chat_history_to_messages,
             num_history_messages=self.num_history_messages,
             knowledge_base=self.knowledge_base,

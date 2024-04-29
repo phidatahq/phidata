@@ -11,6 +11,7 @@ def get_json_type_for_py_type(arg: str) -> str:
 
     See: https://json-schema.org/understanding-json-schema/reference/type.html#type-specific-keywords
     """
+    # logger.info(f"Getting JSON type for: {arg}")
     if arg in ("int", "float"):
         return "number"
     elif arg == "str":
@@ -23,12 +24,13 @@ def get_json_type_for_py_type(arg: str) -> str:
 
 
 def get_json_schema_for_arg(t: Any) -> Optional[Any]:
+    # logger.info(f"Getting JSON schema for arg: {t}")
     json_schema = None
     type_args = get_args(t)
+    # logger.info(f"Type args: {type_args}")
     type_origin = get_origin(t)
+    # logger.info(f"Type origin: {type_origin}")
     if type_origin is not None:
-        # logger.debug(f"Type origin: {type_origin}")
-        # logger.debug(f"Type args: {type_args}")
         if type_origin == list:
             json_schema_for_items = get_json_schema_for_arg(type_args[0])
             json_schema = {"type": "array", "items": json_schema_for_items}
@@ -44,13 +46,12 @@ def get_json_schema_for_arg(t: Any) -> Optional[Any]:
 def get_json_schema(type_hints: Dict[str, Any]) -> Dict[str, Any]:
     json_schema: Dict[str, Any] = {"type": "object", "properties": {}}
     for k, v in type_hints.items():
+        # logger.info(f"Parsing arg: {k} | {v}")
         if k == "return":
             continue
-        # logger.debug(f"Parsing arg: {k} | {v}")
         arg_json_schema = get_json_schema_for_arg(v)
-
         if arg_json_schema is not None:
-            # logger.debug(f"json_schema: {arg_json_schema}")
+            # logger.info(f"json_schema: {arg_json_schema}")
             json_schema["properties"][k] = arg_json_schema
         else:
             logger.warning(f"Could not parse argument {k} of type {v}")

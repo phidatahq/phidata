@@ -58,13 +58,25 @@ class LLM(BaseModel):
     def invoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise NotImplementedError
+
     def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
+        raise NotImplementedError
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
     def response(self, messages: List[Message]) -> str:
         raise NotImplementedError
 
+    async def aresponse(self, messages: List[Message]) -> str:
+        raise NotImplementedError
+
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
+        raise NotImplementedError
+
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
         raise NotImplementedError
 
     def generate(self, messages: List[Message]) -> Dict:

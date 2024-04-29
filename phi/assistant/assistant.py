@@ -3,7 +3,20 @@ from os import getenv
 from uuid import uuid4
 from textwrap import dedent
 from datetime import datetime
-from typing import List, Any, Optional, Dict, Iterator, Callable, Union, Type, Tuple, Literal, cast
+from typing import (
+    List,
+    Any,
+    Optional,
+    Dict,
+    Iterator,
+    Callable,
+    Union,
+    Type,
+    Tuple,
+    Literal,
+    cast,
+    AsyncIterator,
+)
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
@@ -915,6 +928,195 @@ class Assistant(BaseModel):
                 resp = self._run(message=message, messages=messages, stream=False, **kwargs)
                 return next(resp)
 
+    async def _arun(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        *,
+        stream: bool = True,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[str]:
+        logger.debug(f"*********** Run Start: {self.run_id} ***********")
+        # Load run from storage
+        self.read_from_storage()
+
+        # Update the LLM (set defaults, add tools, etc.)
+        self.update_llm()
+
+        # -*- Prepare the List of messages sent to the LLM
+        llm_messages: List[Message] = []
+
+        # -*- Build the System prompt
+        # Get the system prompt
+        system_prompt = self.get_system_prompt()
+        # Create system prompt message
+        system_prompt_message = Message(role="system", content=system_prompt)
+        # Add system prompt message to the messages list
+        if system_prompt_message.content_is_valid():
+            llm_messages.append(system_prompt_message)
+
+        # -*- Add extra messages to the messages list
+        if self.add_messages is not None:
+            for _m in self.add_messages:
+                if isinstance(_m, Message):
+                    llm_messages.append(_m)
+                elif isinstance(_m, dict):
+                    llm_messages.append(Message.model_validate(_m))
+
+        # -*- Add chat history to the messages list
+        if self.add_chat_history_to_messages:
+            if self.memory is not None:
+                llm_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+
+        # -*- Build the User prompt
+        # References to add to the user_prompt if add_references_to_prompt is True
+        references: Optional[References] = None
+        # If messages are provided, simply use them
+        if messages is not None and len(messages) > 0:
+            for _m in messages:
+                if isinstance(_m, Message):
+                    llm_messages.append(_m)
+                elif isinstance(_m, dict):
+                    llm_messages.append(Message.model_validate(_m))
+        # Otherwise, build the user prompt message
+        else:
+            # Get references to add to the user_prompt
+            user_prompt_references = None
+            if self.add_references_to_prompt and message and isinstance(message, str):
+                reference_timer = Timer()
+                reference_timer.start()
+                user_prompt_references = self.get_references_from_knowledge_base(query=message)
+                reference_timer.stop()
+                references = References(
+                    query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+                )
+                logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+            # Add chat history to the user prompt
+            user_prompt_chat_history = None
+            if self.add_chat_history_to_prompt:
+                user_prompt_chat_history = self.get_formatted_chat_history()
+            # Get the user prompt
+            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+                message=message, references=user_prompt_references, chat_history=user_prompt_chat_history
+            )
+            # Create user prompt message
+            user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
+            # Add user prompt message to the messages list
+            if user_prompt_message is not None:
+                llm_messages += [user_prompt_message]
+
+        # -*- Generate a response from the LLM (includes running function calls)
+        llm_response = ""
+        self.llm = cast(LLM, self.llm)
+        if stream:
+            response_stream = self.llm.aresponse_stream(messages=llm_messages)
+            async for response_chunk in response_stream:  # type: ignore
+                llm_response += response_chunk
+                yield response_chunk
+            # async for response_chunk in await self.llm.aresponse_stream(messages=llm_messages):
+            #     llm_response += response_chunk
+            #     yield response_chunk
+        else:
+            llm_response = await self.llm.aresponse(messages=llm_messages)
+
+        # -*- Update Memory
+        # Build the user message to add to the memory - this is added to the chat_history
+        # TODO: update to handle messages
+        user_message = Message(role="user", content=message) if message is not None else None
+        # Add user message to the memory
+        if user_message is not None:
+            self.memory.add_chat_message(message=user_message)
+
+        # Build the LLM response message to add to the memory - this is added to the chat_history
+        llm_response_message = Message(role="assistant", content=llm_response)
+        # Add llm response to the chat history
+        self.memory.add_chat_message(message=llm_response_message)
+        # Add references to the memory
+        if references:
+            self.memory.add_references(references=references)
+
+        # Add llm messages to the memory
+        # This includes the raw system messages, user messages, and llm messages
+        self.memory.add_llm_messages(messages=llm_messages)
+
+        # -*- Update run output
+        self.output = llm_response
+
+        # -*- Save run to storage
+        self.write_to_storage()
+
+        # -*- Send run event for monitoring
+        event_info: Dict[str, Any] = {}
+        # Response type for this run
+        llm_response_type = "text"
+        if self.output_model is not None:
+            llm_response_type = "json"
+        elif self.markdown:
+            llm_response_type = "markdown"
+        event_data = {
+            "user_message": message,
+            "llm_response": llm_response,
+            "llm_response_type": llm_response_type,
+            "messages": llm_messages,
+            "info": event_info,
+            "metrics": self.llm.metrics if self.llm else None,
+        }
+        self._api_log_assistant_event(event_type="run", event_data=event_data)
+
+        logger.debug(f"*********** Run End: {self.run_id} ***********")
+
+        # -*- Yield final response if not streaming
+        if not stream:
+            yield llm_response
+
+    async def arun(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        *,
+        stream: bool = True,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
+    ) -> Union[AsyncIterator[str], str, BaseModel]:
+        # Convert response to structured output if output_model is set
+        if self.output_model is not None and self.parse_output:
+            logger.debug("Setting stream=False as output_model is set")
+            resp = self._arun(message=message, messages=messages, stream=False, **kwargs)
+            json_resp = await resp.__anext__()
+            try:
+                structured_output = None
+                if (
+                    isinstance(self.output_model, str)
+                    or isinstance(self.output_model, dict)
+                    or isinstance(self.output_model, list)
+                ):
+                    structured_output = json.loads(json_resp)
+                elif issubclass(self.output_model, BaseModel):
+                    try:
+                        structured_output = self.output_model.model_validate_json(json_resp)
+                    except ValidationError:
+                        # Check if response starts with ```json
+                        if json_resp.startswith("```json"):
+                            json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.output_model.model_validate_json(json_resp)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to validate response: {exc}")
+
+                # -*- Update assistant output to the structured output
+                if structured_output is not None:
+                    self.output = structured_output
+            except Exception as e:
+                logger.warning(f"Failed to convert response to output model: {e}")
+
+            return self.output or json_resp
+        else:
+            if stream and self.streamable:
+                resp = self._arun(message=message, messages=messages, stream=True, **kwargs)
+                return resp
+            else:
+                resp = self._arun(message=message, messages=messages, stream=False, **kwargs)
+                return await resp.__anext__()
+
     def chat(
         self, message: Union[List, Dict, str], stream: bool = True, **kwargs: Any
     ) -> Union[Iterator[str], str, BaseModel]:
@@ -1252,6 +1454,71 @@ class Assistant(BaseModel):
             ) as progress:
                 progress.add_task("Working...")
                 response = self.run(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
+
+            response_timer.stop()
+            _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)
+
+            table = Table(box=ROUNDED, border_style="blue", show_header=False)
+            if message and show_message:
+                table.show_header = True
+                table.add_column("Message")
+                table.add_column(get_text_from_message(message))
+            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
+            console.print(table)
+
+    async def async_print_response(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        stream: bool = True,
+        markdown: bool = False,
+        show_message: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        from phi.cli.console import console
+        from rich.live import Live
+        from rich.table import Table
+        from rich.status import Status
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.box import ROUNDED
+        from rich.markdown import Markdown
+
+        if markdown:
+            self.markdown = True
+
+        if self.output_model is not None:
+            markdown = False
+            self.markdown = False
+            stream = False
+
+        if stream:
+            response = ""
+            with Live() as live_log:
+                status = Status("Working...", spinner="dots")
+                live_log.update(status)
+                response_timer = Timer()
+                response_timer.start()
+                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore
+                    if isinstance(resp, str):
+                        response += resp
+                    _response = Markdown(response) if self.markdown else response
+
+                    table = Table(box=ROUNDED, border_style="blue", show_header=False)
+                    if message and show_message:
+                        table.show_header = True
+                        table.add_column("Message")
+                        table.add_column(get_text_from_message(message))
+                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", _response)  # type: ignore
+                    live_log.update(table)
+                response_timer.stop()
+        else:
+            response_timer = Timer()
+            response_timer.start()
+            with Progress(
+                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
+            ) as progress:
+                progress.add_task("Working...")
+                response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)

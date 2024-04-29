@@ -13,10 +13,13 @@ imdb_csv.write_bytes(response.content)
 
 assistant = Assistant(
     tools=[CsvTools(csvs=[imdb_csv])],
-    show_tool_calls=True,
     markdown=True,
+    show_tool_calls=True,
+    instructions=[
+        "First always get the list of files",
+        "Then check the columns in the file",
+        "Then run the query to answer the question",
+    ],
     # debug_mode=True,
 )
-assistant.print_response(
-    "First get the columns in the imdb file. After you've checked the columns then find the details about the movie 'Rogue One'"
-)
+assistant.cli_app(stream=False)

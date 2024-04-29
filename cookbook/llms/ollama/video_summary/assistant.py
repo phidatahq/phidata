@@ -63,8 +63,8 @@ def get_video_summarizer(
         ],
         add_to_system_prompt=dedent("""
         <report_format>
-        ## Video Title with Link
-        {this is the markdown link to the video}
+        ## [video_title](video_link)
+        {provide a markdown link to the video}
 
         ### Overview
         {give a brief introduction of the video and why the user should read this report}

@@ -40,6 +40,9 @@ def main() -> None:
         st.session_state["youtube_url"] = video_url
 
     st.sidebar.markdown("## Trending Videos")
+    if st.sidebar.button("I'm leaving to the Amazon jungle"):
+        st.session_state["youtube_url"] = "https://youtu.be/1WpqQfmzBGY"
+
     if st.sidebar.button("Intro to Large Language Models"):
         st.session_state["youtube_url"] = "https://youtu.be/zjkBMFhNj_g"
 

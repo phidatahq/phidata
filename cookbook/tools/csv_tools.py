@@ -11,11 +11,8 @@ imdb_csv = Path(__file__).parent.joinpath("wip").joinpath("imdb.csv")
 imdb_csv.parent.mkdir(parents=True, exist_ok=True)
 imdb_csv.write_bytes(response.content)
 
-csv_tools = CsvTools(csvs=[imdb_csv])
-print(f"Registered CSV Files: {csv_tools.list_csv_files()}")
-
 assistant = Assistant(
-    tools=[csv_tools],
+    tools=[CsvTools(csvs=[imdb_csv])],
     show_tool_calls=True,
     markdown=True,
     # debug_mode=True,

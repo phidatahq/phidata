@@ -30,8 +30,12 @@ class Function(BaseModel):
 
         parameters = {"type": "object", "properties": {}}
         try:
+            # logger.info(f"Getting type hints for {c}")
             type_hints = get_type_hints(c)
+            # logger.info(f"Type hints for {c}: {type_hints}")
+            # logger.info(f"Getting JSON schema for {type_hints}")
             parameters = get_json_schema(type_hints)
+            # logger.info(f"JSON schema for {c}: {parameters}")
             # logger.debug(f"Type hints for {c.__name__}: {type_hints}")
         except Exception as e:
             logger.warning(f"Could not parse args for {c.__name__}: {e}")

@@ -25,7 +25,6 @@ class ChromaDB(VectorDb):
         headers: Optional[Dict[str, str]] = None,
         ssl: Optional[bool] = False,
     ):
-        self._client = chromadb.Client()
         self.collection = collection
         self.text_field = text_field
         self.embedder = embedder
@@ -34,18 +33,7 @@ class ChromaDB(VectorDb):
         self.port = port
         self.headers = headers
         self.ssl = ssl
-
-    @property
-    def client(self) -> chromadb.Client:
-        if self._client is None:
-            return chromadb.Client(
-                namespace=self.namespace,
-                hostname=self.hostname,
-                port=self.port,
-                headers=self.headers,
-                ssl=self.ssl,
-            )
-        return self._client
+        self._client = chromadb.Client()
 
     def create(self) -> None:
         """
@@ -66,11 +54,11 @@ class ChromaDB(VectorDb):
         - bool: True if the document exists in the collection, False otherwise.
         """
         if self._client:
+            collection = self._client.get_collection(self.collection)
             cleaned_text = document.content.replace("\x00", "\ufffd").strip()
             doc_id = md5(cleaned_text.encode()).hexdigest()
-            collection_points = self._client.query(
-                collection=self.collection,
-                where=f"{self.text_field}='{doc_id}'",
+            collection_points = collection.query(
+                where={"ids": doc_id},
             )
             return len(collection_points) > 0
         return False
@@ -81,22 +69,27 @@ class ChromaDB(VectorDb):
         """
         if self._client:
             logger.debug(f"Inserting {len(documents)} documents")
-            data = []
+            collection = self._client.get_collection(self.collection)
+
+            # Data to be inserted
+            col_documents = []
+            col_ids = []
+
             for document in documents:
                 document.embed(embedder=self.embedder)
                 cleaned_text = document.content.replace("\x00", "\ufffd")
                 doc_id = str(md5(cleaned_text.encode()).hexdigest())
 
-                payload = {
-                    "documents": cleaned_text,
-                    "metadatas": document.meta_data,
-                    "ids": doc_id,
-                }
-                data.append(payload)
+                col_documents.append(cleaned_text)
+                col_ids.append(doc_id)
                 logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-            self.collection.add(data)
-            logger.debug(f"Upsert {len(data)} documents")
+            # Insert the documents
+            collection.add(
+                documents=col_documents,
+                ids=col_ids,
+            )
+            logger.debug(f"Upsert {len(col_documents)} documents")
 
     def upsert(self, documents: List[Document]) -> None:
         """
@@ -137,7 +130,7 @@ class ChromaDB(VectorDb):
         """
         Get the number of documents in the collection
         """
-        chromadb_collection = self._client.get_collection(collection=self.collection)
+        chromadb_collection = self._client.get_collection(self.collection)
         if chromadb_collection is not None:
             return chromadb_collection.count()
         return 0

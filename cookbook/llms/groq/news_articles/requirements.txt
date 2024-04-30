@@ -163,16 +163,12 @@ referencing==0.35.0
     #   jsonschema
     #   jsonschema-specifications
 regex==2024.4.28
-    # via
-    #   nltk
-    #   tiktoken
+    # via nltk
 requests==2.31.0
     # via
     #   newspaper4k
     #   requests-file
     #   streamlit
-    #   tavily-python
-    #   tiktoken
     #   tldextract
 requests-file==2.0.0
     # via tldextract
@@ -202,12 +198,8 @@ soupsieve==2.5
     # via beautifulsoup4
 streamlit==1.33.0
     # via -r cookbook/llms/groq/news_articles/requirements.in
-tavily-python==0.3.3
-    # via -r cookbook/llms/groq/news_articles/requirements.in
 tenacity==8.2.3
     # via streamlit
-tiktoken==0.6.0
-    # via tavily-python
 tldextract==5.1.2
     # via newspaper4k
 toml==0.10.2

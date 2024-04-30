@@ -80,8 +80,6 @@ def get_article_writer(
         - [Title](url)
         - [Title](url)
         - [Title](url)
-
-        Published on: {Month Date, Year (hh:mm AM/PM)}
         </article_format>
         """),
         # This setting tells the LLM to format messages in markdown

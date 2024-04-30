@@ -1,7 +1,7 @@
 import json
 from urllib.parse import urlparse, parse_qs, urlencode
 from urllib.request import urlopen
-from typing import Optional
+from typing import Optional, List
 
 from phi.tools import Toolkit
 
@@ -18,9 +18,11 @@ class YouTubeTools(Toolkit):
         self,
         get_video_captions: bool = True,
         get_video_data: bool = True,
+        languages: Optional[List[str]] = None,
     ):
         super().__init__(name="youtube_toolkit")
 
+        self.languages: Optional[List[str]] = languages
         if get_video_captions:
             self.register(self.get_youtube_video_captions)
         if get_video_data:
@@ -111,7 +113,11 @@ class YouTubeTools(Toolkit):
             return "Error getting video ID from URL, please provide a valid YouTube url"
 
         try:
-            captions = YouTubeTranscriptApi.get_transcript(video_id)
+            captions = None
+            if self.languages:
+                captions = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages)
+            else:
+                captions = YouTubeTranscriptApi.get_transcript(video_id)
             # logger.debug(f"Captions for video {video_id}: {captions}")
             if captions:
                 return " ".join(line["text"] for line in captions)

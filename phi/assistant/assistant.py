@@ -867,8 +867,8 @@ class Assistant(BaseModel):
             llm_response_type = "markdown"
         event_data = {
             "user_message": message,
-            "llm_response": llm_response,
-            "llm_response_type": llm_response_type,
+            "assistant_response": llm_response,
+            "assistant_response_format": llm_response_type,
             "messages": llm_messages,
             "info": event_info,
             "metrics": self.llm.metrics if self.llm else None,

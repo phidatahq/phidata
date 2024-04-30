@@ -55,7 +55,7 @@ def main() -> None:
         help="Number of results to search for, note only the articles that can be read will be summarized.",
     )
     per_article_summary_length = st.sidebar.slider(
-        ":sparkles: Length of Article Summary",
+        ":sparkles: Length of Article Summaries",
         min_value=100,
         max_value=2000,
         value=800,
@@ -63,12 +63,12 @@ def main() -> None:
         help="Number of words per article summary",
     )
     news_summary_length = st.sidebar.slider(
-        ":sparkles: Length of News Summary",
+        ":sparkles: Length of Draft",
         min_value=1000,
         max_value=10000,
         value=5000,
         step=100,
-        help="Number of words in the news summary, this should fit the context length of the model.",
+        help="Number of words in the draft article, this should fit the context length of the model.",
     )
 
     # Get topic for report

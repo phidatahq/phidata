@@ -23,13 +23,6 @@ class ApiRoutes:
     WORKSPACE_READ_PRIMARY: str = "/v1/workspace/read/primary"
     WORKSPACE_READ_AVAILABLE: str = "/v1/workspace/read/available"
 
-    # monitor paths
-    MONITOR_EVENT_CREATE: str = "/v1/monitor/event/create"
-
-    # conversation paths
-    CONVERSATION_MONITOR_CREATE: str = "/v1/conversation/monitor/create"
-    CONVERSATION_EVENT_CREATE: str = "/v1/conversation/event/create"
-
     # assistant paths
     ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"
     ASSISTANT_EVENT_CREATE: str = "/v1/assistant/event/create"

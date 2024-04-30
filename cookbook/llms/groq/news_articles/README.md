@@ -15,12 +15,6 @@ source ~/.venvs/aienv/bin/activate
 export GROQ_API_KEY=***
 ```
 
-- Optional: If you'd like to use Tavily Search, export your `TAVILY_API_KEY`
-
-```shell
-export TAVILY_API_KEY=***
-```
-
 ### 3. Install libraries
 
 ```shell

@@ -34,15 +34,15 @@ def main() -> None:
         st.session_state["summary_model"] = summary_model
         st.rerun()
 
-    article_model = st.sidebar.selectbox(
-        "Select Article Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
+    writer_model = st.sidebar.selectbox(
+        "Select Writer Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
     )
     # Set assistant_type in session state
-    if "article_model" not in st.session_state:
-        st.session_state["article_model"] = article_model
+    if "writer_model" not in st.session_state:
+        st.session_state["writer_model"] = writer_model
     # Restart the assistant if assistant_type has changed
-    elif st.session_state["article_model"] != article_model:
-        st.session_state["article_model"] = article_model
+    elif st.session_state["writer_model"] != writer_model:
+        st.session_state["writer_model"] = writer_model
         st.rerun()
 
     # Checkboxes for research options
@@ -146,7 +146,7 @@ def main() -> None:
                 draft_container.markdown(article_draft)
             status.update(label="Draft Complete", state="complete", expanded=False)
 
-        article_writer = get_article_writer(model=article_model)
+        article_writer = get_article_writer(model=writer_model)
         with st.spinner("Writing Article..."):
             final_report = ""
             final_report_container = st.empty()

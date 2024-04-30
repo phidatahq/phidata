@@ -17,7 +17,6 @@ class ChromaDB(VectorDb):
     def __init__(
         self,
         collection: str,
-        text_field: str,
         embedder: Embedder = OpenAIEmbedder(),
         namespace: Optional[str] = "",
         hostname: Optional[str] = "localhost",
@@ -26,7 +25,6 @@ class ChromaDB(VectorDb):
         ssl: Optional[bool] = False,
     ):
         self.collection = collection
-        self.text_field = text_field
         self.embedder = embedder
         self.namespace = namespace
         self.hostname = hostname
@@ -35,12 +33,15 @@ class ChromaDB(VectorDb):
         self.ssl = ssl
         self._client = chromadb.Client()
 
+        # Create the collection if it does not exist
+        self.create()
+
     def create(self) -> None:
         """
         Create a new collection in ChromaDB
         """
         logger.debug(f"Creating collection {self.collection}")
-        self._client.create_collection(name=self.collection)
+        self._client.create_collection(self.collection)
 
     def doc_exists(self, document: Document) -> bool:
         """

@@ -77,9 +77,9 @@ def get_article_writer(
         {provide key takeaways from the article}
 
         ### References
-        [1] [Title](url)
-        [2] [Title](url)
-        [3] [Title](url)
+        - [Title](url)
+        - [Title](url)
+        - [Title](url)
 
         Published on: {Month Date, Year (hh:mm AM/PM)}
         </article_format>

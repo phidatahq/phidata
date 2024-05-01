@@ -1,11 +1,11 @@
 import json
 from uuid import uuid4
-from typing import List, Any, Optional, Dict, Union, Type
+from typing import List, Any, Optional, Dict, Union, Type, Iterator
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field
 
 from phi.assistant import Assistant
-from phi.memory.team import TeamMemory
+from phi.utils.log import logger
 
 
 class Task(BaseModel):
@@ -14,29 +14,20 @@ class Task(BaseModel):
     task_id: str = Field(None, validate_default=True)
     # Task description
     description: Optional[str] = None
-    # Instructions for the task
-    instructions: Optional[List[str]] = None
 
-    # -*- Team information
-    team_name: Optional[str] = None
-    team_memory: Optional[TeamMemory] = None
+    # Assistant to run this task
+    assistant: Optional[Assistant] = None
+    # Reviewer for this task. Set reviewer=True for a default reviewer
+    reviewer: Optional[Union[Assistant, bool]] = None
 
-    # Assistants assigned to this task
-    assistants: Optional[List[Assistant]] = None
-
-    # -*- Run state
-    run_id: Optional[str] = None
-    run_message: Optional[Union[List, Dict, str]] = None
-    run_task_data: Optional[List[Dict[str, Any]]] = None
-
-    # -*- Task Output Settings
+    # -*- Task Output
     # Provide an output model for the responses
     output_model: Optional[Union[str, List, Type[BaseModel]]] = None
     # If True, the output is converted into the output_model (pydantic model or json dict)
     parse_output: bool = True
     # -*- Final output of this Task
     output: Optional[Any] = None
-    # If True, shows the output of the task in the assistant.run()
+    # If True, shows the output of the task in the workflow.run() function
     show_output: bool = True
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -45,10 +36,7 @@ class Task(BaseModel):
     def set_task_id(cls, v: Optional[str]) -> str:
         return v if v is not None else str(uuid4())
 
-    def get_input_for_run(self, message: Optional[str] = None) -> str:
-        return message
-
-    def get_output_for_next_run(self) -> Optional[str]:
+    def get_task_output_as_str(self) -> Optional[str]:
         if self.output is None:
             return None
 
@@ -59,4 +47,46 @@ class Task(BaseModel):
             # Convert current_task_message to json if it is a BaseModel
             return self.output.model_dump_json(exclude_none=True, indent=2)
 
-        return json.dumps(self.output, indent=2)
+        try:
+            return json.dumps(self.output, indent=2)
+        except Exception as e:
+            return str(self.output)
+        finally:
+            return None
+
+    def _run(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        *,
+        stream: bool = True,
+        **kwargs: Any,
+    ) -> Iterator[str]:
+        logger.debug(f"*********** Team Run Start: {self.run_id} ***********")
+
+        assistant = self.assistant
+        if assistant is None:
+            assistant = Assistant()
+        assistant.task = self.description
+
+        output = ""
+        if stream and assistant.streamable:
+            for chunk in assistant.run(message=message, stream=True, **kwargs):
+                output += chunk if isinstance(chunk, str) else ""
+                if self.show_output:
+                    yield chunk if isinstance(chunk, str) else ""
+
+        self.output = output
+
+    def run(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        *,
+        stream: bool = True,
+        **kwargs: Any,
+    ) -> Union[Iterator[str], str]:
+        if stream:
+            resp = self._run(message=message, stream=True, **kwargs)
+            return resp
+        else:
+            resp = self._run(message=message, stream=True, **kwargs)
+            return next(resp)

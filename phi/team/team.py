@@ -45,12 +45,8 @@ class Team(BaseModel):
     user_data: Optional[Dict[str, Any]] = None
 
     # -*- Team members
-    # Team leader
-    lead: Optional[Assistant] = None
     # Team assistants
     assistants: Optional[List[Assistant]] = None
-    # Team reviewer
-    reviewer: Optional[Assistant] = None
 
     # -*- Tasks for this team (required)
     tasks: Optional[List[Task]] = None
@@ -109,7 +105,8 @@ class Team(BaseModel):
         delegation_function = Function.from_callable(_delegate_task_to_assistant)
         delegation_function.name = f"delegate_task_to_{assistant_name}"
         delegation_function.description = dedent(
-            f"""Use this function to delegate a task to {assistant_name}
+            f"""Use this function to delegate a task to {assistant_name}. Remember to always provide a clear and concise `task_description`.
+
         Args:
             task_description (str): A clear and concise description of the task the assistant should achieve.
         Returns:
@@ -118,53 +115,59 @@ class Team(BaseModel):
         )
         return delegation_function
 
-    def get_leader(self) -> Assistant:
-        """Returns the team leader"""
+    def get_task_assistant(self, task: Task, message: Optional[Union[List, Dict, str]] = None) -> Assistant:
 
-        if self.lead:
-            return self.lead
-
-        _delegation_functions = []
-
-        _system_prompt = ""
+        delegation_functions = []
+        delegation_assistants = []
+        # Add team assistants to the delegation functions
         if self.assistants and len(self.assistants) > 0:
-            _system_prompt += "You are the leader of a team of AI Assistants "
+            for assistant_index, assistant in enumerate(self.assistants):
+                delegation_assistants.append(assistant)
+                delegation_functions.append(self.assistant_delegation_function(assistant, assistant_index))
+        # Add task assistants to the delegation functions
+        if task.assistants and len(task.assistants) > 0:
+            for assistant_index, assistant in enumerate(task.assistants):
+                delegation_assistants.append(assistant)
+                delegation_functions.append(self.assistant_delegation_function(assistant, assistant_index))
+
+        system_prompt = ""
+        if delegation_assistants and len(delegation_assistants) > 0:
+            system_prompt += "You are the leader of a team of AI Assistants "
             if self.name:
-                _system_prompt += f"called '{self.name}'"
+                system_prompt += f"called '{self.name}'.\n"
         else:
-            _system_prompt += "You are an AI Assistant"
+            system_prompt += "You are an AI Assistant.\n"
 
-        _system_prompt += " and your goal is to respond to the users message in the best way possible. "
+        if task.description:
+            system_prompt += f"\nYour task is to: {task.description}.\n"
+        # if message is not None:
+        #     system_prompt += f"\nThe goal of this team is to: {message}.\n"
 
-        if self.assistants and len(self.assistants) > 0:
-            _system_prompt += (
-                "You can either respond directly or delegate tasks to other assistants in your team depending on their role and "
+        if delegation_assistants and len(delegation_assistants) > 0:
+            system_prompt += (
+                "You can either respond directly or delegate tasks to assistants in your team depending on their role and "
                 "the tools available to them."
             )
-            _system_prompt += "\n\n<assistants>"
-            for assistant_index, assistant in enumerate(self.assistants):
-                _system_prompt += f"\nAssistant {assistant_index+1}:\n"
+            system_prompt += "\n\n<assistants>"
+            for assistant_index, assistant in enumerate(delegation_assistants):
+                system_prompt += f"\nAssistant {assistant_index+1}:\n"
                 if assistant.name:
-                    _system_prompt += f"Name: {assistant.name}\n"
+                    system_prompt += f"Name: {assistant.name}\n"
                 if assistant.role:
-                    _system_prompt += f"Role: {assistant.role}\n"
+                    system_prompt += f"Role: {assistant.role}\n"
                 if assistant.tools is not None:
                     _tools = []
                     for _tool in assistant.tools:
                         if callable(_tool):
                             _tools.append(_tool.__name__)
-                    _system_prompt += f"Available tools: {', '.join(_tools)}\n"
-                _delegation_functions.append(self.assistant_delegation_function(assistant, assistant_index))
-            _system_prompt += "</assistants>\n"
-
-        if self.reviewer is None:
-            _system_prompt += (
-                "You must review the responses from the assistants and re-run tasks if the result is not satisfactory."
-            )
+                    system_prompt += f"Available tools: {', '.join(_tools)}\n"
+            system_prompt += "</assistants>\n"
+            system_prompt += "\nYou must review the responses from the assistants and re-run tasks if the result is not satisfactory."
 
         return Assistant(
-            system_prompt=_system_prompt,
-            tools=_delegation_functions,
+            llm=self.llm,
+            system_prompt=system_prompt,
+            tools=delegation_functions,
         )
 
     def _run(
@@ -172,7 +175,6 @@ class Team(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = True,
-        messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Iterator[str]:
         logger.debug(f"*********** Team Run Start: {self.run_id} ***********")
@@ -180,126 +182,204 @@ class Team(BaseModel):
         # -*- Load run from storage
         # self.read_from_storage()
 
-        # Update the Assistants (set LLM, tools, etc)
-        # self.update_assistants()
-
         # Add a default Task if tasks are empty
-        _tasks = self.tasks
-        if _tasks is None or len(_tasks) == 0:
-            _tasks = [self.get_default_task()]
+        tasks = self.tasks
+        if tasks is None or len(tasks) == 0:
+            tasks = [self.get_default_task()]
 
-        # Get the team leader
-        leader = self.get_leader()
-
-        # Metadata for all tasks in this run
-        task_data: List[Dict[str, Any]] = []
-
-        # Final LLM response after running all tasks
+        # Final output after running all tasks
         run_output = ""
-        # -*- Generate response by running tasks
+        # Variable to hold the current task
         current_task: Optional[Task] = None
-        for idx, task in enumerate(_tasks, start=1):
+        # List of tasks that have been run
+        previous_tasks: List[Task] = []
+
+        # -*- Generate response by running tasks
+        for idx, task in enumerate(tasks, start=1):
             logger.debug(f"*********** Task {idx} Start ***********")
 
-            # Set previous_task and current_task
-            previous_task = current_task
-            if previous_task is not None and previous_task.show_output:
-                if stream:
-                    yield "\n\n"
-                run_output += "\n\n"
-
-            current_task = task
-
             # -*- Prepare input message for the current_task
-            message_for_current_task: Optional[Union[List, Dict, str]] = None
-            if previous_task is not None:
-                previous_task_output = previous_task.get_output_for_next_run()
-                if previous_task_output is not None:
-                    message_for_current_task = previous_task_output
-            else:
-                message_for_current_task = message
+            input_for_current_task: str = ""
+            if message is not None:
+                input_for_current_task += "Respond to the following message from a user:\n"
+                input_for_current_task += f"{message}"
 
-            # -*- Update Task
-            # Add run state to the task
-            current_task.run_id = self.run_id
-            current_task.team_name = self.name
-            current_task.team_memory = self.memory
-            current_task.run_message = message
-            current_task.run_task_data = task_data
+            if len(previous_tasks) > 0:
+                previous_task_outputs = []
+                for previous_task_idx, previous_task in enumerate(previous_tasks, start=1):
+                    previous_task_output = previous_task.get_task_output()
+                    if previous_task_output is not None:
+                        previous_task_outputs.append((previous_task_idx, previous_task.description, previous_task_output))
+
+                if len(previous_task_outputs) > 0:
+                    logger.debug(f"Previous tasks: {previous_task_outputs}")
+                    input_for_current_task += "\nHere are previous tasks and and their results:\n"
+                    for previous_task_idx, previous_task_description, previous_task_output in previous_task_outputs:
+                        input_for_current_task += f"\nTask {previous_task_idx}: {previous_task_description}\n"
+                        input_for_current_task += previous_task_output
+                        input_for_current_task += "\n"
 
             # -*- Run Task
-            current_task_input = current_task.get_input_for_run(message_for_current_task)
-            if stream and leader.streamable:
-                for chunk in leader.run(message=current_task_input, stream=True, **kwargs):
-                    if current_task.show_output:
-                        run_output += chunk if isinstance(chunk, str) else ""
-                        yield chunk if isinstance(chunk, str) else ""
-            else:
-                current_task_response = leader.run(message=current_task_message, stream=False, **kwargs)  # type: ignore
-                current_task_response_str = ""
-                try:
-                    if current_task_response:
-                        if isinstance(current_task_response, str):
-                            current_task_response_str = current_task_response
-                        elif issubclass(current_task_response.__class__, BaseModel):
-                            current_task_response_str = current_task_response.model_dump_json(
-                                exclude_none=True, indent=2
-                            )
-                        else:
-                            current_task_response_str = json.dumps(current_task_response)
+            if stream:
+                yield from task.run(message=input_for_current_task, stream=True, **kwargs)
 
-                        if current_task.show_output:
-                            if stream:
-                                yield current_task_response_str
-                            else:
-                                run_output += current_task_response_str
-                except Exception as e:
-                    logger.debug(f"Failed to convert task response to json: {e}")
-
+            previous_tasks.append(task)
             logger.debug(f"*********** Task {idx} End ***********")
+        #
+        # # -*- Generate response by running tasks
+        # for idx, task in enumerate(tasks, start=1):
+        #     logger.debug(f"*********** Task {idx} Start ***********")
+        #
+        #     # Get the Assistant for the current task
+        #     task_assistant = self.get_task_assistant(task=task, message=message)
+        #
+        #     # -*- Prepare input message for the current_task
+        #     input_for_current_task: str = ""
+        #     if message is not None:
+        #         input_for_current_task = f"User Message: {message}\n\n"
+        #
+        #     if len(previous_tasks) > 0:
+        #         previous_task_outputs = []
+        #         for previous_task_idx, previous_task in enumerate(previous_tasks, start=1):
+        #             previous_task_output = previous_task.get_task_output()
+        #             if previous_task_output is not None:
+        #                 previous_task_outputs.append((previous_task_idx, previous_task.description, previous_task_output))
+        #
+        #         if len(previous_task_outputs) > 0:
+        #             logger.debug(f"Previous tasks: {previous_task_outputs}")
+        #             input_for_current_task += "\n\nHere are previous tasks and and their results:\n"
+        #             for previous_task_idx, previous_task_description, previous_task_output in previous_task_outputs:
+        #                 input_for_current_task += f"\n\nTask {previous_task_idx}: {previous_task_description}\n"
+        #                 input_for_current_task += previous_task_output
+        #
+        #     # -*- Run Task
+        #     task_output = ""
+        #     if stream and task_assistant.streamable:
+        #         for chunk in task_assistant.run(message=input_for_current_task, stream=True, **kwargs):
+        #             task_output += chunk if isinstance(chunk, str) else ""
+        #             if task.show_output:
+        #                 yield chunk if isinstance(chunk, str) else ""
+        #
+        #     task.output = task_output
+        #     previous_tasks.append(task)
+        #     logger.debug(f"*********** Task {idx} End ***********")
 
-        # -*- Save run to storage
-        # self.write_to_storage()
-
-        # -*- Send run event for monitoring
-        # Response type for this run
-        llm_response_type = "text"
-        if self.markdown:
-            llm_response_type = "markdown"
-        event_info: Dict[str, Any] = {
-            "tasks": task_data,
-        }
-        event_data = {
-            "run_type": "team",
-            "user_message": message,
-            "team_response": run_output,
-            "team_response_type": llm_response_type,
-            "info": event_info,
-            "metrics": self.llm.metrics if self.llm else None,
-        }
-        # self._api_log_assistant_event(event_type="run", event_data=event_data)
-
-        # -*- Update run output
-        self.output = run_output
-        logger.debug(f"*********** Team Run End: {self.run_id} ***********")
-
-        # -*- Yield final response if not streaming
-        if not stream:
-            yield run_output
+        #
+        # # Final LLM response after running all tasks
+        # run_output = ""
+        # # Variable to hold the current task
+        # current_task: Optional[Task] = None
+        #
+        # # -*- Generate response by running tasks
+        # for idx, task in enumerate(_tasks, start=1):
+        #     logger.debug(f"*********** Task {idx} Start ***********")
+        #
+        #     # Get the team leader
+        #     leader = self.get_task_assistant(task)
+        #
+        #     run_input += "\n\nHere are previous tasks and and their results:\n"
+        #     run_input += f"\n\nTask {idx}: {task.description}\n"
+        #
+        #     # Set previous_task and current_task
+        #     previous_task = current_task
+        #     if previous_task is not None and previous_task.show_output:
+        #         if stream:
+        #             yield "\n\n"
+        #         run_output += "\n\n"
+        #
+        #     current_task = task
+        #
+        #     # -*- Prepare input message for the current_task
+        #     # message_for_current_task: Optional[Union[List, Dict, str]] = None
+        #     # if previous_task is not None:
+        #     #     previous_task_output = previous_task.get_output_for_next_run()
+        #     #     if previous_task_output is not None:
+        #     #         message_for_current_task = previous_task_output
+        #     # else:
+        #     #     message_for_current_task = message
+        #
+        #     # -*- Update Task
+        #     # Add run state to the task
+        #     current_task.run_id = self.run_id
+        #     current_task.team_name = self.name
+        #     current_task.team_memory = self.memory
+        #     current_task.run_message = message
+        #     current_task.run_task_data = task_data
+        #
+        #     # -*- Run Task
+        #     # current_task_input = current_task.get_input_for_run(message_for_current_task)
+        #     if stream and leader.streamable:
+        #         for chunk in leader.run(message=run_input, stream=True, **kwargs):
+        #             if current_task.show_output:
+        #                 run_output += chunk if isinstance(chunk, str) else ""
+        #                 run_input += chunk if isinstance(chunk, str) else ""
+        #                 yield chunk if isinstance(chunk, str) else ""
+        #     else:
+        #         current_task_response = leader.run(message=run_input, stream=False, **kwargs)  # type: ignore
+        #         current_task_response_str = ""
+        #         try:
+        #             if current_task_response:
+        #                 if isinstance(current_task_response, str):
+        #                     current_task_response_str = current_task_response
+        #                 elif issubclass(current_task_response.__class__, BaseModel):
+        #                     current_task_response_str = current_task_response.model_dump_json(
+        #                         exclude_none=True, indent=2
+        #                     )
+        #                 else:
+        #                     current_task_response_str = json.dumps(current_task_response)
+        #
+        #                 if current_task.show_output:
+        #                     if stream:
+        #                         yield current_task_response_str
+        #                     else:
+        #                         run_output += current_task_response_str
+        #         except Exception as e:
+        #             logger.debug(f"Failed to convert task response to json: {e}")
+        #     run_input += "\n\n---\n\n"
+        #
+        #     logger.debug(f"*********** Task {idx} End ***********")
+        #
+        # # -*- Save run to storage
+        # # self.write_to_storage()
+        #
+        # # -*- Send run event for monitoring
+        # # Response type for this run
+        # llm_response_type = "text"
+        # if self.markdown:
+        #     llm_response_type = "markdown"
+        # event_info: Dict[str, Any] = {
+        #     "tasks": task_data,
+        # }
+        # event_data = {
+        #     "run_type": "team",
+        #     "user_message": message,
+        #     "team_response": run_output,
+        #     "team_response_type": llm_response_type,
+        #     "info": event_info,
+        #     "metrics": self.llm.metrics if self.llm else None,
+        # }
+        # # self._api_log_assistant_event(event_type="run", event_data=event_data)
+        #
+        # # -*- Update run output
+        # self.output = run_output
+        # logger.debug(f"*********** Team Run End: {self.run_id} ***********")
+        #
+        # # -*- Yield final response if not streaming
+        # if not stream:
+        #     yield run_output
 
     def run(
         self,
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = True,
-        messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Union[Iterator[str], str]:
         if stream and self.streamable:
-            resp = self._run(message=message, messages=messages, stream=True, **kwargs)
+            resp = self._run(message=message, stream=True, **kwargs)
             return resp
         else:
-            resp = self._run(message=message, messages=messages, stream=True, **kwargs)
+            resp = self._run(message=message, stream=True, **kwargs)
             return next(resp)
 
     def print_response(

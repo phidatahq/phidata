@@ -1,7 +1,8 @@
 import json
 import httpx
 
-from phi.assistant.team import Assistant
+from phi.assistant import Assistant
+from phi.team import Team, Task
 from phi.utils.log import logger
 
 
@@ -95,5 +96,12 @@ hn_user_researcher = Assistant(
     show_tool_calls=True,
 )
 
-hn_assistant = Assistant(name="HackerNews Assistant", team=[hn_top_stories, hn_user_researcher], debug_mode=True)
-hn_assistant.print_response("Tell me about the users with the top 2 stores on hackernews?", markdown=True)
+hn_team = Team(
+    name="HackerNews Team",
+    debug_mode=True,
+    tasks=[
+        Task(description="Get top 2 hackernews stories", assistants=[hn_top_stories]),
+        Task(description="Get information about top 2 hackernews users", assistants=[hn_user_researcher]),
+    ]
+)
+hn_team.print_response("Tell me about the users with the top 2 stores on hackernews?", markdown=True)

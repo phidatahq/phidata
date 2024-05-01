@@ -12,7 +12,6 @@ from typing import (
     Callable,
     Union,
     Type,
-    Tuple,
     Literal,
     cast,
     AsyncIterator,
@@ -57,9 +56,9 @@ class Assistant(BaseModel):
     run_data: Optional[Dict[str, Any]] = None
 
     # -*- User settings
-    # ID of the user participating in this run
+    # ID of the user interacting with this assistant
     user_id: Optional[str] = None
-    # Metadata associated the user participating in this run
+    # Metadata associated the user interacting with this assistant
     user_data: Optional[Dict[str, Any]] = None
 
     # -*- Assistant Memory
@@ -752,7 +751,7 @@ class Assistant(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Iterator[str]:
-        logger.debug(f"*********** Run Start: {self.run_id} ***********")
+        logger.debug(f"*********** Assistant Run Start: {self.run_id} ***********")
         # Load run from storage
         self.read_from_storage()
 
@@ -866,16 +865,17 @@ class Assistant(BaseModel):
         elif self.markdown:
             llm_response_type = "markdown"
         event_data = {
+            "run_type": "assistant",
             "user_message": message,
-            "assistant_response": llm_response,
-            "assistant_response_format": llm_response_type,
+            "response": llm_response,
+            "response_format": llm_response_type,
             "messages": llm_messages,
             "info": event_info,
             "metrics": self.llm.metrics if self.llm else None,
         }
         self._api_log_assistant_event(event_type="run", event_data=event_data)
 
-        logger.debug(f"*********** Run End: {self.run_id} ***********")
+        logger.debug(f"*********** Assistant Run End: {self.run_id} ***********")
 
         # -*- Yield final response if not streaming
         if not stream:
@@ -1404,6 +1404,7 @@ class Assistant(BaseModel):
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        *,
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = True,
         markdown: bool = False,
@@ -1537,13 +1538,14 @@ class Assistant(BaseModel):
         emoji: str = ":sunglasses:",
         stream: bool = True,
         markdown: bool = False,
-        exit_on: Tuple[str, ...] = ("exit", "bye"),
+        exit_on: Optional[List[str]] = None,
     ) -> None:
         from rich.prompt import Prompt
 
+        _exit_on = exit_on or ["exit", "quit", "bye"]
         while True:
             message = Prompt.ask(f"[bold] {emoji} {user} [/bold]")
-            if message in exit_on:
+            if message in _exit_on:
                 break
 
             self.print_response(message=message, stream=stream, markdown=markdown)

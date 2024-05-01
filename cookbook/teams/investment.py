@@ -7,7 +7,7 @@ pip install openai anthropic newspaper3k lxml_html_clean phidata
 
 from pathlib import Path
 from shutil import rmtree
-from phi.assistant.team import Assistant
+from phi.assistant import Assistant
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.newspaper_toolkit import NewspaperToolkit
 from phi.tools.file import FileTools

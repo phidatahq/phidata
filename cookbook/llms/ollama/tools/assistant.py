@@ -3,16 +3,14 @@ from textwrap import dedent
 from typing import Any, List
 
 from phi.assistant import Assistant
-from phi.llm.ollama import OllamaTools
+from phi.llm.ollama import Ollama
 from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.tavily import TavilyTools
 from phi.tools.yfinance import YFinanceTools
 
 
 def get_local_assistant(
-    llm_model: str = "llama3",
+    llm_id: str = "llama3",
     ddg_search: bool = False,
-    tavily_search: bool = False,
     yfinance: bool = False,
     user_id: Optional[str] = None,
     run_id: Optional[str] = None,
@@ -23,18 +21,20 @@ def get_local_assistant(
     tools: List[Any] = []
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
-    if tavily_search:
-        tools.append(TavilyTools())
     if yfinance:
         tools.append(
             YFinanceTools(stock_price=True, stock_fundamentals=True, analyst_recommendations=True, company_news=True)
         )
 
+    _llm_id = llm_id
+    if llm_id == "hermes2pro-llama3":
+        _llm_id = "adrienbrault/nous-hermes2pro-llama3-8b:q8_0"
+
     assistant = Assistant(
         name="local_assistant",
         run_id=run_id,
         user_id=user_id,
-        llm=OllamaTools(model=llm_model),
+        llm=Ollama(model=_llm_id),
         tools=tools,
         show_tool_calls=True,
         # This setting tells the LLM to format messages in markdown

@@ -85,7 +85,7 @@ pandas==2.2.2
     # via
     #   altair
     #   streamlit
-phidata==2.3.88
+phidata==2.3.89
     # via -r cookbook/llms/groq/research/requirements.in
 pillow==10.3.0
     # via streamlit

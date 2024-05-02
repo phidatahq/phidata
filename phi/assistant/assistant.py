@@ -866,7 +866,10 @@ class Assistant(BaseModel):
         self.write_to_storage()
 
         # -*- Send run event for monitoring
-        event_info: Dict[str, Any] = {}
+        event_info: Dict[str, Any] = {
+            "functions": self.llm.functions if self.llm else None,
+            "metrics": self.llm.metrics if self.llm else None,
+        }
         # Response type for this run
         llm_response_type = "text"
         if self.output_model is not None:
@@ -880,6 +883,9 @@ class Assistant(BaseModel):
             "response_format": llm_response_type,
             "messages": llm_messages,
             "info": event_info,
+            # To be removed
+            "llm_response": llm_response,
+            "llm_response_type": llm_response_type,
             "metrics": self.llm.metrics if self.llm else None,
         }
         self._api_log_assistant_event(event_type="run", event_data=event_data)
@@ -1069,6 +1075,9 @@ class Assistant(BaseModel):
             "response_format": llm_response_type,
             "messages": llm_messages,
             "info": event_info,
+            # To be removed
+            "llm_response": llm_response,
+            "llm_response_type": llm_response_type,
             "metrics": self.llm.metrics if self.llm else None,
         }
         self._api_log_assistant_event(event_type="run", event_data=event_data)

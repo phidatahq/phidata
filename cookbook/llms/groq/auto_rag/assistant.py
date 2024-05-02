@@ -50,7 +50,6 @@ def get_groq_assistant(
         description="You are an AI called 'GroqRAG' and you can run functions to answer questions.",
         instructions=[
             "When the user asks a question, you can use the `search_knowledge_base` tool to find relevant information from your knowledge base.",
-            "If you need to search your chat history with the user, use the `get_chat_history` tool.",
             "You can also use the `duckduckgo_search` tool to find information on the internet.",
             "Carefully read this information and provide a clear and concise answer to the user.",
             "Do not use phrases like 'based on my knowledge' or 'depending on the information'.",
@@ -59,11 +58,11 @@ def get_groq_assistant(
         show_tool_calls=True,
         # This setting gives the LLM a tool to search for information
         search_knowledge=True,
-        # This setting gives the LLM a tool to read chat history
-        read_chat_history=True,
         tools=[DuckDuckGo()],
         # This setting tells the LLM to format messages in markdown
         markdown=True,
+        # Adds chat history to messages
+        add_chat_history_to_messages=True,
         add_datetime_to_instructions=True,
         debug_mode=debug_mode,
     )

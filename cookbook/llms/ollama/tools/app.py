@@ -32,7 +32,7 @@ def restart_assistant():
 
 def main() -> None:
     # Get LLM id
-    llm_id = st.sidebar.selectbox("Select LLM", options=["llama3", "hermes2pro-llama3"]) or "llama3"
+    llm_id = st.sidebar.selectbox("Select LLM", options=["hermes2pro-llama3", "llama3"]) or "hermes2pro-llama3"
     # Set llm in session state
     if "llm_id" not in st.session_state:
         st.session_state["llm_id"] = llm_id

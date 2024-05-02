@@ -63,7 +63,11 @@ streamlit run cookbook/llms/openai/auto_rag/app.py
 - Ask questions like:
   - What did Meta release?
   - Tell me more about the Llama 3 models?
+  - Whats the latest news from Meta?
+  - Summarize our conversation
 
 ### 7. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 8. Star ⭐️ the project if you like it.
+
+### 9. Share with your friends: [https://git.new/auto-rag](https://git.new/auto-rag)

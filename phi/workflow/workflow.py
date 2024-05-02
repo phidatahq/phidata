@@ -1,7 +1,5 @@
-import json
 from uuid import uuid4
-from textwrap import dedent
-from typing import List, Any, Optional, Dict, Iterator, Union, Type
+from typing import List, Any, Optional, Dict, Iterator, Union
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field
 
@@ -79,7 +77,7 @@ class Workflow(BaseModel):
             # -*- Prepare input message for the current_task
             input_for_task: List[str] = []
             if message is not None:
-                input_for_task.append(f"Request:\n---\n{get_text_from_message(message)}\n---")
+                input_for_task.append(get_text_from_message(message))
 
             if len(previous_tasks) > 0:
                 previous_task_outputs = []
@@ -169,7 +167,7 @@ class Workflow(BaseModel):
                 response = self.run(message=message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
-            _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)
+            _response = Markdown(response) if self.markdown else response
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:

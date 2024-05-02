@@ -21,18 +21,17 @@ reports_dir.mkdir(parents=True, exist_ok=True)
 stock_analyst = Assistant(
     name="Stock Analyst",
     tools=[
-        YFinanceTools(stock_price=True, analyst_recommendations=True, company_news=True),
+        YFinanceTools(stock_price=True, analyst_recommendations=True),
         Newspaper4k(),
         FileTools(base_dir=reports_dir),
     ],
     description="You are a stock analyst tasked with producing factual reports on companies.",
     instructions=[
         "You will be provided with a list of companies to write reports on.",
-        "Get the current stock price, analyst recommendations and news for the company",
-        "If you find any news urls, read the article and include it in the report.",
+        "Get the current stock price and analyst recommendations for the company",
         "Save your report to a file in markdown format with the name `company_name.md` in lower case.",
     ],
-    add_to_system_prompt="This is only for educational purposes."
+    add_to_system_prompt="This is only for educational purposes.",
     # debug_mode=True,
 )
 research_analyst = Assistant(
@@ -62,10 +61,9 @@ investor = Workflow(
         Task(
             description=dedent("""\
             Collect information about companies and write the results to files in markdown format with the name `company_name.md`.
-            Get the current stock price, analyst recommendations and news for companies.
             """),
             assistant=stock_analyst,
-            # show_output=True
+            show_output=False,
         ),
         Task(
             description=dedent("""\
@@ -73,7 +71,7 @@ investor = Workflow(
             Read the files saved by the stock analyst and write a report to a file called `research_report.md`.
             """),
             assistant=research_analyst,
-            # show_output=True
+            show_output=False,
         ),
         Task(
             description=dedent("""\
@@ -89,6 +87,6 @@ investor = Workflow(
 )
 
 investor.print_response(
-    "META, GOOG, NVDA and TSLA",
+    "NVDA",
     markdown=True,
 )

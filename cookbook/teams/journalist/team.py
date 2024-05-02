@@ -1,5 +1,5 @@
 from textwrap import dedent
-from phi.assistant.team import Assistant
+from phi.assistant import Assistant
 from phi.tools.serpapi_toolkit import SerpApiToolkit
 from phi.tools.newspaper_toolkit import NewspaperToolkit
 

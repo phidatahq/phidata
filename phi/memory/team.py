@@ -7,7 +7,7 @@ from phi.llm.references import References
 
 
 class TeamMemory(BaseModel):
-    # Messages between the user and the Team.
+    # Messages between the user and the Workflow.
     # Note: the llm prompts are stored in the llm_messages
     chat_history: List[Message] = []
     # Prompts sent to the LLM and the LLM responses.

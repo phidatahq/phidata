@@ -181,7 +181,7 @@ class Assistant(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
-    # -*- Assistant Team
+    # -*- Assistant Workflow
     team: Optional[List["Assistant"]] = None
     # When the assistant is part of a team, this is the role of the assistant in the team
     role: Optional[str] = None
@@ -618,12 +618,13 @@ class Assistant(BaseModel):
 
         # Then add instructions to the system prompt
         if len(instructions) > 0:
-            system_prompt_lines.append(dedent(
-                """\
+            system_prompt_lines.append(
+                dedent(
+                    """\
             YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
-            <instructions>
-            """
-            ))
+            <instructions>"""
+                )
+            )
             for i, instruction in enumerate(instructions):
                 system_prompt_lines.append(f"{i+1}. {instruction}")
             system_prompt_lines.append("</instructions>")

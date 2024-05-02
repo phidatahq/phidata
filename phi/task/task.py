@@ -61,8 +61,6 @@ class Task(BaseModel):
         stream: bool = True,
         **kwargs: Any,
     ) -> Iterator[str]:
-        logger.debug(f"*********** Team Run Start: {self.run_id} ***********")
-
         assistant = self.assistant
         if assistant is None:
             assistant = Assistant()

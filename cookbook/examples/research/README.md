@@ -1,7 +1,7 @@
-# AI Research Team
+# AI Research Workflow
 
 Inspired by the fantastic work by [Matt Shumer (@mattshumer_)](https://twitter.com/mattshumer_/status/1772286375817011259).
-We've created a constrained Research Team that uses GPT-4 Assistants to write a report by searching:
+We've created a constrained Research Workflow that uses GPT-4 Assistants to write a report by searching:
 - DuckDuckGo
 - Exa
 - ArXiv

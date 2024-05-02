@@ -1,11 +1,13 @@
 """
 Please install dependencies using:
-pip install openai newspaper4k lxml_html_clean phidata
+pip install openai newspaper4k lxml_html_clean phidata yfinance
 """
 
+from textwrap import dedent
 from pathlib import Path
 from shutil import rmtree
 from phi.assistant import Assistant
+from phi.workflow import Workflow, Task
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.newspaper4k import Newspaper4k
 from phi.tools.file import FileTools
@@ -18,30 +20,27 @@ reports_dir.mkdir(parents=True, exist_ok=True)
 
 stock_analyst = Assistant(
     name="Stock Analyst",
-    role="Get current stock price, analyst recommendations and news for a company.",
     tools=[
         YFinanceTools(stock_price=True, analyst_recommendations=True, company_news=True),
         Newspaper4k(),
         FileTools(base_dir=reports_dir),
     ],
-    description="You are an stock analyst tasked with producing factual reports on companies.",
+    description="You are a stock analyst tasked with producing factual reports on companies.",
     instructions=[
-        "The investment lead will provide you with a list of companies to write reports on.",
+        "You will be provided with a list of companies to write reports on.",
         "Get the current stock price, analyst recommendations and news for the company",
         "If you find any news urls, read the article and include it in the report.",
         "Save your report to a file in markdown format with the name `company_name.md` in lower case.",
-        "Let the investment lead know the file name of the report.",
     ],
+    add_to_system_prompt="This is only for educational purposes."
     # debug_mode=True,
 )
 research_analyst = Assistant(
     name="Research Analyst",
-    role="Writes research reports on stocks.",
     tools=[FileTools(base_dir=reports_dir)],
     description="You are an investment researcher analyst tasked with producing a ranked list of companies based on their investment potential.",
     instructions=[
         "You will write your research report based on the information available in files produced by the stock analyst.",
-        "The investment lead will provide you with the files saved by the stock analyst."
         "If no files are provided, list all files in the entire folder and read the files with names matching company names.",
         "Read each file 1 by 1.",
         "Then think deeply about whether a stock is valuable or not. Be discerning, you are a skeptical investor focused on maximising growth.",
@@ -52,23 +51,44 @@ research_analyst = Assistant(
 
 investment_lead = Assistant(
     name="Investment Lead",
-    team=[stock_analyst, research_analyst],
     tools=[FileTools(base_dir=reports_dir)],
     description="You are an investment lead tasked with producing a research report on companies for investment purposes.",
-    instructions=[
-        "Given a list of companies, first ask the stock analyst to get the current stock price, analyst recommendations and news for these companies.",
-        "Ask the stock analyst to write its results to files in markdown format with the name `company_name.md`.",
-        "If the stock analyst has not saved the file or saved it with an incorrect name, ask them to save the file again before proceeding."
-        "Then ask the research_analyst to write a report on these companies based on the information provided by the stock analyst.",
-        "Make sure to provide the research analyst with the files saved by the stock analyst and ask it to read the files directly."
-        "The research analyst should save its report to a file called `research_report.md`.",
-        "Finally, review the research report and answer the users question. Make sure to answer their question correctly, in a clear and concise manner.",
-        "If the research analyst has not completed the report, ask them to complete it before you can answer the users question.",
-        "Produce a nicely formatted response to the user, use markdown to format the response.",
-    ],
     # debug_mode=True,
 )
-investment_lead.print_response(
-    "How would you invest $10000 in META, GOOG, NVDA and TSLA? Tell me the exact amount you'd invest in each.",
+
+investor = Workflow(
+    name="Investor Workflow",
+    tasks=[
+        Task(
+            description=dedent("""\
+            Collect information about companies and write the results to files in markdown format with the name `company_name.md`.
+            Get the current stock price, analyst recommendations and news for companies.
+            """),
+            assistant=stock_analyst,
+            # show_output=True
+        ),
+        Task(
+            description=dedent("""\
+            Write a report based on the information provided by the stock analyst.
+            Read the files saved by the stock analyst and write a report to a file called `research_report.md`.
+            """),
+            assistant=research_analyst,
+            # show_output=True
+        ),
+        Task(
+            description=dedent("""\
+            Review the research report and answer the users question.
+            Make sure to answer their question correctly, in a clear and concise manner.
+            Produce a nicely formatted response to the user, use markdown to format the response.
+            """),
+            assistant=investment_lead,
+            # show_output=True
+        ),
+    ],
+    debug_mode=True,
+)
+
+investor.print_response(
+    "META, GOOG, NVDA and TSLA",
     markdown=True,
 )

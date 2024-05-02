@@ -1063,9 +1063,10 @@ class Assistant(BaseModel):
         elif self.markdown:
             llm_response_type = "markdown"
         event_data = {
+            "run_type": "assistant",
             "user_message": message,
-            "assistant_response": llm_response,
-            "assistant_response_format": llm_response_type,
+            "response": llm_response,
+            "response_format": llm_response_type,
             "messages": llm_messages,
             "info": event_info,
             "metrics": self.llm.metrics if self.llm else None,

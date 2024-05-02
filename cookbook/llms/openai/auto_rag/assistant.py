@@ -11,8 +11,8 @@ from phi.storage.assistant.postgres import PgAssistantStorage
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 
-def get_groq_assistant(
-    llm_model: str = "llama3-70b-8192",
+def get_auto_rag_assistant(
+    llm_model: str = "gpt-4-turbo",
     user_id: Optional[str] = None,
     run_id: Optional[str] = None,
     debug_mode: bool = True,

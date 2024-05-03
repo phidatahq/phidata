@@ -8,29 +8,27 @@ from phi.tools import Toolkit
 class Pubmed(Toolkit):
     def __init__(
         self,
-        search_term: Optional[str] = None,
+        email: str = "your_email@example.com",
         max_results: Optional[int] = None,
-        email: Optional[str] = "your_email@example.com",
     ):
         super().__init__(name="pubmed")
-        self.search_term = search_term
-        self.max_results = max_results
-        self.email = email
+        self.max_results: Optional[int] = max_results
+        self.email: str = email
 
         self.register(self.search_pubmed)
 
-    def fetch_pubmed_ids(self, search_term: str, max_results: int, email: str) -> List[str]:
+    def fetch_pubmed_ids(self, query: str, max_results: int, email: str) -> List[str]:
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
         params = {
             "db": "pubmed",
-            "term": search_term,
+            "term": query,
             "retmax": max_results,
             "email": email,
             "usehistory": "y",
         }
         response = requests.get(url, params=params)
         root = ElementTree.fromstring(response.content)
-        return [id_elem.text for id_elem in root.findall(".//Id")]
+        return [id_elem.text for id_elem in root.findall(".//Id") if id_elem.text is not None]
 
     def fetch_details(self, pubmed_ids: List[str]) -> ElementTree.Element:
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -54,11 +52,23 @@ class Pubmed(Toolkit):
         return articles
 
     def search_pubmed(self, query: str, max_results: int = 10) -> str:
-        ids = self.fetch_pubmed_ids(query, max_results, self.email)
-        details_root = self.fetch_details(ids)
-        articles = self.parse_details(details_root)
-        results = [
-            f"Published: {article['Published']}\nTitle: {article['Title']}\nSummary:\n{article['Summary']}"
-            for article in articles
-        ]
-        return json.dumps(results)
+        """Use this function to search PubMed for articles.
+
+        Args:
+            query (str): The search query.
+            max_results (int): The maximum number of results to return.
+
+        Returns:
+            str: A JSON string containing the search results.
+        """
+        try:
+            ids = self.fetch_pubmed_ids(query, self.max_results or max_results, self.email)
+            details_root = self.fetch_details(ids)
+            articles = self.parse_details(details_root)
+            results = [
+                f"Published: {article.get('Published')}\nTitle: {article.get('Title')}\nSummary:\n{article.get('Summary')}"
+                for article in articles
+            ]
+            return json.dumps(results)
+        except Exception as e:
+            return f"Cound not fetch articles. Error: {e}"

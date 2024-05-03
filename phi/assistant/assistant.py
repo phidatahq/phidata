@@ -872,6 +872,11 @@ class Assistant(BaseModel):
             llm_response_type = "json"
         elif self.markdown:
             llm_response_type = "markdown"
+        functions = {}
+        if self.llm:
+            for _func in self.llm.functions:
+                if isinstance(_func, Function):
+                    functions[_func.name] = _func.to_dict()
         event_data = {
             "run_type": "assistant",
             "user_message": message,
@@ -879,6 +884,7 @@ class Assistant(BaseModel):
             "response_format": llm_response_type,
             "messages": llm_messages,
             "metrics": self.llm.metrics if self.llm else None,
+            "functions": functions,
             # To be removed
             "llm_response": llm_response,
             "llm_response_type": llm_response_type,

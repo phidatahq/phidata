@@ -873,7 +873,7 @@ class Assistant(BaseModel):
         elif self.markdown:
             llm_response_type = "markdown"
         functions = {}
-        if self.llm:
+        if self.llm is not None and self.llm.functions is not None:
             for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
@@ -1069,7 +1069,7 @@ class Assistant(BaseModel):
         elif self.markdown:
             llm_response_type = "markdown"
         functions = {}
-        if self.llm:
+        if self.llm is not None and self.llm.functions is not None:
             for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()

@@ -40,7 +40,6 @@ research_analyst = Assistant(
     description="You are an investment researcher analyst tasked with producing a ranked list of companies based on their investment potential.",
     instructions=[
         "You will write your research report based on the information available in files produced by the stock analyst.",
-        "If no files are provided, list all files in the entire folder and read the files with names matching company names.",
         "Read each file 1 by 1.",
         "Then think deeply about whether a stock is valuable or not. Be discerning, you are a skeptical investor focused on maximising growth.",
         "Finally, save your research report to a file called `research_report.md`.",

@@ -38,7 +38,7 @@ def get_auto_rag_assistant(
         instructions=[
             "Given a user query, first ALWAYS search your knowledge base using the `search_knowledge_base` tool to see if you have relevant information.",
             "If you dont find relevant information in your knowledge base, use the `duckduckgo_search` tool to search the internet.",
-            "If you need to reference the chat history, use the `read_chat_history` tool.",
+            "If you need to reference the chat history, use the `get_chat_history` tool.",
             "If the users question is unclear, ask clarifying questions to get more information.",
             "Carefully read the information you have gathered and provide a clear and concise answer to the user.",
             "Do not use phrases like 'based on my knowledge' or 'depending on the information'.",

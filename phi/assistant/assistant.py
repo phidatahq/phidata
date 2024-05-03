@@ -874,9 +874,9 @@ class Assistant(BaseModel):
             llm_response_type = "markdown"
         functions = {}
         if self.llm:
-            for _func in self.llm.functions:
+            for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
-                    functions[_func.name] = _func.to_dict()
+                    functions[_f_name] = _func.to_dict()
         event_data = {
             "run_type": "assistant",
             "user_message": message,
@@ -1070,9 +1070,9 @@ class Assistant(BaseModel):
             llm_response_type = "markdown"
         functions = {}
         if self.llm:
-            for _func in self.llm.functions:
+            for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
-                    functions[_func.name] = _func.to_dict()
+                    functions[_f_name] = _func.to_dict()
         event_data = {
             "run_type": "assistant",
             "user_message": message,

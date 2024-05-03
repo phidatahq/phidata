@@ -29,6 +29,14 @@ class ApifyTools(Toolkit):
             self.register(self.web_scrapper)
 
     def website_content_crawler(self, urls: List[str], timeout: Optional[int] = 60) -> str:
+        """
+        Crawls a website using Apify's website-content-crawler actor.
+
+        :param urls: The URLs to crawl.
+        :param timeout: The timeout for the crawling.
+
+        :return: The results of the crawling.
+        """
         if self.api_key is None:
             return "No API key provided"
 

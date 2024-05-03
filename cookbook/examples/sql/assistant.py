@@ -4,7 +4,7 @@ from textwrap import dedent
 from pathlib import Path
 
 from phi.assistant import Assistant
-from phi.tools.sql import SQLToolkit
+from phi.tools.sql import SQLTools
 from phi.tools.file import FileTools
 from phi.llm.openai import OpenAIChat
 from phi.embedder.openai import OpenAIEmbedder
@@ -14,8 +14,10 @@ from phi.knowledge.combined import CombinedKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
 
-from resources import vector_db
 
+# ************* Database Connection *************
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+# *******************************
 
 # ************* Paths *************
 cwd = Path(__file__).parent
@@ -32,7 +34,7 @@ assistant_storage = PgAssistantStorage(
     schema="ai",
     # Store assistant runs in ai.sql_assistant_runs table
     table_name="sql_assistant_runs",
-    db_url=vector_db.get_db_connection_local(),
+    db_url=db_url,
 )
 assistant_knowledge = CombinedKnowledgeBase(
     sources=[
@@ -48,7 +50,7 @@ assistant_knowledge = CombinedKnowledgeBase(
     vector_db=PgVector2(
         schema="ai",
         collection="sql_assistant_knowledge",
-        db_url=vector_db.get_db_connection_local(),
+        db_url=db_url,
         embedder=OpenAIEmbedder(model="text-embedding-3-small", dimensions=1536),
     ),
     # 5 references are added to the prompt
@@ -106,23 +108,25 @@ def get_sql_assistant(
         knowledge_base=assistant_knowledge,
         show_tool_calls=True,
         read_chat_history=True,
-        # search_knowledge=True,
+        search_knowledge=True,
         read_tool_call_history=True,
-        tools=[SQLToolkit(db_url=vector_db.get_db_connection_local()), FileTools(base_dir=sql_queries_dir)],
+        tools=[SQLTools(db_url=db_url), FileTools(base_dir=sql_queries_dir)],
         debug_mode=debug_mode,
         add_chat_history_to_messages=True,
         num_history_messages=4,
-        description=dedent("""\
-        You are an expert Data Engineer called `Phi` and your goal is to help users analyze data using PostgreSQL queries.
+        description=dedent(
+            """\
+        You are an expert SQL Engineer called `SQrL` and your goal is to help users analyze data using PostgreSQL queries.
         You have access to a knowledge base with table rules and information that you MUST follow in every circumstance.
-        """),
+        """
+        ),
         instructions=[
-            "When a user messages you, first determine if you need should run a query to accomplish the task.",
+            "When a user messages you, first determine if you need to run a query to accomplish the task.",
             "If you need to run a query, **THINK STEP BY STEP** about how to accomplish the task using the `semantic_model` provided below.",
             "Once you've mapped a chain of thought, start the process of writing a query.",
-            # "First use the `search_knowledge_base` tool with the `table_name` to get information and rules about that table.",
-            "If you need the table schema, use the `describe_table` tool with the `table_name`.",
-            # "If the `search_knowledge_base` tool returns example queries, use them as a reference.",
+            "FIRST, ALWAYS search your knowledge base using the `search_knowledge_base` tool to get information and rules about the table you want to query.",
+            "If the `search_knowledge_base` tool returns example queries, use them as a reference.",
+            "If you need more information about a table, use the `describe_table` tool.",
             "Using the table information and rules, create one single syntactically correct PostgreSQL query to accomplish your task.",
             "Remember: ALWAYS FOLLOW THE TABLE RULES. NEVER IGNORE THEM. IT IS CRITICAL THAT YOU FOLLOW THE `table rules` if provided.",
             "If you need to join tables, check the `semantic_model` for the relationships between the tables."
@@ -140,8 +144,9 @@ def get_sql_assistant(
             "Show results as a table or a chart if possible.",
             "If the users asks about the tables you have access to, simply share the table names from the `semantic_model`.",
         ],
-        add_to_system_prompt=dedent(f"""
-Additional set of guidelines you should follow:
+        add_to_system_prompt=dedent(
+            f"""
+Additional set of guidelines that you must follow:
 <rules>
 - Do not use phrases like "based on the information provided" or "from the knowledge base".
 - Never mention that you are using example queries from the knowledge base.
@@ -161,5 +166,6 @@ The following `semantic_model` contains information about tables and the relatio
 After finishing your task, ask the user relevant followup questions like "was the result okay, would you like me to fix any problems?"
 If the user says yes, get the previous query using the `get_tool_call_history(num_calls=3)` function and fix the problems.
 If the user wants to see the SQL, get it using the `get_tool_call_history(num_calls=3)` function.
-"""),
+"""
+        ),
     )

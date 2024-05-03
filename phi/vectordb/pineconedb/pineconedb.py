@@ -14,6 +14,7 @@ from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
 from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
 from pinecone.models import ServerlessSpec, PodSpec
+from pinecone.core.client.models import Vector
 
 
 class PineconeDB(VectorDb):
@@ -189,7 +190,7 @@ class PineconeDB(VectorDb):
         batch_size: Optional[int] = None,
         show_progress: bool = False,
     ) -> None:
-        """Upsert documents into the index.
+        """insert documents into the index.
 
         Args:
             documents (List[Document]): The documents to upsert.
@@ -198,7 +199,18 @@ class PineconeDB(VectorDb):
             show_progress (bool, optional): Whether to show progress during upsert. Defaults to False.
 
         """
-        vectors = [{"id": doc.id, "values": doc.embedding, "metadata": doc.meta_data} for doc in documents]
+
+        vectors = []
+        for document in documents:
+            document.embed(embedder=self.embedder)
+            document.meta_data["text"] = document.content
+            vectors.append(
+                Vector(
+                    id=document.id,
+                    values=document.embedding,
+                    metadata=document.meta_data,
+                )
+            )
         self.index.upsert(
             vectors=vectors,
             namespace=namespace,
@@ -236,7 +248,6 @@ class PineconeDB(VectorDb):
         namespace: Optional[str] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         include_values: Optional[bool] = None,
-        include_metadata: Optional[bool] = None,
     ) -> List[Document]:
         """Search for similar documents in the index.
 
@@ -253,6 +264,7 @@ class PineconeDB(VectorDb):
 
         """
         query_embedding = self.embedder.get_embedding(query)
+
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
@@ -263,11 +275,11 @@ class PineconeDB(VectorDb):
             namespace=namespace,
             filter=filter,
             include_values=include_values,
-            include_metadata=include_metadata,
+            include_metadata=True,
         )
         return [
             Document(
-                content=result.metadata.get("text", "") if result.metadata is not None else "",
+                content=(result.metadata.get("text", "") if result.metadata is not None else ""),
                 id=result.id,
                 embedding=result.values,
                 meta_data=result.metadata,

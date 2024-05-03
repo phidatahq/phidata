@@ -376,12 +376,12 @@ class Ollama(LLM):
                 "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
                 + dedent(
                     """\
-                    {{
+                    {
                         "tool_calls": [{
                             "name": "<name of the selected tool>",
                             "arguments": <parameters for the selected tool, matching the tool's JSON schema
                         }]
-                    }}\
+                    }\
                     """
                 ),
                 "To use a tool, just respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",

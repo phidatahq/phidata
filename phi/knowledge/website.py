@@ -30,11 +30,9 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
         Returns:
             Iterator[List[Document]]: Iterator yielding list of documents
         """
-        if self.reader is None:
-            return iter([])
-
-        for _url in self.urls:
-            yield self.reader.read(url=_url)
+        if self.reader is not None:
+            for _url in self.urls:
+                yield self.reader.read(url=_url)
 
     def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
         """Load the website contents to the vector db"""

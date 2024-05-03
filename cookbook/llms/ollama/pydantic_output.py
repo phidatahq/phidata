@@ -17,10 +17,10 @@ class MovieScript(BaseModel):
 
 
 movie_assistant = Assistant(
-    llm=Ollama(),
+    llm=Ollama(model="llama3"),
     description="You help people write movie ideas.",
     output_model=MovieScript,
-    debug_mode=True,
+    # debug_mode=True,
 )
 
 pprint(movie_assistant.run("New York"))

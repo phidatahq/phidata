@@ -2,66 +2,78 @@
 
 > Note: Fork and clone this repository if needed
 
-## RAG AI App with Groq & PgVector
-
-1. Create and activate a virtual environment
+### 1. Create a virtual environment
 
 ```shell
 python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-2. Export your Groq & OpenAI API Key
-
-> Need to use OpenAI for embeddings as Groq doesn't support embeddings yet.
-
-```shell
-export GROQ_API_KEY=xxx
-export OPENAI_API_KEY=sk-***
-```
-
-3. Install libraries
-
-```shell
-pip install -r cookbook/llms/groq/requirements.txt
-```
-
-4. Start pgvector
-
-```shell
-phi start cookbook/llms/groq/resources.py -y
-```
-
-5. Run RAG App
-
-```shell
-streamlit run cookbook/llms/groq/app.py
-```
-
-6. Stop pgvector
-
-```shell
-phi stop cookbook/llms/groq/resources.py -y
-```
-
-## Build AI Assistants with Groq
-
-1. Install libraries
+### 2. Install libraries
 
 ```shell
 pip install -U groq phidata
 ```
 
-2. Run Assistant
+### 3. Export GROQ API Key
 
-- stream on
+```shell
+export GROQ_API_KEY=***
+```
+
+### 4. Run Assistants
+
+- basic
+
+```shell
+python cookbook/llms/groq/basic.py
+```
+
+- web search
 
 ```shell
 python cookbook/llms/groq/assistant.py
 ```
 
-- stream off
+- structured output
 
 ```shell
-python cookbook/llms/groq/assistant_stream_off.py
+python cookbook/llms/groq/structured_output.py
 ```
+
+### 5. Financial analyst
+
+Install libraries
+
+```shell
+pip install -U yfinance
+```
+
+Run using:
+
+```shell
+python cookbook/llms/groq/finance.py
+```
+
+Ask questions like:
+- What's the NVDA stock price
+- Summarize fundamentals for TSLA
+
+### 6. Data analyst
+
+Install libraries
+
+```shell
+pip install -U duckdb
+```
+
+Run using:
+
+```shell
+python cookbook/llms/groq/data_analyst.py
+```
+
+Ask questions like:
+- What is the average rating of movies?
+- Who is the most popular actor?
+- Show me a histogram of movie ratings

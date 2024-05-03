@@ -1,8 +1,0 @@
-groq
-openai
-pgvector
-phidata
-psycopg[binary]
-pypdf
-sqlalchemy
-streamlit

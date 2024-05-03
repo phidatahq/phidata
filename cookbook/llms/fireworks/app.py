@@ -29,9 +29,11 @@ def create_assistant(
     introduction = "Hi, I'm an AI Assistant that uses function calling to answer questions.\n"
     introduction += "Select the tools from the sidebar and ask me questions."
 
-    description = dedent("""\
+    description = dedent(
+        """\
     You are a function calling AI model with access to various tools. Use your tools to assist the user in the best way possible.
-    """)
+    """
+    )
 
     instructions = [
         "When the user asks a question, think how you can use your tools to answer the question.",

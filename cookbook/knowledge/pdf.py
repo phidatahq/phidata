@@ -2,7 +2,7 @@ from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFKnowledgeBase, PDFReader
 from phi.vectordb.pgvector import PgVector2
 
-from resources import vector_db  # type: ignore
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Create a knowledge base with the PDFs from the data/pdfs directory
 knowledge_base = PDFKnowledgeBase(
@@ -10,7 +10,7 @@ knowledge_base = PDFKnowledgeBase(
     vector_db=PgVector2(
         collection="pdf_documents",
         # Can inspect database via psql e.g. "psql -h localhost -p 5432 -U ai -d ai"
-        db_url=vector_db.get_db_connection_local(),
+        db_url=db_url,
     ),
     reader=PDFReader(chunk=True),
 )

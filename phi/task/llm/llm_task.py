@@ -323,9 +323,9 @@ class LLMTask(Task):
             # Add instructions for delegating tasks to another assistant
             if self.delegation_prompt and self.add_delegation_instructions:
                 _instructions.append(
-                    "You are the leader of a team of AI Assistants. You can either respond directly or "
-                    "delegate tasks to the assistants below depending on their role and the tools "
-                    "available to them."
+                    "You are part of a team of AI Assistants. You can either respond directly or "
+                    "delegate tasks to other assistants in your team below depending on their role and "
+                    "the tools available to them."
                 )
             # Add instructions for using the knowledge base
             if self.add_references_to_prompt:
@@ -435,7 +435,7 @@ class LLMTask(Task):
         """Returns a formatted chat history to add to the user prompt"""
 
         if self.chat_history_function is not None:
-            chat_history_kwargs = {"conversation": self}
+            chat_history_kwargs = {"task": self}
             return remove_indent(self.chat_history_function(**chat_history_kwargs))
 
         formatted_history = ""
@@ -515,7 +515,7 @@ class LLMTask(Task):
             _user_prompt += "</knowledge_base>\n"
 
         # Add chat_history to prompt
-        if chat_history:
+        if chat_history and chat_history != "":
             _user_prompt += "\nUse the following chat history to reference past messages:\n"
             _user_prompt += "<chat_history>\n"
             _user_prompt += f"{chat_history}\n"

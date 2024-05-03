@@ -8,16 +8,13 @@ from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pineconedb import PineconeDB
 
 api_key = os.getenv("PINECONE_API_KEY")
-index_name = "recipes"
+index_name = "thai-recipe-index"
 
 vector_db = PineconeDB(
     name=index_name,
     dimension=1536,
-    spec={
-        "region": "us-west-2",
-        "pod_type": "p1.x1",
-    },
     metric="cosine",
+    spec={"serverless": {"cloud": "aws", "region": "us-west-2"}},
     api_key=api_key,
 )
 
@@ -27,20 +24,20 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 
 # Comment out after first run
-# knowledge_base.load(recreate=False)
+knowledge_base.load(recreate=False, upsert=True)
 
 
-def pdf_assistant(user: str = "user"):
+def pinecone_assistant(user: str = "user"):
     run_id: Optional[str] = None
 
     assistant = Assistant(
         run_id=run_id,
         user_id=user,
         knowledge_base=knowledge_base,
-        # tool_calls=True adds functions to
-        # search the knowledge base and chat history
+        tool_calls=True,
         use_tools=True,
         show_tool_calls=True,
+        debug_mode=True,
         # Uncomment the following line to use traditional RAG
         # add_references_to_prompt=True,
     )
@@ -59,4 +56,4 @@ def pdf_assistant(user: str = "user"):
 
 
 if __name__ == "__main__":
-    typer.run(pdf_assistant)
+    typer.run(pinecone_assistant)

@@ -195,7 +195,8 @@ class Groq(LLM):
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
         # Add token usage to metrics
-        self.metrics.update(response.usage.model_dump())
+        if response.usage is not None:
+            self.metrics.update(response.usage.model_dump())
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

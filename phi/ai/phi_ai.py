@@ -165,7 +165,8 @@ class PhiAI:
                 name=_function_name, arguments=_function_arguments_str, functions=self.functions
             )
             if function_call_obj is None:
-                return "Something went wrong, please try again."
+                yield "Something went wrong, please try again."
+                return
 
             # -*- Run function call
             yield f"Running: {function_call_obj.get_call_str()}\n\n"

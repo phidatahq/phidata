@@ -1,6 +1,6 @@
 # CohereChat function calling
 
-Currently "command-r" model supports function calling
+Currently Cohere's "command-r" and "command-r-plus" models supports function calling
 
 > Note: Fork and clone this repository if needed
 
@@ -14,7 +14,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Export your CohereChat API Key
 
 ```shell
-export CO_API_KEY=xxx
+export CO_API_KEY=***
 ```
 
 ### 3. Install libraries

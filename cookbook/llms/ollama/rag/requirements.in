@@ -1,0 +1,9 @@
+ollama
+pgvector
+phidata
+psycopg[binary]
+pypdf
+sqlalchemy
+streamlit
+bs4
+duckduckgo-search

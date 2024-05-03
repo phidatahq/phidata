@@ -1,4 +1,4 @@
-# Claude function calling
+# Anthropic Claude
 
 [Models overview](https://docs.anthropic.com/claude/docs/models-overview)
 
@@ -11,7 +11,7 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Export your Anthropic API Key
+### 2. Set your `ANTHROPIC_API_KEY`
 
 ```shell
 export ANTHROPIC_API_KEY=xxx
@@ -38,12 +38,6 @@ python cookbook/llms/claude/assistant_stream_off.py
 ```
 
 ### 5. Run Assistant with Tools
-
-- Web search
-
-```shell
-python cookbook/llms/claude/web_search.py
-```
 
 - YFinance
 

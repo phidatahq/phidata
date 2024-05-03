@@ -1,5 +1,4 @@
 import typer
-from rich.prompt import Prompt
 from typing import Optional
 from os import getenv
 
@@ -56,10 +55,7 @@ def pdf_assistant(user: str = "user"):
         print(f"Continuing Run: {run_id}\n")
 
     while True:
-        message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
-        if message in ("exit", "bye"):
-            break
-        assistant.print_response(message)
+        assistant.cli_app(markdown=True)
 
 
 if __name__ == "__main__":

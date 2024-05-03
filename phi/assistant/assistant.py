@@ -193,7 +193,7 @@ class Assistant(BaseModel):
     team: Optional[List["Assistant"]] = None
     # When the assistant is part of a team, this is the role of the assistant in the team
     role: Optional[str] = None
-    # Add instructions for delegating tasks to another assistant
+    # Add instructions for delegating tasks to another assistants
     add_delegation_instructions: bool = True
 
     # debug_mode=True enables debug logs
@@ -234,6 +234,7 @@ class Assistant(BaseModel):
             assistant_name=self.name,
             assistant_memory=self.memory,
             add_references_to_prompt=self.add_references_to_prompt,
+            add_chat_history_to_prompt=self.add_chat_history_to_prompt,
             add_chat_history_to_messages=self.add_chat_history_to_messages,
             num_history_messages=self.num_history_messages,
             knowledge_base=self.knowledge_base,
@@ -805,11 +806,20 @@ class Assistant(BaseModel):
     # Print Response
     ###########################################################################
 
+    def convert_response_to_string(self, response: Any) -> str:
+        if isinstance(response, str):
+            return response
+        elif isinstance(response, BaseModel):
+            return response.model_dump_json(exclude_none=True, indent=4)
+        else:
+            return json.dumps(response, indent=4)
+
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
         stream: bool = True,
         markdown: bool = False,
+        show_message: bool = True,
         **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
@@ -841,7 +851,7 @@ class Assistant(BaseModel):
                     _response = Markdown(response) if self.markdown else response
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
-                    if message:
+                    if message and show_message:
                         table.show_header = True
                         table.add_column("Message")
                         table.add_column(get_text_from_message(message))
@@ -858,10 +868,10 @@ class Assistant(BaseModel):
                 response = self.run(message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
-            _response = Markdown(response) if self.markdown else response
+            _response = Markdown(response) if self.markdown else self.convert_response_to_string(response)
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
-            if message:
+            if message and show_message:
                 table.show_header = True
                 table.add_column("Message")
                 table.add_column(get_text_from_message(message))
@@ -873,7 +883,7 @@ class Assistant(BaseModel):
         user: str = "User",
         emoji: str = ":sunglasses:",
         stream: bool = True,
-        markdown: bool = True,
+        markdown: bool = False,
         exit_on: Tuple[str, ...] = ("exit", "bye"),
     ) -> None:
         from rich.prompt import Prompt

@@ -3,6 +3,7 @@ from typing import Optional
 
 from phi.cli.settings import phi_cli_settings
 
+import socket
 
 class CliAuthRequestHandler(BaseHTTPRequestHandler):
     """Request Handler to accept the CLI auth token after the web based auth flow.
@@ -82,9 +83,14 @@ class CliAuthServer:
         self._thread.close()  # type: ignore
 
 
+def check_port(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+    
+
 def get_port_for_auth_server():
-    # TODO: Check if port is available
-    return 9191
+    if check_port(9191):
+        return 9191
 
 
 def get_auth_token_from_web_flow(port) -> Optional[str]:

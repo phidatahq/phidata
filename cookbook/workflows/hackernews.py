@@ -66,15 +66,13 @@ hn_user_researcher = Assistant(
     show_tool_calls=True,
 )
 
-hn_team = Workflow(
+hn_workflow = Workflow(
     name="HackerNews Workflow",
-    debug_mode=True,
     tasks=[
         Task(description="Get top hackernews stories", assistant=hn_top_stories, show_output=False),
         Task(description="Get information about hackernews users", assistant=hn_user_researcher, show_output=False),
         Task(description="Write an engaging article"),
     ],
+    debug_mode=True,
 )
-hn_team.print_response(
-    "Write a report about the users with the top 2 stories on hackernews, skip the whoishiring user?", markdown=True
-)
+hn_workflow.print_response("Write a report about the users with the top 2 stories on hackernews", markdown=True)

@@ -132,6 +132,8 @@ class Assistant(BaseModel):
     # List of extra_instructions added to the default system prompt
     # Use these when you want to add some extra instructions at the end of the default instructions.
     extra_instructions: Optional[List[str]] = None
+    # Provide the expected output added to the system prompt
+    expected_output: Optional[str] = None
     # Add a string to the end of the default system prompt
     add_to_system_prompt: Optional[str] = None
     # If True, add instructions for using the knowledge base to the system prompt if knowledge base is provided
@@ -171,11 +173,13 @@ class Assistant(BaseModel):
 
     # -*- Assistant Output Settings
     # Provide an output model for the responses
-    output_model: Optional[Union[str, List, Type[BaseModel]]] = None
+    output_model: Optional[Type[BaseModel]] = None
     # If True, the output is converted into the output_model (pydantic model or json dict)
     parse_output: bool = True
-    # -*- Final LLM response i.e. the final output of this assistant
+    # -*- Final Assistant Output
     output: Optional[Any] = None
+    # Save the output to a file
+    save_output_to_file: Optional[str] = None
 
     # -*- Assistant Task data
     # Metadata associated with the assistant tasks
@@ -621,13 +625,17 @@ class Assistant(BaseModel):
             system_prompt_lines.append(
                 dedent(
                     """\
-            YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
+            You must follow these instructions carefully:
             <instructions>"""
                 )
             )
             for i, instruction in enumerate(instructions):
                 system_prompt_lines.append(f"{i+1}. {instruction}")
             system_prompt_lines.append("</instructions>")
+
+        # The add the expected output to the system prompt
+        if self.expected_output is not None:
+            system_prompt_lines.append(f"\nThe expected output is: {self.expected_output}")
 
         # Then add user provided additional information to the system prompt
         if self.add_to_system_prompt is not None:
@@ -832,7 +840,7 @@ class Assistant(BaseModel):
         # -*- Generate a response from the LLM (includes running function calls)
         llm_response = ""
         self.llm = cast(LLM, self.llm)
-        if stream:
+        if stream and self.streamable:
             for response_chunk in self.llm.response_stream(messages=llm_messages):
                 llm_response += response_chunk
                 yield response_chunk
@@ -864,6 +872,15 @@ class Assistant(BaseModel):
 
         # -*- Save run to storage
         self.write_to_storage()
+
+        # -*- Save output to file if save_output_to_file is set
+        if self.save_output_to_file is not None:
+            try:
+                fn = self.save_output_to_file.format(name=self.name, run_id=self.run_id, user_id=self.user_id)
+                with open(fn, "w") as f:
+                    f.write(self.output)
+            except Exception as e:
+                logger.warning(f"Failed to save output to file: {e}")
 
         # -*- Send run event for monitoring
         # Response type for this run
@@ -911,23 +928,16 @@ class Assistant(BaseModel):
             json_resp = next(self._run(message=message, messages=messages, stream=False, **kwargs))
             try:
                 structured_output = None
-                if (
-                    isinstance(self.output_model, str)
-                    or isinstance(self.output_model, dict)
-                    or isinstance(self.output_model, list)
-                ):
-                    structured_output = json.loads(json_resp)
-                elif issubclass(self.output_model, BaseModel):
-                    try:
-                        structured_output = self.output_model.model_validate_json(json_resp)
-                    except ValidationError:
-                        # Check if response starts with ```json
-                        if json_resp.startswith("```json"):
-                            json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
-                            try:
-                                structured_output = self.output_model.model_validate_json(json_resp)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to validate response: {exc}")
+                try:
+                    structured_output = self.output_model.model_validate_json(json_resp)
+                except ValidationError:
+                    # Check if response starts with ```json
+                    if json_resp.startswith("```json"):
+                        json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
+                        try:
+                            structured_output = self.output_model.model_validate_json(json_resp)
+                        except ValidationError as exc:
+                            logger.warning(f"Failed to validate response: {exc}")
 
                 # -*- Update assistant output to the structured output
                 if structured_output is not None:
@@ -1108,23 +1118,16 @@ class Assistant(BaseModel):
             json_resp = await resp.__anext__()
             try:
                 structured_output = None
-                if (
-                    isinstance(self.output_model, str)
-                    or isinstance(self.output_model, dict)
-                    or isinstance(self.output_model, list)
-                ):
-                    structured_output = json.loads(json_resp)
-                elif issubclass(self.output_model, BaseModel):
-                    try:
-                        structured_output = self.output_model.model_validate_json(json_resp)
-                    except ValidationError:
-                        # Check if response starts with ```json
-                        if json_resp.startswith("```json"):
-                            json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
-                            try:
-                                structured_output = self.output_model.model_validate_json(json_resp)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to validate response: {exc}")
+                try:
+                    structured_output = self.output_model.model_validate_json(json_resp)
+                except ValidationError:
+                    # Check if response starts with ```json
+                    if json_resp.startswith("```json"):
+                        json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
+                        try:
+                            structured_output = self.output_model.model_validate_json(json_resp)
+                        except ValidationError as exc:
+                            logger.warning(f"Failed to validate response: {exc}")
 
                 # -*- Update assistant output to the structured output
                 if structured_output is not None:
@@ -1145,65 +1148,6 @@ class Assistant(BaseModel):
         self, message: Union[List, Dict, str], stream: bool = True, **kwargs: Any
     ) -> Union[Iterator[str], str, BaseModel]:
         return self.run(message=message, stream=stream, **kwargs)
-
-    def _chat_raw(
-        self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
-    ) -> Iterator[Dict]:
-        logger.debug("*********** Assistant Chat Raw Start ***********")
-        if self.llm is None:
-            raise Exception("LLM not set")
-
-        # Load run from storage
-        self.read_from_storage()
-
-        # -*- Add user message to the memory - this is added to the chat_history
-        if user_message:
-            self.memory.add_chat_message(Message(role="user", content=user_message))
-
-        # -*- Generate response
-        batch_llm_response_message = {}
-        if stream:
-            for response_delta in self.llm.generate_stream(messages=messages):
-                yield response_delta
-        else:
-            batch_llm_response_message = self.llm.generate(messages=messages)
-
-        # -*- Add prompts and response to the memory - these are added to the llm_messages
-        self.memory.add_llm_messages(messages=messages)
-
-        # Add llm response to the chat history
-        # LLM Response is the last message in the messages list
-        llm_response_message = messages[-1]
-        try:
-            self.memory.add_chat_message(llm_response_message)
-        except Exception as e:
-            logger.warning(f"Failed to add llm response to memory: {e}")
-
-        # -*- Save run to storage
-        self.write_to_storage()
-
-        # -*- Send assistant event for monitoring
-        event_data = {
-            "user_message": user_message,
-            "llm_response": llm_response_message,
-            "messages": [m.model_dump(exclude_none=True) for m in messages],
-            "metrics": self.llm.metrics,
-        }
-        self._api_log_assistant_event(event_type="chat_raw", event_data=event_data)
-
-        # -*- Yield final response if not streaming
-        if not stream:
-            yield batch_llm_response_message
-        logger.debug("*********** Assistant Chat Raw End ***********")
-
-    def chat_raw(
-        self, messages: List[Message], user_message: Optional[str] = None, stream: bool = True
-    ) -> Union[Iterator[Dict], Dict]:
-        resp = self._chat_raw(messages=messages, user_message=user_message, stream=stream)
-        if stream:
-            return resp
-        else:
-            return next(resp)
 
     def rename(self, name: str) -> None:
         """Rename the assistant for the current run"""
@@ -1514,7 +1458,6 @@ class Assistant(BaseModel):
         if self.output_model is not None:
             markdown = False
             self.markdown = False
-            stream = False
 
         if stream:
             response = ""

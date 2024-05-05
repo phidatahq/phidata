@@ -34,7 +34,11 @@ class Workflow(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
-    markdown: bool = False
+    # -*- Workflow Output
+    # Final output of this Workflow
+    output: Optional[Any] = None
+    # Save the output to a file
+    save_output_to_file: Optional[str] = None
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
@@ -54,10 +58,6 @@ class Workflow(BaseModel):
     def set_run_id(cls, v: Optional[str]) -> str:
         return v if v is not None else str(uuid4())
 
-    @property
-    def streamable(self) -> bool:
-        return True
-
     def _run(
         self,
         message: Optional[Union[List, Dict, str]] = None,
@@ -68,20 +68,21 @@ class Workflow(BaseModel):
         logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
 
         # List of tasks that have been run
-        previous_tasks: List[Task] = []
+        executed_tasks: List[Task] = []
+        workflow_output: List[str] = []
 
         # -*- Generate response by running tasks
         for idx, task in enumerate(self.tasks, start=1):
             logger.debug(f"*********** Task {idx} Start ***********")
 
             # -*- Prepare input message for the current_task
-            input_for_task: List[str] = []
+            task_input: List[str] = []
             if message is not None:
-                input_for_task.append(get_text_from_message(message))
+                task_input.append(get_text_from_message(message))
 
-            if len(previous_tasks) > 0:
+            if len(executed_tasks) > 0:
                 previous_task_outputs = []
-                for previous_task_idx, previous_task in enumerate(previous_tasks, start=1):
+                for previous_task_idx, previous_task in enumerate(executed_tasks, start=1):
                     previous_task_output = previous_task.get_task_output_as_str()
                     if previous_task_output is not None:
                         previous_task_outputs.append(
@@ -89,19 +90,34 @@ class Workflow(BaseModel):
                         )
 
                 if len(previous_task_outputs) > 0:
-                    input_for_task.append("\nHere are previous tasks and and their results:\n---")
+                    task_input.append("\nHere are previous tasks and and their results:\n---")
                     for previous_task_idx, previous_task_description, previous_task_output in previous_task_outputs:
-                        input_for_task.append(f"Task {previous_task_idx}: {previous_task_description}")
-                        input_for_task.append(previous_task_output)
-                    input_for_task.append("---")
+                        task_input.append(f"Task {previous_task_idx}: {previous_task_description}")
+                        task_input.append(previous_task_output)
+                    task_input.append("---")
 
             # -*- Run Task
-            input_for_current_task = "\n".join(input_for_task)
-            if stream:
-                yield from task.run(message=input_for_current_task, stream=True, **kwargs)
+            task_output = ""
+            input_for_current_task = "\n".join(task_input)
+            if stream and task.streamable:
+                for chunk in task.run(message=input_for_current_task, stream=True, **kwargs):
+                    task_output += chunk if isinstance(chunk, str) else ""
+                    yield chunk if isinstance(chunk, str) else ""
+            else:
+                task_output = task.run(message=input_for_current_task, stream=False, **kwargs)  # type: ignore
 
-            previous_tasks.append(task)
+            executed_tasks.append(task)
+            workflow_output.append(task_output)
             logger.debug(f"*********** Task {idx} End ***********")
+            if not stream:
+                yield task_output
+
+        self.output = "\n".join(workflow_output)
+        if self.save_output_to_file:
+            fn = self.save_output_to_file.format(name=self.name, run_id=self.run_id, user_id=self.user_id)
+            with open(fn, "w") as f:
+                f.write(self.output)
+        logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
 
     def run(
         self,
@@ -110,7 +126,7 @@ class Workflow(BaseModel):
         stream: bool = True,
         **kwargs: Any,
     ) -> Union[Iterator[str], str]:
-        if stream and self.streamable:
+        if stream:
             resp = self._run(message=message, stream=True, **kwargs)
             return resp
         else:
@@ -134,9 +150,6 @@ class Workflow(BaseModel):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
 
-        if markdown:
-            self.markdown = True
-
         if stream:
             response = ""
             with Live() as live_log:
@@ -147,7 +160,7 @@ class Workflow(BaseModel):
                 for resp in self.run(message=message, stream=True, **kwargs):
                     if isinstance(resp, str):
                         response += resp
-                    _response = Markdown(response) if self.markdown else response
+                    _response = Markdown(response) if markdown else response
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
                     if message and show_message:
@@ -167,7 +180,7 @@ class Workflow(BaseModel):
                 response = self.run(message=message, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
-            _response = Markdown(response) if self.markdown else response
+            _response = Markdown(response) if markdown else response
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:

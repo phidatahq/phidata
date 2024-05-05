@@ -15,10 +15,12 @@ class Newspaper4k(Toolkit):
         self,
         read_article: bool = True,
         include_summary: bool = False,
+        article_length: Optional[int] = None,
     ):
         super().__init__(name="newspaper_tools")
 
         self.include_summary: bool = include_summary
+        self.article_length: Optional[int] = article_length
         if read_article:
             self.register(self.read_article)
 
@@ -69,6 +71,9 @@ class Newspaper4k(Toolkit):
             article_data = self.get_article_data(url)
             if not article_data:
                 return f"Error reading article from {url}: No data found."
+
+            if self.article_length and "text" in article_data:
+                article_data["text"] = article_data["text"][: self.article_length]
 
             return json.dumps(article_data, indent=2)
         except Exception as e:

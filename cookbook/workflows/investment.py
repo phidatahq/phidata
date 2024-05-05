@@ -1,6 +1,6 @@
 """
 Please install dependencies using:
-pip install openai newspaper4k lxml_html_clean phidata yfinance
+pip install openai newspaper4k lxml_html_clean yfinance phidata
 """
 
 from textwrap import dedent
@@ -13,7 +13,7 @@ from phi.tools.newspaper4k import Newspaper4k
 from phi.tools.file import FileTools
 
 
-reports_dir = Path(__file__).parent.parent.parent.joinpath("junk", "reports")
+reports_dir = Path(__file__).parent.parent.parent.joinpath("wip", "reports")
 if reports_dir.exists():
     rmtree(path=reports_dir, ignore_errors=True)
 reports_dir.mkdir(parents=True, exist_ok=True)
@@ -54,8 +54,8 @@ investment_lead = Assistant(
     # debug_mode=True,
 )
 
-investor = Workflow(
-    name="Investor Workflow",
+investment_workflow = Workflow(
+    name="Investment Research Workflow",
     tasks=[
         Task(
             description=dedent("""\
@@ -85,7 +85,7 @@ investor = Workflow(
     debug_mode=True,
 )
 
-investor.print_response(
+investment_workflow.print_response(
     "NVDA",
     markdown=True,
 )

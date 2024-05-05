@@ -1501,6 +1501,7 @@ class Assistant(BaseModel):
 
     def cli_app(
         self,
+        message: Optional[str] = None,
         user: str = "User",
         emoji: str = ":sunglasses:",
         stream: bool = True,
@@ -1508,6 +1509,9 @@ class Assistant(BaseModel):
         exit_on: Optional[List[str]] = None,
     ) -> None:
         from rich.prompt import Prompt
+
+        if message:
+            self.print_response(message=message, stream=stream, markdown=markdown)
 
         _exit_on = exit_on or ["exit", "quit", "bye"]
         while True:

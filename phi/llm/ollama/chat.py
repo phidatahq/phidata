@@ -272,9 +272,9 @@ class Ollama(LLM):
                 yield response_content
 
         response_timer.stop()
-        logger.debug(f"Number of tokens generated: {completion_tokens}")
-        logger.debug(f"Time per output token: {response_timer.elapsed/completion_tokens:.4f}s")
-        logger.debug(f"Throughtput: {completion_tokens/response_timer.elapsed:.4f} tokens/s")
+        logger.debug(f"Tokens generated: {completion_tokens}")
+        logger.debug(f"Time per output token: {response_timer.elapsed / completion_tokens:.4f}s")
+        logger.debug(f"Throughput: {completion_tokens / response_timer.elapsed:.4f} tokens/s")
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
@@ -313,17 +313,18 @@ class Ollama(LLM):
 
         # -*- Update usage metrics
         # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        assistant_message.metrics["time_to_first_token"] = time_to_first_token
+        assistant_message.metrics["time"] = f"{response_timer.elapsed:.4f}"
+        assistant_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
+        assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
         if "time_to_first_token" not in self.metrics:
             self.metrics["time_to_first_token"] = []
-        self.metrics["time_to_first_token"].append(time_to_first_token)
+        self.metrics["time_to_first_token"].append(f"{time_to_first_token:.4f}s")
         if "tokens_per_second" not in self.metrics:
             self.metrics["tokens_per_second"] = []
-        self.metrics["tokens_per_second"].append(completion_tokens / response_timer.elapsed)
+        self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

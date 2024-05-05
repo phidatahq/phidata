@@ -9,4 +9,4 @@ assistant = Assistant(
 )
 assistant.print_response("Share a quick healthy breakfast recipe.", markdown=True)
 print("\n-*- Metrics:")
-pprint(assistant.llm.metrics)
+pprint(assistant.llm.metrics)  # type: ignore

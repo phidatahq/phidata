@@ -185,7 +185,7 @@ class Assistant(BaseModel):
     # Metadata associated with the assistant tasks
     task_data: Optional[Dict[str, Any]] = None
 
-    # -*- Assistant Workflow
+    # -*- Assistant Team
     team: Optional[List["Assistant"]] = None
     # When the assistant is part of a team, this is the role of the assistant in the team
     role: Optional[str] = None

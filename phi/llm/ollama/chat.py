@@ -223,10 +223,14 @@ class Ollama(LLM):
         tool_call_bracket_count = 0
         is_last_tool_call_bracket = False
         completion_tokens = 0
+        time_to_first_token = None
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
             completion_tokens += 1
+            if completion_tokens == 1:
+                time_to_first_token = response_timer.elapsed
+                logger.debug(f"Time to first token: {time_to_first_token:.4f}s")
 
             # -*- Parse response
             # logger.info(f"Ollama partial response: {response}")
@@ -307,9 +311,16 @@ class Ollama(LLM):
         # -*- Update usage metrics
         # Add response time to metrics
         assistant_message.metrics["time"] = response_timer.elapsed
+        assistant_message.metrics["time_to_first_token"] = time_to_first_token
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
+        if "time_to_first_token" not in self.metrics:
+            self.metrics["time_to_first_token"] = []
+        self.metrics["time_to_first_token"].append(time_to_first_token)
+        if "tokens_per_second" not in self.metrics:
+            self.metrics["tokens_per_second"] = []
+        self.metrics["tokens_per_second"].append(completion_tokens / response_timer.elapsed)
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

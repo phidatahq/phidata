@@ -1,8 +1,8 @@
 [project]
 name = "phidata"
-version = "2.3.90"
-description = "Add memory, knowledge and tools to LLMs."
-requires-python = ">=3.8"
+version = "2.4.0"
+description = "Memory, knowledge and tools for LLMs."
+requires-python = ">=3.7"
 readme = "README.md"
 authors = [
   {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}

@@ -268,6 +268,9 @@ class Ollama(LLM):
                 yield response_content
 
         response_timer.stop()
+        logger.debug(f"Number of tokens generated: {completion_tokens}")
+        logger.debug(f"Time per output token: {response_timer.elapsed/completion_tokens:.4f}s")
+        logger.debug(f"Throughtput: {completion_tokens/response_timer.elapsed:.4f} tokens/s")
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message

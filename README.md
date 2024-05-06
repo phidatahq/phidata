@@ -343,7 +343,11 @@ python pdf_assistant.py --new
 
 ## Tutorials
 
-[![Autonomous RAG](https://img.youtube.com/vi/fkBkNWivq-s/maxresdefault.jpg)](https://www.youtube.com/watch?v=fkBkNWivq-s "Autonomous RAG")
+[![Autonomous RAG](https://img.youtube.com/vi/fkBkNWivq-s/0.jpg)](https://www.youtube.com/watch?v=fkBkNWivq-s "Autonomous RAG")
+
+[![Local RAG with Llama3](https://img.youtube.com/vi/-8NVHaKKNkM/0.jpg)](https://www.youtube.com/watch?v=-8NVHaKKNkM "Local RAG with Llama3")
+
+[![Llama3 Research Assistant powered by Groq](https://img.youtube.com/vi/Iv9dewmcFbs/0.jpg)](https://www.youtube.com/watch?v=Iv9dewmcFbs "Llama3 Research Assistant powered by Groq")
 
 ## Looking to build an AI product?
 

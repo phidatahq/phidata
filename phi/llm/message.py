@@ -77,3 +77,8 @@ class Message(BaseModel):
             _logger(f"Function Call: {json.dumps(self.function_call, indent=2)}")
         # if self.model_extra and "images" in self.model_extra:
         #     _logger("images: {}".format(self.model_extra["images"]))
+
+    def content_is_valid(self) -> bool:
+        """Check if the message content is valid."""
+
+        return self.content is not None and len(self.content) > 0

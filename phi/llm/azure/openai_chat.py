@@ -23,28 +23,30 @@ class AzureOpenAIChat(OpenAILike):
     openai_client: Optional[AzureOpenAIClient] = None
 
     @property
-    def client(self) -> AzureOpenAIClient:
+    def get_client(self) -> AzureOpenAIClient:  # type: ignore
         if self.openai_client:
             return self.openai_client
 
-        _openai_params: Dict[str, Any] = {}
+        _client_params: Dict[str, Any] = {}
         if self.api_key:
-            _openai_params["api_key"] = self.api_key
+            _client_params["api_key"] = self.api_key
         if self.api_version:
-            _openai_params["api_version"] = self.api_version
+            _client_params["api_version"] = self.api_version
         if self.organization:
-            _openai_params["organization"] = self.organization
+            _client_params["organization"] = self.organization
         if self.azure_endpoint:
-            _openai_params["azure_endpoint"] = self.azure_endpoint
+            _client_params["azure_endpoint"] = self.azure_endpoint
         if self.azure_deployment:
-            _openai_params["azure_deployment"] = self.azure_deployment
+            _client_params["azure_deployment"] = self.azure_deployment
         if self.base_url:
-            _openai_params["base_url"] = self.base_url
+            _client_params["base_url"] = self.base_url
         if self.azure_ad_token:
-            _openai_params["azure_ad_token"] = self.azure_ad_token
+            _client_params["azure_ad_token"] = self.azure_ad_token
         if self.azure_ad_token_provider:
-            _openai_params["azure_ad_token_provider"] = self.azure_ad_token_provider
+            _client_params["azure_ad_token_provider"] = self.azure_ad_token_provider
+        if self.http_client:
+            _client_params["http_client"] = self.http_client
         if self.client_params:
-            _openai_params.update(self.client_params)
+            _client_params.update(self.client_params)
 
-        return AzureOpenAIClient(**_openai_params)
+        return AzureOpenAIClient(**_client_params)

@@ -14,6 +14,10 @@ ollama pull llama3
 ollama pull openhermes
 
 ollama pull adrienbrault/nous-hermes2pro:Q8_0
+
+ollama pull adrienbrault/nous-hermes2pro-llama3-8b:q8_0
+
+ollama pull adrienbrault/nous-hermes2pro:Q8_0
 ```
 
 ### 2. Create a virtual environment

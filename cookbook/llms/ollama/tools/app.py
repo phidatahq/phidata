@@ -31,17 +31,14 @@ def restart_assistant():
 
 
 def main() -> None:
-    # Get LLM Model
-    llm_model = (
-        st.sidebar.selectbox("Select LLM", options=["llama3", "openhermes", "adrienbrault/nous-hermes2pro:Q8_0"])
-        or "llama3"
-    )
+    # Get LLM id
+    llm_id = st.sidebar.selectbox("Select LLM", options=["hermes2pro-llama3", "llama3"]) or "hermes2pro-llama3"
     # Set llm in session state
-    if "llm_model" not in st.session_state:
-        st.session_state["llm_model"] = llm_model
-    # Restart the assistant if llm_model changes
-    elif st.session_state["llm_model"] != llm_model:
-        st.session_state["llm_model"] = llm_model
+    if "llm_id" not in st.session_state:
+        st.session_state["llm_id"] = llm_id
+    # Restart the assistant if llm_id changes
+    elif st.session_state["llm_id"] != llm_id:
+        st.session_state["llm_id"] = llm_id
         st.session_state["llm_updated"] = True
         restart_assistant()
 
@@ -70,30 +67,13 @@ def main() -> None:
         st.session_state["ddg_search_enabled"] = ddg_search
         restart_assistant()
 
-    # Add tavily_search_enabled to session state
-    if "tavily_search_enabled" not in st.session_state:
-        st.session_state["tavily_search_enabled"] = False
-    # Get tavily_search_enabled from session state if set
-    tavily_search_enabled = st.session_state["tavily_search_enabled"]
-    # Checkbox for enabling tavily search
-    tavily_search = st.sidebar.checkbox(
-        "Enable Tavily Search",
-        value=tavily_search_enabled,
-        disabled=ddg_search,
-        help="Tavily Search is disabled if Web Search is enabled.",
-    )
-    if tavily_search_enabled != tavily_search:
-        st.session_state["tavily_search_enabled"] = tavily_search
-        restart_assistant()
-
     # Get the assistant
     local_assistant: Assistant
     if "local_assistant" not in st.session_state or st.session_state["local_assistant"] is None:
-        logger.info(f"---*--- Creating {llm_model} Assistant ---*---")
+        logger.info(f"---*--- Creating {llm_id} Assistant ---*---")
         local_assistant = get_local_assistant(
-            llm_model=llm_model,
+            llm_id=llm_id,
             ddg_search=ddg_search_enabled,
-            tavily_search=tavily_search_enabled,
             yfinance=yfinance_tools_enabled,
         )
         st.session_state["local_assistant"] = local_assistant

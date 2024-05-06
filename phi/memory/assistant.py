@@ -7,12 +7,8 @@ from phi.llm.references import References
 
 
 class AssistantMemory(BaseModel):
-    """
-    This class provides memory for an Assistant.
-    """
-
-    # Messages between the user and the LLM.
-    # Note: the actual prompts are stored in the llm_messages
+    # Messages between the user and the Assistant.
+    # Note: the llm prompts are stored in the llm_messages
     chat_history: List[Message] = []
     # Prompts sent to the LLM and the LLM responses.
     llm_messages: List[Message] = []

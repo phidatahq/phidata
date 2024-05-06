@@ -23,7 +23,7 @@ class ExaTools(Toolkit):
 
         self.api_key = api_key or getenv("EXA_API_KEY")
         if not self.api_key:
-            logger.error("No Exa API key provided")
+            logger.error("EXA_API_KEY not set. Please set the EXA_API_KEY environment variable.")
 
         self.show_results = show_results
         if search:
@@ -39,7 +39,7 @@ class ExaTools(Toolkit):
         :return: Links of relevant documents from exa.
         """
         if not self.api_key:
-            return "Please provide the EXA_API_KEY"
+            return "Please set the EXA_API_KEY"
 
         try:
             exa = Exa(self.api_key)
@@ -63,7 +63,7 @@ class ExaTools(Toolkit):
         :return: JSON string of the search results.
         """
         if not self.api_key:
-            return "Please provide the EXA_API_KEY"
+            return "Please set the EXA_API_KEY"
 
         try:
             exa = Exa(self.api_key)

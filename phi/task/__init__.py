@@ -1,1 +1,1 @@
-from phi.task.decorator import task
+from phi.task.task import Task

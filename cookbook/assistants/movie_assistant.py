@@ -18,6 +18,6 @@ class MovieScript(BaseModel):
 movie_assistant = Assistant(
     description="You help write movie scripts.",
     output_model=MovieScript,
+    # debug_mode=True,
 )
-
 pprint(movie_assistant.run("New York"))

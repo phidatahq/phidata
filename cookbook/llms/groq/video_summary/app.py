@@ -53,7 +53,7 @@ def main() -> None:
 
     if "youtube_url" in st.session_state:
         _url = st.session_state["youtube_url"]
-        youtube_tools = YouTubeTools()
+        youtube_tools = YouTubeTools(languages=["en"])
         video_captions = None
         video_summarizer = get_video_summarizer(model=llm_model)
 

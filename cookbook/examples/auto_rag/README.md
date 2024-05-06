@@ -20,13 +20,13 @@ source ~/.venvs/aienv/bin/activate
 export OPENAI_API_KEY=***
 ```
 
-### 4. Install libraries
+### 3. Install libraries
 
 ```shell
 pip install -r cookbook/llms/openai/auto_rag/requirements.txt
 ```
 
-### 5. Run PgVector
+### 4. Run PgVector
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
@@ -50,7 +50,7 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 6. Run Autonomous RAG App
+### 5. Run Autonomous RAG App
 
 ```shell
 streamlit run cookbook/llms/openai/auto_rag/app.py
@@ -66,8 +66,8 @@ streamlit run cookbook/llms/openai/auto_rag/app.py
   - Whats the latest news from Meta?
   - Summarize our conversation
 
-### 7. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
-### 8. Star ⭐️ the project if you like it.
+### 7. Star ⭐️ the project if you like it.
 
-### 9. Share with your friends: [https://git.new/auto-rag](https://git.new/auto-rag)
+### 8. Share with your friends: [https://git.new/auto-rag](https://git.new/auto-rag)

@@ -341,6 +341,10 @@ python pdf_assistant.py --new
 
 ### Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
+## Tutorials
+
+[![Autonomous RAG](https://img.youtube.com/vi/fkBkNWivq-s/maxresdefault.jpg)](https://www.youtube.com/watch?v=fkBkNWivq-s "Autonomous RAG")
+
 ## Looking to build an AI product?
 
 We've helped many companies build AI products, the general workflow is:

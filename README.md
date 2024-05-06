@@ -10,7 +10,7 @@ Phidata adds memory, knowledge and tools to LLMs
 
 ## What is phidata?
 
-Phidata is a framework for adding memory, knowledge and tools to LLMs. Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
+Phidata is a framework for adding memory, knowledge and tools to LLMs. <br/> Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 
 ## Why phidata?
 

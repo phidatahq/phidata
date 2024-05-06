@@ -3,20 +3,22 @@
 </h1>
 
 <h3 align="center">
-Phidata adds memory, knowledge and tools to LLMs
+Phidata provides memory, knowledge and tools for LLMs
 </h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
-## Why phidata
+## What is phidata?
+
+Phidata is a framework for adding memory, knowledge and tools to LLMs. Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
+
+## Why phidata?
 
 **Problem:** LLMs have limited context and cannot take actions.<br />
 **Solution:** Add memory, knowledge and tools.
 - **Memory:** Enables LLMs to have long-term conversations by storing **chat history** in a database.
 - **Knowledge:** Provides LLMs with **business context** by storing information in a vector database.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
-
-Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 
 ## How it works
 

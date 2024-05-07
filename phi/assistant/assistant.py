@@ -1504,11 +1504,12 @@ class Assistant(BaseModel):
         stream: bool = True,
         markdown: bool = False,
         exit_on: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         from rich.prompt import Prompt
 
         if message:
-            self.print_response(message=message, stream=stream, markdown=markdown)
+            self.print_response(message=message, stream=stream, markdown=markdown, **kwargs)
 
         _exit_on = exit_on or ["exit", "quit", "bye"]
         while True:
@@ -1516,4 +1517,4 @@ class Assistant(BaseModel):
             if message in _exit_on:
                 break
 
-            self.print_response(message=message, stream=stream, markdown=markdown)
+            self.print_response(message=message, stream=stream, markdown=markdown, **kwargs)

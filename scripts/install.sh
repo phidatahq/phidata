@@ -1,19 +1,26 @@
-@echo off
-:: Install phidata
-:: Usage:
-::   .\scripts\install.bat
+#!/bin/bash
 
-set "CURR_DIR=%~dp0"
-set "REPO_ROOT=%~dp0.."
-call "%CURR_DIR%_utils.bat"
+############################################################################
+#
+# Install phidata
+# Usage:
+#   ./scripts/install.sh
+#
+############################################################################
 
-:main
-call :print_heading "Installing phidata"
+CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$( dirname ${CURR_DIR} )"
+source ${CURR_DIR}/_utils.sh
 
-call :print_heading "Installing requirements.txt"
-call "%REPO_ROOT%\phienv\Scripts\pip" install --no-deps -r "%REPO_ROOT%\requirements.txt"
+main() {
+  print_heading "Installing phidata"
 
-call :print_heading "Installing phidata with [dev] extras"
-call "%REPO_ROOT%\phienv\Scripts\pip" install --editable "%REPO_ROOT%[dev]"
+  print_heading "Installing requirements.txt"
+  pip install --no-deps \
+    -r ${REPO_ROOT}/requirements.txt
 
-goto :eof
+  print_heading "Installing phidata with [dev] extras"
+  pip install --editable "${REPO_ROOT}[dev]"
+}
+
+main "$@"

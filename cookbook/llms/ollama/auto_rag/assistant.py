@@ -30,8 +30,8 @@ def get_auto_rag_assistant(
                 collection="auto_rag_documents_groq_ollama",
                 embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
             ),
-            # 2 references are added to the prompt
-            num_documents=2,
+            # 1 reference are added to the prompt
+            num_documents=1,
         ),
         description="You are an Assistant called 'AutoRAG' that answers questions by calling functions.",
         instructions=[

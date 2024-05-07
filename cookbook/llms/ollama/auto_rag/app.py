@@ -15,7 +15,7 @@ st.set_page_config(
     page_title="Autonomous RAG",
     page_icon=":orange_heart:",
 )
-st.title("Local Autonomous RAG with Ollama")
+st.title("Local Auto RAG")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 
@@ -93,7 +93,7 @@ def main() -> None:
             if input_url is not None:
                 alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
                 if f"{input_url}_scraped" not in st.session_state:
-                    scraper = WebsiteReader(max_links=2, max_depth=1)
+                    scraper = WebsiteReader(max_links=2, max_depth=1, chunk_size=2000)
                     web_documents: List[Document] = scraper.read(input_url)
                     if web_documents:
                         auto_rag_assistant.knowledge_base.load_documents(web_documents, upsert=True)
@@ -114,7 +114,7 @@ def main() -> None:
             alert = st.sidebar.info("Processing PDF...", icon="🧠")
             rag_name = uploaded_file.name.split(".")[0]
             if f"{rag_name}_uploaded" not in st.session_state:
-                reader = PDFReader()
+                reader = PDFReader(chunk_size=2000)
                 rag_documents: List[Document] = reader.read(uploaded_file)
                 if rag_documents:
                     auto_rag_assistant.knowledge_base.load_documents(rag_documents, upsert=True)

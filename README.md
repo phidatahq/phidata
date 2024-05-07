@@ -361,7 +361,7 @@ We also provide dedicated support and development, [book a call](https://cal.com
 
 ## Contributions
 
-We're an open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+We're an open-source project and welcome contributions, please read the [contributing guide](https://github.com/phidatahq/phidata/blob/main/CONTRIBUTING.md) for more information.
 
 ## Request a feature
 

@@ -1,4 +1,4 @@
-# Local Autonomous RAG with Hermes 2 Pro Llama3 on Ollama
+# Autonomous RAG with Local Models
 
 This cookbook shows how to do Autonomous retrieval-augmented generation with Hermes 2 Pro Llama3 on Ollama.
 
@@ -68,4 +68,4 @@ streamlit run cookbook/llms/ollama/auto_rag/app.py
 
 ### 7. Star ⭐️ the project if you like it.
 
-### 8. Share with your friends: https://git.new/local-autorag
+### 8. Share with your friends: https://git.new/ollama-autorag

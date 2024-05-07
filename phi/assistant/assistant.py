@@ -275,18 +275,6 @@ class Assistant(BaseModel):
         if self.output_model is not None and self.llm.response_format is None:
             self.llm.response_format = {"type": "json_object"}
 
-        tools = self.tools
-        if self.team is not None and len(self.team) > 0:
-            if tools is None:
-                tools = []
-            for assistant_index, assistant in enumerate(self.team):
-                tools.append(self.get_delegation_function(assistant, assistant_index))
-
-        # Add tools to the LLM
-        if tools is not None:
-            for tool in tools:
-                self.llm.add_tool(tool)
-
         # Add default tools to the LLM
         if self.use_tools:
             self.read_chat_history = True
@@ -302,6 +290,15 @@ class Assistant(BaseModel):
                 self.llm.add_tool(self.search_knowledge_base)
             if self.update_knowledge:
                 self.llm.add_tool(self.add_to_knowledge_base)
+
+        # Add tools to the LLM
+        if self.tools is not None:
+            for tool in self.tools:
+                self.llm.add_tool(tool)
+
+        if self.team is not None and len(self.team) > 0:
+            for assistant_index, assistant in enumerate(self.team):
+                self.llm.add_tool(self.get_delegation_function(assistant, assistant_index))
 
         # Set show_tool_calls if it is not set on the llm
         if self.llm.show_tool_calls is None and self.show_tool_calls is not None:

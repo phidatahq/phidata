@@ -5,6 +5,7 @@ pip install openai yfinance phidata
 
 from pathlib import Path
 from shutil import rmtree
+from phi.llm.groq import Groq
 from phi.assistant import Assistant
 from phi.workflow import Workflow, Task
 from phi.tools.yfinance import YFinanceTools
@@ -18,6 +19,7 @@ reports_dir.mkdir(parents=True, exist_ok=True)
 
 stock_analyst = Assistant(
     name="Stock Analyst",
+    llm=Groq(model="llama3-70b-8192"),
     tools=[
         YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True),
         FileTools(base_dir=reports_dir),
@@ -33,6 +35,7 @@ stock_analyst = Assistant(
 )
 research_analyst = Assistant(
     name="Research Analyst",
+    llm=Groq(model="llama3-70b-8192"),
     tools=[FileTools(base_dir=reports_dir)],
     description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a ranked list of companies based on their investment potential.",
     instructions=[
@@ -47,6 +50,7 @@ research_analyst = Assistant(
 
 investment_lead = Assistant(
     name="Investment Lead",
+    llm=Groq(model="llama3-70b-8192"),
     tools=[FileTools(base_dir=reports_dir)],
     description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",
     instructions=[
@@ -76,4 +80,4 @@ investment_workflow = Workflow(
     debug_mode=True,
 )
 
-investment_workflow.print_response(markdown=True)
+investment_workflow.print_response(markdown=True, stream=False)

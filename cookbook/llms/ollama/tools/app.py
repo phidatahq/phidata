@@ -3,7 +3,7 @@ import streamlit as st
 from phi.assistant import Assistant
 from phi.utils.log import logger
 
-from assistant import get_local_assistant  # type: ignore
+from assistant import get_function_calling_assistant  # type: ignore
 
 nest_asyncio.apply()
 
@@ -71,7 +71,7 @@ def main() -> None:
     local_assistant: Assistant
     if "local_assistant" not in st.session_state or st.session_state["local_assistant"] is None:
         logger.info(f"---*--- Creating {llm_id} Assistant ---*---")
-        local_assistant = get_local_assistant(
+        local_assistant = get_function_calling_assistant(
             llm_id=llm_id,
             ddg_search=ddg_search_enabled,
             yfinance=yfinance_tools_enabled,

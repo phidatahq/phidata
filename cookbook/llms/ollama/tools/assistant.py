@@ -8,7 +8,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
 
 
-def get_local_assistant(
+def get_function_calling_assistant(
     llm_id: str = "llama3",
     ddg_search: bool = False,
     yfinance: bool = False,
@@ -16,14 +16,20 @@ def get_local_assistant(
     run_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Assistant:
-    """Get a Local Autonomous Assistant."""
+    """Get a Function Calling Assistant."""
 
     tools: List[Any] = []
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
     if yfinance:
         tools.append(
-            YFinanceTools(stock_price=True, stock_fundamentals=True, analyst_recommendations=True, company_news=True)
+            YFinanceTools(
+                company_info=True,
+                stock_price=True,
+                stock_fundamentals=True,
+                analyst_recommendations=True,
+                company_news=True,
+            )
         )
 
     _llm_id = llm_id
@@ -37,8 +43,10 @@ def get_local_assistant(
         llm=Ollama(model=_llm_id),
         tools=tools,
         show_tool_calls=True,
+        description="You can access real-time data and information by calling functions.",
         # This setting tells the LLM to format messages in markdown
         markdown=True,
+        # This setting adds the current datetime to the instructions
         add_datetime_to_instructions=True,
         debug_mode=debug_mode,
     )

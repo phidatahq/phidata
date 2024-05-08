@@ -9,15 +9,9 @@ This cookbook shows how to do function calling with local models.
 Pull the LLM you'd like to use:
 
 ```shell
-ollama pull llama3
-
-ollama pull openhermes
-
-ollama pull adrienbrault/nous-hermes2pro:Q8_0
-
 ollama pull adrienbrault/nous-hermes2pro-llama3-8b:q8_0
 
-ollama pull adrienbrault/nous-hermes2pro:Q8_0
+ollama pull llama3
 ```
 
 ### 2. Create a virtual environment
@@ -49,3 +43,5 @@ streamlit run cookbook/llms/ollama/tools/app.py
 ### 5. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 6. Star ⭐️ the project if you like it.
+
+### 7. Share with your friends: https://git.new/ollama-tools

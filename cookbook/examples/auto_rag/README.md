@@ -23,7 +23,7 @@ export OPENAI_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -r cookbook/llms/openai/auto_rag/requirements.txt
+pip install -r cookbook/examples/auto_rag/requirements.txt
 ```
 
 ### 4. Run PgVector
@@ -53,7 +53,7 @@ docker run -d \
 ### 5. Run Autonomous RAG App
 
 ```shell
-streamlit run cookbook/llms/openai/auto_rag/app.py
+streamlit run cookbook/examples/auto_rag/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your RAG app.

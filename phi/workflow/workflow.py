@@ -124,8 +124,7 @@ class Workflow(BaseModel):
             resp = self._run(message=message, stream=True, **kwargs)
             return resp
         else:
-            resp = self._run(message=message, stream=False, **kwargs)
-            return next(resp)
+            return "".join(self._run(message=message, stream=False, **kwargs))
 
     def print_response(
         self,

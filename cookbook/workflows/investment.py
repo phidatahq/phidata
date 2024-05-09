@@ -1,6 +1,6 @@
 """
 Please install dependencies using:
-pip install openai yfinance phidata
+pip install groq yfinance phidata
 """
 
 from pathlib import Path
@@ -9,54 +9,53 @@ from phi.llm.groq import Groq
 from phi.assistant import Assistant
 from phi.workflow import Workflow, Task
 from phi.tools.yfinance import YFinanceTools
-from phi.tools.file import FileTools
 
 
 reports_dir = Path(__file__).parent.parent.parent.joinpath("wip", "reports")
 if reports_dir.is_dir():
     rmtree(path=reports_dir, ignore_errors=True)
 reports_dir.mkdir(parents=True, exist_ok=True)
+stock_analyst_report = str(reports_dir.joinpath("stock_analyst_report.md"))
+research_analyst_report = str(reports_dir.joinpath("research_analyst_report.md"))
+investment_report = str(reports_dir.joinpath("investment_report.md"))
 
 stock_analyst = Assistant(
     name="Stock Analyst",
     llm=Groq(model="llama3-70b-8192"),
-    tools=[
-        YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True),
-        FileTools(base_dir=reports_dir),
-    ],
+    tools=[YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True)],
     description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",
     instructions=[
         "You will be provided with a list of companies to write a report on.",
         "Get the company information, analyst recommendations and news for each company",
-        "Save your report to a file in markdown format with the name {company_name.md}.",
+        "Generate an in-depth report for each company in markdown format with all the facts and details."
         "Note: This is only for educational purposes.",
     ],
-    expected_output="Markdown format file with name {company_name.md}",
+    expected_output="Report in markdown format",
+    save_output_to_file=stock_analyst_report,
 )
 research_analyst = Assistant(
     name="Research Analyst",
     llm=Groq(model="llama3-70b-8192"),
-    tools=[FileTools(base_dir=reports_dir)],
     description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a ranked list of companies based on their investment potential.",
     instructions=[
-        "You will write a research report based on the information available in files produced by the Stock Analyst.",
-        "Read each file 1 by 1.",
-        "Then think deeply about whether a stock is valuable or not. Be discerning, you are a skeptical investor focused on maximising growth.",
+        "You will write a research report based on the information provided by the Stock Analyst.",
+        "Think deeply about the value of each stock.",
+        "Be discerning, you are a skeptical investor focused on maximising growth.",
         "Then rank the companies in order of investment potential, with as much detail about your decision as possible.",
-        "Finally, save your research report to a file called {research_draft.md}.",
+        "Prepare a markdown report with your findings with as much detail as possible.",
     ],
-    expected_output="Markdown format file with name {research_draft.md}",
+    expected_output="Report in markdown format",
+    save_output_to_file=research_analyst_report,
 )
 
 investment_lead = Assistant(
     name="Investment Lead",
     llm=Groq(model="llama3-70b-8192"),
-    tools=[FileTools(base_dir=reports_dir)],
     description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",
     instructions=[
-        "Review the report in file {research_draft.md} and product a final report in a file called {research_report.md}.",
-        "Make sure to answer the users question correctly, in a clear and concise manner.",
+        "Review the report provided and produce a final client-worth report",
     ],
+    save_output_to_file=investment_report,
 )
 
 investment_workflow = Workflow(

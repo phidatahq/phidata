@@ -38,7 +38,7 @@ class Workflow(BaseModel):
     # Final output of this Workflow
     output: Optional[Any] = None
     # Save the output to a file
-    save_output_to_file: Optional[str] = None
+    # save_output_to_file: Optional[str] = None
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
@@ -111,12 +111,6 @@ class Workflow(BaseModel):
             logger.debug(f"*********** Task {idx} End ***********")
             if not stream:
                 yield task_output
-
-        self.output = "\n".join(workflow_output)
-        if self.save_output_to_file:
-            fn = self.save_output_to_file.format(name=self.name, run_id=self.run_id, user_id=self.user_id)
-            with open(fn, "w") as f:
-                f.write(self.output)
         logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
 
     def run(

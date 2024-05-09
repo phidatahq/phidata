@@ -17,4 +17,6 @@ def exponentiate(base: int, exponent: int) -> str:
 
 
 assistant = Assistant(tools=[multiply, add, exponentiate])
-assistant.print_response("Take 3 to the fifth power and multiply that by the sum of twelve and three, then square the whole result. Only show the result.")
+assistant.print_response(
+    "Take 3 to the fifth power and multiply that by the sum of twelve and three, then square the whole result. Only show the result."
+)

@@ -5,11 +5,8 @@ from phi.knowledge.base import AssistantKnowledge
 from phi.utils.log import logger
 
 try:
-    # I am aadding this to assert that the retreiver we receive is of the correct type.
-    from llama_index.core.retrievers import BaseRetriever
-
     from llama_index.core.schema import NodeWithScore
-
+    from llama_index.core.retrievers import BaseRetriever
 except ImportError:
     raise ImportError("The `llama-index-core` package is not installed. Please install it via `pip install langchain`.")
 
@@ -30,7 +27,6 @@ class LlamaIndexKnowledgeBase(AssistantKnowledge):
             List[Document]: A list of relevant documents matching the query.
         Raises:
             ValueError: If the retriever is not of type BaseRetriever.
-
         """
         if not isinstance(self.retriever, BaseRetriever):
             raise ValueError(f"Retriever is not of type BaseRetriever: {self.retriever}")

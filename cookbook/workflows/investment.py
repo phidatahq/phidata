@@ -13,7 +13,7 @@ from phi.tools.file import FileTools
 
 
 reports_dir = Path(__file__).parent.parent.parent.joinpath("wip", "reports")
-if reports_dir.exists():
+if reports_dir.is_dir():
     rmtree(path=reports_dir, ignore_errors=True)
 reports_dir.mkdir(parents=True, exist_ok=True)
 

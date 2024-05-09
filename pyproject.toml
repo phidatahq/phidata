@@ -119,6 +119,7 @@ module = [
   "tavily.*",
   "textract.*",
   "vertexai.*",
+  "voyageai.*",
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",

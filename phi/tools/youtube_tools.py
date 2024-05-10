@@ -20,7 +20,7 @@ class YouTubeTools(Toolkit):
         get_video_data: bool = True,
         languages: Optional[List[str]] = None,
     ):
-        super().__init__(name="youtube_toolkit")
+        super().__init__(name="youtube_tools")
 
         self.languages: Optional[List[str]] = languages
         if get_video_captions:

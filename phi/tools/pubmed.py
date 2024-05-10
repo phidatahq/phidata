@@ -5,7 +5,7 @@ from xml.etree import ElementTree
 from phi.tools import Toolkit
 
 
-class Pubmed(Toolkit):
+class PubmedTools(Toolkit):
     def __init__(
         self,
         email: str = "your_email@example.com",

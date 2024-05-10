@@ -1,6 +1,6 @@
 from textwrap import dedent
 from phi.assistant import Assistant
-from phi.tools.serpapi_toolkit import SerpApiToolkit
+from phi.tools.serpapi_tools import SerpApiTools
 from phi.tools.newspaper_toolkit import NewspaperToolkit
 
 
@@ -20,7 +20,7 @@ searcher = Assistant(
         "From the results of all searcher, return the 10 most relevant URLs to the topic.",
         "Remember: you are writing for the New York Times, so the quality of the sources is important.",
     ],
-    tools=[SerpApiToolkit()],
+    tools=[SerpApiTools()],
     add_datetime_to_instructions=True,
 )
 writer = Assistant(

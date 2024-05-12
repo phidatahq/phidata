@@ -18,7 +18,4 @@ hn_assistant = Assistant(
     team=[story_researcher, user_researcher],
     # debug_mode=True,
 )
-hn_assistant.print_response(
-    "Write a report about the users with the top 2 stories on hackernews",
-    markdown=True
-)
+hn_assistant.print_response("Write a report about the users with the top 2 stories on hackernews", markdown=True)

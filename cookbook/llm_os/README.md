@@ -1,6 +1,6 @@
 # LLM OS
 
-This cook contains an initial implementation of the LLM OS proposed by [karpathy](https://twitter.com/karpathy/status/1723140519554105733).
+This cookbook contains an initial implementation of the LLM OS proposed by [karpathy](https://twitter.com/karpathy/status/1723140519554105733).
 He talks about it [in this tweet](https://twitter.com/karpathy/status/1723140519554105733), [this tweet](https://twitter.com/karpathy/status/1707437820045062561) and [this video](https://youtu.be/zjkBMFhNj_g?t=2535)
 
 ## The LLM OS philosophy

@@ -14,10 +14,10 @@ from assistants import (
 
 
 st.set_page_config(
-    page_title="Research Team",
+    page_title="Research Workflow",
     page_icon=":orange_heart:",
 )
-st.title("AI Research Team")
+st.title("AI Research Workflow")
 st.markdown("##### :orange_heart: built by [phidata](https://github.com/phidatahq/phidata)")
 
 

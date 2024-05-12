@@ -30,29 +30,29 @@ export AZURE_OPENAI_ENDPOINT=***
 - Streaming
 
 ```shell
-python cookbook/llms/azure/assistant.py
+python cookbook/llms/azure_openai/assistant.py
 ```
 
 - Without Streaming
 
 ```shell
-python cookbook/llms/azure/assistant_stream_off.py
+python cookbook/llms/azure_openai/assistant_stream_off.py
 ```
 
 5. Test Structured output
 
 ```shell
-python cookbook/llms/azure/pydantic_output.py
+python cookbook/llms/azure_openai/pydantic_output.py
 ```
 
 6. Test cli app
 
 ```shell
-python cookbook/llms/azure/cli.py
+python cookbook/llms/azure_openai/cli.py
 ```
 
 7. Test function calling
 
 ```shell
-python cookbook/llms/azure/tool_call.py
+python cookbook/llms/azure_openai/tool_call.py
 ```

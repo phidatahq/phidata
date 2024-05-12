@@ -15,17 +15,24 @@ Please follow the [fork and pull request](https://docs.github.com/en/get-started
 ## Development setup
 
 1. Clone the repository.
-2. Create a virtual environment using the `./scripts/create_venv.sh` script. This will:
-    - Create a `phienv` virtual environment in the current directory.
-    - Install the required packages.
-    - Install the `phidata` package in editable mode.
-3. Activate the virtual environment using `source phienv/bin/activate`.
+2. Create a virtual environment:
+   - For Unix, use `./scripts/create_venv.sh`.
+   - For Windows, use `.\scripts\create_venv_win.bat`.
+   - This setup will:
+     - Create a `phienv` virtual environment in the current directory.
+     - Install the required packages.
+     - Install the `phidata` package in editable mode.
+3. Activate the virtual environment:
+   - On Unix: `source phienv/bin/activate`
+   - On Windows: `phienv\Scripts\activate`
 
 ## Formatting and validation
 
-We provide a `./scripts/format.sh` script that runs `ruff`, `mypy` and `pytest`.
+Ensure your code meets our quality standards by running the appropriate formatting and validation script before submitting a pull request:
+   - For Unix: `./scripts/format.sh`
+   - For Windows: `.\scripts\format.bat`
+These scripts will perform code formatting with `ruff`, static type checks with `mypy`, and run unit tests with `pytest`.
 
-Please run this script before submitting a pull request.
 
 ## Adding a new Vector Database
 

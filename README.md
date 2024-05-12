@@ -8,15 +8,17 @@ Phidata adds memory, knowledge and tools to LLMs
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
-## Why phidata
+## What is phidata?
+
+Phidata is a framework for adding memory, knowledge and tools to LLMs. <br/> Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
+
+## Why phidata?
 
 **Problem:** LLMs have limited context and cannot take actions.<br />
 **Solution:** Add memory, knowledge and tools.
 - **Memory:** Enables LLMs to have long-term conversations by storing **chat history** in a database.
 - **Knowledge:** Provides LLMs with **business context** by storing information in a vector database.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
-
-Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 
 ## How it works
 
@@ -339,6 +341,14 @@ python pdf_assistant.py --new
 
 ### Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
+## Tutorials
+
+[![Autonomous RAG](https://img.youtube.com/vi/fkBkNWivq-s/0.jpg)](https://www.youtube.com/watch?v=fkBkNWivq-s "Autonomous RAG")
+
+[![Local RAG with Llama3](https://img.youtube.com/vi/-8NVHaKKNkM/0.jpg)](https://www.youtube.com/watch?v=-8NVHaKKNkM "Local RAG with Llama3")
+
+[![Llama3 Research Assistant powered by Groq](https://img.youtube.com/vi/Iv9dewmcFbs/0.jpg)](https://www.youtube.com/watch?v=Iv9dewmcFbs "Llama3 Research Assistant powered by Groq")
+
 ## Looking to build an AI product?
 
 We've helped many companies build AI products, the general workflow is:
@@ -351,7 +361,7 @@ We also provide dedicated support and development, [book a call](https://cal.com
 
 ## Contributions
 
-We're an open-source project and welcome contributions, please read the [contributing guide](CONTRIBUTING.md) for more information.
+We're an open-source project and welcome contributions, please read the [contributing guide](https://github.com/phidatahq/phidata/blob/main/CONTRIBUTING.md) for more information.
 
 ## Request a feature
 

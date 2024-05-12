@@ -1,17 +1,14 @@
 """
-Inspired by the fantastic work by Matt Shumer (@mattshumer_): https://twitter.com/mattshumer_/status/1771204395285246215
-
-Please run:
-pip install openai anthropic newspaper3k lxml_html_clean phidata
+Please install dependencies using:
+pip install openai newspaper4k lxml_html_clean phidata
 """
 
 from pathlib import Path
 from shutil import rmtree
-from phi.assistant.team import Assistant
+from phi.assistant import Assistant
 from phi.tools.yfinance import YFinanceTools
-from phi.tools.newspaper_toolkit import NewspaperToolkit
+from phi.tools.newspaper4k import Newspaper4k
 from phi.tools.file import FileTools
-from phi.llm.anthropic import Claude
 
 
 reports_dir = Path(__file__).parent.parent.parent.joinpath("junk", "reports")
@@ -21,11 +18,10 @@ reports_dir.mkdir(parents=True, exist_ok=True)
 
 stock_analyst = Assistant(
     name="Stock Analyst",
-    llm=Claude(model="claude-3-haiku-20240307"),
     role="Get current stock price, analyst recommendations and news for a company.",
     tools=[
         YFinanceTools(stock_price=True, analyst_recommendations=True, company_news=True),
-        NewspaperToolkit(),
+        Newspaper4k(),
         FileTools(base_dir=reports_dir),
     ],
     description="You are an stock analyst tasked with producing factual reports on companies.",

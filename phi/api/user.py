@@ -141,7 +141,7 @@ def create_anon_user() -> Optional[UserSchema]:
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.USER_CREATE, json={"email": "anon", "username": "anon", "is_bot": True}
+                ApiRoutes.USER_CREATE, json={"user": {"email": "anon", "username": "anon", "is_bot": True}}
             )
             if invalid_response(r):
                 return None

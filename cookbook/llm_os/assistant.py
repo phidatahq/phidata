@@ -11,6 +11,7 @@ from phi.tools.shell import ShellTools
 from phi.tools.calculator import Calculator
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
+from phi.tools.file import FileTools
 from phi.llm.openai import OpenAIChat
 from phi.knowledge import AssistantKnowledge
 from phi.embedder.openai import OpenAIEmbedder
@@ -31,6 +32,7 @@ def get_llm_os(
     llm_id: str = "gpt-4-turbo",
     calculator: bool = False,
     ddg_search: bool = False,
+    file_tools: bool = False,
     shell_tools: bool = False,
     data_analyst: bool = False,
     python_assistant: bool = False,
@@ -65,6 +67,11 @@ def get_llm_os(
         extra_instructions.append(
             "You can use the `run_shell_command` tool to run shell commands. For example, `run_shell_command(args='ls')`."
         )
+    if file_tools:
+        tools.append(FileTools(base_dir=cwd))
+        extra_instructions.append(
+            "You can use the `read_file` tool to read a file, `save_file` to save a file, and `list_files` to list files in the working directory."
+        )
 
     # Add team members available to the LLM OS
     team: List[Assistant] = []
@@ -83,6 +90,7 @@ def get_llm_os(
                     ]
                 }
             ),
+            base_dir=scratch_dir,
         )
         team.append(_data_analyst)
         extra_instructions.append(

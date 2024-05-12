@@ -46,6 +46,18 @@ def main() -> None:
         calculator_enabled = calculator
         restart_assistant()
 
+    # Enable file tools
+    if "file_tools_enabled" not in st.session_state:
+        st.session_state["file_tools_enabled"] = True
+    # Get file_tools_enabled from session state if set
+    file_tools_enabled = st.session_state["file_tools_enabled"]
+    # Checkbox for enabling shell tools
+    file_tools = st.sidebar.checkbox("File Tools", value=file_tools_enabled, help="Enable file tools.")
+    if file_tools_enabled != file_tools:
+        st.session_state["file_tools_enabled"] = file_tools
+        file_tools_enabled = file_tools
+        restart_assistant()
+
     # Enable Web Search via DuckDuckGo
     if "ddg_search_enabled" not in st.session_state:
         st.session_state["ddg_search_enabled"] = True
@@ -145,6 +157,7 @@ def main() -> None:
             llm_id=llm_id,
             calculator=calculator_enabled,
             ddg_search=ddg_search_enabled,
+            file_tools=file_tools_enabled,
             shell_tools=shell_tools_enabled,
             data_analyst=data_analyst_enabled,
             python_assistant=python_assistant_enabled,
@@ -260,6 +273,7 @@ def main() -> None:
                 llm_id=llm_id,
                 calculator=calculator_enabled,
                 ddg_search=ddg_search_enabled,
+                file_tools=file_tools_enabled,
                 shell_tools=shell_tools_enabled,
                 data_analyst=data_analyst_enabled,
                 python_assistant=python_assistant_enabled,

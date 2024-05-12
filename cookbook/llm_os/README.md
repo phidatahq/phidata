@@ -46,10 +46,10 @@ pip install -r cookbook/llm_os/requirements.txt
 export OPENAI_API_KEY=***
 ```
 
-- To use Tavily for web search, export your TAVILY_API_KEY (get it from [here](https://app.tavily.com/))
+- To use Exa for research, export your EXA_API_KEY (get it from [here](https://dashboard.exa.ai/api-keys))
 
 ```shell
-export TAVILY_API_KEY=xxx
+export EXA_API_KEY=xxx
 ```
 
 ### 4. Run PgVector
@@ -88,3 +88,5 @@ streamlit run cookbook/llm_os/app.py
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 7. Star ⭐️ the project if you like it.
+
+### Share with your friends: https://git.new/llm-os

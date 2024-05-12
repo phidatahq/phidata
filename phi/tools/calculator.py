@@ -12,10 +12,10 @@ class Calculator(Toolkit):
         subtract: bool = True,
         multiply: bool = True,
         divide: bool = True,
-        exponentiate: bool = True,
-        factorial: bool = True,
-        is_prime: bool = True,
-        square_root: bool = True,
+        exponentiate: bool = False,
+        factorial: bool = False,
+        is_prime: bool = False,
+        square_root: bool = False,
     ):
         super().__init__(name="calculator")
 

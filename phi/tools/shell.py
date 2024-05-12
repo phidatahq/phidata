@@ -1,12 +1,18 @@
-from typing import List
+from pathlib import Path
+from typing import List, Optional, Union
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
 
 class ShellTools(Toolkit):
-    def __init__(self):
+    def __init__(self, base_dir: Optional[Union[Path, str]] = None):
         super().__init__(name="shell_tools")
+
+        self.base_dir: Optional[Path] = None
+        if base_dir is not None:
+            self.base_dir = Path(base_dir) if isinstance(base_dir, str) else base_dir
+
         self.register(self.run_shell_command)
 
     def run_shell_command(self, args: List[str], tail: int = 100) -> str:
@@ -22,6 +28,8 @@ class ShellTools(Toolkit):
 
         try:
             logger.info(f"Running shell command: {args}")
+            if self.base_dir:
+                args = ["cd", str(self.base_dir), ";"] + args
             result = subprocess.run(args, capture_output=True, text=True)
             logger.debug(f"Result: {result}")
             logger.debug(f"Return code: {result.returncode}")

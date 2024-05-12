@@ -1,6 +1,6 @@
 # Autonomous RAG with Llama3 on Groq
 
-This cookbook shows how to do Autonomous retrieval-augmented generation (RAG) using Llama3 on Groq.
+This cookbook shows how to do Autonomous retrieval-augmented generation with Llama3 on Groq.
 
 For embeddings we can either use Ollama or OpenAI.
 
@@ -13,7 +13,7 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Export your Groq API Key
+### 2. Export your `GROQ_API_KEY`
 
 ```shell
 export GROQ_API_KEY=***
@@ -78,8 +78,11 @@ streamlit run cookbook/llms/groq/auto_rag/app.py
 - Example Website: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
 - Ask questions like:
   - What did Meta release?
-  - Tell me more about the Llama 3 models?
+  - Summarize news from france
+  - Summarize our conversation
 
 ### 7. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
 ### 8. Star ⭐️ the project if you like it.
+
+### 9. Share with your friends: https://git.new/groq-autorag

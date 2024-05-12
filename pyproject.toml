@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.0"
+version = "2.4.6"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -94,8 +94,8 @@ module = [
   "kubernetes.*",
   "lancedb.*",
   "langchain.*",
-  "langchain.*",
   "langchain_core.*",
+  "llama_index.*",
   "mistralai.*",
   "newspaper.*",
   "nest_asyncio.*",
@@ -119,6 +119,7 @@ module = [
   "tavily.*",
   "textract.*",
   "vertexai.*",
+  "voyageai.*",
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",

@@ -11,15 +11,15 @@ except ImportError:
     raise ImportError("`google-search-results` not installed.")
 
 
-class SerpApiToolkit(Toolkit):
+class SerpApiTools(Toolkit):
     def __init__(
         self,
-        api_key: Optional[str] = getenv("SERPAPI_KEY"),
+        api_key: Optional[str] = None,
         search_youtube: bool = False,
     ):
         super().__init__(name="serpapi_tools")
 
-        self.api_key = api_key
+        self.api_key = api_key or getenv("SERPAPI_API_KEY")
         if not self.api_key:
             logger.warning("No Serpapi API key provided")
 

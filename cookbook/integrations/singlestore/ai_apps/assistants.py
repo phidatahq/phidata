@@ -28,7 +28,7 @@ SSL_CERT = getenv("SINGLESTORE_SSL_CERT", None)
 db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}?charset=utf8mb4"
 if SSL_CERT:
     db_url += f"&ssl_ca={SSL_CERT}&ssl_verify_cert=true"
-# -*- SingleStore DB Engine
+# -*- single_store_db_engine
 db_engine = create_engine(db_url)
 # ****************************************************************
 

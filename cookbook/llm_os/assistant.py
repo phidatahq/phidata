@@ -29,7 +29,7 @@ if not scratch_dir.exists():
 
 
 def get_llm_os(
-    llm_id: str = "gpt-4-turbo",
+    llm_id: str = "gpt-4o",
     calculator: bool = False,
     ddg_search: bool = False,
     file_tools: bool = False,
@@ -150,7 +150,10 @@ def get_llm_os(
             debug_mode=debug_mode,
         )
         team.append(_research_assistant)
-        extra_instructions.append("To write a research report, delegate the task to the `Research Assistant`.")
+        extra_instructions.append(
+            "To write a research report, delegate the task to the `Research Assistant`. "
+            "Return the report in the <report_format> to the user as is, without any additional text like 'here is the report'."
+        )
     if investment_assistant:
         _investment_assistant = Assistant(
             name="Investment Assistant",
@@ -210,7 +213,9 @@ def get_llm_os(
         team.append(_investment_assistant)
         extra_instructions.extend(
             [
-                "To get an investment report on a stock, delegate the task to the `Investment Assistant`.",
+                "To get an investment report on a stock, delegate the task to the `Investment Assistant`. "
+                "Return the report in the <report_format> to the user without any additional text like 'here is the report'.",
+                "Answer any questions they may have using the information in the report.",
                 "Never provide investment advise without the investment report.",
             ]
         )

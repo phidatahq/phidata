@@ -3,6 +3,7 @@ from typing import List
 
 import nest_asyncio
 import streamlit as st
+import json
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader

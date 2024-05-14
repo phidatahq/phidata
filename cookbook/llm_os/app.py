@@ -262,7 +262,10 @@ def main() -> None:
                 with open(csv_path, "wb") as f:
                     f.write(uploaded_csv.getbuffer())
                 st.session_state[f"{csv_name}_uploaded"] = True
-                llm_os.tools[0].csvs.append(csv_path)
+                for tool in llm_os.tools:
+                    if isinstance(tool, CsvTools):
+                        tool.csvs.append(csv_path)
+                        break
             alert.empty()
 
         # Add PDFs to knowledge base

@@ -87,7 +87,7 @@ def main() -> None:
 
     # Enable Data Analyst
     if "data_analyst_enabled" not in st.session_state:
-        st.session_state["data_analyst_enabled"] = False
+        st.session_state["data_analyst_enabled"] = True
     # Get data_analyst_enabled from session state if set
     data_analyst_enabled = st.session_state["data_analyst_enabled"]
     # Checkbox for enabling web search
@@ -103,7 +103,7 @@ def main() -> None:
 
     # Enable Python Assistant
     if "python_assistant_enabled" not in st.session_state:
-        st.session_state["python_assistant_enabled"] = False
+        st.session_state["python_assistant_enabled"] = True
     # Get python_assistant_enabled from session state if set
     python_assistant_enabled = st.session_state["python_assistant_enabled"]
     # Checkbox for enabling web search
@@ -119,7 +119,7 @@ def main() -> None:
 
     # Enable Research Assistant
     if "research_assistant_enabled" not in st.session_state:
-        st.session_state["research_assistant_enabled"] = False
+        st.session_state["research_assistant_enabled"] = True
     # Get research_assistant_enabled from session state if set
     research_assistant_enabled = st.session_state["research_assistant_enabled"]
     # Checkbox for enabling web search
@@ -135,7 +135,7 @@ def main() -> None:
 
     # Enable Investment Assistant
     if "investment_assistant_enabled" not in st.session_state:
-        st.session_state["investment_assistant_enabled"] = False
+        st.session_state["investment_assistant_enabled"] = True
     # Get investment_assistant_enabled from session state if set
     investment_assistant_enabled = st.session_state["investment_assistant_enabled"]
     # Checkbox for enabling web search

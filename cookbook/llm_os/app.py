@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List
 
 import nest_asyncio
@@ -11,6 +12,11 @@ from phi.utils.log import logger
 from assistant import get_llm_os  # type: ignore
 
 nest_asyncio.apply()
+
+cwd = Path(__file__).parent.resolve()
+scratch_dir = cwd.joinpath("scratch")
+if not scratch_dir.exists():
+    scratch_dir.mkdir(exist_ok=True, parents=True)
 
 st.set_page_config(
     page_title="LLM OS",

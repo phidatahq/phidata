@@ -10,7 +10,8 @@ Build Autonomous Assistants with memory, knowledge and tools
 
 ## What is phidata?
 
-Phidata is a framework for building Autonomous Assistants using LLMs. <br />We add memory & knowledge to make LLMs **smarter** and give them tools to make them **autonomous**.
+Phidata is a framework for building Autonomous Assistants using LLMs.
+<br />Add memory & knowledge to make LLMs **smarter** and add tools to make them **autonomous**.
 
 ## Why phidata?
 

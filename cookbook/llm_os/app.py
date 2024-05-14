@@ -210,9 +210,11 @@ def main() -> None:
         )
         logger.info(f"Tools in llm_os: {len(llm_os.tools)}")
         st.session_state["llm_os"] = llm_os
+        st.sidebar.info(f"Number of tools: {len(llm_os.tools)}")
     else:
         llm_os = st.session_state["llm_os"]
         logger.info(f"Tools in llm_os from session: {len(llm_os.tools)}")
+        st.sidebar.info(f"Number of tools: {len(llm_os.tools)}")
 
     # Create assistant run (i.e. log to database) and save run_id in session state
     try:

@@ -225,7 +225,14 @@ def main() -> None:
                 resp_container.markdown(response)
             st.session_state["messages"].append({"role": "assistant", "content": response})
 
-    # Load LLM OS knowledge base
+    # Save chat history
+    if st.sidebar.button("Save Chat History"):
+        if "messages" in st.session_state:
+            chat_history = st.session_state["messages"]
+            chat_history_path = scratch_dir.joinpath("chat_history.json")
+            with open(chat_history_path, "w") as f:
+                json.dump(chat_history, f, indent=4)
+            st.sidebar.success(f"Chat history saved to {chat_history_path}")
     if llm_os.knowledge_base:
         # -*- Add websites to knowledge base
         if "url_scrape_key" not in st.session_state:

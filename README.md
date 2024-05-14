@@ -72,7 +72,7 @@ python assistant.py
 ## Examples
 
 - [LLM OS](https://github.com/phidatahq/phidata/tree/main/cookbook/llm_os): Using LLMs as the CPU for an emerging Operating System.
-- [Autonomous RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/examples/auto_rag): Autonomous RAG gives LLMs tools to search its knowledge, web or chat history to answer questions.
+- [Autonomous RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/examples/auto_rag): Gives LLMs tools to search its knowledge, web or chat history.
 - [Local RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/ollama/rag): Fully local RAG with Ollama and PgVector.
 - [Investment Researcher](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/investment_researcher): Generate investment reports on stocks using Llama3 and Groq.
 - [News Articles](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/news_articles): Write News Articles using Llama3 and Groq.

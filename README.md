@@ -34,7 +34,7 @@ Phidata is a framework for building Autonomous Assistants (i.e. Agents) using LL
 pip install -U phidata
 ```
 
-## Example: Assistant that can search the web
+### Quickstart: Assistant that can search the web
 
 Create a file `assistant.py`
 

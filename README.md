@@ -34,7 +34,7 @@ Phidata is a framework for building Autonomous Assistants (i.e. Agents) using LL
 pip install -U phidata
 ```
 
-### Quickstart: Assistant that can search the web
+## Quickstart: Assistant that can search the web
 
 Create a file `assistant.py`
 
@@ -46,21 +46,13 @@ assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
 assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
-Install libraries
+Install libraries, Export your OPENAI_API_KEY and run the `Assistant`
 
 ```shell
 pip install openai duckduckgo-search
-```
 
-Export your OPENAI_API_KEY
-
-```shell
 export OPENAI_API_KEY=sk-xxxx
-```
 
-Run the `Assistant` and let it search the web using `DuckDuckGo`
-
-```shell
 python assistant.py
 ```
 

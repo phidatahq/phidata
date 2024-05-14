@@ -237,6 +237,14 @@ def get_llm_os(
             ]
         )
 
+    # Deduplicate tools
+    unique_tools = list({tool.name: tool for tool in tools}.values())
+
+    # Ensure the total number of tools does not exceed the maximum allowed length of 128
+    if len(unique_tools) > 128:
+        logger.warning("The number of tools exceeds the maximum allowed length of 128. Truncating the list of tools.")
+        unique_tools = unique_tools[:128]
+
     # Create the LLM OS Assistant
     llm_os = Assistant(
         name="llm_os",
@@ -277,7 +285,7 @@ def get_llm_os(
             num_documents=3,
         ),
         # Add selected tools to the LLM OS
-        tools=tools,
+        tools=unique_tools,
         # Add selected team members to the LLM OS
         team=team,
         # Show tool calls in the chat
@@ -302,10 +310,6 @@ def get_llm_os(
         """),
         debug_mode=debug_mode,
     )
-    # Ensure the total number of tools does not exceed the maximum allowed length of 128
-    if len(tools) > 128:
-        logger.warning("The number of tools exceeds the maximum allowed length of 128. Truncating the list of tools.")
-        tools = tools[:128]
 
-    logger.info(f"Final tools list: {tools}")
+    logger.info(f"Final tools list: {unique_tools}")
     return llm_os

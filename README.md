@@ -63,13 +63,6 @@ Run the `Assistant` and let it search the web using `DuckDuckGo`
 python assistant.py
 ```
 
-- To enable Langsmith telemetry, export the following environment variables:
-
-```shell
-export LANGCHAIN_TRACING_V2=true
-export LANGCHAIN_API_KEY=<your-api-key>
-```
-
 ## Next Steps
 
 1. Read the <a href="https://docs.phidata.com/basics" target="_blank" rel="noopener noreferrer">basics</a> to learn more about phidata.

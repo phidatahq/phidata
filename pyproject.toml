@@ -110,6 +110,7 @@ module = [
   "psycopg.*",
   "pypdf.*",
   "qdrant_client.*",
+  "rapidocr_onnxruntime.*",
   "requests.*",
   "simplejson.*",
   "serpapi.*",

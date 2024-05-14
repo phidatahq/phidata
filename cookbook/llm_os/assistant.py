@@ -300,4 +300,9 @@ def get_llm_os(
         """),
         debug_mode=debug_mode,
     )
+    # Ensure the total number of tools does not exceed the maximum allowed length of 128
+    if len(tools) > 128:
+        logger.warning("The number of tools exceeds the maximum allowed length of 128. Truncating the list of tools.")
+        tools = tools[:128]
+
     return llm_os

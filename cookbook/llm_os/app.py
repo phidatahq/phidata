@@ -177,6 +177,20 @@ def main() -> None:
         investment_assistant_enabled = investment_assistant
         restart_assistant()
 
+    # Ensure the total number of tools does not exceed the maximum allowed length of 128
+    max_tools = 128
+    selected_tools = [
+        calculator_enabled,
+        ddg_search_enabled,
+        file_tools_enabled,
+        csv_tools_enabled,
+        shell_tools_enabled,
+        yfinance_tools_enabled,
+    ]
+    if sum(selected_tools) > max_tools:
+        st.sidebar.warning(f"The number of selected tools exceeds the maximum allowed length of {max_tools}. Please deselect some tools.")
+        return
+
     # Get the assistant
     llm_os: Assistant
     if "llm_os" not in st.session_state or st.session_state["llm_os"] is None:

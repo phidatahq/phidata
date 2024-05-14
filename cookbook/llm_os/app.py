@@ -1,16 +1,24 @@
+from pathlib import Path
 from typing import List
 
 import nest_asyncio
 import streamlit as st
+import json
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
+from phi.tools.csv_tools import CsvTools
 from phi.utils.log import logger
 
 from assistant import get_llm_os  # type: ignore
 
 nest_asyncio.apply()
+
+cwd = Path(__file__).parent.resolve()
+scratch_dir = cwd.joinpath("scratch")
+if not scratch_dir.exists():
+    scratch_dir.mkdir(exist_ok=True, parents=True)
 
 st.set_page_config(
     page_title="LLM OS",
@@ -70,7 +78,27 @@ def main() -> None:
         ddg_search_enabled = ddg_search
         restart_assistant()
 
-    # Enable shell tools
+    # Enable Yahoo Finance Tools
+    if "yfinance_tools_enabled" not in st.session_state:
+        st.session_state["yfinance_tools_enabled"] = False
+    # Get yfinance_tools_enabled from session state if set
+    yfinance_tools_enabled = st.session_state["yfinance_tools_enabled"]
+    # Checkbox for enabling Yahoo Finance tools
+    yfinance_tools = st.sidebar.checkbox("Yahoo Finance Tools", value=yfinance_tools_enabled, help="Enable Yahoo Finance tools.")
+    if yfinance_tools_enabled != yfinance_tools:
+        st.session_state["yfinance_tools_enabled"] = yfinance_tools
+        yfinance_tools_enabled = yfinance_tools
+        restart_assistant()
+    if "csv_tools_enabled" not in st.session_state:
+        st.session_state["csv_tools_enabled"] = False
+    # Get csv_tools_enabled from session state if set
+    csv_tools_enabled = st.session_state["csv_tools_enabled"]
+    # Checkbox for enabling CSV tools
+    csv_tools = st.sidebar.checkbox("CSV Tools", value=csv_tools_enabled, help="Enable CSV tools.")
+    if csv_tools_enabled != csv_tools:
+        st.session_state["csv_tools_enabled"] = csv_tools
+        csv_tools_enabled = csv_tools
+        restart_assistant()
     if "shell_tools_enabled" not in st.session_state:
         st.session_state["shell_tools_enabled"] = False
     # Get shell_tools_enabled from session state if set
@@ -149,6 +177,20 @@ def main() -> None:
         investment_assistant_enabled = investment_assistant
         restart_assistant()
 
+    # Ensure the total number of tools does not exceed the maximum allowed length of 128
+    max_tools = 128
+    selected_tools = [
+        calculator_enabled,
+        ddg_search_enabled,
+        file_tools_enabled,
+        csv_tools_enabled,
+        shell_tools_enabled,
+        yfinance_tools_enabled,
+    ]
+    if sum(selected_tools) > max_tools:
+        st.sidebar.warning(f"The number of selected tools exceeds the maximum allowed length of {max_tools}. Please deselect some tools.")
+        return
+
     # Get the assistant
     llm_os: Assistant
     if "llm_os" not in st.session_state or st.session_state["llm_os"] is None:
@@ -158,15 +200,21 @@ def main() -> None:
             calculator=calculator_enabled,
             ddg_search=ddg_search_enabled,
             file_tools=file_tools_enabled,
+            csv_tools=csv_tools_enabled,
             shell_tools=shell_tools_enabled,
+            yfinance_tools=yfinance_tools_enabled,
             data_analyst=data_analyst_enabled,
             python_assistant=python_assistant_enabled,
             research_assistant=research_assistant_enabled,
             investment_assistant=investment_assistant_enabled,
         )
+        logger.info(f"Tools in llm_os: {len(llm_os.tools)}")
         st.session_state["llm_os"] = llm_os
+        st.sidebar.info(f"Number of tools: {len(llm_os.tools)}")
     else:
         llm_os = st.session_state["llm_os"]
+        logger.info(f"Tools in llm_os from session: {len(llm_os.tools)}")
+        st.sidebar.info(f"Number of tools: {len(llm_os.tools)}")
 
     # Create assistant run (i.e. log to database) and save run_id in session state
     try:
@@ -178,10 +226,10 @@ def main() -> None:
     # Load existing messages
     assistant_chat_history = llm_os.memory.get_chat_history()
     if len(assistant_chat_history) > 0:
-        logger.debug("Loading chat history")
+        logger.debug("Loading chat history.")
         st.session_state["messages"] = assistant_chat_history
     else:
-        logger.debug("No chat history found")
+        logger.debug("No chat history found.")
         st.session_state["messages"] = [{"role": "assistant", "content": "Ask me questions..."}]
 
     # Prompt for user input
@@ -207,7 +255,14 @@ def main() -> None:
                 resp_container.markdown(response)
             st.session_state["messages"].append({"role": "assistant", "content": response})
 
-    # Load LLM OS knowledge base
+    # Save chat history
+    if st.sidebar.button("Save Chat History"):
+        if "messages" in st.session_state:
+            chat_history = st.session_state["messages"]
+            chat_history_path = scratch_dir.joinpath("chat_history.json")
+            with open(chat_history_path, "w") as f:
+                json.dump(chat_history, f, indent=4)
+            st.sidebar.success(f"Chat history saved to {chat_history_path}")
     if llm_os.knowledge_base:
         # -*- Add websites to knowledge base
         if "url_scrape_key" not in st.session_state:
@@ -229,6 +284,29 @@ def main() -> None:
                         st.sidebar.error("Could not read website")
                     st.session_state[f"{input_url}_uploaded"] = True
                 alert.empty()
+
+        # Add CSVs to knowledge base
+        if "csv_uploader_key" not in st.session_state:
+            st.session_state["csv_uploader_key"] = 200
+
+        uploaded_csv = st.sidebar.file_uploader(
+            "Add a CSV :page_facing_up:", type="csv", key=st.session_state["csv_uploader_key"]
+        )
+        if uploaded_csv is not None:
+            alert = st.sidebar.info("Processing CSV...", icon="🧠")
+            csv_name = uploaded_csv.name.split(".")[0]
+            if f"{csv_name}_uploaded" not in st.session_state:
+                csv_path = scratch_dir.joinpath(uploaded_csv.name)
+                with open(csv_path, "wb") as f:
+                    f.write(uploaded_csv.getbuffer())
+                st.session_state[f"{csv_name}_uploaded"] = True
+                for tool in llm_os.tools:
+                    if isinstance(tool, CsvTools):
+                        tool.csvs.append(csv_path)
+                        tool.csvs = list(set(tool.csvs))  # Ensure no duplicates
+                        st.sidebar.success(f"CSV file '{uploaded_csv.name}' added successfully.")
+                        break
+            alert.empty()
 
         # Add PDFs to knowledge base
         if "file_uploader_key" not in st.session_state:
@@ -282,13 +360,26 @@ def main() -> None:
                 run_id=new_llm_os_run_id,
             )
             st.rerun()
+            st.session_state["llm_os"] = get_llm_os(
+                llm_id=llm_id,
+                calculator=calculator_enabled,
+                ddg_search=ddg_search_enabled,
+                file_tools=file_tools_enabled,
+                shell_tools=shell_tools_enabled,
+                data_analyst=data_analyst_enabled,
+                python_assistant=python_assistant_enabled,
+                research_assistant=research_assistant_enabled,
+                investment_assistant=investment_assistant_enabled,
+                run_id=new_llm_os_run_id,
+            )
+            st.rerun()
 
     if st.sidebar.button("New Run"):
         restart_assistant()
 
 
 def restart_assistant():
-    logger.debug("---*--- Restarting Assistant ---*---")
+    logger.info("---*--- Restarting Assistant ---*---")
     st.session_state["llm_os"] = None
     st.session_state["llm_os_run_id"] = None
     if "url_scrape_key" in st.session_state:

@@ -13,6 +13,8 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.file import FileTools
 from phi.llm.openai import OpenAIChat
+from phi.tools.csv_tools import CsvTools
+from phi.tools.yfinance import YFinanceTools
 from phi.knowledge import AssistantKnowledge
 from phi.embedder.openai import OpenAIEmbedder
 from phi.assistant.duckdb import DuckDbAssistant
@@ -33,7 +35,9 @@ def get_llm_os(
     calculator: bool = False,
     ddg_search: bool = False,
     file_tools: bool = False,
+    csv_tools: bool = False,
     shell_tools: bool = False,
+    yfinance_tools: bool = False,
     data_analyst: bool = False,
     python_assistant: bool = False,
     research_assistant: bool = False,
@@ -47,6 +51,8 @@ def get_llm_os(
     # Add tools available to the LLM OS
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
+    logger.info(f"Initial tools list: {tools}")
+
     if calculator:
         tools.append(
             Calculator(
@@ -62,6 +68,17 @@ def get_llm_os(
         )
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
+    if csv_tools:
+        tools.append(CsvTools())
+        extra_instructions.append(
+            "You can use the `read_csv_file` tool to read a CSV file, `list_csv_files` to list available CSV files, and `query_csv_file` to run SQL queries on a CSV file."
+        )
+    if yfinance_tools:
+        tools.append(YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True))
+        extra_instructions.append(
+            "You can use the `get_stock_price` tool to get stock prices, `get_company_info` to get company information, "
+            "`get_analyst_recommendations` to get analyst recommendations, and `get_company_news` to get company news."
+        )
     if shell_tools:
         tools.append(ShellTools())
         extra_instructions.append(
@@ -220,6 +237,14 @@ def get_llm_os(
             ]
         )
 
+    # Deduplicate tools
+    unique_tools = list({tool.name: tool for tool in tools}.values())
+
+    # Ensure the total number of tools does not exceed the maximum allowed length of 128
+    if len(unique_tools) > 128:
+        logger.warning("The number of tools exceeds the maximum allowed length of 128. Truncating the list of tools.")
+        unique_tools = unique_tools[:128]
+
     # Create the LLM OS Assistant
     llm_os = Assistant(
         name="llm_os",
@@ -260,7 +285,7 @@ def get_llm_os(
             num_documents=3,
         ),
         # Add selected tools to the LLM OS
-        tools=tools,
+        tools=unique_tools,
         # Add selected team members to the LLM OS
         team=team,
         # Show tool calls in the chat
@@ -285,4 +310,6 @@ def get_llm_os(
         """),
         debug_mode=debug_mode,
     )
+
+    logger.info(f"Final tools list: {unique_tools}")
     return llm_os

@@ -840,6 +840,7 @@ class Assistant(BaseModel):
         llm_response = ""
         self.llm = cast(LLM, self.llm)
         if stream and self.streamable:
+            logger.debug(f"LLM Messages: {llm_messages}")
             for response_chunk in self.llm.response_stream(messages=llm_messages):
                 llm_response += response_chunk
                 yield response_chunk

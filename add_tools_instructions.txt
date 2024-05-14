@@ -1,0 +1,84 @@
+# SOP for Adding New Tools to the Streamlit App
+
+This document provides step-by-step instructions for integrating new tools into the Streamlit app. Follow these steps carefully to ensure the new tools are correctly linked to the agent.
+
+## Step-by-Step Instructions
+
+### Step 1: Import the Tool Class
+1. Open the `cookbook/llm_os/assistant.py` file.
+2. Import the tool class at the top of the file.
+
+Example:
+```python
+from phi.tools.csv_tools import CsvTools
+```
+
+### Step 2: Add the Tool to the `get_llm_os` Function
+1. In the `cookbook/llm_os/assistant.py` file, locate the `get_llm_os` function.
+2. Add a parameter for the new tool to the function definition.
+3. Add a checkbox in the Streamlit sidebar to enable/disable the tool.
+4. Append the tool to the `tools` list if the checkbox is selected.
+
+Example:
+```python
+def get_llm_os(
+    ...
+    csv_tools: bool = False,
+    ...
+) -> Assistant:
+    ...
+    if csv_tools:
+        tools.append(CsvTools())
+        extra_instructions.append(
+            "You can use the `read_csv_file` tool to read a CSV file, `list_csv_files` to list available CSV files, and `query_csv_file` to run SQL queries on a CSV file."
+        )
+    ...
+```
+
+### Step 3: Update the Streamlit App
+1. Open the `cookbook/llm_os/app.py` file.
+2. Add a checkbox in the Streamlit sidebar to enable/disable the tool.
+3. Ensure the uploaded files are appended to the tool instance.
+
+Example:
+```python
+# Enable CSV Tools
+if "csv_tools_enabled" not in st.session_state:
+    st.session_state["csv_tools_enabled"] = False
+csv_tools_enabled = st.session_state["csv_tools_enabled"]
+csv_tools = st.sidebar.checkbox("CSV Tools", value=csv_tools_enabled, help="Enable CSV tools.")
+if csv_tools_enabled != csv_tools:
+    st.session_state["csv_tools_enabled"] = csv_tools
+    csv_tools_enabled = csv_tools
+    restart_assistant()
+
+# Add CSVs to knowledge base
+if "csv_uploader_key" not in st.session_state:
+    st.session_state["csv_uploader_key"] = 200
+
+uploaded_csv = st.sidebar.file_uploader(
+    "Add a CSV :page_facing_up:", type="csv", key=st.session_state["csv_uploader_key"]
+)
+if uploaded_csv is not None:
+    alert = st.sidebar.info("Processing CSV...", icon="🧠")
+    csv_name = uploaded_csv.name.split(".")[0]
+    if f"{csv_name}_uploaded" not in st.session_state:
+        csv_path = scratch_dir.joinpath(uploaded_csv.name)
+        with open(csv_path, "wb") as f:
+            f.write(uploaded_csv.getbuffer())
+        st.session_state[f"{csv_name}_uploaded"] = True
+        for tool in llm_os.tools:
+            if isinstance(tool, CsvTools):
+                tool.csvs.append(csv_path)
+                tool.csvs = list(set(tool.csvs))  # Ensure no duplicates
+                st.sidebar.success(f"CSV file '{uploaded_csv.name}' added successfully.")
+                break
+    alert.empty()
+```
+
+## Common Mistakes to Avoid
+1. **Incorrect Import Path**: Ensure the import path for the tool class is correct.
+2. **Duplicate Entries**: When appending files to the tool instance, ensure there are no duplicate entries.
+3. **Exact Matching in Search/Replace Blocks**: When using *SEARCH/REPLACE* blocks, ensure the search section exactly matches the existing code, including all white space, comments, indentation, and docstrings.
+
+By following these steps and avoiding common mistakes, you can successfully integrate new tools into the Streamlit app.

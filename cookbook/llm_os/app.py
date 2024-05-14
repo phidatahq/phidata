@@ -223,7 +223,7 @@ def main() -> None:
         data_analyst=data_analyst_enabled,
         python_assistant=python_assistant_enabled,
         research_assistant=research_assistant_enabled,
-        investment_assistant=investment_assistant_enabled,
+        investment_assistant=investment_assistant_enabled
     )
     st.session_state["llm_os"] = llm_os
 else:

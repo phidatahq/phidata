@@ -78,7 +78,17 @@ def main() -> None:
         ddg_search_enabled = ddg_search
         restart_assistant()
 
-    # Enable CSV Tools
+    # Enable Yahoo Finance Tools
+    if "yfinance_tools_enabled" not in st.session_state:
+        st.session_state["yfinance_tools_enabled"] = False
+    # Get yfinance_tools_enabled from session state if set
+    yfinance_tools_enabled = st.session_state["yfinance_tools_enabled"]
+    # Checkbox for enabling Yahoo Finance tools
+    yfinance_tools = st.sidebar.checkbox("Yahoo Finance Tools", value=yfinance_tools_enabled, help="Enable Yahoo Finance tools.")
+    if yfinance_tools_enabled != yfinance_tools:
+        st.session_state["yfinance_tools_enabled"] = yfinance_tools
+        yfinance_tools_enabled = yfinance_tools
+        restart_assistant()
     if "csv_tools_enabled" not in st.session_state:
         st.session_state["csv_tools_enabled"] = False
     # Get csv_tools_enabled from session state if set
@@ -178,6 +188,7 @@ def main() -> None:
             file_tools=file_tools_enabled,
             csv_tools=csv_tools_enabled,
             shell_tools=shell_tools_enabled,
+            yfinance_tools=yfinance_tools_enabled,
             data_analyst=data_analyst_enabled,
             python_assistant=python_assistant_enabled,
             research_assistant=research_assistant_enabled,

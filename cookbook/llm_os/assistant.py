@@ -14,6 +14,7 @@ from phi.tools.yfinance import YFinanceTools
 from phi.tools.file import FileTools
 from phi.llm.openai import OpenAIChat
 from phi.tools.csv_tools import CsvTools
+from phi.tools.yfinance import YFinanceTools
 from phi.knowledge import AssistantKnowledge
 from phi.embedder.openai import OpenAIEmbedder
 from phi.assistant.duckdb import DuckDbAssistant
@@ -36,6 +37,7 @@ def get_llm_os(
     file_tools: bool = False,
     csv_tools: bool = False,
     shell_tools: bool = False,
+    yfinance_tools: bool = False,
     data_analyst: bool = False,
     python_assistant: bool = False,
     research_assistant: bool = False,
@@ -68,6 +70,12 @@ def get_llm_os(
         tools.append(CsvTools())
         extra_instructions.append(
             "You can use the `read_csv_file` tool to read a CSV file, `list_csv_files` to list available CSV files, and `query_csv_file` to run SQL queries on a CSV file."
+        )
+    if yfinance_tools:
+        tools.append(YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True))
+        extra_instructions.append(
+            "You can use the `get_stock_price` tool to get stock prices, `get_company_info` to get company information, "
+            "`get_analyst_recommendations` to get analyst recommendations, and `get_company_news` to get company news."
         )
     if shell_tools:
         tools.append(ShellTools())

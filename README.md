@@ -46,7 +46,7 @@ assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
 assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
-Install libraries, Export your OPENAI_API_KEY and run the `Assistant`
+Install libraries, export your `OPENAI_API_KEY` and run the `Assistant`
 
 ```shell
 pip install openai duckduckgo-search

@@ -14,16 +14,16 @@ class AzureOpenAIChat(OpenAILike):
     name: str = "AzureOpenAIChat"
     model: str
     api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")
-    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2023-12-01-preview")
+    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
     azure_endpoint: Optional[str] = getenv("AZURE_OPENAI_ENDPOINT")
     azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
     base_url: Optional[str] = None
     azure_ad_token: Optional[str] = None
     azure_ad_token_provider: Optional[Any] = None
+    organization: Optional[str] = None
     openai_client: Optional[AzureOpenAIClient] = None
 
-    @property
-    def get_client(self) -> AzureOpenAIClient:  # type: ignore
+    def get_client(self) -> AzureOpenAIClient:
         if self.openai_client:
             return self.openai_client
 

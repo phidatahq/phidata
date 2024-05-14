@@ -7,6 +7,7 @@ from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
+from phi.tools.csv_tools import CsvTools
 from phi.utils.log import logger
 
 from assistant import get_llm_os  # type: ignore

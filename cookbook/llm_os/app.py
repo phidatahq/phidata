@@ -213,18 +213,6 @@ def main() -> None:
     else:
         llm_os = st.session_state["llm_os"]
         logger.info(f"Tools in llm_os from session: {len(llm_os.tools)}")
-        llm_id=llm_id,
-        calculator=calculator_enabled,
-        ddg_search=ddg_search_enabled,
-        file_tools=file_tools_enabled,
-        csv_tools=csv_tools_enabled,
-        shell_tools=shell_tools_enabled,
-        yfinance_tools=yfinance_tools_enabled,
-        data_analyst=data_analyst_enabled,
-        python_assistant=python_assistant_enabled,
-        research_assistant=research_assistant_enabled,
-        investment_assistant=investment_assistant_enabled
-    )
     st.session_state["llm_os"] = llm_os
 else:
     llm_os = st.session_state["llm_os"]

@@ -612,6 +612,7 @@ class OpenAIChat(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
+        logger.debug(f"Prompt being sent to the model: {messages}")
         for response in self.invoke_stream(messages=messages):
             # logger.debug(f"OpenAI response type: {type(response)}")
             # logger.debug(f"OpenAI response: {response}")

@@ -51,6 +51,8 @@ def get_llm_os(
     # Add tools available to the LLM OS
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
+    logger.info(f"Initial tools list: {tools}")
+
     if calculator:
         tools.append(
             Calculator(
@@ -305,4 +307,5 @@ def get_llm_os(
         logger.warning("The number of tools exceeds the maximum allowed length of 128. Truncating the list of tools.")
         tools = tools[:128]
 
+    logger.info(f"Final tools list: {tools}")
     return llm_os

@@ -43,7 +43,7 @@ def get_agent(
 ) -> Assistant:
     logger.info(f"-*- Creating {llm_id} Agent -*-")
 
-    # Add tools available to the LLM OS
+    # Add tools available to the Agent
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
     if calculator:
@@ -71,7 +71,7 @@ def get_agent(
             "You can use the `read_file` tool to read a file, `save_file` to save a file, and `list_files` to list files in the working directory."
         )
 
-    # Add team members available to the LLM OS
+    # Add team members available to the Agent
     team: List[Assistant] = []
     if data_analyst:
         _data_analyst = DuckDbAssistant(
@@ -220,9 +220,9 @@ def get_agent(
             ]
         )
 
-    # Create the LLM OS Assistant
-    llm_os = Assistant(
-        name="llm_os",
+    # Create the Agent
+    agent = Assistant(
+        name="agent",
         run_id=run_id,
         user_id=user_id,
         llm=OpenAIChat(model=llm_id),
@@ -247,9 +247,9 @@ def get_agent(
             "You can delegate tasks to an AI Assistant in your team depending of their role and the tools available to them.",
         ],
         extra_instructions=extra_instructions,
-        # Add long-term memory to the LLM OS backed by a PostgreSQL database
+        # Add long-term memory to the Agent backed by a PostgreSQL database
         storage=PgAssistantStorage(table_name="agent_runs", db_url=db_url),
-        # Add a knowledge base to the LLM OS
+        # Add a knowledge base to the Agent
         knowledge_base=AssistantKnowledge(
             vector_db=PgVector2(
                 db_url=db_url,
@@ -259,9 +259,9 @@ def get_agent(
             # 3 references are added to the prompt when searching the knowledge base
             num_documents=3,
         ),
-        # Add selected tools to the LLM OS
+        # Add selected tools to the Agent
         tools=tools,
-        # Add selected team members to the LLM OS
+        # Add selected team members to the Agent
         team=team,
         # Show tool calls in the chat
         show_tool_calls=True,
@@ -283,4 +283,4 @@ def get_agent(
         """),
         debug_mode=debug_mode,
     )
-    return llm_os
+    return agent

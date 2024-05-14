@@ -169,7 +169,6 @@ def main() -> None:
             ddg_search=ddg_search_enabled,
             file_tools=file_tools_enabled,
             csv_tools=csv_tools_enabled,
-            csv_tools=csv_tools_enabled,
             shell_tools=shell_tools_enabled,
             data_analyst=data_analyst_enabled,
             python_assistant=python_assistant_enabled,

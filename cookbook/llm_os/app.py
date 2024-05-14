@@ -213,9 +213,6 @@ def main() -> None:
     else:
         llm_os = st.session_state["llm_os"]
         logger.info(f"Tools in llm_os from session: {len(llm_os.tools)}")
-        st.session_state["llm_os"] = llm_os
-    else:
-        llm_os = st.session_state["llm_os"]
 
     # Create assistant run (i.e. log to database) and save run_id in session state
     try:
@@ -227,10 +224,10 @@ def main() -> None:
     # Load existing messages
     assistant_chat_history = llm_os.memory.get_chat_history()
     if len(assistant_chat_history) > 0:
-        logger.debug("Loading chat history")
+        logger.debug("Loading chat history.")
         st.session_state["messages"] = assistant_chat_history
     else:
-        logger.debug("No chat history found")
+        logger.debug("No chat history found.")
         st.session_state["messages"] = [{"role": "assistant", "content": "Ask me questions..."}]
 
     # Prompt for user input
@@ -361,13 +358,26 @@ def main() -> None:
                 run_id=new_llm_os_run_id,
             )
             st.rerun()
+            st.session_state["llm_os"] = get_llm_os(
+                llm_id=llm_id,
+                calculator=calculator_enabled,
+                ddg_search=ddg_search_enabled,
+                file_tools=file_tools_enabled,
+                shell_tools=shell_tools_enabled,
+                data_analyst=data_analyst_enabled,
+                python_assistant=python_assistant_enabled,
+                research_assistant=research_assistant_enabled,
+                investment_assistant=investment_assistant_enabled,
+                run_id=new_llm_os_run_id,
+            )
+            st.rerun()
 
     if st.sidebar.button("New Run"):
         restart_assistant()
 
 
 def restart_assistant():
-    logger.debug("---*--- Restarting Assistant ---*---")
+    logger.info("---*--- Restarting Assistant ---*---")
     st.session_state["llm_os"] = None
     st.session_state["llm_os_run_id"] = None
     if "url_scrape_key" in st.session_state:

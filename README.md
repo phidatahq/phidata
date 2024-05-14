@@ -3,14 +3,14 @@
 </h1>
 
 <h3 align="center">
-Phidata adds memory, knowledge and tools to LLMs
+Phidata turns LLMs into Autonomous Assistants with memory, knowledge and tools
 </h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
 ## What is phidata?
 
-Phidata is a framework for adding memory, knowledge and tools to LLMs. <br/> Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
+Phidata is a framework for building Autonomous Assistants with LLMs by adding memory, knowledge and tools. Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 
 ## Why phidata?
 

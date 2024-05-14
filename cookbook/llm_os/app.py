@@ -70,7 +70,17 @@ def main() -> None:
         ddg_search_enabled = ddg_search
         restart_assistant()
 
-    # Enable shell tools
+    # Enable CSV Tools
+    if "csv_tools_enabled" not in st.session_state:
+        st.session_state["csv_tools_enabled"] = False
+    # Get csv_tools_enabled from session state if set
+    csv_tools_enabled = st.session_state["csv_tools_enabled"]
+    # Checkbox for enabling CSV tools
+    csv_tools = st.sidebar.checkbox("CSV Tools", value=csv_tools_enabled, help="Enable CSV tools.")
+    if csv_tools_enabled != csv_tools:
+        st.session_state["csv_tools_enabled"] = csv_tools
+        csv_tools_enabled = csv_tools
+        restart_assistant()
     if "shell_tools_enabled" not in st.session_state:
         st.session_state["shell_tools_enabled"] = False
     # Get shell_tools_enabled from session state if set
@@ -158,6 +168,8 @@ def main() -> None:
             calculator=calculator_enabled,
             ddg_search=ddg_search_enabled,
             file_tools=file_tools_enabled,
+            csv_tools=csv_tools_enabled,
+            csv_tools=csv_tools_enabled,
             shell_tools=shell_tools_enabled,
             data_analyst=data_analyst_enabled,
             python_assistant=python_assistant_enabled,
@@ -229,6 +241,24 @@ def main() -> None:
                         st.sidebar.error("Could not read website")
                     st.session_state[f"{input_url}_uploaded"] = True
                 alert.empty()
+
+        # Add CSVs to knowledge base
+        if "csv_uploader_key" not in st.session_state:
+            st.session_state["csv_uploader_key"] = 200
+
+        uploaded_csv = st.sidebar.file_uploader(
+            "Add a CSV :page_facing_up:", type="csv", key=st.session_state["csv_uploader_key"]
+        )
+        if uploaded_csv is not None:
+            alert = st.sidebar.info("Processing CSV...", icon="🧠")
+            csv_name = uploaded_csv.name.split(".")[0]
+            if f"{csv_name}_uploaded" not in st.session_state:
+                csv_path = scratch_dir.joinpath(uploaded_csv.name)
+                with open(csv_path, "wb") as f:
+                    f.write(uploaded_csv.getbuffer())
+                st.session_state[f"{csv_name}_uploaded"] = True
+                llm_os.tools[0].csvs.append(csv_path)
+            alert.empty()
 
         # Add PDFs to knowledge base
         if "file_uploader_key" not in st.session_state:

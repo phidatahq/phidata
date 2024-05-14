@@ -13,6 +13,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.file import FileTools
 from phi.llm.openai import OpenAIChat
+from phi.tools.csv_tools import CsvTools
 from phi.knowledge import AssistantKnowledge
 from phi.embedder.openai import OpenAIEmbedder
 from phi.assistant.duckdb import DuckDbAssistant
@@ -33,6 +34,7 @@ def get_llm_os(
     calculator: bool = False,
     ddg_search: bool = False,
     file_tools: bool = False,
+    csv_tools: bool = False,
     shell_tools: bool = False,
     data_analyst: bool = False,
     python_assistant: bool = False,
@@ -62,6 +64,11 @@ def get_llm_os(
         )
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
+    if csv_tools:
+        tools.append(CsvTools())
+        extra_instructions.append(
+            "You can use the `read_csv_file` tool to read a CSV file, `list_csv_files` to list available CSV files, and `query_csv_file` to run SQL queries on a CSV file."
+        )
     if shell_tools:
         tools.append(ShellTools())
         extra_instructions.append(

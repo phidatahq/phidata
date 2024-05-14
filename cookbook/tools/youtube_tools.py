@@ -1,5 +1,5 @@
 from phi.assistant import Assistant
-from phi.tools.youtube_toolkit import YouTubeTools
+from phi.tools.youtube_tools import YouTubeTools
 
 assistant = Assistant(
     tools=[YouTubeTools()],

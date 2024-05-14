@@ -1,6 +1,6 @@
-import nest_asyncio
 from typing import List
 
+import nest_asyncio
 import streamlit as st
 from phi.assistant import Assistant
 from phi.document import Document

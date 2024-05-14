@@ -222,6 +222,8 @@ class Assistant(BaseModel):
             return assistant.run(task_description, stream=False)  # type: ignore
 
         assistant_name = assistant.name.replace(" ", "_").lower() if assistant.name else f"assistant_{index}"
+        if assistant.name is None:
+            assistant.name = assistant_name
         delegation_function = Function.from_callable(_delegate_task_to_assistant)
         delegation_function.name = f"delegate_task_to_{assistant_name}"
         delegation_function.description = dedent(

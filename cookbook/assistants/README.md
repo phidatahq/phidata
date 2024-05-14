@@ -80,7 +80,7 @@ docker run -d \
 - Install libraries
 
 ```shell
-pip install -U sqlalchemy pgvector "psycopg[binary]" pydpdf
+pip install -U sqlalchemy pgvector "psycopg[binary]" pypdf
 ```
 
 - RAG Assistant

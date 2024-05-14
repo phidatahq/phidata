@@ -266,6 +266,8 @@ def main() -> None:
                 for tool in llm_os.tools:
                     if isinstance(tool, CsvTools):
                         tool.csvs.append(csv_path)
+                        tool.csvs = list(set(tool.csvs))  # Ensure no duplicates
+                        st.sidebar.success(f"CSV file '{uploaded_csv.name}' added successfully.")
                         break
             alert.empty()
 

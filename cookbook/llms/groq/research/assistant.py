@@ -20,7 +20,8 @@ def get_research_assistant(
             "Your report should follow the format provided below."
             "Remember: you are writing for the New York Times, so the quality of the report is important.",
         ],
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         ## Title
 
@@ -50,7 +51,8 @@ def get_research_assistant(
         - [Reference 1](Link to Source)
         - [Reference 2](Link to Source)
         </report_format>
-        """),
+        """
+        ),
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         add_datetime_to_instructions=True,

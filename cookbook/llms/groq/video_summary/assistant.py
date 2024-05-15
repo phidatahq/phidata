@@ -22,7 +22,8 @@ def get_chunk_summarizer(
             "REMEMBER: you are writing for the New York Times, so the quality of the report is important.",
             "Make sure your report is properly formatted and follows the <report_format> provided below.",
         ],
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         ### Overview
         {give an overview of the video}
@@ -35,7 +36,8 @@ def get_chunk_summarizer(
         ### Takeaways
         {provide key takeaways from the video}
         </report_format>
-        """),
+        """
+        ),
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         add_datetime_to_instructions=True,
@@ -65,7 +67,8 @@ def get_video_summarizer(
             "Give the section relevant titles and provide details/facts/processes in each section."
             "REMEMBER: you are writing for the New York Times, so the quality of the report is important.",
         ],
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         ## Video Title with Link
         {this is the markdown link to the video}
@@ -85,7 +88,8 @@ def get_video_summarizer(
 
         Report generated on: {Month Date, Year (hh:mm AM/PM)}
         </report_format>
-        """),
+        """
+        ),
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         add_datetime_to_instructions=True,

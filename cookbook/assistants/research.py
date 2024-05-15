@@ -19,7 +19,8 @@ assistant = Assistant(
         "Read the results carefully and prepare a NYT worthy article.",
     ],
     add_datetime_to_instructions=True,
-    expected_output=dedent("""\
+    expected_output=dedent(
+        """\
     An engaging, informative, and well-structured article in the following format:
     <article_format>
     ## Engaging Article Title

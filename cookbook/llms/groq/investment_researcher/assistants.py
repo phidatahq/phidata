@@ -22,7 +22,8 @@ def get_invstment_research_assistant(
         ],
         markdown=True,
         add_datetime_to_instructions=True,
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         ## [Company Name]: Investment Report
 
@@ -63,6 +64,7 @@ def get_invstment_research_assistant(
 
         Report generated on: {Month Date, Year (hh:mm AM/PM)}
         </report_format>
-        """),
+        """
+        ),
         debug_mode=debug_mode,
     )

@@ -124,7 +124,7 @@ class Qdrant(VectorDb):
 
         Args:
             name (str): The name of the document to check.
-        
+
         Returns:
             bool: True if a document with the given name exists, False otherwise.
         """
@@ -132,14 +132,9 @@ class Qdrant(VectorDb):
             scroll_result = self.client.scroll(
                 collection_name=self.collection,
                 scroll_filter=models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="name",
-                            match=models.MatchValue(value=name)
-                        )
-                    ]
+                    must=[models.FieldCondition(key="name", match=models.MatchValue(value=name))]
                 ),
-                limit=1
+                limit=1,
             )
             return len(scroll_result[0]) > 0
         return False

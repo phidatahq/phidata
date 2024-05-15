@@ -13,7 +13,8 @@ assistant = Assistant(
         "Analyse and prepare an NYT worthy article based on the information.",
     ],
     add_datetime_to_instructions=True,
-    expected_output=dedent("""\
+    expected_output=dedent(
+        """\
     An engaging, informative, and well-structured article in the following format:
     <article_format>
     ## Engaging Article Title
@@ -36,7 +37,8 @@ assistant = Assistant(
     - [Title](url)
     - [Title](url)
     </article_format>\
-    """),
+    """
+    ),
     # show_tool_calls=True,
     debug_mode=True,
     save_output_to_file="news_article.md",

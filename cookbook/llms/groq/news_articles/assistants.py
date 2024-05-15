@@ -22,7 +22,8 @@ def get_article_summarizer(
             "REMEMBER: you are writing for the New York Times, so the quality of the report is important.",
             "Make sure your report is properly formatted and follows the <report_format> provided below.",
         ],
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         **Overview:**\n
         {overview of the article}
@@ -33,7 +34,8 @@ def get_article_summarizer(
         **Key Takeaways:**\n
         {provide key takeaways from the article}
         </report_format>
-        """),
+        """
+        ),
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         add_datetime_to_instructions=True,
@@ -59,7 +61,8 @@ def get_article_writer(
             "Give the section relevant titles and provide details/facts/processes in each section."
             "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
         ],
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <article_format>
         ## Engaging Article Title
 
@@ -81,7 +84,8 @@ def get_article_writer(
         - [Title](url)
         - [Title](url)
         </article_format>
-        """),
+        """
+        ),
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         add_datetime_to_instructions=True,

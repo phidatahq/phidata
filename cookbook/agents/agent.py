@@ -118,7 +118,8 @@ def get_agent(
                 "Make your report engaging, informative, and well-structured.",
                 "Remember: you are writing for the New York Times, so the quality of the report is important.",
             ],
-            expected_output=dedent("""\
+            expected_output=dedent(
+                """\
             An engaging, informative, and well-structured report in the following format:
             <report_format>
             ## Title
@@ -142,7 +143,8 @@ def get_agent(
             - [Reference 1](Link to Source)
             - [Reference 2](Link to Source)
             </report_format>
-            """),
+            """
+            ),
             tools=[ExaTools(num_results=5, text_length_limit=1000)],
             # This setting tells the LLM to format messages in markdown
             markdown=True,
@@ -167,7 +169,8 @@ def get_agent(
                 "When you share numbers, make sure to include the units (e.g., millions/billions) and currency.",
                 "REMEMBER: This report is for a very important client, so the quality of the report is important.",
             ],
-            expected_output=dedent("""\
+            expected_output=dedent(
+                """\
             <report_format>
             ## [Company Name]: Investment Report
 
@@ -203,7 +206,8 @@ def get_agent(
             {provide a recommendation on the stock along with a thorough reasoning}
 
             </report_format>
-            """),
+            """
+            ),
             tools=[YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True)],
             # This setting tells the LLM to format messages in markdown
             markdown=True,
@@ -226,11 +230,13 @@ def get_agent(
         run_id=run_id,
         user_id=user_id,
         llm=OpenAIChat(model=llm_id),
-        description=dedent("""\
+        description=dedent(
+            """\
         You are a powerful AI Agent called `Optimus Prime v7`.
         You have access to a set of tools and a team of AI Assistants at your disposal.
         Your goal is to assist the user in the best way possible.\
-        """),
+        """
+        ),
         instructions=[
             "When the user sends a message, first **think** and determine if:\n"
             " - You can answer by using a tool available to you\n"
@@ -278,9 +284,11 @@ def get_agent(
         # This setting adds the current datetime to the instructions
         add_datetime_to_instructions=True,
         # Add an introductory Assistant message
-        introduction=dedent("""\
+        introduction=dedent(
+            """\
         Hi, I'm Optimus Prime v7, your powerful AI Assistant. Send me on my mission boss :statue_of_liberty:\
-        """),
+        """
+        ),
         debug_mode=debug_mode,
     )
     return agent

@@ -2,6 +2,8 @@ import streamlit as st
 from phi.tools.tavily import TavilyTools
 
 from assistant import get_research_assistant  # type: ignore
+# For an assistant in Portuguese, uncomment this line and comment the top line
+#from assistant_pt_br import get_research_assistant  # type: ignore
 
 st.set_page_config(
     page_title="Research Assistant",

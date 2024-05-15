@@ -17,8 +17,9 @@ def get_research_assistant(
              "Você receberá um tópico e resultados de pesquisa de pesquisadores juniores.",
              "Leia atentamente os resultados e gere um relatório final digno de uma reportagem de capa do NYT.",
              "Torne seu relatório envolvente, informativo e bem estruturado.",
-             "Seu relatório deve seguir o formato fornecido abaixo."
+             "Seu relatório deve seguir o formato fornecido abaixo.",             
              "Lembre-se: você está escrevendo para o New York Times, então a qualidade do relatório é importante.",
+             "O relatório deve ser na lingua {Portugues}, mesmo que a estrutura e a pergunta seja em outro idioma",
         ],
         add_to_system_prompt=dedent("""
         <report_format>

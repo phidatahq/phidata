@@ -10,8 +10,8 @@ Build AI Assistants with memory, knowledge and tools
 
 ## What is phidata?
 
-Phidata is a framework for building Autonomous Assistants (aka Agents) that have long-term memory (using a database),
-contextual knowledge (using a vectordb) and the ability to take actions via tools (using function calling).
+**Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory (stored in a database),
+contextual knowledge (stored in a vectordb) and the ability to take actions using tools (with function calling).
 
 ## Why phidata?
 

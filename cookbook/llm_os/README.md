@@ -1,25 +1,28 @@
 # LLM OS
 
-This cookbook contains an initial implementation of the LLM OS proposed by [karpathy](https://twitter.com/karpathy/status/1723140519554105733).
-He talks about it [in this tweet](https://twitter.com/karpathy/status/1723140519554105733), [this tweet](https://twitter.com/karpathy/status/1707437820045062561) and [this video](https://youtu.be/zjkBMFhNj_g?t=2535)
+Lets build the LLM OS proposed by Andrej Karpathy [in this tweet](https://twitter.com/karpathy/status/1723140519554105733), [this tweet](https://twitter.com/karpathy/status/1707437820045062561) and [this video](https://youtu.be/zjkBMFhNj_g?t=2535).
 
-## The LLM OS philosophy
+Also checkout my [video](https://x.com/ashpreetbedi/status/1790109321939829139) on building the LLM OS for more information.
+
+## The LLM OS design:
+
+<img alt="LLM OS" src="https://github.com/phidatahq/phidata/assets/22579644/5cab9655-55a9-4027-80ac-badfeefa4c14" width="600" />
 
 - LLMs are the kernel process of an emerging operating system.
-- This process (LLM) will solve problems by coordinating other resources (like memory or computation tools).
-- The LLM OS Vision:
-  - [x] It can read/generate text
-  - [x] It has more knowledge than any single human about all subjects
-  - [x] It can browse the internet
-  - [x] It can use existing software infra (calculator, python, mouse/keyboard)
-  - [ ] It can see and generate images and video
-  - [ ] It can hear and speak, and generate music
-  - [ ] It can think for a long time using a system 2
-  - [ ] It can “self-improve” in domains
-  - [ ] It can be customized and fine-tuned for specific tasks
-  - [x] It can communicate with other LLMs
+- This process (LLM) can solve problems by coordinating other resources (memory, computation tools).
+- The LLM OS:
+  - [x] Can read/generate text
+  - [x] Has more knowledge than any single human about all subjects
+  - [x] Can browse the internet
+  - [x] Can use existing software infra (calculator, python, mouse/keyboard)
+  - [ ] Can see and generate images and video
+  - [ ] Can hear and speak, and generate music
+  - [ ] Can think for a long time using a system 2
+  - [ ] Can “self-improve” in domains
+  - [ ] Can be customized and fine-tuned for specific tasks
+  - [x] Can communicate with other LLMs
 
-[x] indicates functionality that is implemented in the LLM OS app
+[x] indicates functionality that is implemented in this LLM OS app
 
 ## Running the LLM OS:
 
@@ -40,7 +43,7 @@ pip install -r cookbook/llm_os/requirements.txt
 
 ### 3. Export credentials
 
-- Out initial implementation uses GPT-4, so export your OpenAI API Key
+- Our initial implementation uses GPT-4, so export your OpenAI API Key
 
 ```shell
 export OPENAI_API_KEY=***
@@ -84,6 +87,13 @@ streamlit run cookbook/llm_os/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your LLM OS.
+- Add a blog post to knowledge base: https://blog.samaltman.com/gpt-4o
+- Ask: What is gpt-4o?
+- Web search: Whats happening in france?
+- Calculator: Whats 10!
+- Enable shell tools and ask: is docker running?
+- Enable the Research Assistant and ask: write a report on the ibm hashicorp acquisition
+- Enable the Investment Assistant and ask: shall i invest in nvda?
 
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

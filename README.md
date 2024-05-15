@@ -3,21 +3,22 @@
 </h1>
 
 <h3 align="center">
-Phidata adds memory, knowledge and tools to LLMs
+Build AI Assistants with memory, knowledge and tools
 </h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
 ## What is phidata?
 
-Phidata is a framework for adding memory, knowledge and tools to LLMs. <br/> Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
+**Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory, contextual knowledge and the ability to take actions using function calling.
 
 ## Why phidata?
 
-**Problem:** LLMs have limited context and cannot take actions.<br />
+**Problem:** LLMs have limited context and cannot take actions.
+
 **Solution:** Add memory, knowledge and tools.
-- **Memory:** Enables LLMs to have long-term conversations by storing **chat history** in a database.
-- **Knowledge:** Provides LLMs with **business context** by storing information in a vector database.
+- **Memory:** Stores **chat history** in a database and enables LLMs to have long-term conversations.
+- **Knowledge:** Stores information in a vector database and provides LLMs with **business context**.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
 
 ## How it works
@@ -33,7 +34,7 @@ Phidata is a framework for adding memory, knowledge and tools to LLMs. <br/> Mem
 pip install -U phidata
 ```
 
-## Example: Assistant that can search the web
+## Quickstart: Assistant that can search the web
 
 Create a file `assistant.py`
 
@@ -45,44 +46,30 @@ assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
 assistant.print_response("Whats happening in France?", markdown=True)
 ```
 
-Install libraries
+Install libraries, export your `OPENAI_API_KEY` and run the `Assistant`
 
 ```shell
 pip install openai duckduckgo-search
-```
 
-Export your OPENAI_API_KEY
-
-```shell
 export OPENAI_API_KEY=sk-xxxx
-```
 
-Run the `Assistant` and let it search the web using `DuckDuckGo`
-
-```shell
 python assistant.py
 ```
 
-## Next Steps
+## Documentation and Support
 
-1. Read the <a href="https://docs.phidata.com/basics" target="_blank" rel="noopener noreferrer">basics</a> to learn more about phidata.
-2. Read about <a href="https://docs.phidata.com/assistants/introduction" target="_blank" rel="noopener noreferrer">Assistants</a> and how to customize them.
-3. Checkout the <a href="https://docs.phidata.com/examples/cookbook" target="_blank" rel="noopener noreferrer">cookbook</a> for in-depth examples and code.
+- Read the docs at <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs.phidata.com</a>
+- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 
-## Documentation
+## Examples
 
-- You can find the full documentation <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">here</a>
-- You can also chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
-
-## Demos
-
-Checkout the following AI Applications built using phidata:
-
-- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
-- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">ArXiv AI</a> that answers questions about ArXiv papers using the ArXiv API.
-- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> summarize stories, users and shares what's new on HackerNews.
-
-## More Examples
+- [LLM OS](https://github.com/phidatahq/phidata/tree/main/cookbook/llm_os): Using LLMs as the CPU for an emerging Operating System.
+- [Autonomous RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/examples/auto_rag): Gives LLMs tools to search its knowledge, web or chat history.
+- [Local RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/ollama/rag): Fully local RAG with Ollama and PgVector.
+- [Investment Researcher](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/investment_researcher): Generate investment reports on stocks using Llama3 and Groq.
+- [News Articles](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/news_articles): Write News Articles using Llama3 and Groq.
+- [Video Summaries](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/video_summary): YouTube video summaries using Llama3 and Groq.
+- [Research Assistant](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/research): Write research reports using Llama3 and Groq.
 
 ### Assistant that can write and run python code
 
@@ -341,7 +328,23 @@ python pdf_assistant.py --new
 
 ### Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
+## Next Steps
+
+1. Read the <a href="https://docs.phidata.com/basics" target="_blank" rel="noopener noreferrer">basics</a> to learn more about phidata.
+2. Read about <a href="https://docs.phidata.com/assistants/introduction" target="_blank" rel="noopener noreferrer">Assistants</a> and how to customize them.
+3. Checkout the <a href="https://docs.phidata.com/examples/cookbook" target="_blank" rel="noopener noreferrer">cookbook</a> for in-depth examples and code.
+
+## Demos
+
+Checkout the following AI Applications built using phidata:
+
+- <a href="https://pdf.aidev.run/" target="_blank" rel="noopener noreferrer">PDF AI</a> that summarizes and answers questions from PDFs.
+- <a href="https://arxiv.aidev.run/" target="_blank" rel="noopener noreferrer">ArXiv AI</a> that answers questions about ArXiv papers using the ArXiv API.
+- <a href="https://hn.aidev.run/" target="_blank" rel="noopener noreferrer">HackerNews AI</a> summarize stories, users and shares what's new on HackerNews.
+
 ## Tutorials
+
+[![Building the LLM OS with gpt-4o](https://img.youtube.com/vi/6g2KLvwHZlU/0.jpg)](https://www.youtube.com/watch?v=6g2KLvwHZlU "LLM OS")
 
 [![Autonomous RAG](https://img.youtube.com/vi/fkBkNWivq-s/0.jpg)](https://www.youtube.com/watch?v=fkBkNWivq-s "Autonomous RAG")
 

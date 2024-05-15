@@ -7,7 +7,6 @@ from typing import List
 from phi.assistant import Assistant
 from phi.tools import Toolkit
 from phi.tools.exa import ExaTools
-from phi.tools.shell import ShellTools
 from phi.tools.calculator import Calculator
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
@@ -28,12 +27,12 @@ if not scratch_dir.exists():
     scratch_dir.mkdir(exist_ok=True, parents=True)
 
 
-def get_llm_os(
+def get_agent(
     llm_id: str = "gpt-4o",
     calculator: bool = False,
     ddg_search: bool = False,
     file_tools: bool = False,
-    shell_tools: bool = False,
+    finance_tools: bool = False,
     data_analyst: bool = False,
     python_assistant: bool = False,
     research_assistant: bool = False,
@@ -42,9 +41,9 @@ def get_llm_os(
     run_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Assistant:
-    logger.info(f"-*- Creating {llm_id} LLM OS -*-")
+    logger.info(f"-*- Creating {llm_id} Agent -*-")
 
-    # Add tools available to the LLM OS
+    # Add tools available to the Agent
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
     if calculator:
@@ -62,10 +61,9 @@ def get_llm_os(
         )
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
-    if shell_tools:
-        tools.append(ShellTools())
-        extra_instructions.append(
-            "You can use the `run_shell_command` tool to run shell commands. For example, `run_shell_command(args='ls')`."
+    if finance_tools:
+        tools.append(
+            YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True)
         )
     if file_tools:
         tools.append(FileTools(base_dir=cwd))
@@ -73,11 +71,12 @@ def get_llm_os(
             "You can use the `read_file` tool to read a file, `save_file` to save a file, and `list_files` to list files in the working directory."
         )
 
-    # Add team members available to the LLM OS
+    # Add team members available to the Agent
     team: List[Assistant] = []
     if data_analyst:
         _data_analyst = DuckDbAssistant(
             name="Data Analyst",
+            llm=OpenAIChat(model=llm_id),
             role="Analyze movie data and provide insights",
             semantic_model=json.dumps(
                 {
@@ -99,6 +98,7 @@ def get_llm_os(
     if python_assistant:
         _python_assistant = PythonAssistant(
             name="Python Assistant",
+            llm=OpenAIChat(model=llm_id),
             role="Write and run python code",
             pip_install=True,
             charting_libraries=["streamlit"],
@@ -220,14 +220,14 @@ def get_llm_os(
             ]
         )
 
-    # Create the LLM OS Assistant
-    llm_os = Assistant(
-        name="llm_os",
+    # Create the Agent
+    agent = Assistant(
+        name="agent",
         run_id=run_id,
         user_id=user_id,
         llm=OpenAIChat(model=llm_id),
         description=dedent("""\
-        You are the most advanced AI system in the world called `LLM-OS`.
+        You are a powerful AI Agent called `Optimus Prime v7`.
         You have access to a set of tools and a team of AI Assistants at your disposal.
         Your goal is to assist the user in the best way possible.\
         """),
@@ -247,21 +247,21 @@ def get_llm_os(
             "You can delegate tasks to an AI Assistant in your team depending of their role and the tools available to them.",
         ],
         extra_instructions=extra_instructions,
-        # Add long-term memory to the LLM OS backed by a PostgreSQL database
-        storage=PgAssistantStorage(table_name="llm_os_runs", db_url=db_url),
-        # Add a knowledge base to the LLM OS
+        # Add long-term memory to the Agent backed by a PostgreSQL database
+        storage=PgAssistantStorage(table_name="agent_runs", db_url=db_url),
+        # Add a knowledge base to the Agent
         knowledge_base=AssistantKnowledge(
             vector_db=PgVector2(
                 db_url=db_url,
-                collection="llm_os_documents",
+                collection="agent_documents",
                 embedder=OpenAIEmbedder(model="text-embedding-3-small", dimensions=1536),
             ),
             # 3 references are added to the prompt when searching the knowledge base
             num_documents=3,
         ),
-        # Add selected tools to the LLM OS
+        # Add selected tools to the Agent
         tools=tools,
-        # Add selected team members to the LLM OS
+        # Add selected team members to the Agent
         team=team,
         # Show tool calls in the chat
         show_tool_calls=True,
@@ -271,18 +271,16 @@ def get_llm_os(
         read_chat_history=True,
         # This setting adds chat history to the messages
         add_chat_history_to_messages=True,
-        # This setting adds 6 previous messages from chat history to the messages sent to the LLM
-        num_history_messages=6,
+        # This setting adds 4 previous messages from chat history to the messages sent to the LLM
+        num_history_messages=4,
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         # This setting adds the current datetime to the instructions
         add_datetime_to_instructions=True,
         # Add an introductory Assistant message
         introduction=dedent("""\
-        Hi, I'm your LLM OS.
-        I have access to a set of tools and AI Assistants to assist you.
-        Let's solve some problems together!\
+        Hi, I'm Optimus Prime v7, your powerful AI Assistant. Send me on my mission boss :statue_of_liberty:\
         """),
         debug_mode=debug_mode,
     )
-    return llm_os
+    return agent

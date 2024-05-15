@@ -16,7 +16,7 @@ assistant = Assistant(
     description="You are a senior NYT researcher writing an article on a topic.",
     instructions=[
         "For the provided topic, search for the top 10 links.",
-        "Read the results carefully and prepare an NYT worthy article.",
+        "Read the results carefully and prepare a NYT worthy article.",
     ],
     add_datetime_to_instructions=True,
     expected_output=dedent("""\

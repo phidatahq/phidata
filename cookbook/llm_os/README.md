@@ -40,7 +40,7 @@ pip install -r cookbook/llm_os/requirements.txt
 
 ### 3. Export credentials
 
-- Out initial implementation uses GPT-4, so export your OpenAI API Key
+- Our initial implementation uses GPT-4, so export your OpenAI API Key
 
 ```shell
 export OPENAI_API_KEY=***

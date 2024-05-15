@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Callable, get_type_hints
 from pydantic import BaseModel, validate_call
-
 from phi.utils.log import logger
+from datetime import datetime
 
 
 class Function(BaseModel):
@@ -147,6 +147,13 @@ class FunctionCall(BaseModel):
                 return False
 
         try:
+            if self.arguments is not None:
+                for k, v in self.arguments.items():
+                    if isinstance(v, str):
+                        try:
+                            self.arguments[k] = datetime.fromisoformat(v)
+                        except ValueError:
+                            pass
             self.result = self.function.entrypoint(**self.arguments)
             return True
         except Exception as e:

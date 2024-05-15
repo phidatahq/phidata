@@ -271,8 +271,8 @@ def get_llm_os(
         read_chat_history=True,
         # This setting adds chat history to the messages
         add_chat_history_to_messages=True,
-        # This setting adds 4 previous messages from chat history to the messages sent to the LLM
-        num_history_messages=4,
+        # This setting adds 6 previous messages from chat history to the messages sent to the LLM
+        num_history_messages=6,
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         # This setting adds the current datetime to the instructions

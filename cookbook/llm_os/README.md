@@ -1,25 +1,24 @@
 # LLM OS
 
-This cookbook contains an initial implementation of the LLM OS proposed by [karpathy](https://twitter.com/karpathy/status/1723140519554105733).
-He talks about it [in this tweet](https://twitter.com/karpathy/status/1723140519554105733), [this tweet](https://twitter.com/karpathy/status/1707437820045062561) and [this video](https://youtu.be/zjkBMFhNj_g?t=2535)
+This cookbook contains the LLM OS proposed by Andrej Karpathy [in this tweet](https://twitter.com/karpathy/status/1723140519554105733), [this tweet](https://twitter.com/karpathy/status/1707437820045062561) and [this video](https://youtu.be/zjkBMFhNj_g?t=2535)
 
-## The LLM OS philosophy
+## The LLM OS design:
 
 - LLMs are the kernel process of an emerging operating system.
-- This process (LLM) will solve problems by coordinating other resources (like memory or computation tools).
-- The LLM OS Vision:
-  - [x] It can read/generate text
-  - [x] It has more knowledge than any single human about all subjects
-  - [x] It can browse the internet
-  - [x] It can use existing software infra (calculator, python, mouse/keyboard)
-  - [ ] It can see and generate images and video
-  - [ ] It can hear and speak, and generate music
-  - [ ] It can think for a long time using a system 2
-  - [ ] It can “self-improve” in domains
-  - [ ] It can be customized and fine-tuned for specific tasks
-  - [x] It can communicate with other LLMs
+- This process (LLM) can solve problems by coordinating other resources (memory, computation tools).
+- The LLM OS:
+  - [x] Can read/generate text
+  - [x] Has more knowledge than any single human about all subjects
+  - [x] Can browse the internet
+  - [x] Can use existing software infra (calculator, python, mouse/keyboard)
+  - [ ] Can see and generate images and video
+  - [ ] Can hear and speak, and generate music
+  - [ ] Can think for a long time using a system 2
+  - [ ] Can “self-improve” in domains
+  - [ ] Can be customized and fine-tuned for specific tasks
+  - [x] Can communicate with other LLMs
 
-[x] indicates functionality that is implemented in the LLM OS app
+[x] indicates functionality that is implemented in this LLM OS app
 
 ## Running the LLM OS:
 

@@ -19,7 +19,7 @@ except ImportError:
 
 class Groq(LLM):
     name: str = "Groq"
-    model: str = "mixtral-8x7b-32768"
+    model: str = "llama3-70b-8192"
     # -*- Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None

@@ -29,6 +29,5 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
     return json.dumps(stories)
 
 
-assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True)
-assistant.print_response("Summarize the top stories on hackernews?", markdown=True)
-assistant.print_response("Which users are at the top?", markdown=True)
+assistant = Assistant(tools=[get_top_hackernews_stories], show_tool_calls=True, markdown=True, debug_mode=True)
+assistant.print_response("Summarize the top stories on hackernews?")

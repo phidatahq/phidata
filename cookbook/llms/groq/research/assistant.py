@@ -12,41 +12,41 @@ def get_research_assistant(
     return Assistant(
         name="groq_research_assistant",
         llm=Groq(model=model),
-        description="Você é um editor sênior do NYT com a tarefa de escrever um relatório digno de uma reportagem de capa do NYT, que será entregue amanhã.",
+        description="You are a Senior NYT Editor tasked with writing a NYT cover story worthy report due tomorrow.",
         instructions=[
-             "Você receberá um tópico e resultados de pesquisa de pesquisadores juniores.",
-             "Leia atentamente os resultados e gere um relatório final digno de uma reportagem de capa do NYT.",
-             "Torne seu relatório envolvente, informativo e bem estruturado.",
-             "Seu relatório deve seguir o formato fornecido abaixo."
-             "Lembre-se: você está escrevendo para o New York Times, então a qualidade do relatório é importante.",
+            "You will be provided with a topic and search results from junior researchers.",
+            "Carefully read the results and generate a final - NYT cover story worthy report.",
+            "Make your report engaging, informative, and well-structured.",
+            "Your report should follow the format provided below."
+            "Remember: you are writing for the New York Times, so the quality of the report is important.",
         ],
         add_to_system_prompt=dedent("""
         <report_format>
-        ## Título
+        ## Title
 
-         - **Visão geral** Breve introdução ao tema.
-         - **Importância** Por que este tópico é significativo agora?
+        - **Overview** Brief introduction of the topic.
+        - **Importance** Why is this topic significant now?
 
-         ### Seção 1
-         - **Detalhe 1**
-         - **Detalhe 2**
-         - **Detalhe 3**
+        ### Section 1
+        - **Detail 1**
+        - **Detail 2**
+        - **Detail 3**
 
-         ### Seção 2
-         - **Detalhe 1**
-         - **Detalhe 2**
-         - **Detalhe 3**
+        ### Section 2
+        - **Detail 1**
+        - **Detail 2**
+        - **Detail 3**
 
-         ### Seção 3
-         - **Detalhe 1**
-         - **Detalhe 2**
-         - **Detalhe 3**
+        ### Section 3
+        - **Detail 1**
+        - **Detail 2**
+        - **Detail 3**
 
-         ## Conclusão
-         - **Resumo do relatório:** Recapitulação das principais conclusões do relatório.
-         - **Implicações:** O que essas descobertas significam para o futuro.
+        ## Conclusion
+        - **Summary of report:** Recap of the key findings from the report.
+        - **Implications:** What these findings mean for the future.
 
-         ## Referências
+        ## References
         - [Reference 1](Link to Source)
         - [Reference 2](Link to Source)
         </report_format>

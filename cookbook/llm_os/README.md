@@ -83,6 +83,13 @@ streamlit run cookbook/llm_os/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your LLM OS.
+- Add a blog post to knowledge base: https://blog.samaltman.com/gpt-4o
+- Ask: What is gpt-4o?
+- Web search: Whats happening in france?
+- Calculator: Whats 10!
+- Enable shell tools and ask: is docker running?
+- Enable the Research Assistant and ask: write a report on the ibm hashicorp acquisition
+- Enable the Investment Assistant and ask: shall i invest in nvda?
 
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

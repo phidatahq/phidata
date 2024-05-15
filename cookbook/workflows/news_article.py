@@ -48,7 +48,8 @@ writer = Assistant(
         "Ignore articles that you cannot read or understand.",
         "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
     ],
-    expected_output=dedent("""\
+    expected_output=dedent(
+        """\
     An engaging, informative, and well-structured article in the following format:
     <article_format>
     ## Engaging Article Title
@@ -71,7 +72,8 @@ writer = Assistant(
     - [Title](url)
     - [Title](url)
     </article_format>
-    """),
+    """
+    ),
 )
 
 news_article = Workflow(

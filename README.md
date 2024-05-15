@@ -3,14 +3,15 @@
 </h1>
 
 <h3 align="center">
-Build AI Agents with memory, knowledge and tools
+Build AI Assistants with memory, knowledge and tools
 </h3>
 
 ![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
 
 ## What is phidata?
 
-Phidata is a framework for building Autonomous Assistants (i.e. Agents) using LLMs.
+Phidata is a framework for building Autonomous Assistants (aka Agents) that have long-term memory (using a database),
+contextual knowledge (using a vectordb) and the ability to take actions via tools (using function calling).
 
 ## Why phidata?
 

@@ -296,9 +296,9 @@ class Run(BaseModel):
                     return self
                 if self.required_action is not None:
                     if self.required_action.type == "submit_tool_outputs":
-                        tool_calls: List[
-                            RequiredActionFunctionToolCall
-                        ] = self.required_action.submit_tool_outputs.tool_calls
+                        tool_calls: List[RequiredActionFunctionToolCall] = (
+                            self.required_action.submit_tool_outputs.tool_calls
+                        )
 
                         tool_outputs = []
                         for tool_call in tool_calls:

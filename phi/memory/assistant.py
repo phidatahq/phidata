@@ -4,9 +4,51 @@ from pydantic import BaseModel
 
 from phi.llm.message import Message
 from phi.llm.references import References
+from phi.llm.openai import OpenAIChat
 
+
+class Keypoint(BaseModel):
+    content: str
+    importance: float
 
 class AssistantMemory(BaseModel):
+    chat_history: List[Message] = []
+    keypoints: List[Keypoint] = []
+    llm_client: OpenAIChat  
+
+    def __init__(self, llm_client: OpenAIChat, **data):
+        super().__init__(**data)
+        self.llm_client = llm_client
+
+    def add_keypoint(self, keypoint: Keypoint) -> None:
+        """Adds a keypoint to the keypoints list."""
+        self.keypoints.append(keypoint)
+
+    def get_keypoints(self) -> List[Dict[str, Any]]:
+        """Returns the keypoints as a list of dictionaries."""
+        return [keypoint.dict() for keypoint in self.keypoints]
+
+    def extract_keypoints(self) -> None:
+        """Extracts keypoints from the chat_history using the LLM."""
+        text = "\n".join([msg.content for msg in self.chat_history if msg.role == "user"])
+        if not text:
+            return  # Avoid making an empty request
+
+        keypoints = self.ask_llm_keypoints(text)
+        for keypoint in keypoints:
+            self.add_keypoint(Keypoint(**keypoint))
+
+    def ask_llm_keypoints(self, text: str) -> List[Dict[str, float]]:
+        """Ask the LLM to extract keypoints from the given text."""
+        # Example response, assuming the LLM returns structured data like this
+        response = self.llm_client.get_client().Completion.create(
+            prompt=f"Identify keypoints in the following conversation: {text}",
+            model=self.llm_client.model,
+            max_tokens=500
+        )
+        keypoints_response = response.get("choices")[0].get("text").strip().split("\n")
+        return [{"content": k, "importance": 1.0} for k in keypoints_response]
+
     # Messages between the user and the Assistant.
     # Note: the llm prompts are stored in the llm_messages
     chat_history: List[Message] = []

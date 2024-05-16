@@ -31,8 +31,9 @@ class AssistantMemory(BaseModel):
     def extract_keypoints(self) -> None:
         """Extracts keypoints from the chat_history using the LLM."""
         text = "\n".join([msg.content for msg in self.chat_history if msg.role == "user"])
+        # Avoid making an empty request
         if not text:
-            return  # Avoid making an empty request
+            return  
 
         keypoints = self.ask_llm_keypoints(text)
         for keypoint in keypoints:
@@ -40,7 +41,6 @@ class AssistantMemory(BaseModel):
 
     def ask_llm_keypoints(self, text: str) -> List[Dict[str, float]]:
         """Ask the LLM to extract keypoints from the given text."""
-        # Example response, assuming the LLM returns structured data like this
         response = self.llm_client.get_client().Completion.create(
             prompt=f"Identify keypoints in the following conversation: {text}",
             model=self.llm_client.model,

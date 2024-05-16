@@ -51,9 +51,11 @@ def get_function_calling_assistant(
         debug_mode=debug_mode,
     )
     assistant.add_introduction(
-        dedent("""\
+        dedent(
+            """\
     Hi, I'm a local AI Assistant that uses function calling to answer questions.\n
     Select the tools from the sidebar and ask me questions.
-    """)
+    """
+        )
     )
     return assistant

@@ -44,7 +44,7 @@ scratch
 junk
 tmp
 
-.ipynb_checkpoint
+.ipynb_checkpoints
 
 # ignore Streamlit secrets file
 .streamlit/secrets.toml

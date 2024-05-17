@@ -9,11 +9,11 @@ from phi.vectordb.chroma import ChromaDb
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=ChromaDb(collection="recipes", persistent_client=True),
+    vector_db=ChromaDb(collection="recipes"),
 )
 
 # Comment out after first run
-knowledge_base.load(recreate=True)
+knowledge_base.load(recreate=False)
 
 
 def pdf_assistant(user: str = "user"):

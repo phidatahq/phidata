@@ -84,6 +84,8 @@ class Assistant(BaseModel):
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]] = None
+    # A list of tools registered with the Assistant
+    registered_tools: List[Union[Tool, Toolkit, Callable, Dict, Function]] = []
     # Show tool calls in LLM response.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -283,20 +285,26 @@ class Assistant(BaseModel):
             self.search_knowledge = True
 
         if self.memory is not None:
-            if self.read_chat_history:
+            if self.read_chat_history and self.get_chat_history not in self.registered_tools:
                 self.llm.add_tool(self.get_chat_history)
-            if self.read_tool_call_history:
+                self.registered_tools.append(self.get_chat_history)
+            if self.read_tool_call_history and self.get_tool_call_history not in self.registered_tools:
                 self.llm.add_tool(self.get_tool_call_history)
+                self.registered_tools.append(self.get_tool_call_history)
         if self.knowledge_base is not None:
-            if self.search_knowledge:
+            if self.search_knowledge and self.search_knowledge_base not in self.registered_tools:
                 self.llm.add_tool(self.search_knowledge_base)
-            if self.update_knowledge:
+                self.registered_tools.append(self.search_knowledge_base)
+            if self.update_knowledge and self.add_to_knowledge_base not in self.registered_tools:
                 self.llm.add_tool(self.add_to_knowledge_base)
+                self.registered_tools.append(self.add_to_knowledge_base)
 
         # Add tools to the LLM
         if self.tools is not None:
             for tool in self.tools:
-                self.llm.add_tool(tool)
+                if tool not in self.registered_tools:
+                    self.llm.add_tool(tool)
+                self.registered_tools.append(tool)
 
         if self.team is not None and len(self.team) > 0:
             for assistant_index, assistant in enumerate(self.team):

@@ -4,7 +4,10 @@ from typing import List, Optional
 try:
     from chromadb import Client as ChromaDbClient
     from chromadb import PersistentClient as PersistentChromaDbClient
+    from chromadb.api.client import ClientAPI
     from chromadb.api.models.Collection import Collection
+    from chromadb.api.types import QueryResult, GetResult
+
 except ImportError:
     raise ImportError("The `chromadb` package is not installed. " "Please install it via `pip install chromadb`.")
 
@@ -22,7 +25,7 @@ class ChromaDb(VectorDb):
         collection: str,
         embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
-        path: Optional[str] = "tmp/chromadb",
+        path: str = "tmp/chromadb",
         persistent_client: bool = False,
         **kwargs,
     ):
@@ -36,20 +39,20 @@ class ChromaDb(VectorDb):
         self.distance: Distance = distance
 
         # Chroma client instance
-        self._client: Optional[ChromaDbClient] = None
+        self._client: Optional[ClientAPI] = None
 
         # Chroma collection instance
         self._collection: Optional[Collection] = None
 
         # Persistent Chroma client instance
         self.persistent_client: bool = persistent_client
-        self.path: Optional[str] = path
+        self.path: str = path
 
         # Chroma client kwargs
         self.kwargs = kwargs
 
     @property
-    def client(self) -> ChromaDbClient:
+    def client(self) -> ClientAPI:
         if self._client is None:
             if not self.persistent_client:
                 logger.debug("Creating Chroma Client")
@@ -81,8 +84,8 @@ class ChromaDb(VectorDb):
         """
         if self.client:
             try:
-                collection = self.client.get_collection(name=self.collection)
-                collection_data = collection.get(include=["documents"])
+                collection: Collection = self.client.get_collection(name=self.collection)
+                collection_data: GetResult = collection.get(include=["documents"])
                 if collection_data.get("documents") != []:
                     return True
             except Exception as e:
@@ -97,12 +100,12 @@ class ChromaDb(VectorDb):
             bool: True if document exists, False otherwise."""
         if self.client:
             try:
-                collections = self.client.get_collection(name=self.collection)
+                collections: Collection = self.client.get_collection(name=self.collection)
                 for collection in collections:
                     if name in collection:
                         return True
             except Exception as e:
-                logger.debug(f"Document with given name does not exist: {e}")
+                logger.error(f"Document with given name does not exist: {e}")
         return False
 
     def insert(self, documents: List[Document]) -> None:
@@ -110,7 +113,6 @@ class ChromaDb(VectorDb):
         Args:
             documents (List[Document]): List of documents to insert
         """
-
         logger.debug(f"Inserting {len(documents)} documents")
         ids: List = []
         docs: List = []
@@ -124,9 +126,11 @@ class ChromaDb(VectorDb):
             docs.append(cleaned_content)
             ids.append(doc_id)
 
-        if len(docs) > 0:
-            self._collection.add(ids=ids, embeddings=docs_embeddings, documents=docs)  # type: ignore
+        if len(docs) > 0 and self._collection is not None:
+            self._collection.add(ids=ids, embeddings=docs_embeddings, documents=docs)
             logger.debug(f"Inserted {len(docs)} documents")
+        else:
+            logger.error("Collection does not exist")
 
     def upsert(self, documents: List[Document]) -> None:
         """Upsert documents into the collection.
@@ -146,9 +150,11 @@ class ChromaDb(VectorDb):
             docs.append(cleaned_content)
             ids.append(doc_id)
 
-        if len(docs) > 0:
-            self._collection.upsert(ids=ids, embeddings=docs_embeddings, documents=docs)  # type: ignore
+        if len(docs) > 0 and self._collection is not None:
+            self._collection.upsert(ids=ids, embeddings=docs_embeddings, documents=docs)
             logger.debug(f"Inserted {len(docs)} documents")
+        else:
+            logger.error("Collection does not exist")
 
     def search(self, query: str, limit: int = 5) -> List[Document]:
         """Search the collection for a query.
@@ -166,8 +172,8 @@ class ChromaDb(VectorDb):
         if not self._collection:
             self._collection = self.client.get_collection(name=self.collection)
 
-        result = self._collection.query(
-            query_embeddings=[query_embedding],
+        result: QueryResult = self._collection.query(
+            query_embeddings=query_embedding,
             n_results=limit,
         )
 
@@ -175,9 +181,9 @@ class ChromaDb(VectorDb):
         search_results: List[Document] = []
 
         ids = result.get("ids", [[]])[0]
-        distances = result.get("distances", [[]])[0]
-        metadatas = result.get("metadatas", [[]])[0]
-        documents = result.get("documents", [[]])[0]
+        distances = result.get("distances", [[]])[0]  # type: ignore
+        metadatas = result.get("metadatas", [[]])[0]  # type: ignore
+        documents = result.get("documents", [[]])[0]  # type: ignore
         embeddings = result.get("embeddings")
         uris = result.get("uris")
         data = result.get("data")
@@ -219,8 +225,11 @@ class ChromaDb(VectorDb):
     def get_count(self) -> int:
         """Get the count of documents in the collection."""
         if self.exists():
-            collection = self.client.get_collection(name=self.collection)
-            return collection.count()
+            try:
+                collection: Collection = self.client.get_collection(name=self.collection)
+                return collection.count()
+            except Exception as e:
+                logger.error(f"Error getting count: {e}")
         return 0
 
     def optimize(self) -> None:

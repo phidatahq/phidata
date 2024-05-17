@@ -13,7 +13,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 
 # Comment out after first run
-knowledge_base.load(recreate=False)
+knowledge_base.load(recreate=True)
 
 
 def pdf_assistant(user: str = "user"):

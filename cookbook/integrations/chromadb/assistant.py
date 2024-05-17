@@ -1,33 +1,22 @@
-import os
 import typer
-from typing import Optional
 from rich.prompt import Prompt
+from typing import Optional
 
 from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pineconedb import PineconeDB
+from phi.vectordb.chroma import ChromaDb
 
-api_key = os.getenv("PINECONE_API_KEY")
-index_name = "thai-recipe-index"
-
-vector_db = PineconeDB(
-    name=index_name,
-    dimension=1536,
-    metric="cosine",
-    spec={"serverless": {"cloud": "aws", "region": "us-west-2"}},
-    api_key=api_key,
-)
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=vector_db,
+    vector_db=ChromaDb(collection="recipes", persistent_client=True),
 )
 
 # Comment out after first run
-knowledge_base.load(recreate=False, upsert=True)
+knowledge_base.load(recreate=False)
 
 
-def pinecone_assistant(user: str = "user"):
+def pdf_assistant(user: str = "user"):
     run_id: Optional[str] = None
 
     assistant = Assistant(
@@ -37,10 +26,7 @@ def pinecone_assistant(user: str = "user"):
         use_tools=True,
         show_tool_calls=True,
         debug_mode=True,
-        # Uncomment the following line to use traditional RAG
-        # add_references_to_prompt=True,
     )
-
     if run_id is None:
         run_id = assistant.run_id
         print(f"Started Run: {run_id}\n")
@@ -55,4 +41,4 @@ def pinecone_assistant(user: str = "user"):
 
 
 if __name__ == "__main__":
-    typer.run(pinecone_assistant)
+    typer.run(pdf_assistant)

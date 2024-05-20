@@ -17,8 +17,9 @@ def get_research_assistant(
             "You will be provided with a topic and search results from junior researchers.",
             "Carefully read the results and generate a final - NYT cover story worthy report.",
             "Make your report engaging, informative, and well-structured.",
-            "Your report should follow the format provided below."
+            "Your report should follow the format provided below.",
             "Remember: you are writing for the New York Times, so the quality of the report is important.",
+            "The report must be written in {English}, even if the structure or question is in another language.",
         ],
         add_to_system_prompt=dedent(
             """

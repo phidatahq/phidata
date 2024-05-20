@@ -119,7 +119,25 @@ class Qdrant(VectorDb):
         return False
 
     def name_exists(self, name: str) -> bool:
-        raise NotImplementedError
+        """
+        Validates if a document with the given name exists in the collection.
+
+        Args:
+            name (str): The name of the document to check.
+
+        Returns:
+            bool: True if a document with the given name exists, False otherwise.
+        """
+        if self.client:
+            scroll_result = self.client.scroll(
+                collection_name=self.collection,
+                scroll_filter=models.Filter(
+                    must=[models.FieldCondition(key="name", match=models.MatchValue(value=name))]
+                ),
+                limit=1,
+            )
+            return len(scroll_result[0]) > 0
+        return False
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
         logger.debug(f"Inserting {len(documents)} documents")

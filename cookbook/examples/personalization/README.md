@@ -58,7 +58,7 @@ streamlit run cookbook/examples/personalization/app.py
 
 - Open [localhost:8501](http://localhost:8501) to view the streamlit app.
 - Enter a username to associate with the memory.
-- Add to memory: "Call me bestie"
+- Add to memory: "Refer to me as bestie"
 - Add to memory: "Always respond with a nice greeting and salutation"
 - Add to memory: "I like docs so add a dog pun in the response"
 - Add a website to the knowledge base: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/

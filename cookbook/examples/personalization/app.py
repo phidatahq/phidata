@@ -21,7 +21,7 @@ st.markdown("##### :orange_heart: built using [phidata](https://github.com/phida
 
 with st.expander(":rainbow[:point_down: How to use]"):
     st.markdown("Tell the Assistant about your preferences and they will remember them across conversations.")
-    st.markdown("- Call me bestie")
+    st.markdown("- Refer to me as bestie")
     st.markdown("- Always respond with a nice greeting and salutation")
     st.markdown("- I like dogs so add a dog pun in the response")
 

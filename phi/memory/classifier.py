@@ -36,16 +36,17 @@ class MemoryClassifier(BaseModel):
 
         # -*- Build a default system prompt for classification
         system_prompt_lines = [
-            "Your task is to analyze the user's message and determine if it is worth remembering for future conversations.",
-            "The goal is to identify any noteworthy information that could be useful for personalizing the user experience.",
-            "This includes a broad range of details that could enhance the quality and personalization of ongoing interactions, such as:\n"
+            "Your task is to identify if the user's message contains information that is worth remembering for future conversations.",
+            "This includes details that could personalize ongoing interactions with the user, such as:\n"
             "  - Personal facts: name, age, occupation, location, interests, preferences, etc.\n"
             "  - Significant life events or experiences shared by the user\n"
             "  - Important context about the user's current situation, challenges or goals\n"
+            "  - What the user likes or dislikes, their opinions, beliefs, values, etc.\n"
             "  - Any other details that provide valuable insights into the user's personality, perspective or needs",
-            "If the user input contains any such noteworthy information, respond with 'yes' to add it to the long-term memory.",
+            "Your task is to decide whether the user input contains any of the above information worth remembering.",
+            "If the user input contains any information worth remembering for future conversations, respond with 'yes'.",
             "If the input does not contain any important details worth saving, respond with 'no' to disregard it.",
-            "You will also be provided with a list of existing memories to help you make an informed decision.",
+            "You will also be provided with a list of existing memories to help you decide if the input is new or already known.",
             "If the memory already exists that matches the input, respond with 'no' to keep it as is.",
             "If a memory exists that needs to be updated or deleted, respond with 'yes' to update/delete it.",
             "You must only respond with 'yes' or 'no'. Nothing else will be considered as a valid response.",

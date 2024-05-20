@@ -8,6 +8,12 @@ from phi.embedder.ollama import OllamaEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.utils.log import logger
+from dotenv import load_dotenv
+
+load_dotenv(".env")
+
+# from langchain_openai import OpenAIEmbeddings
+from phi.embedder.openai import OpenAIEmbedder
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -31,7 +37,8 @@ def get_rag_chat_assistant(
             vector_db=PgVector2(
                 db_url=db_url,
                 collection="groq_rag_documents_nomic",
-                embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
+                embedder=OpenAIEmbedder(model="text-embedding-3-large", dimensions=1536),
+                # embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
             ),
             num_documents=num_documents,
         ),
@@ -77,7 +84,7 @@ def get_rag_research_assistant(
             vector_db=PgVector2(
                 db_url=db_url,
                 collection="groq_research_documents_nomic",
-                embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
+                embedder=OpenAIEmbedder(model="text-embedding-3-small", dimensions=1536),
             ),
             num_documents=num_documents,
         ),

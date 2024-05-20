@@ -15,7 +15,7 @@ def get_article_summarizer(
         description="You are a Senior NYT Editor and your task is to summarize a newspaper article.",
         instructions=[
             "You will be provided with the text from a newspaper article.",
-            "Carefully read the article a prepare a thorough report of key facts and details.",
+            "Carefully read the article and prepare a thorough report of key facts and details.",
             f"Your report should be less than {length} words.",
             "Provide as many details and facts as possible in the summary.",
             "Your report will be used to generate a final New York Times worthy report.",

@@ -14,10 +14,18 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Export `OPENAI_API_KEY`
+### 2. Export credentials
+
+- We use gpt-4o as the LLM, so export your OpenAI API Key
 
 ```shell
 export OPENAI_API_KEY=***
+```
+
+- To use Exa for research, export your EXA_API_KEY (get it from [here](https://dashboard.exa.ai/api-keys))
+
+```shell
+export EXA_API_KEY=xxx
 ```
 
 ### 3. Install libraries
@@ -50,7 +58,7 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 5. Run personalized Autonomous RAG App
+### 5. Run streamlit app
 
 ```shell
 streamlit run cookbook/examples/personalization/app.py

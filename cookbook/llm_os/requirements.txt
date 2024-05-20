@@ -253,3 +253,4 @@ webencodings==0.5.1
     # via html5lib
 yfinance==0.2.38
     # via -r cookbook/llm_os/requirements.in
+python-dotenv==1.0.1

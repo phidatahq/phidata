@@ -9,6 +9,9 @@ from phi.document.reader.website import WebsiteReader
 from phi.utils.log import logger
 
 from assistant import get_llm_os  # type: ignore
+from dotenv import load_dotenv
+
+load_dotenv()
 
 nest_asyncio.apply()
 

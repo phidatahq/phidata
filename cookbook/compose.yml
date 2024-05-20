@@ -1,0 +1,41 @@
+name: llm_os
+services:
+  llm-os:
+    build: ./llm_os
+    volumes:
+      - ./llm_os:/llm_os
+    ports:
+      - 8502:8502
+    env_file:
+      - .env
+    depends_on:
+      - db
+  db:
+    hostname: db
+    image: ankane/pgvector
+    container_name: ai-db
+    ports:
+     - 5432:5632
+    restart: always
+    environment:
+      - POSTGRES_USER=ai
+      - POSTGRES_PASSWORD=ai
+      - POSTGRES_DB=ai
+      # - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+     - ./postgres/vector_extension.sql:/docker-entrypoint-initdb.d/init.sql
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: llm_os-pgadmin
+    depends_on:
+        - db
+    ports:
+        - "5053:80"
+    environment:
+        PGADMIN_DEFAULT_EMAIL: brainzcode@brainzcode.com
+        PGADMIN_DEFAULT_PASSWORD: brainzcode
+    restart: always
+volumes:
+  postgres_data:
+
+

@@ -20,8 +20,11 @@ from phi.assistant.python import PythonAssistant
 from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.utils.log import logger
 from phi.vectordb.pgvector import PgVector2
+from dotenv import load_dotenv
 
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+load_dotenv()
+
+db_url = "postgresql+psycopg://ai:ai@db:5432/ai"
 cwd = Path(__file__).parent.resolve()
 scratch_dir = cwd.joinpath("scratch")
 if not scratch_dir.exists():

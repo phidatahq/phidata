@@ -90,7 +90,8 @@ def get_rag_research_assistant(
             "Remember: you are writing for the New York Times, so the quality of the report is important.",
         ],
         add_datetime_to_instructions=True,
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         ## [Title]
 
@@ -119,7 +120,8 @@ def get_rag_research_assistant(
 
         Report generated on: {Month Date, Year (hh:mm AM/PM)}
         </report_format>
-        """),
+        """
+        ),
         markdown=True,
         debug_mode=debug_mode,
     )

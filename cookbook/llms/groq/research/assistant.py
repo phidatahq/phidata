@@ -21,7 +21,8 @@ def get_research_assistant(
             "Remember: you are writing for the New York Times, so the quality of the report is important.",
             "The report must be written in {English}, even if the structure or question is in another language.",
         ],
-        add_to_system_prompt=dedent("""
+        add_to_system_prompt=dedent(
+            """
         <report_format>
         ## Title
 
@@ -51,7 +52,8 @@ def get_research_assistant(
         - [Reference 1](Link to Source)
         - [Reference 2](Link to Source)
         </report_format>
-        """),
+        """
+        ),
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         add_datetime_to_instructions=True,

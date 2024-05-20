@@ -610,6 +610,7 @@ class OpenAIChat(LLM):
         assistant_message_function_arguments_str = ""
         assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
         completion_tokens = 0
+        time_to_first_token = None
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
@@ -629,6 +630,9 @@ class OpenAIChat(LLM):
             if response_content is not None:
                 assistant_message_content += response_content
                 completion_tokens += 1
+                if completion_tokens == 1:
+                    time_to_first_token = response_timer.elapsed
+                    logger.debug(f"Time to first token: {time_to_first_token:.4f}s")
                 yield response_content
 
             # -*- Parse function call
@@ -648,6 +652,9 @@ class OpenAIChat(LLM):
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        if completion_tokens > 0:
+            logger.debug(f"Time per output token: {response_timer.elapsed / completion_tokens:.4f}s")
+            logger.debug(f"Throughput: {completion_tokens / response_timer.elapsed:.4f} tokens/s")
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -704,11 +711,25 @@ class OpenAIChat(LLM):
             assistant_message.tool_calls = tool_calls
 
         # -*- Update usage metrics
-        # Add response time to metrics
+        # Add response time to assistant metrics
         assistant_message.metrics["time"] = response_timer.elapsed
+        if time_to_first_token is not None:
+            assistant_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
+        if completion_tokens > 0:
+            assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
+
+        # Add response time to LLM metrics
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
+        if time_to_first_token is not None:
+            if "time_to_first_token" not in self.metrics:
+                self.metrics["time_to_first_token"] = []
+            self.metrics["time_to_first_token"].append(f"{time_to_first_token:.4f}s")
+        if completion_tokens > 0:
+            if "tokens_per_second" not in self.metrics:
+                self.metrics["tokens_per_second"] = []
+            self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
         # Add token usage to metrics
         # TODO: compute prompt tokens

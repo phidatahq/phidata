@@ -16,7 +16,7 @@ class AssistantKnowledge(BaseModel):
     # Vector db to store the knowledge base
     vector_db: Optional[VectorDb] = None
     # Number of relevant documents to return on search
-    num_documents: int = 5
+    num_documents: int = 2
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
 

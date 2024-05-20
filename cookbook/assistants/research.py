@@ -43,7 +43,8 @@ assistant = Assistant(
     - [Title](url)
     - [Title](url)
     </article_format>\
-    """),
+    """
+    ),
     markdown=True,
     # show_tool_calls=True,
     save_output_to_file=str(scratch_dir.joinpath("new_article.md")),

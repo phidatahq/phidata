@@ -129,7 +129,7 @@ peewee==3.17.5
     # via yfinance
 pgvector==0.2.5
     # via -r cookbook/examples/personalization/requirements.in
-phidata==2.4.11
+phidata==2.4.12
     # via -r cookbook/examples/personalization/requirements.in
 pillow==10.3.0
     # via

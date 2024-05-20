@@ -27,8 +27,7 @@ class AssistantMemory(BaseModel):
     # References from the vector database.
     references: List[References] = []
 
-    # Store personalized memories for this user
-    add_memories: bool = False
+    # Create personalized memories for this user
     db: Optional[MemoryDb] = None
     user_id: Optional[str] = None
     retrieval: MemoryRetrieval = MemoryRetrieval.last_n
@@ -37,7 +36,6 @@ class AssistantMemory(BaseModel):
     classifier: Optional[MemoryClassifier] = None
     manager: Optional[MemoryManager] = None
     updating: bool = False
-    update_memory_after_run: bool = True
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -161,19 +159,19 @@ class AssistantMemory(BaseModel):
             logger.debug(f"Error reading memory: {e}")
             return
 
+        # Clear the existing memories
+        self.memories = []
+
+        # No memories to load
         if memory_rows is None or len(memory_rows) == 0:
             return
 
-        memories = []
         for row in memory_rows:
             try:
-                memories.append(Memory.model_validate(row.memory))
+                self.memories.append(Memory.model_validate(row.memory))
             except Exception as e:
-                logger.debug(f"Error loading memory: {e}")
+                logger.warning(f"Error loading memory: {e}")
                 continue
-        # Update the memories list
-        if len(memories) > 0:
-            self.memories = memories
 
     def should_update_memory(self, input: str) -> bool:
         """Determines if a message should be added to the memory db."""
@@ -190,11 +188,12 @@ class AssistantMemory(BaseModel):
     def update_memory(self, input: str, force: bool = False) -> str:
         """Creates a memory from a message and adds it to the memory db."""
 
-        if not self.add_memories:
-            return "Memory not updated"
-
         if input is None or not isinstance(input, str):
             return "Invalid message content"
+
+        if self.db is None:
+            logger.warning("MemoryDb not provided.")
+            return "Please provide a db to store memories"
 
         self.updating = True
 
@@ -203,14 +202,14 @@ class AssistantMemory(BaseModel):
         logger.debug(f"Update memory: {should_update_memory}")
 
         if not should_update_memory:
-            return "Memory not updated"
+            logger.debug("Memory update not required")
+            return "Memory update not required"
 
         if self.manager is None:
             self.manager = MemoryManager(user_id=self.user_id, db=self.db)
 
         response = self.manager.run(input)
         self.load_memory()
-        logger.debug("Memory Updated")
         return response
 
     def get_memories_for_system_prompt(self) -> Optional[str]:

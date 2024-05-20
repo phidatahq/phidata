@@ -1,8 +1,9 @@
-# Personalized Memory & Autonomous RAG
+# ChatGPT like Memory for Agents
 
-This cookbook implements Personalized Memory & Autonomous retrieval-augmented generation.
+This cookbook implements Personalization i.e. ChatGPT like Memory for an Assistant.
 
-i.e. the Assistant will remember details about the user across runs. Similar to how [ChatGPT implements Memory](https://openai.com/index/memory-and-new-controls-for-chatgpt/).
+Share details about yourself with the Assistant, and it will remember them across runs and personalize the responses to your preferences.
+Similar to how [ChatGPT implements Memory](https://openai.com/index/memory-and-new-controls-for-chatgpt/).
 
 > Note: Fork and clone this repository if needed
 
@@ -56,9 +57,10 @@ streamlit run cookbook/examples/personalization/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view the streamlit app.
-- Add to memory: "call me 'your highness'"
-- Add to memory: "always respond with a nice greeting and salutation"
-- Add to memory: "i like cats so add a cat pun in the response"
+- Enter a username to associate with the memory.
+- Add to memory: "Call me bestie"
+- Add to memory: "Always respond with a nice greeting and salutation"
+- Add to memory: "I like docs so add a dog pun in the response"
 - Add a website to the knowledge base: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
 - Ask questions like:
   - What did Meta release?

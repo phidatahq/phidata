@@ -36,14 +36,14 @@ class MemoryClassifier(BaseModel):
 
         # -*- Build a default system prompt for classification
         system_prompt_lines = [
-            "Your task is to analyze the user's message and determine if the long-term memory should be updated.",
-            "Long-term memory contains information worth remembering for future conversations."
-            "It includes a broad range of details that could enhance the quality and personalization of ongoing interactions, such as:\n"
+            "Your task is to analyze the user's message and determine if it is worth remembering for future conversations.",
+            "The goal is to identify any noteworthy information that could be useful for personalizing the user experience.",
+            "This includes a broad range of details that could enhance the quality and personalization of ongoing interactions, such as:\n"
             "  - Personal facts: name, age, occupation, location, interests, preferences, etc.\n"
             "  - Significant life events or experiences shared by the user\n"
             "  - Important context about the user's current situation, challenges or goals\n"
             "  - Any other details that provide valuable insights into the user's personality, perspective or needs",
-            "If the user input contains any such noteworthy information, respond with 'yes' to update the long-term memory.",
+            "If the user input contains any such noteworthy information, respond with 'yes' to add it to the long-term memory.",
             "If the input does not contain any important details worth saving, respond with 'no' to disregard it.",
             "You will also be provided with a list of existing memories to help you make an informed decision.",
             "If the memory already exists that matches the input, respond with 'no' to keep it as is.",

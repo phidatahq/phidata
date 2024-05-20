@@ -325,6 +325,10 @@ class Assistant(BaseModel):
                 self.memory.user_id = self.user_id
 
             self.memory.load_memory()
+        if self.user_id is not None:
+            logger.debug(f"Loaded memory for user: {self.user_id}")
+        else:
+            logger.debug("Loaded memory")
 
     def to_database_row(self) -> AssistantRun:
         """Create a AssistantRun for the current Assistant (to save to the database)"""
@@ -436,6 +440,7 @@ class Assistant(BaseModel):
                 logger.debug(f"-*- Loading run: {self.db_row.run_id}")
                 self.from_database_row(row=self.db_row)
                 logger.debug(f"-*- Loaded run: {self.run_id}")
+        self.load_memory()
         return self.db_row
 
     def write_to_storage(self) -> Optional[AssistantRun]:
@@ -672,7 +677,7 @@ class Assistant(BaseModel):
                 system_prompt_lines.append(
                     "Note: this information is from previous interactions and may be updated during this conversation. You should always prefer information from this conversation over the memories."
                 )
-                system_prompt_lines.append("If you need to update the memory, use the 'update_memory' tool.")
+                system_prompt_lines.append("If you need to update the long-term memory, use the 'update_memory' tool.")
             else:
                 system_prompt_lines.append(
                     "\nYou also have access to memory from previous interactions with the user but the user has no memories yet."
@@ -806,9 +811,6 @@ class Assistant(BaseModel):
         # Load run from storage
         self.read_from_storage()
 
-        # Load Memory
-        self.load_memory()
-
         # Update the LLM (set defaults, add tools, etc.)
         self.update_llm()
 
@@ -891,7 +893,8 @@ class Assistant(BaseModel):
         if user_message is not None:
             self.memory.add_chat_message(message=user_message)
             # Update the memory with the user message if needed
-            self.memory.update_memory(input=user_message.get_content_string())
+            if self.memory.update_memory_after_run:
+                self.memory.update_memory(input=user_message.get_content_string())
 
         # Build the LLM response message to add to the memory - this is added to the chat_history
         llm_response_message = Message(role="assistant", content=llm_response)
@@ -1077,9 +1080,6 @@ class Assistant(BaseModel):
             async for response_chunk in response_stream:  # type: ignore
                 llm_response += response_chunk
                 yield response_chunk
-            # async for response_chunk in await self.llm.aresponse_stream(messages=llm_messages):
-            #     llm_response += response_chunk
-            #     yield response_chunk
         else:
             llm_response = await self.llm.aresponse(messages=llm_messages)
 
@@ -1090,6 +1090,9 @@ class Assistant(BaseModel):
         # Add user message to the memory
         if user_message is not None:
             self.memory.add_chat_message(message=user_message)
+            # Update the memory with the user message if needed
+            if self.memory.update_memory_after_run:
+                self.memory.update_memory(input=user_message.get_content_string())
 
         # Build the LLM response message to add to the memory - this is added to the chat_history
         llm_response_message = Message(role="assistant", content=llm_response)

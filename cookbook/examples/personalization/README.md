@@ -1,9 +1,8 @@
-# Autonomous RAG with Personalized Memory
+# Personalized Memory & Autonomous RAG
 
-This cookbook shows how to do Autonomous retrieval-augmented generation with GPT4.
+This cookbook implements Personalized Memory & Autonomous retrieval-augmented generation.
 
-Auto-RAG is just a fancy name for giving the LLM tools like "search_knowledge_base", "read_chat_history", "search_the_web"
-and letting it decide how to retrieve the information it needs to answer the question.
+i.e. the Assistant will remember details about the user across runs. Similar to how [ChatGPT implements Memory](https://openai.com/index/memory-and-new-controls-for-chatgpt/).
 
 > Note: Fork and clone this repository if needed
 
@@ -23,7 +22,7 @@ export OPENAI_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -r cookbook/examples/auto_rag/requirements.txt
+pip install -r cookbook/examples/personalization/requirements.txt
 ```
 
 ### 4. Run PgVector
@@ -50,16 +49,17 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 5. Run Autonomous RAG App
+### 5. Run personalized Autonomous RAG App
 
 ```shell
-streamlit run cookbook/examples/auto_rag/app.py
+streamlit run cookbook/examples/personalization/app.py
 ```
 
-- Open [localhost:8501](http://localhost:8501) to view your RAG app.
-- Add websites or PDFs and ask question.
-
-- Example Website: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
+- Open [localhost:8501](http://localhost:8501) to view the streamlit app.
+- Add to memory: "call me 'your highness'"
+- Add to memory: "always respond with a nice greeting and salutation"
+- Add to memory: "i like cats so add a cat pun in the response"
+- Add a website to the knowledge base: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
 - Ask questions like:
   - What did Meta release?
   - Tell me more about the Llama 3 models?

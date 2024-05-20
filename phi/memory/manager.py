@@ -123,14 +123,12 @@ class MemoryManager(BaseModel):
             "Your task is to generate a concise memory for the user's message. "
             "Create a memory that captures the key information provided by the user, as if you were storing it for future reference. "
             "The memory should be a brief, third-person statement that encapsulates the most important aspect of the user's input, without adding any extraneous details. "
-            "Your goal is to create a memory that can be effectively used to enhance the user's experience in subsequent conversations.",
-            "You will also be provided with a list of existing memories. Follow these steps to manage the memories:",
-            "  1. If the input does not match any existing memories, add a new memory using the `add_memory` tool.",
-            "  2. If the user input matches an existing memory that should be updated, update it using the `update_memory` tool.",
-            "  3. If the user input matches an existing memory that should be deleted, delete it using the `delete_memory` tool.",
-            "Make sure to review the existing memories carefully before making a decision.",
-            "Clean up any unnecessary or outdated memories to ensure that the memory database remains relevant and useful. Add, Update or Delete a memory as needed.",
-            "You can clear all memories using the `clear_memory` tool. Use this option with caution, as it will remove all memories from the database.",
+            "This memory will be used to enhance the user's experience in subsequent conversations.",
+            "You will also be provided with a list of existing memories. You may:",
+            "  1. Add a new memory using the `add_memory` tool.",
+            "  2. Update a memory using the `update_memory` tool.",
+            "  3. Delete a memory using the `delete_memory` tool.",
+            "  4. Clear all memories using the `clear_memory` tool. Use this with extreme caution, as it will remove all memories from the database.",
         ]
         existing_memories = self.get_existing_memories()
         if existing_memories and len(existing_memories) > 0:

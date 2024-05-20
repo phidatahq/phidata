@@ -37,6 +37,7 @@ class AssistantMemory(BaseModel):
     classifier: Optional[MemoryClassifier] = None
     manager: Optional[MemoryManager] = None
     updating: bool = False
+    update_memory_after_run: bool = True
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

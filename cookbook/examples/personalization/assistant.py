@@ -1,34 +1,43 @@
 from typing import Optional
 
-from phi.assistant import Assistant
-from phi.knowledge import AssistantKnowledge
+from phi.assistant import Assistant, AssistantMemory, AssistantKnowledge
 from phi.llm.openai import OpenAIChat
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.pgvector import PgVector2
+from phi.memory.db.postgres import PgMemoryDb
 from phi.storage.assistant.postgres import PgAssistantStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 
-def get_auto_rag_assistant(
-    llm_model: str = "gpt-4-turbo",
+def get_personalized_auto_rag_assistant(
+    llm_model: str = "gpt-4o",
     user_id: Optional[str] = None,
     run_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Assistant:
-    """Get an Auto RAG Assistant."""
+    """Get a Personalized Auto RAG Assistant."""
 
     return Assistant(
-        name="auto_rag_assistant",
+        name="personalized_auto_rag_assistant",
         run_id=run_id,
         user_id=user_id,
         llm=OpenAIChat(model=llm_model),
-        storage=PgAssistantStorage(table_name="auto_rag_assistant_openai", db_url=db_url),
+        # Add personalization to the assistant
+        # by storing memories in a database and adding them to the system prompt
+        memory=AssistantMemory(
+            db=PgMemoryDb(
+                db_url=db_url,
+                table_name="personalized_auto_rag_assistant_memory",
+            ),
+            add_memories=True,
+        ),
+        storage=PgAssistantStorage(table_name="personalized_auto_rag_assistant_openai", db_url=db_url),
         knowledge_base=AssistantKnowledge(
             vector_db=PgVector2(
                 db_url=db_url,
-                collection="auto_rag_documents_openai",
+                collection="personalized_auto_rag_documents_openai",
                 embedder=OpenAIEmbedder(model="text-embedding-3-small", dimensions=1536),
             ),
             # 3 references are added to the prompt

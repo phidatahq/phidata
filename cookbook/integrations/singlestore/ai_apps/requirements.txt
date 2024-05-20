@@ -126,7 +126,7 @@ pandas==2.2.2
     #   yfinance
 peewee==3.17.3
     # via yfinance
-phidata==2.4.8
+phidata==2.4.10
     # via -r cookbook/integrations/singlestore/auto_rag/requirements.in
 pillow==10.3.0
     # via streamlit

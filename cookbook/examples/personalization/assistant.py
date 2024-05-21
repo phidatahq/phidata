@@ -240,7 +240,7 @@ def get_personalized_assistant(
             " - You need to ask a clarifying question",
             "If the user asks about a topic, first ALWAYS search your knowledge base using the `search_knowledge_base` tool.",
             "If you dont find relevant information in your knowledge base, use the `duckduckgo_search` tool to search the internet.",
-            "If the user asks to summarize the conversation or if you need to reference your chat history with the user, use the `get_chat_history` tool.",
+            "If the user asks to summarize the conversation, use the `get_chat_history` tool with None as the argument.",
             "If the users message is unclear, ask clarifying questions to get more information.",
             "Carefully read the information you have gathered and provide a clear and concise answer to the user.",
             "Do not use phrases like 'based on my knowledge' or 'depending on the information'.",

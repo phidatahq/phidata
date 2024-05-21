@@ -23,7 +23,7 @@ with st.expander(":rainbow[:point_down: How to use]"):
     st.markdown("Tell the Assistant about your preferences and they will remember them across conversations.")
     st.markdown("- Refer to me as bestie")
     st.markdown("- Always respond with a nice greeting and salutation")
-    st.markdown("- I like dogs so add a dog pun in the response")
+    st.markdown("- I like dogs so always include a dog pun in the response")
 
 
 def main() -> None:
@@ -84,16 +84,16 @@ def main() -> None:
         ddg_search_enabled = ddg_search
         restart_assistant()
 
-    # Enable shell tools
-    if "shell_tools_enabled" not in st.session_state:
-        st.session_state["shell_tools_enabled"] = False
-    # Get shell_tools_enabled from session state if set
-    shell_tools_enabled = st.session_state["shell_tools_enabled"]
+    # Enable finance tools
+    if "finance_tools_enabled" not in st.session_state:
+        st.session_state["finance_tools_enabled"] = True
+    # Get finance_tools_enabled from session state if set
+    finance_tools_enabled = st.session_state["finance_tools_enabled"]
     # Checkbox for enabling shell tools
-    shell_tools = st.sidebar.checkbox("Shell Tools", value=shell_tools_enabled, help="Enable shell tools.")
-    if shell_tools_enabled != shell_tools:
-        st.session_state["shell_tools_enabled"] = shell_tools
-        shell_tools_enabled = shell_tools
+    finance_tools = st.sidebar.checkbox("Yahoo Finance", value=finance_tools_enabled, help="Enable finance tools.")
+    if finance_tools_enabled != finance_tools:
+        st.session_state["finance_tools_enabled"] = finance_tools
+        finance_tools_enabled = finance_tools
         restart_assistant()
 
     # Sidebar checkboxes for selecting team members
@@ -131,22 +131,6 @@ def main() -> None:
         research_assistant_enabled = research_assistant
         restart_assistant()
 
-    # Enable Investment Assistant
-    if "investment_assistant_enabled" not in st.session_state:
-        st.session_state["investment_assistant_enabled"] = False
-    # Get investment_assistant_enabled from session state if set
-    investment_assistant_enabled = st.session_state["investment_assistant_enabled"]
-    # Checkbox for enabling web search
-    investment_assistant = st.sidebar.checkbox(
-        "Investment Assistant",
-        value=investment_assistant_enabled,
-        help="Enable the investment assistant. NOTE: This is not financial advice.",
-    )
-    if investment_assistant_enabled != investment_assistant:
-        st.session_state["investment_assistant_enabled"] = investment_assistant
-        investment_assistant_enabled = investment_assistant
-        restart_assistant()
-
     # Get the assistant
     personalized_assistant: Assistant
     if "personalized_assistant" not in st.session_state or st.session_state["personalized_assistant"] is None:
@@ -157,10 +141,9 @@ def main() -> None:
             calculator=calculator_enabled,
             ddg_search=ddg_search_enabled,
             file_tools=file_tools_enabled,
-            shell_tools=shell_tools_enabled,
+            finance_tools=finance_tools_enabled,
             python_assistant=python_assistant_enabled,
             research_assistant=research_assistant_enabled,
-            investment_assistant=investment_assistant_enabled,
         )
         st.session_state["personalized_assistant"] = personalized_assistant
     else:
@@ -237,15 +220,15 @@ def main() -> None:
         )
         if uploaded_file is not None:
             alert = st.sidebar.info("Processing PDF...", icon="🧠")
-            auto_rag_name = uploaded_file.name.split(".")[0]
-            if f"{auto_rag_name}_uploaded" not in st.session_state:
+            file_name = uploaded_file.name.split(".")[0]
+            if f"{file_name}_uploaded" not in st.session_state:
                 reader = PDFReader()
-                auto_rag_documents: List[Document] = reader.read(uploaded_file)
-                if auto_rag_documents:
-                    personalized_assistant.knowledge_base.load_documents(auto_rag_documents, upsert=True)
+                file_documents: List[Document] = reader.read(uploaded_file)
+                if file_documents:
+                    personalized_assistant.knowledge_base.load_documents(file_documents, upsert=True)
                 else:
                     st.sidebar.error("Could not read PDF")
-                st.session_state[f"{auto_rag_name}_uploaded"] = True
+                st.session_state[f"{file_name}_uploaded"] = True
             alert.empty()
 
     if personalized_assistant.knowledge_base and personalized_assistant.knowledge_base.vector_db:
@@ -265,10 +248,9 @@ def main() -> None:
                 calculator=calculator_enabled,
                 ddg_search=ddg_search_enabled,
                 file_tools=file_tools_enabled,
-                shell_tools=shell_tools_enabled,
+                finance_tools=finance_tools_enabled,
                 python_assistant=python_assistant_enabled,
                 research_assistant=research_assistant_enabled,
-                investment_assistant=investment_assistant_enabled,
             )
             st.rerun()
 

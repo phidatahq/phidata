@@ -5,7 +5,6 @@ from typing import Optional, List
 from phi.assistant import Assistant, AssistantMemory, AssistantKnowledge
 from phi.tools import Toolkit
 from phi.tools.exa import ExaTools
-from phi.tools.shell import ShellTools
 from phi.tools.calculator import Calculator
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
@@ -31,10 +30,9 @@ def get_personalized_assistant(
     calculator: bool = False,
     ddg_search: bool = False,
     file_tools: bool = False,
-    shell_tools: bool = False,
+    finance_tools: bool = False,
     python_assistant: bool = False,
     research_assistant: bool = False,
-    investment_assistant: bool = False,
     debug_mode: bool = True,
 ) -> Assistant:
     # Add tools available to the LLM OS
@@ -55,10 +53,9 @@ def get_personalized_assistant(
         )
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
-    if shell_tools:
-        tools.append(ShellTools())
-        extra_instructions.append(
-            "You can use the `run_shell_command` tool to run shell commands. For example, `run_shell_command(args='ls')`."
+    if finance_tools:
+        tools.append(
+            YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True)
         )
     if file_tools:
         tools.append(FileTools(base_dir=cwd))
@@ -127,73 +124,6 @@ def get_personalized_assistant(
         extra_instructions.append(
             "To write a research report, delegate the task to the `Research Assistant`. "
             "Return the report in the <report_format> to the user as is, without any additional text like 'here is the report'."
-        )
-    if investment_assistant:
-        _investment_assistant = Assistant(
-            name="Investment Assistant",
-            role="Write a investment report on a given company (stock) symbol",
-            llm=OpenAIChat(model=llm_id),
-            description="You are a Senior Investment Analyst for Goldman Sachs tasked with writing an investment report for a very important client.",
-            instructions=[
-                "For a given stock symbol, get the stock price, company information, analyst recommendations, and company news",
-                "Carefully read the research and generate a final - Goldman Sachs worthy investment report in the <report_format> provided below.",
-                "Provide thoughtful insights and recommendations based on the research.",
-                "When you share numbers, make sure to include the units (e.g., millions/billions) and currency.",
-                "REMEMBER: This report is for a very important client, so the quality of the report is important.",
-            ],
-            expected_output=dedent(
-                """\
-            <report_format>
-            ## [Company Name]: Investment Report
-
-            ### **Overview**
-            {give a brief introduction of the company and why the user should read this report}
-            {make this section engaging and create a hook for the reader}
-
-            ### Core Metrics
-            {provide a summary of core metrics and show the latest data}
-            - Current price: {current price}
-            - 52-week high: {52-week high}
-            - 52-week low: {52-week low}
-            - Market Cap: {Market Cap} in billions
-            - P/E Ratio: {P/E Ratio}
-            - Earnings per Share: {EPS}
-            - 50-day average: {50-day average}
-            - 200-day average: {200-day average}
-            - Analyst Recommendations: {buy, hold, sell} (number of analysts)
-
-            ### Financial Performance
-            {analyze the company's financial performance}
-
-            ### Growth Prospects
-            {analyze the company's growth prospects and future potential}
-
-            ### News and Updates
-            {summarize relevant news that can impact the stock price}
-
-            ### [Summary]
-            {give a summary of the report and what are the key takeaways}
-
-            ### [Recommendation]
-            {provide a recommendation on the stock along with a thorough reasoning}
-
-            </report_format>
-            """
-            ),
-            tools=[YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True)],
-            # This setting tells the LLM to format messages in markdown
-            markdown=True,
-            add_datetime_to_instructions=True,
-            debug_mode=debug_mode,
-        )
-        team.append(_investment_assistant)
-        extra_instructions.extend(
-            [
-                "To get an investment report on a stock, delegate the task to the `Investment Assistant`. "
-                "Return the report in the <report_format> to the user without any additional text like 'here is the report'.",
-                "Answer any questions they may have using the information in the report.",
-                "Never provide investment advise without the investment report.",
-            ]
         )
 
     return Assistant(

@@ -615,8 +615,9 @@ class Assistant(BaseModel):
             instructions.append("Only use the tools you are provided.")
 
         # Add instructions for using markdown
-        if self.markdown and self.output_model is None:
-            instructions.append("Use markdown to format your answers.")
+        markdown_instructions = "Use markdown to format your answers."
+        if self.markdown and self.output_model is None and markdown_instructions not in instructions:
+            instructions.append(markdown_instructions)
 
         # Add instructions for adding the current datetime
         if self.add_datetime_to_instructions:

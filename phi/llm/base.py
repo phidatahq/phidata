@@ -110,27 +110,36 @@ class LLM(BaseModel):
 
         # If the tool is a Tool or Dict, add it directly to the LLM
         if isinstance(tool, Tool) or isinstance(tool, Dict):
-            self.tools.append(tool)
-            logger.debug(f"Added tool {tool} to LLM.")
+            if tool not in self.tools:
+                self.tools.append(tool)
+                logger.debug(f"Added tool {tool} to LLM.")
+
         # If the tool is a Callable or Toolkit, add its functions to the LLM
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                self.functions.update(tool.functions)
-                for func in tool.functions.values():
-                    self.tools.append({"type": "function", "function": func.to_dict()})
-                logger.debug(f"Functions from {tool.name} added to LLM.")
+                # For each function in the toolkit
+                for name, func in tool.functions.items():
+                    # If the function is new to self.functions, update and add to self.tools
+                    if name not in self.functions:
+                        self.functions[name] = func
+                        self.tools.append({"type": "function", "function": func.to_dict()})
+                        logger.debug(f"Function {name} from {tool.name} added to LLM.")
+
             elif isinstance(tool, Function):
-                self.functions[tool.name] = tool
-                self.tools.append({"type": "function", "function": tool.to_dict()})
-                logger.debug(f"Function {tool.name} added to LLM.")
+                if tool.name not in self.functions:
+                    self.functions[tool.name] = tool
+                    self.tools.append({"type": "function", "function": tool.to_dict()})
+                    logger.debug(f"Function {tool.name} added to LLM.")
+
             elif callable(tool):
                 func = Function.from_callable(tool)
-                self.functions[func.name] = func
-                self.tools.append({"type": "function", "function": func.to_dict()})
-                logger.debug(f"Function {func.name} added to LLM.")
+                if func.name not in self.functions:
+                    self.functions[func.name] = func
+                    self.tools.append({"type": "function", "function": func.to_dict()})
+                    logger.debug(f"Function {func.name} added to LLM.")
 
     def deactivate_function_calls(self) -> None:
         # Deactivate tool calls by setting future tool calls to "none"

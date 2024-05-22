@@ -98,7 +98,7 @@ pandas==2.2.2
     #   streamlit
 pgvector==0.2.5
     # via -r cookbook/llms/mistral/rag/requirements.in
-phidata==2.4.13
+phidata==2.4.14
     # via -r cookbook/llms/mistral/rag/requirements.in
 pillow==10.3.0
     # via streamlit

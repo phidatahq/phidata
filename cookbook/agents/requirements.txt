@@ -136,7 +136,7 @@ peewee==3.17.5
     # via yfinance
 pgvector==0.2.5
     # via -r cookbook/llm_os/requirements.in
-phidata==2.4.10
+phidata==2.4.13
     # via -r cookbook/llm_os/requirements.in
 pillow==10.3.0
     # via

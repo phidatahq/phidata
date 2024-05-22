@@ -154,8 +154,6 @@ class PgMemoryDb(MemoryDb):
             return False
 
     def clear_table(self) -> bool:
-        from sqlalchemy import delete
-
         with self.Session() as sess:
             with sess.begin():
                 stmt = delete(self.table)

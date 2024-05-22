@@ -69,6 +69,10 @@ class Assistant(BaseModel):
     add_chat_history_to_prompt: bool = False
     # Number of previous messages to add to the prompt or messages.
     num_history_messages: int = 6
+    # Create personalized memories for this user
+    create_memories: bool = False
+    # Update memory after each run
+    update_memory_after_run: bool = True
 
     # -*- Assistant Knowledge Base
     knowledge_base: Optional[AssistantKnowledge] = None
@@ -287,7 +291,7 @@ class Assistant(BaseModel):
                 self.llm.add_tool(self.get_chat_history)
             if self.read_tool_call_history:
                 self.llm.add_tool(self.get_tool_call_history)
-            if self.memory.add_memories:
+            if self.create_memories:
                 self.llm.add_tool(self.update_memory)
         if self.knowledge_base is not None:
             if self.search_knowledge:
@@ -573,7 +577,7 @@ class Assistant(BaseModel):
             raise Exception("LLM not set")
 
         # -*- Build a list of instructions for the Assistant
-        instructions = self.instructions
+        instructions = self.instructions.copy() if self.instructions is not None else []
         # Add default instructions
         if instructions is None:
             instructions = []
@@ -667,7 +671,7 @@ class Assistant(BaseModel):
             system_prompt_lines.append(f"\n{self.get_delegation_prompt()}")
 
         # Then add memories to the system prompt
-        if self.memory.add_memories:
+        if self.create_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_prompt_lines.append(
                     "\nYou have access to memory from previous interactions with the user that you can use:"
@@ -676,16 +680,20 @@ class Assistant(BaseModel):
                 system_prompt_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
                 system_prompt_lines.append("</memory_from_previous_interactions>")
                 system_prompt_lines.append(
-                    "Note: this information is from previous interactions and may be updated during this conversation. You should always prefer information from this conversation over the memories."
+                    "Note: this information is from previous interactions and may be updated in this conversation. "
+                    "You should ALWAYS prefer information from this conversation over the past memories."
                 )
-                system_prompt_lines.append("If you need to update the long-term memory, use the 'update_memory' tool.")
+                system_prompt_lines.append("If you need to update the long-term memory, use the `update_memory` tool.")
             else:
                 system_prompt_lines.append(
                     "\nYou also have access to memory from previous interactions with the user but the user has no memories yet."
                 )
                 system_prompt_lines.append(
-                    "If the user asks about memories, you can let them know that you dont have any memory about the yet, but can add new memories using the 'update_memory' tool."
+                    "If the user asks about memories, you can let them know that you dont have any memory about the yet, but can add new memories using the `update_memory` tool."
                 )
+            system_prompt_lines.append(
+                "If you use the `update_memory` tool, remember to pass on the response to the user."
+            )
 
         # Then add the json output prompt if output_model is set
         if self.output_model is not None:
@@ -894,7 +902,7 @@ class Assistant(BaseModel):
         if user_message is not None:
             self.memory.add_chat_message(message=user_message)
             # Update the memory with the user message if needed
-            if self.memory.update_memory_after_run:
+            if self.create_memories and self.update_memory_after_run:
                 self.memory.update_memory(input=user_message.get_content_string())
 
         # Build the LLM response message to add to the memory - this is added to the chat_history
@@ -1092,7 +1100,7 @@ class Assistant(BaseModel):
         if user_message is not None:
             self.memory.add_chat_message(message=user_message)
             # Update the memory with the user message if needed
-            if self.memory.update_memory_after_run:
+            if self.update_memory_after_run:
                 self.memory.update_memory(input=user_message.get_content_string())
 
         # Build the LLM response message to add to the memory - this is added to the chat_history

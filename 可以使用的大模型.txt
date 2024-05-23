@@ -1,0 +1,16 @@
+===== autogen =====
+只能使用 openAI、gemini 幾乎不能用
+
+===== autogenstudio =====
+可以使用 openAI，勉強可以用 ollama、LM Studio 的本地大模型(openhermes、gemma)
+gemini 就還是算了，幾乎不行
+
+==== crewai =====
+crewai 原本有支援，後來都會報錯，也變成無法使用了
+
+===== phidata =====
+從 cookbook 的範例來看，預設當然還是使用 gpt4 或是 gpt3.5
+本地大模型支援 LM Studio、Ollama，也有提供很多範例
+但沒有看到 Gemini Pro 的範例
+
+ 

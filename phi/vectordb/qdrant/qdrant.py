@@ -7,7 +7,7 @@ try:
 except ImportError:
     raise ImportError(
         "The `qdrant-client` package is not installed. "
-        "Please install it via `pip install pip install qdrant-client`."
+        "Please install it via `pip install qdrant-client`."
     )
 
 from phi.document import Document

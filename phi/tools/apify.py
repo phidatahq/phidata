@@ -43,21 +43,20 @@ class ApifyTools(Toolkit):
         if urls is None:
             return "No URLs provided"
 
-        client = ApifyClient(self.api_key)
+        client: ApifyClient = ApifyClient(self.api_key)
 
         logger.debug(f"Crawling URLs: {urls}")
 
         formatted_urls = [{"url": url} for url in urls]
-
         run_input = {"startUrls": formatted_urls}
-
         run = client.actor("apify/website-content-crawler").call(run_input=run_input, timeout_secs=timeout)
 
         results: str = ""
 
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-            results += "Results for URL: " + item.get("url") + "\n"
-            results += item.get("text") + "\n"
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():  # type: ignore
+            results += "Results for URL: " + item.get("url", "") + "\n"
+            results += item.get("text", "") + "\n"
+            logger.debug(f"Results for URL: {item.get('url')}\n{item.get('text')}")
 
         return results
 
@@ -111,11 +110,14 @@ class ApifyTools(Toolkit):
 
         results: str = ""
 
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-            results += "Results for URL: " + item.get("url") + "\n"
-            results += item.get("pageTitle") + "\n"
-            results += item.get("h1") + "\n"
-            results += item.get("first_h2") + "\n"
-            results += item.get("random_text_from_the_page") + "\n"
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():  # type: ignore
+            results += "Results for URL: " + item.get("url", "") + "\n"
+            results += item.get("pageTitle", "") + "\n"
+            results += item.get("h1", "") + "\n"
+            results += item.get("first_h2", "") + "\n"
+            results += item.get("random_text_from_the_page", "") + "\n"
+            logger.debug(
+                f"Results for URL: {item.get('url')}\n{item.get('pageTitle')}\n{item.get('h1')}\n{item.get('first_h2')}\n{item.get('random_text_from_the_page')}"
+            )
 
         return results

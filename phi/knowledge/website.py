@@ -1,16 +1,16 @@
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Union
 
 from pydantic import model_validator
 
 from phi.document import Document
-from phi.document.reader.website import WebsiteReader
+from phi.document.reader.website import WebsiteReader, ApifyWebsiteReader
 from phi.knowledge.base import AssistantKnowledge
 from phi.utils.log import logger
 
 
 class WebsiteKnowledgeBase(AssistantKnowledge):
     urls: List[str] = []
-    reader: Optional[WebsiteReader] = None
+    reader: Optional[Union[WebsiteReader, ApifyWebsiteReader]] = None
 
     # WebsiteReader parameters
     max_depth: int = 3

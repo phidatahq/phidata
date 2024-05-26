@@ -13,10 +13,10 @@ from assistant import get_personalized_assistant  # type: ignore
 
 nest_asyncio.apply()
 st.set_page_config(
-    page_title="Assistant with Memory",
+    page_title="Personalized Agentic RAG",
     page_icon=":orange_heart:",
 )
-st.title("Assistant with Personalized Memory")
+st.title("Personalized Agentic RAG")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 with st.expander(":rainbow[:point_down: How to use]"):

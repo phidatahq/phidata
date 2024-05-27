@@ -11,8 +11,8 @@ except ImportError:
     raise ImportError("`openai` not installed")
 
 
-class AzureEmbedder(Embedder):
-    model: str = None,
+class AzureOpenAIEmbedder(Embedder):
+    model: str = "text-embedding-ada-002"
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
     user: Optional[str] = None

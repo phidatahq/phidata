@@ -111,7 +111,7 @@ class SQLTools(Toolkit):
         """
 
         try:
-            return json.dumps(self.run_sql(sql=query, limit=limit))
+            return json.dumps(self.run_sql(sql=query, limit=limit), default=str)
         except Exception as e:
             logger.error(f"Error running query: {e}")
             return f"Error running query: {e}"

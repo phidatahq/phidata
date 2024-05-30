@@ -114,7 +114,7 @@ peewee==3.17.3
     # via yfinance
 pgvector==0.2.5
     # via -r cookbook/llms/ollama/tools/requirements.in
-phidata==2.4.14
+phidata==2.4.16
     # via -r cookbook/llms/ollama/tools/requirements.in
 pillow==10.3.0
     # via streamlit

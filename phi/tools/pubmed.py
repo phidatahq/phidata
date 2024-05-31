@@ -26,7 +26,7 @@ class PubmedTools(Toolkit):
             "email": email,
             "usehistory": "y",
         }
-        response = httpx.get(url, params=params)
+        response = httpx.get(url, params=params)  # type: ignore
         root = ElementTree.fromstring(response.content)
         return [id_elem.text for id_elem in root.findall(".//Id") if id_elem.text is not None]
 

@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.17"
+version = "2.4.18"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -108,6 +108,7 @@ module = [
   "pyarrow.*",
   "pgvector.*",
   "psycopg.*",
+  "psycopg2.*",
   "pypdf.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",

@@ -24,9 +24,9 @@ Use phidata to turn any LLM into an AI Assistant that can:
 
 ## Why phidata?
 
-We need to turn general-purpose LLMs into specialized assistants that can perform tasks specific to our use-case.
+**Problem:** We need to turn general-purpose LLMs into specialized assistants for our use-case.
 
-Phidata add memory, knowledge and tools to LLMs:
+**Solution:** Add memory, knowledge and tools to LLMs:
 - **Memory:** Stores **chat history** in a database and enables LLMs to have long-term conversations.
 - **Knowledge:** Stores information in a vector database and provides LLMs with **business context**.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.

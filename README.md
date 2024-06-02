@@ -114,7 +114,7 @@ python finance_assistant.py
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 The `PythonAssistant` can achieve tasks by writing and running python code.
 
@@ -152,7 +152,7 @@ python python_assistant.py
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL.
 
@@ -191,7 +191,7 @@ python data_assistant.py
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 One of our favorite LLM features is generating structured data (i.e. a pydantic model) from text. Use this feature to extract features, generate movie scripts, produce fake data etc.
 
@@ -246,7 +246,7 @@ MovieScript(
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgVector` for knowledge and storage.
 

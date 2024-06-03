@@ -64,16 +64,15 @@ streamlit run cookbook/examples/personalization/app.py
 
 - Open [localhost:8501](http://localhost:8501) to view the streamlit app.
 - Enter a username to associate with the memory.
-- Add to memory: "Always respond with a nice greeting and salutation"
+- Add to memory: "I live in New York so always include a New York reference in the response"
 - Add to memory: "I like dogs so always include a dog pun in the response"
 - Ask questions like:
   - Compare nvidia and amd, use all the tools available
   - Whats happening in france?
   - Summarize our conversation
-- Add a website to the knowledge base: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
+- Add a blog post to the knowledge base: https://blog.samaltman.com/what-i-wish-someone-had-told-me
 - Ask questions like:
-  - Tell me about Llama 3?
-  - Whats the latest news from Meta AT?
+  - What does Sam Altman wish someone had told him?
 
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

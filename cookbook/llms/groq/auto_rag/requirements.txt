@@ -113,7 +113,7 @@ pandas==2.2.2
     #   streamlit
 pgvector==0.2.5
     # via -r cookbook/llms/groq/auto_rag/requirements.in
-phidata==2.4.16
+phidata==2.4.18
     # via -r cookbook/llms/groq/auto_rag/requirements.in
 pillow==10.3.0
     # via streamlit

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from phi.app.base import AppBase
 from phi.app.context import ContainerContext
@@ -125,14 +125,10 @@ class DockerApp(AppBase):
             self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
-            self.container_context.workflows_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
-            )
+            self.container_context.workflows_dir = f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
-            self.container_context.workspace_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
-            )
+            self.container_context.workspace_dir = f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
             self.container_context.workspace_schema = self.workspace_settings.ws_schema
@@ -293,8 +289,8 @@ class DockerApp(AppBase):
 
     def build_resources(self, build_context: DockerBuildContext) -> List["DockerResource"]:
         from phi.docker.resource.base import DockerResource
-        from phi.docker.resource.network import DockerNetwork
         from phi.docker.resource.container import DockerContainer
+        from phi.docker.resource.network import DockerNetwork
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Get Container Context

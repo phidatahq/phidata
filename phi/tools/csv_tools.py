@@ -1,7 +1,7 @@
 import csv
 import json
 from pathlib import Path
-from typing import Optional, List, Union, Any, Dict
+from typing import Any, Dict, List, Optional, Union
 
 from phi.tools import Toolkit
 from phi.utils.log import logger

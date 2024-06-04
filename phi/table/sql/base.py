@@ -11,5 +11,3 @@ class BaseTable(DeclarativeBase):
     https://docs.sqlalchemy.org/en/20/orm/mapping_api.html#sqlalchemy.orm.DeclarativeBase
     https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-base-class
     """
-
-    pass

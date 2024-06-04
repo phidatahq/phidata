@@ -1,13 +1,13 @@
 from typing import Optional
 
 from phi.assistant import Assistant
+from phi.embedder.ollama import OllamaEmbedder
+from phi.embedder.openai import OpenAIEmbedder
 from phi.knowledge import AssistantKnowledge
 from phi.llm.groq import Groq
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.embedder.openai import OpenAIEmbedder
-from phi.embedder.ollama import OllamaEmbedder
-from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.vectordb.pgvector import PgVector2
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -28,9 +28,7 @@ def get_auto_rag_assistant(
         else OpenAIEmbedder(model=embeddings_model, dimensions=1536)
     )
     # Define the embeddings table based on the embeddings model
-    embeddings_table = (
-        "auto_rag_documents_groq_ollama" if embeddings_model == "nomic-embed-text" else "auto_rag_documents_groq_openai"
-    )
+    embeddings_table = "auto_rag_documents_groq_ollama" if embeddings_model == "nomic-embed-text" else "auto_rag_documents_groq_openai"
 
     return Assistant(
         name="auto_rag_assistant_groq",

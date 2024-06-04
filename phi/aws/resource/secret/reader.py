@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Union, Optional
+from typing import Any, Dict, List, Optional, Union
+
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.secret.manager import SecretsManager
 

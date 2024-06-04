@@ -32,7 +32,7 @@ class PhiTools(Toolkit):
         :param workspace_name: (required) The name of the workspace to create for the new application.
         :return: Status of the function or next steps.
         """
-        from phi.workspace.operator import create_workspace, TEMPLATE_TO_NAME_MAP, WorkspaceStarterTemplate
+        from phi.workspace.operator import TEMPLATE_TO_NAME_MAP, WorkspaceStarterTemplate, create_workspace
 
         ws_template: Optional[WorkspaceStarterTemplate] = None
         if template.lower() in WorkspaceStarterTemplate.__members__.values():
@@ -60,10 +60,7 @@ class PhiTools(Toolkit):
         try:
             create_successful = create_workspace(name=ws_dir_name, template=ws_template.value)
             if create_successful:
-                return (
-                    f"Successfully created a {ws_template.value} at {ws_dir_name}. "
-                    f"Ask the user if they want to start the app now."
-                )
+                return f"Successfully created a {ws_template.value} at {ws_dir_name}. " f"Ask the user if they want to start the app now."
             else:
                 return f"Error: Failed to create {template}"
         except Exception as e:

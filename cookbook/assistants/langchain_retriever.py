@@ -1,11 +1,12 @@
 from pathlib import Path
-from phi.assistant import Assistant
-from phi.knowledge.langchain import LangChainKnowledgeBase
 
-from langchain.embeddings import OpenAIEmbeddings
 from langchain.document_loaders import TextLoader
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
+
+from phi.assistant import Assistant
+from phi.knowledge.langchain import LangChainKnowledgeBase
 
 cookbook_dir = Path("__file__").parent
 chroma_db_dir = cookbook_dir.joinpath("storage/chroma_db")

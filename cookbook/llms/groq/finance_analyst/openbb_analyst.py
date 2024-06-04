@@ -1,4 +1,5 @@
 from openbb import obb
+
 from phi.assistant import Assistant
 from phi.llm.groq import Groq
 from phi.tools.openbb_tools import OpenBBTools

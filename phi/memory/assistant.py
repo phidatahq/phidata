@@ -1,14 +1,14 @@
 from enum import Enum
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.message import Message
 from phi.llm.references import References
-from phi.memory.db import MemoryDb
-from phi.memory.memory import Memory
-from phi.memory.manager import MemoryManager
 from phi.memory.classifier import MemoryClassifier
+from phi.memory.db import MemoryDb
+from phi.memory.manager import MemoryManager
+from phi.memory.memory import Memory
 from phi.utils.log import logger
 
 
@@ -40,9 +40,7 @@ class AssistantMemory(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def to_dict(self) -> Dict[str, Any]:
-        _memory_dict = self.model_dump(
-            exclude_none=True, exclude={"db", "updating", "memories", "classifier", "manager"}
-        )
+        _memory_dict = self.model_dump(exclude_none=True, exclude={"db", "updating", "memories", "classifier", "manager"})
         if self.memories:
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict

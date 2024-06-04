@@ -3,9 +3,7 @@ from phi.llm.cohere import CohereChat
 from phi.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
-duckdb_tools.create_table_from_path(
-    path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv", table="movies"
-)
+duckdb_tools.create_table_from_path(path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv", table="movies")
 
 assistant = Assistant(
     llm=CohereChat(model="command-r-plus"),

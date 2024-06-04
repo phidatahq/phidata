@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, List, Any, Dict
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -111,8 +111,8 @@ class PhiBase(BaseModel):
 
     def set_aws_env_vars(self, env_dict: Dict[str, str], aws_region: Optional[str] = None) -> None:
         from phi.constants import (
-            AWS_REGION_ENV_VAR,
             AWS_DEFAULT_REGION_ENV_VAR,
+            AWS_REGION_ENV_VAR,
         )
 
         if aws_region is not None:

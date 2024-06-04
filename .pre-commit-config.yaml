@@ -1,0 +1,77 @@
+exclude: >
+  (?x)^(
+      .+/.venv/.+|
+      .+/dist/.+|
+      .+/.autovenv
+  )$
+fail_fast: true
+default_language_version:
+  python: python3
+default_stages:
+  - prepare-commit-msg
+  - commit
+  - push
+repos:
+
+  # Autoflake - Removes unused imports and unused variables
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        exclude: &fixtures tests/functional/|tests/input|tests/extensions/data|tests/regrtest_data/|tests/data/
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --expand-star-imports
+          - --remove-duplicate-keys
+          - --remove-unused-variables
+          - --expand-star-imports
+          - --ignore-init-module-imports
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.4.7'
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: \.pyi?$
+        exclude: \.pre-commit-config\.yaml
+      - id: ruff-format
+        args: [] # "--line-length", "119"
+        files: \.pyi?$
+        exclude: \.pre-commit-config\.yaml
+
+  # Default Pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    - id: trailing-whitespace
+      exclude: \.pre-commit-config\.yaml
+
+    - id: end-of-file-fixer
+      exclude: \.pre-commit-config\.yaml
+
+    - id: check-yaml
+      exclude: \.pre-commit-config\.yaml
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: detect-private-key
+    - id: destroyed-symlinks
+    - id: check-symlinks
+    - id: destroyed-symlinks
+    - id: check-merge-conflict
+      stages:
+        - commit
+    - id: check-added-large-files
+      args: [--maxkb=1000]
+      stages:
+        - commit
+    - id: detect-aws-credentials
+      args:
+        - --allow-missing-credentials
+
+  - repo: https://github.com/tox-dev/pyproject-fmt
+    rev: "2.1.3"
+    hooks:
+      - id: pyproject-fmt
+        # https://pyproject-fmt.readthedocs.io/en/latest/#calculating-max-supported-python-version
+        additional_dependencies: ["tox>=4.9"]

@@ -1,15 +1,15 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field, BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from phi.resource.base import ResourceBase
+from phi.cli.console import print_info
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.constants import DEFAULT_K8S_NAMESPACE
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
-from phi.cli.console import print_info
+from phi.resource.base import ResourceBase
 from phi.utils.log import logger
 
 

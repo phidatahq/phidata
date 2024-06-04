@@ -1,6 +1,5 @@
-from typing import Optional
 from textwrap import dedent
-from typing import Any, List
+from typing import Any, List, Optional
 
 from phi.assistant import Assistant
 from phi.llm.ollama import Ollama

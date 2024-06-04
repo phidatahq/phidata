@@ -1,9 +1,11 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
 
-from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
+from httpx import AsyncClient as HttpxAsyncClient
+from httpx import Client as HttpxClient
+from httpx import Response
 
-from phi.cli.settings import phi_cli_settings
 from phi.cli.credentials import read_auth_token
+from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 

@@ -10,9 +10,9 @@ from phi.k8s.resource.core.v1.volume_source import (
     EmptyDirVolumeSource,
     GcePersistentDiskVolumeSource,
     GitRepoVolumeSource,
+    HostPathVolumeSource,
     PersistentVolumeClaimVolumeSource,
     SecretVolumeSource,
-    HostPathVolumeSource,
 )
 
 
@@ -61,9 +61,7 @@ class Volume(K8sObject):
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_volume.py
         _v1_volume = V1Volume(
             name=self.name,
-            aws_elastic_block_store=self.aws_elastic_block_store.get_k8s_object()
-            if self.aws_elastic_block_store
-            else None,
+            aws_elastic_block_store=self.aws_elastic_block_store.get_k8s_object() if self.aws_elastic_block_store else None,
             # azure_disk=None,
             # azure_file=None,
             # cephfs=None,
@@ -82,9 +80,7 @@ class Volume(K8sObject):
             host_path=self.host_path.get_k8s_object() if self.host_path else None,
             # iscsi=None,
             # nfs=None,
-            persistent_volume_claim=self.persistent_volume_claim.get_k8s_object()
-            if self.persistent_volume_claim
-            else None,
+            persistent_volume_claim=self.persistent_volume_claim.get_k8s_object() if self.persistent_volume_claim else None,
             # photon_persistent_disk=None,
             # portworx_volume=None,
             # projected=None,

@@ -1,11 +1,10 @@
 from typing import Dict, List, Optional
 
-from pydantic import Field
-
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_secret import V1Secret
 from kubernetes.client.models.v1_secret_list import V1SecretList
 from kubernetes.client.models.v1_status import V1Status
+from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.resource.base import K8sResource
@@ -44,9 +43,7 @@ class Secret(K8sResource):
         return _v1_secret
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs: str
-    ) -> Optional[List[V1Secret]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs: str) -> Optional[List[V1Secret]]:
         """Reads Secrets from K8s cluster.
 
         Args:

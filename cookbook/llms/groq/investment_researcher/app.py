@@ -1,11 +1,11 @@
 import nest_asyncio
-import yfinance as yf
 import streamlit as st
+import yfinance as yf
+from assistants import get_invstment_research_assistant  # type: ignore
 from duckduckgo_search import DDGS
+
 from phi.assistant import Assistant
 from phi.utils.log import logger
-
-from assistants import get_invstment_research_assistant  # type: ignore
 
 nest_asyncio.apply()
 st.set_page_config(
@@ -24,10 +24,7 @@ def restart_assistant():
 
 def main() -> None:
     # Get LLM Model
-    model = (
-        st.sidebar.selectbox("Select LLM", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"])
-        or "llama3-70b-8192"
-    )
+    model = st.sidebar.selectbox("Select LLM", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]) or "llama3-70b-8192"
     # Set llm in session state
     if "model" not in st.session_state:
         st.session_state["model"] = model

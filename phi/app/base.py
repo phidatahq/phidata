@@ -1,10 +1,10 @@
-from typing import Optional, Dict, Any, Union, List
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import field_validator, Field
+from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.base import PhiBase
 from phi.app.context import ContainerContext
+from phi.base import PhiBase
 from phi.resource.base import ResourceBase
 from phi.utils.log import logger
 
@@ -107,9 +107,7 @@ class AppBase(PhiBase):
         return None
 
     def get_dependencies(self) -> Optional[List[ResourceBase]]:
-        return (
-            [dep for dep in self.depends_on if isinstance(dep, ResourceBase)] if self.depends_on is not None else None
-        )
+        return [dep for dep in self.depends_on if isinstance(dep, ResourceBase)] if self.depends_on is not None else None
 
     def add_app_properties_to_resources(self, resources: List[ResourceBase]) -> List[ResourceBase]:
         updated_resources = []

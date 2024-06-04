@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, Dict, List
+from typing import Any, Dict, List, Optional
 
 from phi.base import PhiBase
 from phi.utils.log import logger

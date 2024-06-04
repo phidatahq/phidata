@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any, Dict
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -17,9 +17,7 @@ class PandasTools(Toolkit):
         self.register(self.create_pandas_dataframe)
         self.register(self.run_dataframe_operation)
 
-    def create_pandas_dataframe(
-        self, dataframe_name: str, create_using_function: str, function_parameters: Dict[str, Any]
-    ) -> str:
+    def create_pandas_dataframe(self, dataframe_name: str, create_using_function: str, function_parameters: Dict[str, Any]) -> str:
         """Creates a pandas dataframe named `dataframe_name` by running a function `create_using_function` with the parameters `function_parameters`.
         Returns the created dataframe name as a string if successful, otherwise returns an error message.
 

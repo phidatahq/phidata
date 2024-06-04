@@ -1,17 +1,18 @@
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+
 import httpx
-from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.tools.function import FunctionCall
+from phi.utils.functions import get_function_call
 from phi.utils.log import logger
 from phi.utils.timer import Timer
-from phi.utils.functions import get_function_call
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
-    from openai.types.completion_usage import CompletionUsage
+    from openai import AsyncOpenAI as AsyncOpenAIClient
+    from openai import OpenAI as OpenAIClient
     from openai.types.chat.chat_completion import ChatCompletion
     from openai.types.chat.chat_completion_chunk import (
         ChatCompletionChunk,
@@ -21,9 +22,12 @@ try:
     )
     from openai.types.chat.chat_completion_message import (
         ChatCompletionMessage,
+    )
+    from openai.types.chat.chat_completion_message import (
         FunctionCall as ChatCompletionFunctionCall,
     )
     from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
+    from openai.types.completion_usage import CompletionUsage
 except ImportError:
     logger.error("`openai` not installed")
     raise
@@ -114,9 +118,7 @@ class OpenAIChat(LLM):
         if self.http_client:
             _client_params["http_client"] = self.http_client
         else:
-            _client_params["http_client"] = httpx.AsyncClient(
-                limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
-            )
+            _client_params["http_client"] = httpx.AsyncClient(limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100))
         if self.client_params:
             _client_params.update(self.client_params)
         return AsyncOpenAIClient(**_client_params)
@@ -676,9 +678,7 @@ class OpenAIChat(LLM):
                 _tool_call_id = _tool_call.id
                 _tool_call_type = _tool_call.type
                 _tool_call_function_name = _tool_call.function.name if _tool_call.function is not None else None
-                _tool_call_function_arguments_str = (
-                    _tool_call.function.arguments if _tool_call.function is not None else None
-                )
+                _tool_call_function_arguments_str = _tool_call.function.arguments if _tool_call.function is not None else None
 
                 tool_call_at_index = tool_calls[_index] if len(tool_calls) > _index else None
                 if tool_call_at_index is None:
@@ -883,9 +883,7 @@ class OpenAIChat(LLM):
                 _tool_call_id = _tool_call.id
                 _tool_call_type = _tool_call.type
                 _tool_call_function_name = _tool_call.function.name if _tool_call.function is not None else None
-                _tool_call_function_arguments_str = (
-                    _tool_call.function.arguments if _tool_call.function is not None else None
-                )
+                _tool_call_function_arguments_str = _tool_call.function.arguments if _tool_call.function is not None else None
 
                 tool_call_at_index = tool_calls[_index] if len(tool_calls) > _index else None
                 if tool_call_at_index is None:
@@ -1079,9 +1077,7 @@ class OpenAIChat(LLM):
                 _tool_call_id = tool_call.id
                 _tool_call_type = tool_call.type
                 _tool_call_function_name = tool_call.function.name if tool_call.function is not None else None
-                _tool_call_function_arguments_str = (
-                    tool_call.function.arguments if tool_call.function is not None else None
-                )
+                _tool_call_function_arguments_str = tool_call.function.arguments if tool_call.function is not None else None
 
                 tool_call_at_index = tool_calls[_index] if len(tool_calls) > _index else None
                 if tool_call_at_index is None:

@@ -3,10 +3,7 @@ from typing import Optional
 try:
     import kubernetes
 except ImportError:
-    raise ImportError(
-        "The `kubernetes` package is not installed. "
-        "Install using `pip install kubernetes` or `pip install phidata[k8s]`."
-    )
+    raise ImportError("The `kubernetes` package is not installed. " "Install using `pip install kubernetes` or `pip install phidata[k8s]`.")
 
 from phi.utils.log import logger
 

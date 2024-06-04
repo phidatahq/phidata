@@ -1,20 +1,20 @@
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional, List
+from typing import List, Optional
 
-from phi.assistant import Assistant, AssistantMemory, AssistantKnowledge
-from phi.tools import Toolkit
-from phi.tools.exa import ExaTools
-from phi.tools.calculator import Calculator
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.file import FileTools
-from phi.llm.openai import OpenAIChat
-from phi.embedder.openai import OpenAIEmbedder
+from phi.assistant import Assistant, AssistantKnowledge, AssistantMemory
 from phi.assistant.python import PythonAssistant
-from phi.vectordb.pgvector import PgVector2
+from phi.embedder.openai import OpenAIEmbedder
+from phi.llm.openai import OpenAIChat
 from phi.memory.db.postgres import PgMemoryDb
 from phi.storage.assistant.postgres import PgAssistantStorage
+from phi.tools import Toolkit
+from phi.tools.calculator import Calculator
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.exa import ExaTools
+from phi.tools.file import FileTools
+from phi.tools.yfinance import YFinanceTools
+from phi.vectordb.pgvector import PgVector2
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 cwd = Path(__file__).parent.resolve()
@@ -54,9 +54,7 @@ def get_personalized_assistant(
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
     if finance_tools:
-        tools.append(
-            YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True)
-        )
+        tools.append(YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True))
     if file_tools:
         tools.append(FileTools(base_dir=cwd))
         extra_instructions.append(

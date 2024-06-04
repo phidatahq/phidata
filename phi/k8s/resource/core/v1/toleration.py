@@ -1,7 +1,7 @@
 from typing import Optional
 
-from pydantic import Field
 from kubernetes.client.models.v1_toleration import V1Toleration
+from pydantic import Field
 
 from phi.k8s.resource.base import K8sObject
 

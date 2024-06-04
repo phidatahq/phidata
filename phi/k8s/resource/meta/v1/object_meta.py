@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ObjectMeta(BaseModel):

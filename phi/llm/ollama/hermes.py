@@ -1,6 +1,6 @@
 import json
 from textwrap import dedent
-from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -8,8 +8,8 @@ from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import (
-    get_function_call_for_tool_call,
     extract_tool_call_from_string,
+    get_function_call_for_tool_call,
     remove_tool_calls_from_string,
 )
 
@@ -170,7 +170,6 @@ class Hermes(LLM):
                         assistant_message.tool_calls = tool_calls
         except Exception as e:
             logger.warning(e)
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -211,9 +210,7 @@ class Hermes(LLM):
             if len(function_call_results) > 0:
                 fc_responses = []
                 for _fc_message in function_call_results:
-                    fc_responses.append(
-                        json.dumps({"name": _fc_message.tool_call_name, "content": _fc_message.content})
-                    )
+                    fc_responses.append(json.dumps({"name": _fc_message.tool_call_name, "content": _fc_message.content}))
 
                 tool_response_message_content = "<tool_response>\n" + "\n".join(fc_responses) + "\n</tool_response>"
                 messages.append(Message(role="user", content=tool_response_message_content))
@@ -345,7 +342,6 @@ class Hermes(LLM):
                     assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -385,9 +381,7 @@ class Hermes(LLM):
             if len(function_call_results) > 0:
                 fc_responses = []
                 for _fc_message in function_call_results:
-                    fc_responses.append(
-                        json.dumps({"name": _fc_message.tool_call_name, "content": _fc_message.content})
-                    )
+                    fc_responses.append(json.dumps({"name": _fc_message.tool_call_name, "content": _fc_message.content}))
 
                 tool_response_message_content = "<tool_response>\n" + "\n".join(fc_responses) + "\n</tool_response>"
                 messages.append(Message(role="user", content=tool_response_message_content))

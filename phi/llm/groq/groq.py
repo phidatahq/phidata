@@ -1,5 +1,6 @@
+from typing import Any, Dict, Iterator, List, Optional, Union
+
 import httpx
-from typing import Optional, List, Iterator, Dict, Any, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -208,9 +209,7 @@ class Groq(LLM):
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
                     messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
@@ -300,9 +299,7 @@ class Groq(LLM):
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
                     messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))

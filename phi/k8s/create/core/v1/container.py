@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -6,19 +6,19 @@ from phi.k8s.create.base import CreateK8sObject
 from phi.k8s.create.common.port import CreatePort
 from phi.k8s.create.core.v1.volume import CreateVolume
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy
-from phi.utils.common import get_image_str
 from phi.k8s.resource.core.v1.container import (
+    ConfigMapEnvSource,
+    ConfigMapKeySelector,
     Container,
     ContainerPort,
     EnvFromSource,
-    VolumeMount,
-    ConfigMapEnvSource,
-    SecretEnvSource,
     EnvVar,
     EnvVarSource,
-    ConfigMapKeySelector,
+    SecretEnvSource,
     SecretKeySelector,
+    VolumeMount,
 )
+from phi.utils.common import get_image_str
 
 
 class CreateEnvVarFromConfigMap(BaseModel):
@@ -116,9 +116,7 @@ class CreateContainer(CreateK8sObject):
                         name=_secretenv_var.env_var_name,
                         value_from=EnvVarSource(
                             secret_key_ref=SecretKeySelector(
-                                key=_secretenv_var.secret_key
-                                if _secretenv_var.secret_key
-                                else _secretenv_var.env_var_name,
+                                key=_secretenv_var.secret_key if _secretenv_var.secret_key else _secretenv_var.env_var_name,
                                 name=_secretenv_var.secret_name,
                             )
                         ),

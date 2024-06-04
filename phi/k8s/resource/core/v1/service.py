@@ -1,7 +1,4 @@
 from typing import Dict, List, Optional, Union
-from typing_extensions import Literal
-
-from pydantic import Field, field_serializer
 
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_service import V1Service
@@ -10,11 +7,13 @@ from kubernetes.client.models.v1_service_port import V1ServicePort
 from kubernetes.client.models.v1_service_spec import V1ServiceSpec
 from kubernetes.client.models.v1_service_status import V1ServiceStatus
 from kubernetes.client.models.v1_status import V1Status
+from pydantic import Field, field_serializer
+from typing_extensions import Literal
 
 from phi.k8s.api_client import K8sApiClient
-from phi.k8s.resource.base import K8sResource, K8sObject
 from phi.k8s.enums.protocol import Protocol
 from phi.k8s.enums.service_type import ServiceType
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.utils.log import logger
 
 
@@ -262,9 +261,7 @@ class Service(K8sResource):
         return _v1_service
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1Service]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1Service]]:
         """Reads Services from K8s cluster.
 
         Args:

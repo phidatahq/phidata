@@ -1,8 +1,9 @@
 from typing import List, Optional
 
+from pydantic import BaseModel, Field
+
 from phi.assistant import Assistant
 from phi.llm.ollama import Ollama
-from pydantic import BaseModel, Field
 
 
 class World(BaseModel):
@@ -15,17 +16,13 @@ class World(BaseModel):
         description="These are the characteristics of the world. Examples: Magical, Advanced, Peaceful, War-torn, Abundant, etc. Be as creative as possible.",
     )
     currency: str = Field(..., description="This is the currency used in the world. Be as creative as possible.")
-    languages: List[str] = Field(
-        ..., description="These are the languages spoken in the world. Be as creative as possible."
-    )
+    languages: List[str] = Field(..., description="These are the languages spoken in the world. Be as creative as possible.")
     history: str = Field(
         ...,
         description="This is the history of the world. Be as creative as possible. Use events, wars, etc. to make it interesting. Make it at least 100000 years old. Provide a detailed history.",
     )
     wars: List[str] = Field(..., description="These are the wars that shaped this world. Be as creative as possible.")
-    drugs: List[str] = Field(
-        ..., description="These are the drugs the people in the world use. Be as creative as possible."
-    )
+    drugs: List[str] = Field(..., description="These are the drugs the people in the world use. Be as creative as possible.")
 
 
 def get_world_builder(

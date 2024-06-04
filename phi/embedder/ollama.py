@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from phi.embedder.base import Embedder
 from phi.utils.log import logger

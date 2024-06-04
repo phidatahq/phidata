@@ -1,5 +1,7 @@
-import httpx
 from pathlib import Path
+
+import httpx
+
 from phi.assistant import Assistant
 from phi.tools.csv_tools import CsvTools
 

@@ -1,12 +1,12 @@
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.message import Message
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
-from phi.utils.timer import Timer
 from phi.utils.log import logger
+from phi.utils.timer import Timer
 
 
 class LLM(BaseModel):

@@ -1,8 +1,8 @@
 from typing import Any, Optional
 
-from phi.resource.base import ResourceBase
 from phi.aws.api_client import AwsApiClient
 from phi.cli.console import print_info
+from phi.resource.base import ResourceBase
 from phi.utils.log import logger
 
 
@@ -28,6 +28,7 @@ class AwsResource(ResourceBase):
 
         # Priority 3: Get aws_region from env
         from os import getenv
+
         from phi.constants import AWS_REGION_ENV_VAR
 
         aws_region_env = getenv(AWS_REGION_ENV_VAR)
@@ -48,6 +49,7 @@ class AwsResource(ResourceBase):
 
         # Priority 3: Get aws_profile from env
         from os import getenv
+
         from phi.constants import AWS_PROFILE_ENV_VAR
 
         aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)

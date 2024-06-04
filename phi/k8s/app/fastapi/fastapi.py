@@ -1,12 +1,12 @@
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
 
 from phi.k8s.app.base import (
-    K8sApp,
     AppVolumeType,  # noqa: F401
     ContainerContext,
-    ServiceType,  # noqa: F401
-    RestartPolicy,  # noqa: F401
     ImagePullPolicy,  # noqa: F401
+    K8sApp,
+    RestartPolicy,  # noqa: F401
+    ServiceType,  # noqa: F401
 )
 
 

@@ -1,5 +1,5 @@
 from os import getenv
-from typing import Union, Dict, List
+from typing import Dict, List, Union
 
 from httpx import Response
 
@@ -9,8 +9,8 @@ from phi.api.schemas.assistant import (
     AssistantEventCreate,
     AssistantRunCreate,
 )
-from phi.constants import PHI_API_KEY_ENV_VAR, PHI_WS_KEY_ENV_VAR
 from phi.cli.settings import phi_cli_settings
+from phi.constants import PHI_API_KEY_ENV_VAR, PHI_WS_KEY_ENV_VAR
 from phi.utils.log import logger
 
 

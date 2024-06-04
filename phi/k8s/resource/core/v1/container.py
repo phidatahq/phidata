@@ -1,7 +1,5 @@
 from typing import Any, List, Optional
 
-from pydantic import Field, field_serializer
-
 from kubernetes.client.models.v1_config_map_env_source import V1ConfigMapEnvSource
 from kubernetes.client.models.v1_config_map_key_selector import V1ConfigMapKeySelector
 from kubernetes.client.models.v1_container import V1Container
@@ -15,6 +13,7 @@ from kubernetes.client.models.v1_resource_field_selector import V1ResourceFieldS
 from kubernetes.client.models.v1_secret_env_source import V1SecretEnvSource
 from kubernetes.client.models.v1_secret_key_selector import V1SecretKeySelector
 from kubernetes.client.models.v1_volume_mount import V1VolumeMount
+from pydantic import Field, field_serializer
 
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy
 from phi.k8s.enums.protocol import Protocol

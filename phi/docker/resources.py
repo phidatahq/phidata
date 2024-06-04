@@ -1,14 +1,14 @@
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
 from phi.app.group import AppGroup
-from phi.resource.group import ResourceGroup
+from phi.docker.api_client import DockerApiClient
 from phi.docker.app.base import DockerApp
 from phi.docker.app.context import DockerBuildContext
-from phi.docker.api_client import DockerApiClient
 from phi.docker.resource.base import DockerResource
 from phi.infra.resources import InfraResources
-from phi.workspace.settings import WorkspaceSettings
+from phi.resource.group import ResourceGroup
 from phi.utils.log import logger
+from phi.workspace.settings import WorkspaceSettings
 
 
 class DockerResources(InfraResources):
@@ -39,7 +39,7 @@ class DockerResources(InfraResources):
         force: Optional[bool] = None,
         pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import confirm_yes_no, print_heading, print_info
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Creating DockerResources")
@@ -52,9 +52,7 @@ class DockerResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, DockerResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_create(
@@ -107,9 +105,7 @@ class DockerResources(InfraResources):
                         for dep in app.depends_on:
                             if isinstance(dep, DockerApp):
                                 dep.set_workspace_settings(workspace_settings=self.workspace_settings)
-                                dep_resources = dep.get_resources(
-                                    build_context=DockerBuildContext(network=self.network)
-                                )
+                                dep_resources = dep.get_resources(build_context=DockerBuildContext(network=self.network))
                                 if len(dep_resources) > 0:
                                     for dep_resource in dep_resources:
                                         if isinstance(dep_resource, DockerResource):
@@ -205,9 +201,7 @@ class DockerResources(InfraResources):
 
         print_heading(f"\n--**-- Resources created: {num_resources_created}/{num_resources_to_create}")
         if num_resources_to_create != num_resources_created:
-            logger.error(
-                f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}"
-            )  # noqa: E501
+            logger.error(f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}")  # noqa: E501
         return num_resources_created, num_resources_to_create
 
     def delete_resources(
@@ -219,7 +213,7 @@ class DockerResources(InfraResources):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import confirm_yes_no, print_heading, print_info
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Deleting DockerResources")
@@ -232,9 +226,7 @@ class DockerResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, DockerResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_delete(
@@ -394,9 +386,7 @@ class DockerResources(InfraResources):
 
         print_heading(f"\n--**-- Resources deleted: {num_resources_deleted}/{num_resources_to_delete}")
         if num_resources_to_delete != num_resources_deleted:
-            logger.error(
-                f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"
-            )  # noqa: E501
+            logger.error(f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}")  # noqa: E501
         return num_resources_deleted, num_resources_to_delete
 
     def update_resources(
@@ -409,7 +399,7 @@ class DockerResources(InfraResources):
         force: Optional[bool] = None,
         pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import confirm_yes_no, print_heading, print_info
         from phi.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Updating DockerResources")
@@ -423,9 +413,7 @@ class DockerResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, DockerResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_update(
@@ -578,9 +566,7 @@ class DockerResources(InfraResources):
 
         print_heading(f"\n--**-- Resources updated: {num_resources_updated}/{num_resources_to_update}")
         if num_resources_to_update != num_resources_updated:
-            logger.error(
-                f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"
-            )  # noqa: E501
+            logger.error(f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}")  # noqa: E501
         return num_resources_updated, num_resources_to_update
 
     def save_resources(

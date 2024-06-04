@@ -1,6 +1,6 @@
 from phi.assistant import Assistant
-from phi.tools.yfinance import YFinanceTools
 from phi.llm.openai import OpenAIChat
+from phi.tools.yfinance import YFinanceTools
 
 assistant = Assistant(
     name="Finance Assistant",

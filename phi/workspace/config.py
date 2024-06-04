@@ -1,14 +1,14 @@
 from pathlib import Path
-from typing import Optional, List, Any, Dict
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.infra.type import InfraType
-from phi.infra.resources import InfraResources
 from phi.api.schemas.workspace import WorkspaceSchema
-from phi.workspace.settings import WorkspaceSettings
-from phi.utils.py_io import get_python_objects_from_module
+from phi.infra.resources import InfraResources
+from phi.infra.type import InfraType
 from phi.utils.log import logger
+from phi.utils.py_io import get_python_objects_from_module
+from phi.workspace.settings import WorkspaceSettings
 
 # List of directories to ignore when loading the workspace
 ignored_dirs = ["ignore", "test", "tests", "config"]
@@ -57,7 +57,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
                 pass
 
         if not docker_resources_available and create_default_docker_resources:
-            from phi.docker.resources import DockerResources, DockerResource, DockerApp
+            from phi.docker.resources import DockerApp, DockerResource, DockerResources
 
             logger.debug("Creating default docker resources")
             default_docker_resources = DockerResources()
@@ -81,7 +81,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
                 workspace_objects["default_docker_resources"] = default_docker_resources
 
         if not k8s_resources_available and create_default_k8s_resources:
-            from phi.k8s.resources import K8sResources, K8sResource, K8sApp, CreateK8sResource
+            from phi.k8s.resources import CreateK8sResource, K8sApp, K8sResource, K8sResources
 
             logger.debug("Creating default k8s resources")
             default_k8s_resources = K8sResources()
@@ -106,7 +106,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
                 workspace_objects["default_k8s_resources"] = default_k8s_resources
 
         if not aws_resources_available and create_default_aws_resources:
-            from phi.aws.resources import AwsResources, AwsResource, AwsApp
+            from phi.aws.resources import AwsApp, AwsResource, AwsResources
 
             logger.debug("Creating default aws resources")
             default_aws_resources = AwsResources()
@@ -234,15 +234,15 @@ class WorkspaceConfig(BaseModel):
         from os import environ
 
         from phi.constants import (
+            AWS_REGION_ENV_VAR,
             SCRIPTS_DIR_ENV_VAR,
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
+            WORKSPACE_DIR_ENV_VAR,
+            WORKSPACE_HASH_ENV_VAR,
+            WORKSPACE_ID_ENV_VAR,
             WORKSPACE_NAME_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
-            WORKSPACE_DIR_ENV_VAR,
-            WORKSPACE_ID_ENV_VAR,
-            WORKSPACE_HASH_ENV_VAR,
-            AWS_REGION_ENV_VAR,
         )
 
         if self.ws_root_path is not None:
@@ -275,14 +275,13 @@ class WorkspaceConfig(BaseModel):
                 if self.workspace_settings.aws_region is not None:
                     environ[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
 
-    def get_resources(
-        self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"
-    ) -> List[InfraResources]:
+    def get_resources(self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create") -> List[InfraResources]:
         if self.ws_root_path is None:
             logger.warning("WorkspaceConfig.ws_root_path is None")
             return []
 
         from sys import path as sys_path
+
         from phi.utils.load_env import load_env
 
         # Objects to read from the files in the workspace_dir_path
@@ -429,6 +428,7 @@ class WorkspaceConfig(BaseModel):
             raise ValueError(f"File {resource_file} is not a python file")
 
         from sys import path as sys_path
+
         from phi.utils.load_env import load_env
 
         # Objects to read from the file

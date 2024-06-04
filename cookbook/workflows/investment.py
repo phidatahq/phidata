@@ -5,11 +5,11 @@ pip install groq yfinance phidata
 
 from pathlib import Path
 from shutil import rmtree
-from phi.llm.groq import Groq
-from phi.assistant import Assistant
-from phi.workflow import Workflow, Task
-from phi.tools.yfinance import YFinanceTools
 
+from phi.assistant import Assistant
+from phi.llm.groq import Groq
+from phi.tools.yfinance import YFinanceTools
+from phi.workflow import Task, Workflow
 
 reports_dir = Path(__file__).parent.parent.parent.joinpath("wip", "reports")
 if reports_dir.is_dir():

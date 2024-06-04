@@ -1,11 +1,11 @@
 from phi.k8s.app.base import (
+    AppVolumeType,
+    ContainerContext,
+    ImagePullPolicy,
     K8sApp,
     K8sBuildContext,
-    ContainerContext,
-    RestartPolicy,
-    ImagePullPolicy,
-    ServiceType,
     K8sWorkspaceVolumeType,
-    AppVolumeType,
     LoadBalancerProvider,
-)  # noqa: F401
+    RestartPolicy,
+    ServiceType,
+)

@@ -1,6 +1,7 @@
-from typing import Optional, Any, Dict, List, Union, cast
-from typing_extensions import Literal
 from textwrap import dedent
+from typing import Any, Dict, List, Optional, Union, cast
+
+from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
@@ -192,9 +193,7 @@ class EksNodeGroup(AwsResource):
                     azs_filter.extend(self.subnet_az)
 
                 subnets = [
-                    subnet_id
-                    for subnet_id in subnets
-                    if Subnet(name=subnet_id).get_availability_zone(aws_client=aws_client) in azs_filter
+                    subnet_id for subnet_id in subnets if Subnet(name=subnet_id).get_availability_zone(aws_client=aws_client) in azs_filter
                 ]
             logger.debug(f"Using subnets from EKSCluster: {subnets}")
         # cast for type checker

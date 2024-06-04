@@ -1,12 +1,12 @@
-from typing import Optional, List
+from typing import List, Optional
 
 try:
     from sqlalchemy.dialects import postgresql
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, select, delete
+    from sqlalchemy.schema import Column, MetaData, Table
+    from sqlalchemy.sql.expression import delete, select, text
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -81,9 +81,7 @@ class PgMemoryDb(MemoryDb):
                 result = sess.execute(stmt).first()
                 return result is not None
 
-    def read_memories(
-        self, user_id: Optional[str] = None, limit: Optional[int] = None, sort: Optional[str] = None
-    ) -> List[MemoryRow]:
+    def read_memories(self, user_id: Optional[str] = None, limit: Optional[int] = None, sort: Optional[str] = None) -> List[MemoryRow]:
         memories: List[MemoryRow] = []
         with self.Session() as sess, sess.begin():
             try:

@@ -1,34 +1,33 @@
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
-from phi.aws.resource.base import AwsResource
 from phi.aws.resource.acm.certificate import AcmCertificate
+from phi.aws.resource.base import AwsResource
 from phi.aws.resource.cloudformation.stack import CloudFormationStack
-from phi.aws.resource.ec2.volume import EbsVolume
-from phi.aws.resource.ec2.subnet import Subnet
 from phi.aws.resource.ec2.security_group import SecurityGroup
+from phi.aws.resource.ec2.subnet import Subnet
+from phi.aws.resource.ec2.volume import EbsVolume
 from phi.aws.resource.ecs.cluster import EcsCluster
+from phi.aws.resource.ecs.service import EcsService
 from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phi.aws.resource.eks.cluster import EksCluster
-from phi.aws.resource.ecs.service import EcsService
 from phi.aws.resource.eks.fargate_profile import EksFargateProfile
-from phi.aws.resource.eks.node_group import EksNodeGroup
-
 from phi.aws.resource.eks.kubeconfig import EksKubeconfig
+from phi.aws.resource.eks.node_group import EksNodeGroup
+from phi.aws.resource.elasticache.cluster import CacheCluster
+from phi.aws.resource.elasticache.subnet_group import CacheSubnetGroup
+from phi.aws.resource.elb.listener import Listener
 from phi.aws.resource.elb.load_balancer import LoadBalancer
 from phi.aws.resource.elb.target_group import TargetGroup
-from phi.aws.resource.elb.listener import Listener
-from phi.aws.resource.iam.role import IamRole
-from phi.aws.resource.iam.policy import IamPolicy
-from phi.aws.resource.glue.crawler import GlueCrawler
-from phi.aws.resource.s3.bucket import S3Bucket
-from phi.aws.resource.secret.manager import SecretsManager
 from phi.aws.resource.emr.cluster import EmrCluster
+from phi.aws.resource.glue.crawler import GlueCrawler
+from phi.aws.resource.iam.policy import IamPolicy
+from phi.aws.resource.iam.role import IamRole
 from phi.aws.resource.rds.db_cluster import DbCluster
 from phi.aws.resource.rds.db_instance import DbInstance
 from phi.aws.resource.rds.db_subnet_group import DbSubnetGroup
-from phi.aws.resource.elasticache.cluster import CacheCluster
-from phi.aws.resource.elasticache.subnet_group import CacheSubnetGroup
+from phi.aws.resource.s3.bucket import S3Bucket
+from phi.aws.resource.secret.manager import SecretsManager
 
 # Use this as a type for an object which can hold any AwsResource
 AwsResourceType = Union[
@@ -92,9 +91,7 @@ AwsResourceTypeList: List[Type[AwsResource]] = [
 ]
 
 # Map Aws resource alias' to their type
-_aws_resource_type_names: Dict[str, Type[AwsResource]] = {
-    aws_type.__name__.lower(): aws_type for aws_type in AwsResourceTypeList
-}
+_aws_resource_type_names: Dict[str, Type[AwsResource]] = {aws_type.__name__.lower(): aws_type for aws_type in AwsResourceTypeList}
 _aws_resource_type_aliases: Dict[str, Type[AwsResource]] = {
     "s3": S3Bucket,
     "volume": EbsVolume,

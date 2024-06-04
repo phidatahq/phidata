@@ -1,10 +1,12 @@
+from typing import List, Optional
+
 import typer
-from typing import Optional, List
-from phi.assistant import Assistant
-from phi.storage.assistant.postgres import PgAssistantStorage
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector2
 from resources import vector_db  # type: ignore
+
+from phi.assistant import Assistant
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.storage.assistant.postgres import PgAssistantStorage
+from phi.vectordb.pgvector import PgVector2
 
 db_url = vector_db.get_db_connection_local()
 knowledge_base = PDFUrlKnowledgeBase(

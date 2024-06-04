@@ -1,15 +1,15 @@
-from typing import Any, Optional, Dict
-from typing_extensions import Literal
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict
+from typing_extensions import Literal
 
 from phi.assistant.openai.exceptions import FileIdNotSet
 from phi.utils.log import logger
 
 try:
     from openai import OpenAI
-    from openai.types.file_object import FileObject as OpenAIFile
     from openai.types.file_deleted import FileDeleted as OpenAIFileDeleted
+    from openai.types.file_object import FileObject as OpenAIFile
 except ImportError:
     logger.error("`openai` not installed")
     raise

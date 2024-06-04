@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -247,9 +247,7 @@ class DuckDbTools(Toolkit):
         logger.debug(f"Loaded {path} into duckdb as {table}")
         return table, create_statement
 
-    def load_local_csv_to_table(
-        self, path: str, table: Optional[str] = None, delimiter: Optional[str] = None
-    ) -> Tuple[str, str]:
+    def load_local_csv_to_table(self, path: str, table: Optional[str] = None, delimiter: Optional[str] = None) -> Tuple[str, str]:
         """Load a local CSV file into duckdb
 
         :param path: Path to load
@@ -306,9 +304,7 @@ class DuckDbTools(Toolkit):
         logger.debug(f"Loaded {path} into duckdb as {table}")
         return table, create_statement
 
-    def load_s3_csv_to_table(
-        self, path: str, table: Optional[str] = None, delimiter: Optional[str] = None
-    ) -> Tuple[str, str]:
+    def load_s3_csv_to_table(self, path: str, table: Optional[str] = None, delimiter: Optional[str] = None) -> Tuple[str, str]:
         """Load a CSV file from S3 into duckdb
 
         :param path: S3 path to load

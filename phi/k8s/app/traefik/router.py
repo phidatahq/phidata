@@ -1,13 +1,13 @@
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
 from phi.k8s.app.base import (
-    K8sApp,
     AppVolumeType,  # noqa: F401
     ContainerContext,  # noqa: F401
-    ServiceType,
-    RestartPolicy,  # noqa: F401
     ImagePullPolicy,  # noqa: F401
+    K8sApp,
     LoadBalancerProvider,  # noqa: F401
+    RestartPolicy,  # noqa: F401
+    ServiceType,
 )
 from phi.k8s.app.traefik.crds import ingressroute_crd, middleware_crd
 from phi.utils.log import logger
@@ -85,11 +85,11 @@ class TraefikRouter(K8sApp):
         return self.dashboard_auth_users or self.get_secret_from_file("DASHBOARD_AUTH_USERS")
 
     def get_ingress_rules(self) -> List[Any]:
-        from kubernetes.client.models.v1_ingress_rule import V1IngressRule
-        from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
-        from kubernetes.client.models.v1_ingress_service_backend import V1IngressServiceBackend
         from kubernetes.client.models.v1_http_ingress_path import V1HTTPIngressPath
         from kubernetes.client.models.v1_http_ingress_rule_value import V1HTTPIngressRuleValue
+        from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
+        from kubernetes.client.models.v1_ingress_rule import V1IngressRule
+        from kubernetes.client.models.v1_ingress_service_backend import V1IngressServiceBackend
         from kubernetes.client.models.v1_service_port import V1ServicePort
 
         ingress_rules = [
@@ -224,10 +224,7 @@ class TraefikRouter(K8sApp):
                 service_port=self.http_service_port,
                 target_port=self.http_key,
             )
-            if (
-                self.service_type in (ServiceType.NODE_PORT, ServiceType.LOAD_BALANCER)
-                and self.http_node_port is not None
-            ):
+            if self.service_type in (ServiceType.NODE_PORT, ServiceType.LOAD_BALANCER) and self.http_node_port is not None:
                 web_port.node_port = self.http_node_port
             ports.append(web_port)
 
@@ -238,10 +235,7 @@ class TraefikRouter(K8sApp):
                 service_port=self.https_service_port,
                 target_port=self.https_key,
             )
-            if (
-                self.service_type in (ServiceType.NODE_PORT, ServiceType.LOAD_BALANCER)
-                and self.https_node_port is not None
-            ):
+            if self.service_type in (ServiceType.NODE_PORT, ServiceType.LOAD_BALANCER) and self.https_node_port is not None:
                 websecure_port.node_port = self.https_node_port
             ports.append(websecure_port)
 
@@ -252,10 +246,7 @@ class TraefikRouter(K8sApp):
                 service_port=self.dashboard_service_port,
                 target_port=self.dashboard_key,
             )
-            if (
-                self.service_type in (ServiceType.NODE_PORT, ServiceType.LOAD_BALANCER)
-                and self.dashboard_node_port is not None
-            ):
+            if self.service_type in (ServiceType.NODE_PORT, ServiceType.LOAD_BALANCER) and self.dashboard_node_port is not None:
                 dashboard_port.node_port = self.dashboard_node_port
             ports.append(dashboard_port)
 

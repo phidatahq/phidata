@@ -1,9 +1,9 @@
-from typing import Optional, Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
-from phi.aws.resource.reference import AwsReference
 from phi.aws.resource.cloudformation.stack import CloudFormationStack
+from phi.aws.resource.reference import AwsReference
 from phi.cli.console import print_info
 from phi.utils.log import logger
 

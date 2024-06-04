@@ -1,4 +1,4 @@
-from typing import Optional, Union, List
+from typing import List, Optional, Union
 
 from phi.docker.app.airflow.base import AirflowBase
 

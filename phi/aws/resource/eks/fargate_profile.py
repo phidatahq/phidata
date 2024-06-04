@@ -1,5 +1,5 @@
-from typing import Optional, Any, Dict, List
 from textwrap import dedent
+from typing import Any, Dict, List, Optional
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
@@ -150,9 +150,7 @@ class EksFargateProfile(AwsResource):
                     },
                 )
             except Exception as e:
-                logger.error(
-                    "Received errors while waiting for EksFargateProfile creation, this operation is known to be buggy."
-                )
+                logger.error("Received errors while waiting for EksFargateProfile creation, this operation is known to be buggy.")
                 logger.error(e)
                 return False
         return True
@@ -240,9 +238,7 @@ class EksFargateProfile(AwsResource):
                 )
                 return True
             except Exception as e:
-                logger.error(
-                    "Received errors while waiting for EksFargateProfile deletion, this operation is known to be buggy."
-                )
+                logger.error("Received errors while waiting for EksFargateProfile deletion, this operation is known to be buggy.")
                 logger.error("Please try again or delete resources manually.")
                 logger.error(e)
         return True

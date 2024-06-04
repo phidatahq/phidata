@@ -1,12 +1,12 @@
-from typing import Optional, Any, List
+from typing import Any, List, Optional
 
 try:
     from sqlalchemy.dialects import sqlite
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.engine.row import Row
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.schema import Column, MetaData, Table
     from sqlalchemy.sql.expression import select
     from sqlalchemy.types import String
 except ImportError:
@@ -143,7 +143,6 @@ class SqlAssistantStorage(AssistantStorage):
                         run_ids.append(row.run_id)
         except OperationalError:
             logger.debug(f"Table does not exist: {self.table.name}")
-            pass
         return run_ids
 
     def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
@@ -163,7 +162,6 @@ class SqlAssistantStorage(AssistantStorage):
                         conversations.append(AssistantRun.model_validate(row))
         except OperationalError:
             logger.debug(f"Table does not exist: {self.table.name}")
-            pass
         return conversations
 
     def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:

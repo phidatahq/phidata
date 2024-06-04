@@ -9,7 +9,7 @@ goto :eof
 
 :: Function to print a horizontal line
 :print_horizontal_line
-echo ------------------------------------------------------------ 
+echo ------------------------------------------------------------
 goto :eof
 
 :: Function to print a heading with horizontal lines

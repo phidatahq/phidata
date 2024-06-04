@@ -1,10 +1,10 @@
-from typing import Any, Optional, Dict, List, Union, Callable, cast
-from typing_extensions import Literal
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, model_validator
+from typing_extensions import Literal
 
 from phi.assistant.openai.assistant import OpenAIAssistant
-from phi.assistant.openai.exceptions import ThreadIdNotSet, AssistantIdNotSet, RunIdNotSet
+from phi.assistant.openai.exceptions import AssistantIdNotSet, RunIdNotSet, ThreadIdNotSet
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function
 from phi.utils.functions import get_function_call
@@ -12,12 +12,14 @@ from phi.utils.log import logger
 
 try:
     from openai import OpenAI
+    from openai.types.beta.threads.required_action_function_tool_call import RequiredActionFunctionToolCall
+    from openai.types.beta.threads.run import (
+        LastError,
+        RequiredAction,
+    )
     from openai.types.beta.threads.run import (
         Run as OpenAIRun,
-        RequiredAction,
-        LastError,
     )
-    from openai.types.beta.threads.required_action_function_tool_call import RequiredActionFunctionToolCall
     from openai.types.beta.threads.run_submit_tool_outputs_params import ToolOutput
 except ImportError:
     logger.error("`openai` not installed")
@@ -40,9 +42,9 @@ class Run(BaseModel):
 
     # The status of the run, which can be either
     # queued, in_progress, requires_action, cancelling, cancelled, failed, completed, or expired.
-    status: Optional[
-        Literal["queued", "in_progress", "requires_action", "cancelling", "cancelled", "failed", "completed", "expired"]
-    ] = None
+    status: Optional[Literal["queued", "in_progress", "requires_action", "cancelling", "cancelled", "failed", "completed", "expired"]] = (
+        None
+    )
 
     # Details on the action required to continue the run. Will be null if no action is required.
     required_action: Optional[RequiredAction] = None
@@ -177,9 +179,7 @@ class Run(BaseModel):
         if self.metadata is not None:
             request_body["metadata"] = self.metadata
 
-        self.openai_run = self.client.beta.threads.runs.create(
-            thread_id=_thread_id, assistant_id=_assistant_id, **request_body
-        )
+        self.openai_run = self.client.beta.threads.runs.create(thread_id=_thread_id, assistant_id=_assistant_id, **request_body)
         self.load_from_openai(self.openai_run)  # type: ignore
         logger.debug(f"Run created: {self.id}")
         return self
@@ -296,9 +296,7 @@ class Run(BaseModel):
                     return self
                 if self.required_action is not None:
                     if self.required_action.type == "submit_tool_outputs":
-                        tool_calls: List[RequiredActionFunctionToolCall] = (
-                            self.required_action.submit_tool_outputs.tool_calls
-                        )
+                        tool_calls: List[RequiredActionFunctionToolCall] = self.required_action.submit_tool_outputs.tool_calls
 
                         tool_outputs = []
                         for tool_call in tool_calls:

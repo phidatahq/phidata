@@ -1,16 +1,15 @@
 from typing import List
 
-from rich.pretty import pprint
-
 from assistants import (
-    SearchTerms,
     ArxivSearchResults,
-    search_term_generator,
+    SearchTerms,
     arxiv_search_assistant,
+    arxiv_toolkit,
     exa_search_assistant,
     research_editor,
-    arxiv_toolkit,
-)  # noqa
+    search_term_generator,
+)
+from rich.pretty import pprint
 
 # Topic to generate a report on
 topic = "Latest AI in Healthcare Research"

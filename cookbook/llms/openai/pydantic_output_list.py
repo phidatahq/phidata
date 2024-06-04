@@ -1,6 +1,8 @@
 from typing import List
+
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
+
 from phi.assistant import Assistant
 from phi.llm.openai import OpenAIChat
 
@@ -16,9 +18,7 @@ class MovieScript(BaseModel):
 
 # Generate a list of pydantic models
 class MovieScripts(BaseModel):
-    movie_scripts: List[MovieScript] = Field(
-        ..., description="List of movie scripts for the given theme. Provide 3 different scripts."
-    )
+    movie_scripts: List[MovieScript] = Field(..., description="List of movie scripts for the given theme. Provide 3 different scripts.")
 
 
 # Define the Assistant

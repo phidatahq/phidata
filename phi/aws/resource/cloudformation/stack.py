@@ -1,4 +1,4 @@
-from typing import Optional, Any, List
+from typing import Any, List, Optional
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
@@ -166,9 +166,7 @@ class CloudFormationStack(AwsResource):
     def get_private_subnets(self, aws_client: Optional[AwsApiClient] = None) -> Optional[List[str]]:
         try:
             client: AwsApiClient = (
-                aws_client
-                if aws_client is not None
-                else AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                aws_client if aws_client is not None else AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
             )
 
             private_subnets = []
@@ -196,9 +194,7 @@ class CloudFormationStack(AwsResource):
     def get_public_subnets(self, aws_client: Optional[AwsApiClient] = None) -> Optional[List[str]]:
         try:
             client: AwsApiClient = (
-                aws_client
-                if aws_client is not None
-                else AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                aws_client if aws_client is not None else AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
             )
 
             public_subnets = []
@@ -221,16 +217,12 @@ class CloudFormationStack(AwsResource):
     def get_security_group(self, aws_client: Optional[AwsApiClient] = None) -> Optional[str]:
         try:
             client: AwsApiClient = (
-                aws_client
-                if aws_client is not None
-                else AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
+                aws_client if aws_client is not None else AwsApiClient(aws_region=self.get_aws_region(), aws_profile=self.get_aws_profile())
             )
 
             security_group_stack_resource = self.get_stack_resource(client, "ControlPlaneSecurityGroup")
             security_group_physical_resource_id = (
-                security_group_stack_resource.physical_resource_id
-                if security_group_stack_resource is not None
-                else None
+                security_group_stack_resource.physical_resource_id if security_group_stack_resource is not None else None
             )
             logger.debug(f"security_group: {security_group_physical_resource_id}")
 

@@ -1,13 +1,13 @@
-import time
 import random
-from typing import Set, Dict, List, Tuple
+import time
+from typing import Dict, List, Set, Tuple
 from urllib.parse import urljoin, urlparse
+
+import httpx
 
 from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
-
-import httpx
 
 try:
     from bs4 import BeautifulSoup  # noqa: F401
@@ -131,7 +131,6 @@ class WebsiteReader(Reader):
 
             except Exception as e:
                 logger.debug(f"Failed to crawl: {current_url}: {e}")
-                pass
 
         return crawler_result
 
@@ -153,9 +152,7 @@ class WebsiteReader(Reader):
             if self.chunk:
                 documents.extend(
                     self.chunk_document(
-                        Document(
-                            name=url, id=str(crawled_url), meta_data={"url": str(crawled_url)}, content=crawled_content
-                        )
+                        Document(name=url, id=str(crawled_url), meta_data={"url": str(crawled_url)}, content=crawled_content)
                     )
                 )
             else:

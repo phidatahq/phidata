@@ -1,7 +1,7 @@
-import re
 import json
-from typing import Optional
+import re
 from os import getenv
+from typing import Optional
 
 from phi.tools import Toolkit
 from phi.utils.log import logger

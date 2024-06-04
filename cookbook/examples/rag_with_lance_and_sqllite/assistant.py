@@ -1,10 +1,10 @@
 # Import necessary modules from the phi library
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb.lancedb import LanceDb
-from phi.embedder.ollama import OllamaEmbedder
 from phi.assistant import Assistant
-from phi.storage.assistant.sqllite import SqlAssistantStorage
+from phi.embedder.ollama import OllamaEmbedder
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.llm.ollama import Ollama
+from phi.storage.assistant.sqllite import SqlAssistantStorage
+from phi.vectordb.lancedb.lancedb import LanceDb
 
 # Define the database URL where the vector database will be stored
 db_url = "/tmp/lancedb"

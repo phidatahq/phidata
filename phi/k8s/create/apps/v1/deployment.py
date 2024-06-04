@@ -1,9 +1,11 @@
 from typing import Dict, List, Optional, Union
+
 from typing_extensions import Literal
 
+from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.create.core.v1.container import CreateContainer
 from phi.k8s.create.core.v1.volume import CreateVolume
-from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.restart_policy import RestartPolicy
@@ -15,11 +17,10 @@ from phi.k8s.resource.apps.v1.deployment import (
 )
 from phi.k8s.resource.core.v1.container import Container
 from phi.k8s.resource.core.v1.pod_spec import PodSpec
-from phi.k8s.resource.core.v1.volume import Volume
 from phi.k8s.resource.core.v1.topology_spread_constraints import (
     TopologySpreadConstraint,
 )
-from phi.k8s.create.common.labels import create_component_labels_dict
+from phi.k8s.resource.core.v1.volume import Volume
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 
 

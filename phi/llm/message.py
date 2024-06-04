@@ -1,5 +1,6 @@
 import json
-from typing import Optional, Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, ConfigDict
 
 from phi.utils.log import logger

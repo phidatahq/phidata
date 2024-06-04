@@ -1,5 +1,6 @@
-from phi.utils.log import logger
 from assistant import assistant_knowledge
+
+from phi.utils.log import logger
 
 
 def load_sql_assistant_knowledge_base(recreate: bool = True):

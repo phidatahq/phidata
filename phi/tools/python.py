@@ -1,5 +1,5 @@
-import runpy
 import functools
+import runpy
 from pathlib import Path
 from typing import Optional
 
@@ -46,9 +46,7 @@ class PythonTools(Toolkit):
         if list_files:
             self.register(self.list_files)
 
-    def save_to_file_and_run(
-        self, file_name: str, code: str, variable_to_return: Optional[str] = None, overwrite: bool = True
-    ) -> str:
+    def save_to_file_and_run(self, file_name: str, code: str, variable_to_return: Optional[str] = None, overwrite: bool = True) -> str:
         """This function saves Python code to a file called `file_name` and then runs it.
         If successful, returns the value of `variable_to_return` if provided otherwise returns a success message.
         If failed, returns an error message.
@@ -182,8 +180,8 @@ class PythonTools(Toolkit):
             warn()
 
             logger.debug(f"Installing package {package_name}")
-            import sys
             import subprocess
+            import sys
 
             subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
             return f"successfully installed package {package_name}"

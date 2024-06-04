@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.models.v1_delete_options import V1DeleteOptions
 
+from phi.cli.console import print_info
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.resource.base import K8sResource
-from phi.cli.console import print_info
 from phi.utils.log import logger
 
 
@@ -48,9 +48,7 @@ class CustomObject(K8sResource):
         return _v1_custom_object
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[Dict[str, Any]]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[Dict[str, Any]]]:
         """Reads CustomObject from K8s cluster.
 
         Args:
@@ -205,7 +203,7 @@ class CustomObject(K8sResource):
             body=delete_options,
         )
         logger.debug("delete_status: {}".format(delete_status))
-        if delete_status.get("status", None) == "Success":
+        if delete_status.get("status") == "Success":
             logger.debug("CustomObject Deleted")
             return True
         logger.error("CustomObject could not be deleted")

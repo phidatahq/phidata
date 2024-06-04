@@ -1,9 +1,9 @@
-from pathlib import Path
 from importlib import metadata
+from pathlib import Path
 
-from pydantic import field_validator, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
 

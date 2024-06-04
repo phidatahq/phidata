@@ -6,11 +6,11 @@ from kubernetes.client.models.v1_service_account_list import V1ServiceAccountLis
 from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
+from phi.k8s.resource.base import K8sResource
 from phi.k8s.resource.core.v1.local_object_reference import (
     LocalObjectReference,
 )
 from phi.k8s.resource.core.v1.object_reference import ObjectReference
-from phi.k8s.resource.base import K8sResource
 from phi.utils.log import logger
 
 
@@ -73,9 +73,7 @@ class ServiceAccount(K8sResource):
         return _v1_service_account
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1ServiceAccount]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1ServiceAccount]]:
         """Reads ServiceAccounts from K8s cluster.
 
         Args:

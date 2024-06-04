@@ -1,6 +1,7 @@
+from typing import Optional
+
 import typer
 from rich.prompt import Prompt
-from typing import Optional
 
 from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFUrlKnowledgeBase

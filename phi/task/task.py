@@ -1,8 +1,8 @@
 import json
+from typing import Any, Dict, Iterator, List, Optional, Union
 from uuid import uuid4
-from typing import List, Any, Optional, Dict, Union, Iterator
 
-from pydantic import BaseModel, ConfigDict, field_validator, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from phi.assistant import Assistant
 

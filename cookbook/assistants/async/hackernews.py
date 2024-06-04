@@ -1,6 +1,7 @@
-import json
-import httpx
 import asyncio
+import json
+
+import httpx
 
 from phi.assistant import Assistant
 

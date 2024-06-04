@@ -1,10 +1,10 @@
-from typing import Dict, List, Optional, Literal
+from typing import Dict, List, Literal, Optional
+
+from firecrawl import FirecrawlApp
 
 from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
-
-from firecrawl import FirecrawlApp
 
 
 class FirecrawlReader(Reader):

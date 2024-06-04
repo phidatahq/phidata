@@ -1,7 +1,7 @@
+from typing import Any, Dict, Iterator, List, Optional, Union
 from uuid import uuid4
-from typing import List, Any, Optional, Dict, Iterator, Union
 
-from pydantic import BaseModel, ConfigDict, field_validator, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from phi.llm.base import LLM
 from phi.task.task import Task
@@ -85,9 +85,7 @@ class Workflow(BaseModel):
                 for previous_task_idx, previous_task in enumerate(executed_tasks, start=1):
                     previous_task_output = previous_task.get_task_output_as_str()
                     if previous_task_output is not None:
-                        previous_task_outputs.append(
-                            (previous_task_idx, previous_task.description, previous_task_output)
-                        )
+                        previous_task_outputs.append((previous_task_idx, previous_task.description, previous_task_output))
 
                 if len(previous_task_outputs) > 0:
                     task_input.append("\nHere are previous tasks and and their results:\n---")
@@ -135,13 +133,14 @@ class Workflow(BaseModel):
         show_message: bool = True,
         **kwargs: Any,
     ) -> None:
-        from phi.cli.console import console
-        from rich.live import Live
-        from rich.table import Table
-        from rich.status import Status
-        from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
+        from rich.live import Live
         from rich.markdown import Markdown
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.status import Status
+        from rich.table import Table
+
+        from phi.cli.console import console
 
         if stream:
             response = ""
@@ -166,9 +165,7 @@ class Workflow(BaseModel):
         else:
             response_timer = Timer()
             response_timer.start()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-            ) as progress:
+            with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
                 progress.add_task("Working...")
                 response = self.run(message=message, stream=False, **kwargs)  # type: ignore
 

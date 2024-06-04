@@ -1,9 +1,9 @@
 from time import sleep
-from typing import Optional, Any, Dict, Union, List
+from typing import Any, Dict, List, Optional, Union
 
+from phi.cli.console import print_info
 from phi.docker.api_client import DockerApiClient
 from phi.docker.resource.base import DockerResource
-from phi.cli.console import print_info
 from phi.utils.log import logger
 
 
@@ -111,7 +111,7 @@ class DockerContainer(DockerResource):
 
     def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
-        from docker.errors import ImageNotFound, APIError
+        from docker.errors import APIError, ImageNotFound
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
         print_info("Starting container: {}".format(self.name))
@@ -122,9 +122,7 @@ class DockerContainer(DockerResource):
         # )
         try:
             _api_client: DockerClient = docker_client.api_client
-            with Progress(
-                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-            ) as progress:
+            with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
                 if self.pull:
                     try:
                         pull_image_task = progress.add_task("Downloading Image...")  # noqa: F841
@@ -211,9 +209,7 @@ class DockerContainer(DockerResource):
             elif self.container_status == "created":
                 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-                with Progress(
-                    SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-                ) as progress:
+                with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
                     task = progress.add_task("Waiting for container to start", total=None)  # noqa: F841
                     while self.container_status != "created":
                         logger.debug(f"Container Status: {self.container_status}, trying again in 1 seconds")
@@ -243,9 +239,7 @@ class DockerContainer(DockerResource):
         container_name: Optional[str] = self.name
         try:
             _api_client: DockerClient = docker_client.api_client
-            container_list: Optional[List[Container]] = _api_client.containers.list(
-                all=True, filters={"name": container_name}
-            )
+            container_list: Optional[List[Container]] = _api_client.containers.list(all=True, filters={"name": container_name})
             if container_list is not None:
                 for container in container_list:
                     if container.name == container_name:
@@ -271,8 +265,8 @@ class DockerContainer(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
-        from docker.models.containers import Container
         from docker.errors import NotFound
+        from docker.models.containers import Container
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         container_name: Optional[str] = self.name

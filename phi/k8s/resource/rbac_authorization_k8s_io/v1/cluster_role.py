@@ -8,7 +8,7 @@ from kubernetes.client.models.v1_status import V1Status
 from pydantic import Field
 
 from phi.k8s.api_client import K8sApiClient
-from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.utils.log import logger
 
 
@@ -71,9 +71,7 @@ class ClusterRole(K8sResource):
         return _v1_cluster_role
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1ClusterRole]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1ClusterRole]]:
         """Reads ClusterRoles from K8s cluster.
 
         Args:

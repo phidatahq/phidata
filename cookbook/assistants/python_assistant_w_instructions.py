@@ -1,7 +1,8 @@
+from pydantic import BaseModel, Field
+from rich.pretty import pprint
+
 from phi.assistant.python import PythonAssistant
 from phi.file.local.csv import CsvFile
-from rich.pretty import pprint
-from pydantic import BaseModel, Field
 
 
 class AssistantResponse(BaseModel):

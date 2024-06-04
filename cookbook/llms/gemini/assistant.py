@@ -1,6 +1,7 @@
 from os import getenv
 
 import vertexai
+
 from phi.assistant import Assistant
 from phi.llm.gemini import Gemini
 

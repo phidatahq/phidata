@@ -1,11 +1,12 @@
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 from phi.aws.api_client import AwsApiClient
-from phi.k8s.enums.api_version import ApiVersion
 from phi.aws.resource.base import AwsResource
-from phi.aws.resource.iam.role import IamRole
 from phi.aws.resource.eks.cluster import EksCluster
+from phi.aws.resource.iam.role import IamRole
+from phi.cli.console import print_info
+from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.resource.kubeconfig import (
     Kubeconfig,
     KubeconfigCluster,
@@ -14,7 +15,6 @@ from phi.k8s.resource.kubeconfig import (
     KubeconfigContextSpec,
     KubeconfigUser,
 )
-from phi.cli.console import print_info
 from phi.utils.log import logger
 
 

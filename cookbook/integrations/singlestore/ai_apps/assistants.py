@@ -1,20 +1,20 @@
 from os import getenv
-from typing import Optional
 from textwrap import dedent
+from typing import Optional
 
 from sqlalchemy.engine import create_engine
 
 from phi.assistant import Assistant
+from phi.embedder.ollama import OllamaEmbedder
+from phi.embedder.openai import OpenAIEmbedder
+from phi.knowledge import AssistantKnowledge
 from phi.llm import LLM
 from phi.llm.groq import Groq
 from phi.llm.ollama import Ollama
 from phi.llm.openai import OpenAIChat
-from phi.knowledge import AssistantKnowledge
-from phi.embedder.openai import OpenAIEmbedder
-from phi.embedder.ollama import OllamaEmbedder
 from phi.storage.assistant.singlestore import S2AssistantStorage  # noqa
-from phi.vectordb.singlestore import S2VectorDb
 from phi.utils.log import logger
+from phi.vectordb.singlestore import S2VectorDb
 
 # ************** Create SingleStore Database Engine **************
 # -*- SingleStore Configuration -*-

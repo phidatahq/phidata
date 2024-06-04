@@ -1,8 +1,8 @@
-from typing import Optional, List, Dict, Any
 from pathlib import Path
+from textwrap import dedent
+from typing import Any, Dict, List, Optional
 
 from pydantic import model_validator
-from textwrap import dedent
 
 from phi.assistant import Assistant
 from phi.file import File
@@ -162,9 +162,7 @@ class PythonAssistant(Assistant):
         logger.debug("Building the system prompt for the PythonAssistant.")
         # -*- Build the default system prompt
         # First add the Assistant description
-        _system_prompt = (
-            self.description or "You are an expert in Python and can accomplish any task that is asked of you."
-        )
+        _system_prompt = self.description or "You are an expert in Python and can accomplish any task that is asked of you."
         _system_prompt += "\n"
 
         # Then add the prompt specifically from the LLM

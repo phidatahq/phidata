@@ -1,17 +1,17 @@
+from logging import getLogger
 from typing import List
 
 import streamlit as st
+from assistant import get_hermes_assistant  # type: ignore
+
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.tools.streamlit.components import (
     check_password,
-    reload_button_sidebar,
     get_username_sidebar,
+    reload_button_sidebar,
 )
-
-from assistant import get_hermes_assistant  # type: ignore
-from logging import getLogger
 
 logger = getLogger(__name__)
 

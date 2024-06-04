@@ -1,14 +1,13 @@
 from typing import Optional
 
-from phi.assistant import Assistant
-from phi.llm.ollama import Hermes
-from phi.embedder.ollama import OllamaEmbedder
-from phi.knowledge import AssistantKnowledge
-from phi.storage.assistant.postgres import PgAssistantStorage
-from phi.vectordb.pgvector import PgVector2
-
 from resources import vector_db  # type: ignore
 
+from phi.assistant import Assistant
+from phi.embedder.ollama import OllamaEmbedder
+from phi.knowledge import AssistantKnowledge
+from phi.llm.ollama import Hermes
+from phi.storage.assistant.postgres import PgAssistantStorage
+from phi.vectordb.pgvector import PgVector2
 
 knowledge_base = AssistantKnowledge(
     vector_db=PgVector2(

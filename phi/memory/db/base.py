@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import List, Optional
 
 from phi.memory.row import MemoryRow
 
@@ -16,9 +16,7 @@ class MemoryDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read_memories(
-        self, user_id: Optional[str] = None, limit: Optional[int] = None, sort: Optional[str] = None
-    ) -> List[MemoryRow]:
+    def read_memories(self, user_id: Optional[str] = None, limit: Optional[int] = None, sort: Optional[str] = None) -> List[MemoryRow]:
         raise NotImplementedError
 
     @abstractmethod

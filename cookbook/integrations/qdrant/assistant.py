@@ -1,6 +1,7 @@
 import os
-import typer
 from typing import Optional
+
+import typer
 from rich.prompt import Prompt
 
 from phi.assistant import Assistant

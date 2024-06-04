@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
 
 from phi.k8s.app.airflow.base import AirflowBase, ContainerContext
 

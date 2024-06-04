@@ -1,7 +1,6 @@
 import json
 from textwrap import dedent
-from typing import Optional, List, Iterator, Dict, Any
-
+from typing import Any, Dict, Iterator, List, Optional
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -9,8 +8,8 @@ from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import (
-    get_function_call_for_tool_call,
     extract_tool_from_xml,
+    get_function_call_for_tool_call,
     remove_function_calls_from_string,
 )
 
@@ -157,7 +156,6 @@ class Claude(LLM):
                         assistant_message.tool_calls = tool_calls
         except Exception as e:
             logger.warning(e)
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -313,7 +311,6 @@ class Claude(LLM):
                     assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics

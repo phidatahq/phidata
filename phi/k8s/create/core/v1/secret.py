@@ -1,10 +1,10 @@
 from typing import Dict, Optional
 
 from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.core.v1.secret import Secret
-from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 
 

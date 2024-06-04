@@ -1,14 +1,14 @@
 from typing import List
 
 import streamlit as st
+from assistant import get_mistral_assistant  # type: ignore
+
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
 from phi.tools.streamlit.components import reload_button_sidebar
 from phi.utils.log import logger
-
-from assistant import get_mistral_assistant  # type: ignore
 
 st.set_page_config(
     page_title="Mistral RAG",
@@ -98,9 +98,7 @@ def main() -> None:
         if "url_scrape_key" not in st.session_state:
             st.session_state["url_scrape_key"] = 0
 
-        input_url = st.sidebar.text_input(
-            "Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"]
-        )
+        input_url = st.sidebar.text_input("Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"])
         add_url_button = st.sidebar.button("Add URL")
         if add_url_button:
             if input_url is not None:
@@ -119,9 +117,7 @@ def main() -> None:
         if "file_uploader_key" not in st.session_state:
             st.session_state["file_uploader_key"] = 100
 
-        uploaded_file = st.sidebar.file_uploader(
-            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
-        )
+        uploaded_file = st.sidebar.file_uploader("Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"])
         if uploaded_file is not None:
             alert = st.sidebar.info("Processing PDF...", icon="🧠")
             mistral_rag_name = uploaded_file.name.split(".")[0]
@@ -146,9 +142,7 @@ def main() -> None:
         new_mistral_assistant_run_id = st.sidebar.selectbox("Run ID", options=mistral_assistant_run_ids)
         if st.session_state["mistral_assistant_run_id"] != new_mistral_assistant_run_id:
             logger.info(f"---*--- Loading {mistral_model} run: {new_mistral_assistant_run_id} ---*---")
-            st.session_state["mistral_assistant"] = get_mistral_assistant(
-                model=mistral_model, run_id=new_mistral_assistant_run_id
-            )
+            st.session_state["mistral_assistant"] = get_mistral_assistant(model=mistral_model, run_id=new_mistral_assistant_run_id)
             st.rerun()
 
     if st.sidebar.button("New Run"):

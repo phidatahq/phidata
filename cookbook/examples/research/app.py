@@ -2,16 +2,14 @@ import json
 from typing import Optional
 
 import streamlit as st
-
 from assistants import (
     SearchTerms,
-    search_term_generator,
     arxiv_search_assistant,
+    arxiv_toolkit,
     exa_search_assistant,
     research_editor,
-    arxiv_toolkit,
-)  # type: ignore
-
+    search_term_generator,
+)
 
 st.set_page_config(
     page_title="Research Workflow",

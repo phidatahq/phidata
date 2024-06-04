@@ -1,7 +1,8 @@
-import httpx
 import json
 import urllib.parse
 from typing import List, Optional
+
+import httpx
 
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger

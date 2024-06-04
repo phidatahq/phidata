@@ -1,20 +1,19 @@
 from typing import List, Optional
 
-from pydantic import Field, field_serializer
-
 from kubernetes.client import RbacAuthorizationV1Api
+from kubernetes.client.models.rbac_v1_subject import RbacV1Subject
 from kubernetes.client.models.v1_cluster_role_binding import V1ClusterRoleBinding
 from kubernetes.client.models.v1_cluster_role_binding_list import (
     V1ClusterRoleBindingList,
 )
 from kubernetes.client.models.v1_role_ref import V1RoleRef
-from kubernetes.client.models.rbac_v1_subject import RbacV1Subject
 from kubernetes.client.models.v1_status import V1Status
+from pydantic import Field, field_serializer
 
+from phi.k8s.api_client import K8sApiClient
 from phi.k8s.enums.api_group import ApiGroup
 from phi.k8s.enums.kind import Kind
-from phi.k8s.api_client import K8sApiClient
-from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.utils.log import logger
 
 
@@ -134,9 +133,7 @@ class ClusterRoleBinding(K8sResource):
         return _v1_cluster_role_binding
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1ClusterRoleBinding]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1ClusterRoleBinding]]:
         """Reads ClusterRoles from K8s cluster.
 
         Args:

@@ -4,19 +4,19 @@ This is the entrypoint for the `phi ws` application.
 """
 
 from pathlib import Path
-from typing import Optional, cast, List
+from typing import List, Optional, cast
 
 import typer
 
 from phi.cli.console import (
-    print_info,
-    print_heading,
-    log_config_not_available_msg,
     log_active_workspace_not_available,
+    log_config_not_available_msg,
     print_available_workspaces,
+    print_heading,
+    print_info,
 )
-from phi.utils.log import logger, set_log_level_to_debug
 from phi.infra.type import InfraType
+from phi.utils.log import logger, set_log_level_to_debug
 
 ws_cli = typer.Typer(
     name="ws",
@@ -121,9 +121,7 @@ def up(
     ),
     env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy."),
     infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to deploy."),
-    group_filter: Optional[str] = typer.Option(
-        None, "-g", "--group", metavar="", help="Filter resources using group name."
-    ),
+    group_filter: Optional[str] = typer.Option(None, "-g", "--group", metavar="", help="Filter resources using group name."),
     name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
@@ -185,9 +183,9 @@ def up(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.utils.resource_filter import parse_resource_filter
     from phi.workspace.config import WorkspaceConfig
     from phi.workspace.operator import start_workspace
-    from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -213,9 +211,7 @@ def up(
                 f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
                 + f"is not the Active Workspace ({active_ws_dir_name})"
             )
-            update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
-            )
+            update_active_workspace = typer.confirm(f"Update active workspace to {ws_at_current_path_dir_name}", default=True)
             if update_active_workspace:
                 phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
@@ -255,9 +251,7 @@ def up(
     if target_env is None:
         target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
     if target_infra_str is None:
-        target_infra_str = (
-            active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
-        )
+        target_infra_str = active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
     if target_infra_str is not None:
         try:
             target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
@@ -298,12 +292,8 @@ def down(
         help="Resource filter. Format - ENV:INFRA:GROUP:NAME:TYPE",
     ),
     env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to shut down."),
-    infra_filter: Optional[str] = typer.Option(
-        None, "-i", "--infra", metavar="", help="Filter the infra to shut down."
-    ),
-    group_filter: Optional[str] = typer.Option(
-        None, "-g", "--group", metavar="", help="Filter resources using group name."
-    ),
+    infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to shut down."),
+    group_filter: Optional[str] = typer.Option(None, "-g", "--group", metavar="", help="Filter resources using group name."),
     name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
@@ -355,9 +345,9 @@ def down(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.utils.resource_filter import parse_resource_filter
     from phi.workspace.config import WorkspaceConfig
     from phi.workspace.operator import stop_workspace
-    from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -383,9 +373,7 @@ def down(
                 f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
                 + f"is not the Active Workspace ({active_ws_dir_name})"
             )
-            update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
-            )
+            update_active_workspace = typer.confirm(f"Update active workspace to {ws_at_current_path_dir_name}", default=True)
             if update_active_workspace:
                 phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
@@ -425,9 +413,7 @@ def down(
     if target_env is None:
         target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
     if target_infra_str is None:
-        target_infra_str = (
-            active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
-        )
+        target_infra_str = active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
     if target_infra_str is not None:
         try:
             target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
@@ -467,9 +453,7 @@ def patch(
     ),
     env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to patch."),
     infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to patch."),
-    group_filter: Optional[str] = typer.Option(
-        None, "-g", "--group", metavar="", help="Filter resources using group name."
-    ),
+    group_filter: Optional[str] = typer.Option(None, "-g", "--group", metavar="", help="Filter resources using group name."),
     name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
@@ -527,9 +511,9 @@ def patch(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.utils.resource_filter import parse_resource_filter
     from phi.workspace.config import WorkspaceConfig
     from phi.workspace.operator import update_workspace
-    from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -555,9 +539,7 @@ def patch(
                 f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
                 + f"is not the Active Workspace ({active_ws_dir_name})"
             )
-            update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
-            )
+            update_active_workspace = typer.confirm(f"Update active workspace to {ws_at_current_path_dir_name}", default=True)
             if update_active_workspace:
                 phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path
@@ -597,9 +579,7 @@ def patch(
     if target_env is None:
         target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
     if target_infra_str is None:
-        target_infra_str = (
-            active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
-        )
+        target_infra_str = active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
     if target_infra_str is not None:
         try:
             target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
@@ -641,9 +621,7 @@ def restart(
     ),
     env_filter: str = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to restart."),
     infra_filter: Optional[str] = typer.Option(None, "-i", "--infra", metavar="", help="Filter the infra to restart."),
-    group_filter: Optional[str] = typer.Option(
-        None, "-g", "--group", metavar="", help="Filter resources using group name."
-    ),
+    group_filter: Optional[str] = typer.Option(None, "-g", "--group", metavar="", help="Filter resources using group name."),
     name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
@@ -744,8 +722,8 @@ def config(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
-    from phi.workspace.config import WorkspaceConfig
     from phi.utils.load_env import load_env
+    from phi.workspace.config import WorkspaceConfig
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:

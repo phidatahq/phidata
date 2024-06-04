@@ -1,14 +1,14 @@
 import json
-from typing import Optional, List, Dict, Any
 from hashlib import md5
+from typing import Any, Dict, List, Optional
 
 try:
     from sqlalchemy.dialects import mysql
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, func, select
+    from sqlalchemy.schema import Column, MetaData, Table
+    from sqlalchemy.sql.expression import func, select, text
     from sqlalchemy.types import DateTime
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -17,9 +17,9 @@ except ImportError:
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
+from phi.utils.log import logger
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-from phi.utils.log import logger
 
 
 class S2VectorDb(VectorDb):
@@ -204,9 +204,7 @@ class S2VectorDb(VectorDb):
             self.table.c.name,
             self.table.c.meta_data,
             self.table.c.content,
-            func.json_array_unpack(self.table.c.embedding).label(
-                "embedding"
-            ),  # Unpack embedding here # self.table.c.embedding,
+            func.json_array_unpack(self.table.c.embedding).label("embedding"),  # Unpack embedding here # self.table.c.embedding,
             self.table.c.usage,
         ]
 

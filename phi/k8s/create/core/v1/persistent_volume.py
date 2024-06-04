@@ -1,22 +1,23 @@
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
+
 from typing_extensions import Literal
 
 from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.pv import PVAccessMode
 from phi.k8s.enums.volume_type import VolumeType
 from phi.k8s.resource.core.v1.persistent_volume import (
+    ClaimRef,
+    GcePersistentDiskVolumeSource,
+    HostPathVolumeSource,
+    LocalVolumeSource,
+    NFSVolumeSource,
     PersistentVolume,
     PersistentVolumeSpec,
     VolumeNodeAffinity,
-    GcePersistentDiskVolumeSource,
-    LocalVolumeSource,
-    HostPathVolumeSource,
-    NFSVolumeSource,
-    ClaimRef,
 )
-from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.utils.log import logger
 
@@ -104,19 +105,12 @@ class CreatePersistentVolume(CreateK8sResource):
             if self.host_path is not None and isinstance(self.host_path, HostPathVolumeSource):
                 persistent_volume.spec.host_path = self.host_path
             else:
-                logger.error(
-                    f"PersistentVolume {self.volume_type.value} selected but HostPathVolumeSource not provided."
-                )
+                logger.error(f"PersistentVolume {self.volume_type.value} selected but HostPathVolumeSource not provided.")
         elif self.volume_type == VolumeType.GCE_PERSISTENT_DISK:
-            if self.gce_persistent_disk is not None and isinstance(
-                self.gce_persistent_disk, GcePersistentDiskVolumeSource
-            ):
+            if self.gce_persistent_disk is not None and isinstance(self.gce_persistent_disk, GcePersistentDiskVolumeSource):
                 persistent_volume.spec.gce_persistent_disk = self.gce_persistent_disk
             else:
-                logger.error(
-                    f"PersistentVolume {self.volume_type.value} selected but "
-                    f"GcePersistentDiskVolumeSource not provided."
-                )
+                logger.error(f"PersistentVolume {self.volume_type.value} selected but " f"GcePersistentDiskVolumeSource not provided.")
         elif self.volume_type == VolumeType.NFS:
             if self.nfs is not None and isinstance(self.nfs, NFSVolumeSource):
                 persistent_volume.spec.nfs = self.nfs

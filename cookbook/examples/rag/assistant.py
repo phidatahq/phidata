@@ -1,8 +1,8 @@
+from resources import vector_db  # type: ignore
+
 from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
-
-from resources import vector_db  # type: ignore
 
 # The PDFUrlKnowledgeBase reads PDFs from urls and loads
 # the `ai.recipes` table when`knowledge_base.load()` is called.

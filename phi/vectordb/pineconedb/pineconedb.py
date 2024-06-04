@@ -1,20 +1,19 @@
-from typing import Optional, Dict, Union, List
+from typing import Dict, List, Optional, Union
 
 try:
     from pinecone import Pinecone
     from pinecone.config import Config
 except ImportError:
-    raise ImportError(
-        "The `pinecone-client` package is not installed, please install using `pip install pinecone-client`."
-    )
+    raise ImportError("The `pinecone-client` package is not installed, please install using `pip install pinecone-client`.")
+
+from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
+from pinecone.core.client.models import Vector
+from pinecone.models import PodSpec, ServerlessSpec
 
 from phi.document import Document
 from phi.embedder import Embedder
-from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
-from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
-from pinecone.models import ServerlessSpec, PodSpec
-from pinecone.core.client.models import Vector
+from phi.vectordb.base import VectorDb
 
 
 class PineconeDB(VectorDb):
@@ -293,7 +292,6 @@ class PineconeDB(VectorDb):
         This method can be left empty as Pinecone automatically optimizes indexes.
 
         """
-        pass
 
     def clear(self, namespace: Optional[str] = None) -> bool:
         """Clear the index.

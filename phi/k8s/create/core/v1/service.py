@@ -1,14 +1,15 @@
 from typing import Dict, List, Optional
+
 from typing_extensions import Literal
 
-from phi.k8s.create.base import CreateK8sResource
 from phi.k8s.create.apps.v1.deployment import CreateDeployment
+from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.create.common.port import CreatePort
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.enums.service_type import ServiceType
 from phi.k8s.resource.core.v1.service import Service, ServicePort, ServiceSpec
-from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 
 

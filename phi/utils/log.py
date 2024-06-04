@@ -1,7 +1,8 @@
 import logging
 
-from phi.cli.settings import phi_cli_settings
 from rich.logging import RichHandler
+
+from phi.cli.settings import phi_cli_settings
 
 LOGGER_NAME = "phi"
 

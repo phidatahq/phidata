@@ -2,12 +2,12 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from phi.api.schemas.user import UserSchema
+from phi.api.schemas.workspace import WorkspaceDelete, WorkspaceSchema
 from phi.cli.console import print_heading, print_info
 from phi.cli.settings import phi_cli_settings
-from phi.api.schemas.user import UserSchema
-from phi.api.schemas.workspace import WorkspaceSchema, WorkspaceDelete
-from phi.utils.log import logger
 from phi.utils.json_io import read_json_file, write_json_file
+from phi.utils.log import logger
 from phi.workspace.config import WorkspaceConfig
 
 
@@ -80,9 +80,7 @@ class PhiCliConfig:
     def available_ws(self) -> List[WorkspaceConfig]:
         return list(self.ws_config_map.values())
 
-    def _add_or_update_ws_config(
-        self, ws_root_path: Path, ws_schema: Optional[WorkspaceSchema] = None
-    ) -> Optional[WorkspaceConfig]:
+    def _add_or_update_ws_config(self, ws_root_path: Path, ws_schema: Optional[WorkspaceSchema] = None) -> Optional[WorkspaceConfig]:
         """The main function to create, update or refresh a WorkspaceConfig.
 
         This function does not call self.save_config(). Remember to save_config() after calling this function.
@@ -177,9 +175,7 @@ class PhiCliConfig:
 
             delete_workspace_for_user(
                 user=self.user,
-                workspace=WorkspaceDelete(
-                    id_workspace=ws_config.ws_schema.id_workspace, ws_name=ws_config.ws_schema.ws_name
-                ),
+                workspace=WorkspaceDelete(id_workspace=ws_config.ws_schema.id_workspace, ws_name=ws_config.ws_schema.ws_name),
             )
         self.save_config()
 
@@ -255,9 +251,7 @@ class PhiCliConfig:
             print_heading(f"Active workspace directory: {self.active_ws_dir}\n")
         else:
             print_info("No active workspace found.")
-            print_info(
-                "Please create a workspace using `phi ws create` " "or setup existing workspace using `phi ws setup`"
-            )
+            print_info("Please create a workspace using `phi ws create` " "or setup existing workspace using `phi ws setup`")
 
         if show_all and len(self.ws_config_map) > 0:
             print_heading("Available workspaces:\n")

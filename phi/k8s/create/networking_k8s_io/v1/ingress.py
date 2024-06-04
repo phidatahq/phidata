@@ -1,17 +1,17 @@
 from typing import Dict, List, Optional
 
 from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
-from phi.k8s.create.common.labels import create_component_labels_dict
+from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.k8s.resource.networking_k8s_io.v1.ingress import (
     Ingress,
     IngressSpec,
     V1IngressBackend,
-    V1IngressTLS,
     V1IngressRule,
+    V1IngressTLS,
 )
-from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 
 
 class CreateIngress(CreateK8sResource):

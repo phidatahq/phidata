@@ -66,9 +66,7 @@ class StorageClass(K8sResource):
         return _v1_storage_class
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1StorageClass]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1StorageClass]]:
         """Reads StorageClasses from K8s cluster.
 
         Args:

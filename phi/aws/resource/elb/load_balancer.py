@@ -1,9 +1,9 @@
-from typing import Optional, Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
-from phi.aws.resource.ec2.subnet import Subnet
 from phi.aws.resource.ec2.security_group import SecurityGroup
+from phi.aws.resource.ec2.subnet import Subnet
 from phi.cli.console import print_info
 from phi.utils.log import logger
 

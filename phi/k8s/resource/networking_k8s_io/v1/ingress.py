@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, Any
+from typing import Any, List, Optional, Union
 
 from kubernetes.client import NetworkingV1Api
 from kubernetes.client.models.v1_ingress import V1Ingress
@@ -10,7 +10,7 @@ from kubernetes.client.models.v1_ingress_tls import V1IngressTLS
 from kubernetes.client.models.v1_status import V1Status
 
 from phi.k8s.api_client import K8sApiClient
-from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.utils.log import logger
 
 
@@ -154,9 +154,7 @@ class Ingress(K8sResource):
         return _v1_ingress
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1Ingress]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1Ingress]]:
         """Reads Ingress from K8s cluster.
 
         Args:

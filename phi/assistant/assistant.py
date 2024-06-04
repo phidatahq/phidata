@@ -1,38 +1,38 @@
 import json
-from os import getenv
-from uuid import uuid4
-from textwrap import dedent
 from datetime import datetime
+from os import getenv
+from textwrap import dedent
 from typing import (
-    List,
     Any,
-    Optional,
+    AsyncIterator,
+    Callable,
     Dict,
     Iterator,
-    Callable,
-    Union,
-    Type,
+    List,
     Literal,
+    Optional,
+    Type,
+    Union,
     cast,
-    AsyncIterator,
 )
+from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from phi.document import Document
 from phi.assistant.run import AssistantRun
+from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.llm.references import References  # noqa: F401
-from phi.memory.assistant import AssistantMemory, MemoryRetrieval, Memory  # noqa: F401
+from phi.memory.assistant import AssistantMemory, Memory, MemoryRetrieval  # noqa: F401
 from phi.prompt.template import PromptTemplate
 from phi.storage.assistant import AssistantStorage
+from phi.tools import Function, Tool, Toolkit
 from phi.utils.format_str import remove_indent
-from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug
-from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
+from phi.utils.message import get_text_from_message
 from phi.utils.timer import Timer
 
 
@@ -270,9 +270,7 @@ class Assistant(BaseModel):
                 from phi.llm.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
-                logger.error(
-                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
-                )
+                logger.error("phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`.")
                 exit(1)
 
             self.llm = OpenAIChat()
@@ -510,9 +508,7 @@ class Assistant(BaseModel):
                     if json_schema_properties is not None:
                         for field_name, field_properties in json_schema_properties.items():
                             formatted_field_properties = {
-                                prop_name: prop_value
-                                for prop_name, prop_value in field_properties.items()
-                                if prop_name != "title"
+                                prop_name: prop_value for prop_name, prop_value in field_properties.items() if prop_name != "title"
                             }
                             output_model_properties[field_name] = formatted_field_properties
                     json_schema_defs = json_schema.get("$defs")
@@ -524,9 +520,7 @@ class Assistant(BaseModel):
                             if def_fields is not None:
                                 for field_name, field_properties in def_fields.items():
                                     formatted_field_properties = {
-                                        prop_name: prop_value
-                                        for prop_name, prop_value in field_properties.items()
-                                        if prop_name != "title"
+                                        prop_name: prop_value for prop_name, prop_value in field_properties.items() if prop_name != "title"
                                     }
                                     formatted_def_properties[field_name] = formatted_field_properties
                             if len(formatted_def_properties) > 0:
@@ -672,9 +666,7 @@ class Assistant(BaseModel):
         # Then add memories to the system prompt
         if self.create_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
-                system_prompt_lines.append(
-                    "\nYou have access to memory from previous interactions with the user that you can use:"
-                )
+                system_prompt_lines.append("\nYou have access to memory from previous interactions with the user that you can use:")
                 system_prompt_lines.append("<memory_from_previous_interactions>")
                 system_prompt_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
                 system_prompt_lines.append("</memory_from_previous_interactions>")
@@ -690,9 +682,7 @@ class Assistant(BaseModel):
                 system_prompt_lines.append(
                     "If the user asks about memories, you can let them know that you dont have any memory about the yet, but can add new memories using the `update_memory` tool."
                 )
-            system_prompt_lines.append(
-                "If you use the `update_memory` tool, remember to pass on the response to the user."
-            )
+            system_prompt_lines.append("If you use the `update_memory` tool, remember to pass on the response to the user.")
 
         # Then add the json output prompt if output_model is set
         if self.output_model is not None:
@@ -865,9 +855,7 @@ class Assistant(BaseModel):
                 reference_timer.start()
                 user_prompt_references = self.get_references_from_knowledge_base(query=message)
                 reference_timer.stop()
-                references = References(
-                    query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-                )
+                references = References(query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4))
                 logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
             # Add chat history to the user prompt
             user_prompt_chat_history = None
@@ -1062,9 +1050,7 @@ class Assistant(BaseModel):
                 reference_timer.start()
                 user_prompt_references = self.get_references_from_knowledge_base(query=message)
                 reference_timer.stop()
-                references = References(
-                    query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-                )
+                references = References(query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4))
                 logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
             # Add chat history to the user prompt
             user_prompt_chat_history = None
@@ -1193,9 +1179,7 @@ class Assistant(BaseModel):
                 resp = self._arun(message=message, messages=messages, stream=False, **kwargs)
                 return await resp.__anext__()
 
-    def chat(
-        self, message: Union[List, Dict, str], stream: bool = True, **kwargs: Any
-    ) -> Union[Iterator[str], str, BaseModel]:
+    def chat(self, message: Union[List, Dict, str], stream: bool = True, **kwargs: Any) -> Union[Iterator[str], str, BaseModel]:
         return self.run(message=message, stream=stream, **kwargs)
 
     def rename(self, name: str) -> None:
@@ -1245,8 +1229,7 @@ class Assistant(BaseModel):
 
         system_message = Message(
             role="system",
-            content="Please provide a suitable name for this conversation in maximum 5 words. "
-            "Remember, do not exceed 5 words.",
+            content="Please provide a suitable name for this conversation in maximum 5 words. " "Remember, do not exceed 5 words.",
         )
         user_message = Message(role="user", content=_conv)
         generate_name_messages = [system_message, user_message]
@@ -1388,7 +1371,7 @@ class Assistant(BaseModel):
         if not self.monitoring:
             return
 
-        from phi.api.assistant import create_assistant_run, AssistantRunCreate
+        from phi.api.assistant import AssistantRunCreate, create_assistant_run
 
         try:
             database_row: AssistantRun = self.db_row or self.to_database_row()
@@ -1405,7 +1388,7 @@ class Assistant(BaseModel):
         if not self.monitoring:
             return
 
-        from phi.api.assistant import create_assistant_event, AssistantEventCreate
+        from phi.api.assistant import AssistantEventCreate, create_assistant_event
 
         try:
             database_row: AssistantRun = self.db_row or self.to_database_row()
@@ -1442,13 +1425,14 @@ class Assistant(BaseModel):
         show_message: bool = True,
         **kwargs: Any,
     ) -> None:
-        from phi.cli.console import console
-        from rich.live import Live
-        from rich.table import Table
-        from rich.status import Status
-        from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
+        from rich.live import Live
         from rich.markdown import Markdown
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.status import Status
+        from rich.table import Table
+
+        from phi.cli.console import console
 
         if markdown:
             self.markdown = True
@@ -1481,9 +1465,7 @@ class Assistant(BaseModel):
         else:
             response_timer = Timer()
             response_timer.start()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-            ) as progress:
+            with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
                 progress.add_task("Working...")
                 response = self.run(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
 
@@ -1507,13 +1489,14 @@ class Assistant(BaseModel):
         show_message: bool = True,
         **kwargs: Any,
     ) -> None:
-        from phi.cli.console import console
-        from rich.live import Live
-        from rich.table import Table
-        from rich.status import Status
-        from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
+        from rich.live import Live
         from rich.markdown import Markdown
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.status import Status
+        from rich.table import Table
+
+        from phi.cli.console import console
 
         if markdown:
             self.markdown = True
@@ -1545,9 +1528,7 @@ class Assistant(BaseModel):
         else:
             response_timer = Timer()
             response_timer.start()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-            ) as progress:
+            with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
                 progress.add_task("Working...")
                 response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
 

@@ -1,4 +1,4 @@
-from assistant import get_world_builder, get_world_explorer, World  # type: ignore
+from assistant import World, get_world_builder, get_world_explorer  # type: ignore
 from rich.pretty import pprint
 
 model = "openhermes"

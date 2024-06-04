@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource

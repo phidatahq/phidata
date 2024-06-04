@@ -1,6 +1,6 @@
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
 
-from phi.aws.app.base import AwsApp, ContainerContext, AwsBuildContext  # noqa: F401
+from phi.aws.app.base import AwsApp, AwsBuildContext, ContainerContext  # noqa: F401
 
 
 class Jupyter(AwsApp):
@@ -38,9 +38,7 @@ class Jupyter(AwsApp):
     notebook_dir: Optional[str] = None
 
     def get_container_env(self, container_context: ContainerContext, build_context: AwsBuildContext) -> Dict[str, str]:
-        container_env: Dict[str, str] = super().get_container_env(
-            container_context=container_context, build_context=build_context
-        )
+        container_env: Dict[str, str] = super().get_container_env(container_context=container_context, build_context=build_context)
 
         if self.jupyter_config_file is not None:
             container_env["JUPYTER_CONFIG_FILE"] = self.jupyter_config_file

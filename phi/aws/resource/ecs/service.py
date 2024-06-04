@@ -1,10 +1,11 @@
-from typing import Optional, Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
+
 from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
-from phi.aws.resource.ec2.subnet import Subnet
 from phi.aws.resource.ec2.security_group import SecurityGroup
+from phi.aws.resource.ec2.subnet import Subnet
 from phi.aws.resource.ecs.cluster import EcsCluster
 from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
 from phi.aws.resource.elb.target_group import TargetGroup

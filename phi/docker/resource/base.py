@@ -1,8 +1,8 @@
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
-from phi.resource.base import ResourceBase
-from phi.docker.api_client import DockerApiClient
 from phi.cli.console import print_info
+from phi.docker.api_client import DockerApiClient
+from phi.resource.base import ResourceBase
 from phi.utils.log import logger
 
 

@@ -1,6 +1,6 @@
 import json
 from textwrap import dedent
-from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -156,7 +156,6 @@ class Ollama(LLM):
                             assistant_message.role = "assistant"
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {response_content}")
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -310,7 +309,6 @@ class Ollama(LLM):
                             assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics

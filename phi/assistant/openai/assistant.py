@@ -1,10 +1,10 @@
 import json
-from typing import List, Any, Optional, Dict, Union, Callable, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from phi.assistant.openai.file import File
 from phi.assistant.openai.exceptions import AssistantIdNotSet
+from phi.assistant.openai.file import File
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function
 from phi.utils.log import logger, set_log_level_to_debug
@@ -305,6 +305,7 @@ class OpenAIAssistant(BaseModel):
         exit_on: Tuple[str, ...] = ("exit", "bye"),
     ) -> None:
         from rich.prompt import Prompt
+
         from phi.assistant.openai.thread import Thread
 
         thread = Thread()
@@ -313,6 +314,4 @@ class OpenAIAssistant(BaseModel):
             if message in exit_on:
                 break
 
-            thread.print_response(
-                message=message, assistant=self, current_message_only=current_message_only, markdown=markdown
-            )
+            thread.print_response(message=message, assistant=self, current_message_only=current_message_only, markdown=markdown)

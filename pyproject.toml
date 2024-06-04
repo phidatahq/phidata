@@ -1,13 +1,29 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+
+requires = [
+  "setuptools",
+]
+
 [project]
 name = "phidata"
 version = "2.4.18"
 description = "Memory, knowledge and tools for LLMs."
-requires-python = ">=3.7"
 readme = "README.md"
 authors = [
-  {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
+  { name = "Ashpreet Bedi", email = "ashpreet@phidata.com" },
 ]
 
+requires-python = ">=3.7"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
 dependencies = [
   "gitpython",
   "httpx",
@@ -21,59 +37,79 @@ dependencies = [
   "typing-extensions",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "mypy",
-    "pytest",
-    "ruff",
-    "types-pyyaml"
+optional-dependencies.aws = [
+  "boto3",
+  "docker",
 ]
-docker = [
-    "docker"
+optional-dependencies.dev = [
+  "mypy",
+  "pytest",
+  "ruff",
+  "types-pyyaml",
 ]
-aws = [
-    "docker",
-    "boto3"
+optional-dependencies.docker = [
+  "docker",
 ]
-k8s = [
-    "docker",
-    "kubernetes"
+optional-dependencies.k8s = [
+  "docker",
+  "kubernetes",
 ]
-
-[project.scripts]
-phi = "phi.cli.entrypoint:phi_cli"
-
-[project.urls]
-homepage = "https://phidata.com"
-documentation = "https://docs.phidata.com"
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+urls.documentation = "https://docs.phidata.com"
+urls.homepage = "https://phidata.com"
+scripts.phi = "phi.cli.entrypoint:phi_cli"
 
 [tool.setuptools.packages.find]
-include = ["phi*"]
+include = [
+  "phi*",
+]
 
 [tool.setuptools.package-data]
-phi = ["py.typed"]
+phi = [
+  "py.typed",
+]
+
+[tool.ruff]
+line-length = 140
+exclude = [
+  "aienv*",
+  "phienv*",
+]
+lint.per-file-ignores."__init__.py" = [
+  "F401",
+]
+lint.per-file-ignores."phi/k8s/app/traefik/crds.py" = [
+  "E501",
+]
+select = [
+  'E',
+  'W',
+  'F',
+  'I',
+]
+# 2. Avoid enforcing line-length violations (`E501`)
+ignore = [
+  "E501",
+]
 
 [tool.pytest.ini_options]
 testpaths = "tests"
-
-[tool.ruff]
-line-length = 120
-exclude = ["phienv*", "aienv*"]
-# Ignore `F401` (import violations) in all `__init__.py` files
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-"phi/k8s/app/traefik/crds.py" = ["E501"]
 
 [tool.mypy]
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
-plugins = ["pydantic.mypy"]
-exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/examples/*", "phi/assistant/openai/*"]
+plugins = [
+  "pydantic.mypy",
+]
+exclude = [
+  "phienv*",
+  "aienv*",
+  "scratch*",
+  "wip*",
+  "tmp*",
+  "cookbook/examples/*",
+  "phi/assistant/openai/*",
+]
 
 [[tool.mypy.overrides]]
 module = [

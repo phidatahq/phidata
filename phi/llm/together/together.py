@@ -1,6 +1,6 @@
 import json
 from os import getenv
-from typing import Optional, List, Iterator, Dict, Any
+from typing import Any, Dict, Iterator, List, Optional
 
 from phi.llm.message import Message
 from phi.llm.openai.like import OpenAILike
@@ -91,7 +91,6 @@ class Together(OpenAILike):
                     assistant_message.tool_calls = _tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
-            pass
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -119,9 +118,7 @@ class Together(OpenAILike):
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
                     messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))

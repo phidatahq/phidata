@@ -1,14 +1,14 @@
 from typing import List
 
 import streamlit as st
+from assistants import get_rag_assistant  # type: ignore
+
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
 from phi.tools.streamlit.components import reload_button_sidebar
 from phi.utils.log import logger
-
-from assistants import get_rag_assistant  # type: ignore
 
 st.set_page_config(
     page_title="RAG Assistant",
@@ -32,10 +32,7 @@ def restart_assistant():
 def main() -> None:
     # Get LLM Model
     llm_model = (
-        st.sidebar.selectbox(
-            "Select LLM", options=["llama3-70b-8192", "llama3", "phi3", "gpt-4-turbo", "gpt-3.5-turbo"]
-        )
-        or "gpt-4-turbo"
+        st.sidebar.selectbox("Select LLM", options=["llama3-70b-8192", "llama3", "phi3", "gpt-4-turbo", "gpt-3.5-turbo"]) or "gpt-4-turbo"
     )
     # Set llm in session state
     if "llm_model" not in st.session_state:
@@ -51,9 +48,7 @@ def main() -> None:
     # Get the number of references to add to the prompt
     max_references = 10 if llm_model.startswith("gpt") else 4
     default_references = 5 if llm_model.startswith("gpt") else 3
-    num_documents = st.sidebar.number_input(
-        "Number of References", value=default_references, min_value=1, max_value=max_references
-    )
+    num_documents = st.sidebar.number_input("Number of References", value=default_references, min_value=1, max_value=max_references)
     if "prev_num_documents" not in st.session_state:
         st.session_state["prev_num_documents"] = num_documents
     if st.session_state["prev_num_documents"] != num_documents:
@@ -117,9 +112,7 @@ def main() -> None:
         if "url_scrape_key" not in st.session_state:
             st.session_state["url_scrape_key"] = 0
 
-        input_url = st.sidebar.text_input(
-            "Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"]
-        )
+        input_url = st.sidebar.text_input("Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"])
         add_url_button = st.sidebar.button("Add URL")
         if add_url_button:
             if input_url is not None:
@@ -138,9 +131,7 @@ def main() -> None:
         if "file_uploader_key" not in st.session_state:
             st.session_state["file_uploader_key"] = 100
 
-        uploaded_file = st.sidebar.file_uploader(
-            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
-        )
+        uploaded_file = st.sidebar.file_uploader("Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"])
         if uploaded_file is not None:
             alert = st.sidebar.info("Processing PDF...", icon="ℹ️")
             pdf_name = uploaded_file.name.split(".")[0]

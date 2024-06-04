@@ -1,10 +1,10 @@
-from typing import Optional, Union, Dict, List
+from typing import Dict, List, Optional, Union
 
 from httpx import Response, codes
 
 from phi.api.api import api, invalid_response
 from phi.api.routes import ApiRoutes
-from phi.api.schemas.user import UserSchema, EmailPasswordAuthSchema
+from phi.api.schemas.user import EmailPasswordAuthSchema, UserSchema
 from phi.cli.config import PhiCliConfig
 from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
@@ -32,7 +32,7 @@ def authenticate_and_get_user(tmp_auth_token: str, existing_user: Optional[UserS
     if not phi_cli_settings.api_enabled:
         return None
 
-    from phi.cli.credentials import save_auth_token, read_auth_token
+    from phi.cli.credentials import read_auth_token, save_auth_token
 
     logger.debug("--o-o-- Getting user")
     auth_header = {phi_cli_settings.auth_token_header: tmp_auth_token}
@@ -114,9 +114,7 @@ def user_is_authenticated() -> bool:
 
     with api.AuthenticatedClient() as api_client:
         try:
-            r: Response = api_client.post(
-                ApiRoutes.USER_AUTHENTICATE, json=user.model_dump(include={"id_user", "email"})
-            )
+            r: Response = api_client.post(ApiRoutes.USER_AUTHENTICATE, json=user.model_dump(include={"id_user", "email"}))
             if invalid_response(r):
                 return False
 
@@ -140,9 +138,7 @@ def create_anon_user() -> Optional[UserSchema]:
     logger.debug("--o-o-- Creating anon user")
     with api.Client() as api_client:
         try:
-            r: Response = api_client.post(
-                ApiRoutes.USER_CREATE, json={"user": {"email": "anon", "username": "anon", "is_bot": True}}
-            )
+            r: Response = api_client.post(ApiRoutes.USER_CREATE, json={"user": {"email": "anon", "username": "anon", "is_bot": True}})
             if invalid_response(r):
                 return None
 

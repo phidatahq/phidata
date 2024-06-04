@@ -1,12 +1,10 @@
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from phi.tools.function import Function, FunctionCall
 from phi.utils.functions import get_function_call
 
 
-def get_function_call_for_tool_call(
-    tool_call: Dict[str, Any], functions: Optional[Dict[str, Function]] = None
-) -> Optional[FunctionCall]:
+def get_function_call_for_tool_call(tool_call: Dict[str, Any], functions: Optional[Dict[str, Function]] = None) -> Optional[FunctionCall]:
     if tool_call.get("type") == "function":
         _tool_call_id = tool_call.get("id")
         _tool_call_function = tool_call.get("function")
@@ -73,9 +71,7 @@ def extract_tool_from_xml(xml_str):
     return {"tool_name": tool_name, "parameters": arguments}
 
 
-def remove_function_calls_from_string(
-    text: str, start_tag: str = "<function_calls>", end_tag: str = "</function_calls>"
-):
+def remove_function_calls_from_string(text: str, start_tag: str = "<function_calls>", end_tag: str = "</function_calls>"):
     """Remove multiple function calls from a string."""
     while start_tag in text and end_tag in text:
         start_index = text.find(start_tag)

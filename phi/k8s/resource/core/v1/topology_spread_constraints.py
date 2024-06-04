@@ -1,13 +1,13 @@
 from typing import Optional
-from typing_extensions import Literal
 
-from pydantic import Field
 from kubernetes.client.models.v1_topology_spread_constraint import (
     V1TopologySpreadConstraint,
 )
+from pydantic import Field
+from typing_extensions import Literal
 
-from phi.k8s.resource.meta.v1.label_selector import LabelSelector
 from phi.k8s.resource.base import K8sObject
+from phi.k8s.resource.meta.v1.label_selector import LabelSelector
 
 
 class TopologySpreadConstraint(K8sObject):

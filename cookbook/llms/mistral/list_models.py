@@ -1,7 +1,7 @@
 import os
 
-from rich.pretty import pprint
 from mistralai.client import MistralClient
+from rich.pretty import pprint
 
 
 def main():

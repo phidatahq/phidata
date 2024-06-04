@@ -1,7 +1,8 @@
-from typing import Optional, Dict, Any
 from collections import defaultdict
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict
+
 from phi.utils.log import logger
 
 

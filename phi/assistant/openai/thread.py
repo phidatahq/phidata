@@ -1,11 +1,11 @@
-from typing import Any, Optional, Dict, List, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.assistant.openai.run import Run
-from phi.assistant.openai.message import Message
 from phi.assistant.openai.assistant import OpenAIAssistant
 from phi.assistant.openai.exceptions import ThreadIdNotSet
+from phi.assistant.openai.message import Message
+from phi.assistant.openai.run import Run
 from phi.utils.log import logger
 
 try:
@@ -185,9 +185,7 @@ class Thread(BaseModel):
         _assistant_id = assistant_id or self.assistant_id
 
         _run = run or Run()
-        return _run.run(
-            thread_id=_thread_id, assistant=_assistant, assistant_id=_assistant_id, wait=wait, callback=callback
-        )
+        return _run.run(thread_id=_thread_id, assistant=_assistant, assistant_id=_assistant_id, wait=wait, callback=callback)
 
     def get_messages(self) -> List[Message]:
         try:
@@ -213,9 +211,10 @@ class Thread(BaseModel):
         pprint(self.to_dict())
 
     def print_messages(self) -> None:
-        from rich.table import Table
         from rich.box import ROUNDED
         from rich.markdown import Markdown
+        from rich.table import Table
+
         from phi.cli.console import console
 
         # Get the messages from the thread
@@ -239,9 +238,7 @@ class Thread(BaseModel):
                 table.add_section()
         console.print(table)
 
-    def print_response(
-        self, message: str, assistant: OpenAIAssistant, current_message_only: bool = False, markdown: bool = False
-    ) -> None:
+    def print_response(self, message: str, assistant: OpenAIAssistant, current_message_only: bool = False, markdown: bool = False) -> None:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
         with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
@@ -262,9 +259,7 @@ class Thread(BaseModel):
 
             total_messages = len(response_messages)
             for idx, response_message in enumerate(response_messages[::-1], start=1):
-                response_message.pprint(
-                    title=f"[bold] :robot: OpenAIAssistant ({idx}/{total_messages}) [/bold]", markdown=markdown
-                )
+                response_message.pprint(title=f"[bold] :robot: OpenAIAssistant ({idx}/{total_messages}) [/bold]", markdown=markdown)
         else:
             for m in self.messages[::-1]:
                 m.pprint(markdown=markdown)

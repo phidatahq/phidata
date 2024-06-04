@@ -1,4 +1,4 @@
-from typing import Optional, List, Any, Tuple
+from typing import Any, List, Optional, Tuple
 
 from phi.base import PhiBase
 

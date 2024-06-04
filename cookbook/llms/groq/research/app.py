@@ -1,7 +1,7 @@
 import streamlit as st
-from phi.tools.tavily import TavilyTools
-
 from assistant import get_research_assistant  # type: ignore
+
+from phi.tools.tavily import TavilyTools
 
 st.set_page_config(
     page_title="Research Assistant",
@@ -13,9 +13,7 @@ st.markdown("##### :orange_heart: built using [phidata](https://github.com/phida
 
 def main() -> None:
     # Get model
-    llm_model = st.sidebar.selectbox(
-        "Select Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
-    )
+    llm_model = st.sidebar.selectbox("Select Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"])
     # Set assistant_type in session state
     if "llm_model" not in st.session_state:
         st.session_state["llm_model"] = llm_model

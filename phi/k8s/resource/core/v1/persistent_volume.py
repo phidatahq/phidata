@@ -1,25 +1,24 @@
-from typing import List, Optional, Dict
-from typing_extensions import Literal
-
-from pydantic import Field, field_serializer
+from typing import Dict, List, Optional
 
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_persistent_volume import V1PersistentVolume
 from kubernetes.client.models.v1_persistent_volume_list import V1PersistentVolumeList
 from kubernetes.client.models.v1_persistent_volume_spec import V1PersistentVolumeSpec
 from kubernetes.client.models.v1_status import V1Status
+from pydantic import Field, field_serializer
+from typing_extensions import Literal
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.enums.pv import PVAccessMode
-from phi.k8s.resource.base import K8sResource, K8sObject
-from phi.k8s.resource.core.v1.volume_source import (
-    GcePersistentDiskVolumeSource,
-    LocalVolumeSource,
-    HostPathVolumeSource,
-    NFSVolumeSource,
-    ClaimRef,
-)
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.k8s.resource.core.v1.volume_node_affinity import VolumeNodeAffinity
+from phi.k8s.resource.core.v1.volume_source import (
+    ClaimRef,
+    GcePersistentDiskVolumeSource,
+    HostPathVolumeSource,
+    LocalVolumeSource,
+    NFSVolumeSource,
+)
 from phi.utils.log import logger
 
 
@@ -55,9 +54,7 @@ class PersistentVolumeSpec(K8sObject):
     #   - `"Retain"` means the volume will be left in its current phase (Released) for manual reclamation
     #           by the administrator.
     #   The default policy is Retain.
-    persistent_volume_reclaim_policy: Optional[Literal["Delete", "Recycle", "Retain"]] = Field(
-        None, alias="persistentVolumeReclaimPolicy"
-    )
+    persistent_volume_reclaim_policy: Optional[Literal["Delete", "Recycle", "Retain"]] = Field(None, alias="persistentVolumeReclaimPolicy")
     # Name of StorageClass to which this persistent volume belongs.
     # Empty value means that this volume does not belong to any StorageClass.
     storage_class_name: Optional[str] = Field(None, alias="storageClassName")
@@ -157,9 +154,7 @@ class PersistentVolume(K8sResource):
         return _v1_persistent_volume
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1PersistentVolume]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1PersistentVolume]]:
         """Reads PVCs from K8s cluster.
 
         Args:

@@ -1,11 +1,12 @@
 import json
-from textwrap import dedent
 from os import getenv
+from textwrap import dedent
 
 import vertexai
+
 from phi.assistant import Assistant
-from phi.tools.duckdb import DuckDbTools
 from phi.llm.gemini import Gemini
+from phi.tools.duckdb import DuckDbTools
 
 # *********** Initialize VertexAI ***********
 vertexai.init(project=getenv("PROJECT_ID"), location=getenv("LOCATION"))

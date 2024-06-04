@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from phi.cli.settings import phi_cli_settings
 from phi.utils.json_io import read_json_file, write_json_file

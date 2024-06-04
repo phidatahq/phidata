@@ -1,6 +1,6 @@
 from phi.assistant import Assistant
-from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.vectordb.pgvector import PgVector2
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"

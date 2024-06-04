@@ -1,8 +1,8 @@
 from textwrap import dedent
-from phi.assistant import Assistant
-from phi.tools.serpapi_tools import SerpApiTools
-from phi.tools.newspaper_toolkit import NewspaperToolkit
 
+from phi.assistant import Assistant
+from phi.tools.newspaper_toolkit import NewspaperToolkit
+from phi.tools.serpapi_tools import SerpApiTools
 
 searcher = Assistant(
     name="Searcher",
@@ -56,8 +56,7 @@ editor = Assistant(
         "Given a topic, ask the search journalist to search for the most relevant URLs for that topic.",
         "Then pass a description of the topic and URLs to the writer to get a draft of the article.",
         "Edit, proofread, and refine the article to ensure it meets the high standards of the New York Times.",
-        "The article should be extremely articulate and well written. "
-        "Focus on clarity, coherence, and overall quality.",
+        "The article should be extremely articulate and well written. " "Focus on clarity, coherence, and overall quality.",
         "Ensure the article is engaging and informative.",
         "Remember: you are the final gatekeeper before the article is published.",
     ],

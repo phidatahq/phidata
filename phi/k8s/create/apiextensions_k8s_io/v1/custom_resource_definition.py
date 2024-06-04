@@ -1,17 +1,18 @@
 from typing import Dict, List, Optional
+
 from typing_extensions import Literal
 
 from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
 from phi.k8s.resource.apiextensions_k8s_io.v1.custom_resource_definition import (
     CustomResourceDefinition,
-    CustomResourceDefinitionSpec,
     CustomResourceDefinitionNames,
+    CustomResourceDefinitionSpec,
     CustomResourceDefinitionVersion,
     V1JSONSchemaProps,  # noqa: F401
 )
-from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 
 

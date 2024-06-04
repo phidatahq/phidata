@@ -1,20 +1,20 @@
 from os import getenv
-from typing import Union, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from httpx import Response
 
 from phi.api.api import api, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.prompt import (
-    PromptRegistrySync,
-    PromptTemplatesSync,
     PromptRegistrySchema,
-    PromptTemplateSync,
+    PromptRegistrySync,
     PromptTemplateSchema,
+    PromptTemplatesSync,
+    PromptTemplateSync,
 )
 from phi.api.schemas.workspace import WorkspaceIdentifier
-from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR, WORKSPACE_KEY_ENV_VAR
 from phi.cli.settings import phi_cli_settings
+from phi.constants import WORKSPACE_HASH_ENV_VAR, WORKSPACE_ID_ENV_VAR, WORKSPACE_KEY_ENV_VAR
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
 
@@ -49,9 +49,7 @@ def sync_prompt_registry_api(
                 return None, None
 
             # logger.debug(f"Response: {response_dict}")
-            registry_response: PromptRegistrySchema = PromptRegistrySchema.model_validate(
-                response_dict.get("registry", {})
-            )
+            registry_response: PromptRegistrySchema = PromptRegistrySchema.model_validate(response_dict.get("registry", {}))
             templates_response: Dict[str, PromptTemplateSchema] = {
                 k: PromptTemplateSchema.model_validate(v) for k, v in response_dict.get("templates", {}).items()
             }
@@ -61,9 +59,7 @@ def sync_prompt_registry_api(
     return None, None
 
 
-def sync_prompt_template_api(
-    registry: PromptRegistrySync, prompt_template: PromptTemplateSync
-) -> Optional[PromptTemplateSchema]:
+def sync_prompt_template_api(registry: PromptRegistrySync, prompt_template: PromptTemplateSync) -> Optional[PromptTemplateSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 

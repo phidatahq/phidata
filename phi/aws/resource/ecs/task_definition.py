@@ -1,13 +1,14 @@
 from textwrap import dedent
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
+
 from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
 from phi.aws.resource.ecs.container import EcsContainer
 from phi.aws.resource.ecs.volume import EcsVolume
-from phi.aws.resource.iam.role import IamRole
 from phi.aws.resource.iam.policy import IamPolicy
+from phi.aws.resource.iam.role import IamRole
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
@@ -335,9 +336,7 @@ class EcsTaskDefinition(AwsResource):
             "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
             "arn:aws:iam::aws:policy/CloudWatchFullAccess",
         ]
-        if self.add_policy_arns_to_execution_role is not None and isinstance(
-            self.add_policy_arns_to_execution_role, list
-        ):
+        if self.add_policy_arns_to_execution_role is not None and isinstance(self.add_policy_arns_to_execution_role, list):
             policy_arns.extend(self.add_policy_arns_to_execution_role)
 
         policies = []

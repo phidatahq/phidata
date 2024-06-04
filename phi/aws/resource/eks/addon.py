@@ -1,4 +1,5 @@
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
+
 from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient
@@ -154,9 +155,7 @@ class EksAddon(AwsResource):
         service_client = self.get_service_client(aws_client)
         self.active_resource = None
         try:
-            delete_response = service_client.delete_addon(
-                clusterName=self.cluster_name, addonName=self.name, **not_null_args
-            )
+            delete_response = service_client.delete_addon(clusterName=self.cluster_name, addonName=self.name, **not_null_args)
             logger.debug(f"EksAddon: {delete_response}")
             # logger.debug(f"EksAddon type: {type(delete_response)}")
             return True

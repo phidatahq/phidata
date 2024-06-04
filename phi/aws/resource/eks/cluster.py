@@ -1,13 +1,13 @@
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional, Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
-from phi.aws.resource.iam.role import IamRole
 from phi.aws.resource.cloudformation.stack import CloudFormationStack
 from phi.aws.resource.ec2.subnet import Subnet
 from phi.aws.resource.eks.addon import EksAddon
+from phi.aws.resource.iam.role import IamRole
 from phi.cli.console import print_info
 from phi.utils.log import logger
 
@@ -399,15 +399,11 @@ class EksCluster(AwsResource):
                 azs_filter.extend(self.subnet_az)
 
             subnet_ids = [
-                subnet_id
-                for subnet_id in subnet_ids
-                if Subnet(name=subnet_id).get_availability_zone(aws_client=aws_client) in azs_filter
+                subnet_id for subnet_id in subnet_ids if Subnet(name=subnet_id).get_availability_zone(aws_client=aws_client) in azs_filter
             ]
         return subnet_ids
 
-    def get_eks_resources_vpc_config(
-        self, aws_client: AwsApiClient, vpc_stack: CloudFormationStack
-    ) -> Dict[str, List[Any]]:
+    def get_eks_resources_vpc_config(self, aws_client: AwsApiClient, vpc_stack: CloudFormationStack) -> Dict[str, List[Any]]:
         if self.resources_vpc_config is not None:
             return self.resources_vpc_config
 

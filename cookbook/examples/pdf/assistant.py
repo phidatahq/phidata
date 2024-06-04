@@ -1,13 +1,13 @@
+from typing import List, Optional
+
 import typer
+from resources import vector_db  # type: ignore
 from rich.prompt import Prompt
-from typing import Optional, List
 
 from phi.assistant import Assistant
-from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.vectordb.pgvector import PgVector2
-
-from resources import vector_db  # type: ignore
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],

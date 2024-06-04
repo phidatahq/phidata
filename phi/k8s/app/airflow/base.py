@@ -1,13 +1,13 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from phi.app.db_app import DbApp
 from phi.k8s.app.base import (
-    K8sApp,
     AppVolumeType,  # noqa: F401
     ContainerContext,
-    ServiceType,  # noqa: F401
-    RestartPolicy,  # noqa: F401
     ImagePullPolicy,  # noqa: F401
+    K8sApp,
+    RestartPolicy,  # noqa: F401
+    ServiceType,  # noqa: F401
 )
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
@@ -109,11 +109,7 @@ class AirflowBase(K8sApp):
         return self.db_user or self.get_secret_from_file("DATABASE_USER") or self.get_secret_from_file("DB_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return (
-            self.db_password
-            or self.get_secret_from_file("DATABASE_PASSWORD")
-            or self.get_secret_from_file("DB_PASSWORD")
-        )
+        return self.db_password or self.get_secret_from_file("DATABASE_PASSWORD") or self.get_secret_from_file("DB_PASSWORD")
 
     def get_db_database(self) -> Optional[str]:
         return self.db_database or self.get_secret_from_file("DATABASE_DB") or self.get_secret_from_file("DB_DATABASE")
@@ -125,11 +121,7 @@ class AirflowBase(K8sApp):
         return self.db_host or self.get_secret_from_file("DATABASE_HOST") or self.get_secret_from_file("DB_HOST")
 
     def get_db_port(self) -> Optional[int]:
-        return (
-            self.db_port
-            or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
-            or str_to_int(self.get_secret_from_file("DB_PORT"))
-        )
+        return self.db_port or str_to_int(self.get_secret_from_file("DATABASE_PORT")) or str_to_int(self.get_secret_from_file("DB_PORT"))
 
     def get_redis_password(self) -> Optional[str]:
         return self.redis_password or self.get_secret_from_file("REDIS_PASSWORD")
@@ -151,6 +143,12 @@ class AirflowBase(K8sApp):
 
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
+            AIRFLOW_DAGS_FOLDER_ENV_VAR,
+            AIRFLOW_DB_CONN_URL_ENV_VAR,
+            AIRFLOW_ENV_ENV_VAR,
+            AIRFLOW_EXECUTOR_ENV_VAR,
+            AIRFLOW_HOME_ENV_VAR,
+            INIT_AIRFLOW_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
             PYTHONPATH_ENV_VAR,
             REQUIREMENTS_FILE_PATH_ENV_VAR,
@@ -161,12 +159,6 @@ class AirflowBase(K8sApp):
             WORKSPACE_HASH_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
-            INIT_AIRFLOW_ENV_VAR,
-            AIRFLOW_ENV_ENV_VAR,
-            AIRFLOW_HOME_ENV_VAR,
-            AIRFLOW_DAGS_FOLDER_ENV_VAR,
-            AIRFLOW_EXECUTOR_ENV_VAR,
-            AIRFLOW_DB_CONN_URL_ENV_VAR,
         )
 
         # Container Environment
@@ -278,9 +270,7 @@ class AirflowBase(K8sApp):
         if self.executor == "CeleryExecutor":
             # Airflow celery result backend
             celery_result_backend_driver = self.db_result_backend_driver or db_driver
-            celery_result_backend_url = (
-                f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
-            )
+            celery_result_backend_url = f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
             # Set the AIRFLOW__CELERY__RESULT_BACKEND
             if "None" not in celery_result_backend_url:
                 container_env["AIRFLOW__CELERY__RESULT_BACKEND"] = celery_result_backend_url

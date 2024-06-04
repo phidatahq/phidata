@@ -17,6 +17,4 @@ class ExtendedEnum(Enum):
         if str_to_convert_to_enum in cls._value2member_map_:
             return cls._value2member_map_.get(str_to_convert_to_enum)
         else:
-            raise NotImplementedError(
-                "{} is not a member of {}: {}".format(str_to_convert_to_enum, cls, cls._value2member_map_.keys())
-            )
+            raise NotImplementedError("{} is not a member of {}: {}".format(str_to_convert_to_enum, cls, cls._value2member_map_.keys()))

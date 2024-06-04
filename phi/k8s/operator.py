@@ -1,11 +1,11 @@
-from typing import Optional, List
+from typing import List, Optional
 
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import print_heading, print_info
-from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
-from phi.workspace.config import WorkspaceConfig
+from phi.infra.type import InfraType
 from phi.utils.log import logger
+from phi.workspace.config import WorkspaceConfig
 
 
 def save_resources(

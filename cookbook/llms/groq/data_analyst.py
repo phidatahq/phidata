@@ -1,5 +1,5 @@
-from phi.llm.groq import Groq
 from phi.assistant.duckdb import DuckDbAssistant
+from phi.llm.groq import Groq
 
 data_analyst = DuckDbAssistant(
     llm=Groq(model="llama3-70b-8192"),

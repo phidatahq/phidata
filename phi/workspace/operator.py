@@ -1,28 +1,27 @@
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
-
-from phi.api.workspace import log_workspace_event
 from phi.api.schemas.workspace import (
-    WorkspaceSchema,
-    WorkspaceCreate,
-    WorkspaceUpdate,
-    WorkspaceEvent,
     UpdatePrimaryWorkspace,
+    WorkspaceCreate,
+    WorkspaceEvent,
+    WorkspaceSchema,
+    WorkspaceUpdate,
 )
+from phi.api.workspace import log_workspace_event
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
     console,
+    log_config_not_available_msg,
     print_heading,
     print_info,
     print_subheading,
-    log_config_not_available_msg,
 )
-from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
+from phi.infra.type import InfraType
+from phi.utils.log import logger
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
-from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.ai_app: "ai-app",
@@ -48,15 +47,16 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     This function clones a template or url on the users machine at the path:
         cwd/name
     """
-    import git
     from shutil import copytree
+
+    import git
     from rich.prompt import Prompt
 
     from phi.cli.operator import initialize_phi
     from phi.utils.common import str_to_int
     from phi.utils.filesystem import rmdir_recursive
-    from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.git import GitCloneProgress
+    from phi.workspace.helpers import get_workspace_dir_path
 
     current_dir: Path = Path(".").resolve()
 
@@ -153,7 +153,6 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         except Exception as e:
             logger.warning(f"Failed to delete {_dot_git_folder}: {e}")
             logger.info("Please delete the .git folder manually")
-            pass
 
     phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
 
@@ -771,9 +770,7 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
             )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                phi_config.update_ws_config(
-                    ws_root_path=active_ws_config.ws_root_path, ws_schema=updated_workspace_schema
-                )
+                phi_config.update_ws_config(ws_root_path=active_ws_config.ws_root_path, ws_schema=updated_workspace_schema)
 
     ######################################################
     ## 2. Set workspace as active

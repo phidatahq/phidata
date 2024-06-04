@@ -1,13 +1,13 @@
-from typing import Optional, List, Union
 from hashlib import md5
+from typing import List, Optional, Union
 
 try:
     from sqlalchemy.dialects import postgresql
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, func, select
+    from sqlalchemy.schema import Column, MetaData, Table
+    from sqlalchemy.sql.expression import func, select, text
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -19,10 +19,10 @@ except ImportError:
 
 from phi.document import Document
 from phi.embedder import Embedder
+from phi.utils.log import logger
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-from phi.vectordb.pgvector.index import Ivfflat, HNSW
-from phi.utils.log import logger
+from phi.vectordb.pgvector.index import HNSW, Ivfflat
 
 
 class PgVector(VectorDb):

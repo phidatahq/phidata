@@ -1,5 +1,6 @@
-import json
 import asyncio
+import json
+
 from phi.assistant.duckdb import DuckDbAssistant
 
 data_analyst = DuckDbAssistant(

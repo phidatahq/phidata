@@ -22,9 +22,7 @@ class Pod(K8sResource):
     resource_type: str = "Pod"
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs: str
-    ) -> Optional[List[V1Pod]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs: str) -> Optional[List[V1Pod]]:
         core_v1_api: CoreV1Api = k8s_client.core_v1_api
         pod_list: Optional[V1PodList] = None
         if namespace:

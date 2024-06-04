@@ -1,12 +1,12 @@
-import nest_asyncio
 from typing import Optional
 
+import nest_asyncio
 import streamlit as st
+from assistants import get_article_summarizer, get_article_writer  # type: ignore
 from duckduckgo_search import DDGS
+
 from phi.tools.newspaper4k import Newspaper4k
 from phi.utils.log import logger
-
-from assistants import get_article_summarizer, get_article_writer  # type: ignore
 
 nest_asyncio.apply()
 st.set_page_config(
@@ -23,9 +23,7 @@ def truncate_text(text: str, words: int) -> str:
 
 def main() -> None:
     # Get models
-    summary_model = st.sidebar.selectbox(
-        "Select Summary Model", options=["llama3-8b-8192", "mixtral-8x7b-32768", "llama3-70b-8192"]
-    )
+    summary_model = st.sidebar.selectbox("Select Summary Model", options=["llama3-8b-8192", "mixtral-8x7b-32768", "llama3-70b-8192"])
     # Set assistant_type in session state
     if "summary_model" not in st.session_state:
         st.session_state["summary_model"] = summary_model
@@ -34,9 +32,7 @@ def main() -> None:
         st.session_state["summary_model"] = summary_model
         st.rerun()
 
-    writer_model = st.sidebar.selectbox(
-        "Select Writer Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
-    )
+    writer_model = st.sidebar.selectbox("Select Writer Model", options=["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"])
     # Set assistant_type in session state
     if "writer_model" not in st.session_state:
         st.session_state["writer_model"] = writer_model

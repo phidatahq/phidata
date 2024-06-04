@@ -1,8 +1,8 @@
-from typing import List, Iterator, Optional
+from typing import Iterator, List, Optional
 
-from phi.document import Document
 from phi.aws.resource.s3.bucket import S3Bucket
 from phi.aws.resource.s3.object import S3Object
+from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
 
 

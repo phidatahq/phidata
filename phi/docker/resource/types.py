@@ -1,11 +1,11 @@
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
-from phi.docker.resource.network import DockerNetwork
-from phi.docker.resource.image import DockerImage
-from phi.docker.resource.container import DockerContainer
-from phi.docker.resource.volume import DockerVolume
 from phi.docker.resource.base import DockerResource
+from phi.docker.resource.container import DockerContainer
+from phi.docker.resource.image import DockerImage
+from phi.docker.resource.network import DockerNetwork
+from phi.docker.resource.volume import DockerVolume
 
 # Use this as a type for an object that can hold any DockerResource
 DockerResourceType = Union[

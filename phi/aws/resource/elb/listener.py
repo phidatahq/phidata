@@ -1,8 +1,8 @@
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from phi.aws.api_client import AwsApiClient
-from phi.aws.resource.base import AwsResource
 from phi.aws.resource.acm.certificate import AcmCertificate
+from phi.aws.resource.base import AwsResource
 from phi.aws.resource.elb.load_balancer import LoadBalancer
 from phi.aws.resource.elb.target_group import TargetGroup
 from phi.cli.console import print_info
@@ -124,10 +124,7 @@ class Listener(AwsResource):
                 current_listener_port = self.get_listener_port()
                 current_listener_protocol = self.get_listener_protocol()
                 for resource in resource_list:
-                    if (
-                        resource.get("Port", None) == current_listener_port
-                        and resource.get("Protocol", None) == current_listener_protocol
-                    ):
+                    if resource.get("Port", None) == current_listener_port and resource.get("Protocol", None) == current_listener_protocol:
                         logger.debug(f"Found {self.get_resource_type()}: {self.get_resource_name()}")
                         self.active_resource = resource
                         break

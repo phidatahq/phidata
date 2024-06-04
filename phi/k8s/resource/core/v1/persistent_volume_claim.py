@@ -1,7 +1,5 @@
 from typing import List, Optional
 
-from pydantic import Field, field_serializer
-
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_persistent_volume_claim import V1PersistentVolumeClaim
 from kubernetes.client.models.v1_persistent_volume_claim_list import (
@@ -11,10 +9,11 @@ from kubernetes.client.models.v1_persistent_volume_claim_spec import (
     V1PersistentVolumeClaimSpec,
 )
 from kubernetes.client.models.v1_status import V1Status
+from pydantic import Field, field_serializer
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.enums.pv import PVAccessMode
-from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.k8s.resource.core.v1.resource_requirements import (
     ResourceRequirements,
 )
@@ -86,9 +85,7 @@ class PersistentVolumeClaim(K8sResource):
         return _v1_persistent_volume_claim
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1PersistentVolumeClaim]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1PersistentVolumeClaim]]:
         """Reads PVCs from K8s cluster.
 
         Args:
@@ -176,9 +173,7 @@ class PersistentVolumeClaim(K8sResource):
         logger.debug("Deleting: {}".format(pvc_name))
         self.active_resource = None
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_status.py
-        _delete_status: V1Status = core_v1_api.delete_namespaced_persistent_volume_claim(
-            name=pvc_name, namespace=namespace
-        )
+        _delete_status: V1Status = core_v1_api.delete_namespaced_persistent_volume_claim(name=pvc_name, namespace=namespace)
         # logger.debug("_delete_status: {}".format(pformat(_delete_status, indent=2)))
         if _delete_status.status == "Success":
             logger.debug("PVC Deleted")

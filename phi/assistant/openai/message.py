@@ -1,15 +1,16 @@
-from typing import List, Any, Optional, Dict, Union
-from typing_extensions import Literal
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
+from typing_extensions import Literal
 
+from phi.assistant.openai.exceptions import MessageIdNotSet, ThreadIdNotSet
 from phi.assistant.openai.file import File
-from phi.assistant.openai.exceptions import ThreadIdNotSet, MessageIdNotSet
 from phi.utils.log import logger
 
 try:
     from openai import OpenAI
-    from openai.types.beta.threads.thread_message import ThreadMessage as OpenAIThreadMessage, Content
+    from openai.types.beta.threads.thread_message import Content
+    from openai.types.beta.threads.thread_message import ThreadMessage as OpenAIThreadMessage
 except ImportError:
     logger.error("`openai` not installed")
     raise
@@ -190,8 +191,7 @@ class Message(BaseModel):
                     image_file = content.image_file
                     downloaded_file = self.download_image_file(image_file.file_id)
                     content_str += (
-                        "[bold]Attached file[/bold]:"
-                        f" [blue][link=file://{downloaded_file}]{downloaded_file}[/link][/blue]\n\n"
+                        "[bold]Attached file[/bold]:" f" [blue][link=file://{downloaded_file}]{downloaded_file}[/link][/blue]\n\n"
                     )
         return content_str
 
@@ -230,9 +230,10 @@ class Message(BaseModel):
     def pprint(self, title: Optional[str] = None, markdown: bool = False):
         """Pretty print using rich"""
         from rich.box import ROUNDED
+        from rich.markdown import Markdown
         from rich.panel import Panel
         from rich.pretty import pprint
-        from rich.markdown import Markdown
+
         from phi.cli.console import console
 
         if self.content is None:

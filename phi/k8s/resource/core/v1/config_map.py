@@ -43,9 +43,7 @@ class ConfigMap(K8sResource):
         return _v1_config_map
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs: str
-    ) -> Optional[List[V1ConfigMap]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs: str) -> Optional[List[V1ConfigMap]]:
         """Reads ConfigMaps from K8s cluster.
 
         Args:

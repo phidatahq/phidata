@@ -1,17 +1,17 @@
 from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from pydantic import field_validator, Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
+from typing_extensions import Literal
 
 from phi.app.base import AppBase
 from phi.app.context import ContainerContext
 from phi.k8s.app.context import K8sBuildContext
-from phi.k8s.enums.restart_policy import RestartPolicy
 from phi.k8s.enums.image_pull_policy import ImagePullPolicy
+from phi.k8s.enums.restart_policy import RestartPolicy
 from phi.k8s.enums.service_type import ServiceType
 from phi.utils.log import logger
 
@@ -309,9 +309,7 @@ class K8sApp(AppBase):
     def validate_model(self) -> "K8sApp":
         if self.enable_https:
             if self.acm_certificate_arn is None and self.acm_certificate_summary_file is None:
-                raise ValueError(
-                    "Must provide an ACM Certificate ARN or ACM Certificate Summary File if enable_https=True"
-                )
+                raise ValueError("Must provide an ACM Certificate ARN or ACM Certificate Summary File if enable_https=True")
         return self
 
     def get_cr_name(self) -> str:
@@ -367,9 +365,7 @@ class K8sApp(AppBase):
                 service_annotations = OrderedDict()
             if self.use_nlb:
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-type"] = "nlb"
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] = (
-                    self.nlb_target_type
-                )
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] = self.nlb_target_type
 
             if self.load_balancer_scheme is not None:
                 service_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] = self.load_balancer_scheme
@@ -395,19 +391,13 @@ class K8sApp(AppBase):
 
             # https://kubernetes.io/docs/concepts/services-networking/service/#ssl-support-on-aws
             if self.enable_https:
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(
-                    self.get_service_port()
-                )
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-ports"] = str(self.get_service_port())
 
                 # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/service/annotations/#ssl-cert
                 if self.acm_certificate_arn is not None:
-                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = (
-                        self.acm_certificate_arn
-                    )
+                    service_annotations["service.beta.kubernetes.io/aws-load-balancer-ssl-cert"] = self.acm_certificate_arn
                 # if acm_certificate_summary_file is provided, use that
-                if self.acm_certificate_summary_file is not None and isinstance(
-                    self.acm_certificate_summary_file, Path
-                ):
+                if self.acm_certificate_summary_file is not None and isinstance(self.acm_certificate_summary_file, Path):
                     if self.acm_certificate_summary_file.exists() and self.acm_certificate_summary_file.is_file():
                         from phi.aws.resource.acm.certificate import CertificateSummary
 
@@ -425,15 +415,11 @@ class K8sApp(AppBase):
 
             # Enable cross-zone load balancing
             if self.enable_cross_zone_load_balancing:
-                service_annotations[
-                    "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled"
-                ] = "true"
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled"] = "true"
 
             # Add subnets to NLB
             if self.load_balancer_subnets is not None and isinstance(self.load_balancer_subnets, list):
-                service_annotations["service.beta.kubernetes.io/aws-load-balancer-subnets"] = ", ".join(
-                    self.load_balancer_subnets
-                )
+                service_annotations["service.beta.kubernetes.io/aws-load-balancer-subnets"] = ", ".join(self.load_balancer_subnets)
 
         return service_annotations
 
@@ -459,11 +445,11 @@ class K8sApp(AppBase):
         return ingress_annotations
 
     def get_ingress_rules(self) -> List[Any]:
-        from kubernetes.client.models.v1_ingress_rule import V1IngressRule
-        from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
-        from kubernetes.client.models.v1_ingress_service_backend import V1IngressServiceBackend
         from kubernetes.client.models.v1_http_ingress_path import V1HTTPIngressPath
         from kubernetes.client.models.v1_http_ingress_rule_value import V1HTTPIngressRuleValue
+        from kubernetes.client.models.v1_ingress_backend import V1IngressBackend
+        from kubernetes.client.models.v1_ingress_rule import V1IngressRule
+        from kubernetes.client.models.v1_ingress_service_backend import V1IngressServiceBackend
         from kubernetes.client.models.v1_service_port import V1ServicePort
 
         return [
@@ -559,14 +545,10 @@ class K8sApp(AppBase):
             self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
-            self.container_context.workflows_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
-            )
+            self.container_context.workflows_dir = f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
-            self.container_context.workspace_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
-            )
+            self.container_context.workspace_dir = f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
             self.container_context.workspace_schema = self.workspace_settings.ws_schema
@@ -702,9 +684,9 @@ class K8sApp(AppBase):
         from phi.k8s.create.core.v1.service import CreateService
         from phi.k8s.create.core.v1.service_account import CreateServiceAccount
         from phi.k8s.create.core.v1.volume import (
+            AwsElasticBlockStoreVolumeSource,
             CreateVolume,
             HostPathVolumeSource,
-            AwsElasticBlockStoreVolumeSource,
             VolumeType,
         )
         from phi.k8s.create.networking_k8s_io.v1.ingress import CreateIngress
@@ -712,7 +694,7 @@ class K8sApp(AppBase):
         from phi.k8s.create.rbac_authorization_k8s_io.v1.cluster_role import CreateClusterRole
         from phi.k8s.resource.base import K8sResource
         from phi.k8s.resource.yaml import YamlResource
-        from phi.utils.defaults import get_default_volume_name, get_default_sa_name
+        from phi.utils.defaults import get_default_sa_name, get_default_volume_name
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Initialize K8s resources
@@ -776,8 +758,7 @@ class K8sApp(AppBase):
             if crb is None:
                 if cr is None:
                     logger.error(
-                        "ClusterRoleBinding requires a ClusterRole. "
-                        "Please set create_cluster_role = True or provide a ClusterRole"
+                        "ClusterRoleBinding requires a ClusterRole. " "Please set create_cluster_role = True or provide a ClusterRole"
                     )
                     return []
                 if sa is None:
@@ -831,9 +812,7 @@ class K8sApp(AppBase):
             # Build workspace_volume_name
             workspace_volume_name = self.workspace_volume_name
             if workspace_volume_name is None:
-                workspace_volume_name = get_default_volume_name(
-                    f"{self.get_app_name()}-{container_context.workspace_name}-ws"
-                )
+                workspace_volume_name = get_default_volume_name(f"{self.get_app_name()}-{container_context.workspace_name}-ws")
 
             # If workspace_volume_type is None or EmptyDir
             if self.workspace_volume_type is None or self.workspace_volume_type == K8sWorkspaceVolumeType.EmptyDir:
@@ -1064,9 +1043,7 @@ class K8sApp(AppBase):
             elif self.service_type == ServiceType.LOAD_BALANCER:
                 if self.service_node_port is not None:
                     if self.service_node_port < 30000 or self.service_node_port > 32767:
-                        logger.warning(
-                            f"NodePort: {self.service_node_port} invalid for ServiceType: {self.service_type}"
-                        )
+                        logger.warning(f"NodePort: {self.service_node_port} invalid for ServiceType: {self.service_type}")
                         logger.warning("NodePort value will be ignored")
                         self.service_node_port = None
                     else:
@@ -1074,8 +1051,7 @@ class K8sApp(AppBase):
             # else validate self.service_node_port is NOT available
             elif self.service_node_port is not None:
                 logger.warning(
-                    f"NodePort: {self.service_node_port} provided without specifying "
-                    f"ServiceType as NODE_PORT or LOAD_BALANCER"
+                    f"NodePort: {self.service_node_port} provided without specifying " f"ServiceType as NODE_PORT or LOAD_BALANCER"
                 )
                 logger.warning("NodePort value will be ignored")
                 self.service_node_port = None
@@ -1119,9 +1095,7 @@ class K8sApp(AppBase):
         deploy_labels: Dict[str, str] = self.get_deployment_labels(common_labels)
 
         # If using EbsVolume, restart the deployment on update
-        recreate_deployment_on_update = (
-            True if (self.create_volume and self.volume_type == AppVolumeType.AwsEbs) else False
-        )
+        recreate_deployment_on_update = True if (self.create_volume and self.volume_type == AppVolumeType.AwsEbs) else False
 
         # -*- Create the Deployment
         deployment = CreateDeployment(

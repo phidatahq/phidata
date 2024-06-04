@@ -1,11 +1,11 @@
-from typing import Union, Optional
-from typing_extensions import Literal
+from typing import Optional, Union
 
 from kubernetes.client.models.v1_deployment_strategy import V1DeploymentStrategy
 from kubernetes.client.models.v1_rolling_update_deployment import (
     V1RollingUpdateDeployment,
 )
 from pydantic import Field
+from typing_extensions import Literal
 
 from phi.k8s.resource.base import K8sObject
 

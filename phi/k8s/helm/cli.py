@@ -1,5 +1,5 @@
+from subprocess import CompletedProcess, run
 from typing import List
-from subprocess import run, CompletedProcess
 
 from phi.cli.console import print_info
 from phi.utils.log import logger

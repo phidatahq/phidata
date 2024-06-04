@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 from phi.k8s.api_client import K8sApiClient
 from phi.k8s.enums.api_version import ApiVersion

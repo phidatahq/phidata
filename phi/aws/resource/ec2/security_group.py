@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, List, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
@@ -286,8 +286,7 @@ class SecurityGroup(AwsResource):
             if ce_resp is not None:
                 if ce_resp.get("Error", {}).get("Code", "") == "DependencyViolation":
                     logger.warning(
-                        f"SecurityGroup {self.get_resource_name()} could not be deleted "
-                        f"as it is being used by another resource."
+                        f"SecurityGroup {self.get_resource_name()} could not be deleted " f"as it is being used by another resource."
                     )
                     if ce_resp.get("Error", {}).get("Message", "") != "":
                         logger.warning(f"Error: {ce_resp.get('Error', {}).get('Message', '')}")
@@ -351,9 +350,7 @@ class SecurityGroup(AwsResource):
         # Add ingress_ip_permissions
         if self.ingress_ip_permissions is not None:
             try:
-                response = service_client.authorize_security_group_ingress(
-                    IpPermissions=self.ingress_ip_permissions, **api_args
-                )
+                response = service_client.authorize_security_group_ingress(IpPermissions=self.ingress_ip_permissions, **api_args)
                 logger.debug(f"Response: {response}")
 
                 # Validate the response
@@ -442,9 +439,7 @@ class SecurityGroup(AwsResource):
 
                 logger.debug(f"Adding Inbound Rule: {ip_permission}")
                 try:
-                    response = service_client.authorize_security_group_ingress(
-                        IpPermissions=[ip_permission], **api_args
-                    )
+                    response = service_client.authorize_security_group_ingress(IpPermissions=[ip_permission], **api_args)
                     logger.debug(f"Response: {response}")
 
                     # Validate the response
@@ -486,9 +481,7 @@ class SecurityGroup(AwsResource):
         # Add egress_ip_permissions
         if self.egress_ip_permissions is not None:
             try:
-                response = service_client.authorize_security_group_egress(
-                    IpPermissions=self.egress_ip_permissions, **api_args
-                )
+                response = service_client.authorize_security_group_egress(IpPermissions=self.egress_ip_permissions, **api_args)
                 logger.debug(f"Response: {response}")
 
                 # Validate the response

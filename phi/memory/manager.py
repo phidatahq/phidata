@@ -1,11 +1,11 @@
-from typing import List, Any, Optional, cast
+from typing import Any, List, Optional, cast
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
-from phi.memory.memory import Memory
 from phi.memory.db import MemoryDb
+from phi.memory.memory import Memory
 from phi.memory.row import MemoryRow
 from phi.utils.log import logger
 
@@ -30,9 +30,7 @@ class MemoryManager(BaseModel):
                 from phi.llm.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
-                logger.error(
-                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
-                )
+                logger.error("phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`.")
                 exit(1)
 
             self.llm = OpenAIChat()
@@ -56,9 +54,7 @@ class MemoryManager(BaseModel):
         """
         try:
             if self.db:
-                self.db.upsert_memory(
-                    MemoryRow(user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).to_dict())
-                )
+                self.db.upsert_memory(MemoryRow(user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).to_dict()))
             return "Memory added successfully"
         except Exception as e:
             logger.warning(f"Error storing memory in db: {e}")
@@ -90,9 +86,7 @@ class MemoryManager(BaseModel):
         try:
             if self.db:
                 self.db.upsert_memory(
-                    MemoryRow(
-                        id=id, user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).to_dict()
-                    )
+                    MemoryRow(id=id, user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).to_dict())
                 )
             return "Memory updated successfully"
         except Exception as e:

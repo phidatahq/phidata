@@ -1,4 +1,4 @@
-from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
+from phi.docker.app.base import ContainerContext, DockerApp  # noqa: F401
 
 
 class Qdrant(DockerApp):

@@ -9,10 +9,10 @@ from typing import Optional
 import typer
 
 from phi.cli.console import (
-    print_info,
-    log_config_not_available_msg,
     log_active_workspace_not_available,
+    log_config_not_available_msg,
     print_available_workspaces,
+    print_info,
 )
 from phi.utils.log import logger, set_log_level_to_debug
 
@@ -38,9 +38,7 @@ def save(
         help="Resource filter. Format - ENV:GROUP:NAME:TYPE",
     ),
     env_filter: Optional[str] = typer.Option(None, "-e", "--env", metavar="", help="Filter the environment to deploy."),
-    group_filter: Optional[str] = typer.Option(
-        None, "-g", "--group", metavar="", help="Filter resources using group name."
-    ),
+    group_filter: Optional[str] = typer.Option(None, "-g", "--group", metavar="", help="Filter resources using group name."),
     name_filter: Optional[str] = typer.Option(None, "-n", "--name", metavar="", help="Filter resource using name."),
     type_filter: Optional[str] = typer.Option(
         None,
@@ -67,9 +65,9 @@ def save(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
-    from phi.workspace.config import WorkspaceConfig
     from phi.k8s.operator import save_resources
     from phi.utils.resource_filter import parse_k8s_resource_filter
+    from phi.workspace.config import WorkspaceConfig
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
@@ -95,9 +93,7 @@ def save(
                 f"Workspace at the current directory ({ws_at_current_path_dir_name}) "
                 + f"is not the Active Workspace ({active_ws_dir_name})"
             )
-            update_active_workspace = typer.confirm(
-                f"Update active workspace to {ws_at_current_path_dir_name}", default=True
-            )
+            update_active_workspace = typer.confirm(f"Update active workspace to {ws_at_current_path_dir_name}", default=True)
             if update_active_workspace:
                 phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
                 active_ws_config = ws_at_current_path

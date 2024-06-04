@@ -1,5 +1,5 @@
+from os import environ, getenv
 from typing import Optional
-from os import getenv, environ
 
 try:
     import streamlit as st

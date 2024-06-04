@@ -1,7 +1,6 @@
 from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
 
-
 news_assistant = Assistant(
     tools=[DuckDuckGo()],
     description="You are a news assistant that helps users find the latest news.",

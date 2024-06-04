@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Optional, Any, List, Dict
-from typing_extensions import Literal
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
+from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource

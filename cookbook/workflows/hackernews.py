@@ -1,9 +1,10 @@
 import json
+
 import httpx
 
 from phi.assistant import Assistant
-from phi.workflow import Workflow, Task
 from phi.utils.log import logger
+from phi.workflow import Task, Workflow
 
 
 def get_top_hackernews_stories(num_stories: int = 10) -> str:

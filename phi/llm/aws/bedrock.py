@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Iterator, Dict, Any
+from typing import Any, Dict, Iterator, List, Optional
 
 from phi.aws.api_client import AwsApiClient
 from phi.llm.base import LLM
@@ -34,6 +34,7 @@ class AwsBedrock(LLM):
 
         # Priority 2: Get aws_region from env
         from os import getenv
+
         from phi.constants import AWS_REGION_ENV_VAR
 
         aws_region_env = getenv(AWS_REGION_ENV_VAR)
@@ -48,6 +49,7 @@ class AwsBedrock(LLM):
 
         # Priority 2: Get aws_profile from env
         from os import getenv
+
         from phi.constants import AWS_PROFILE_ENV_VAR
 
         aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)

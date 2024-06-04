@@ -1,14 +1,14 @@
-import nest_asyncio
 from typing import List
 
+import nest_asyncio
 import streamlit as st
+from assistant import get_auto_rag_assistant  # type: ignore
+
 from phi.assistant import Assistant
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
 from phi.utils.log import logger
-
-from assistant import get_auto_rag_assistant  # type: ignore
 
 nest_asyncio.apply()
 st.set_page_config(
@@ -85,9 +85,7 @@ def main() -> None:
         if "url_scrape_key" not in st.session_state:
             st.session_state["url_scrape_key"] = 0
 
-        input_url = st.sidebar.text_input(
-            "Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"]
-        )
+        input_url = st.sidebar.text_input("Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"])
         add_url_button = st.sidebar.button("Add URL")
         if add_url_button:
             if input_url is not None:
@@ -107,9 +105,7 @@ def main() -> None:
         if "file_uploader_key" not in st.session_state:
             st.session_state["file_uploader_key"] = 100
 
-        uploaded_file = st.sidebar.file_uploader(
-            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
-        )
+        uploaded_file = st.sidebar.file_uploader("Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"])
         if uploaded_file is not None:
             alert = st.sidebar.info("Processing PDF...", icon="🧠")
             rag_name = uploaded_file.name.split(".")[0]

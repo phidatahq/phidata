@@ -1,8 +1,8 @@
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from phi.cli.console import console, print_info
 from phi.docker.api_client import DockerApiClient
 from phi.docker.resource.base import DockerResource
-from phi.cli.console import print_info, console
 from phi.utils.log import logger
 
 
@@ -169,7 +169,7 @@ class DockerImage(DockerResource):
             return self.buildx(docker_client=docker_client)
 
         from docker import DockerClient
-        from docker.errors import BuildError, APIError
+        from docker.errors import APIError, BuildError
         from rich import box
         from rich.live import Live
         from rich.table import Table
@@ -372,8 +372,8 @@ class DockerImage(DockerResource):
             docker_client: The DockerApiClient for the current cluster
         """
         from docker import DockerClient
-        from docker.models.images import Image
         from docker.errors import ImageNotFound, NotFound
+        from docker.models.images import Image
 
         logger.debug("Reading: {}".format(self.get_image_str()))
         try:

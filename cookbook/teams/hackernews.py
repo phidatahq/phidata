@@ -1,7 +1,6 @@
 from phi.assistant import Assistant
 from phi.tools.hackernews import HackerNews
 
-
 story_researcher = Assistant(
     name="HackerNews Story Researcher",
     role="Researches hackernews stories and users.",

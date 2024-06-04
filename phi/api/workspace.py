@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Union
+from typing import Dict, List, Optional, Union
 
 from httpx import Response
 
@@ -6,12 +6,12 @@ from phi.api.api import api, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.user import UserSchema
 from phi.api.schemas.workspace import (
-    WorkspaceSchema,
+    UpdatePrimaryWorkspace,
     WorkspaceCreate,
-    WorkspaceUpdate,
     WorkspaceDelete,
     WorkspaceEvent,
-    UpdatePrimaryWorkspace,
+    WorkspaceSchema,
+    WorkspaceUpdate,
 )
 from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
@@ -24,9 +24,7 @@ def get_primary_workspace(user: UserSchema) -> Optional[WorkspaceSchema]:
     logger.debug("--o-o-- Get primary workspace")
     with api.AuthenticatedClient() as api_client:
         try:
-            r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_READ_PRIMARY, json=user.model_dump(include={"id_user", "email"})
-            )
+            r: Response = api_client.post(ApiRoutes.WORKSPACE_READ_PRIMARY, json=user.model_dump(include={"id_user", "email"}))
             if invalid_response(r):
                 return None
 
@@ -49,9 +47,7 @@ def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceSchema]
     logger.debug("--o-o-- Get available workspaces")
     with api.AuthenticatedClient() as api_client:
         try:
-            r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_READ_AVAILABLE, json=user.model_dump(include={"id_user", "email"})
-            )
+            r: Response = api_client.post(ApiRoutes.WORKSPACE_READ_AVAILABLE, json=user.model_dump(include={"id_user", "email"}))
             if invalid_response(r):
                 return None
 

@@ -1,23 +1,31 @@
 import json
-from typing import Optional, List, Iterator, Dict, Any, Union, Callable
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
-from phi.tools.function import Function, FunctionCall
 from phi.tools import Tool, Toolkit
+from phi.tools.function import Function, FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from vertexai.generative_models import (
-        GenerativeModel,
-        GenerationResponse,
-        FunctionDeclaration,
-        Tool as GeminiTool,
         Candidate as GenerationResponseCandidate,
+    )
+    from vertexai.generative_models import (
         Content as GenerationResponseContent,
+    )
+    from vertexai.generative_models import (
+        FunctionDeclaration,
+        GenerationResponse,
+        GenerativeModel,
+    )
+    from vertexai.generative_models import (
         Part as GenerationResponsePart,
+    )
+    from vertexai.generative_models import (
+        Tool as GeminiTool,
     )
 except ImportError:
     logger.error("`google-cloud-aiplatform` not installed")
@@ -209,9 +217,7 @@ class Gemini(LLM):
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
                     messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
@@ -302,9 +308,7 @@ class Gemini(LLM):
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
                     messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))

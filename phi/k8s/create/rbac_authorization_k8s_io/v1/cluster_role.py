@@ -1,14 +1,14 @@
 from typing import Dict, List, Optional
 
 from phi.k8s.create.base import CreateK8sResource
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
+from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 from phi.k8s.resource.rbac_authorization_k8s_io.v1.cluster_role import (
     ClusterRole,
     PolicyRule,
 )
-from phi.k8s.create.common.labels import create_component_labels_dict
-from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
 
 
 class CreateClusterRole(CreateK8sResource):
@@ -30,9 +30,7 @@ class CreateClusterRole(CreateK8sResource):
             labels=self.labels,
         )
 
-        cr_rules: List[PolicyRule] = (
-            self.rules if self.rules else [PolicyRule(api_groups=["*"], resources=["*"], verbs=["*"])]
-        )
+        cr_rules: List[PolicyRule] = self.rules if self.rules else [PolicyRule(api_groups=["*"], resources=["*"], verbs=["*"])]
 
         cr = ClusterRole(
             name=cr_name,

@@ -1,8 +1,9 @@
+from pathlib import Path
 from textwrap import dedent
 from typing import List
-from pathlib import Path
 
 from pydantic import BaseModel, Field
+
 from phi.assistant.team import Assistant
 from phi.tools.arxiv_toolkit import ArxivToolkit
 from phi.tools.duckduckgo import DuckDuckGo

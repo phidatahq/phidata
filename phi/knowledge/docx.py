@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, List, Iterator
+from typing import Iterator, List, Union
 
 from phi.document import Document
 from phi.document.reader.docx import DocxReader

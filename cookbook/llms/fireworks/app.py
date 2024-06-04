@@ -2,10 +2,11 @@ from textwrap import dedent
 from typing import Any, List
 
 import streamlit as st
+
 from phi.assistant import Assistant
 from phi.llm.fireworks import Fireworks
-from phi.tools.exa import ExaTools
 from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
 from phi.utils.log import logger
 
@@ -21,9 +22,7 @@ def clear_assistant():
     st.session_state["assistant"] = None
 
 
-def create_assistant(
-    web_search: bool = False, exa_search: bool = False, yfinance: bool = False, debug_mode: bool = False
-) -> Assistant:
+def create_assistant(web_search: bool = False, exa_search: bool = False, yfinance: bool = False, debug_mode: bool = False) -> Assistant:
     logger.info("---*--- Creating Assistant ---*---")
 
     introduction = "Hi, I'm an AI Assistant that uses function calling to answer questions.\n"

@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Optional, Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
+
 from typing_extensions import Literal
 
 from phi.aws.api_client import AwsApiClient

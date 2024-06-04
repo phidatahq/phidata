@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 from phi.aws.resource.base import AwsResource
 from phi.utils.log import logger
@@ -31,9 +31,7 @@ class EcsVolume(AwsResource):
         if self.efs_volume_configuration is not None:
             volume_definition["efsVolumeConfiguration"] = self.efs_volume_configuration
         if self.fsx_windows_file_server_volume_configuration is not None:
-            volume_definition["fsxWindowsFileServerVolumeConfiguration"] = (
-                self.fsx_windows_file_server_volume_configuration
-            )
+            volume_definition["fsxWindowsFileServerVolumeConfiguration"] = self.fsx_windows_file_server_volume_configuration
 
         return volume_definition
 
@@ -65,10 +63,7 @@ class EcsVolume(AwsResource):
                 )
                 return False
         if self.fsx_windows_file_server_volume_configuration is not None:
-            if (
-                volume_definition.get("fsxWindowsFileServerVolumeConfiguration")
-                != self.fsx_windows_file_server_volume_configuration
-            ):
+            if volume_definition.get("fsxWindowsFileServerVolumeConfiguration") != self.fsx_windows_file_server_volume_configuration:
                 logger.debug(
                     "{} != {}".format(
                         self.fsx_windows_file_server_volume_configuration,

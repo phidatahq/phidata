@@ -2,12 +2,12 @@ from typing import List, Optional
 
 from kubernetes.client import CoreV1Api
 from kubernetes.client.models.v1_namespace import V1Namespace
-from kubernetes.client.models.v1_namespace_spec import V1NamespaceSpec
 from kubernetes.client.models.v1_namespace_list import V1NamespaceList
+from kubernetes.client.models.v1_namespace_spec import V1NamespaceSpec
 from kubernetes.client.models.v1_status import V1Status
 
 from phi.k8s.api_client import K8sApiClient
-from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.utils.log import logger
 
 
@@ -64,9 +64,7 @@ class Namespace(K8sResource):
         return _v1_namespace
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1Namespace]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1Namespace]]:
         """Reads Namespaces from K8s cluster.
 
         Args:

@@ -1,16 +1,14 @@
-from typing import List, Optional, Callable
+from typing import Callable, List, Optional
 
 from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
 from phi.utils.log import logger
 
 try:
-    from llama_index.core.schema import NodeWithScore
     from llama_index.core.retrievers import BaseRetriever
+    from llama_index.core.schema import NodeWithScore
 except ImportError:
-    raise ImportError(
-        "The `llama-index-core` package is not installed. Please install it via `pip install llama-index-core`."
-    )
+    raise ImportError("The `llama-index-core` package is not installed. Please install it via `pip install llama-index-core`.")
 
 
 class LlamaIndexKnowledgeBase(AssistantKnowledge):

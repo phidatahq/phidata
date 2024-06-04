@@ -1,7 +1,7 @@
-import typer
-from typing import Optional
 from os import getenv
+from typing import Optional
 
+import typer
 from sqlalchemy.engine import create_engine
 
 from phi.assistant import Assistant

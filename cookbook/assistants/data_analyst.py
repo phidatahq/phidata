@@ -1,7 +1,7 @@
 import json
 
-from phi.llm.openai import OpenAIChat
 from phi.assistant.duckdb import DuckDbAssistant
+from phi.llm.openai import OpenAIChat
 
 data_analyst = DuckDbAssistant(
     llm=OpenAIChat(model="gpt-4o"),

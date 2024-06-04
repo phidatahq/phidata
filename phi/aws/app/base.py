@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
@@ -156,14 +156,10 @@ class AwsApp(AppBase):
             self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
-            self.container_context.workflows_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
-            )
+            self.container_context.workflows_dir = f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
-            self.container_context.workspace_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
-            )
+            self.container_context.workspace_dir = f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
 
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
             self.container_context.workspace_schema = self.workspace_settings.ws_schema
@@ -243,7 +239,7 @@ class AwsApp(AppBase):
         return container_env
 
     def get_load_balancer_security_groups(self) -> Optional[List["SecurityGroup"]]:
-        from phi.aws.resource.ec2.security_group import SecurityGroup, InboundRule
+        from phi.aws.resource.ec2.security_group import InboundRule, SecurityGroup
 
         load_balancer_security_groups: Optional[List[SecurityGroup]] = self.load_balancer_security_groups
         if load_balancer_security_groups is None:
@@ -275,7 +271,7 @@ class AwsApp(AppBase):
         return load_balancer_security_groups
 
     def security_group_definition(self) -> "SecurityGroup":
-        from phi.aws.resource.ec2.security_group import SecurityGroup, InboundRule
+        from phi.aws.resource.ec2.security_group import InboundRule, SecurityGroup
         from phi.aws.resource.reference import AwsReference
 
         # Create security group for the app
@@ -446,9 +442,7 @@ class AwsApp(AppBase):
         else:
             raise Exception(f"Invalid TargetGroup: {self.target_group} - Must be of type TargetGroup")
 
-    def listeners_definition(
-        self, load_balancer: Optional["LoadBalancer"], target_group: Optional["TargetGroup"]
-    ) -> List["Listener"]:
+    def listeners_definition(self, load_balancer: Optional["LoadBalancer"], target_group: Optional["TargetGroup"]) -> List["Listener"]:
         from phi.aws.resource.elb.listener import Listener
 
         listener = Listener(
@@ -487,9 +481,7 @@ class AwsApp(AppBase):
             )
         return listeners
 
-    def get_listeners(
-        self, load_balancer: Optional["LoadBalancer"], target_group: Optional["TargetGroup"]
-    ) -> Optional[List["Listener"]]:
+    def get_listeners(self, load_balancer: Optional["LoadBalancer"], target_group: Optional["TargetGroup"]) -> Optional[List["Listener"]]:
         from phi.aws.resource.elb.listener import Listener
 
         if self.listeners is None:
@@ -522,18 +514,14 @@ class AwsApp(AppBase):
         from phi.aws.resource.ecs.container import EcsContainer
 
         # -*- Get Container Environment
-        container_env: Dict[str, str] = self.get_container_env(
-            container_context=container_context, build_context=build_context
-        )
+        container_env: Dict[str, str] = self.get_container_env(container_context=container_context, build_context=build_context)
 
         # -*- Get Container Command
         container_cmd: Optional[List[str]] = self.get_container_command()
         if container_cmd:
             logger.debug("Command: {}".format(" ".join(container_cmd)))
 
-        aws_region = build_context.aws_region or (
-            self.workspace_settings.aws_region if self.workspace_settings else None
-        )
+        aws_region = build_context.aws_region or (self.workspace_settings.aws_region if self.workspace_settings else None)
         return EcsContainer(
             name=self.get_app_name(),
             image=self.get_image_str(),
@@ -622,13 +610,13 @@ class AwsApp(AppBase):
         from phi.aws.resource.base import AwsResource
         from phi.aws.resource.ec2.security_group import SecurityGroup
         from phi.aws.resource.ecs.cluster import EcsCluster
+        from phi.aws.resource.ecs.container import EcsContainer
+        from phi.aws.resource.ecs.service import EcsService
+        from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
+        from phi.aws.resource.ecs.volume import EcsVolume
+        from phi.aws.resource.elb.listener import Listener
         from phi.aws.resource.elb.load_balancer import LoadBalancer
         from phi.aws.resource.elb.target_group import TargetGroup
-        from phi.aws.resource.elb.listener import Listener
-        from phi.aws.resource.ecs.container import EcsContainer
-        from phi.aws.resource.ecs.task_definition import EcsTaskDefinition
-        from phi.aws.resource.ecs.service import EcsService
-        from phi.aws.resource.ecs.volume import EcsVolume
         from phi.docker.resource.image import DockerImage
         from phi.utils.defaults import get_default_volume_name
 
@@ -662,9 +650,7 @@ class AwsApp(AppBase):
         listeners: Optional[List[Listener]] = self.get_listeners(load_balancer=load_balancer, target_group=target_group)
 
         # -*- Get ECSContainer
-        ecs_container: EcsContainer = self.get_ecs_container(
-            container_context=container_context, build_context=build_context
-        )
+        ecs_container: EcsContainer = self.get_ecs_container(container_context=container_context, build_context=build_context)
         # -*- Add nginx container if nginx is enabled
         nginx_container: Optional[EcsContainer] = None
         nginx_shared_volume: Optional[EcsVolume] = None

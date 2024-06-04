@@ -1,15 +1,15 @@
 from typing import Dict, List, Optional
 
+from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.enums.api_group import ApiGroup
 from phi.k8s.enums.api_version import ApiVersion
 from phi.k8s.enums.kind import Kind
-from phi.k8s.resource.rbac_authorization_k8s_io.v1.cluste_role_binding import (
-    Subject,
-    RoleRef,
-    ClusterRoleBinding,
-)
-from phi.k8s.create.common.labels import create_component_labels_dict
 from phi.k8s.resource.meta.v1.object_meta import ObjectMeta
+from phi.k8s.resource.rbac_authorization_k8s_io.v1.cluste_role_binding import (
+    ClusterRoleBinding,
+    RoleRef,
+    Subject,
+)
 from phi.utils.log import logger
 
 

@@ -1,13 +1,13 @@
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from phi.app.db_app import DbApp
 from phi.k8s.app.base import (
-    K8sApp,
     AppVolumeType,
     ContainerContext,
-    ServiceType,  # noqa: F401
-    RestartPolicy,  # noqa: F401
     ImagePullPolicy,  # noqa: F401
+    K8sApp,
+    RestartPolicy,  # noqa: F401
+    ServiceType,  # noqa: F401
 )
 
 

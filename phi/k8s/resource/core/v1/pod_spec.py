@@ -1,20 +1,19 @@
-from typing import List, Optional, Any, Dict
-
-from pydantic import Field, field_serializer
+from typing import Any, Dict, List, Optional
 
 from kubernetes.client.models.v1_container import V1Container
 from kubernetes.client.models.v1_pod_spec import V1PodSpec
 from kubernetes.client.models.v1_volume import V1Volume
+from pydantic import Field, field_serializer
 
 from phi.k8s.enums.restart_policy import RestartPolicy
 from phi.k8s.resource.base import K8sObject
 from phi.k8s.resource.core.v1.container import Container
+from phi.k8s.resource.core.v1.local_object_reference import (
+    LocalObjectReference,
+)
 from phi.k8s.resource.core.v1.toleration import Toleration
 from phi.k8s.resource.core.v1.topology_spread_constraints import (
     TopologySpreadConstraint,
-)
-from phi.k8s.resource.core.v1.local_object_reference import (
-    LocalObjectReference,
 )
 from phi.k8s.resource.core.v1.volume import Volume
 
@@ -83,9 +82,7 @@ class PodSpec(K8sObject):
     # TopologySpreadConstraints describes how a group of pods ought to spread across topology domains.
     # Scheduler will schedule pods in a way which abides by the constraints.
     # All topologySpreadConstraints are ANDed.
-    topology_spread_constraints: Optional[List[TopologySpreadConstraint]] = Field(
-        None, alias="topologySpreadConstraints"
-    )
+    topology_spread_constraints: Optional[List[TopologySpreadConstraint]] = Field(None, alias="topologySpreadConstraints")
     # List of volumes that can be mounted by containers belonging to the pod.
     # More info: https://kubernetes.io/docs/concepts/storage/volumes
     volumes: Optional[List[Volume]] = None

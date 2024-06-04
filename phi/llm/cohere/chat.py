@@ -1,6 +1,6 @@
 import json
 from textwrap import dedent
-from typing import Optional, List, Dict, Any, Iterator
+from typing import Any, Dict, Iterator, List, Optional
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -11,8 +11,7 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from cohere import Client as CohereClient
-    from cohere.types.tool import Tool as CohereTool
-    from cohere.types.tool_call import ToolCall as CohereToolCall
+    from cohere.types.chat_request_tool_results_item import ChatRequestToolResultsItem
     from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
     from cohere.types.streamed_chat_response import (
         StreamedChatResponse,
@@ -20,7 +19,8 @@ try:
         StreamedChatResponse_TextGeneration,
         StreamedChatResponse_ToolCallsGeneration,
     )
-    from cohere.types.chat_request_tool_results_item import ChatRequestToolResultsItem
+    from cohere.types.tool import Tool as CohereTool
+    from cohere.types.tool_call import ToolCall as CohereToolCall
     from cohere.types.tool_parameter_definitions_value import ToolParameterDefinitionsValue
 except ImportError:
     logger.error("`cohere` not installed")
@@ -97,9 +97,7 @@ class CohereChat(LLM):
             for f_name, function in self.functions.items()
         ]
 
-    def invoke(
-        self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None
-    ) -> NonStreamedChatResponse:
+    def invoke(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> NonStreamedChatResponse:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         chat_message: Optional[str] = None
 
@@ -256,9 +254,7 @@ class CohereChat(LLM):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    ChatRequestToolResultsItem(
-                        call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}]
-                    )
+                    ChatRequestToolResultsItem(call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}])
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
                 messages.append(Message(role="user", content="Tool result"))
@@ -273,9 +269,7 @@ class CohereChat(LLM):
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
-    def response_stream(
-        self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None
-    ) -> Any:
+    def response_stream(self, messages: List[Message], tool_results: Optional[List[ChatRequestToolResultsItem]] = None) -> Any:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -362,9 +356,7 @@ class CohereChat(LLM):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    ChatRequestToolResultsItem(
-                        call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}]
-                    )
+                    ChatRequestToolResultsItem(call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}])
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
                 messages.append(Message(role="user", content="Tool result"))

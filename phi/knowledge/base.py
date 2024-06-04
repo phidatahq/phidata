@@ -1,11 +1,11 @@
-from typing import List, Optional, Iterator, Dict, Any
+from typing import Any, Dict, Iterator, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.document import Document
 from phi.document.reader.base import Reader
-from phi.vectordb import VectorDb
 from phi.utils.log import logger
+from phi.vectordb import VectorDb
 
 
 class AssistantKnowledge(BaseModel):
@@ -74,9 +74,7 @@ class AssistantKnowledge(BaseModel):
             else:
                 # Filter out documents which already exist in the vector db
                 if skip_existing:
-                    documents_to_load = [
-                        document for document in document_list if not self.vector_db.doc_exists(document)
-                    ]
+                    documents_to_load = [document for document in document_list if not self.vector_db.doc_exists(document)]
                 self.vector_db.insert(documents=documents_to_load)
             num_documents += len(documents_to_load)
             logger.info(f"Added {len(documents_to_load)} documents to knowledge base")
@@ -109,11 +107,7 @@ class AssistantKnowledge(BaseModel):
             return
 
         # Filter out documents which already exist in the vector db
-        documents_to_load = (
-            [document for document in documents if not self.vector_db.doc_exists(document)]
-            if skip_existing
-            else documents
-        )
+        documents_to_load = [document for document in documents if not self.vector_db.doc_exists(document)] if skip_existing else documents
 
         # Insert documents
         if len(documents_to_load) > 0:

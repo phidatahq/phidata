@@ -1,8 +1,8 @@
 import pandas as pd
-from sqlalchemy import create_engine
-from phi.utils.log import logger
-
 from assistant import db_url
+from sqlalchemy import create_engine
+
+from phi.utils.log import logger
 
 s3_uri = "https://phi-public.s3.amazonaws.com/f1"
 

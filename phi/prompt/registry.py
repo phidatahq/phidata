@@ -1,15 +1,15 @@
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from phi.api.prompt import sync_prompt_registry_api, sync_prompt_template_api
 from phi.api.schemas.prompt import (
+    PromptRegistrySchema,
     PromptRegistrySync,
+    PromptTemplateSchema,
     PromptTemplatesSync,
     PromptTemplateSync,
-    PromptRegistrySchema,
-    PromptTemplateSchema,
 )
+from phi.prompt.exceptions import PromptNotFoundException, PromptUpdateException
 from phi.prompt.template import PromptTemplate
-from phi.prompt.exceptions import PromptUpdateException, PromptNotFoundException
 from phi.utils.log import logger
 
 
@@ -79,8 +79,7 @@ class PromptRegistry:
             registry=PromptRegistrySync(registry_name=self.name),
             templates=PromptTemplatesSync(
                 templates={
-                    k: PromptTemplateSync(template_id=k, template_data=v.model_dump(exclude_none=True))
-                    for k, v in self.prompts.items()
+                    k: PromptTemplateSync(template_id=k, template_data=v.model_dump(exclude_none=True)) for k, v in self.prompts.items()
                 }
             ),
         )

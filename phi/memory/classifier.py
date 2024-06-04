@@ -1,4 +1,4 @@
-from typing import List, Any, Optional, cast
+from typing import Any, List, Optional, cast
 
 from pydantic import BaseModel
 
@@ -22,9 +22,7 @@ class MemoryClassifier(BaseModel):
                 from phi.llm.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
-                logger.error(
-                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
-                )
+                logger.error("phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`.")
                 exit(1)
 
             self.llm = OpenAIChat()
@@ -55,9 +53,7 @@ class MemoryClassifier(BaseModel):
             system_prompt_lines.extend(
                 [
                     "\nExisting memories:",
-                    "<existing_memories>\n"
-                    + "\n".join([f"  - {m.memory}" for m in self.existing_memories])
-                    + "\n</existing_memories>",
+                    "<existing_memories>\n" + "\n".join([f"  - {m.memory}" for m in self.existing_memories]) + "\n</existing_memories>",
                 ]
             )
         return "\n".join(system_prompt_lines)

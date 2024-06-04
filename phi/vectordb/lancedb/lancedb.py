@@ -1,6 +1,6 @@
+import json
 from hashlib import md5
 from typing import List, Optional
-import json
 
 try:
     import lancedb
@@ -11,9 +11,9 @@ except ImportError:
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
+from phi.utils.log import logger
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-from phi.utils.log import logger
 
 
 class LanceDb(VectorDb):

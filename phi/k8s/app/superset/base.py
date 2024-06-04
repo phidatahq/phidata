@@ -1,13 +1,13 @@
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 from phi.app.db_app import DbApp
 from phi.k8s.app.base import (
-    K8sApp,
     AppVolumeType,  # noqa: F401
     ContainerContext,
-    ServiceType,  # noqa: F401
-    RestartPolicy,  # noqa: F401
     ImagePullPolicy,  # noqa: F401
+    K8sApp,
+    RestartPolicy,  # noqa: F401
+    ServiceType,  # noqa: F401
 )
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
@@ -91,11 +91,7 @@ class SupersetBase(K8sApp):
         return self.db_user or self.get_secret_from_file("DATABASE_USER") or self.get_secret_from_file("DB_USER")
 
     def get_db_password(self) -> Optional[str]:
-        return (
-            self.db_password
-            or self.get_secret_from_file("DATABASE_PASSWORD")
-            or self.get_secret_from_file("DB_PASSWORD")
-        )
+        return self.db_password or self.get_secret_from_file("DATABASE_PASSWORD") or self.get_secret_from_file("DB_PASSWORD")
 
     def get_db_database(self) -> Optional[str]:
         return self.db_database or self.get_secret_from_file("DATABASE_DB") or self.get_secret_from_file("DB_DATABASE")
@@ -107,11 +103,7 @@ class SupersetBase(K8sApp):
         return self.db_host or self.get_secret_from_file("DATABASE_HOST") or self.get_secret_from_file("DB_HOST")
 
     def get_db_port(self) -> Optional[int]:
-        return (
-            self.db_port
-            or str_to_int(self.get_secret_from_file("DATABASE_PORT"))
-            or str_to_int(self.get_secret_from_file("DB_PORT"))
-        )
+        return self.db_port or str_to_int(self.get_secret_from_file("DATABASE_PORT")) or str_to_int(self.get_secret_from_file("DB_PORT"))
 
     def get_redis_host(self) -> Optional[str]:
         return self.redis_host or self.get_secret_from_file("REDIS_HOST")

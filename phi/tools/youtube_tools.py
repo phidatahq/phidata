@@ -1,16 +1,14 @@
 import json
-from urllib.parse import urlparse, parse_qs, urlencode
+from typing import List, Optional
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import urlopen
-from typing import Optional, List
 
 from phi.tools import Toolkit
 
 try:
     from youtube_transcript_api import YouTubeTranscriptApi
 except ImportError:
-    raise ImportError(
-        "`youtube_transcript_api` not installed. Please install using `pip install youtube_transcript_api`"
-    )
+    raise ImportError("`youtube_transcript_api` not installed. Please install using `pip install youtube_transcript_api`")
 
 
 class YouTubeTools(Toolkit):

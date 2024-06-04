@@ -1,8 +1,8 @@
-from typing import Optional, List
 from pathlib import Path
+from textwrap import dedent
+from typing import List, Optional
 
 from pydantic import model_validator
-from textwrap import dedent
 
 from phi.assistant import Assistant
 from phi.tools.duckdb import DuckDbTools
@@ -183,9 +183,7 @@ class DuckDbAssistant(Assistant):
         logger.debug("Building the system prompt for the DuckDbAssistant.")
         # -*- Build the default system prompt
         # First add the Assistant description
-        _system_prompt = (
-            self.description or "You are a Data Engineering assistant designed to perform tasks using DuckDb."
-        )
+        _system_prompt = self.description or "You are a Data Engineering assistant designed to perform tasks using DuckDb."
         _system_prompt += "\n"
 
         # Then add the prompt specifically from the LLM

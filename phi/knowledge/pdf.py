@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Union, List, Iterator
+from typing import Iterator, List, Union
 
 from phi.document import Document
-from phi.document.reader.pdf import PDFReader, PDFUrlReader, PDFImageReader, PDFUrlImageReader
+from phi.document.reader.pdf import PDFImageReader, PDFReader, PDFUrlImageReader, PDFUrlReader
 from phi.knowledge.base import AssistantKnowledge
 
 

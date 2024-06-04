@@ -74,4 +74,3 @@ Message us on [Discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 ## 📝 License
 
 This project is licensed under the terms of the [MIT license](/LICENSE)
-

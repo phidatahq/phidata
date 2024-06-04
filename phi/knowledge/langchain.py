@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Any
+from typing import Any, Callable, List, Optional
 
 from phi.document import Document
 from phi.knowledge.base import AssistantKnowledge
@@ -17,12 +17,10 @@ class LangChainKnowledgeBase(AssistantKnowledge):
         """Returns relevant documents matching the query"""
 
         try:
-            from langchain_core.vectorstores import VectorStoreRetriever
             from langchain_core.documents import Document as LangChainDocument
+            from langchain_core.vectorstores import VectorStoreRetriever
         except ImportError:
-            raise ImportError(
-                "The `langchain` package is not installed. Please install it via `pip install langchain`."
-            )
+            raise ImportError("The `langchain` package is not installed. Please install it via `pip install langchain`.")
 
         if self.vectorstore is not None and self.retriever is None:
             logger.debug("Creating retriever")

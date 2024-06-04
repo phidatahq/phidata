@@ -1,4 +1,5 @@
 from rich.pretty import pprint
+
 from phi.assistant import Assistant
 from phi.llm.ollama import Ollama
 

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from phi.aws.api_client import AwsApiClient
 from phi.aws.resource.base import AwsResource
@@ -176,9 +176,7 @@ class SecretsManager(AwsResource):
         self.active_resource = None
         self.secret_value = None
         try:
-            delete_response = service_client.delete_secret(
-                SecretId=self.name, ForceDeleteWithoutRecovery=self.force_delete
-            )
+            delete_response = service_client.delete_secret(SecretId=self.name, ForceDeleteWithoutRecovery=self.force_delete)
             logger.debug(f"SecretsManager: {delete_response}")
             return True
         except Exception as e:

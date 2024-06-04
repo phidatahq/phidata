@@ -1,16 +1,16 @@
-from typing import List, Optional, Dict, Any, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from pydantic import Field, field_validator, ValidationInfo
+from pydantic import Field, ValidationInfo, field_validator
 
 from phi.app.group import AppGroup
-from phi.resource.group import ResourceGroup
+from phi.infra.resources import InfraResources
+from phi.k8s.api_client import K8sApiClient
 from phi.k8s.app.base import K8sApp
 from phi.k8s.app.context import K8sBuildContext
-from phi.k8s.api_client import K8sApiClient
 from phi.k8s.create.base import CreateK8sResource
-from phi.k8s.resource.base import K8sResource
 from phi.k8s.helm.chart import HelmChart
-from phi.infra.resources import InfraResources
+from phi.k8s.resource.base import K8sResource
+from phi.resource.group import ResourceGroup
 from phi.utils.log import logger
 
 
@@ -81,7 +81,7 @@ class K8sResources(InfraResources):
         force: Optional[bool] = None,
         pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import confirm_yes_no, print_heading, print_info
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
         logger.debug("-*- Creating K8sResources")
@@ -94,9 +94,7 @@ class K8sResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_create(
@@ -276,9 +274,7 @@ class K8sResources(InfraResources):
 
         print_heading(f"\n--**-- Resources created: {num_resources_created}/{num_resources_to_create}")
         if num_resources_to_create != num_resources_created:
-            logger.error(
-                f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}"
-            )  # noqa: E501
+            logger.error(f"Resources created: {num_resources_created} do not match resources required: {num_resources_to_create}")  # noqa: E501
         return num_resources_created, num_resources_to_create
 
     def delete_resources(
@@ -290,7 +286,7 @@ class K8sResources(InfraResources):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import confirm_yes_no, print_heading, print_info
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
         logger.debug("-*- Deleting K8sResources")
@@ -303,9 +299,7 @@ class K8sResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_delete(
@@ -494,9 +488,7 @@ class K8sResources(InfraResources):
 
         print_heading(f"\n--**-- Resources deleted: {num_resources_deleted}/{num_resources_to_delete}")
         if num_resources_to_delete != num_resources_deleted:
-            logger.error(
-                f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}"
-            )  # noqa: E501
+            logger.error(f"Resources deleted: {num_resources_deleted} do not match resources required: {num_resources_to_delete}")  # noqa: E501
         return num_resources_deleted, num_resources_to_delete
 
     def update_resources(
@@ -509,7 +501,7 @@ class K8sResources(InfraResources):
         force: Optional[bool] = None,
         pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading, confirm_yes_no
+        from phi.cli.console import confirm_yes_no, print_heading, print_info
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
         logger.debug("-*- Updating K8sResources")
@@ -523,9 +515,7 @@ class K8sResources(InfraResources):
                     if len(resources_from_resource_group) > 0:
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_update(
@@ -705,9 +695,7 @@ class K8sResources(InfraResources):
 
         print_heading(f"\n--**-- Resources updated: {num_resources_updated}/{num_resources_to_update}")
         if num_resources_to_update != num_resources_updated:
-            logger.error(
-                f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}"
-            )  # noqa: E501
+            logger.error(f"Resources updated: {num_resources_updated} do not match resources required: {num_resources_to_update}")  # noqa: E501
         return num_resources_updated, num_resources_to_update
 
     def save_resources(
@@ -716,7 +704,7 @@ class K8sResources(InfraResources):
         name_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
     ) -> Tuple[int, int]:
-        from phi.cli.console import print_info, print_heading
+        from phi.cli.console import print_heading, print_info
         from phi.k8s.resource.types import K8sResourceInstallOrder
 
         logger.debug("-*- Saving K8sResources")
@@ -731,9 +719,7 @@ class K8sResources(InfraResources):
                         for resource_from_resource_group in resources_from_resource_group:
                             if isinstance(resource_from_resource_group, K8sResource):
                                 resource_from_resource_group.env = self.env
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
+                                resource_from_resource_group.set_workspace_settings(workspace_settings=self.workspace_settings)
                                 if resource_from_resource_group.group is None and self.name is not None:
                                     resource_from_resource_group.group = self.name
                                 if resource_from_resource_group.should_create(
@@ -877,7 +863,5 @@ class K8sResources(InfraResources):
 
         print_heading(f"\n--**-- Resources saved: {num_resources_saved}/{num_resources_to_save}")
         if num_resources_to_save != num_resources_saved:
-            logger.error(
-                f"Resources saved: {num_resources_saved} do not match resources required: {num_resources_to_save}"
-            )  # noqa: E501
+            logger.error(f"Resources saved: {num_resources_saved} do not match resources required: {num_resources_to_save}")  # noqa: E501
         return num_resources_saved, num_resources_to_save

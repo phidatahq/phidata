@@ -1,10 +1,10 @@
 from typing import List, Optional
 
 from kubernetes.client.models.v1_node_selector import V1NodeSelector
-from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_node_selector_requirement import (
     V1NodeSelectorRequirement,
 )
+from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from pydantic import Field
 
 from phi.k8s.resource.base import K8sObject
@@ -62,9 +62,7 @@ class NodeSelectorTerm(K8sObject):
         # Return a V1NodeSelectorTerm object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_node_selector_term.py
         _v1_node_selector_term = V1NodeSelectorTerm(
-            match_expressions=[me.get_k8s_object() for me in self.match_expressions]
-            if self.match_expressions
-            else None,
+            match_expressions=[me.get_k8s_object() for me in self.match_expressions] if self.match_expressions else None,
             match_fields=[mf.get_k8s_object() for mf in self.match_fields] if self.match_fields else None,
         )
         return _v1_node_selector_term
@@ -88,8 +86,6 @@ class NodeSelector(K8sObject):
         # Return a V1NodeSelector object
         # https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_node_selector.py
         _v1_node_selector = V1NodeSelector(
-            node_selector_terms=[nst.get_k8s_object() for nst in self.node_selector_terms]
-            if self.node_selector_terms
-            else None,
+            node_selector_terms=[nst.get_k8s_object() for nst in self.node_selector_terms] if self.node_selector_terms else None,
         )
         return _v1_node_selector

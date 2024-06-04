@@ -1,9 +1,11 @@
+from typing import List, Optional
+
 import typer
-from typing import Optional, List
+
 from phi.assistant import Assistant, AssistantMemory
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.memory.db.postgres import PgMemoryDb
 from phi.storage.assistant.postgres import PgAssistantStorage
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
 cli_app = typer.Typer(pretty_exceptions_show_locals=False)

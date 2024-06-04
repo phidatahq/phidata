@@ -5,16 +5,14 @@ try:
     from qdrant_client import QdrantClient  # noqa: F401
     from qdrant_client.http import models
 except ImportError:
-    raise ImportError(
-        "The `qdrant-client` package is not installed. " "Please install it via `pip install qdrant-client`."
-    )
+    raise ImportError("The `qdrant-client` package is not installed. " "Please install it via `pip install qdrant-client`.")
 
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
+from phi.utils.log import logger
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-from phi.utils.log import logger
 
 
 class Qdrant(VectorDb):
@@ -130,9 +128,7 @@ class Qdrant(VectorDb):
         if self.client:
             scroll_result = self.client.scroll(
                 collection_name=self.collection,
-                scroll_filter=models.Filter(
-                    must=[models.FieldCondition(key="name", match=models.MatchValue(value=name))]
-                ),
+                scroll_filter=models.Filter(must=[models.FieldCondition(key="name", match=models.MatchValue(value=name))]),
                 limit=1,
             )
             return len(scroll_result[0]) > 0

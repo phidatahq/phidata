@@ -1,6 +1,6 @@
 from phi.assistant import Assistant
-from phi.tools.yfinance import YFinanceTools
 from phi.llm.cohere import CohereChat
+from phi.tools.yfinance import YFinanceTools
 
 assistant = Assistant(
     llm=CohereChat(model="command-r-plus"),

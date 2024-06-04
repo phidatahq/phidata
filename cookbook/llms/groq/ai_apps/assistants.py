@@ -1,13 +1,13 @@
-from typing import Optional
 from textwrap import dedent
+from typing import Optional
 
 from phi.assistant import Assistant
-from phi.llm.groq import Groq
-from phi.knowledge import AssistantKnowledge
 from phi.embedder.ollama import OllamaEmbedder
-from phi.vectordb.pgvector import PgVector2
+from phi.knowledge import AssistantKnowledge
+from phi.llm.groq import Groq
 from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.utils.log import logger
+from phi.vectordb.pgvector import PgVector2
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

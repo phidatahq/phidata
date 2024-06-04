@@ -1,13 +1,13 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from typer import launch as typer_launch
 
-from phi.cli.settings import phi_cli_settings, PHI_CLI_DIR
 from phi.cli.config import PhiCliConfig
-from phi.cli.console import print_info, print_heading
-from phi.infra.type import InfraType
+from phi.cli.console import print_heading, print_info
+from phi.cli.settings import PHI_CLI_DIR, phi_cli_settings
 from phi.infra.resources import InfraResources
+from phi.infra.type import InfraType
 from phi.utils.log import logger
 
 
@@ -28,11 +28,11 @@ def authenticate_user() -> None:
         save the auth_token. This step is handled by authenticate_and_get_user()
     3. After the user is authenticated update the PhiCliConfig.
     """
-    from phi.api.user import authenticate_and_get_user
     from phi.api.schemas.user import UserSchema
+    from phi.api.user import authenticate_and_get_user
     from phi.cli.auth_server import (
-        get_port_for_auth_server,
         get_auth_token_from_web_flow,
+        get_port_for_auth_server,
     )
 
     print_heading("Authenticating with phidata.com ...")
@@ -52,9 +52,7 @@ def authenticate_user() -> None:
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     existing_user: Optional[UserSchema] = phi_config.user if phi_config is not None else None
     try:
-        user: Optional[UserSchema] = authenticate_and_get_user(
-            tmp_auth_token=tmp_auth_token, existing_user=existing_user
-        )
+        user: Optional[UserSchema] = authenticate_and_get_user(tmp_auth_token=tmp_auth_token, existing_user=existing_user)
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
@@ -81,8 +79,8 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
     2. Authenticates the user if login == True.
     3. If PhiCliConfig exists and auth is valid, return True.
     """
-    from phi.utils.filesystem import delete_from_fs
     from phi.api.user import create_anon_user
+    from phi.utils.filesystem import delete_from_fs
 
     print_heading("Welcome to phidata!")
     if reset:
@@ -134,8 +132,9 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
 
 def sign_in_using_cli() -> None:
     from getpass import getpass
+
+    from phi.api.schemas.user import EmailPasswordAuthSchema, UserSchema
     from phi.api.user import sign_in_user
-    from phi.api.schemas.user import UserSchema, EmailPasswordAuthSchema
 
     print_heading("Log in")
     email_raw = input("email: ")

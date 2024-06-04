@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from phi.docker.api_client import DockerApiClient
 from phi.docker.resource.base import DockerResource
@@ -100,8 +100,8 @@ class DockerVolume(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
-        from docker.models.volumes import Volume
         from docker.errors import NotFound
+        from docker.models.volumes import Volume
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         volume_object: Optional[Volume] = self._read(docker_client)

@@ -1,5 +1,4 @@
-from typing import List, Optional, Any, Dict
-from typing_extensions import Literal
+from typing import Any, Dict, List, Optional
 
 from kubernetes.client import ApiextensionsV1Api
 from kubernetes.client.models.v1_custom_resource_definition import (
@@ -23,9 +22,10 @@ from kubernetes.client.models.v1_custom_resource_validation import (
 from kubernetes.client.models.v1_json_schema_props import V1JSONSchemaProps
 from kubernetes.client.models.v1_status import V1Status
 from pydantic import Field
+from typing_extensions import Literal
 
 from phi.k8s.api_client import K8sApiClient
-from phi.k8s.resource.base import K8sResource, K8sObject
+from phi.k8s.resource.base import K8sObject, K8sResource
 from phi.utils.log import logger
 
 
@@ -189,9 +189,7 @@ class CustomResourceDefinition(K8sResource):
         return _v1_custom_resource_definition
 
     @staticmethod
-    def get_from_cluster(
-        k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs
-    ) -> Optional[List[V1CustomResourceDefinition]]:
+    def get_from_cluster(k8s_client: K8sApiClient, namespace: Optional[str] = None, **kwargs) -> Optional[List[V1CustomResourceDefinition]]:
         """Reads CustomResourceDefinitions from K8s cluster.
 
         Args:
@@ -214,12 +212,10 @@ class CustomResourceDefinition(K8sResource):
 
         logger.debug("Creating: {}".format(self.get_resource_name()))
         try:
-            v1_custom_resource_definition: V1CustomResourceDefinition = (
-                apiextensions_v1_api.create_custom_resource_definition(
-                    body=k8s_object,
-                    async_req=self.async_req,
-                    pretty=self.pretty,
-                )
+            v1_custom_resource_definition: V1CustomResourceDefinition = apiextensions_v1_api.create_custom_resource_definition(
+                body=k8s_object,
+                async_req=self.async_req,
+                pretty=self.pretty,
             )
             # logger.debug("Created: {}".format(v1_custom_resource_definition))
             if v1_custom_resource_definition.metadata.creation_timestamp is not None:
@@ -260,13 +256,11 @@ class CustomResourceDefinition(K8sResource):
         k8s_object: V1CustomResourceDefinition = self.get_k8s_object()
 
         logger.debug("Updating: {}".format(crd_name))
-        v1_custom_resource_definition: V1CustomResourceDefinition = (
-            apiextensions_v1_api.patch_custom_resource_definition(
-                name=crd_name,
-                body=k8s_object,
-                async_req=self.async_req,
-                pretty=self.pretty,
-            )
+        v1_custom_resource_definition: V1CustomResourceDefinition = apiextensions_v1_api.patch_custom_resource_definition(
+            name=crd_name,
+            body=k8s_object,
+            async_req=self.async_req,
+            pretty=self.pretty,
         )
         # logger.debug("Updated: {}".format(v1_custom_resource_definition))
         if v1_custom_resource_definition.metadata.creation_timestamp is not None:

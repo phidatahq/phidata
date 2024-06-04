@@ -1,9 +1,10 @@
 from typing import List, Optional
 
-from phi.assistant import Assistant
-from phi.tools.duckduckgo import DuckDuckGo
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
+
+from phi.assistant import Assistant
+from phi.tools.duckduckgo import DuckDuckGo
 
 
 class NewsItem(BaseModel):

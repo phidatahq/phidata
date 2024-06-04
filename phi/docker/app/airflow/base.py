@@ -1,9 +1,9 @@
 from enum import Enum
-from typing import Optional, Dict
 from pathlib import Path
+from typing import Dict, Optional
 
-from phi.docker.app.base import DockerApp, ContainerContext  # noqa: F401
 from phi.app.db_app import DbApp
+from phi.docker.app.base import ContainerContext, DockerApp  # noqa: F401
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
 
@@ -159,6 +159,12 @@ class AirflowBase(DockerApp):
 
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from phi.constants import (
+            AIRFLOW_DAGS_FOLDER_ENV_VAR,
+            AIRFLOW_DB_CONN_URL_ENV_VAR,
+            AIRFLOW_ENV_ENV_VAR,
+            AIRFLOW_EXECUTOR_ENV_VAR,
+            AIRFLOW_HOME_ENV_VAR,
+            INIT_AIRFLOW_ENV_VAR,
             PHI_RUNTIME_ENV_VAR,
             PYTHONPATH_ENV_VAR,
             REQUIREMENTS_FILE_PATH_ENV_VAR,
@@ -169,12 +175,6 @@ class AirflowBase(DockerApp):
             WORKSPACE_HASH_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
-            INIT_AIRFLOW_ENV_VAR,
-            AIRFLOW_ENV_ENV_VAR,
-            AIRFLOW_HOME_ENV_VAR,
-            AIRFLOW_DAGS_FOLDER_ENV_VAR,
-            AIRFLOW_EXECUTOR_ENV_VAR,
-            AIRFLOW_DB_CONN_URL_ENV_VAR,
         )
 
         # Container Environment
@@ -289,9 +289,7 @@ class AirflowBase(DockerApp):
         if self.executor == "CeleryExecutor":
             # Airflow celery result backend
             celery_result_backend_driver = self.db_result_backend_driver or db_driver
-            celery_result_backend_url = (
-                f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
-            )
+            celery_result_backend_url = f"{celery_result_backend_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_database}"
             # Set the AIRFLOW__CELERY__RESULT_BACKEND
             if "None" not in celery_result_backend_url:
                 container_env["AIRFLOW__CELERY__RESULT_BACKEND"] = celery_result_backend_url

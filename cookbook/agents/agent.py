@@ -1,22 +1,21 @@
 import json
 from pathlib import Path
-from typing import Optional
 from textwrap import dedent
-from typing import List
+from typing import List, Optional
 
 from phi.assistant import Assistant
-from phi.tools import Toolkit
-from phi.tools.exa import ExaTools
-from phi.tools.calculator import Calculator
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.file import FileTools
-from phi.llm.openai import OpenAIChat
-from phi.knowledge import AssistantKnowledge
-from phi.embedder.openai import OpenAIEmbedder
 from phi.assistant.duckdb import DuckDbAssistant
 from phi.assistant.python import PythonAssistant
+from phi.embedder.openai import OpenAIEmbedder
+from phi.knowledge import AssistantKnowledge
+from phi.llm.openai import OpenAIChat
 from phi.storage.assistant.postgres import PgAssistantStorage
+from phi.tools import Toolkit
+from phi.tools.calculator import Calculator
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.exa import ExaTools
+from phi.tools.file import FileTools
+from phi.tools.yfinance import YFinanceTools
 from phi.utils.log import logger
 from phi.vectordb.pgvector import PgVector2
 
@@ -62,9 +61,7 @@ def get_agent(
     if ddg_search:
         tools.append(DuckDuckGo(fixed_max_results=3))
     if finance_tools:
-        tools.append(
-            YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True)
-        )
+        tools.append(YFinanceTools(stock_price=True, company_info=True, analyst_recommendations=True, company_news=True))
     if file_tools:
         tools.append(FileTools(base_dir=cwd))
         extra_instructions.append(
@@ -92,9 +89,7 @@ def get_agent(
             base_dir=scratch_dir,
         )
         team.append(_data_analyst)
-        extra_instructions.append(
-            "To answer questions about my favorite movies, delegate the task to the `Data Analyst`."
-        )
+        extra_instructions.append("To answer questions about my favorite movies, delegate the task to the `Data Analyst`.")
     if python_assistant:
         _python_assistant = PythonAssistant(
             name="Python Assistant",

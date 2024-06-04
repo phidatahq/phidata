@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Union, Optional
+from typing import Any, Optional, Union
 
 from phi.assistant.openai.file import File
 from phi.utils.log import logger

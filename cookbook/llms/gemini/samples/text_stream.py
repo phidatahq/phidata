@@ -2,7 +2,7 @@ from os import getenv
 from typing import Iterable, Optional
 
 import vertexai
-from vertexai.generative_models import GenerativeModel, GenerationResponse
+from vertexai.generative_models import GenerationResponse, GenerativeModel
 
 
 def generate(project: Optional[str], location: Optional[str]) -> None:

@@ -1,0 +1,45 @@
+name: PreCommitChecks
+
+on:
+  push:
+    branches:
+    - main
+    - '!release*'
+  pull_request:
+    branches:
+    - main
+    - '!release*'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: environment
+jobs:
+  linting:
+    name: 'Run PreComitChecks: ruff, black etc..'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10']
+        os: [ubuntu-20.04]       # , "macos-latest"
+    runs-on: ubuntu-latest
+    steps:
+      #----------------------------------------------
+      # Checkout, SetUp Python, Load Cache and Lint
+      #----------------------------------------------
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+      # Install Python
+    - uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Check Python ${{ matrix.python-version }} version
+      run: python -V
+
+    - uses: pre-commit/action@v3.0.1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}

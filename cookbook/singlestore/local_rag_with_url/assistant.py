@@ -10,9 +10,7 @@ from phi.vectordb.singlestore import S2VectorDb
 from resources import config  # type: ignore
 
 # Setup SingleStore connection
-db_url = (
-    f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}?charset=utf8mb4"
-)
+db_url = f"mysql+pymysql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}?charset=utf8mb4"
 # db_url = (
 #     f"mysql+pymysql://{config['username']}:{config['password']}@"
 #     f"{config['host']}:{config['port']}/{config['database']}?"

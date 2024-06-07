@@ -18,6 +18,7 @@ from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
+
 # from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
 
@@ -177,21 +178,25 @@ class S2VectorDb(VectorDb):
                 # Convert embedding to a JSON array string
                 embedding_json = json.dumps(document.embedding)
 
-                stmt = mysql.insert(self.table).values(
-                    id=_id,
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
-                ).on_duplicate_key_update(
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
+                stmt = (
+                    mysql.insert(self.table)
+                    .values(
+                        id=_id,
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
+                    .on_duplicate_key_update(
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
                 )
                 sess.execute(stmt)
                 counter += 1
@@ -287,7 +292,7 @@ class S2VectorDb(VectorDb):
             return 0
 
     def optimize(self) -> None:
-        pass 
+        pass
 
     def clear(self) -> bool:
         from sqlalchemy import delete

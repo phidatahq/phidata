@@ -21,6 +21,8 @@ st.set_page_config(
 )
 st.title("Local RAG with Web Scraping")
 st.markdown("##### :orange_heart: Built using [phidata](https://github.com/phidatahq/phidata)")
+
+
 def restart_assistant():
     st.session_state["web_assistant"] = None
     st.session_state["web_assistant_run_id"] = None
@@ -111,11 +113,7 @@ def main() -> None:
         if "url_scrape_key" not in st.session_state:
             st.session_state["url_scrape_key"] = 0
 
-        scraped_url = st.sidebar.text_input(
-            "Input URL",
-            type="default",
-            key=st.session_state["url_scrape_key"]
-        )
+        scraped_url = st.sidebar.text_input("Input URL", type="default", key=st.session_state["url_scrape_key"])
         append_button = st.sidebar.button("Search URL")
         if append_button:
             if scraped_url is not None:
@@ -136,7 +134,6 @@ def main() -> None:
         if st.session_state["web_assistant_run_id"] != new_web_assistant_run_id:
             logger.info(f"---*--- Loading run: {new_web_assistant_run_id} ---*---")
             st.session_state["web_assistant"] = get_local_rag_assistant(
-                
                 user_id=username,
                 run_id=new_web_assistant_run_id,
                 debug_mode=True,

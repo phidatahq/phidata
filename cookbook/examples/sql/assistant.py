@@ -103,7 +103,7 @@ def get_sql_assistant(
         name="sql_assistant",
         run_id=run_id,
         user_id=user_id,
-        llm=OpenAIChat(model="gpt-4-turbo", temperature=0),
+        llm=OpenAIChat(model="gpt-4o", temperature=0),
         storage=assistant_storage,
         knowledge_base=assistant_knowledge,
         show_tool_calls=True,

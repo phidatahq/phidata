@@ -16,7 +16,7 @@ class AssistantKnowledge(BaseModel):
     # Vector db to store the knowledge base
     vector_db: Optional[VectorDb] = None
     # Number of relevant documents to return on search
-    num_documents: int = 5
+    num_documents: int = 2
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
 
@@ -151,6 +151,16 @@ class AssistantKnowledge(BaseModel):
             skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
         """
         self.load_documents(documents=[Document.from_json(document)], upsert=upsert, skip_existing=skip_existing)
+
+    def load_text(self, text: str, upsert: bool = False, skip_existing: bool = True) -> None:
+        """Load a text to the knowledge base
+
+        Args:
+            text (str): Text to load to the knowledge base
+            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
+            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
+        """
+        self.load_documents(documents=[Document(content=text)], upsert=upsert, skip_existing=skip_existing)
 
     def exists(self) -> bool:
         """Returns True if the knowledge base exists"""

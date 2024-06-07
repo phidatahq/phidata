@@ -62,7 +62,7 @@ class CliAuthServer:
     Source: https://stackoverflow.com/a/38196725/10953921
     """
 
-    def __init__(self, port=9191):
+    def __init__(self, port: int = 9191):
         import threading
 
         self._server = HTTPServer(("", port), CliAuthRequestHandler)
@@ -82,12 +82,25 @@ class CliAuthServer:
         self._thread.close()  # type: ignore
 
 
+def check_port(port: int):
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            return s.connect_ex(("localhost", port)) == 0
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            return False
+
+
 def get_port_for_auth_server():
-    # TODO: Check if port is available
-    return 9191
+    starting_port = 9191
+    for port in range(starting_port, starting_port + 100):
+        if not check_port(port):
+            return port
 
 
-def get_auth_token_from_web_flow(port) -> Optional[str]:
+def get_auth_token_from_web_flow(port: int) -> Optional[str]:
     """
     GET request: curl http://localhost:9191
     POST request: curl -d "foo=bar&bin=baz" http://localhost:9191

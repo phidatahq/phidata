@@ -36,7 +36,8 @@ class LLM(BaseModel):
     show_tool_calls: Optional[bool] = None
 
     # -*- Functions available to the LLM to call -*-
-    # Functions extracted from the tools. Note: These are not sent to the LLM API and are only used for execution.
+    # Functions extracted from the tools.
+    # Note: These are not sent to the LLM API and are only used for execution + deduplication.
     functions: Optional[Dict[str, Function]] = None
     # Maximum number of function calls allowed across all iterations.
     function_call_limit: int = 10
@@ -58,13 +59,25 @@ class LLM(BaseModel):
     def invoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise NotImplementedError
+
     def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
+        raise NotImplementedError
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
     def response(self, messages: List[Message]) -> str:
         raise NotImplementedError
 
+    async def aresponse(self, messages: List[Message]) -> str:
+        raise NotImplementedError
+
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
+        raise NotImplementedError
+
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
         raise NotImplementedError
 
     def generate(self, messages: List[Message]) -> Dict:
@@ -98,27 +111,40 @@ class LLM(BaseModel):
 
         # If the tool is a Tool or Dict, add it directly to the LLM
         if isinstance(tool, Tool) or isinstance(tool, Dict):
-            self.tools.append(tool)
-            logger.debug(f"Added tool {tool} to LLM.")
+            if tool not in self.tools:
+                self.tools.append(tool)
+                logger.debug(f"Added tool {tool} to LLM.")
+
         # If the tool is a Callable or Toolkit, add its functions to the LLM
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                self.functions.update(tool.functions)
-                for func in tool.functions.values():
-                    self.tools.append({"type": "function", "function": func.to_dict()})
-                logger.debug(f"Functions from {tool.name} added to LLM.")
+                # For each function in the toolkit
+                for name, func in tool.functions.items():
+                    # If the function does not exist in self.functions, add to self.tools
+                    if name not in self.functions:
+                        self.functions[name] = func
+                        self.tools.append({"type": "function", "function": func.to_dict()})
+                        logger.debug(f"Function {name} from {tool.name} added to LLM.")
+
             elif isinstance(tool, Function):
-                self.functions[tool.name] = tool
-                self.tools.append({"type": "function", "function": tool.to_dict()})
-                logger.debug(f"Function {tool.name} added to LLM.")
+                if tool.name not in self.functions:
+                    self.functions[tool.name] = tool
+                    self.tools.append({"type": "function", "function": tool.to_dict()})
+                    logger.debug(f"Function {tool.name} added to LLM.")
+
             elif callable(tool):
-                func = Function.from_callable(tool)
-                self.functions[func.name] = func
-                self.tools.append({"type": "function", "function": func.to_dict()})
-                logger.debug(f"Function {func.name} added to LLM.")
+                try:
+                    function_name = tool.__name__
+                    if function_name not in self.functions:
+                        func = Function.from_callable(tool)
+                        self.functions[func.name] = func
+                        self.tools.append({"type": "function", "function": func.to_dict()})
+                        logger.debug(f"Function {func.name} added to LLM.")
+                except Exception as e:
+                    logger.warning(f"Could not add function {tool}: {e}")
 
     def deactivate_function_calls(self) -> None:
         # Deactivate tool calls by setting future tool calls to "none"

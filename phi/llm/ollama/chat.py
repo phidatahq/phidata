@@ -223,10 +223,14 @@ class Ollama(LLM):
         tool_call_bracket_count = 0
         is_last_tool_call_bracket = False
         completion_tokens = 0
+        time_to_first_token = None
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
             completion_tokens += 1
+            if completion_tokens == 1:
+                time_to_first_token = response_timer.elapsed
+                logger.debug(f"Time to first token: {time_to_first_token:.4f}s")
 
             # -*- Parse response
             # logger.info(f"Ollama partial response: {response}")
@@ -268,6 +272,10 @@ class Ollama(LLM):
                 yield response_content
 
         response_timer.stop()
+        logger.debug(f"Tokens generated: {completion_tokens}")
+        if completion_tokens > 0:
+            logger.debug(f"Time per output token: {response_timer.elapsed / completion_tokens:.4f}s")
+            logger.debug(f"Throughput: {completion_tokens / response_timer.elapsed:.4f} tokens/s")
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
@@ -306,10 +314,22 @@ class Ollama(LLM):
 
         # -*- Update usage metrics
         # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
+        assistant_message.metrics["time"] = f"{response_timer.elapsed:.4f}"
+        if time_to_first_token is not None:
+            assistant_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
+        if completion_tokens > 0:
+            assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
+        if time_to_first_token is not None:
+            if "time_to_first_token" not in self.metrics:
+                self.metrics["time_to_first_token"] = []
+            self.metrics["time_to_first_token"].append(f"{time_to_first_token:.4f}s")
+        if completion_tokens > 0:
+            if "tokens_per_second" not in self.metrics:
+                self.metrics["tokens_per_second"] = []
+            self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -376,12 +396,12 @@ class Ollama(LLM):
                 "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
                 + dedent(
                     """\
-                    {{
+                    {
                         "tool_calls": [{
                             "name": "<name of the selected tool>",
                             "arguments": <parameters for the selected tool, matching the tool's JSON schema
                         }]
-                    }}\
+                    }\
                     """
                 ),
                 "To use a tool, just respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",

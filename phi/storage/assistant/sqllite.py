@@ -204,11 +204,22 @@ class SqlAssistantStorage(AssistantStorage):
 
             try:
                 sess.execute(stmt)
-            except OperationalError:
-                # Create table if it does not exist
-                self.create()
-                sess.execute(stmt)
-        return self.read(run_id=row.run_id)
+                sess.commit()  # Make sure to commit the changes to the database
+                return self.read(run_id=row.run_id)
+            except OperationalError as oe:
+                logger.debug(f"OperationalError occurred: {oe}")
+                self.create()  # This will only create the table if it doesn't exist
+                try:
+                    sess.execute(stmt)
+                    sess.commit()
+                    return self.read(run_id=row.run_id)
+                except Exception as e:
+                    logger.warning(f"Error during upsert: {e}")
+                    sess.rollback()  # Rollback the session in case of any error
+            except Exception as e:
+                logger.warning(f"Error during upsert: {e}")
+                sess.rollback()
+        return None
 
     def delete(self) -> None:
         if self.table_exists():

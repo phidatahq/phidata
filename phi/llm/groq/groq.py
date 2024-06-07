@@ -10,8 +10,6 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from groq import Groq as GroqClient
-    from groq.types.chat.chat_completion import ChatCompletion, ChoiceMessage
-    from groq.lib.chat_completion_chunk import ChatCompletionChunk, ChoiceDelta, ChoiceDeltaToolCall
 except ImportError:
     logger.error("`groq` not installed")
     raise
@@ -19,7 +17,7 @@ except ImportError:
 
 class Groq(LLM):
     name: str = "Groq"
-    model: str = "mixtral-8x7b-32768"
+    model: str = "llama3-70b-8192"
     # -*- Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
@@ -148,14 +146,14 @@ class Groq(LLM):
                 _dict["tool_choice"] = self.tool_choice
         return _dict
 
-    def invoke(self, messages: List[Message]) -> ChatCompletion:
+    def invoke(self, messages: List[Message]) -> Any:
         return self.client.chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
             **self.api_kwargs,
         )
 
-    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
+    def invoke_stream(self, messages: List[Message]) -> Iterator[Any]:
         yield from self.client.chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
@@ -171,14 +169,14 @@ class Groq(LLM):
 
         response_timer = Timer()
         response_timer.start()
-        response: ChatCompletion = self.invoke(messages=messages)
+        response = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         # logger.debug(f"Groq response type: {type(response)}")
         # logger.debug(f"Groq response: {response}")
 
         # -*- Parse response
-        response_message: ChoiceMessage = response.choices[0].message
+        response_message = response.choices[0].message
 
         # -*- Create assistant message
         assistant_message = Message(
@@ -195,7 +193,8 @@ class Groq(LLM):
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
         # Add token usage to metrics
-        self.metrics.update(response.usage.model_dump())
+        if response.usage is not None:
+            self.metrics.update(response.usage.model_dump())
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -247,18 +246,18 @@ class Groq(LLM):
 
         assistant_message_role = None
         assistant_message_content = ""
-        assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
+        assistant_message_tool_calls: Optional[List[Any]] = None
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
             # logger.debug(f"Groq response type: {type(response)}")
             # logger.debug(f"Groq response: {response}")
             # -*- Parse response
-            response_delta: ChoiceDelta = response.choices[0].delta
+            response_delta = response.choices[0].delta
             if assistant_message_role is None and response_delta.role is not None:
                 assistant_message_role = response_delta.role
             response_content: Optional[str] = response_delta.content
-            response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
+            response_tool_calls: Optional[List[Any]] = response_delta.tool_calls
 
             # -*- Return content if present, otherwise get tool call
             if response_content is not None:

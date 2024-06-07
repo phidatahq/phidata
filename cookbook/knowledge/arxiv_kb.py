@@ -2,7 +2,7 @@ from phi.assistant import Assistant
 from phi.knowledge.arxiv import ArxivKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
-from resources import vector_db  # type: ignore
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Create a knowledge base with the ArXiv documents
 knowledge_base = ArxivKnowledgeBase(
@@ -10,7 +10,7 @@ knowledge_base = ArxivKnowledgeBase(
     # Table name: ai.arxiv_documents
     vector_db=PgVector2(
         collection="arxiv_documents",
-        db_url=vector_db.get_db_connection_local(),
+        db_url=db_url,
     ),
 )
 # Load the knowledge base

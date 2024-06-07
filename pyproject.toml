@@ -1,17 +1,14 @@
 [project]
 name = "phidata"
-version = "2.3.67"
-description = "Build AI Assistants using function calling"
-requires-python = ">=3.8"
+version = "2.4.18"
+description = "Memory, knowledge and tools for LLMs."
+requires-python = ">=3.7"
 readme = "README.md"
 authors = [
   {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
 ]
 
 dependencies = [
-  "boto3",
-  "botocore",
-  "docker",
   "gitpython",
   "httpx",
   "pydantic",
@@ -31,10 +28,15 @@ dev = [
     "ruff",
     "types-pyyaml"
 ]
+docker = [
+    "docker"
+]
 aws = [
+    "docker",
     "boto3"
 ]
 k8s = [
+    "docker",
     "kubernetes"
 ]
 
@@ -71,7 +73,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*"]
+exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/examples/*", "phi/assistant/openai/*"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -86,33 +88,42 @@ module = [
   "docker.*",
   "duckdb.*",
   "exa_py.*",
+  "firecrawl.*",
   "duckduckgo_search.*",
   "groq.*",
   "kubernetes.*",
   "lancedb.*",
   "langchain.*",
-  "langchain.*",
   "langchain_core.*",
+  "llama_index.*",
   "mistralai.*",
   "newspaper.*",
+  "nest_asyncio.*",
   "numpy.*",
   "ollama.*",
   "openai.*",
+  "openbb.*",
   "pandas.*",
   "pinecone.*",
   "pyarrow.*",
   "pgvector.*",
   "psycopg.*",
+  "psycopg2.*",
   "pypdf.*",
   "qdrant_client.*",
+  "rapidocr_onnxruntime.*",
+  "requests.*",
   "simplejson.*",
   "serpapi.*",
   "setuptools.*",
   "sqlalchemy.*",
   "streamlit.*",
+  "tavily.*",
   "textract.*",
   "vertexai.*",
+  "voyageai.*",
   "wikipedia.*",
   "yfinance.*",
+  "youtube_transcript_api.*",
 ]
 ignore_missing_imports = true

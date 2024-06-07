@@ -12,18 +12,21 @@ class YFinanceTools(Toolkit):
     def __init__(
         self,
         stock_price: bool = True,
+        company_info: bool = False,
         stock_fundamentals: bool = False,
         income_statements: bool = False,
         key_financial_ratios: bool = False,
         analyst_recommendations: bool = False,
         company_news: bool = False,
         technical_indicators: bool = False,
-        company_profile: bool = False,
+        historical_prices: bool = False,
     ):
         super().__init__(name="yfinance_tools")
 
         if stock_price:
             self.register(self.get_current_stock_price)
+        if company_info:
+            self.register(self.get_company_info)
         if stock_fundamentals:
             self.register(self.get_stock_fundamentals)
         if income_statements:
@@ -36,18 +39,17 @@ class YFinanceTools(Toolkit):
             self.register(self.get_company_news)
         if technical_indicators:
             self.register(self.get_technical_indicators)
-        if company_profile:
-            self.register(self.get_company_profile)
+        if historical_prices:
+            self.register(self.get_historical_stock_prices)
 
     def get_current_stock_price(self, symbol: str) -> str:
-        """
-        Get the current stock price for a given symbol.
+        """Use this function to get the current stock price for a given symbol.
 
         Args:
-          symbol (str): The stock symbol.
+            symbol (str): The stock symbol.
 
         Returns:
-          str: The current stock price or error message.
+            str: The current stock price or error message.
         """
         try:
             stock = yf.Ticker(symbol)
@@ -57,9 +59,77 @@ class YFinanceTools(Toolkit):
         except Exception as e:
             return f"Error fetching current price for {symbol}: {e}"
 
-    def get_stock_fundamentals(self, symbol: str) -> str:
+    def get_company_info(self, symbol: str) -> str:
+        """Use this function to get company information and overview for a given stock symbol.
+
+        Args:
+            symbol (str): The stock symbol.
+
+        Returns:
+            str: JSON containing company profile and overview.
         """
-        Get fundamental data for a given stock symbol yfinance API.
+        try:
+            company_info_full = yf.Ticker(symbol).info
+            if company_info_full is None:
+                return f"Could not fetch company info for {symbol}"
+
+            company_info_cleaned = {
+                "Name": company_info_full.get("shortName"),
+                "Symbol": company_info_full.get("symbol"),
+                "Current Stock Price": f"{company_info_full.get('regularMarketPrice', company_info_full.get('currentPrice'))} {company_info_full.get('currency', 'USD')}",
+                "Market Cap": f"{company_info_full.get('marketCap', company_info_full.get('enterpriseValue'))} {company_info_full.get('currency', 'USD')}",
+                "Sector": company_info_full.get("sector"),
+                "Industry": company_info_full.get("industry"),
+                "Address": company_info_full.get("address1"),
+                "City": company_info_full.get("city"),
+                "State": company_info_full.get("state"),
+                "Zip": company_info_full.get("zip"),
+                "Country": company_info_full.get("country"),
+                "EPS": company_info_full.get("trailingEps"),
+                "P/E Ratio": company_info_full.get("trailingPE"),
+                "52 Week Low": company_info_full.get("fiftyTwoWeekLow"),
+                "52 Week High": company_info_full.get("fiftyTwoWeekHigh"),
+                "50 Day Average": company_info_full.get("fiftyDayAverage"),
+                "200 Day Average": company_info_full.get("twoHundredDayAverage"),
+                "Website": company_info_full.get("website"),
+                "Summary": company_info_full.get("longBusinessSummary"),
+                "Analyst Recommendation": company_info_full.get("recommendationKey"),
+                "Number Of Analyst Opinions": company_info_full.get("numberOfAnalystOpinions"),
+                "Employees": company_info_full.get("fullTimeEmployees"),
+                "Total Cash": company_info_full.get("totalCash"),
+                "Free Cash flow": company_info_full.get("freeCashflow"),
+                "Operating Cash flow": company_info_full.get("operatingCashflow"),
+                "EBITDA": company_info_full.get("ebitda"),
+                "Revenue Growth": company_info_full.get("revenueGrowth"),
+                "Gross Margins": company_info_full.get("grossMargins"),
+                "Ebitda Margins": company_info_full.get("ebitdaMargins"),
+            }
+            return json.dumps(company_info_cleaned, indent=2)
+        except Exception as e:
+            return f"Error fetching company profile for {symbol}: {e}"
+
+    def get_historical_stock_prices(self, symbol: str, period: str = "1mo", interval: str = "1d") -> str:
+        """Use this function to get the historical stock price for a given symbol.
+
+        Args:
+            symbol (str): The stock symbol.
+            period (str): The period for which to retrieve historical prices. Defaults to "1mo".
+                        Valid periods: 1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max
+            interval (str): The interval between data points. Defaults to "1d".
+                        Valid intervals: 1d,5d,1wk,1mo,3mo
+
+        Returns:
+          str: The current stock price or error message.
+        """
+        try:
+            stock = yf.Ticker(symbol)
+            historical_price = stock.history(period=period, interval=interval)
+            return historical_price.to_json(orient="index")
+        except Exception as e:
+            return f"Error fetching historical prices for {symbol}: {e}"
+
+    def get_stock_fundamentals(self, symbol: str) -> str:
+        """Use this function to get fundamental data for a given stock symbol yfinance API.
 
         Args:
             symbol (str): The stock symbol.
@@ -102,8 +172,7 @@ class YFinanceTools(Toolkit):
             return f"Error getting fundamentals for {symbol}: {e}"
 
     def get_income_statements(self, symbol: str) -> str:
-        """
-        Get income statements for a given stock symbol.
+        """Use this function to get income statements for a given stock symbol.
 
         Args:
         symbol (str): The stock symbol.
@@ -119,8 +188,7 @@ class YFinanceTools(Toolkit):
             return f"Error fetching income statements for {symbol}: {e}"
 
     def get_key_financial_ratios(self, symbol: str) -> str:
-        """
-        Get key financial ratios for a given stock symbol.
+        """Use this function to get key financial ratios for a given stock symbol.
 
         Args:
         symbol (str): The stock symbol.
@@ -136,8 +204,7 @@ class YFinanceTools(Toolkit):
             return f"Error fetching key financial ratios for {symbol}: {e}"
 
     def get_analyst_recommendations(self, symbol: str) -> str:
-        """
-        Get analyst recommendations for a given stock symbol.
+        """Use this function to get analyst recommendations for a given stock symbol.
 
         Args:
         symbol (str): The stock symbol.
@@ -153,8 +220,7 @@ class YFinanceTools(Toolkit):
             return f"Error fetching analyst recommendations for {symbol}: {e}"
 
     def get_company_news(self, symbol: str, num_stories: int = 3) -> str:
-        """
-        Get company news and press releases for a given stock symbol.
+        """Use this function to get company news and press releases for a given stock symbol.
 
         Args:
         symbol (str): The stock symbol.
@@ -170,8 +236,7 @@ class YFinanceTools(Toolkit):
             return f"Error fetching company news for {symbol}: {e}"
 
     def get_technical_indicators(self, symbol: str, period: str = "3mo") -> str:
-        """
-        Get technical indicators for a given stock symbol.
+        """Use this function to get technical indicators for a given stock symbol.
 
         Args:
         symbol (str): The stock symbol.
@@ -186,19 +251,3 @@ class YFinanceTools(Toolkit):
             return indicators.to_json(orient="index")
         except Exception as e:
             return f"Error fetching technical indicators for {symbol}: {e}"
-
-    def get_company_profile(self, symbol: str) -> str:
-        """
-        Get company profile and overview for a given stock symbol.
-
-        Args:
-        symbol (str): The stock symbol.
-
-        Returns:
-        str: JSON containing company profile and overview.
-        """
-        try:
-            profile = yf.Ticker(symbol).info
-            return json.dumps(profile, indent=2)
-        except Exception as e:
-            return f"Error fetching company profile for {symbol}: {e}"

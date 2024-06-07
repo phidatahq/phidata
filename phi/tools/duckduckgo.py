@@ -7,22 +7,27 @@ from phi.utils.log import logger
 try:
     from duckduckgo_search import DDGS
 except ImportError:
-    logger.warning("`duckduckgo-search` not installed.")
+    raise ImportError("`duckduckgo-search` not installed. Please install using `pip install duckduckgo-search`")
 
 
 class DuckDuckGo(Toolkit):
     def __init__(
         self,
-        ddgs: Optional[Any] = None,
-        headers: Optional[Any] = None,
-        proxies: Optional[Any] = None,
-        timeout: Optional[int] = 10,
         search: bool = True,
         news: bool = True,
+        fixed_max_results: Optional[int] = None,
+        headers: Optional[Any] = None,
+        proxy: Optional[str] = None,
+        proxies: Optional[Any] = None,
+        timeout: Optional[int] = 10,
     ):
         super().__init__(name="duckduckgo")
 
-        self.ddgs = ddgs or DDGS(headers=headers, proxies=proxies, timeout=timeout)
+        self.headers: Optional[Any] = headers
+        self.proxy: Optional[str] = proxy
+        self.proxies: Optional[Any] = proxies
+        self.timeout: Optional[int] = timeout
+        self.fixed_max_results: Optional[int] = fixed_max_results
         if search:
             self.register(self.duckduckgo_search)
         if news:
@@ -39,8 +44,8 @@ class DuckDuckGo(Toolkit):
             The result from DuckDuckGo.
         """
         logger.debug(f"Searching DDG for: {query}")
-        results = [r for r in self.ddgs.text(keywords=query, max_results=max_results)]
-        return json.dumps(results, indent=2)
+        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
+        return json.dumps(ddgs.text(keywords=query, max_results=(self.fixed_max_results or max_results)), indent=2)
 
     def duckduckgo_news(self, query: str, max_results: int = 5) -> str:
         """Use this function to get the latest news from DuckDuckGo.
@@ -53,5 +58,5 @@ class DuckDuckGo(Toolkit):
             The latest news from DuckDuckGo.
         """
         logger.debug(f"Searching DDG news for: {query}")
-        results = [r for r in self.ddgs.news(keywords=query, max_results=max_results)]
-        return json.dumps(results, indent=2)
+        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
+        return json.dumps(ddgs.news(keywords=query, max_results=(self.fixed_max_results or max_results)), indent=2)

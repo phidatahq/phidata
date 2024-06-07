@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from hashlib import md5
 
 try:
@@ -13,12 +13,12 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
+
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
 
 
@@ -31,7 +31,6 @@ class S2VectorDb(VectorDb):
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
-        # index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -48,7 +47,6 @@ class S2VectorDb(VectorDb):
         self.embedder: Embedder = embedder
         self.dimensions: int = self.embedder.dimensions
         self.distance: Distance = distance
-        # self.index: Optional[Union[Ivfflat, HNSW]] = index
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         self.table: Table = self.get_table()
 
@@ -60,48 +58,13 @@ class S2VectorDb(VectorDb):
             Column("name", mysql.TEXT),
             Column("meta_data", mysql.TEXT),
             Column("content", mysql.TEXT),
-            Column("embedding", mysql.TEXT),  # Placeholder for the vector column
+            Column("embedding", mysql.BLOB),  # Use BLOB for storing vector embeddings
             Column("usage", mysql.TEXT),
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
             Column("content_hash", mysql.TEXT),
             extend_existing=True,
         )
-
-    def create(self) -> None:
-        if not self.table_exists():
-            logger.info(f"Creating table: {self.collection}")
-            logger.info(f"""
-                    CREATE TABLE IF NOT EXISTS {self.schema}.{self.collection} (
-                        id TEXT,
-                        name TEXT,
-                        meta_data TEXT,
-                        content TEXT,
-                        embedding VECTOR({self.dimensions}) NOT NULL, 
-                        `usage` TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        content_hash TEXT
-                    );
-                    """)
-            with self.db_engine.connect() as connection:
-                connection.execute(
-                    text(f"""
-                    CREATE TABLE IF NOT EXISTS {self.schema}.{self.collection} (
-                        id TEXT,
-                        name TEXT,
-                        meta_data TEXT,
-                        content TEXT,
-                        embedding VECTOR({self.dimensions}) NOT NULL, 
-                        `usage` TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        content_hash TEXT
-                    );
-                    """)
-                )
-            # Call optimize to create indexes
-            self.optimize()
 
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")
@@ -111,7 +74,23 @@ class S2VectorDb(VectorDb):
             logger.error(e)
             return False
 
+    def create(self) -> None:
+        if not self.table_exists():
+            # with self.Session() as sess:
+            #     with sess.begin():
+            #         if self.schema is not None:
+            #             logger.debug(f"Creating schema: {self.schema}")
+            #             sess.execute(text(f"CREATE DATABASE IF NOT EXISTS {self.schema};"))
+            logger.info(f"Creating table: {self.collection}")
+            self.table.create(self.db_engine)
+
     def doc_exists(self, document: Document) -> bool:
+        """
+        Validating if the document exists or not
+
+        Args:
+            document (Document): Document to validate
+        """
         columns = [self.table.c.name, self.table.c.content_hash]
         with self.Session.begin() as sess:
             cleaned_content = document.content.replace("\x00", "\ufffd")
@@ -120,12 +99,24 @@ class S2VectorDb(VectorDb):
             return result is not None
 
     def name_exists(self, name: str) -> bool:
+        """
+        Validate if a row with this name exists or not
+
+        Args:
+            name (str): Name to check
+        """
         with self.Session.begin() as sess:
             stmt = select(self.table.c.name).where(self.table.c.name == name)
             result = sess.execute(stmt).first()
             return result is not None
 
     def id_exists(self, id: str) -> bool:
+        """
+        Validate if a row with this id exists or not
+
+        Args:
+            id (str): Id to check
+        """
         with self.Session.begin() as sess:
             stmt = select(self.table.c.id).where(self.table.c.id == id)
             result = sess.execute(stmt).first()
@@ -142,16 +133,15 @@ class S2VectorDb(VectorDb):
 
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
-
-                # Convert embedding to a JSON array string
                 embedding_json = json.dumps(document.embedding)
+                json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
 
                 stmt = mysql.insert(self.table).values(
                     id=_id,
                     name=document.name,
                     meta_data=meta_data_json,
                     content=cleaned_content,
-                    embedding=embedding_json,  # Properly formatted embedding as a JSON array string
+                    embedding=json_array_pack,
                     usage=usage_json,
                     content_hash=content_hash,
                 )
@@ -159,10 +149,21 @@ class S2VectorDb(VectorDb):
                 counter += 1
                 logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
+            # Commit all documents
             sess.commit()
             logger.debug(f"Committed {counter} documents")
 
+    def upsert_available(self) -> bool:
+        return False
+
     def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
+        """
+        Upsert documents into the database.
+
+        Args:
+            documents (List[Document]): List of documents to upsert
+            batch_size (int): Batch size for upserting documents
+        """
         with self.Session.begin() as sess:
             counter = 0
             for document in documents:
@@ -173,30 +174,23 @@ class S2VectorDb(VectorDb):
 
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
-
-                # Convert embedding to a JSON array string
                 embedding_json = json.dumps(document.embedding)
+                json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
 
                 stmt = mysql.insert(self.table).values(
                     id=_id,
                     name=document.name,
                     meta_data=meta_data_json,
                     content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
-                ).on_duplicate_key_update(
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
+                    embedding=json_array_pack,
                     usage=usage_json,
                     content_hash=content_hash,
                 )
                 sess.execute(stmt)
                 counter += 1
-                logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
+                logger.debug(f"Inserted document: {document.id} | {document.name} | {document.meta_data}")
 
+            # Commit all remaining documents
             sess.commit()
             logger.debug(f"Committed {counter} documents")
 
@@ -210,7 +204,9 @@ class S2VectorDb(VectorDb):
             self.table.c.name,
             self.table.c.meta_data,
             self.table.c.content,
-            self.table.c.embedding,
+            func.json_array_unpack(self.table.c.embedding).label(
+                "embedding"
+            ),  # Unpack embedding here # self.table.c.embedding,
             self.table.c.usage,
         ]
 
@@ -225,7 +221,7 @@ class S2VectorDb(VectorDb):
             stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
         if self.distance == Distance.cosine:
             embedding_json = json.dumps(query_embedding)
-            dot_product_expr = func.dot_product(self.table.c.embedding, text(":embedding"))
+            dot_product_expr = func.dot_product(self.table.c.embedding, text("JSON_ARRAY_PACK(:embedding)"))
             stmt = stmt.order_by(dot_product_expr.desc())
             stmt = stmt.params(embedding=embedding_json)
             # stmt = stmt.order_by(self.table.c.embedding.cosine_distance(query_embedding))
@@ -287,12 +283,11 @@ class S2VectorDb(VectorDb):
             return 0
 
     def optimize(self) -> None:
-        pass 
+        pass
 
     def clear(self) -> bool:
-        from sqlalchemy import delete
-
+        logger.info(f"Deleting table: {self.collection}")
         with self.Session.begin() as sess:
-            stmt = delete(self.table)
+            stmt = self.table.delete()
             sess.execute(stmt)
             return True

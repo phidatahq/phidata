@@ -195,5 +195,5 @@ typing-extensions==4.11.0
     #   typer
 tzdata==2024.1
     # via pandas
-urllib3==2.2.1
+urllib3==1.26.18
     # via requests

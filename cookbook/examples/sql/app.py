@@ -53,6 +53,10 @@ def main() -> None:
         _message = "Which tables do you have access to?"
         st.session_state["messages"].append({"role": "user", "content": _message})
 
+    if st.sidebar.button("Describe tables"):
+        _message = "Tell me more about these tables."
+        st.session_state["messages"].append({"role": "user", "content": _message})
+
     if st.sidebar.button("Most Race Wins"):
         _message = "Which driver has the most race wins?"
         st.session_state["messages"].append({"role": "user", "content": _message})

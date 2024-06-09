@@ -84,4 +84,4 @@ streamlit run cookbook/examples/sql/app.py
 
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 
-### 7. Star ⭐️ the project if you like it.
+### 7. Share with your friends: https://git.new/sql-ai

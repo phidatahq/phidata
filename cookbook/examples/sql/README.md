@@ -60,7 +60,7 @@ it must follow.
 python cookbook/examples/sql/load_knowledge.py
 ```
 
-You are free to add `table_rules` and `column_rules` to the JSON. The Assistant is prompted to follow them.
+For best results, `table_rules` and `column_rules` to the JSON. The Assistant is prompted to follow them.
 This is useful when you want to guide the Assistant to always query date, use a particular format, or avoid certain columns.
 
 You are also free to add sample SQL queries to the `cookbook/examples/sql/knowledge_base/sample_queries.sql` file.
@@ -81,12 +81,6 @@ streamlit run cookbook/examples/sql/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your SQL Assistant.
-
-- Add websites or PDFs and ask question.
-- Example PDF: https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf
-- Example Websites:
-  - https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/?guccounter=1
-  - https://www.theverge.com/2024/4/23/24137534/microsoft-phi-3-launch-small-ai-language-model
 
 ### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
 

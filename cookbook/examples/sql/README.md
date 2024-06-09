@@ -44,13 +44,13 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 4. Load Sample Data
+### 4. Load F1 Data
 
 ```shell
-python cookbook/examples/sql/load_sample_data.py
+python cookbook/examples/sql/load_f1_data.py
 ```
 
-> After testing with sample data, you should update this file to load your own data.
+> After testing with f1 data, you should update this file to load your own data.
 
 ### 5. Load Knowledge Base
 
@@ -68,7 +68,7 @@ This is useful when you want to guide the Assistant to always query date, use a 
 You are also free to add sample SQL queries to the `cookbook/examples/sql/knowledge_base/sample_queries.sql` file.
 This will give the Assistant a head start on how to write complex queries.
 
-> After testing with the sample knowledge base, you should update this file to load your own knowledge base.
+> After testing with the f1 knowledge, you should update this file to load your own knowledge.
 
 ### 4. Export OpenAI API Key
 

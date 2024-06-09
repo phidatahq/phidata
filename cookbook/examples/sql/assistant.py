@@ -40,11 +40,11 @@ assistant_knowledge = CombinedKnowledgeBase(
     sources=[
         # Reads text files, SQL files, and markdown files
         TextKnowledgeBase(
-            path=cwd.joinpath("knowledge_base"),
+            path=cwd.joinpath("knowledge"),
             formats=[".txt", ".sql", ".md"],
         ),
         # Reads JSON files
-        JSONKnowledgeBase(path=cwd.joinpath("knowledge_base")),
+        JSONKnowledgeBase(path=cwd.joinpath("knowledge")),
     ],
     # Store assistant knowledge base in ai.sql_assistant_knowledge table
     vector_db=PgVector2(
@@ -114,22 +114,17 @@ def get_sql_assistant(
         debug_mode=debug_mode,
         add_chat_history_to_messages=True,
         num_history_messages=4,
-        description=dedent(
-            """\
-        You are a SQL expert called `SQrL` and your goal is to analyze data stored in a PostgreSQL database.
-        You have access to a knowledge base with specific information about available tables like metadata and rules that you MUST follow when writing queries.
-        """
-        ),
+        description="You are a SQL expert called `SQrL` and your goal is to analyze data stored in a PostgreSQL database.",
         instructions=[
             "When a user messages you, determine if you need query the database or can respond directly.",
             "If you need to run a query, identify the tables you need to query from the `semantic_model` provided below.",
-            "FIRST, ALWAYS search your knowledge base about the table using the `search_knowledge_base` tool.",
+            "IMPORTANT: ALWAYS use the `search_knowledge_base` tool with the table name as input to get table metadata and rules.",
             "Then, **THINK STEP BY STEP** about how you will write the query. Do not rush into writing a query."
             "Once you have mapped out a **CHAIN OF THOUGHT**, start the process of writing a query.",
             "Using the table information and rules, create one single syntactically correct PostgreSQL query to accomplish your task.",
             "If the `search_knowledge_base` tool returns example queries, use them as a reference.",
-            "If you need more information about a table, use the `describe_table` tool.",
-            "Remember: ALWAYS FOLLOW THE TABLE RULES. NEVER IGNORE THEM. IT IS CRITICAL THAT YOU FOLLOW THE `table rules` if provided.",
+            "If you need more information about the table, use the `describe_table` tool.",
+            "REMEMBER: ALWAYS FOLLOW THE TABLE RULES. NEVER IGNORE THEM. IT IS CRITICAL THAT YOU FOLLOW THE `table rules` if provided.",
             "If you need to join tables, check the `semantic_model` for the relationships between the tables."
             + "\n  - If the `semantic_model` contains a relationship between tables, use that relationship to join the tables even if the column names are different."
             + "\n  - If you cannot find a relationship in the `semantic_model`, use `describe_table` and only join on the columns that have the same name and data type."
@@ -147,8 +142,9 @@ def get_sql_assistant(
         ],
         add_to_system_prompt=dedent(
             f"""
-Additional set of guidelines that you must follow:
+Additional set of guidelines that you MUST follow:
 <rules>
+- You must always get table information from your knowledge base before writing a query.
 - Do not use phrases like "based on the information provided" or "from the knowledge base".
 - Never mention that you are using example queries from the knowledge base.
 - Always show the SQL queries you use to get the answer.

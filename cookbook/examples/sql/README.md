@@ -50,6 +50,8 @@ docker run -d \
 python cookbook/examples/sql/load_sample_data.py
 ```
 
+> After testing with sample data, you should update this file to load your own data.
+
 ### 5. Load Knowledge Base
 
 The SQL Assistant works best when you provide it knowledge about the tables and columns in the database.
@@ -65,6 +67,8 @@ This is useful when you want to guide the Assistant to always query date, use a 
 
 You are also free to add sample SQL queries to the `cookbook/examples/sql/knowledge_base/sample_queries.sql` file.
 This will give the Assistant a head start on how to write complex queries.
+
+> After testing with the sample knowledge base, you should update this file to load your own knowledge base.
 
 ### 4. Export OpenAI API Key
 

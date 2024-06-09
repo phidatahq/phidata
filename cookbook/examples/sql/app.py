@@ -20,12 +20,6 @@ with st.expander(":rainbow[:point_down: Example Questions]"):
     st.markdown("- Show me the races venues per year.")
 
 
-def restart_assistant():
-    st.session_state["sql_assistant"] = None
-    st.session_state["sql_assistant_run_id"] = None
-    st.rerun()
-
-
 def main() -> None:
     # Get the assistant
     sql_assistant: Assistant
@@ -43,7 +37,7 @@ def main() -> None:
     # Create assistant run (i.e. log to database) and save run_id in session state
     st.session_state["sql_assistant_run_id"] = sql_assistant.create_run()
 
-    # Load messages for existing run
+    # Load existing messages
     assistant_chat_history = sql_assistant.memory.get_chat_history()
     if len(assistant_chat_history) > 0:
         logger.debug("Loading chat history")
@@ -74,7 +68,7 @@ def main() -> None:
         st.session_state["messages"].append({"role": "user", "content": _message})
 
     if st.sidebar.button("Races per year"):
-        _message = "Show me the races venues per year. Dont skip any info."
+        _message = "Show me the number of races per venue per year. Dont skip any info."
         st.session_state["messages"].append({"role": "user", "content": _message})
 
     if st.sidebar.button(":orange_heart: This is awesome!"):
@@ -123,6 +117,13 @@ def main() -> None:
     sql_assistant_run_name = sql_assistant.run_name
     if sql_assistant_run_name:
         st.sidebar.write(f":thread: {sql_assistant_run_name}")
+
+
+def restart_assistant():
+    logger.debug("---*--- Restarting Assistant ---*---")
+    st.session_state["sql_assistant"] = None
+    st.session_state["sql_assistant_run_id"] = None
+    st.rerun()
 
 
 main()

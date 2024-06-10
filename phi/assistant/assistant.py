@@ -925,7 +925,9 @@ class Assistant(BaseModel):
         # -*- Save output to file if save_output_to_file is set
         if self.save_output_to_file is not None:
             try:
-                fn = self.save_output_to_file.format(name=self.name, run_id=self.run_id, user_id=self.user_id)
+                fn = self.save_output_to_file.format(
+                    name=self.name, run_id=self.run_id, user_id=self.user_id, message=message
+                )
                 with open(fn, "w") as f:
                     f.write(self.output)
             except Exception as e:

@@ -79,8 +79,8 @@ semantic_model = {
         },
         {
             "table_name": "race_results",
-            "table_description": "Holds comprehensive race data for each Formula 1 race from 1950-2020, including positions, drivers, teams, and points.",
-            "Use Case": "This table is ideal for querying detailed results of each race, including driver standings, teams, and performance metrics across all races.",
+            "table_description": "Race data for each Formula 1 race from 1950-2020, including positions, drivers, teams, and points.",
+            "Use Case": "Use this table answer questions about a drivers career. Race data includes driver standings, teams, and performance.",
         },
         {
             "table_name": "race_wins",

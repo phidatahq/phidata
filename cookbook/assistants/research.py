@@ -1,3 +1,7 @@
+"""
+The research Assistant searches for EXA for a topic
+and writes an article in markdown format.
+"""
 from pathlib import Path
 from textwrap import dedent
 from datetime import datetime

@@ -18,9 +18,8 @@ from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-
-# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
+# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 
 
 class S2VectorDb(VectorDb):

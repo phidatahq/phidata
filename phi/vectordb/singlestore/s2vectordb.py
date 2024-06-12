@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from hashlib import md5
 
 try:
@@ -18,6 +18,7 @@ from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
+
 # from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
 
@@ -112,6 +113,12 @@ class S2VectorDb(VectorDb):
             return False
 
     def doc_exists(self, document: Document) -> bool:
+        """
+        Validating if the document exists or not
+
+        Args:
+            document (Document): Document to validate
+        """
         columns = [self.table.c.name, self.table.c.content_hash]
         with self.Session.begin() as sess:
             cleaned_content = document.content.replace("\x00", "\ufffd")
@@ -120,12 +127,24 @@ class S2VectorDb(VectorDb):
             return result is not None
 
     def name_exists(self, name: str) -> bool:
+        """
+        Validate if a row with this name exists or not
+
+        Args:
+            name (str): Name to check
+        """
         with self.Session.begin() as sess:
             stmt = select(self.table.c.name).where(self.table.c.name == name)
             result = sess.execute(stmt).first()
             return result is not None
 
     def id_exists(self, id: str) -> bool:
+        """
+        Validate if a row with this id exists or not
+
+        Args:
+            id (str): Id to check
+        """
         with self.Session.begin() as sess:
             stmt = select(self.table.c.id).where(self.table.c.id == id)
             result = sess.execute(stmt).first()
@@ -163,6 +182,13 @@ class S2VectorDb(VectorDb):
             logger.debug(f"Committed {counter} documents")
 
     def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
+        """
+        Upsert documents into the database.
+
+        Args:
+            documents (List[Document]): List of documents to upsert
+            batch_size (int): Batch size for upserting documents
+        """
         with self.Session.begin() as sess:
             counter = 0
             for document in documents:
@@ -177,21 +203,25 @@ class S2VectorDb(VectorDb):
                 # Convert embedding to a JSON array string
                 embedding_json = json.dumps(document.embedding)
 
-                stmt = mysql.insert(self.table).values(
-                    id=_id,
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
-                ).on_duplicate_key_update(
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
+                stmt = (
+                    mysql.insert(self.table)
+                    .values(
+                        id=_id,
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
+                    .on_duplicate_key_update(
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
                 )
                 sess.execute(stmt)
                 counter += 1
@@ -287,7 +317,7 @@ class S2VectorDb(VectorDb):
             return 0
 
     def optimize(self) -> None:
-        pass 
+        pass
 
     def clear(self) -> bool:
         from sqlalchemy import delete

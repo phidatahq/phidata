@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from hashlib import md5
 
 try:
@@ -18,6 +18,7 @@ from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
+
 # from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
 
@@ -53,6 +54,12 @@ class S2VectorDb(VectorDb):
         self.table: Table = self.get_table()
 
     def get_table(self) -> Table:
+        """
+        Define the table structure.
+
+        Returns:
+            Table: SQLAlchemy Table object.
+        """
         return Table(
             self.collection,
             self.metadata,
@@ -69,6 +76,9 @@ class S2VectorDb(VectorDb):
         )
 
     def create(self) -> None:
+        """
+        Create the table if it does not exist.
+        """
         if not self.table_exists():
             logger.info(f"Creating table: {self.collection}")
             logger.info(f"""
@@ -104,6 +114,12 @@ class S2VectorDb(VectorDb):
             self.optimize()
 
     def table_exists(self) -> bool:
+        """
+        Check if the table exists.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
             return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
@@ -112,6 +128,12 @@ class S2VectorDb(VectorDb):
             return False
 
     def doc_exists(self, document: Document) -> bool:
+        """
+        Validating if the document exists or not
+
+        Args:
+            document (Document): Document to validate
+        """
         columns = [self.table.c.name, self.table.c.content_hash]
         with self.Session.begin() as sess:
             cleaned_content = document.content.replace("\x00", "\ufffd")
@@ -120,18 +142,37 @@ class S2VectorDb(VectorDb):
             return result is not None
 
     def name_exists(self, name: str) -> bool:
+        """
+        Validate if a row with this name exists or not
+
+        Args:
+            name (str): Name to check
+        """
         with self.Session.begin() as sess:
             stmt = select(self.table.c.name).where(self.table.c.name == name)
             result = sess.execute(stmt).first()
             return result is not None
 
     def id_exists(self, id: str) -> bool:
+        """
+        Validate if a row with this id exists or not
+
+        Args:
+            id (str): Id to check
+        """
         with self.Session.begin() as sess:
             stmt = select(self.table.c.id).where(self.table.c.id == id)
             result = sess.execute(stmt).first()
             return result is not None
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+        """
+        Insert documents into the table.
+
+        Args:
+            documents (List[Document]): List of documents to insert.
+            batch_size (int): Number of documents to insert in each batch.
+        """
         with self.Session.begin() as sess:
             counter = 0
             for document in documents:
@@ -163,6 +204,13 @@ class S2VectorDb(VectorDb):
             logger.debug(f"Committed {counter} documents")
 
     def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
+        """
+        Upsert (insert or update) documents in the table.
+
+        Args:
+            documents (List[Document]): List of documents to upsert.
+            batch_size (int): Number of documents to upsert in each batch.
+        """
         with self.Session.begin() as sess:
             counter = 0
             for document in documents:
@@ -177,21 +225,25 @@ class S2VectorDb(VectorDb):
                 # Convert embedding to a JSON array string
                 embedding_json = json.dumps(document.embedding)
 
-                stmt = mysql.insert(self.table).values(
-                    id=_id,
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
-                ).on_duplicate_key_update(
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=embedding_json,  
-                    usage=usage_json,
-                    content_hash=content_hash,
+                stmt = (
+                    mysql.insert(self.table)
+                    .values(
+                        id=_id,
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
+                    .on_duplicate_key_update(
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
                 )
                 sess.execute(stmt)
                 counter += 1
@@ -201,6 +253,17 @@ class S2VectorDb(VectorDb):
             logger.debug(f"Committed {counter} documents")
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Search for documents based on a query and optional filters.
+
+        Args:
+            query (str): The search query.
+            limit (int): The maximum number of results to return.
+            filters (Optional[Dict[str, Any]]): Optional filters for the search.
+
+        Returns:
+            List[Document]: List of documents that match the query.
+        """
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -271,14 +334,29 @@ class S2VectorDb(VectorDb):
         return search_results
 
     def delete(self) -> None:
+        """
+        Delete the table.
+        """
         if self.table_exists():
             logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
 
     def exists(self) -> bool:
+        """
+        Check if the table exists.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         return self.table_exists()
 
     def get_count(self) -> int:
+        """
+        Get the count of rows in the table.
+
+        Returns:
+            int: The count of rows.
+        """
         with self.Session.begin() as sess:
             stmt = select(func.count(self.table.c.name)).select_from(self.table)
             result = sess.execute(stmt).scalar()
@@ -287,9 +365,15 @@ class S2VectorDb(VectorDb):
             return 0
 
     def optimize(self) -> None:
-        pass 
+        pass
 
     def clear(self) -> bool:
+        """
+        Clear all rows from the table.
+
+        Returns:
+            bool: True if the table was cleared, False otherwise.
+        """
         from sqlalchemy import delete
 
         with self.Session.begin() as sess:

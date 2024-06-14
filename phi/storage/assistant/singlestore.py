@@ -17,7 +17,6 @@ from phi.assistant.run import AssistantRun
 from phi.storage.assistant.base import AssistantStorage
 from phi.utils.log import logger
 
-
 class S2AssistantStorage(AssistantStorage):
     def __init__(
         self,
@@ -99,10 +98,6 @@ class S2AssistantStorage(AssistantStorage):
 
     def create(self) -> None:
         if not self.table_exists():
-            # if self.schema is not None:
-            #     with self.Session() as sess, sess.begin():
-            #         logger.debug(f"Creating schema: {self.schema}")
-            #         sess.execute(text(f"create schema if not exists {self.schema};"))
             logger.info(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
@@ -159,33 +154,106 @@ class S2AssistantStorage(AssistantStorage):
             logger.debug(f"Table does not exist: {self.table.name}")
         return runs
 
+    # def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
+    #     """
+    #     Create a new assistant run if it does not exist, otherwise update the existing assistant.
+    #     """
+
+    #     with self.Session.begin() as sess:
+    #         # Create an insert statement using SingleStore's ON DUPLICATE KEY UPDATE syntax
+    #         upsert_sql = text(
+    #             f"""
+    #         INSERT INTO {self.schema}.{self.table_name}
+    #         (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
+    #         VALUES
+    #         (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
+    #         ON DUPLICATE KEY UPDATE
+    #             name = VALUES(name),
+    #             run_name = VALUES(run_name),
+    #             user_id = VALUES(user_id),
+    #             llm = VALUES(llm),
+    #             memory = VALUES(memory),
+    #             assistant_data = VALUES(assistant_data),
+    #             run_data = VALUES(run_data),
+    #             user_data = VALUES(user_data),
+    #             task_data = VALUES(task_data);
+    #         """
+    #         )
+    #         try:
+    #             logger.info(upsert_sql,
+    #                 {
+    #                     "run_id": row.run_id,
+    #                     "name": row.name,
+    #                     "run_name": row.run_name,
+    #                     "user_id": row.user_id,
+    #                     "llm": json.dumps(row.llm) if row.llm is not None else None,
+    #                     "memory": json.dumps(row.memory) if row.memory is not None else None,
+    #                     "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+    #                     "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+    #                     "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+    #                     "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+    #                 })
+    #             sess.execute(
+    #                 upsert_sql,
+    #                 {
+    #                     "run_id": row.run_id,
+    #                     "name": row.name,
+    #                     "run_name": row.run_name,
+    #                     "user_id": row.user_id,
+    #                     "llm": json.dumps(row.llm) if row.llm is not None else None,
+    #                     "memory": json.dumps(row.memory) if row.memory is not None else None,
+    #                     "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+    #                     "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+    #                     "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+    #                     "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+    #                 },
+    #             )
+    #         except Exception:
+    #             # Create table and try again
+    #             self.create()
+    #             sess.execute(
+    #                 upsert_sql,
+    #                 {
+    #                     "run_id": row.run_id,
+    #                     "name": row.name,
+    #                     "run_name": row.run_name,
+    #                     "user_id": row.user_id,
+    #                     "llm": json.dumps(row.llm) if row.llm is not None else None,
+    #                     "memory": json.dumps(row.memory) if row.memory is not None else None,
+    #                     "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
+    #                     "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
+    #                     "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
+    #                     "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
+    #                 },
+    #             )
+    #     return self.read(run_id=row.run_id)
+
     def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
         """
-        Create a new assistant run if it does not exist, otherwise update the existing assistant.
+        Create a new assistant run if it does not exist, otherwise update the existing conversation.
         """
-
         with self.Session.begin() as sess:
-            # Create an insert statement using SingleStore's ON DUPLICATE KEY UPDATE syntax
-            upsert_sql = text(
-                f"""
-            INSERT INTO {self.schema}.{self.table_name}
-            (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
-            VALUES
-            (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
-            ON DUPLICATE KEY UPDATE
-                name = VALUES(name),
-                run_name = VALUES(run_name),
-                user_id = VALUES(user_id),
-                llm = VALUES(llm),
-                memory = VALUES(memory),
-                assistant_data = VALUES(assistant_data),
-                run_data = VALUES(run_data),
-                user_data = VALUES(user_data),
-                task_data = VALUES(task_data);
-            """
-            )
-
+            upsert_sql = text("""
+                INSERT INTO {self.schema}.{self.table_name}
+                (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_id, task_data)
+                VALUES
+                (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    run_name = VALUES(run_name),
+                    user_id = VALUES(user_id),
+                    llm = VALUES(llm),
+                    memory = VALUES(memory),
+                    assistant_data = VALUES(assistant_data),
+                    run_data = VALUES(run_data),
+                    user_data = VALUES(user_data),
+                    task_data = VALUES(task_data);
+            """)
             try:
+                logger.info(f"Attempting to upsert data with run_id: {row.run_id}")
+                logger.debug(f"Data being upserted: {json.dumps(row.__dict__, default=str)}")  # Convert row data to JSON string for logging
+                
+                # Executing the upsert SQL command
                 sess.execute(
                     upsert_sql,
                     {
@@ -199,26 +267,22 @@ class S2AssistantStorage(AssistantStorage):
                         "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
                         "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
                         "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
-                    },
+                    }
                 )
-            except Exception:
-                # Create table and try again
-                self.create()
-                sess.execute(
-                    upsert_sql,
-                    {
-                        "run_id": row.run_id,
-                        "name": row.name,
-                        "run_name": row.run_name,
-                        "user_id": row.user_id,
-                        "llm": json.dumps(row.llm) if row.llm is not None else None,
-                        "memory": json.dumps(row.memory) if row.memory is not None else None,
-                        "assistant_data": json.dumps(row.assistant_data) if row.assistant_data is not None else None,
-                        "run_data": json.dumps(row.run_data) if row.run_data is not None else None,
-                        "user_data": json.dumps(row.user_data) if row.user_data is not None else None,
-                        "task_data": json.dumps(row.task_data) if row.task_data is not None else None,
-                    },
-                )
+                logger.info(f"Upsert successful for run_id: {row.run_id}")
+            except Exception as e:
+                logger.error(f"Error during upsert operation: {e}")
+
+                # Check if the table exists, create if not, then retry
+                if not self.table_exists():
+                    self.create()
+                    logger.info("Table did not exist; created new table and retrying the upsert.")
+
+                    # Retry the upsert command after ensuring table exists
+                    sess.execute(upsert_sql, {...})  # Ensure parameters are re-filled correctly
+                else:
+                    logger.error("Table exists but upsert failed. Not retrying.")
+
         return self.read(run_id=row.run_id)
 
     def delete(self) -> None:

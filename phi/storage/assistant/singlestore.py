@@ -11,6 +11,8 @@ try:
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import DateTime
+    from sqlalchemy.exc import SQLAlchemyError
+
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -122,7 +124,7 @@ class S2AssistantStorage(AssistantStorage):
         try:
             with self.Session.begin() as sess:
                 # get all run_ids for this user
-                stmt = select(self.table)
+                stmt = select(self.table.c.run_id)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 # order by created_at desc
@@ -132,8 +134,8 @@ class S2AssistantStorage(AssistantStorage):
                 for row in rows:
                     if row is not None and row.run_id is not None:
                         run_ids.append(row.run_id)
-        except Exception:
-            logger.debug(f"Table does not exist: {self.table.name}")
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {str(e)}")
         return run_ids
 
     def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:

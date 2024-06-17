@@ -1,7 +1,5 @@
 import json
-from textwrap import dedent
 from typing import Optional, List, Iterator, Dict, Any
-
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -11,12 +9,11 @@ from phi.utils.timer import Timer
 from phi.utils.tools import (
     get_function_call_for_tool_call,
     extract_tool_from_xml,
-    remove_function_calls_from_string,
 )
 
 try:
     from anthropic import Anthropic as AnthropicClient
-    from anthropic.types import Message as AnthropicMessage
+    from anthropic.types import Message as AnthropicMessage, TextBlock, ToolUseBlock, Usage
 except ImportError:
     logger.error("`anthropic` not installed")
     raise
@@ -69,14 +66,24 @@ class Claude(LLM):
         if self.request_params:
             _request_params.update(self.request_params)
         return _request_params
-    
+
     def get_tools(self):
+        """
+        Refactor the tools in a format accepted by the Anthropic API.
+        """
         if not self.functions:
             return None
-        
-        tools = []
 
+        tools: List = []
         for f_name, function in self.functions.items():
+            required_params = [
+                param_name
+                for param_name, param_info in function.parameters.get("properties", {}).items()
+                if "null"
+                not in (
+                    param_info.get("type") if isinstance(param_info.get("type"), list) else [param_info.get("type")]
+                )
+            ]
             tools.append(
                 {
                     "name": f_name,
@@ -84,20 +91,18 @@ class Claude(LLM):
                     "input_schema": {
                         "type": function.parameters.get("type") or "object",
                         "properties": {
-                            k: {
-                                "type": v.get("type") or "",
-                                "description": v.get("description") or "",
+                            param_name: {
+                                "type": param_info.get("type") or "",
+                                "description": param_info.get("description") or "",
                             }
-                            for k, v in function.parameters.get("properties", {}).items()
+                            for param_name, param_info in function.parameters.get("properties", {}).items()
                         },
-                        "required": list(function.parameters.get("properties", {}).keys())
-                    }
+                        "required": required_params,
+                    },
                 }
             )
-
         return tools
 
-            
     def invoke(self, messages: List[Message]) -> AnthropicMessage:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_messages: List[dict] = []
@@ -113,7 +118,7 @@ class Claude(LLM):
 
         return self.client.messages.create(
             model=self.model,
-            messages=api_messages,
+            messages=api_messages,  # type: ignore
             **api_kwargs,
         )
 
@@ -129,7 +134,7 @@ class Claude(LLM):
 
         return self.client.messages.stream(
             model=self.model,
-            messages=api_messages,
+            messages=api_messages,  # type: ignore
             **api_kwargs,
         )
 
@@ -146,19 +151,19 @@ class Claude(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Parse response
-        response_content = response.content[0].text
+        response_content: TextBlock = response.content[0].text  # type: ignore
 
         # -*- Create assistant message
         assistant_message = Message(
             role=response.role or "assistant",
-            content=response_content,      
+            content=response_content,
         )
 
         logger.debug(f"Response: {response}")
 
         # Check if the response contains a tool call
         if response.stop_reason == "tool_use":
-            tool_use = response.content[-1]
+            tool_use: ToolUseBlock = response.content[-1]  # type: ignore
             tool_name = tool_use.name
             tool_input = tool_use.input
             tool_id = tool_use.id
@@ -176,12 +181,10 @@ class Claude(LLM):
                 }
             )
 
-            assistant_message.content = tool_use
+            assistant_message.content = response.content  # type: ignore
 
             if len(tool_calls) > 0:
                 assistant_message.tool_calls = tool_calls
-
-        logger.debug(f"Tool Calls: {tool_calls}")
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -189,6 +192,23 @@ class Claude(LLM):
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
+
+        # Add token usage to metrics
+        response_usage: Usage = response.usage
+        input_tokens = response_usage.input_tokens if response_usage else None
+        if input_tokens:
+            assistant_message.metrics["input_tokens"] = input_tokens
+            if "input_tokens" not in self.metrics:
+                self.metrics["input_tokens"] = input_tokens
+            else:
+                self.metrics["input_tokens"] += input_tokens
+        output_tokens = response_usage.output_tokens if response_usage else None
+        if output_tokens:
+            assistant_message.metrics["output_tokens"] = output_tokens
+            if "output_tokens" not in self.metrics:
+                self.metrics["output_tokens"] = output_tokens
+            else:
+                self.metrics["output_tokens"] += output_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -232,8 +252,6 @@ class Claude(LLM):
                     )
 
                 messages.append(Message(role="user", content=fc_responses))
-
-            logger.debug(f"Messages: {messages}")
 
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages)

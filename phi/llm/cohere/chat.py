@@ -256,9 +256,7 @@ class CohereChat(LLM):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    ToolResult(
-                        call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}]
-                    )
+                    ToolResult(call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}])
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
                 messages.append(Message(role="user", content="Tool result"))
@@ -273,9 +271,7 @@ class CohereChat(LLM):
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
-    def response_stream(
-        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
-    ) -> Any:
+    def response_stream(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> Any:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -362,9 +358,7 @@ class CohereChat(LLM):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    ToolResult(
-                        call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}]
-                    )
+                    ToolResult(call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}])
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
                 messages.append(Message(role="user", content="Tool result"))

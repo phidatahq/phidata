@@ -6,5 +6,6 @@ assistant = Assistant(
     llm=Claude(model="claude-3-opus-20240229"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
+    debug_mode=True
 )
-assistant.print_response("Whats happening in France?", markdown=True)
+assistant.print_response("Whats happening in France?", markdown=True, stream=False)

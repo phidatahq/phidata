@@ -69,35 +69,7 @@ class Claude(LLM):
         if self.request_params:
             _request_params.update(self.request_params)
         return _request_params
-    
-    def get_tools(self):
-        if not self.functions:
-            return None
-        
-        tools = []
 
-        for f_name, function in self.functions.items():
-            tools.append(
-                {
-                    "name": f_name,
-                    "description": function.description or "",
-                    "input_schema": {
-                        "type": function.parameters.get("type") or "object",
-                        "properties": {
-                            k: {
-                                "type": v.get("type") or "",
-                                "description": v.get("description") or "",
-                            }
-                            for k, v in function.parameters.get("properties", {}).items()
-                        },
-                        "required": list(function.parameters.get("properties", {}).keys())
-                    }
-                }
-            )
-
-        return tools
-
-            
     def invoke(self, messages: List[Message]) -> AnthropicMessage:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_messages: List[dict] = []
@@ -107,9 +79,6 @@ class Claude(LLM):
                 api_kwargs["system"] = m.content
             else:
                 api_messages.append({"role": m.role, "content": m.content or ""})
-
-        if self.tools:
-            api_kwargs["tools"] = self.get_tools()
 
         return self.client.messages.create(
             model=self.model,
@@ -151,35 +120,44 @@ class Claude(LLM):
         # -*- Create assistant message
         assistant_message = Message(
             role=response.role or "assistant",
-            content=response_content,      
+            content=response_content,
         )
 
-        logger.debug(f"Response: {response}")
-
         # Check if the response contains a tool call
-        if response.stop_reason == "tool_use":
-            tool_use = response.content[-1]
-            tool_name = tool_use.name
-            tool_input = tool_use.input
-            tool_id = tool_use.id
+        try:
+            if response_content is not None:
+                if "<function_calls>" in response_content:
+                    # List of tool calls added to the assistant message
+                    tool_calls: List[Dict[str, Any]] = []
 
-            # List of tool calls added to the assistant message
-            tool_calls: List[Dict[str, Any]] = []
+                    # Add function call closing tag to the assistant message
+                    # This is because we add </function_calls> as a stop sequence
+                    assistant_message.content += "</function_calls>"  # type: ignore
 
-            function_def = {"name": tool_name}
-            if tool_input:
-                function_def["arguments"] = json.dumps(tool_input)
-            tool_calls.append(
-                {
-                    "type": "function",
-                    "function": function_def,
-                }
-            )
+                    # If the assistant is calling multiple functions, the response will contain multiple <invoke> tags
+                    response_content = response_content.split("</invoke>")
+                    for tool_call_response in response_content:
+                        if "<invoke>" in tool_call_response:
+                            # Extract tool call string from response
+                            tool_call_dict = extract_tool_from_xml(tool_call_response)
+                            tool_call_name = tool_call_dict.get("tool_name")
+                            tool_call_args = tool_call_dict.get("parameters")
+                            function_def = {"name": tool_call_name}
+                            if tool_call_args is not None:
+                                function_def["arguments"] = json.dumps(tool_call_args)
+                            tool_calls.append(
+                                {
+                                    "type": "function",
+                                    "function": function_def,
+                                }
+                            )
+                            logger.debug(f"Tool Calls: {tool_calls}")
 
-            assistant_message.content = tool_use
-
-            if len(tool_calls) > 0:
-                assistant_message.tool_calls = tool_calls
+                    if len(tool_calls) > 0:
+                        assistant_message.tool_calls = tool_calls
+        except Exception as e:
+            logger.warning(e)
+            pass
 
         logger.debug(f"Tool Calls: {tool_calls}")
 
@@ -197,7 +175,7 @@ class Claude(LLM):
         # -*- Parse and run function call
         if assistant_message.tool_calls is not None and self.run_tools:
             # Remove the tool call from the response content
-            final_response = ""
+            final_response = remove_function_calls_from_string(assistant_message.content)  # type: ignore
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -220,20 +198,16 @@ class Claude(LLM):
 
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
             if len(function_call_results) > 0:
-                fc_responses: List = []
+                fc_responses = "<function_results>"
 
                 for _fc_message in function_call_results:
-                    fc_responses.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": _fc_message.content,
-                        }
-                    )
+                    fc_responses += "<result>"
+                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"  # type: ignore
+                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"  # type: ignore
+                    fc_responses += "</result>"
+                fc_responses += "</function_results>"
 
                 messages.append(Message(role="user", content=fc_responses))
-
-            logger.debug(f"Messages: {messages}")
 
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages)
@@ -393,3 +367,49 @@ class Claude(LLM):
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages)
         logger.debug("---------- Claude Response End ----------")
+
+    def get_tool_call_prompt(self) -> Optional[str]:
+        if self.functions is not None and len(self.functions) > 0:
+            tool_call_prompt = dedent(
+                """\
+            In this environment you have access to a set of tools you can use to answer the user's question.
+
+            You may call them like this:
+            <function_calls>
+            <invoke>
+            <tool_name>$TOOL_NAME</tool_name>
+            <parameters>
+            <$PARAMETER_NAME>$PARAMETER_VALUE</$PARAMETER_NAME>
+            ...
+            </parameters>
+            </invoke>
+            </function_calls>
+            """
+            )
+            tool_call_prompt += "\nHere are the tools available:"
+            tool_call_prompt += "\n<tools>"
+            for _f_name, _function in self.functions.items():
+                _function_def = _function.get_definition_for_prompt_dict()
+                if _function_def:
+                    tool_call_prompt += "\n<tool_description>"
+                    tool_call_prompt += f"\n<tool_name>{_function_def.get('name')}</tool_name>"
+                    tool_call_prompt += f"\n<description>{_function_def.get('description')}</description>"
+                    arguments = _function_def.get("arguments")
+                    if arguments:
+                        tool_call_prompt += "\n<parameters>"
+                        for arg in arguments:
+                            tool_call_prompt += "\n<parameter>"
+                            tool_call_prompt += f"\n<name>{arg}</name>"
+                            if isinstance(arguments.get(arg).get("type"), str):
+                                tool_call_prompt += f"\n<type>{arguments.get(arg).get('type')}</type>"
+                            else:
+                                tool_call_prompt += f"\n<type>{arguments.get(arg).get('type')[0]}</type>"
+                            tool_call_prompt += "\n</parameter>"
+                    tool_call_prompt += "\n</parameters>"
+                    tool_call_prompt += "\n</tool_description>"
+            tool_call_prompt += "\n</tools>"
+            return tool_call_prompt
+        return None
+
+    def get_system_prompt_from_llm(self) -> Optional[str]:
+        return self.get_tool_call_prompt()

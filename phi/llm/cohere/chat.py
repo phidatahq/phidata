@@ -240,6 +240,9 @@ class CohereChat(LLM):
                 assistant_message.metrics["output_tokens"] = output_tokens
                 self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
 
+            if input_tokens is not None and output_tokens is not None:
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
@@ -366,6 +369,9 @@ class CohereChat(LLM):
             if output_tokens is not None:
                 assistant_message.metrics["output_tokens"] = output_tokens
                 self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+
+            if input_tokens is not None and output_tokens is not None:
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

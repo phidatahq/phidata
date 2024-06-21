@@ -78,6 +78,6 @@ hn_workflow = Workflow(
         Task(description="Get information about hackernews users", assistant=hn_user_researcher, show_output=False),
         Task(description="Write an engaging article", assistant=article_writer),
     ],
-    debug_mode=True,
+    # debug_mode=True,
 )
 hn_workflow.print_response("Write a report about the users with the top 2 stories on hackernews", markdown=True)

@@ -4,10 +4,16 @@ from phi.llm.groq import Groq
 
 assistant = Assistant(
     llm=Groq(model="llama3-70b-8192"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True, company_news=True)],
+    tools=[
+        YFinanceTools(
+            stock_price=True,
+            analyst_recommendations=True,
+            stock_fundamentals=True,
+            company_news=True,
+            company_info=True,
+        )
+    ],
     show_tool_calls=True,
+    markdown=True,
 )
-assistant.cli_app(markdown=True, stream=False, user="Groq")
-# assistant.print_response("What's the NVDA stock price", markdown=True, stream=False)
-# assistant.print_response("Share NVDA analyst recommendations", markdown=True, stream=False)
-# assistant.print_response("Summarize fundamentals for TSLA", markdown=True, stream=False)
+assistant.cli_app(user="Groq")

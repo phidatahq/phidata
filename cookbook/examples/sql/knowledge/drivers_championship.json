@@ -14,27 +14,27 @@
         },
         {
             "name": "position",
-            "type": "varchar",
+            "type": "text",
             "description": "Final position of the driver in the championship."
         },
         {
             "name": "name",
-            "type": "varchar",
+            "type": "text",
             "description": "Full name of the driver."
         },
         {
             "name": "driver_tag",
-            "type": "varchar",
+            "type": "text",
             "description": "Abbreviated tag of the driver."
         },
         {
             "name": "nationality",
-            "type": "varchar",
+            "type": "text",
             "description": "Nationality of the driver."
         },
         {
             "name": "team",
-            "type": "varchar",
+            "type": "text",
             "description": "Racing team of the driver."
         },
         {

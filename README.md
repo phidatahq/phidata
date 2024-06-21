@@ -12,14 +12,26 @@ Build AI Assistants with memory, knowledge and tools
 
 **Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory, contextual knowledge and the ability to take actions using function calling.
 
+Use phidata to turn any LLM into an AI Assistant that can:
+- **Search the web** using DuckDuckGo, Google etc.
+- **Analyze data** using SQL, DuckDb, etc.
+- **Conduct research** and generate reports.
+- **Answer questions** from PDFs, APIs, etc.
+- **Write scripts** for movies, books, etc.
+- **Summarize** articles, videos, etc.
+- **Perform tasks** like sending emails, querying databases, etc.
+- **And much more...**
+
 ## Why phidata?
 
-**Problem:** LLMs have limited context and cannot take actions.
+**Problem:** We need to turn general-purpose LLMs into specialized assistants for our use-case.
 
-**Solution:** Add memory, knowledge and tools.
+**Solution:** Extend LLMs with memory, knowledge and tools:
 - **Memory:** Stores **chat history** in a database and enables LLMs to have long-term conversations.
 - **Knowledge:** Stores information in a vector database and provides LLMs with **business context**.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
+
+Memory & knowledge make LLMs **smarter** while tools make them **autonomous**.
 
 ## How it works
 
@@ -34,7 +46,9 @@ Build AI Assistants with memory, knowledge and tools
 pip install -U phidata
 ```
 
-## Quickstart: Assistant that can search the web
+## Quickstart
+
+### Assistant that can search the web
 
 Create a file `assistant.py`
 
@@ -56,7 +70,34 @@ export OPENAI_API_KEY=sk-xxxx
 python assistant.py
 ```
 
-## Documentation and Support
+### Assistant that can query financial data
+
+Create a file `finance_assistant.py`
+
+```python
+from phi.assistant import Assistant
+from phi.llm.openai import OpenAIChat
+from phi.tools.yfinance import YFinanceTools
+
+assistant = Assistant(
+    llm=OpenAIChat(model="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    show_tool_calls=True,
+    markdown=True,
+)
+assistant.print_response("What is the stock price of NVDA")
+assistant.print_response("Write a comparison between NVDA and AMD, use all tools available.")
+```
+
+Install libraries and run the `Assistant`
+
+```shell
+pip install yfinance
+
+python finance_assistant.py
+```
+
+## More information
 
 - Read the docs at <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs.phidata.com</a>
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
@@ -65,7 +106,7 @@ python assistant.py
 
 - [LLM OS](https://github.com/phidatahq/phidata/tree/main/cookbook/llm_os): Using LLMs as the CPU for an emerging Operating System.
 - [Autonomous RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/examples/auto_rag): Gives LLMs tools to search its knowledge, web or chat history.
-- [Local RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/ollama/rag): Fully local RAG with Ollama and PgVector.
+- [Local RAG](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/ollama/rag): Fully local RAG with Llama3 on Ollama and PgVector.
 - [Investment Researcher](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/investment_researcher): Generate investment reports on stocks using Llama3 and Groq.
 - [News Articles](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/news_articles): Write News Articles using Llama3 and Groq.
 - [Video Summaries](https://github.com/phidatahq/phidata/tree/main/cookbook/llms/groq/video_summary): YouTube video summaries using Llama3 and Groq.
@@ -75,7 +116,7 @@ python assistant.py
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 The `PythonAssistant` can achieve tasks by writing and running python code.
 
@@ -113,7 +154,7 @@ python python_assistant.py
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 The `DuckDbAssistant` can perform data analysis using SQL.
 
@@ -152,11 +193,11 @@ python data_assistant.py
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 One of our favorite LLM features is generating structured data (i.e. a pydantic model) from text. Use this feature to extract features, generate movie scripts, produce fake data etc.
 
-Let's create an Movie Assistant to write a `MovieScript` for us.
+Let's create a Movie Assistant to write a `MovieScript` for us.
 
 - Create a file `movie_assistant.py`
 
@@ -207,7 +248,7 @@ MovieScript(
 
 <details>
 
-<summary>Show details</summary>
+<summary>Show code</summary>
 
 Lets create a PDF Assistant that can answer questions from a PDF. We'll use `PgVector` for knowledge and storage.
 
@@ -237,7 +278,6 @@ docker run -d \
 
 ```python
 import typer
-from rich.prompt import Prompt
 from typing import Optional, List
 from phi.assistant import Assistant
 from phi.storage.assistant.postgres import PgAssistantStorage
@@ -344,11 +384,19 @@ Checkout the following AI Applications built using phidata:
 
 ## Tutorials
 
+### LLM OS with gpt-4o
+
 [![Building the LLM OS with gpt-4o](https://img.youtube.com/vi/6g2KLvwHZlU/0.jpg)](https://www.youtube.com/watch?v=6g2KLvwHZlU "LLM OS")
+
+### Autonomous RAG
 
 [![Autonomous RAG](https://img.youtube.com/vi/fkBkNWivq-s/0.jpg)](https://www.youtube.com/watch?v=fkBkNWivq-s "Autonomous RAG")
 
+### Local RAG with Llama3
+
 [![Local RAG with Llama3](https://img.youtube.com/vi/-8NVHaKKNkM/0.jpg)](https://www.youtube.com/watch?v=-8NVHaKKNkM "Local RAG with Llama3")
+
+### Llama3 Research Assistant powered by Groq
 
 [![Llama3 Research Assistant powered by Groq](https://img.youtube.com/vi/Iv9dewmcFbs/0.jpg)](https://www.youtube.com/watch?v=Iv9dewmcFbs "Llama3 Research Assistant powered by Groq")
 

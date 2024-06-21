@@ -925,7 +925,9 @@ class Assistant(BaseModel):
         # -*- Save output to file if save_output_to_file is set
         if self.save_output_to_file is not None:
             try:
-                fn = self.save_output_to_file.format(name=self.name, run_id=self.run_id, user_id=self.user_id)
+                fn = self.save_output_to_file.format(
+                    name=self.name, run_id=self.run_id, user_id=self.user_id, message=message
+                )
                 with open(fn, "w") as f:
                     f.write(self.output)
             except Exception as e:
@@ -1273,13 +1275,13 @@ class Assistant(BaseModel):
     # Default Tools
     ###########################################################################
 
-    def get_chat_history(self, num_chats: int = 3) -> str:
+    def get_chat_history(self, num_chats: Optional[int] = None) -> str:
         """Use this function to get the chat history between the user and assistant.
 
         Args:
             num_chats: The number of chats to return.
                 Each chat contains 2 messages. One from the user and one from the assistant.
-                Default: 3
+                Default: None
 
         Returns:
             str: A JSON of a list of dictionaries representing the chat history.

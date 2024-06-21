@@ -13,16 +13,15 @@ from assistant import get_personalized_assistant  # type: ignore
 
 nest_asyncio.apply()
 st.set_page_config(
-    page_title="Assistant with Memory",
+    page_title="Personalized Agentic RAG",
     page_icon=":orange_heart:",
 )
-st.title("Assistant with Personalized Memory")
+st.title("Personalized Agentic RAG")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 with st.expander(":rainbow[:point_down: How to use]"):
     st.markdown("Tell the Assistant about your preferences and they will remember them across conversations.")
-    st.markdown("- Refer to me as bestie")
-    st.markdown("- Always respond with a nice greeting and salutation")
+    st.markdown("- I live in New York so always include a New York reference in the response")
     st.markdown("- I like dogs so always include a dog pun in the response")
 
 

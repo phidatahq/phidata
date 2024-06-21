@@ -1,6 +1,6 @@
 {
     "table_name": "constructors_championship",
-    "table_description": "Contains data for the constructor's championship from 1958 to 2020, capturing championship standings from when it was introduced.",
+    "table_description": "Contains data for the constructor's championship from 1958 to 2020, capturing championship positions from when it was introduced.",
     "table_columns": [
       {
           "name": "index",
@@ -14,12 +14,12 @@
       },
       {
           "name": "position",
-          "type": "varchar",
-          "description": "Final standing position of the team in the championship."
+          "type": "int",
+          "description": "Final standing position of the team in the championship. Use position = 1 to get the champion team."
       },
       {
           "name": "team",
-          "type": "varchar",
+          "type": "text",
           "description": "Name of the Formula 1 team."
       },
       {

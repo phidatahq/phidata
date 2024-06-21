@@ -8,7 +8,9 @@ try:
     from llama_index.core.schema import NodeWithScore
     from llama_index.core.retrievers import BaseRetriever
 except ImportError:
-    raise ImportError("The `llama-index-core` package is not installed. Please install it via `pip install langchain`.")
+    raise ImportError(
+        "The `llama-index-core` package is not installed. Please install it via `pip install llama-index-core`."
+    )
 
 
 class LlamaIndexKnowledgeBase(AssistantKnowledge):

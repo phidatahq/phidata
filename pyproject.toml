@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.21"
+version = "2.4.22"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"

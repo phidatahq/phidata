@@ -2,7 +2,6 @@ import json
 import httpx
 
 from phi.assistant import Assistant
-from phi.workflow import Workflow, Task
 from phi.utils.log import logger
 
 
@@ -59,25 +58,22 @@ def get_user_details(username: str) -> str:
 hn_top_stories = Assistant(
     name="HackerNews Top Stories",
     tools=[get_top_hackernews_stories],
+    role="Get the top stories on Hacker News.",
     show_tool_calls=True,
 )
 hn_user_researcher = Assistant(
     name="HackerNews User Researcher",
     tools=[get_user_details],
+    role="Get information about Hacker News users.",
     show_tool_calls=True,
 )
-article_writer = Assistant(
-    name="Article Writer",
-    save_output_to_file="wip/hackernews_article_{run_id}.txt",
-)
 
-hn_workflow = Workflow(
-    name="HackerNews Workflow",
-    tasks=[
-        Task(description="Get top hackernews stories", assistant=hn_top_stories, show_output=False),
-        Task(description="Get information about hackernews users", assistant=hn_user_researcher, show_output=False),
-        Task(description="Write an engaging article", assistant=article_writer),
-    ],
-    debug_mode=True,
+hn_assistant = Assistant(
+    name="HackerNews Assistant",
+    team=[hn_top_stories, hn_user_researcher],
+    show_tool_calls=True,
+    save_output_to_file="wip/hackernews_output.md",
 )
-hn_workflow.print_response("Write a report about the users with the top 2 stories on hackernews", markdown=True)
+hn_assistant.print_response(
+    "Write an engaging article about the users with the top 2 stories on hackernews", markdown=True
+)

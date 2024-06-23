@@ -1,4 +1,5 @@
 from typing import Any, Dict, Union, get_args, get_origin, Optional
+from datetime import datetime
 
 from phi.utils.log import logger
 
@@ -18,6 +19,8 @@ def get_json_type_for_py_type(arg: str) -> str:
         return "string"
     elif arg == "bool":
         return "boolean"
+    elif arg == "datetime":
+        return "string"
     elif arg in ("NoneType", "None"):
         return "null"
     return arg
@@ -39,7 +42,10 @@ def get_json_schema_for_arg(t: Any) -> Optional[Any]:
         elif type_origin == Union:
             json_schema = {"type": [get_json_type_for_py_type(arg.__name__) for arg in type_args]}
     else:
-        json_schema = {"type": get_json_type_for_py_type(t.__name__)}
+        if t == datetime:
+            json_schema = {"type": "string", "format": "date-time"}
+        else:
+            json_schema = {"type": get_json_type_for_py_type(t.__name__)}
     return json_schema
 
 

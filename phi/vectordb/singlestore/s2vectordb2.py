@@ -51,6 +51,12 @@ class S2VectorDb(VectorDb):
         self.table: Table = self.get_table()
 
     def get_table(self) -> Table:
+        """
+        Define the table structure.
+
+        Returns:
+            Table: SQLAlchemy Table object.
+        """
         return Table(
             self.collection,
             self.metadata,
@@ -67,6 +73,12 @@ class S2VectorDb(VectorDb):
         )
 
     def table_exists(self) -> bool:
+        """
+        Check if the table exists.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
             return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
@@ -75,6 +87,9 @@ class S2VectorDb(VectorDb):
             return False
 
     def create(self) -> None:
+        """
+        Create the table if it does not exist.
+        """
         if not self.table_exists():
             # with self.Session() as sess:
             #     with sess.begin():
@@ -123,6 +138,13 @@ class S2VectorDb(VectorDb):
             return result is not None
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+        """
+        Insert documents into the table.
+
+        Args:
+            documents (List[Document]): List of documents to insert.
+            batch_size (int): Number of documents to insert in each batch.
+        """
         with self.Session.begin() as sess:
             counter = 0
             for document in documents:
@@ -195,6 +217,17 @@ class S2VectorDb(VectorDb):
             logger.debug(f"Committed {counter} documents")
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Search for documents based on a query and optional filters.
+
+        Args:
+            query (str): The search query.
+            limit (int): The maximum number of results to return.
+            filters (Optional[Dict[str, Any]]): Optional filters for the search.
+
+        Returns:
+            List[Document]: List of documents that match the query.
+        """
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -267,14 +300,29 @@ class S2VectorDb(VectorDb):
         return search_results
 
     def delete(self) -> None:
+        """
+        Delete the table.
+        """
         if self.table_exists():
             logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
 
     def exists(self) -> bool:
+        """
+        Check if the table exists.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         return self.table_exists()
 
     def get_count(self) -> int:
+        """
+        Get the count of rows in the table.
+
+        Returns:
+            int: The count of rows.
+        """
         with self.Session.begin() as sess:
             stmt = select(func.count(self.table.c.name)).select_from(self.table)
             result = sess.execute(stmt).scalar()
@@ -286,6 +334,12 @@ class S2VectorDb(VectorDb):
         pass
 
     def clear(self) -> bool:
+        """
+        Clear all rows from the table.
+
+        Returns:
+            bool: True if the table was cleared, False otherwise.
+        """
         logger.info(f"Deleting table: {self.collection}")
         with self.Session.begin() as sess:
             stmt = self.table.delete()

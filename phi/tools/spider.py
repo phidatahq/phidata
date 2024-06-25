@@ -1,5 +1,5 @@
 import json
-from spider import Spider as ExternalSpider
+from spider import Spider as ExternalSpider  # type: ignore
 from typing import Optional
 
 from phi.tools.toolkit import Toolkit

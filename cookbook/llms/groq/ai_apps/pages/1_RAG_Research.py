@@ -10,6 +10,9 @@ from phi.document.reader.website import WebsiteReader
 from phi.utils.log import logger
 
 from assistants import get_rag_research_assistant  # type: ignore
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(
     page_title="RAG Research Assistant",

@@ -1,6 +1,9 @@
 from textwrap import dedent
 from phi.llm.groq import Groq
 from phi.assistant import Assistant
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 
 def get_chunk_summarizer(

@@ -1,0 +1,99 @@
+Metadata-Version: 2.1
+Name: tavily-python
+Version: 0.3.3
+Summary: Python wrapper for the Tavily API
+Home-page: https://github.com/assafelovic/tavily-python
+Author: Rotem Weiss
+Author-email: support@tavily.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/x-rst
+Requires-Dist: requests
+Requires-Dist: tiktoken (<1,>=0.5.2)
+
+=======================
+Tavily Python Wrapper
+=======================
+
+This Python wrapper allows for easy interaction with the Tavily API, offering both basic and advanced search functionalities directly from your Python programs. Easily integrate smart search capabilities into your applications, harnessing Tavily's powerful search features.
+
+Installing
+----------
+
+.. code-block:: bash
+
+    pip install tavily-python
+
+Usage
+-----
+
+.. code-block:: python
+
+    from tavily import TavilyClient
+    tavily = TavilyClient(api_key="YOUR_API_KEY")
+    # For basic search:
+    tavily.search(query="Should I invest in Apple right now?")
+    # For advanced search:
+    tavily.search(query="Should I invest in Apple right now?", search_depth="advanced")
+
+Additional Methods
+~~~~~~~~~~~~~~~~~~
+.. code-block:: python
+
+    # You can easily get search result context based on any max tokens straight into your RAG.
+    # The response is a string of the context within the max_token limit.
+    tavily.get_search_context(query="What happened in the burning man floods?", search_depth="advanced", max_tokens=1500)
+
+    # You can also get a simple answer to a question including relevant sources all with a simple function call:
+    tavily.qna_search(query="Where does Messi play right now?")
+
+    # By leveraging our topic API, you can search for an aggregation of company information such as news, financial and more in one call:
+    tavily.get_company_info(query="Information about Nvidia nvidia.com", search_depth="advanced", max_results=7)
+
+API Methods
+-----------
+
+Client
+~~~~~~
+
+The ``Client`` class is the entry point to interacting with the Tavily API. Kickstart your journey by instantiating it with your API key.
+
+Methods
+~~~~~~~
+
+- ``search(query, search_depth, **kwargs)``: Performs a search using the specified query. The depth of the search can be controlled by the ``search_depth`` parameter.
+- ``get_search_context(query, search_depth, max_tokens, **kwargs)``: Performs a search and returns a string of content and sources within token limit. Useful for getting only related content from retrieved websites without having to deal with context extraction and token management.
+- ``qna_search(query, **kwargs)``: Performs a search and returns a string containing an answer to the original query including relevant sources. Optimal to be used as a tool for AI agents.
+- ``get_company_info(query, **kwargs)``: Performs a cross topic (news, financial, etc) search about a given company.
+
+Keyword Arguments
+~~~~~~~~~~~~~~~~~
+
+- ``search_depth`` (str): The depth of the search. It can be "basic" or "advanced". Default is "basic".
+- ``topic`` (str): The topic of the search - can be "general", "finance", "code", and "news". Default is "general".
+- ``max_results`` (int): The number of search results to return. Default is 10.
+- ``include_domains`` (list): A list of domains to specifically include in the search results. Default is None, which includes all domains.
+- ``exclude_domains`` (list): A list of domains to specifically exclude from the search results. Default is None, which doesn't exclude any domains.
+- ``include_answer`` (bool): Whether or not to include answers in the search results. Default is False.
+- ``include_raw_content`` (bool): Whether or not to include raw content in the search results. Default is False.
+- ``include_images`` (bool): Whether or not to include images in the search results. Default is False.
+- ``use_cache`` (bool): Whether or not to use tavily's cache for faster results. Default is True.
+
+Both methods internally call the ``_search`` method to communicate with the API.
+
+Error Handling
+--------------
+
+In case of an unsuccessful HTTP request, a ``HTTPError`` will be raised.
+
+License
+-------
+
+This project is licensed under the terms of the MIT license.
+
+Contact
+-------
+
+For questions, support, or to learn more, please visit `Tavily <http://tavily.com>`_.

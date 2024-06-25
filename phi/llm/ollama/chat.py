@@ -348,7 +348,7 @@ class Ollama(LLM):
             self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
         # Add token usage to metrics
-        # Currently there is a bug in  Ollama where sometimes the input tokens are not returned
+        # Currently there is a bug in Ollama where sometimes the input tokens are not returned
         input_tokens = response_metrics.get("prompt_eval_count", 0)
         output_tokens = response_metrics.get("eval_count", 0)
 

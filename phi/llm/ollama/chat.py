@@ -417,10 +417,10 @@ class Ollama(LLM):
                 ),
                 "To use a tool, just respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",
                 "After you use a tool, the next message you get will contain the result of the tool call.",
+                "REMEMBER: Avoid suggesting direct function calls or tool usage in your responses. Call them to obtain accurate answers.",
+                "REMEMBER: Ensure accuracy by avoiding assumptions about function outputs. Call them to obtain your answers."
                 "REMEMBER: To use a tool, you must respond only in JSON format.",
                 "After you use a tool and receive the result back, respond regularly to answer the users question.",
-                "Instead of making assumptions about function outputs, call them to obtain your answers.",
-                "Avoid suggesting direct function calls or usage for the user.",
             ]
         return []
 

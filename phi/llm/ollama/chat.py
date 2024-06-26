@@ -419,6 +419,8 @@ class Ollama(LLM):
                 "After you use a tool, the next message you get will contain the result of the tool call.",
                 "REMEMBER: To use a tool, you must respond only in JSON format.",
                 "After you use a tool and receive the result back, respond regularly to answer the users question.",
+                "Instead of making assumptions about function outputs, call them to obtain your answers.",
+                "Avoid suggesting direct function calls or usage for the user.",
             ]
         return []
 

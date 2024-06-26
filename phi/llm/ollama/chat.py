@@ -382,7 +382,18 @@ class Ollama(LLM):
                 break
         if original_user_message_content is not None:
             _content = (
-                "Using the results of the tools above, respond to the following message:"
+                # "Using the results of the tools above, respond to the following message. "
+                # "Make sure to incorporate key information from the JSON result and avoid returning the JSON itself. "
+                # "Structure your response to address the user's query comprehensively:"
+
+                # "Using the results of the tools above, provide a detailed response to the following message. "
+                # "Include relevant information from the JSON result and present it as a cohesive answer. "
+                # "Do not return the JSON itself:"
+
+                "Using the results of the tools above, respond to the following message. "
+                "If the user explicitly requests raw data or specific formats like JSON, provide it as requested. "
+                "Otherwise, use the tool results to provide a detailed and cohesive answer without returning the raw results directly:"
+                
                 f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
             )
             messages.append(Message(role="user", content=_content))
@@ -399,7 +410,7 @@ class Ollama(LLM):
                     {
                         "tool_calls": [{
                             "name": "<name of the selected tool>",
-                            "arguments": <parameters for the selected tool, matching the tool's JSON schema
+                            "arguments": <parameters for the selected tool, matching the tool's JSON schema>
                         }]
                     }\
                     """

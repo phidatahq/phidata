@@ -2,6 +2,8 @@ import json
 from textwrap import dedent
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
+from pydantic import BaseModel
+
 from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.tools.function import FunctionCall
@@ -16,12 +18,17 @@ except ImportError:
     raise
 
 
-def _extract_json(s: str) -> Optional[Any]:
+class _MessageToolCallExtractionResult(BaseModel):
+    tool_calls: Optional[list] = None
+    invalid_json_format: bool = False
+
+
+def _extract_tool_calls(assistant_msg_content: str) -> _MessageToolCallExtractionResult:
     stack = []
     json_start = -1
     json_end = -1
 
-    for i, char in enumerate(s):
+    for i, char in enumerate(assistant_msg_content):
         if char == '{':
             if not stack:
                 json_start = i
@@ -33,28 +40,24 @@ def _extract_json(s: str) -> Optional[Any]:
                     json_end = i
                     break
 
-    if json_start != -1 and json_end != -1:
-        json_str = s[json_start:json_end + 1]
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            return None
-    return None
+    if json_start == -1 or json_end == -1:
+        return _MessageToolCallExtractionResult()
 
+    json_str = assistant_msg_content[json_start:json_end + 1]
+    try:
+        json_obj = json.loads(json_str)
+    except ValueError:
+        return _MessageToolCallExtractionResult(invalid_json_format=True)
 
-def _extract_tool_calls(assistant_msg_content: str) -> Optional[list]:
-    json_obj = _extract_json(assistant_msg_content)
-    if json_obj is None:
-        return None
-
+    # Not tool call json object
     if "tool_calls" not in json_obj:
-        return None
+        return _MessageToolCallExtractionResult()
 
     tool_calls = json_obj.get("tool_calls")
     if not isinstance(tool_calls, list):
-        return None
+        return _MessageToolCallExtractionResult(invalid_json_format=True)
 
-    return tool_calls
+    return _MessageToolCallExtractionResult(tool_calls=tool_calls)
 
 
 class Ollama(LLM):
@@ -68,7 +71,7 @@ class Ollama(LLM):
     client_kwargs: Optional[Dict[str, Any]] = None
     ollama_client: Optional[OllamaClient] = None
     # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 5
+    function_call_limit: int = 10
     # Deactivate tool calls after 1 tool call
     deactivate_tools_after_use: bool = False
     # After a tool call is run, add the user message as a reminder to the LLM
@@ -177,11 +180,16 @@ class Ollama(LLM):
                 _tool_call_content = response_content.strip()
                 assistant_tool_calls = _extract_tool_calls(_tool_call_content)
 
-                if assistant_tool_calls is not None:
+                if assistant_tool_calls.invalid_json_format:
+                    # Add error message to the messages to let the LLM know that the tool call schema is invalid
+                    messages = self.add_tool_call_error_message(messages)
+                    return self.response(messages=messages)
+
+                if assistant_tool_calls.tool_calls is not None:
                     # Build tool calls
                     tool_calls: List[Dict[str, Any]] = []
                     logger.debug(f"Building tool calls from {assistant_tool_calls}")
-                    for tool_call in assistant_tool_calls:
+                    for tool_call in assistant_tool_calls.tool_calls:
                         tool_call_name = tool_call.get("name")
                         tool_call_args = tool_call.get("arguments")
                         _function_def = {"name": tool_call_name}
@@ -240,7 +248,7 @@ class Ollama(LLM):
 
             # This case rarely happens but it should be handled
             if len(function_calls_to_run) != len(function_call_results):
-                return self.response(messages=messages)
+                return final_response + self.response(messages=messages)
 
             # Add results of the function calls to the messages
             elif len(function_call_results) > 0:
@@ -309,8 +317,8 @@ class Ollama(LLM):
                 assistant_message_content += response_content
 
             # Strip out tool calls from the response
-            # If the response is a tool call, it will start with a {
-            if not response_is_tool_call and _extract_tool_calls(assistant_message_content) is not None:
+            extract_tool_calls_result = _extract_tool_calls(assistant_message_content)
+            if (not response_is_tool_call and (extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format)):
                 response_is_tool_call = True
 
             # If the response is a tool call, count the number of brackets
@@ -356,11 +364,16 @@ class Ollama(LLM):
                 _tool_call_content = assistant_message_content.strip()
                 assistant_tool_calls = _extract_tool_calls(_tool_call_content)
 
-                if assistant_tool_calls is not None:
+                if assistant_tool_calls.invalid_json_format:
+                    # Add error message to the messages to let the LLM know that the tool call schema is invalid
+                    messages = self.add_tool_call_error_message(messages)
+                    return self.response_stream(messages=messages)
+
+                if assistant_tool_calls.tool_calls is not None:
                     # Build tool calls
                     tool_calls: List[Dict[str, Any]] = []
-                    logger.debug(f"Building tool calls from {assistant_tool_calls}")
-                    for tool_call in assistant_tool_calls:
+                    logger.debug(f"Building tool calls from {assistant_tool_calls.tool_calls}")
+                    for tool_call in assistant_tool_calls.tool_calls:
                         tool_call_name = tool_call.get("name")
                         tool_call_args = tool_call.get("arguments")
                         _function_def = {"name": tool_call_name}
@@ -429,7 +442,7 @@ class Ollama(LLM):
 
             # This case rarely happens but it should be handled
             if len(function_calls_to_run) != len(function_call_results):
-                return self.response_stream(messages=messages)
+                messages = self.add_tool_call_error_message(messages)
 
             # Add results of the function calls to the messages
             elif len(function_call_results) > 0:
@@ -495,10 +508,30 @@ class Ollama(LLM):
                 + dedent(
                     """\
                     {
-                        "tool_calls": [{
-                            "name": "<name of the selected tool>",
-                            "arguments": <parameters for the selected tool, matching the tool's JSON schema>
-                        }]
+                        "tool_calls": [
+                            {
+                                "name": "<name of the selected tool>",
+                                "arguments": <parameters for the selected tool, matching the tool's JSON schema>
+                            }
+                        ]
+                    }\
+                    """
+                ),
+                "If you decide to use multi tool, you must respond in the JSON format matching the following schema:\n"
+                + dedent(
+                    """\
+                    {
+                        "tool_calls": [
+                            {
+                                "name": "<name of the selected tool1>",
+                                "arguments": <parameters for the selected tool1, matching the tool's JSON schema>
+                            },
+                            {
+                                "name": "<name of the selected tool2>",
+                                "arguments": <parameters for the selected tool2, matching the tool's JSON schema>
+                            },
+                            ...
+                        ]
                     }\
                     """
                 ),

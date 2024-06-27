@@ -31,10 +31,10 @@ def get_json_schema_for_arg(t: Any) -> Optional[Any]:
     type_origin = get_origin(t)
     # logger.info(f"Type origin: {type_origin}")
     if type_origin is not None:
-        if type_origin == list:
+        if isinstance(type_origin, list):
             json_schema_for_items = get_json_schema_for_arg(type_args[0])
             json_schema = {"type": "array", "items": json_schema_for_items}
-        elif type_origin == dict:
+        elif isinstance(type_origin, dict):
             json_schema = {"type": "object", "properties": {}}
         elif type_origin == Union:
             json_schema = {"type": [get_json_type_for_py_type(arg.__name__) for arg in type_args]}

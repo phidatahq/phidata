@@ -174,16 +174,13 @@ class Ollama(LLM):
         )
 
         # Check if the response is a tool call
-        tool_calls_invalid_format = False
         try:
             if response_content is not None:
                 _tool_call_content = response_content.strip()
                 assistant_tool_calls = _extract_tool_calls(_tool_call_content)
 
                 if assistant_tool_calls.invalid_json_format:
-                    # Add error message to the messages to let the LLM know that the tool call schema is invalid
-                    messages = self.add_tool_call_error_message(messages)
-                    return self.response(messages=messages)
+                    assistant_message.tool_call_error = True
 
                 if assistant_tool_calls.tool_calls is not None:
                     # Build tool calls
@@ -207,7 +204,7 @@ class Ollama(LLM):
                     assistant_message.role = "assistant"
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {response_content}")
-            tool_calls_invalid_format = True
+            assistant_message.tool_call_error = True
             pass
 
         # -*- Update usage metrics
@@ -223,7 +220,15 @@ class Ollama(LLM):
 
         # -*- Parse and run function call
         final_response = ""
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_call_error:
+            # Add error message to the messages to let the LLM know that the tool call failed
+            messages = self.add_tool_call_error_message(messages)
+
+            # -*- Yield new response using results of tool calls
+            final_response += self.response(messages=messages)
+            return final_response
+
+        elif assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -263,14 +268,6 @@ class Ollama(LLM):
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
                 self.deactivate_function_calls()
-
-            # -*- Yield new response using results of tool calls
-            final_response += self.response(messages=messages)
-            return final_response
-
-        elif tool_calls_invalid_format:
-            # Add error message to the messages to let the LLM know that the tool call failed
-            messages = self.add_tool_call_error_message(messages)
 
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages)
@@ -318,7 +315,7 @@ class Ollama(LLM):
 
             # Strip out tool calls from the response
             extract_tool_calls_result = _extract_tool_calls(assistant_message_content)
-            if (not response_is_tool_call and (extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format)):
+            if not response_is_tool_call and (extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format):
                 response_is_tool_call = True
 
             # If the response is a tool call, count the number of brackets
@@ -358,18 +355,15 @@ class Ollama(LLM):
         )
 
         # Check if the response is a tool call
-        tool_calls_invalid_format = False
         try:
             if response_is_tool_call and assistant_message_content != "":
                 _tool_call_content = assistant_message_content.strip()
                 assistant_tool_calls = _extract_tool_calls(_tool_call_content)
 
                 if assistant_tool_calls.invalid_json_format:
-                    # Add error message to the messages to let the LLM know that the tool call schema is invalid
-                    messages = self.add_tool_call_error_message(messages)
-                    return self.response_stream(messages=messages)
+                    assistant_message.tool_call_error = True
 
-                if assistant_tool_calls.tool_calls is not None:
+                if not assistant_message.tool_call_error and assistant_tool_calls.tool_calls is not None:
                     # Build tool calls
                     tool_calls: List[Dict[str, Any]] = []
                     logger.debug(f"Building tool calls from {assistant_tool_calls.tool_calls}")
@@ -390,7 +384,7 @@ class Ollama(LLM):
                     assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
-            tool_calls_invalid_format = True
+            assistant_message.tool_call_error = True
             pass
 
         # -*- Update usage metrics
@@ -417,7 +411,14 @@ class Ollama(LLM):
         assistant_message.log()
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_call_error:
+            # Add error message to the messages to let the LLM know that the tool call failed
+            messages = self.add_tool_call_error_message(messages)
+
+            # -*- Yield new response using results of tool calls
+            yield from self.response_stream(messages=messages)
+
+        elif assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -462,13 +463,6 @@ class Ollama(LLM):
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages)
 
-        elif tool_calls_invalid_format:
-            # Add error message to the messages to let the LLM know that the tool call failed
-            messages = self.add_tool_call_error_message(messages)
-
-            # -*- Yield new response using results of tool calls
-            yield from self.response_stream(messages=messages)
-
         logger.debug("---------- Ollama Response End ----------")
 
     def add_original_user_message(self, messages: List[Message]) -> List[Message]:
@@ -494,8 +488,10 @@ class Ollama(LLM):
 
     def add_tool_call_error_message(self, messages: List[Message]) -> List[Message]:
         # Add error message to the messages to let the LLM know that the tool call failed
-        content = "Result from a tool indicates an arguments error, You MUST adjust the arguments and use the same tool again."
-        messages.append(Message(role="user", content=content))
+        content = ("Result from a tool indicates an arguments error, take a step back and adjust the tool arguments "
+                   "then use the same tool again with the new arguments. "
+                   "Ensure the response does not mention any failed tool calls, Just the adjusted tool calls.")
+        messages.append(Message(role="user", tool_call_error=True, content=content))
         return messages
 
     def get_instructions_to_generate_tool_calls(self) -> List[str]:
@@ -513,24 +509,6 @@ class Ollama(LLM):
                                 "name": "<name of the selected tool>",
                                 "arguments": <parameters for the selected tool, matching the tool's JSON schema>
                             }
-                        ]
-                    }\
-                    """
-                ),
-                "If you decide to use multi tool, you must respond in the JSON format matching the following schema:\n"
-                + dedent(
-                    """\
-                    {
-                        "tool_calls": [
-                            {
-                                "name": "<name of the selected tool1>",
-                                "arguments": <parameters for the selected tool1, matching the tool's JSON schema>
-                            },
-                            {
-                                "name": "<name of the selected tool2>",
-                                "arguments": <parameters for the selected tool2, matching the tool's JSON schema>
-                            },
-                            ...
                         ]
                     }\
                     """
@@ -553,7 +531,7 @@ class Ollama(LLM):
                 "If the result of one tool requires using another tool, use needed tool first and then use the result.",
                 "If the result from a tool indicates an input error, You must adjust the parameters and try use the tool again.",
                 "If you use a tool result in your response, do not mention your knowledge cutoff.",
-                "After you use a tool and receive the result back, Take a step back and provide clear and relevant answers based on the user's query and tool results.",
+                "After you use a tool and receive the result back, take a step back and provide clear and relevant answers based on the user's query and tool results.",
             ]
         return []
 

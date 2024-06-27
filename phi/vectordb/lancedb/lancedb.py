@@ -171,7 +171,7 @@ class LanceDb(VectorDb):
     def delete(self) -> None:
         if self.exists():
             logger.debug(f"Deleting collection: {self.table_name}")
-            self.client.drop(self.table_name)
+            self.client.drop_table(self.table_name)
 
     def exists(self) -> bool:
         if self.client:

@@ -160,13 +160,15 @@ class LLM(BaseModel):
             # -*- Run function call
             _function_call_timer = Timer()
             _function_call_timer.start()
-            function_call.execute()
+            function_call_success = function_call.execute()
             _function_call_timer.stop()
+
             _function_call_result = Message(
                 role=role,
-                content=function_call.result,
+                content=function_call.result if function_call_success else function_call.error,
                 tool_call_id=function_call.call_id,
                 tool_call_name=function_call.function.name,
+                tool_call_error=not function_call_success,
                 metrics={"time": _function_call_timer.elapsed},
             )
             if "tool_call_times" not in self.metrics:

@@ -10,7 +10,7 @@ from phi.utils.log import logger
 class CSVReader(Reader):
     """Reader for CSV files"""
 
-    def read(self, path: Path, delimiter=" ", quotechar="|") -> List[Document]:
+    def read(self, path: Path, delimiter: str=" ", quotechar: str="|") -> List[Document]:
         if not path:
             raise ValueError("No path provided")
 
@@ -23,8 +23,6 @@ class CSVReader(Reader):
             csv_content = ""
             with open(path, newline="") as csvfile:
                 csv_reader = csv.reader(csvfile, delimiter=delimiter, quotechar=quotechar)
-                csv_header = next(csv_reader)
-                csv_content += ", ".join("The values in the CSV file are: " + csv_header)
                 for row in csv_reader:
                     csv_content += ", ".join(row)
             documents = [

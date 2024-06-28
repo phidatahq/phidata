@@ -70,8 +70,10 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
             # Filter out documents which already exist in the vector db
             if not recreate:
                 document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]
-
-            self.vector_db.insert(documents=document_list)
+            if upsert and self.vector_db.upsert_available():
+                self.vector_db.upsert(documents=document_list)
+            else:
+                self.vector_db.insert(documents=document_list)
             num_documents += len(document_list)
             logger.info(f"Loaded {num_documents} documents to knowledge base")
 

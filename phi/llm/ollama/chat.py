@@ -2,10 +2,9 @@ import json
 from textwrap import dedent
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
-from pydantic import BaseModel
-
 from phi.llm.base import LLM
 from phi.llm.message import Message
+from phi.llm.ollama.utils import _extract_tool_calls
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -16,48 +15,6 @@ try:
 except ImportError:
     logger.error("`ollama` not installed")
     raise
-
-
-class _MessageToolCallExtractionResult(BaseModel):
-    tool_calls: Optional[list] = None
-    invalid_json_format: bool = False
-
-
-def _extract_tool_calls(assistant_msg_content: str) -> _MessageToolCallExtractionResult:
-    stack = []
-    json_start = -1
-    json_end = -1
-
-    for i, char in enumerate(assistant_msg_content):
-        if char == '{':
-            if not stack:
-                json_start = i
-            stack.append(char)
-        elif char == '}':
-            if stack:
-                stack.pop()
-                if not stack:
-                    json_end = i
-                    break
-
-    if json_start == -1 or json_end == -1:
-        return _MessageToolCallExtractionResult()
-
-    json_str = assistant_msg_content[json_start:json_end + 1]
-    try:
-        json_obj = json.loads(json_str)
-    except ValueError:
-        return _MessageToolCallExtractionResult(invalid_json_format=True)
-
-    # Not tool call json object
-    if "tool_calls" not in json_obj:
-        return _MessageToolCallExtractionResult()
-
-    tool_calls = json_obj.get("tool_calls")
-    if not isinstance(tool_calls, list):
-        return _MessageToolCallExtractionResult(invalid_json_format=True)
-
-    return _MessageToolCallExtractionResult(tool_calls=tool_calls)
 
 
 class Ollama(LLM):
@@ -315,7 +272,8 @@ class Ollama(LLM):
 
             # Strip out tool calls from the response
             extract_tool_calls_result = _extract_tool_calls(assistant_message_content)
-            if not response_is_tool_call and (extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format):
+            if not response_is_tool_call and (
+                extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format):
                 response_is_tool_call = True
 
             # If the response is a tool call, count the number of brackets
@@ -477,7 +435,8 @@ class Ollama(LLM):
             _content = (
                 "Using the results of the tools above, respond to the following message. "
                 "If the user explicitly requests raw data or specific formats like JSON, provide it as requested. "
-                "Otherwise, use the tool results to provide a clear and relevant answer without returning the raw results directly:"
+                "Otherwise, use the tool results to provide a clear and relevant answer without "
+                "returning the raw results directly:"
 
                 f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
             )
@@ -488,9 +447,11 @@ class Ollama(LLM):
 
     def add_tool_call_error_message(self, messages: List[Message]) -> List[Message]:
         # Add error message to the messages to let the LLM know that the tool call failed
-        content = ("Result from a tool indicates an arguments error, take a step back and adjust the tool arguments "
-                   "then use the same tool again with the new arguments. "
-                   "Ensure the response does not mention any failed tool calls, Just the adjusted tool calls.")
+        content = (
+            "Output from the tool indicates an arguments error, take a step back and adjust the tool arguments "
+            "then use the same tool again with the new arguments. "
+            "Ensure the response does not mention any failed tool calls, Just the adjusted tool calls."
+        )
         messages.append(Message(role="user", tool_call_error=True, content=content))
         return messages
 
@@ -514,14 +475,15 @@ class Ollama(LLM):
                     """
                 ),
                 "REMEMBER: To use a tool, you MUST respond ONLY in JSON format.",
-                "REMEMBER: You can use multiple tools in a single response if necessary, by including multiple entries in the \"tool_calls\" array.",
+                ("REMEMBER: You can use multiple tools in a single response if necessary, "
+                 "by including multiple entries in the \"tool_calls\" array."),
                 "You may use the same tool multiple times in a single response, but only with different arguments.",
-                "To use a tool, ONLY respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",
-                "REMEMBER: ONLY valid method to use a tool is to make the WHOLE response in JSON format matching the schema.",
+                ("To use a tool, ONLY respond with the JSON matching the schema. Nothing else. "
+                 "Do not add any additional notes or explanations"),
+                ("REMEMBER: The ONLY valid way to use this tool is to ensure the ENTIRE response is in JSON format, "
+                 "matching the specified schema."),
                 "Do not inform the user that you used a tool in your response.",
                 "Do not suggest tools to use in your responses. You should use them to obtain answers.",
-
-                # Validation instructions
                 "Ensure each tool use is formatted correctly and independently.",
                 "REMEMBER: The \"arguments\" field must contain valid parameters as per the tool's JSON schema.",
                 "Ensure accuracy by using tools to obtain your answers, avoiding assumptions about tool output.",
@@ -529,9 +491,12 @@ class Ollama(LLM):
                 # Response instructions
                 "After you use a tool, the next message you get will contain the result of the tool use.",
                 "If the result of one tool requires using another tool, use needed tool first and then use the result.",
-                "If the result from a tool indicates an input error, You must adjust the parameters and try use the tool again.",
-                "If you use a tool result in your response, do not mention your knowledge cutoff.",
-                "After you use a tool and receive the result back, take a step back and provide clear and relevant answers based on the user's query and tool results.",
+                ("If the result from a tool indicates an input error, "
+                 "You must adjust the parameters and try use the tool again."),
+                ("If the tool results are used in your response, you do not need to mention the knowledge cutoff. "
+                 "Use the information directly from the tool's output, which is assumed to be up-to-date."),
+                ("After you use a tool and receive the result back, take a step back and provide clear and relevant "
+                 "answers based on the user's query and tool results."),
             ]
         return []
 

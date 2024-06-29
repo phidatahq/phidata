@@ -1,7 +1,9 @@
 import streamlit as st
 from phi.tools.tavily import TavilyTools
 
-from assistant import get_research_assistant  # type: ignore
+# Import assistants
+from assistant import get_research_assistant as get_research_assistant_en  # type: ignore
+from assistant_pt_br import get_research_assistant as get_research_assistant_pt_br  # type: ignore
 
 st.set_page_config(
     page_title="Research Assistant",
@@ -9,7 +11,6 @@ st.set_page_config(
 )
 st.title("Research Assistant powered by Groq")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
-
 
 def main() -> None:
     # Get model
@@ -22,6 +23,18 @@ def main() -> None:
     # Restart the assistant if assistant_type has changed
     elif st.session_state["llm_model"] != llm_model:
         st.session_state["llm_model"] = llm_model
+        st.rerun()
+
+    # Get assistant language
+    assistant_language = st.sidebar.selectbox(
+        "Select Assistant Language", options=["English", "Portuguese"]
+    )
+    # Set assistant language in session state
+    if "assistant_language" not in st.session_state:
+        st.session_state["assistant_language"] = assistant_language
+    # Restart the assistant if language has changed
+    elif st.session_state["assistant_language"] != assistant_language:
+        st.session_state["assistant_language"] = assistant_language
         st.rerun()
 
     # Get topic for report
@@ -49,7 +62,12 @@ def main() -> None:
 
     if "topic" in st.session_state:
         report_topic = st.session_state["topic"]
-        research_assistant = get_research_assistant(model=llm_model)
+        
+        if st.session_state["assistant_language"] == "English":
+            research_assistant = get_research_assistant_en(model=llm_model)
+        else:
+            research_assistant = get_research_assistant_pt_br(model=llm_model)
+
         tavily_search_results = None
 
         with st.status("Searching Web", expanded=True) as status:
@@ -74,6 +92,5 @@ def main() -> None:
     st.sidebar.markdown("---")
     if st.sidebar.button("Restart"):
         st.rerun()
-
 
 main()

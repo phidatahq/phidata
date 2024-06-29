@@ -194,7 +194,7 @@ class Hermes(LLM):
                     messages.append(Message(role="user", content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
+                    messages.append(Message(role="user", tool_call_error=True, content=_function_call.error))
                     continue
                 function_calls_to_run.append(_function_call)
 

@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, Mock
 from phi.tools.jina_tools import JinaReaderTools
 

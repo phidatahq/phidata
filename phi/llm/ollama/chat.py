@@ -4,7 +4,7 @@ from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
-from phi.llm.ollama.utils import _extract_tool_calls
+from phi.llm.ollama.utils import extract_tool_calls
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -88,14 +88,14 @@ class Ollama(LLM):
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         return self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             **self.api_kwargs,
-        )
+        )  # type: ignore
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
         yield from self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.api_kwargs,
         )  # type: ignore
@@ -134,7 +134,7 @@ class Ollama(LLM):
         try:
             if response_content is not None:
                 _tool_call_content = response_content.strip()
-                assistant_tool_calls = _extract_tool_calls(_tool_call_content)
+                assistant_tool_calls = extract_tool_calls(_tool_call_content)
 
                 if assistant_tool_calls.invalid_json_format:
                     assistant_message.tool_call_error = True
@@ -284,7 +284,7 @@ class Ollama(LLM):
                 assistant_message_content += response_content
 
             # Strip out tool calls from the response
-            extract_tool_calls_result = _extract_tool_calls(assistant_message_content)
+            extract_tool_calls_result = extract_tool_calls(assistant_message_content)
             if not response_is_tool_call and (
                 extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format
             ):
@@ -333,7 +333,7 @@ class Ollama(LLM):
         try:
             if response_is_tool_call and assistant_message_content != "":
                 _tool_call_content = assistant_message_content.strip()
-                assistant_tool_calls = _extract_tool_calls(_tool_call_content)
+                assistant_tool_calls = extract_tool_calls(_tool_call_content)
 
                 if assistant_tool_calls.invalid_json_format:
                     assistant_message.tool_call_error = True

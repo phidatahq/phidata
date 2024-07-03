@@ -82,7 +82,7 @@ class Claude(LLM):
 
         return self.client.messages.create(
             model=self.model,
-            messages=api_messages,
+            messages=api_messages,  # type: ignore
             **api_kwargs,
         )
 
@@ -98,7 +98,7 @@ class Claude(LLM):
 
         return self.client.messages.stream(
             model=self.model,
-            messages=api_messages,
+            messages=api_messages,  # type: ignore
             **api_kwargs,
         )
 
@@ -115,7 +115,7 @@ class Claude(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Parse response
-        response_content = response.content[0].text
+        response_content = response.content[0].text  # type: ignore
 
         # -*- Create assistant message
         assistant_message = Message(

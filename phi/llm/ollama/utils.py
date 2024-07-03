@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Dict, Literal
+from typing import Optional, Dict, Literal, Union
 
 from pydantic import BaseModel
 
@@ -9,7 +9,7 @@ class _MessageToolCallExtractionResult(BaseModel):
     invalid_json_format: bool = False
 
 
-def _extract_json(s: str) -> Optional[Dict] | Literal[False]:
+def _extract_json(s: str) -> Union[Optional[Dict], Literal[False]]:
     """
     Extracts all valid JSON from a string then combines them and returns it as a dictionary.
 
@@ -24,7 +24,7 @@ def _extract_json(s: str) -> Optional[Dict] | Literal[False]:
 
     while start_idx < len(s):
         # Find the next '{' which indicates the start of a JSON block
-        json_start = s.find('{', start_idx)
+        json_start = s.find("{", start_idx)
         if json_start == -1:
             break  # No more JSON objects found
 
@@ -32,9 +32,9 @@ def _extract_json(s: str) -> Optional[Dict] | Literal[False]:
         stack = []
         i = json_start
         while i < len(s):
-            if s[i] == '{':
-                stack.append('{')
-            elif s[i] == '}':
+            if s[i] == "{":
+                stack.append("{")
+            elif s[i] == "}":
                 if stack:
                     stack.pop()
                     if not stack:
@@ -44,7 +44,7 @@ def _extract_json(s: str) -> Optional[Dict] | Literal[False]:
         else:
             return False
 
-        json_str = s[json_start:json_end + 1]
+        json_str = s[json_start : json_end + 1]
         try:
             json_obj = json.loads(json_str)
             json_objects.append(json_obj)

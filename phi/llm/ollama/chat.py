@@ -286,7 +286,8 @@ class Ollama(LLM):
             # Strip out tool calls from the response
             extract_tool_calls_result = _extract_tool_calls(assistant_message_content)
             if not response_is_tool_call and (
-                extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format):
+                extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format
+            ):
                 response_is_tool_call = True
 
             # If the response is a tool call, count the number of brackets
@@ -465,7 +466,6 @@ class Ollama(LLM):
                 "If the user explicitly requests raw data or specific formats like JSON, provide it as requested. "
                 "Otherwise, use the tool results to provide a clear and relevant answer without "
                 "returning the raw results directly:"
-
                 f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
             )
 
@@ -487,7 +487,6 @@ class Ollama(LLM):
         if self.functions is not None:
             return [
                 "To respond to the users message, you can use one or more of the tools provided above.",
-
                 # Tool usage instructions
                 "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
                 + dedent(
@@ -503,28 +502,39 @@ class Ollama(LLM):
                     """
                 ),
                 "REMEMBER: To use a tool, you MUST respond ONLY in JSON format.",
-                ("REMEMBER: You can use multiple tools in a single response if necessary, "
-                 "by including multiple entries in the \"tool_calls\" array."),
+                (
+                    "REMEMBER: You can use multiple tools in a single response if necessary, "
+                    'by including multiple entries in the "tool_calls" array.'
+                ),
                 "You may use the same tool multiple times in a single response, but only with different arguments.",
-                ("To use a tool, ONLY respond with the JSON matching the schema. Nothing else. "
-                 "Do not add any additional notes or explanations"),
-                ("REMEMBER: The ONLY valid way to use this tool is to ensure the ENTIRE response is in JSON format, "
-                 "matching the specified schema."),
+                (
+                    "To use a tool, ONLY respond with the JSON matching the schema. Nothing else. "
+                    "Do not add any additional notes or explanations"
+                ),
+                (
+                    "REMEMBER: The ONLY valid way to use this tool is to ensure the ENTIRE response is in JSON format, "
+                    "matching the specified schema."
+                ),
                 "Do not inform the user that you used a tool in your response.",
                 "Do not suggest tools to use in your responses. You should use them to obtain answers.",
                 "Ensure each tool use is formatted correctly and independently.",
-                "REMEMBER: The \"arguments\" field must contain valid parameters as per the tool's JSON schema.",
+                'REMEMBER: The "arguments" field must contain valid parameters as per the tool\'s JSON schema.',
                 "Ensure accuracy by using tools to obtain your answers, avoiding assumptions about tool output.",
-
                 # Response instructions
                 "After you use a tool, the next message you get will contain the result of the tool use.",
                 "If the result of one tool requires using another tool, use needed tool first and then use the result.",
-                ("If the result from a tool indicates an input error, "
-                 "You must adjust the parameters and try use the tool again."),
-                ("If the tool results are used in your response, you do not need to mention the knowledge cutoff. "
-                 "Use the information directly from the tool's output, which is assumed to be up-to-date."),
-                ("After you use a tool and receive the result back, take a step back and provide clear and relevant "
-                 "answers based on the user's query and tool results."),
+                (
+                    "If the result from a tool indicates an input error, "
+                    "You must adjust the parameters and try use the tool again."
+                ),
+                (
+                    "If the tool results are used in your response, you do not need to mention the knowledge cutoff. "
+                    "Use the information directly from the tool's output, which is assumed to be up-to-date."
+                ),
+                (
+                    "After you use a tool and receive the result back, take a step back and provide clear and relevant "
+                    "answers based on the user's query and tool results."
+                ),
             ]
         return []
 

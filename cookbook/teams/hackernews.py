@@ -72,7 +72,7 @@ hn_assistant = Assistant(
     name="HackerNews Assistant",
     team=[hn_top_stories, hn_user_researcher],
     show_tool_calls=True,
-    save_output_to_file="wip/hackernews_output.md",
+    save_output_to_file="wip/top_hackernews_users.md",
 )
 hn_assistant.print_response(
     "Write an engaging article about the users with the top 2 stories on hackernews", markdown=True

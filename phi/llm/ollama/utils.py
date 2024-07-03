@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Dict, Literal
+from typing import Optional, Dict, Literal, Union
 
 from pydantic import BaseModel
 
@@ -9,7 +9,7 @@ class _MessageToolCallExtractionResult(BaseModel):
     invalid_json_format: bool = False
 
 
-def _extract_json(s: str) -> Optional[Dict] | Literal[False]:
+def _extract_json(s: str) -> Union[Optional[Dict], Literal[False]]:
     """
     Extracts all valid JSON from a string then combines them and returns it as a dictionary.
 

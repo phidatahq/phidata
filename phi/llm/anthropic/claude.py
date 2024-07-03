@@ -1,7 +1,6 @@
 import json
 from textwrap import dedent
-from typing import Optional, List, Iterator, Dict, Any
-
+from typing import Optional, List, Iterator, Dict, Any, Tuple
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -26,11 +25,13 @@ class Claude(LLM):
     name: str = "claude"
     model: str = "claude-3-opus-20240229"
     # -*- Request parameters
-    max_tokens: Optional[int] = 1024
-    temperature: Optional[float] = None
-    stop_sequences: Optional[List[str]] = None
-    top_p: Optional[float] = None
-    top_k: Optional[int] = None
+    claude_max_tokens: Optional[int] = 1024
+    claude_temperature: Optional[float] = None
+    claude_top_p: Optional[float] = None
+    claude_top_k: Optional[int] = None
+    claude_stop_sequences: Optional[List[str]] = None
+    claude_stream: bool = False
+    claude_metadata: Optional[Dict[str, Any]] = None
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
     api_key: Optional[str] = None
@@ -51,34 +52,56 @@ class Claude(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
-        if self.max_tokens:
-            _request_params["max_tokens"] = self.max_tokens
-        if self.temperature:
-            _request_params["temperature"] = self.temperature
-        if self.stop_sequences:
-            _request_params["stop_sequences"] = self.stop_sequences
+        if self.claude_max_tokens:
+            _request_params["max_tokens"] = self.claude_max_tokens
+        if self.claude_temperature:
+            _request_params["temperature"] = self.claude_temperature
+        if self.claude_top_p:
+            _request_params["top_p"] = self.claude_top_p
+        if self.claude_top_k:
+            _request_params["top_k"] = self.claude_top_k
+        if self.claude_stop_sequences:
+            _request_params["stop_sequences"] = self.claude_stop_sequences
+        if self.claude_stream:
+            _request_params["stream"] = self.claude_stream
+        if self.claude_metadata:
+            _request_params["metadata"] = self.claude_metadata
         if self.tools is not None:
             if _request_params.get("stop_sequences") is None:
                 _request_params["stop_sequences"] = ["</function_calls>"]
             elif "</function_calls>" not in _request_params["stop_sequences"]:
                 _request_params["stop_sequences"].append("</function_calls>")
-        if self.top_p:
-            _request_params["top_p"] = self.top_p
-        if self.top_k:
-            _request_params["top_k"] = self.top_k
         if self.request_params:
             _request_params.update(self.request_params)
         return _request_params
 
-    def invoke(self, messages: List[Message]) -> AnthropicMessage:
-        api_kwargs: Dict[str, Any] = self.api_kwargs
+    def _prepare_messages_for_anthropic(self, messages: List[Message]) -> Tuple[List[dict], Optional[str]]:
         api_messages: List[dict] = []
+        system_message = None
 
         for m in messages:
             if m.role == "system":
-                api_kwargs["system"] = m.content
+                system_message = m.content
             else:
                 api_messages.append({"role": m.role, "content": m.content or ""})
+
+        # Ensure the first message is a user message
+        if not api_messages or api_messages[0]["role"] != "user":
+            if system_message:
+                user_content = f"System: {system_message}\n\nHuman: Acknowledge the system message above and await further input."
+                api_messages.insert(0, {"role": "user", "content": user_content})
+                system_message = None
+            else:
+                api_messages.insert(0, {"role": "user", "content": "Hello, I'm ready to start our conversation."})
+
+        return api_messages, system_message
+
+    def invoke(self, messages: List[Message]) -> AnthropicMessage:
+        api_kwargs: Dict[str, Any] = self.api_kwargs
+        api_messages, system_message = self._prepare_messages_for_anthropic(messages)
+
+        if system_message:
+            api_kwargs["system"] = system_message
 
         return self.client.messages.create(
             model=self.model,
@@ -88,13 +111,10 @@ class Claude(LLM):
 
     def invoke_stream(self, messages: List[Message]) -> Any:
         api_kwargs: Dict[str, Any] = self.api_kwargs
-        api_messages: List[dict] = []
+        api_messages, system_message = self._prepare_messages_for_anthropic(messages)
 
-        for m in messages:
-            if m.role == "system":
-                api_kwargs["system"] = m.content
-            else:
-                api_messages.append({"role": m.role, "content": m.content or ""})
+        if system_message:
+            api_kwargs["system"] = system_message
 
         return self.client.messages.stream(
             model=self.model,

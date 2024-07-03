@@ -165,6 +165,18 @@ class Ollama(LLM):
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
 
+        # Add token usage to metrics
+        # Currently there is a bug in Ollama where sometimes the input tokens are not always returned
+        input_tokens = response.get("prompt_eval_count", 0)
+        output_tokens = response.get("eval_count", 0)
+
+        assistant_message.metrics["input_tokens"] = input_tokens
+        assistant_message.metrics["output_tokens"] = output_tokens
+
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
@@ -224,6 +236,7 @@ class Ollama(LLM):
         is_last_tool_call_bracket = False
         completion_tokens = 0
         time_to_first_token = None
+        response_metrics: Mapping[str, Any] = {}
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
@@ -270,6 +283,9 @@ class Ollama(LLM):
                     continue
 
                 yield response_content
+
+            if response.get("done"):
+                response_metrics = response
 
         response_timer.stop()
         logger.debug(f"Tokens generated: {completion_tokens}")
@@ -330,6 +346,18 @@ class Ollama(LLM):
             if "tokens_per_second" not in self.metrics:
                 self.metrics["tokens_per_second"] = []
             self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
+
+        # Add token usage to metrics
+        # Currently there is a bug in Ollama where sometimes the input tokens are not returned
+        input_tokens = response_metrics.get("prompt_eval_count", 0)
+        output_tokens = response_metrics.get("eval_count", 0)
+
+        assistant_message.metrics["input_tokens"] = input_tokens
+        assistant_message.metrics["output_tokens"] = output_tokens
+
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

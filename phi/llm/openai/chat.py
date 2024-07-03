@@ -246,7 +246,7 @@ class OpenAIChat(LLM):
             if _function_call is None:
                 return Message(role="function", content="Could not find function to call."), None
             if _function_call.error is not None:
-                return Message(role="function", content=_function_call.error), _function_call
+                return Message(role="function", tool_call_error=True, content=_function_call.error), _function_call
 
             if self.function_call_stack is None:
                 self.function_call_stack = []
@@ -263,12 +263,13 @@ class OpenAIChat(LLM):
             self.function_call_stack.append(_function_call)
             _function_call_timer = Timer()
             _function_call_timer.start()
-            _function_call.execute()
+            function_call_success = _function_call.execute()
             _function_call_timer.stop()
             _function_call_message = Message(
                 role="function",
                 name=_function_call.function.name,
-                content=_function_call.result,
+                content=_function_call.result if function_call_success else _function_call.error,
+                tool_call_error=not function_call_success,
                 metrics={"time": _function_call_timer.elapsed},
             )
             if "function_call_times" not in self.metrics:

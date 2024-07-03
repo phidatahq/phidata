@@ -3,7 +3,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.llm.cohere import CohereChat
 
 assistant = Assistant(
-    llm=CohereChat(model="command-r"),
+    llm=CohereChat(model="command-r-plus"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
 )

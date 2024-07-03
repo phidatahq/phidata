@@ -7,8 +7,8 @@ from phi.utils.log import logger
 
 class JinaReaderToolsConfig(BaseModel):
     api_key: Optional[str] = Field(None, description="API key for Jina Reader")
-    base_url: HttpUrl = Field("https://r.jina.ai/", description="Base URL for Jina Reader API")
-    search_url: HttpUrl = Field("https://s.jina.ai/", description="Search URL for Jina Reader API")
+    base_url: HttpUrl = Field("https://r.jina.ai/", description="Base URL for Jina Reader API")  # type: ignore
+    search_url: HttpUrl = Field("https://s.jina.ai/", description="Search URL for Jina Reader API")  # type: ignore
     max_content_length: int = Field(4000, description="Maximum content length in characters")
 
 

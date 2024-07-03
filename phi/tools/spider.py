@@ -3,8 +3,7 @@ import json
 try:
     from spider import Spider as ExternalSpider
 except ImportError:
-    logger.error("`spider` not installed")
-    raise ImportError("`spider-client` not installed. Please install it using `pip install spider-client`")
+    raise ImportError("`spider-client` not installed. Please install using `pip install spider-client`")
 
 from spider import Spider as ExternalSpider  # type: ignore
 from typing import Optional

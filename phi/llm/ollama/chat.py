@@ -236,7 +236,7 @@ class Ollama(LLM):
         is_last_tool_call_bracket = False
         completion_tokens = 0
         time_to_first_token = None
-        response_metrics: dict = {}
+        response_metrics: Mapping[str, Any] = {}
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):

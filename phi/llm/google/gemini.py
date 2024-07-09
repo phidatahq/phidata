@@ -17,6 +17,7 @@ try:
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
+    from google.protobuf.struct_pb2 import Struct
 except ImportError:
     logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
     raise
@@ -31,6 +32,24 @@ class Gemini(LLM):
     generative_model_kwargs: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
     gemini_client: Optional[GenerativeModel] = None
+
+    def conform_messages_to_gemini(self, messages: List[Message]) -> List[Dict[str, Any]]:
+        converted = []
+        for msg in messages:
+            content = msg.content
+            if content is None or content == "" or msg.role == "tool":
+                role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
+                converted.append({"role": role, "parts": msg.parts})  # type: ignore
+            else:
+                if isinstance(content, str):
+                    parts = [content]
+                elif isinstance(content, list):
+                    parts = content  # type: ignore
+                else:
+                    parts = [" "]
+                role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
+                converted.append({"role": role, "parts": parts})
+        return converted
 
     def conform_function_to_gemini(self, params: Dict[str, Any]) -> Dict[str, Any]:
         fixed_parameters = {}
@@ -112,21 +131,12 @@ class Gemini(LLM):
             kwargs["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
         return kwargs
 
-    def convert_messages_to_contents(self, messages: List[Message]) -> List[Any]:
-        _contents: List[Any] = []
-        for m in messages:
-            if isinstance(m.content, str):
-                _contents.append(m.content)
-            elif isinstance(m.content, list):
-                _contents.extend(m.content)
-        return _contents
-
     def invoke(self, messages: List[Message]):
-        return self.client.generate_content(contents=self.convert_messages_to_contents(messages))
+        return self.client.generate_content(contents=self.conform_messages_to_gemini(messages))
 
     def invoke_stream(self, messages: List[Message]):
         yield from self.client.generate_content(
-            contents=self.convert_messages_to_contents(messages),
+            contents=self.conform_messages_to_gemini(messages),
             stream=True,
         )
 
@@ -141,37 +151,45 @@ class Gemini(LLM):
         response: GenerateContentResponse = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-        logger.debug(f"Gemini response type: {type(response)}")
-        logger.debug(f"Gemini response: {response}")
+        # logger.debug(f"Gemini response type: {type(response)}")
+        # logger.debug(f"Gemini response: {response}")
 
         # -*- Parse response
-        response_result: ResultGenerateContentResponse = response._result
-        response_role: str = response_result.candidates[0].content.role
-        response_text: str = response_result.candidates[0].content.parts[0].text
-        response_metrics: ResultGenerateContentResponse.UsageMetadata = response_result.usage_metadata
+        response_content = response.candidates[0].content
+        response_role = response_content.role
+        response_parts = response_content.parts
+        response_metrics: ResultGenerateContentResponse = response.usage_metadata
+        response_function_calls: List[Dict[str, Any]] = []
+        response_text: Optional[str] = None
 
-        # -*- Create assistant message
-        assistant_message = Message(
-            role=response_role or "assistant",
-            content=response_text,
-        )
+        for part in response_parts:
+            part_dict = type(part).to_dict(part)
 
-        if not response_text:
-            tool_calls: List[Dict[str, Any]] = []
-            for part in response_result.candidates[0].content.parts:
-                _part_dict = type(part).to_dict(part)
-                tool_calls.append(
+            # -*- Extract text if present
+            if "text" in part_dict:
+                response_text = part_dict.get("text")
+
+            # -*- Parse function calls
+            if "function_call" in part_dict:
+                response_function_calls.append(
                     {
                         "type": "function",
                         "function": {
-                            "name": part.function_call.name,
-                            "arguments": json.dumps(_part_dict.get("function_call").get("args")),
+                            "name": part_dict.get("function_call").get("name"),
+                            "arguments": json.dumps(part_dict.get("function_call").get("args")),
                         },
                     }
                 )
 
-            if len(tool_calls) > 0:
-                assistant_message.tool_calls = tool_calls
+        # -*- Create assistant message
+        assistant_message = Message(
+            role=response_role or "model",
+            content=response_text,
+            parts=response_parts,
+        )
+
+        if len(response_function_calls) > 0:
+            assistant_message.tool_calls = response_function_calls
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -204,18 +222,15 @@ class Gemini(LLM):
 
         # -*- Parse and run function calls
         if assistant_message.tool_calls is not None:
-            final_response = ""
+            final_response = assistant_message.get_content_string() or ""
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
-                _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
+                    messages.append(Message(role="tool", content=_function_call.error))
                     continue
                 function_calls_to_run.append(_function_call)
 
@@ -230,7 +245,14 @@ class Gemini(LLM):
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
-                messages.extend(function_call_results)
+                for result in function_call_results:
+                    s = Struct()
+                    s.update({"result": [result.content]})
+                    function_response = genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(name=result.tool_call_name, response=s)
+                    )
+                    messages.append(Message(role="tool", content=result.content, parts=[function_response]))
+
             # -*- Get new response using result of tool call
             final_response += self.response(messages=messages)
             return final_response
@@ -243,61 +265,53 @@ class Gemini(LLM):
         for m in messages:
             m.log()
 
-        response_role: Optional[str] = None
-        response_function_calls: Optional[List[Dict[str, Any]]] = None
-        assistant_message_content = ""
-        response_metrics = None
+        response_function_calls: List[Dict[str, Any]] = []
+        assistant_message_content: str = ""
+        response_metrics: Optional[ResultGenerateContentResponse.UsageMetadata] = None
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages):
-            logger.debug(f"Gemini response type: {type(response)}")
-            logger.debug(f"Gemini response: {response}")
+            # logger.debug(f"Gemini response type: {type(response)}")
+            # logger.debug(f"Gemini response: {response}")
 
             # -*- Parse response
-            response_candidates = response.candidates
-            response_content = response_candidates[0].content
-            if response_role is None:
-                response_role = response_content.role
-            response_parts = response_content.parts[0]
-            _part_dict = type(response_parts).to_dict(response_parts)
+            response_content = response.candidates[0].content
+            response_role = response_content.role
+            response_parts = response_content.parts
 
-            # -*- Return text if present, otherwise get function call
-            if "text" in _part_dict:
-                response_text = _part_dict.get("text")
-                yield response_text
-                assistant_message_content += response_text
+            for part in response_parts:
+                part_dict = type(part).to_dict(part)
 
-            # -*- Parse function calls
-            if "function_call" in _part_dict:
-                if response_function_calls is None:
-                    response_function_calls = []
-                response_function_calls.append(
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": _part_dict.get("function_call").get("name"),
-                            "arguments": json.dumps(_part_dict.get("function_call").get("args")),
-                        },
-                    }
-                )
+                # -*- Yield text if present
+                if "text" in part_dict:
+                    response_text = part_dict.get("text")
+                    yield response_text
+                    assistant_message_content += response_text
 
-            response_metrics = response._result.usage_metadata
+                # -*- Parse function calls
+                if "function_call" in part_dict:
+                    response_function_calls.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": part_dict.get("function_call").get("name"),
+                                "arguments": json.dumps(part_dict.get("function_call").get("args")),
+                            },
+                        }
+                    )
+            response_metrics = response.usage_metadata
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
-        assistant_message = Message(role=response_role or "assistant")
+        assistant_message = Message(role=response_role or "model", parts=response_parts)
         # -*- Add content to assistant message
         if assistant_message_content != "":
             assistant_message.content = assistant_message_content
         # -*- Add tool calls to assistant message
-        if response_function_calls is not None:
+        if response_function_calls != []:
             assistant_message.tool_calls = response_function_calls
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-        assistant_message.log()
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -323,19 +337,20 @@ class Gemini(LLM):
             if total_tokens is not None:
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
 
+        # -*- Add assistant message to messages
+        messages.append(assistant_message)
+        assistant_message.log()
+
         # -*- Parse and run function calls
         if assistant_message.tool_calls is not None:
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
-                _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
+                    messages.append(Message(role="tool", content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
+                    messages.append(Message(role="tool", content=_function_call.error))
                     continue
                 function_calls_to_run.append(_function_call)
 
@@ -350,7 +365,14 @@ class Gemini(LLM):
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
-                messages.extend(function_call_results)
+                for result in function_call_results:
+                    s = Struct()
+                    s.update({"result": [result.content]})
+                    function_response = genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(name=result.tool_call_name, response=s)
+                    )
+                    messages.append(Message(role="tool", content=result.content, parts=[function_response]))
+
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages)
         logger.debug("---------- Gemini Response End ----------")

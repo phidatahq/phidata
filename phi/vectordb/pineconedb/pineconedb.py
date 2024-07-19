@@ -15,6 +15,7 @@ from phi.utils.log import logger
 from pinecone.models import ServerlessSpec, PodSpec
 from pinecone.core.openapi.data.model.vector import Vector
 
+
 class PineconeDB(VectorDb):
     """A class representing a Pinecone database.
 

@@ -14,7 +14,7 @@ vector_db = PineconeDB(
     name=index_name,
     dimension=1536,
     metric="cosine",
-    spec={"serverless": {"cloud": "aws", "region": "us-west-2"}},
+    spec={"serverless": {"cloud": "aws", "region": "us-east-1"}},
     api_key=api_key,
 )
 

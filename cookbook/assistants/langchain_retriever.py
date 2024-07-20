@@ -7,7 +7,7 @@ from langchain.document_loaders import TextLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
 
-cookbook_dir = Path("__file__").parent
+cookbook_dir = Path(__file__).parent
 chroma_db_dir = cookbook_dir.joinpath("storage/chroma_db")
 
 

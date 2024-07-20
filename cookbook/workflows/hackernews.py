@@ -17,6 +17,7 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
     """
 
     # Fetch top story IDs
+    logger.info(f"Getting top {num_stories} stories from Hacker News")
     response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
     story_ids = response.json()
 
@@ -65,14 +66,18 @@ hn_user_researcher = Assistant(
     tools=[get_user_details],
     show_tool_calls=True,
 )
+article_writer = Assistant(
+    name="Article Writer",
+    save_output_to_file="wip/hackernews_article_{run_id}.txt",
+)
 
 hn_workflow = Workflow(
     name="HackerNews Workflow",
     tasks=[
         Task(description="Get top hackernews stories", assistant=hn_top_stories, show_output=False),
         Task(description="Get information about hackernews users", assistant=hn_user_researcher, show_output=False),
-        Task(description="Write an engaging article"),
+        Task(description="Write an engaging article", assistant=article_writer),
     ],
-    debug_mode=True,
+    # debug_mode=True,
 )
 hn_workflow.print_response("Write a report about the users with the top 2 stories on hackernews", markdown=True)

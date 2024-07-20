@@ -14,27 +14,27 @@
       },
       {
           "name": "venue",
-          "type": "varchar",
+          "type": "text",
           "description": "Name of the race venue."
       },
       {
           "name": "name",
-          "type": "varchar",
+          "type": "text",
           "description": "Name of the driver."
       },
       {
           "name": "driver_tag",
-          "type": "varchar",
+          "type": "text",
           "description": "Abbreviated tag of the driver's name."
       },
       {
           "name": "team",
-          "type": "varchar",
+          "type": "text",
           "description": "Name of the racing team."
       },
       {
           "name": "lap_time",
-          "type": "varchar",
+          "type": "text",
           "description": "Fastest lap time recorded."
       }
     ]

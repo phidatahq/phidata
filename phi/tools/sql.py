@@ -1,15 +1,11 @@
+import json
 from typing import List, Optional, Dict, Any
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
 try:
-    import simplejson as json
-except ImportError:
-    raise ImportError("`simplejson` not installed")
-
-try:
-    from sqlalchemy import create_engine, Engine, Row
+    from sqlalchemy import create_engine, Engine
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.inspection import inspect
     from sqlalchemy.sql.expression import text
@@ -111,7 +107,7 @@ class SQLTools(Toolkit):
         """
 
         try:
-            return json.dumps(self.run_sql(sql=query, limit=limit))
+            return json.dumps(self.run_sql(sql=query, limit=limit), default=str)
         except Exception as e:
             logger.error(f"Error running query: {e}")
             return f"Error running query: {e}"
@@ -128,20 +124,16 @@ class SQLTools(Toolkit):
         """
         logger.debug(f"Running sql |\n{sql}")
 
-        result = None
         with self.Session() as sess, sess.begin():
-            if limit:
-                result = sess.execute(text(sql)).fetchmany(limit)
-            else:
-                result = sess.execute(text(sql)).fetchall()
+            result = sess.execute(text(sql))
 
-        logger.debug(f"SQL result: {result}")
-        if result is None:
-            return []
-        elif isinstance(result, list):
-            return [row._asdict() for row in result]
-        elif isinstance(result, Row):
-            return [result._asdict()]
-        else:
-            logger.debug(f"SQL result type: {type(result)}")
-            return []
+            # Check if the operation has returned rows.
+            try:
+                if limit:
+                    rows = result.fetchmany(limit)
+                else:
+                    rows = result.fetchall()
+                return [row._asdict() for row in rows]
+            except Exception as e:
+                logger.error(f"Error while executing SQL: {e}")
+                return []

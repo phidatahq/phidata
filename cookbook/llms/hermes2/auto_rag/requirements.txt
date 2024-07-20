@@ -98,7 +98,7 @@ pandas==2.2.0
     #   streamlit
 pgvector==0.2.4
     # via -r cookbook/llms/hermes2/auto_rag/requirements.in
-phidata==2.4.8
+phidata==2.4.20
     # via -r cookbook/llms/hermes2/auto_rag/requirements.in
 pillow==10.2.0
     # via streamlit
@@ -192,7 +192,7 @@ tzdata==2023.4
     # via pandas
 tzlocal==5.2
     # via streamlit
-urllib3==2.0.7
+urllib3==1.26.18
     # via
     #   botocore
     #   docker

@@ -107,7 +107,7 @@ pandas==2.2.2
     #   streamlit
 pgvector==0.2.5
     # via -r cookbook/llms/openai/auto_rag/requirements.in
-phidata==2.4.8
+phidata==2.4.20
     # via -r cookbook/llms/openai/auto_rag/requirements.in
 pillow==10.3.0
     # via streamlit
@@ -207,5 +207,5 @@ typing-extensions==4.11.0
     #   typer
 tzdata==2024.1
     # via pandas
-urllib3==2.2.1
+urllib3==1.26.18
     # via requests

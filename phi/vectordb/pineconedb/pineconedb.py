@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union, List
+from typing import Optional, Dict, Union, List, Any
 
 try:
     from pinecone import Pinecone
@@ -12,9 +12,8 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
-from pinecone.core.client.api.manage_indexes_api import ManageIndexesApi
 from pinecone.models import ServerlessSpec, PodSpec
-from pinecone.core.client.models import Vector
+from pinecone.core.openapi.data.model.vector import Vector
 
 
 class PineconeDB(VectorDb):
@@ -28,7 +27,7 @@ class PineconeDB(VectorDb):
         additional_headers (Optional[Dict[str, str]], optional): Additional headers to pass to the Pinecone client. Defaults to {}.
         pool_threads (Optional[int], optional): The number of threads to use for the Pinecone client. Defaults to 1.
         timeout (Optional[int], optional): The timeout for Pinecone operations. Defaults to None.
-        index_api (Optional[ManageIndexesApi], optional): The Index API object. Defaults to None.
+        index_api (Optional[Any], optional): The Index API object. Defaults to None.
         api_key (Optional[str], optional): The Pinecone API key. Defaults to None.
         host (Optional[str], optional): The Pinecone host. Defaults to None.
         config (Optional[Config], optional): The Pinecone config. Defaults to None.
@@ -42,7 +41,7 @@ class PineconeDB(VectorDb):
         config (Optional[Config]): The Pinecone config.
         additional_headers (Optional[Dict[str, str]]): Additional headers to pass to the Pinecone client.
         pool_threads (Optional[int]): The number of threads to use for the Pinecone client.
-        index_api (Optional[ManageIndexesApi]): The Index API object.
+        index_api (Optional[Any]): The Index API object.
         name (str): The name of the index.
         dimension (int): The dimension of the embeddings.
         spec (Union[Dict, ServerlessSpec, PodSpec]): The index spec.
@@ -62,7 +61,7 @@ class PineconeDB(VectorDb):
         pool_threads: Optional[int] = 1,
         namespace: Optional[str] = None,
         timeout: Optional[int] = None,
-        index_api: Optional[ManageIndexesApi] = None,
+        index_api: Optional[Any] = None,
         api_key: Optional[str] = None,
         host: Optional[str] = None,
         config: Optional[Config] = None,
@@ -76,7 +75,7 @@ class PineconeDB(VectorDb):
         self.additional_headers: Dict[str, str] = additional_headers or {}
         self.pool_threads: Optional[int] = pool_threads
         self.namespace: Optional[str] = namespace
-        self.index_api: Optional[ManageIndexesApi] = index_api
+        self.index_api: Optional[Any] = index_api
         self.name: str = name
         self.dimension: int = dimension
         self.spec: Union[Dict, ServerlessSpec, PodSpec] = spec

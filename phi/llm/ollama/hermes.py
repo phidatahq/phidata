@@ -89,14 +89,14 @@ class Hermes(LLM):
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         return self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             **self.api_kwargs,
-        )
+        )  # type: ignore
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
         yield from self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.api_kwargs,
         )  # type: ignore
@@ -194,7 +194,7 @@ class Hermes(LLM):
                     messages.append(Message(role="user", content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
+                    messages.append(Message(role="user", tool_call_error=True, content=_function_call.error))
                     continue
                 function_calls_to_run.append(_function_call)
 

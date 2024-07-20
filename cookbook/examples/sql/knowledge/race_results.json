@@ -4,42 +4,42 @@
     "table_columns": [
         {
             "name": "index",
-            "type": "integer",
+            "type": "int",
             "description": "Unique index for each entry."
         },
         {
             "name": "year",
-            "type": "integer",
+            "type": "int",
             "description": "The year of the race."
         },
         {
             "name": "position",
-            "type": "varchar",
+            "type": "text",
             "description": "The finishing position of the driver."
         },
         {
             "name": "driver_no",
-            "type": "integer",
+            "type": "int",
             "description": "Driver number."
         },
         {
             "name": "venue",
-            "type": "varchar",
+            "type": "text",
             "description": "Location of the race."
         },
         {
             "name": "name",
-            "type": "varchar",
+            "type": "text",
             "description": "Name of the driver."
         },
         {
             "name": "name_tag",
-            "type": "varchar",
+            "type": "text",
             "description": "Abbreviated tag of the driver's name."
         },
         {
             "name": "team",
-            "type": "varchar",
+            "type": "text",
             "description": "The racing team of the driver."
         },
         {
@@ -49,7 +49,7 @@
         },
         {
             "name": "time",
-            "type": "varchar",
+            "type": "text",
             "description": "Finishing time or gap to the leader."
         },
         {

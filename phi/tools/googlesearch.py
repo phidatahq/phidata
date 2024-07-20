@@ -14,11 +14,12 @@ try:
 except ImportError:
     raise ImportError("`pycountry` not installed. Please install using `pip install pycountry`")
 
+
 class GoogleSearch(Toolkit):
     """
     GoogleSearch is a Python library for searching Google easily.
     It uses requests and BeautifulSoup4 to scrape Google.
-    
+
     Args:
         fixed_max_results (Optional[int]): A fixed number of maximum results.
         fixed_language (Optional[str]): Language of the search results.
@@ -26,7 +27,7 @@ class GoogleSearch(Toolkit):
         proxy (Optional[str]): Proxy settings for the request.
         timeout (Optional[int]): Timeout for the request, default is 10 seconds.
     """
-    
+
     def __init__(
         self,
         fixed_max_results: Optional[int] = None,
@@ -76,10 +77,12 @@ class GoogleSearch(Toolkit):
         # Collect the search results
         res: List[Dict[str, str]] = []
         for result in results:
-            res.append({
-                "title": result.title,
-                "url": result.url,
-                "description": result.description,
-            })
+            res.append(
+                {
+                    "title": result.title,
+                    "url": result.url,
+                    "description": result.description,
+                }
+            )
 
         return json.dumps(res, indent=2)

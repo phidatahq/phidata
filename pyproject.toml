@@ -84,6 +84,7 @@ module = [
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "chromadb.*",
   "cohere.*",
   "docker.*",
   "duckdb.*",

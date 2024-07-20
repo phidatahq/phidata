@@ -2,7 +2,7 @@ from os import getenv
 
 import vertexai
 from phi.assistant import Assistant
-from phi.llm.gemini import Gemini
+from phi.llm.vertexai import Gemini
 from phi.tools.duckduckgo import DuckDuckGo
 
 # *********** Initialize VertexAI ***********

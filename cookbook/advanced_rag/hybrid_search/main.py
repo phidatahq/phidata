@@ -1,5 +1,6 @@
 # Import necessary modules
-# These imports are crucial for the functionality of the script
+# pip install llama-index-core llama-index-readers-file llama-index-retrievers-bm25 llama-index-embeddings-openai llama-index-llms-openai phidata
+
 from pathlib import Path
 from shutil import rmtree
 

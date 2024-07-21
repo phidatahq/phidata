@@ -2,9 +2,9 @@
 
 ############################################################################
 #
-# This script formats the phidata codebase using ruff
+# This script tests the phidata codebase
 # Usage:
-#   ./scripts/format.sh
+#   ./scripts/test.sh
 #
 ############################################################################
 
@@ -13,9 +13,9 @@ REPO_ROOT="$( dirname ${CURR_DIR} )"
 source ${CURR_DIR}/_utils.sh
 
 main() {
-  print_heading "Formatting phidata"
-  print_heading "Running: ruff format ${REPO_ROOT}"
-  ruff format ${REPO_ROOT}
+  print_heading "Testing phidata"
+  print_heading "Running: pytest ${REPO_ROOT}"
+  pytest ${REPO_ROOT}
 }
 
 main "$@"

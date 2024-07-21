@@ -65,7 +65,7 @@ class SpiderTools(Toolkit):
             logger.error(f"Error fetching results from spider: {e}")
             return f"Error fetching results from spider: {e}"
 
-    def _scrape(self, url: str) -> list:
+    def _scrape(self, url: str) -> str:
         app = ExternalSpider()
         logger.info(f"Fetching content from spider for url: {url}")
         try:
@@ -76,7 +76,7 @@ class SpiderTools(Toolkit):
             logger.error(f"Error fetching content from spider: {e}")
             return f"Error fetching content from spider: {e}"
 
-    def _crawl(self, url: str) -> list:
+    def _crawl(self, url: str) -> str:
         app = ExternalSpider()
         logger.info(f"Fetching content from spider for url: {url}")
         try:

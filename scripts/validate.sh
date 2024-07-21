@@ -2,9 +2,9 @@
 
 ############################################################################
 #
-# This script formats the phidata codebase using ruff
+# This script validates the phidata codebase using ruff and mypy
 # Usage:
-#   ./scripts/format.sh
+#   ./scripts/validate.sh
 #
 ############################################################################
 
@@ -13,9 +13,11 @@ REPO_ROOT="$( dirname ${CURR_DIR} )"
 source ${CURR_DIR}/_utils.sh
 
 main() {
-  print_heading "Formatting phidata"
-  print_heading "Running: ruff format ${REPO_ROOT}"
-  ruff format ${REPO_ROOT}
+  print_heading "Validating phidata"
+  print_heading "Running: ruff check ${REPO_ROOT}"
+  ruff check ${REPO_ROOT}
+  print_heading "Running: mypy ${REPO_ROOT}"
+  mypy ${REPO_ROOT}
 }
 
 main "$@"

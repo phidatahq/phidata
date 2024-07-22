@@ -1,4 +1,7 @@
 @echo off
+call :%~1 "%~2"
+goto :eof
+
 :: Collection of helper functions to import in other scripts
 
 :: Function to pause the script until a key is pressed

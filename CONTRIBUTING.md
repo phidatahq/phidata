@@ -17,7 +17,7 @@ Please follow the [fork and pull request](https://docs.github.com/en/get-started
 1. Clone the repository.
 2. Create a virtual environment:
    - For Unix, use `./scripts/create_venv.sh`.
-   - For Windows, use `.\scripts\create_venv_win.bat`.
+   - For Windows, use `.\scripts\create_venv.bat`.
    - This setup will:
      - Create a `phienv` virtual environment in the current directory.
      - Install the required packages.

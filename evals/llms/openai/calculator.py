@@ -7,14 +7,12 @@ from phi.tools.calculator import Calculator
 
 
 def multiply_and_exponentiate():
-    assistant = Assistant(
-        llm=OpenAIChat(model="gpt-4o-mini"),
-        tools=[Calculator(add=True, multiply=True, exponentiate=True)],
-    )
-    question = "What is 10*5 then to the power of 2? do it step by step"
     evaluation = Eval(
-        assistant=assistant,
-        question=question,
+        assistant=Assistant(
+            llm=OpenAIChat(model="gpt-4o-mini"),
+            tools=[Calculator(add=True, multiply=True, exponentiate=True)],
+        ),
+        question="What is 10*5 then to the power of 2? do it step by step",
         ideal_answer="2500",
         save_result_to_file="evals/results/calculator/{eval_id}.json",
     )
@@ -24,14 +22,12 @@ def multiply_and_exponentiate():
 
 
 def factorial():
-    assistant = Assistant(
-        llm=OpenAIChat(model="gpt-4o-mini"),
-        tools=[Calculator(factorial=True)],
-    )
-    question = "What is 10!?"
     evaluation = Eval(
-        assistant=assistant,
-        question=question,
+        assistant=Assistant(
+            llm=OpenAIChat(model="gpt-4o-mini"),
+            tools=[Calculator(factorial=True)],
+        ),
+        question="What is 10!?",
         ideal_answer="3628800",
         save_result_to_file="evals/results/calculator/{eval_id}.json",
     )

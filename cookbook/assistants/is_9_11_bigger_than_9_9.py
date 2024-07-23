@@ -4,19 +4,8 @@ from phi.tools.calculator import Calculator
 
 assistant = Assistant(
     llm=OpenAIChat(model="gpt-4o"),
-    tools=[
-        Calculator(
-            add=True,
-            subtract=True,
-            multiply=True,
-            divide=True,
-            exponentiate=True,
-            factorial=True,
-            is_prime=True,
-            square_root=True,
-        )
-    ],
-    instructions=["You can use the available tools to answer questions."],
+    tools=[Calculator(add=True, subtract=True, multiply=True, divide=True)],
+    instructions=["Use the calculator tool for comparisons."],
     show_tool_calls=True,
     markdown=True,
 )

@@ -40,6 +40,15 @@ k8s = [
     "docker",
     "kubernetes"
 ]
+all = [
+    "mypy",
+    "pytest",
+    "ruff",
+    "types-pyyaml",
+    "docker",
+    "boto3",
+    "kubernetes"
+]
 
 [project.scripts]
 phi = "phi.cli.entrypoint:phi_cli"

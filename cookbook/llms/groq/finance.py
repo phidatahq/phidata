@@ -3,7 +3,7 @@ from phi.tools.yfinance import YFinanceTools
 from phi.llm.groq import Groq
 
 assistant = Assistant(
-    llm=Groq(model="llama3-70b-8192"),
+    llm=Groq(model="llama-3.1-405b-reasoning"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True, company_news=True)],
     show_tool_calls=True,
 )

@@ -26,7 +26,8 @@ dev = [
     "mypy",
     "pytest",
     "ruff",
-    "types-pyyaml"
+    "types-pyyaml",
+    "timeout-decorator",
 ]
 docker = [
     "docker"

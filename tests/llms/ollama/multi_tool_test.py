@@ -63,20 +63,26 @@ def get_function_calling_assistant(
     return assistant
 
 
-class MyTestCase(unittest.TestCase):
+class MultiToolTestCase(unittest.TestCase):
     def test_something(self):
         local_assistant: Assistant = get_function_calling_assistant(
-            llm_id="qwen2:latest",
+            llm_id="llama3.1",
             yfinance=True,
             ddg_search=False,
         )
 
+        response: str = ""
+        for delta in local_assistant.run("Whats nvidia and Tesla stock symbol and price?", stream=False):
+            response += delta
+
+        self.assertNotEqual(response, "")
+
         response = ""
-        for delta in local_assistant.run("Whats nvidia and Tesla stock symbol and price?"):
-            response += delta  # type: ignore
+        for delta in local_assistant.run("Whats nvidia and Tesla stock symbol and price?", stream=True):
+            response += delta
 
-        self.assertEqual(True, True)
+        self.assertNotEqual(response, "")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

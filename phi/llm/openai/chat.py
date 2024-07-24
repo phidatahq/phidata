@@ -219,6 +219,7 @@ class OpenAIChat(LLM):
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
             stream=True,
+            stream_options={"include_usage": True},
             **self.api_kwargs,
         )  # type: ignore
 
@@ -319,27 +320,24 @@ class OpenAIChat(LLM):
 
         # Add token usage to metrics
         response_usage: Optional[CompletionUsage] = response.usage
-        prompt_tokens = response_usage.prompt_tokens if response_usage is not None else None
-        if prompt_tokens is not None:
-            assistant_message.metrics["prompt_tokens"] = prompt_tokens
-            if "prompt_tokens" not in self.metrics:
-                self.metrics["prompt_tokens"] = prompt_tokens
-            else:
-                self.metrics["prompt_tokens"] += prompt_tokens
-        completion_tokens = response_usage.completion_tokens if response_usage is not None else None
-        if completion_tokens is not None:
-            assistant_message.metrics["completion_tokens"] = completion_tokens
-            if "completion_tokens" not in self.metrics:
-                self.metrics["completion_tokens"] = completion_tokens
-            else:
-                self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = response_usage.total_tokens if response_usage is not None else None
-        if total_tokens is not None:
-            assistant_message.metrics["total_tokens"] = total_tokens
-            if "total_tokens" not in self.metrics:
-                self.metrics["total_tokens"] = total_tokens
-            else:
-                self.metrics["total_tokens"] += total_tokens
+        if response_usage:
+            prompt_tokens = response_usage.prompt_tokens
+            completion_tokens = response_usage.completion_tokens
+            total_tokens = response_usage.total_tokens
+
+            if prompt_tokens is not None:
+                assistant_message.metrics["prompt_tokens"] = prompt_tokens
+                self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + prompt_tokens
+                assistant_message.metrics["input_tokens"] = prompt_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + prompt_tokens
+            if completion_tokens is not None:
+                assistant_message.metrics["completion_tokens"] = completion_tokens
+                self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + completion_tokens
+                assistant_message.metrics["output_tokens"] = completion_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + completion_tokens
+            if total_tokens is not None:
+                assistant_message.metrics["total_tokens"] = total_tokens
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -611,6 +609,9 @@ class OpenAIChat(LLM):
         assistant_message_function_arguments_str = ""
         assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
         completion_tokens = 0
+        response_prompt_tokens = 0
+        response_completion_tokens = 0
+        response_total_tokens = 0
         time_to_first_token = None
         response_timer = Timer()
         response_timer.start()
@@ -650,6 +651,13 @@ class OpenAIChat(LLM):
                 if assistant_message_tool_calls is None:
                     assistant_message_tool_calls = []
                 assistant_message_tool_calls.extend(response_tool_calls)
+
+            if response.usage:
+                response_usage: Optional[CompletionUsage] = response.usage
+                if response_usage:
+                    response_prompt_tokens = response_usage.prompt_tokens
+                    response_completion_tokens = response_usage.completion_tokens
+                    response_total_tokens = response_usage.total_tokens
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
@@ -733,25 +741,31 @@ class OpenAIChat(LLM):
             self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
         # Add token usage to metrics
-        # TODO: compute prompt tokens
-        prompt_tokens = 0
-        assistant_message.metrics["prompt_tokens"] = prompt_tokens
+        assistant_message.metrics["prompt_tokens"] = response_prompt_tokens
         if "prompt_tokens" not in self.metrics:
-            self.metrics["prompt_tokens"] = prompt_tokens
+            self.metrics["prompt_tokens"] = response_prompt_tokens
         else:
-            self.metrics["prompt_tokens"] += prompt_tokens
-        logger.debug(f"Estimated completion tokens: {completion_tokens}")
-        assistant_message.metrics["completion_tokens"] = completion_tokens
+            self.metrics["prompt_tokens"] += response_prompt_tokens
+        assistant_message.metrics["completion_tokens"] = response_completion_tokens
         if "completion_tokens" not in self.metrics:
-            self.metrics["completion_tokens"] = completion_tokens
+            self.metrics["completion_tokens"] = response_completion_tokens
         else:
-            self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = prompt_tokens + completion_tokens
-        assistant_message.metrics["total_tokens"] = total_tokens
+            self.metrics["completion_tokens"] += response_completion_tokens
+        assistant_message.metrics["input_tokens"] = response_prompt_tokens
+        if "input_tokens" not in self.metrics:
+            self.metrics["input_tokens"] = response_prompt_tokens
+        else:
+            self.metrics["input_tokens"] += response_prompt_tokens
+        assistant_message.metrics["output_tokens"] = response_completion_tokens
+        if "output_tokens" not in self.metrics:
+            self.metrics["output_tokens"] = response_completion_tokens
+        else:
+            self.metrics["output_tokens"] += response_completion_tokens
+        assistant_message.metrics["total_tokens"] = response_total_tokens
         if "total_tokens" not in self.metrics:
-            self.metrics["total_tokens"] = total_tokens
+            self.metrics["total_tokens"] = response_total_tokens
         else:
-            self.metrics["total_tokens"] += total_tokens
+            self.metrics["total_tokens"] += response_total_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

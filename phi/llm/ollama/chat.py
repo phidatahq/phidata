@@ -4,7 +4,7 @@ from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
-from phi.llm.ollama.utils import _extract_tool_calls
+from phi.llm.ollama.utils import extract_tool_calls
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -88,14 +88,14 @@ class Ollama(LLM):
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         return self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             **self.api_kwargs,
-        )
+        )  # type: ignore
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
         yield from self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.api_kwargs,
         )  # type: ignore
@@ -134,7 +134,7 @@ class Ollama(LLM):
         try:
             if response_content is not None:
                 _tool_call_content = response_content.strip()
-                assistant_tool_calls = _extract_tool_calls(_tool_call_content)
+                assistant_tool_calls = extract_tool_calls(_tool_call_content)
 
                 if assistant_tool_calls.invalid_json_format:
                     assistant_message.tool_call_error = True
@@ -170,6 +170,18 @@ class Ollama(LLM):
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
+
+        # Add token usage to metrics
+        # Currently there is a bug in Ollama where sometimes the input tokens are not always returned
+        input_tokens = response.get("prompt_eval_count", 0)
+        output_tokens = response.get("eval_count", 0)
+
+        assistant_message.metrics["input_tokens"] = input_tokens
+        assistant_message.metrics["output_tokens"] = output_tokens
+
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -250,6 +262,7 @@ class Ollama(LLM):
         is_last_tool_call_bracket = False
         completion_tokens = 0
         time_to_first_token = None
+        response_metrics: Mapping[str, Any] = {}
         response_timer = Timer()
         response_timer.start()
 
@@ -271,9 +284,10 @@ class Ollama(LLM):
                 assistant_message_content += response_content
 
             # Strip out tool calls from the response
-            extract_tool_calls_result = _extract_tool_calls(assistant_message_content)
+            extract_tool_calls_result = extract_tool_calls(assistant_message_content)
             if not response_is_tool_call and (
-                extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format):
+                extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format
+            ):
                 response_is_tool_call = True
 
             # If the response is a tool call, count the number of brackets
@@ -299,6 +313,9 @@ class Ollama(LLM):
 
                 yield response_content
 
+            if response.get("done"):
+                response_metrics = response
+
         response_timer.stop()
         logger.debug(f"Tokens generated: {completion_tokens}")
         if completion_tokens > 0:
@@ -316,7 +333,7 @@ class Ollama(LLM):
         try:
             if response_is_tool_call and assistant_message_content != "":
                 _tool_call_content = assistant_message_content.strip()
-                assistant_tool_calls = _extract_tool_calls(_tool_call_content)
+                assistant_tool_calls = extract_tool_calls(_tool_call_content)
 
                 if assistant_tool_calls.invalid_json_format:
                     assistant_message.tool_call_error = True
@@ -363,6 +380,18 @@ class Ollama(LLM):
             if "tokens_per_second" not in self.metrics:
                 self.metrics["tokens_per_second"] = []
             self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
+
+        # Add token usage to metrics
+        # Currently there is a bug in Ollama where sometimes the input tokens are not returned
+        input_tokens = response_metrics.get("prompt_eval_count", 0)
+        output_tokens = response_metrics.get("eval_count", 0)
+
+        assistant_message.metrics["input_tokens"] = input_tokens
+        assistant_message.metrics["output_tokens"] = output_tokens
+
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -437,7 +466,6 @@ class Ollama(LLM):
                 "If the user explicitly requests raw data or specific formats like JSON, provide it as requested. "
                 "Otherwise, use the tool results to provide a clear and relevant answer without "
                 "returning the raw results directly:"
-
                 f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
             )
 
@@ -459,7 +487,6 @@ class Ollama(LLM):
         if self.functions is not None:
             return [
                 "To respond to the users message, you can use one or more of the tools provided above.",
-
                 # Tool usage instructions
                 "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
                 + dedent(
@@ -475,28 +502,39 @@ class Ollama(LLM):
                     """
                 ),
                 "REMEMBER: To use a tool, you MUST respond ONLY in JSON format.",
-                ("REMEMBER: You can use multiple tools in a single response if necessary, "
-                 "by including multiple entries in the \"tool_calls\" array."),
+                (
+                    "REMEMBER: You can use multiple tools in a single response if necessary, "
+                    'by including multiple entries in the "tool_calls" array.'
+                ),
                 "You may use the same tool multiple times in a single response, but only with different arguments.",
-                ("To use a tool, ONLY respond with the JSON matching the schema. Nothing else. "
-                 "Do not add any additional notes or explanations"),
-                ("REMEMBER: The ONLY valid way to use this tool is to ensure the ENTIRE response is in JSON format, "
-                 "matching the specified schema."),
+                (
+                    "To use a tool, ONLY respond with the JSON matching the schema. Nothing else. "
+                    "Do not add any additional notes or explanations"
+                ),
+                (
+                    "REMEMBER: The ONLY valid way to use this tool is to ensure the ENTIRE response is in JSON format, "
+                    "matching the specified schema."
+                ),
                 "Do not inform the user that you used a tool in your response.",
                 "Do not suggest tools to use in your responses. You should use them to obtain answers.",
                 "Ensure each tool use is formatted correctly and independently.",
-                "REMEMBER: The \"arguments\" field must contain valid parameters as per the tool's JSON schema.",
+                'REMEMBER: The "arguments" field must contain valid parameters as per the tool\'s JSON schema.',
                 "Ensure accuracy by using tools to obtain your answers, avoiding assumptions about tool output.",
-
                 # Response instructions
                 "After you use a tool, the next message you get will contain the result of the tool use.",
                 "If the result of one tool requires using another tool, use needed tool first and then use the result.",
-                ("If the result from a tool indicates an input error, "
-                 "You must adjust the parameters and try use the tool again."),
-                ("If the tool results are used in your response, you do not need to mention the knowledge cutoff. "
-                 "Use the information directly from the tool's output, which is assumed to be up-to-date."),
-                ("After you use a tool and receive the result back, take a step back and provide clear and relevant "
-                 "answers based on the user's query and tool results."),
+                (
+                    "If the result from a tool indicates an input error, "
+                    "You must adjust the parameters and try use the tool again."
+                ),
+                (
+                    "If the tool results are used in your response, you do not need to mention the knowledge cutoff. "
+                    "Use the information directly from the tool's output, which is assumed to be up-to-date."
+                ),
+                (
+                    "After you use a tool and receive the result back, take a step back and provide clear and relevant "
+                    "answers based on the user's query and tool results."
+                ),
             ]
         return []
 

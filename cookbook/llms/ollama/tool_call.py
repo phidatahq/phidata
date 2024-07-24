@@ -1,10 +1,10 @@
 from phi.assistant import Assistant
 from phi.tools.duckduckgo import DuckDuckGo
-from phi.llm.ollama import OllamaTools
+from phi.llm.ollama import Ollama
 
 
 assistant = Assistant(
-    llm=OllamaTools(model="llama3"),
+    llm=Ollama(model="llama3"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
 )

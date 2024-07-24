@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.22"
+version = "2.4.27"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -58,6 +58,7 @@ include = ["phi*"]
 phi = ["py.typed"]
 
 [tool.pytest.ini_options]
+log_cli = true
 testpaths = "tests"
 
 [tool.ruff]
@@ -78,18 +79,21 @@ exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/examples/*
 [[tool.mypy.overrides]]
 module = [
   "altair.*",
-  "arxiv.*",
   "anthropic.*",
   "apify_client.*",
+  "arxiv.*",
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "chromadb.*",
   "cohere.*",
   "docker.*",
   "duckdb.*",
+  "duckduckgo_search.*",
   "exa_py.*",
   "firecrawl.*",
-  "duckduckgo_search.*",
+  "google.*",
+  "googlesearch.*",
   "groq.*",
   "kubernetes.*",
   "lancedb.*",
@@ -97,25 +101,27 @@ module = [
   "langchain_core.*",
   "llama_index.*",
   "mistralai.*",
-  "newspaper.*",
   "nest_asyncio.*",
+  "newspaper.*",
   "numpy.*",
   "ollama.*",
   "openai.*",
   "openbb.*",
   "pandas.*",
-  "pinecone.*",
-  "pyarrow.*",
   "pgvector.*",
+  "pinecone.*",
   "psycopg.*",
   "psycopg2.*",
+  "pyarrow.*",
+  "pycountry.*",
   "pypdf.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
   "requests.*",
-  "simplejson.*",
   "serpapi.*",
   "setuptools.*",
+  "simplejson.*",
+  "spider.*",
   "sqlalchemy.*",
   "streamlit.*",
   "tavily.*",

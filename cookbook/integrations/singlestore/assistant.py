@@ -41,8 +41,6 @@ def pdf_assistant(user: str = "user"):
         run_id=run_id,
         user_id=user,
         knowledge_base=knowledge_base,
-        # tool_calls=True adds functions to
-        # search the knowledge base and chat history
         use_tools=True,
         show_tool_calls=True,
         # Uncomment the following line to use traditional RAG

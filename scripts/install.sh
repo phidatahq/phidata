@@ -19,8 +19,8 @@ main() {
   pip install --no-deps \
     -r ${REPO_ROOT}/requirements.txt
 
-  print_heading "Installing phidata with [dev] extras"
-  pip install --editable "${REPO_ROOT}[dev]"
+  print_heading "Installing phidata with [all] extras"
+  pip install --editable "${REPO_ROOT}[all]"
 }
 
 main "$@"

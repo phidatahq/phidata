@@ -87,6 +87,7 @@ module = [
   "bs4.*",
   "chromadb.*",
   "cohere.*",
+  "crawl4ai.*",
   "docker.*",
   "duckdb.*",
   "duckduckgo_search.*",

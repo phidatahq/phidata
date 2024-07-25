@@ -34,7 +34,7 @@ class Crawl4aiTools(Toolkit):
             return "No URL provided"
 
         # Create an instance of WebCrawler
-        crawler = WebCrawler()
+        crawler = WebCrawler(verbose=True)
         crawler.warmup()
 
         # Run the crawler on a URL

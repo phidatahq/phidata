@@ -18,6 +18,7 @@ class SearchTerms(BaseModel):
 class ArxivSearchResult(BaseModel):
     title: str = Field(..., description="Title of the article.")
     id: str = Field(..., description="The ID of the article.")
+    authors: List[str] = Field(..., description="Authors of the article.")
     summary: str = Field(..., description="Summary from the article.")
     pdf_url: str = Field(..., description="Url of the PDF from the article.")
     links: List[str] = Field(..., description="Links for the article.")

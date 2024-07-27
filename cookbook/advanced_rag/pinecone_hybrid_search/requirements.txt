@@ -1,0 +1,8 @@
+pinecone-client 
+llama-index-core 
+llama-index-readers-file 
+llama-index-retrievers-bm25 
+llama-index-embeddings-openai 
+llama-index-llms-openai 
+llama-index-vector-stores-pinecone
+phidata

@@ -1,6 +1,4 @@
-# Pinecone Hybrid Search Example
-
-This project demonstrates an advanced use case of the Pinecone service for hybrid search combining various data sources.
+# Phidata Pinecone Hybrid Search Example
 
 ## Introduction
 

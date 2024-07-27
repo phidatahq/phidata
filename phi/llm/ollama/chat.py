@@ -256,6 +256,12 @@ class Ollama(LLM):
         for m in messages:
             m.log()
 
+        original_user_message_content = None
+        for m in reversed(messages):
+            if m.role == "user":
+                original_user_message_content = m.content
+                break
+
         assistant_message_content = ""
         response_is_tool_call = False
         tool_call_bracket_count = 0
@@ -441,7 +447,7 @@ class Ollama(LLM):
                     if any(item.tool_call_error for item in function_call_results):
                         messages = self.add_tool_call_error_message(messages)
                     else:
-                        messages = self.add_original_user_message(messages)
+                        messages = self.add_original_user_message(messages,original_user_message_content)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
@@ -452,14 +458,8 @@ class Ollama(LLM):
 
         logger.debug("---------- Ollama Response End ----------")
 
-    def add_original_user_message(self, messages: List[Message]) -> List[Message]:
+    def add_original_user_message(self, messages: List[Message],original_user_message_content = None) -> List[Message]:
         # Add the original user message to the messages to remind the LLM of the original task
-        original_user_message_content = None
-        for m in messages:
-            if m.role == "user":
-                original_user_message_content = m.content
-                break
-
         if original_user_message_content is not None:
             _content = (
                 "Using the results of the tools above, respond to the following message. "

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-A powerful AI stack that includes Phidata Asistant, LlamaIndex Advanced RAG, and Pinecone Vector Database.
+A powerful AI stack that includes Phidata Assistant, LlamaIndex Advanced RAG, and Pinecone Vector Database.
 
 This empowers the Phidata Assistant a way to search its knowledge base using keywords and semantic search.
 

@@ -87,7 +87,8 @@ assistant = Assistant(
     # debug_mode=True,
 )
 
-assistant.knowledge_base.load()
+if assistant.knowledge_base:
+    assistant.knowledge_base.load()
 
 assistant.print_response("My name is John and I am an NYT reporter writing a cover story on a topic.")
 assistant.print_response("Write an article on GPT-4o")

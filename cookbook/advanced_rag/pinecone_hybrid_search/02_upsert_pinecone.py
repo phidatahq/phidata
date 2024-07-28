@@ -1,8 +1,7 @@
 import os
 from pathlib import Path
 
-from llama_index.core import (SimpleDirectoryReader, StorageContext,
-                              VectorStoreIndex)
+from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.vector_stores.pinecone import PineconeVectorStore
@@ -27,9 +26,7 @@ pinecone_index = pc.Index(index_name)
 # Set up the data directory
 data_dir = Path(__file__).parent.parent.parent.joinpath("wip", "data", "paul_graham")
 if not data_dir.is_dir():
-    print(
-        "Data directory does not exist. Please run the 01_download_text.py script first."
-    )
+    print("Data directory does not exist. Please run the 01_download_text.py script first.")
     exit()
 
 # Load the documents from the data directory

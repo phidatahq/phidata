@@ -17,9 +17,7 @@ index_name = "paul-graham-index"
 
 # Ensure that the index exists
 if index_name not in pc.list_indexes():
-    print(
-        "Pinecone index does not exist. Please run the 02_upsert_pinecone.py script first."
-    )
+    print("Pinecone index does not exist. Please run the 02_upsert_pinecone.py script first.")
     exit()
 
 # Initialize Pinecone index
@@ -31,9 +29,7 @@ index = VectorStoreIndex.from_vector_store(vector_store)
 retriever = QueryFusionRetriever(
     [
         index.as_retriever(similarity_top_k=10),  # Vector-based retrieval
-        BM25Retriever.from_defaults(
-            docstore=index.docstore, similarity_top_k=10
-        ),  # BM25 keyword retrieval
+        BM25Retriever.from_defaults(docstore=index.docstore, similarity_top_k=10),  # BM25 keyword retrieval
     ],
     num_queries=3,
     use_async=True,
@@ -50,6 +46,4 @@ assistant = Assistant(
 )
 
 # Use the assistant to answer a question and print the response
-assistant.print_response(
-    "Explain what this text means: low end eats the high end", markdown=True
-)
+assistant.print_response("Explain what this text means: low end eats the high end", markdown=True)

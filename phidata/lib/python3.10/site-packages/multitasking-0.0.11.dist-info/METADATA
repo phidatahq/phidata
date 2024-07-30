@@ -1,0 +1,183 @@
+Metadata-Version: 2.1
+Name: multitasking
+Version: 0.0.11
+Summary: Non-blocking Python methods using decorators
+Home-page: https://github.com/ranaroussi/multitasking
+Author: Ran Aroussi
+Author-email: ran@aroussi.com
+License: Apache
+Keywords: multitasking multitask threading async
+Platform: any
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+License-File: LICENSE.txt
+
+MultiTasking: Non-blocking Python methods using decorators
+==========================================================
+
+.. image:: https://img.shields.io/badge/python-2.7,%203.5+-blue.svg?style=flat
+    :target: https://pypi.python.org/pypi/multitasking
+    :alt: Python version
+
+.. image:: https://img.shields.io/travis/ranaroussi/multitasking/main.svg?
+    :target: https://travis-ci.org/ranaroussi/multitasking
+    :alt: Travis-CI build status
+
+.. image:: https://img.shields.io/pypi/v/multitasking.svg?maxAge=60
+    :target: https://pypi.python.org/pypi/multitasking
+    :alt: PyPi version
+
+.. image:: https://img.shields.io/pypi/status/multitasking.svg?maxAge=2592000
+    :target: https://pypi.python.org/pypi/multitasking
+    :alt: PyPi status
+
+.. image:: https://img.shields.io/pypi/dm/multitasking.svg?maxAge=2592000
+    :target: https://pypi.python.org/pypi/multitasking
+    :alt: PyPi downloads
+
+.. image:: https://www.codefactor.io/repository/github/ranaroussi/multitasking/badge
+    :target: https://www.codefactor.io/repository/github/ranaroussi/multitasking
+    :alt: CodeFactor
+
+.. image:: https://img.shields.io/github/stars/ranaroussi/multitasking.svg?style=social&label=Star&maxAge=60
+    :target: https://github.com/ranaroussi/multitasking
+    :alt: Star this repo
+
+.. image:: https://img.shields.io/twitter/follow/aroussi.svg?style=social&label=Follow%20Me&maxAge=60
+    :target: https://twitter.com/aroussi
+    :alt: Follow me on twitter
+
+\
+
+**MultiTasking** is a tiny Python library lets you convert your Python methods into asynchronous,
+non-blocking methods simply by using a decorator.
+
+Example
+--------------------
+.. code:: python
+
+    # example.py
+    import multitasking
+    import time
+    import random
+    import signal
+
+    # kill all tasks on ctrl-c
+    signal.signal(signal.SIGINT, multitasking.killall)
+
+    # or, wait for task to finish on ctrl-c:
+    # signal.signal(signal.SIGINT, multitasking.wait_for_tasks)
+
+    @multitasking.task # <== this is all it takes :-)
+    def hello(count):
+        sleep = random.randint(1,10)/2
+        print("Hello %s (sleeping for %ss)" % (count, sleep))
+        time.sleep(sleep)
+        print("Goodbye %s (after for %ss)" % (count, sleep))
+
+    if __name__ == "__main__":
+        for i in range(0, 10):
+            hello(i+1)
+
+
+The output would look something like this:
+
+.. code:: bash
+
+    $ python example.py
+
+    Hello 1 (sleeping for 0.5s)
+    Hello 2 (sleeping for 1.0s)
+    Hello 3 (sleeping for 5.0s)
+    Hello 4 (sleeping for 0.5s)
+    Hello 5 (sleeping for 2.5s)
+    Hello 6 (sleeping for 3.0s)
+    Hello 7 (sleeping for 0.5s)
+    Hello 8 (sleeping for 4.0s)
+    Hello 9 (sleeping for 3.0s)
+    Hello 10 (sleeping for 1.0s)
+    Goodbye 1 (after for 0.5s)
+    Goodbye 4 (after for 0.5s)
+    Goodbye 7 (after for 0.5s)
+    Goodbye 2 (after for 1.0s)
+    Goodbye 10 (after for 1.0s)
+    Goodbye 5 (after for 2.5s)
+    Goodbye 6 (after for 3.0s)
+    Goodbye 9 (after for 3.0s)
+    Goodbye 8 (after for 4.0s)
+    Goodbye 3 (after for 5.0s)
+
+
+Settings
+========
+
+The default maximum threads is equal to the # of CPU Cores.
+**This is just a rule of thumb!** The ``Thread`` module isn't actually using more than one core at a time.
+
+You can change the default maximum number of threads using:
+
+.. code:: python
+
+    import multitasking
+    multitasking.set_max_threads(10)
+
+...or, if you want to set the maximum number of threads based on the number of CPU Cores, you can:
+
+.. code:: python
+
+    import multitasking
+    multitasking.set_max_threads(multitasking.config["CPU_CORES"] * 5)
+
+For applications that doesn't require access to shared resources,
+you can set ``MultiTasking`` to use ``multiprocessing.Process()``
+instead of the ``threading.Thread()``, thus avoiding some of the
+`GIL constraints <https://jeffknupp.com/blog/2013/06/30/pythons-hardest-problem-revisited/>`_.
+
+.. code:: python
+
+    import multitasking
+    multitasking.set_engine("process") # "process" or "thread"
+
+
+Installation
+============
+
+Install multitasking using ``pip``:
+
+.. code:: bash
+
+    $ pip install multitasking --upgrade --no-cache-dir
+
+
+Install multitasking using ``conda``:
+
+.. code:: bash
+
+    $ conda install -c ranaroussi multitasking
+
+
+Legal Stuff
+===========
+
+**MultiTasking** is distributed under the **Apache Software License**. See the `LICENSE.txt <./LICENSE.txt>`_ file in the release for details.
+
+
+P.S.
+------------
+
+Please drop me an note with any feedback you have.
+
+**Ran Aroussi**
+
+

@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: bs4
+Version: 0.0.2
+Summary: Dummy package for Beautiful Soup (beautifulsoup4)
+Author-email: Leonard Richardson <leonardr@segfault.org>
+License: MIT License
+Requires-Dist: beautifulsoup4
+Description-Content-Type: text/x-rst
+
+This is a dummy package designed to prevent namesquatting on PyPI. You should install `beautifulsoup4 <https://pypi.python.org/pypi/beautifulsoup4>`_ instead.

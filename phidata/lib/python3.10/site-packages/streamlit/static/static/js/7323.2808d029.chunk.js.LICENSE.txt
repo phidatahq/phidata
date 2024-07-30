@@ -1,0 +1,135 @@
+/* flatpickr v4.6.6, @license MIT */
+
+/*!
+                 * Fuse.js v3.4.5 - Lightweight fuzzy-search (http://fusejs.io)
+                 *
+                 * Copyright (c) 2012-2017 Kirollos Risk (http://kiro.me)
+                 * All Rights Reserved. Apache Software License 2.0
+                 *
+                 * http://www.apache.org/licenses/LICENSE-2.0
+                 */
+
+/*!
+         * Sizzle CSS Selector Engine v2.3.6
+         * https://sizzlejs.com/
+         *
+         * Copyright JS Foundation and other contributors
+         * Released under the MIT license
+         * https://js.foundation/
+         *
+         * Date: 2021-02-16
+         */
+
+/*!
+     * jQuery JavaScript Library v3.6.0
+     * https://jquery.com/
+     *
+     * Includes Sizzle.js
+     * https://sizzlejs.com/
+     *
+     * Copyright OpenJS Foundation and other contributors
+     * Released under the MIT license
+     * https://jquery.org/license
+     *
+     * Date: 2021-03-02T17:08Z
+     */
+
+/*!
+     * jQuery Mousewheel 3.1.13
+     *
+     * Copyright jQuery Foundation and other contributors
+     * Released under the MIT license
+     * http://jquery.org/license
+     */
+
+/*!
+     * jquery.event.drag - v 2.3.0
+     * Copyright (c) 2010 Three Dub Media - http://threedubmedia.com
+     * Open Source MIT License - http://threedubmedia.com/code/license
+     */
+
+/*!
+     * jquery.event.drop - v 2.3.0
+     * Copyright (c) 2010 Three Dub Media - http://threedubmedia.com
+     * Open Source MIT License - http://threedubmedia.com/code/license
+     */
+
+/*!
+     * numbro.js
+     * version : 1.6.2
+     * author : Företagsplatsen AB
+     * license : MIT
+     * http://www.foretagsplatsen.se
+     */
+
+/*!
+ * Copyright (c) 2012 - 2022, Anaconda, Inc., and Bokeh Contributors
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted provided that the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * Neither the name of Anaconda nor the names of any contributors
+ * may be used to endorse or promote products derived from this software
+ * without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*! *****************************************************************************
+        Copyright (c) Microsoft Corporation.
+
+        Permission to use, copy, modify, and/or distribute this software for any
+        purpose with or without fee is hereby granted.
+
+        THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+        REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+        AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+        INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+        LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+        OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+        PERFORMANCE OF THIS SOFTWARE.
+        ***************************************************************************** */
+
+/*! Hammer.JS - v2.0.7 - 2016-04-22
+     * http://hammerjs.github.io/
+     *
+     * Copyright (c) 2016 Jorik Tangelder;
+     * Licensed under the MIT license */
+
+/*! choices.js v9.0.1 | © 2019 Josh Johnson | https://github.com/jshjohnson/Choices#readme */
+
+/**
+     * @license
+     * (c) 2009-2016 Michael Leibman
+     * michael{dot}leibman{at}gmail{dot}com
+     * http://github.com/mleibman/slickgrid
+     *
+     * Distributed under MIT license.
+     * All rights reserved.
+     *
+     * SlickGrid v2.4
+     *
+     * NOTES:
+     *     Cell/row DOM manipulations are done directly bypassing jQuery's DOM manipulation methods.
+     *     This increases the speed dramatically, but can only be done safely because there are no event handlers
+     *     or data associated with any cell/row DOM nodes.  Cell editors must make sure they implement .destroy()
+     *     and do proper cleanup.
+     */

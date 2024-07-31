@@ -18,9 +18,10 @@ from phi.assistant.duckdb import DuckDbAssistant
 from phi.assistant.python import PythonAssistant
 from phi.storage.assistant.postgres import PgAssistantStorage
 from phi.utils.log import logger
-from phi.vectordb.pgvector import PgVector2
+from phi.vectordb.lancedb import LanceDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+# db_url = "~/phi/data"
 cwd = Path(__file__).parent.resolve()
 scratch_dir = cwd.joinpath("scratch")
 if not scratch_dir.exists():
@@ -257,10 +258,10 @@ def get_agent(
         storage=PgAssistantStorage(table_name="agent_runs", db_url=db_url),
         # Add a knowledge base to the Agent
         knowledge_base=AssistantKnowledge(
-            vector_db=PgVector2(
-                db_url=db_url,
-                collection="agent_documents",
+            vector_db=LanceDb(
+                table_name="agent_documents_0",
                 embedder=OpenAIEmbedder(model="text-embedding-3-small", dimensions=1536),
+                query_type="vector",
             ),
             # 3 references are added to the prompt when searching the knowledge base
             num_documents=3,

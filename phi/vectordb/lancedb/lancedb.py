@@ -136,9 +136,6 @@ class LanceDb(VectorDb):
         self.insert(documents)
 
     def search(self, query: str, limit: int = 5) -> List[Document]:
-        import pdb
-
-        pdb.set_trace()
         if self.query_type == "vector":
             return self.vector_search(query, limit)
         elif self.query_type == "hybrid":

@@ -15,7 +15,7 @@ class GeminiEmbedder(Embedder):
     model: str = "models/embedding-001"
     task_type: str = "RETRIEVAL_QUERY"
     title: Optional[str] = None
-    output_dimensionality: Optional[int] = None
+    dimensions: Optional[int] = None
     api_key: Optional[str] = None
     request_params: Optional[Dict[str, Any]] = None
     client_params: Optional[Dict[str, Any]] = None
@@ -38,7 +38,7 @@ class GeminiEmbedder(Embedder):
         _request_params: Dict[str, Any] = {
             "content": text,
             "model": self.model,
-            "output_dimensionality": self.output_dimensionality,
+            "output_dimensionality": self.dimensions,
             "task_type": self.task_type,
             "title": self.title,
         }

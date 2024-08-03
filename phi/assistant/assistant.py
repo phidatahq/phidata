@@ -1,6 +1,7 @@
 import json
 from os import getenv
 from uuid import uuid4
+from pathlib import Path
 from textwrap import dedent
 from datetime import datetime
 from typing import (
@@ -928,8 +929,10 @@ class Assistant(BaseModel):
                 fn = self.save_output_to_file.format(
                     name=self.name, run_id=self.run_id, user_id=self.user_id, message=message
                 )
-                with open(fn, "w") as f:
-                    f.write(self.output)
+                fn_path = Path(fn)
+                if not fn_path.parent.exists():
+                    fn_path.parent.mkdir(parents=True, exist_ok=True)
+                fn_path.write_text(self.output)
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 

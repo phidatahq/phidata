@@ -14,7 +14,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 assistant = Assistant(
     # LLM to use for the Assistant
-    llm=OpenAIChat(model="gpt-4-turbo"),
+    llm=OpenAIChat(model="gpt-4o"),
     # Add personalization to the assistant by creating memories
     create_memories=True,
     # Store the memories in a database
@@ -67,7 +67,7 @@ assistant = Assistant(
     - [Title](url)
 
     ### Author
-    {Author Name} and {date}
+    {Author Name}, {date}
     </article_format>
     """
     ),
@@ -84,10 +84,11 @@ assistant = Assistant(
     # This setting adds the current datetime to the instructions
     add_datetime_to_instructions=True,
     show_tool_calls=True,
-    debug_mode=True,
+    # debug_mode=True,
 )
 
-# assistant.knowledge_base.load()
+if assistant.knowledge_base:
+    assistant.knowledge_base.load()
 
 assistant.print_response("My name is John and I am an NYT reporter writing a cover story on a topic.")
 assistant.print_response("Write an article on GPT-4o")

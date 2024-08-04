@@ -18,6 +18,7 @@ def average_rating() -> AssistantResponse:
         ],
         instructions=[
             "Only provide the result, do not need to provide any additional information.",
+            "Return the result as a JSON object."
         ],
         # This will make sure the output of this Assistant is an object of the `AssistantResponse` class
         output_model=AssistantResponse,

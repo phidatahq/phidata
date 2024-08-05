@@ -29,7 +29,7 @@ class LanceDb(VectorDb):
     ):
         # Embedder for embedding the document contents
         self.embedder: Embedder = embedder
-        self.dimensions: int = self.embedder.dimensions
+        self.dimensions: Optional[int] = self.embedder.dimensions
 
         # Distance metric
         self.distance: Distance = distance

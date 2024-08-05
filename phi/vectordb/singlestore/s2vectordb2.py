@@ -45,7 +45,7 @@ class S2VectorDb(VectorDb):
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
         self.embedder: Embedder = embedder
-        self.dimensions: int = self.embedder.dimensions
+        self.dimensions: Optional[int] = self.embedder.dimensions
         self.distance: Distance = distance
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         self.table: Table = self.get_table()

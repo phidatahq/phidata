@@ -1,6 +1,6 @@
 import unittest
 
-from typing import Optional, Dict
+from typing import Optional
 from textwrap import dedent
 from typing import Any, List
 
@@ -73,13 +73,13 @@ class MultiToolTestCase(unittest.TestCase):
 
         response: str = ""
         for delta in local_assistant.run("Whats nvidia and Tesla stock symbol and price?", stream=False):
-            response += delta
+            response += delta  # type: ignore
 
         self.assertNotEqual(response, "")
 
         response = ""
         for delta in local_assistant.run("Whats nvidia and Tesla stock symbol and price?", stream=True):
-            response += delta
+            response += delta  # type: ignore
 
         self.assertNotEqual(response, "")
 

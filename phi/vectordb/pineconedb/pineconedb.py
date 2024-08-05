@@ -77,7 +77,7 @@ class PineconeDB(VectorDb):
         self.namespace: Optional[str] = namespace
         self.index_api: Optional[Any] = index_api
         self.name: str = name
-        self.dimension: int = dimension
+        self.dimension: Optional[int] = dimension
         self.spec: Union[Dict, ServerlessSpec, PodSpec] = spec
         self.metric: Optional[str] = metric
         self.timeout: Optional[int] = timeout

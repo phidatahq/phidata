@@ -47,7 +47,7 @@ class S2VectorDb(VectorDb):
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
         self.embedder: Embedder = embedder
-        self.dimensions: int = self.embedder.dimensions
+        self.dimensions: Optional[int] = self.embedder.dimensions
         self.distance: Distance = distance
         # self.index: Optional[Union[Ivfflat, HNSW]] = index
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
@@ -87,7 +87,7 @@ class S2VectorDb(VectorDb):
                         name TEXT,
                         meta_data TEXT,
                         content TEXT,
-                        embedding VECTOR({self.dimensions}) NOT NULL, 
+                        embedding VECTOR({self.dimensions}) NOT NULL,
                         `usage` TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -102,7 +102,7 @@ class S2VectorDb(VectorDb):
                         name TEXT,
                         meta_data TEXT,
                         content TEXT,
-                        embedding VECTOR({self.dimensions}) NOT NULL, 
+                        embedding VECTOR({self.dimensions}) NOT NULL,
                         `usage` TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

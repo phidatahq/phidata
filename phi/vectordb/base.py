@@ -34,6 +34,16 @@ class VectorDb(ABC):
     def search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
+    # optional methods to avoid breaking changes
+    def vector_search(self, query: str, limit: int = 5) -> List[Document]:
+        raise NotImplementedError
+
+    def fulltext_search(self, query: str, limit: int = 5) -> List[Document]:
+        raise NotImplementedError
+
+    def hybrid_search(self, query: str, limit: int = 5) -> List[Document]:
+        raise NotImplementedError
+
     @abstractmethod
     def delete(self) -> None:
         raise NotImplementedError

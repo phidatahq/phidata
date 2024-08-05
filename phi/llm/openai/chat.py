@@ -282,6 +282,9 @@ class OpenAIChat(LLM):
 
     def response(self, messages: List[Message]) -> str:
         logger.debug("---------- OpenAI Response Start ----------")
+
+        messages = self.clean_messages(messages=messages)
+
         # -*- Log messages for debugging
         for m in messages:
             m.log()
@@ -600,6 +603,9 @@ class OpenAIChat(LLM):
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- OpenAI Response Start ----------")
+
+        messages = self.clean_messages(messages=messages)
+
         # -*- Log messages for debugging
         for m in messages:
             m.log()

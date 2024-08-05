@@ -35,7 +35,6 @@ class LLM(BaseModel):
     # If True, shows function calls in the response.
     show_tool_calls: Optional[bool] = None
     tool_calls_in_messages: Optional[int] = None
-    tool_call_results_in_messages: Optional[int] = None
 
     # -*- Functions available to the LLM to call -*-
     # Functions extracted from the tools.
@@ -149,7 +148,7 @@ class LLM(BaseModel):
                     logger.warning(f"Could not add function {tool}: {e}")
 
     def clean_messages(self, messages: List[Message]) -> List[Message]:
-        if self.tool_call_results_in_messages is None:
+        if self.tool_calls_in_messages is None:
             return messages
 
         clean_messages: List[Message] = []
@@ -163,7 +162,7 @@ class LLM(BaseModel):
                 tool_calls_and_results.append(m)
 
         # Add the last n pairs of tool calls and results to clean_messages
-        clean_messages.extend(tool_calls_and_results[-self.tool_call_results_in_messages * 2 :])
+        clean_messages.extend(tool_calls_and_results[-self.tool_calls_in_messages * 2 :])
 
         return clean_messages
 

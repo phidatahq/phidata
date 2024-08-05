@@ -606,12 +606,6 @@ class OpenAIChat(LLM):
 
         messages = self.clean_messages(messages=messages)
 
-        # logger.info(cleaned_messages)
-        logger.info(messages)
-
-        # logger.info(len(cleaned_messages))
-        logger.info(len(messages))
-
         # -*- Log messages for debugging
         for m in messages:
             m.log()

@@ -1,12 +1,12 @@
+from dataclasses import dataclass
 import json
 from typing import Optional, Dict, Literal, Union
 
-from pydantic import BaseModel
 
-
-class MessageToolCallExtractionResult(BaseModel):
-    tool_calls: Optional[list] = None
-    invalid_json_format: bool = False
+@dataclass
+class MessageToolCallExtractionResult:
+    tool_calls: Optional[list]
+    invalid_json_format: bool
 
 
 def extract_json(s: str) -> Union[Optional[Dict], Literal[False]]:
@@ -71,15 +71,14 @@ def extract_json(s: str) -> Union[Optional[Dict], Literal[False]]:
 def extract_tool_calls(assistant_msg_content: str) -> MessageToolCallExtractionResult:
     json_obj = extract_json(assistant_msg_content)
     if json_obj is None:
-        return MessageToolCallExtractionResult()
+        return MessageToolCallExtractionResult(tool_calls=None, invalid_json_format=False)
 
     if json_obj is False or not isinstance(json_obj, dict):
-        return MessageToolCallExtractionResult(invalid_json_format=True)
-
-    tool_calls: Optional[list] = json_obj.get("tool_calls")
+        return MessageToolCallExtractionResult(tool_calls=None, invalid_json_format=True)
 
     # Not tool call json object
+    tool_calls: Optional[list] = json_obj.get("tool_calls")
     if not isinstance(tool_calls, list):
-        return MessageToolCallExtractionResult(invalid_json_format=True)
+        return MessageToolCallExtractionResult(tool_calls=None, invalid_json_format=False)
 
-    return MessageToolCallExtractionResult(tool_calls=tool_calls)
+    return MessageToolCallExtractionResult(tool_calls=tool_calls, invalid_json_format=False)

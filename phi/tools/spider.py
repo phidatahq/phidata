@@ -5,7 +5,6 @@ try:
 except ImportError:
     raise ImportError("`spider-client` not installed. Please install using `pip install spider-client`")
 
-from spider import Spider as ExternalSpider  # type: ignore
 from typing import Optional
 
 from phi.tools.toolkit import Toolkit

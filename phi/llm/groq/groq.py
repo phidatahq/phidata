@@ -147,6 +147,9 @@ class Groq(LLM):
         return _dict
 
     def invoke(self, messages: List[Message]) -> Any:
+        if self.tools and self.response_format:
+            logger.warn(f"Response format is not supported for Groq when specifying tools. Ignoring response_format: {self.response_format}")
+            self.response_format = {"type": "text"}
         return self.client.chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore

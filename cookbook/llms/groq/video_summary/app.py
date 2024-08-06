@@ -1,7 +1,9 @@
 import streamlit as st
 from phi.tools.youtube_tools import YouTubeTools
 
-from assistant import get_chunk_summarizer, get_video_summarizer  # type: ignore
+# Import assistants
+from assistant import get_chunk_summarizer as get_chunk_summarizer_en, get_video_summarizer as get_video_summarizer_en  # type: ignore
+from assistant_pt_br import get_chunk_summarizer as get_chunk_summarizer_pt_br, get_video_summarizer as get_video_summarizer_pt_br  # type: ignore
 
 st.set_page_config(
     page_title="Youtube Video Summaries",
@@ -9,7 +11,6 @@ st.set_page_config(
 )
 st.title("Youtube Video Summaries powered by Groq")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
-
 
 def main() -> None:
     # Get model
@@ -24,6 +25,18 @@ def main() -> None:
         st.session_state["llm_model"] = llm_model
         st.rerun()
 
+    # Get assistant language
+    assistant_language = st.sidebar.selectbox(
+        "Select Assistant Language", options=["English", "Portuguese"]
+    )
+    # Set assistant language in session state
+    if "assistant_language" not in st.session_state:
+        st.session_state["assistant_language"] = assistant_language
+    # Restart the assistant if language has changed
+    elif st.session_state["assistant_language"] != assistant_language:
+        st.session_state["assistant_language"] = assistant_language
+        st.rerun()
+
     # Get chunker limit
     chunker_limit = st.sidebar.slider(
         ":heart_on_fire: Words in chunk",
@@ -36,6 +49,10 @@ def main() -> None:
 
     # Get video url
     video_url = st.sidebar.text_input(":video_camera: Video URL")
+    # Get video language 
+    video_language = st.sidebar.selectbox(
+        "Select the video language", options=["en", "pt"]
+    )
     # Button to generate report
     generate_report = st.sidebar.button("Generate Summary")
     if generate_report:
@@ -53,9 +70,15 @@ def main() -> None:
 
     if "youtube_url" in st.session_state:
         _url = st.session_state["youtube_url"]
-        youtube_tools = YouTubeTools(languages=["en"])
+        youtube_tools = YouTubeTools(languages=[video_language])
         video_captions = None
-        video_summarizer = get_video_summarizer(model=llm_model)
+
+        if assistant_language == "English":
+            video_summarizer = get_video_summarizer_en(model=llm_model)
+            chunk_summarizer = get_chunk_summarizer_en(model=llm_model)
+        else:
+            video_summarizer = get_video_summarizer_pt_br(model=llm_model)
+            chunk_summarizer = get_chunk_summarizer_pt_br(model=llm_model)
 
         with st.status("Parsing Video", expanded=False) as status:
             with st.container():
@@ -92,7 +115,6 @@ def main() -> None:
                 with st.status(f"Summarizing chunk: {i+1}", expanded=False) as status:
                     chunk_summary = ""
                     chunk_container = st.empty()
-                    chunk_summarizer = get_chunk_summarizer(model=llm_model)
                     chunk_info = f"Video data: {video_data}\n\n"
                     chunk_info += f"{chunks[i]}\n\n"
                     for delta in chunk_summarizer.run(chunk_info):
@@ -131,6 +153,5 @@ def main() -> None:
     st.sidebar.markdown("---")
     if st.sidebar.button("Restart"):
         st.rerun()
-
 
 main()

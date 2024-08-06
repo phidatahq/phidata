@@ -1,8 +1,8 @@
-from typing import Optional, Dict, Any, List
+import json
+from typing import Optional, List, Iterator, Dict, Any, Union
 
 from phi.llm.message import Message
 from phi.llm.aws.bedrock import AwsBedrock
-
 
 class Claude(AwsBedrock):
     name: str = "AwsBedrockAnthropicClaude"
@@ -18,32 +18,65 @@ class Claude(AwsBedrock):
     # -*- Client parameters
     client_params: Optional[Dict[str, Any]] = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        _dict = super().to_dict()
-        _dict["max_tokens"] = self.max_tokens
-        _dict["temperature"] = self.temperature
-        _dict["top_p"] = self.top_p
-        _dict["top_k"] = self.top_k
-        _dict["stop_sequences"] = self.stop_sequences
-        return _dict
-
     @property
     def api_kwargs(self) -> Dict[str, Any]:
-        _request_params: Dict[str, Any] = {
-            "max_tokens": self.max_tokens,
-            "anthropic_version": self.anthropic_version,
-        }
+        _request_params: Dict[str, Any] = {}
+        if self.anthropic_version:
+            _request_params["anthropic_version"] = self.anthropic_version
+        if self.max_tokens:
+            _request_params["max_tokens"] = self.max_tokens
         if self.temperature:
             _request_params["temperature"] = self.temperature
+        if self.stop_sequences:
+            _request_params["stop_sequences"] = self.stop_sequences
+        if self.tools is not None:
+            if _request_params.get("stop_sequences") is None:
+                _request_params["stop_sequences"] = ["</function_calls>"]
+            elif "</function_calls>" not in _request_params["stop_sequences"]:
+                _request_params["stop_sequences"].append("</function_calls>")
         if self.top_p:
             _request_params["top_p"] = self.top_p
         if self.top_k:
             _request_params["top_k"] = self.top_k
-        if self.stop_sequences:
-            _request_params["stop_sequences"] = self.stop_sequences
         if self.request_params:
             _request_params.update(self.request_params)
         return _request_params
+
+    def get_tools(self):
+        """
+        Refactors the tools in a format accepted by the Anthropic API.
+        """
+        if not self.functions:
+            return None
+
+        tools: List = []
+        for f_name, function in self.functions.items():
+            required_params = [
+                param_name
+                for param_name, param_info in function.parameters.get("properties", {}).items()
+                if "null"
+                not in (
+                    param_info.get("type") if isinstance(param_info.get("type"), list) else [param_info.get("type")]
+                )
+            ]
+            tools.append(
+                {
+                    "name": f_name,
+                    "description": function.description or "",
+                    "input_schema": {
+                        "type": function.parameters.get("type") or "object",
+                        "properties": {
+                            param_name: {
+                                "type": param_info.get("type") or "",
+                                "description": param_info.get("description") or "",
+                            }
+                            for param_name, param_info in function.parameters.get("properties", {}).items()
+                        },
+                        "required": required_params,
+                    },
+                }
+            )
+        return tools
 
     def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
         system_prompt = None
@@ -59,6 +92,9 @@ class Claude(AwsBedrock):
             "messages": messages_for_api,
             **self.api_kwargs,
         }
+        if self.tools:
+            request_body["tools"] = self.get_tools()
+
         if system_prompt:
             request_body["system"] = system_prompt
         return request_body

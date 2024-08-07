@@ -1,5 +1,6 @@
 import json
 from typing import Optional
+import pandas as pd
 
 import streamlit as st
 
@@ -81,33 +82,54 @@ def main() -> None:
             with st.status("Searching Exa", expanded=True) as status:
                 with st.container():
                     exa_container = st.empty()
-                    exa_search_results = exa_search_assistant.run(search_terms.model_dump_json(indent=4))
-                    if exa_search_results and len(exa_search_results.results) > 0:
-                        exa_content = exa_search_results.model_dump_json(indent=4)
-                        exa_container.json(exa_search_results.results)
-                status.update(label="Exa Search Complete Complete", state="complete", expanded=False)
+                    try:
+                        exa_search_results = exa_search_assistant.run(search_terms.model_dump_json(indent=4))
+                        if isinstance(exa_search_results, str):
+                            raise ValueError("Unexpected string response from exa_search_assistant")
+                        if exa_search_results and len(exa_search_results.results) > 0:
+                            exa_content = exa_search_results.model_dump_json(indent=4)
+                            exa_container.json(exa_search_results.results)
+                            status.update(label="Exa Search Complete", state="complete", expanded=False)
+                    except Exception as e:
+                        st.error(f"An error occurred during Exa search: {e}")
+                        status.update(label="Exa Search Failed", state="error", expanded=True)
+                        exa_content = None
 
         if search_arxiv:
             with st.status("Searching ArXiv (this takes a while)", expanded=True) as status:
                 with st.container():
                     arxiv_container = st.empty()
                     arxiv_search_results = arxiv_search_assistant.run(search_terms.model_dump_json(indent=4))
-                    if arxiv_search_results and len(arxiv_search_results.results) > 0:
-                        arxiv_container.json(arxiv_search_results.results)
+                    if arxiv_search_results and arxiv_search_results.results:
+                        arxiv_container.json([result.model_dump() for result in arxiv_search_results.results])
                 status.update(label="ArXiv Search Complete", state="complete", expanded=False)
 
-            if arxiv_search_results and len(arxiv_search_results) > 0:
-                arxiv_paper_ids = []
-                for search_result in arxiv_search_results:
-                    arxiv_paper_ids.extend([result.id for result in search_result.results])
+            if arxiv_search_results and arxiv_search_results.results:
+                paper_summaries = []
+                for result in arxiv_search_results.results:
+                    summary = {
+                        "ID": result.id,
+                        "Title": result.title,
+                        "Authors": ", ".join(result.authors) if result.authors else "No authors available",
+                        "Summary": result.summary[:200] + "..." if len(result.summary) > 200 else result.summary
+                    }
+                    paper_summaries.append(summary)
 
-                if len(arxiv_paper_ids) > 0:
-                    with st.status("Reading ArXiv Papers", expanded=True) as status:
+                if paper_summaries:
+                    with st.status("Displaying ArXiv Paper Summaries", expanded=True) as status:
                         with st.container():
-                            arxiv_paper_ids_container = st.empty()
-                            arxiv_content = arxiv_toolkit.read_arxiv_papers(arxiv_paper_ids, pages_to_read=2)
-                            arxiv_paper_ids_container.json(arxiv_paper_ids)
-                        status.update(label="Reading ArXiv Papers Complete", state="complete", expanded=False)
+                            st.subheader("ArXiv Paper Summaries")
+                            df = pd.DataFrame(paper_summaries)
+                            st.dataframe(df, use_container_width=True)
+                        status.update(label="ArXiv Paper Summaries Displayed", state="complete", expanded=False)
+
+                    arxiv_paper_ids = [summary["ID"] for summary in paper_summaries]
+                    if arxiv_paper_ids:
+                        with st.status("Reading ArXiv Papers", expanded=True) as status:
+                            with st.container():
+                                arxiv_content = arxiv_toolkit.read_arxiv_papers(arxiv_paper_ids, pages_to_read=2)
+                                st.write(f"Read {len(arxiv_paper_ids)} ArXiv papers")
+                            status.update(label="Reading ArXiv Papers Complete", state="complete", expanded=False)
 
         report_input = ""
         report_input += f"# Topic: {report_topic}\n\n"
@@ -124,12 +146,16 @@ def main() -> None:
             report_input += f"{exa_content}\n\n"
             report_input += "</exa_content>\n\n"
 
-        with st.spinner("Generating Report"):
-            final_report = ""
-            final_report_container = st.empty()
-            for delta in research_editor.run(report_input):
-                final_report += delta  # type: ignore
-                final_report_container.markdown(final_report)
+        # Only generate the report if we have content
+        if arxiv_content or exa_content:
+            with st.spinner("Generating Report"):
+                final_report = ""
+                final_report_container = st.empty()
+                for delta in research_editor.run(report_input):
+                    final_report += delta  # type: ignore
+                    final_report_container.markdown(final_report)
+        else:
+            st.error("Report generation cancelled due to search failure. Please try again or select another search option.")
 
     st.sidebar.markdown("---")
     if st.sidebar.button("Restart"):

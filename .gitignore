@@ -45,3 +45,6 @@ junk
 tmp
 
 .ipynb_checkpoints
+
+# ignore Streamlit secrets file
+.streamlit/secrets.toml

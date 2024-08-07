@@ -55,6 +55,8 @@ export OPENAI_API_KEY=***
 export EXA_API_KEY=xxx
 ```
 
+NB: You can also use the .streamlit/secrets.toml file to manage your environment variables. Rename the .streamlit/secrets.toml.example file to .streamlit/secrets.toml and add your API keys there.
+
 ### 4. Run PgVector
 
 We use PgVector to provide long-term memory and knowledge to the LLM OS.

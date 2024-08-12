@@ -66,4 +66,6 @@ class OpenAIEmbedder(Embedder):
 
         embedding = response.data[0].embedding
         usage = response.usage
-        return embedding, usage.model_dump()
+        if usage:
+            return embedding, usage.model_dump()
+        return embedding, None

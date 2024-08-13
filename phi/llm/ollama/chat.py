@@ -137,30 +137,28 @@ class Ollama(LLM):
                 tool_calls_result: MessageToolCallExtractionResult = extract_tool_calls(_tool_call_content)
 
                 # it is a tool call?
-                if tool_calls_result.tool_calls is None and not tool_calls_result.invalid_json_format:
-                    if tool_calls_result.invalid_json_format:
-                        assistant_message.tool_call_error = True
+                if tool_calls_result.invalid_json_format:
+                    assistant_message.tool_call_error = True
+                elif tool_calls_result.tool_calls is not None:
+                    # Build tool calls
+                    tool_calls: List[Dict[str, Any]] = []
+                    logger.debug(f"Building tool calls from {tool_calls_result}")
+                    for tool_call in tool_calls_result.tool_calls:
+                        tool_call_name = tool_call.get("name")
+                        tool_call_args = tool_call.get("arguments")
+                        _function_def = {"name": tool_call_name}
+                        if tool_call_args is not None:
+                            _function_def["arguments"] = json.dumps(tool_call_args)
+                        tool_calls.append(
+                            {
+                                "type": "function",
+                                "function": _function_def,
+                            }
+                        )
 
-                    if tool_calls_result.tool_calls is not None:
-                        # Build tool calls
-                        tool_calls: List[Dict[str, Any]] = []
-                        logger.debug(f"Building tool calls from {tool_calls_result}")
-                        for tool_call in tool_calls_result.tool_calls:
-                            tool_call_name = tool_call.get("name")
-                            tool_call_args = tool_call.get("arguments")
-                            _function_def = {"name": tool_call_name}
-                            if tool_call_args is not None:
-                                _function_def["arguments"] = json.dumps(tool_call_args)
-                            tool_calls.append(
-                                {
-                                    "type": "function",
-                                    "function": _function_def,
-                                }
-                            )
-
-                        # Add tool calls to assistant message
-                        assistant_message.tool_calls = tool_calls
-                        assistant_message.role = "assistant"
+                    # Add tool calls to assistant message
+                    assistant_message.tool_calls = tool_calls
+                    assistant_message.role = "assistant"
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {response_content}")
             assistant_message.tool_call_error = True

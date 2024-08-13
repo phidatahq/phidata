@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from phi.document import Document
 
@@ -31,7 +31,7 @@ class VectorDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def search(self, query: str, limit: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         raise NotImplementedError
 
     @abstractmethod

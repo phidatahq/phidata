@@ -708,7 +708,7 @@ class Assistant(BaseModel):
             return "\n".join(system_prompt_lines)
         return None
 
-    def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
+    def get_references_from_knowledge_base(self, query: str, num_documents: Optional[int] = None, filters: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """Return a list of references from the knowledge base"""
 
         if self.references_function is not None:
@@ -718,7 +718,7 @@ class Assistant(BaseModel):
         if self.knowledge_base is None:
             return None
 
-        relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents)
+        relevant_docs: List[Document] = self.knowledge_base.search(query=query, num_documents=num_documents, filters=filters)
         if len(relevant_docs) == 0:
             return None
 
@@ -864,7 +864,10 @@ class Assistant(BaseModel):
             if self.add_references_to_prompt and message and isinstance(message, str):
                 reference_timer = Timer()
                 reference_timer.start()
-                user_prompt_references = self.get_references_from_knowledge_base(query=message)
+
+                # Get references from the knowledge base
+                filters = kwargs.get("filters", None)
+                user_prompt_references = self.get_references_from_knowledge_base(query=message, filters=filters)
                 reference_timer.stop()
                 references = References(
                     query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
@@ -1065,7 +1068,9 @@ class Assistant(BaseModel):
             if self.add_references_to_prompt and message and isinstance(message, str):
                 reference_timer = Timer()
                 reference_timer.start()
-                user_prompt_references = self.get_references_from_knowledge_base(query=message)
+
+                filters = kwargs.get("filters", None)
+                user_prompt_references = self.get_references_from_knowledge_base(query=message, filters=filters)
                 reference_timer.stop()
                 references = References(
                     query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)

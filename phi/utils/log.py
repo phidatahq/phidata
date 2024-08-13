@@ -35,3 +35,8 @@ logger: logging.Logger = get_logger(LOGGER_NAME)
 def set_log_level_to_debug():
     _logger = logging.getLogger(LOGGER_NAME)
     _logger.setLevel(logging.DEBUG)
+
+
+def set_log_level_to_info():
+    _logger = logging.getLogger(LOGGER_NAME)
+    _logger.setLevel(logging.INFO)

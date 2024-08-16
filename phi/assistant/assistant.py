@@ -932,7 +932,8 @@ class Assistant(BaseModel):
                 fn_path = Path(fn)
                 if not fn_path.parent.exists():
                     fn_path.parent.mkdir(parents=True, exist_ok=True)
-                fn_path.write_text(self.output)
+                # fn_path.write_text(self.output, encoding="utf-8")
+                fn_path.write_text(self.get_formatted_chat_history(), encoding="utf-8")
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 

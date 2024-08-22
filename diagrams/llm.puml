@@ -1,0 +1,298 @@
+@startuml llm_diagram
+' Existing LLM hierarchy
+
+LLM <|-- AwsBedrock
+LLM <|-- AnthropicClaude
+AwsBedrock <|-- AWSClaude
+
+' Enum for MemoryRetrieval
+enum MemoryRetrieval {
+  last_n
+  first_n
+  semantic
+}
+
+class AssistantMemory {
+  ' ... (attributes and methods as before)
+}
+
+class Memory {
+  ' ... (attributes and methods as before)
+}
+
+class MemoryManager {
+  ' ... (attributes and methods as before)
+}
+
+class MemoryClassifier {
+  ' ... (attributes and methods as before)
+}
+
+class MemoryDb {
+  ' ... (attributes and methods as before)
+}
+
+class Tool {
+  ' Placeholder for Tool attributes and methods
+}
+
+class Function {
+  +name: str
+  +sanitize_arguments: bool
+  +from_callable(function: Callable): Function
+  +to_dict(): Dict
+}
+
+class Toolkit {
+  +name: str
+  +functions: Dict[str, Function]
+  +register(function: Callable, sanitize_arguments: bool): None
+  +instructions(): str
+  +__repr__(): str
+  +__str__(): str
+}
+
+class ToolRegistry {
+  ' Placeholder for ToolRegistry attributes and methods
+}
+
+class JinaReaderTools {
+  ' Placeholder for JinaReaderTools attributes and methods
+}
+
+
+class LLM << (B,lightblue) BaseModel >> {
+  +model: str
+  +name: Optional[str]
+  +metrics: Dict[str, Any]
+  +response_format: Optional[Any]
+  +tools: Optional[List[Union[Tool, Dict]]]
+  +tool_choice: Optional[Union[str, Dict[str, Any]]]
+  +run_tools: bool
+  +show_tool_calls: Optional[bool]
+  +functions: Optional[Dict[str, Function]]
+  +function_call_limit: int
+  +function_call_stack: Optional[List[FunctionCall]]
+  +system_prompt: Optional[str]
+  +instructions: Optional[List[str]]
+  +run_id: Optional[str]
+
+  +api_kwargs: Dict[str, Any]
+  +invoke(*args, **kwargs): Any
+  +ainvoke(*args, **kwargs): Any
+  +invoke_stream(*args, **kwargs): Iterator[Any]
+  +ainvoke_stream(*args, **kwargs): Any
+  +response(messages: List[Message]): str
+  +aresponse(messages: List[Message]): str
+  +response_stream(messages: List[Message]): Iterator[str]
+  +aresponse_stream(messages: List[Message]): Any
+  +generate(messages: List[Message]): Dict
+  +generate_stream(messages: List[Message]): Iterator[Dict]
+  +to_dict(): Dict[str, Any]
+  +get_tools_for_api(): Optional[List[Dict[str, Any]]]
+  +add_tool(tool: Union[Tool, Toolkit, Callable, Dict, Function]): None
+  +deactivate_function_calls(): None
+  +run_function_calls(function_calls: List[FunctionCall], role: str): List[Message]
+  +get_system_prompt_from_llm(): Optional[str]
+  +get_instructions_from_llm(): Optional[List[str]]
+}
+
+class AwsBedrock << (L,lightgreen) LLM >> {
+  +name: str
+  +model: str
+  +aws_region: Optional[str]
+  +aws_profile: Optional[str]
+  +aws_client: Optional[AwsApiClient]
+  +request_params: Optional[Dict[str, Any]]
+  -_bedrock_client: Optional[Any]
+  -_bedrock_runtime_client: Optional[Any]
+
+  +get_aws_region(): Optional[str]
+  +get_aws_profile(): Optional[str]
+  +get_aws_client(): AwsApiClient
+  +bedrock_client: Any
+  +bedrock_runtime_client: Any
+  +api_kwargs: Dict[str, Any]
+  +get_model_summaries(): List[Dict[str, Any]]
+  +get_model_ids(): List[str]
+  +get_model_details(): Dict[str, Any]
+  +invoke(body: Dict[str, Any]): Dict[str, Any]
+  +invoke_stream(body: Dict[str, Any]): Iterator[Dict[str, Any]]
+  +get_request_body(messages: List[Message]): Dict[str, Any]
+  +parse_response_message(response: Dict[str, Any]): Message
+  +parse_response_delta(response: Dict[str, Any]): Optional[str]
+  +response(messages: List[Message]): str
+  +response_stream(messages: List[Message]): Iterator[str]
+}
+
+class AWSClaude << (A,pink) AwsBedrock >> {
+  +name: str
+  +model: str
+  +max_tokens: int
+  +temperature: Optional[float]
+  +top_p: Optional[float]
+  +top_k: Optional[int]
+  +stop_sequences: Optional[List[str]]
+  +anthropic_version: str
+  +request_params: Optional[Dict[str, Any]]
+  +client_params: Optional[Dict[str, Any]]
+  
+  +api_kwargs(): Dict[str, Any]
+  +get_tools(): Optional[List[Dict]]
+  +get_request_body(messages: List[Message]): Dict[str, Any]
+  +parse_response_message(response: Dict[str, Any]): Message
+  +parse_response_delta(response: Dict[str, Any]): Optional[str]
+}
+
+class AnthropicClaude << (A,pink) LLM >> {
+  +name: str
+  +model: str
+  +max_tokens: Optional[int]
+  +temperature: Optional[float]
+  +stop_sequences: Optional[List[str]]
+  +top_p: Optional[float]
+  +top_k: Optional[int]
+  +request_params: Optional[Dict[str, Any]]
+  +api_key: Optional[str]
+  +client_params: Optional[Dict[str, Any]]
+  +anthropic_client: Optional[AnthropicClient]
+
+  +client: AnthropicClient
+  +api_kwargs: Dict[str, Any]
+  +get_tools(): Optional[List[Dict]]
+  +invoke(messages: List[Message]): AnthropicMessage
+  +invoke_stream(messages: List[Message]): Any
+  +response(messages: List[Message]): str
+  +response_stream(messages: List[Message]): Iterator[str]
+  +get_tool_call_prompt(): Optional[str]
+  +get_system_prompt_from_llm(): Optional[str]
+}
+
+class Assistant << (A,lightgreen) BaseModel >> {
+  +llm: Optional[LLM]
+  +introduction: Optional[str]
+  +name: Optional[str]
+  +assistant_data: Optional[Dict[str, Any]]
+  +run_id: Optional[str]
+  +run_name: Optional[str]
+  +run_data: Optional[Dict[str, Any]]
+  +user_id: Optional[str]
+  +user_data: Optional[Dict[str, Any]]
+  +memory: AssistantMemory
+  +add_chat_history_to_messages: bool
+  +add_chat_history_to_prompt: bool
+  +num_history_messages: int
+  +create_memories: bool
+  +update_memory_after_run: bool
+  +knowledge_base: Optional[AssistantKnowledge]
+  +add_references_to_prompt: bool
+  +storage: Optional[AssistantStorage]
+  +db_row: Optional[AssistantRun]
+  +tools: Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]]
+  +show_tool_calls: bool
+  +tool_call_limit: Optional[int]
+  +tool_choice: Optional[Union[str, Dict[str, Any]]]
+  +read_chat_history: bool
+  +search_knowledge: bool
+  +update_knowledge: bool
+  +read_tool_call_history: bool
+  +use_tools: bool
+  +additional_messages: Optional[List[Union[Dict, Message]]]
+  +system_prompt: Optional[str]
+  +system_prompt_template: Optional[PromptTemplate]
+  +build_default_system_prompt: bool
+  +description: Optional[str]
+  +task: Optional[str]
+  +instructions: Optional[List[str]]
+  +extra_instructions: Optional[List[str]]
+  +expected_output: Optional[str]
+  +add_to_system_prompt: Optional[str]
+  +add_knowledge_base_instructions: bool
+  +prevent_hallucinations: bool
+  +prevent_prompt_injection: bool
+  +limit_tool_access: bool
+  +add_datetime_to_instructions: bool
+  +markdown: bool
+  +user_prompt: Optional[Union[List, Dict, str]]
+  +user_prompt_template: Optional[PromptTemplate]
+  +build_default_user_prompt: bool
+  +references_function: Optional[Callable[..., Optional[str]]]
+  +references_format: Literal["json", "yaml"]
+  +chat_history_function: Optional[Callable[..., Optional[str]]]
+  +output_model: Optional[Type[BaseModel]]
+  +parse_output: bool
+  +output: Optional[Any]
+  +save_output_to_file: Optional[str]
+  +task_data: Optional[Dict[str, Any]]
+  +team: Optional[List[Assistant]]
+  +role: Optional[str]
+  +add_delegation_instructions: bool
+  +debug_mode: bool
+  +monitoring: bool
+
+  +streamable: bool
+  +is_part_of_team(): bool
+  +get_delegation_function(assistant: Assistant, index: int): Function
+  +get_delegation_prompt(): str
+  +update_llm(): None
+  +load_memory(): None
+  +to_database_row(): AssistantRun
+  +from_database_row(row: AssistantRun)
+  +read_from_storage(): Optional[AssistantRun]
+  +write_to_storage(): Optional[AssistantRun]
+  +add_introduction(introduction: str): None
+  +create_run(): Optional[str]
+  +get_json_output_prompt(): str
+  +get_system_prompt(): Optional[str]
+  +get_references_from_knowledge_base(query: str, num_documents: Optional[int]): Optional[str]
+  +get_formatted_chat_history(): Optional[str]
+  +get_user_prompt(message: Optional[Union[List, Dict, str]], references: Optional[str], chat_history: Optional[str]): Optional[Union[List, Dict, str]]
+  +run(message: Optional[Union[List, Dict, str]], stream: bool, messages: Optional[List[Union[Dict, Message]]], **kwargs): Union[Iterator[str], str, BaseModel]
+  +arun(message: Optional[Union[List, Dict, str]], stream: bool, messages: Optional[List[Union[Dict, Message]]], **kwargs): Union[AsyncIterator[str], str, BaseModel]
+  +chat(message: Union[List, Dict, str], stream: bool, **kwargs): Union[Iterator[str], str, BaseModel]
+  +rename(name: str): None
+  +rename_run(name: str): None
+  +generate_name(): str
+  +auto_rename_run(): None
+  +get_chat_history(num_chats: Optional[int]): str
+  +get_tool_call_history(num_calls: int): str
+  +search_knowledge_base(query: str): str
+  +add_to_knowledge_base(query: str, result: str): str
+  +update_memory(task: str): str
+  +convert_response_to_string(response: Any): str
+  +print_response(message: Optional[Union[List, Dict, str]], messages: Optional[List[Union[Dict, Message]]], stream: bool, markdown: bool, show_message: bool, **kwargs): None
+  +async_print_response(message: Optional[Union[List, Dict, str]], messages: Optional[List[Union[Dict, Message]]], stream: bool, markdown: bool, show_message: bool, **kwargs): None
+  +cli_app(message: Optional[str], user: str, emoji: str, stream: bool, markdown: bool, exit_on: Optional[List[str]], **kwargs): None
+}
+
+' Tools
+class SpiderTools {
+    <<Toolkit>>
+    -max_results: Optional[int]
+    -url: Optional[str]
+    +search(query: str, max_results: int): str
+    +scrape(url: str): str
+    +crawl(url: str): str
+    -_search(query: str, max_results: int): str
+    -_scrape(url: str): str
+    -_crawl(url: str): str
+}
+
+' Relationships
+Assistant "1" *-- "1" AssistantMemory
+Assistant "1" *-- "0..*" Tool
+Assistant "1" *-- "0..*" Toolkit
+Assistant "1" *-- "0..*" Function
+AssistantMemory "1" *-- "0..*" Memory
+AssistantMemory "1" *-- "0..1" MemoryDb
+AssistantMemory "1" *-- "0..1" MemoryClassifier
+AssistantMemory "1" *-- "0..1" MemoryManager
+AssistantMemory "1" *-- "1" MemoryRetrieval
+LLM "1" *-- "0..*" Tool
+LLM "1" *-- "0..*" Function
+ToolRegistry "1" *-- "0..*" Tool
+Toolkit "1" *-- "1..*" Tool
+Toolkit "1" *-- "1..*" Function
+Toolkit <|-- SpiderTools
+
+@enduml

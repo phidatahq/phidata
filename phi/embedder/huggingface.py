@@ -44,5 +44,5 @@ class HuggingfaceCustomEmbedder(Embedder):
             logger.warning(e)
             return []
 
-    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Dict | None]:
+    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
         return super().get_embedding_and_usage(text)

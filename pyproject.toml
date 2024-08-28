@@ -106,6 +106,7 @@ module = [
   "google.*",
   "googlesearch.*",
   "groq.*",
+  "huggingface_hub.*",
   "kubernetes.*",
   "lancedb.*",
   "langchain.*",

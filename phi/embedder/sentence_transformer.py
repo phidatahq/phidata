@@ -6,7 +6,8 @@ from phi.utils.log import logger
 try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
-    raise ImportError("`sentence-transformers` not installed, please run `pip install sentence-transformers`")
+    logger.error("`sentence-transformers` not installed, please run `pip install sentence-transformers`")
+    raise
 
 
 class SentenceTransformerEmbedder(Embedder):

@@ -1,4 +1,4 @@
-from phi.embedder.sentance_transformer import SentenceTransformerEmbedder
+from phi.embedder.sentence_transformer import SentenceTransformerEmbedder
 
 embeddings = SentenceTransformerEmbedder().get_embedding("Embed me")
 

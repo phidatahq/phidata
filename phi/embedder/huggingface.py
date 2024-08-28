@@ -6,7 +6,8 @@ from phi.utils.log import logger
 try:
     from huggingface_hub import InferenceClient, SentenceSimilarityInput
 except ImportError:
-    raise ImportError("`huggingface-hub` not installed, please run `pip install huggingface-hub`")
+    logger.error("`huggingface-hub` not installed, please run `pip install huggingface-hub`")
+    raise
 
 
 class HuggingfaceCustomEmbedder(Embedder):

@@ -949,6 +949,7 @@ class Assistant(BaseModel):
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
         event_data = {
+            "event_type": "run",
             "run_type": "assistant",
             "user_message": message,
             "response": llm_response,
@@ -960,7 +961,7 @@ class Assistant(BaseModel):
             "llm_response": llm_response,
             "llm_response_type": llm_response_type,
         }
-        self._api_log_assistant_event(event_type="run", event_data=event_data)
+        self._log_assistant_event(event_data=event_data)
 
         logger.debug(f"*********** Assistant Run End: {self.run_id} ***********")
 
@@ -1393,7 +1394,7 @@ class Assistant(BaseModel):
         # if telemetry is not enabled, return
         from os import getenv
 
-        telemetry_enabled = getenv("PHI_TELEMETRY", "false").lower() == "true"
+        telemetry_enabled = getenv("PHI_TELEMETRY", "true").lower() == "true"
         if not telemetry_enabled:
             return
 

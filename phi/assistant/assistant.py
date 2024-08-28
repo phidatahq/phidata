@@ -1389,6 +1389,43 @@ class Assistant(BaseModel):
     # Api functions
     ###########################################################################
 
+    def _log_assistant_event(self, event_data: Optional[Dict[str, Any]] = None) -> None:
+        # if telemetry is not enabled, return
+        from os import getenv
+
+        telemetry_enabled = getenv("PHI_TELEMETRY", "false").lower() == "true"
+        if not telemetry_enabled:
+            return
+
+        from phi.api.assistant import create_assistant_event, AssistantEventCreate
+
+        if self.monitoring:
+            logger.info("Logging monitoring event")
+            # try:
+            #     database_row: AssistantRun = self.db_row or self.to_database_row()
+            #     create_assistant_event(
+            #         event=AssistantEventCreate(
+            #             run_id=database_row.run_id,
+            #             assistant_data=database_row.assistant_dict(),
+            #             event_data=event_data,
+            #         ),
+            #     )
+            # except Exception as e:
+            #     logger.debug(f"Could not create assistant event: {e}")
+        else:
+            logger.info("Logging telemetry event")
+            # try:
+            #     database_row: AssistantRun = self.db_row or self.to_database_row()
+            #     create_assistant_event(
+            #         event=AssistantEventCreate(
+            #             run_id=database_row.run_id,
+            #             assistant_data=database_row.assistant_dict(),
+            #             event_data=event_data,
+            #         ),
+            #     )
+            # except Exception as e:
+            #     logger.debug(f"Could not create assistant event: {e}")
+
     def _api_log_assistant_run(self):
         if not self.monitoring:
             return

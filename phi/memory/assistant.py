@@ -41,7 +41,7 @@ class AssistantMemory(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         _memory_dict = self.model_dump(
-            exclude_none=True, exclude={"db", "updating", "memories", "classifier", "manager"}
+            exclude_none=True, exclude={"db", "updating", "memories", "classifier", "manager", "retrieval"}
         )
         if self.memories:
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
@@ -220,3 +220,11 @@ class AssistantMemory(BaseModel):
         memory_str += "\n</memory_from_previous_interactions>"
 
         return memory_str
+
+    def clear(self) -> None:
+        """Clears the assistant memory"""
+        self.chat_history = []
+        self.llm_messages = []
+        self.references = []
+        self.memories = None
+        logger.debug("Assistant Memory cleared")

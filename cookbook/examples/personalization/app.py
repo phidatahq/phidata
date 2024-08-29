@@ -148,7 +148,7 @@ def main() -> None:
     else:
         personalized_assistant = st.session_state["personalized_assistant"]
 
-    # Create assistant run (i.e. log to database) and save run_id in session state
+    # Create assistant run (i.e. log to database) and save thread_id in session state
     try:
         st.session_state["assistant_run_id"] = personalized_assistant.create_run()
     except Exception:

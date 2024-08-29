@@ -168,7 +168,7 @@ def main() -> None:
     else:
         llm_os = st.session_state["llm_os"]
 
-    # Create assistant run (i.e. log to database) and save run_id in session state
+    # Create assistant run (i.e. log to database) and save thread_id in session state
     try:
         st.session_state["llm_os_run_id"] = llm_os.create_run()
     except Exception:

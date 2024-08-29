@@ -65,7 +65,7 @@ def main() -> None:
     else:
         auto_rag_assistant = st.session_state["auto_rag_assistant"]
 
-    # Create assistant run (i.e. log to database) and save run_id in session state
+    # Create assistant run (i.e. log to database) and save thread_id in session state
     try:
         st.session_state["auto_rag_assistant_run_id"] = auto_rag_assistant.create_run()
     except Exception:

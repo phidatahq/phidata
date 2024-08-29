@@ -1,6 +1,6 @@
 from phi.assistant.assistant import (
     Assistant,
-    AssistantRun,
+    AssistantThread,
     AssistantMemory,
     MemoryRetrieval,
     AssistantStorage,

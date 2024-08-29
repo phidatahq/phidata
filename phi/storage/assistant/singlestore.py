@@ -13,7 +13,7 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.assistant.run import AssistantRun
+from phi.assistant.thread import AssistantThread
 from phi.storage.assistant.base import AssistantStorage
 from phi.utils.log import logger
 
@@ -63,7 +63,7 @@ class S2AssistantStorage(AssistantStorage):
             self.table_name,
             self.metadata,
             # Primary key for this run
-            Column("run_id", mysql.TEXT, primary_key=True),
+            Column("thread_id", mysql.TEXT, primary_key=True),
             # Assistant name
             Column("name", mysql.TEXT),
             # Run name
@@ -112,10 +112,10 @@ class S2AssistantStorage(AssistantStorage):
             self.create()
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRun]:
+    def read(self, run_id: str) -> Optional[AssistantThread]:
         with self.Session.begin() as sess:
             existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
+            return AssistantThread.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
@@ -136,8 +136,8 @@ class S2AssistantStorage(AssistantStorage):
             logger.error(f"An unexpected error occurred: {str(e)}")
         return run_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
-        runs: List[AssistantRun] = []
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantThread]:
+        runs: List[AssistantThread] = []
         try:
             with self.Session.begin() as sess:
                 # get all runs for this user
@@ -150,12 +150,12 @@ class S2AssistantStorage(AssistantStorage):
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.run_id is not None:
-                        runs.append(AssistantRun.model_validate(row))
+                        runs.append(AssistantThread.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
         return runs
 
-    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
+    def upsert(self, row: AssistantThread) -> Optional[AssistantThread]:
         """
         Create a new assistant run if it does not exist, otherwise update the existing assistant.
         """
@@ -165,9 +165,9 @@ class S2AssistantStorage(AssistantStorage):
             upsert_sql = text(
                 f"""
             INSERT INTO {self.schema}.{self.table_name}
-            (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
+            (thread_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
             VALUES
-            (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
+            (:thread_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
             ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
                 run_name = VALUES(run_name),
@@ -185,7 +185,7 @@ class S2AssistantStorage(AssistantStorage):
                 sess.execute(
                     upsert_sql,
                     {
-                        "run_id": row.run_id,
+                        "thread_id": row.run_id,
                         "name": row.name,
                         "run_name": row.run_name,
                         "user_id": row.user_id,
@@ -209,7 +209,7 @@ class S2AssistantStorage(AssistantStorage):
                 sess.execute(
                     upsert_sql,
                     {
-                        "run_id": row.run_id,
+                        "thread_id": row.run_id,
                         "name": row.name,
                         "run_name": row.run_name,
                         "user_id": row.user_id,

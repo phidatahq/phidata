@@ -223,7 +223,7 @@ class Message(BaseModel):
                 "created_at",
                 "thread_id",
                 "assistant_id",
-                "run_id",
+                "thread_id",
             },
         )
 

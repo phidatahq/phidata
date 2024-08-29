@@ -68,7 +68,7 @@ hn_user_researcher = Assistant(
 )
 article_writer = Assistant(
     name="Article Writer",
-    save_output_to_file="wip/hackernews_article_{run_id}.txt",
+    save_output_to_file="wip/hackernews_article_{thread_id}.txt",
 )
 
 hn_workflow = Workflow(

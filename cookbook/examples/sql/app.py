@@ -32,7 +32,7 @@ def main() -> None:
     else:
         sql_assistant = st.session_state["sql_assistant"]
 
-    # Create assistant run (i.e. log to database) and save run_id in session state
+    # Create assistant run (i.e. log to database) and save thread_id in session state
     st.session_state["sql_assistant_run_id"] = sql_assistant.create_run()
 
     # Load existing messages

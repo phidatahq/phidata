@@ -38,7 +38,7 @@ storage.create()  # Create the storage if it doesn't exist
 
 # Initialize the Assistant with various configurations including the knowledge base and storage
 assistant = Assistant(
-    run_id="run_id",  # use any unique identifier to identify the run
+    run_id="thread_id",  # use any unique identifier to identify the run
     user_id="user",  # user identifier to identify the user
     llm=llm,
     knowledge_base=knowledge_base,

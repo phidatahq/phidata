@@ -168,7 +168,7 @@ def main() -> None:
     else:
         agent = st.session_state["agent"]
 
-    # Create assistant run (i.e. log to database) and save run_id in session state
+    # Create assistant run (i.e. log to database) and save thread_id in session state
     try:
         st.session_state["agent_run_id"] = agent.create_run()
     except Exception:

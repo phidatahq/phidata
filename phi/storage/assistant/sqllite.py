@@ -14,7 +14,7 @@ except ImportError:
 
 from sqlite3 import OperationalError
 
-from phi.assistant.run import AssistantRun
+from phi.assistant.thread import AssistantThread
 from phi.storage.assistant.base import AssistantStorage
 from phi.utils.dttm import current_datetime
 from phi.utils.log import logger
@@ -70,7 +70,7 @@ class SqlAssistantStorage(AssistantStorage):
             self.table_name,
             self.metadata,
             # Database ID/Primary key for this run
-            Column("run_id", String, primary_key=True),
+            Column("thread_id", String, primary_key=True),
             # Assistant name
             Column("name", String),
             # Run name
@@ -121,10 +121,10 @@ class SqlAssistantStorage(AssistantStorage):
             logger.warning(e)
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRun]:
+    def read(self, run_id: str) -> Optional[AssistantThread]:
         with self.Session() as sess:
             existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
+            return AssistantThread.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
@@ -146,8 +146,8 @@ class SqlAssistantStorage(AssistantStorage):
             pass
         return run_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
-        conversations: List[AssistantRun] = []
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantThread]:
+        conversations: List[AssistantThread] = []
         try:
             with self.Session() as sess:
                 # get all runs for this user
@@ -160,13 +160,13 @@ class SqlAssistantStorage(AssistantStorage):
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.run_id is not None:
-                        conversations.append(AssistantRun.model_validate(row))
+                        conversations.append(AssistantThread.model_validate(row))
         except OperationalError:
             logger.debug(f"Table does not exist: {self.table.name}")
             pass
         return conversations
 
-    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
+    def upsert(self, row: AssistantThread) -> Optional[AssistantThread]:
         """
         Create a new assistant run if it does not exist, otherwise update the existing conversation.
         """
@@ -185,10 +185,10 @@ class SqlAssistantStorage(AssistantStorage):
                 task_data=row.task_data,
             )
 
-            # Define the upsert if the run_id already exists
+            # Define the upsert if the thread_id already exists
             # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
             stmt = stmt.on_conflict_do_update(
-                index_elements=["run_id"],
+                index_elements=["thread_id"],
                 set_=dict(
                     name=row.name,
                     run_name=row.run_name,

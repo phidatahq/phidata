@@ -12,7 +12,7 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.assistant.run import AssistantRun
+from phi.assistant.thread import AssistantThread
 from phi.storage.assistant.base import AssistantStorage
 from phi.utils.log import logger
 
@@ -62,11 +62,7 @@ class PgAssistantStorage(AssistantStorage):
             self.table_name,
             self.metadata,
             # Primary key for this run
-            Column("run_id", String, primary_key=True),
-            # Assistant name
-            Column("name", String),
-            # Run name
-            Column("run_name", String),
+            Column("thread_id", String, primary_key=True),
             # ID of the user participating in this run
             Column("user_id", String),
             # -*- LLM data (name, model, etc.)
@@ -76,11 +72,9 @@ class PgAssistantStorage(AssistantStorage):
             # Metadata associated with this assistant
             Column("assistant_data", postgresql.JSONB),
             # Metadata associated with this run
-            Column("run_data", postgresql.JSONB),
+            Column("thread_data", postgresql.JSONB),
             # Metadata associated the user participating in this run
             Column("user_data", postgresql.JSONB),
-            # Metadata associated with the assistant tasks
-            Column("task_data", postgresql.JSONB),
             # The timestamp of when this run was created.
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             # The timestamp of when this run was last updated.
@@ -114,10 +108,16 @@ class PgAssistantStorage(AssistantStorage):
             self.create()
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRun]:
+    def read(self, run_id: str) -> Optional[AssistantThread]:
         with self.Session() as sess, sess.begin():
             existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
+            try:
+                return AssistantThread.model_validate(existing_row) if existing_row is not None else None
+            except Exception:
+                logger.error(f"Error reading run: {run_id}")
+                # MIGRATE
+                # if an automatic migration is possible, great
+                # otherwise, throw and error pointing to the documentaion and support channel
 
     def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
@@ -138,8 +138,8 @@ class PgAssistantStorage(AssistantStorage):
             logger.debug(f"Table does not exist: {self.table.name}")
         return run_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
-        runs: List[AssistantRun] = []
+    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantThread]:
+        runs: List[AssistantThread] = []
         try:
             with self.Session() as sess, sess.begin():
                 # get all runs for this user
@@ -152,12 +152,12 @@ class PgAssistantStorage(AssistantStorage):
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.run_id is not None:
-                        runs.append(AssistantRun.model_validate(row))
+                        runs.append(AssistantThread.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
         return runs
 
-    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
+    def upsert(self, row: AssistantThread) -> Optional[AssistantThread]:
         """
         Create a new assistant run if it does not exist, otherwise update the existing assistant.
         """
@@ -177,10 +177,10 @@ class PgAssistantStorage(AssistantStorage):
                 task_data=row.task_data,
             )
 
-            # Define the upsert if the run_id already exists
+            # Define the upsert if the thread_id already exists
             # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
             stmt = stmt.on_conflict_do_update(
-                index_elements=["run_id"],
+                index_elements=["thread_id"],
                 set_=dict(
                     name=row.name,
                     run_name=row.run_name,

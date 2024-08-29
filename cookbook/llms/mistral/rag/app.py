@@ -53,7 +53,7 @@ def main() -> None:
     else:
         mistral_assistant = st.session_state["mistral_assistant"]
 
-    # Create assistant run (i.e. log to database) and save run_id in session state
+    # Create assistant run (i.e. log to database) and save thread_id in session state
     try:
         st.session_state["mistral_assistant_run_id"] = mistral_assistant.create_run()
     except Exception:

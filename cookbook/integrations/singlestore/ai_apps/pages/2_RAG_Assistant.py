@@ -156,7 +156,7 @@ def main() -> None:
             st.sidebar.success(":information_source: If the PDF throws an error, try uploading it again")
 
     if rag_assistant.storage:
-        assistant_run_ids: List[str] = rag_assistant.storage.get_all_run_ids()
+        assistant_run_ids: List[str] = rag_assistant.storage.get_all_thread_ids()
         new_assistant_run_id = st.sidebar.selectbox("Run ID", options=assistant_run_ids)
         if new_assistant_run_id is not None and st.session_state["rag_assistant_run_id"] != new_assistant_run_id:
             logger.info(f"---*--- Loading run: {new_assistant_run_id} ---*---")

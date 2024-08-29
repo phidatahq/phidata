@@ -10,7 +10,7 @@ class AssistantThreadCreate(BaseModel):
     assistant_data: Optional[Dict[str, Any]] = None
 
 
-class AssistantRunCreate(BaseModel):
+class AssistantThreadRunCreate(BaseModel):
     """Data sent to API to create a new assistant event"""
 
     thread_id: str

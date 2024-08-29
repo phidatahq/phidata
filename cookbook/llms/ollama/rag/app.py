@@ -150,7 +150,7 @@ def main() -> None:
             st.sidebar.success("Knowledge base cleared")
 
     if rag_assistant.storage:
-        rag_assistant_run_ids: List[str] = rag_assistant.storage.get_all_run_ids()
+        rag_assistant_run_ids: List[str] = rag_assistant.storage.get_all_thread_ids()
         new_rag_assistant_run_id = st.sidebar.selectbox("Run ID", options=rag_assistant_run_ids)
         if st.session_state["rag_assistant_run_id"] != new_rag_assistant_run_id:
             logger.info(f"---*--- Loading {llm_model} run: {new_rag_assistant_run_id} ---*---")

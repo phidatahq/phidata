@@ -24,8 +24,8 @@ class ApiRoutes:
     WORKSPACE_READ_AVAILABLE: str = "/v1/workspace/read/available"
 
     # assistant paths
-    ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"
-    ASSISTANT_EVENT_CREATE: str = "/v1/assistant/event/create"
+    ASSISTANT_THREAD_CREATE: str = "/v1/assistant/thread/create"
+    ASSISTANT_THREAD_RUN_CREATE: str = "/v1/assistant/thread-run/create"
 
     # prompt paths
     PROMPT_REGISTRY_SYNC: str = "/v1/prompt/registry/sync"

@@ -21,7 +21,7 @@ def pdf_assistant(new: bool = False, user: str = "user"):
     run_id: Optional[str] = None
 
     if not new:
-        existing_run_ids: List[str] = storage.get_all_run_ids(user)
+        existing_run_ids: List[str] = storage.get_all_thread_ids(user)
         if len(existing_run_ids) > 0:
             run_id = existing_run_ids[0]
 

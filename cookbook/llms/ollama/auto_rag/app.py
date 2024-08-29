@@ -131,7 +131,7 @@ def main() -> None:
             restart_assistant()
 
     if auto_rag_assistant.storage:
-        auto_rag_assistant_run_ids: List[str] = auto_rag_assistant.storage.get_all_run_ids()
+        auto_rag_assistant_run_ids: List[str] = auto_rag_assistant.storage.get_all_thread_ids()
         new_auto_rag_assistant_run_id = st.sidebar.selectbox("Run ID", options=auto_rag_assistant_run_ids)
         if st.session_state["auto_rag_assistant_run_id"] != new_auto_rag_assistant_run_id:
             logger.info(f"---*--- Loading Assistant run: {new_auto_rag_assistant_run_id} ---*---")

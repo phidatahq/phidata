@@ -6,8 +6,8 @@ from httpx import Response
 from phi.api.api import api, invalid_response
 from phi.api.routes import ApiRoutes
 from phi.api.schemas.assistant import (
-    AssistantRunCreate,
     AssistantThreadCreate,
+    AssistantThreadRunCreate,
 )
 from phi.constants import PHI_API_KEY_ENV_VAR, PHI_WS_KEY_ENV_VAR
 from phi.cli.settings import phi_cli_settings
@@ -18,11 +18,11 @@ def create_assistant_thread(thread: AssistantThreadCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
-    logger.debug("--o-o-- Creating Assistant Run")
+    logger.debug("--*-- Logging assistant thread")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.ASSISTANT_RUN_CREATE,
+                ApiRoutes.ASSISTANT_THREAD_CREATE,
                 headers={
                     "Authorization": f"Bearer {getenv(PHI_API_KEY_ENV_VAR)}",
                     "PHI-WORKSPACE": f"{getenv(PHI_WS_KEY_ENV_VAR)}",
@@ -45,21 +45,21 @@ def create_assistant_thread(thread: AssistantThreadCreate) -> bool:
     return False
 
 
-def create_assistant_run(run: AssistantRunCreate) -> bool:
+def create_assistant_thread_run(thread_run: AssistantThreadRunCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
-    logger.debug("--o-o-- Creating Assistant Event")
+    logger.debug("--*-- Logging assistant thread run")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.ASSISTANT_EVENT_CREATE,
+                ApiRoutes.ASSISTANT_THREAD_RUN_CREATE,
                 headers={
                     "Authorization": f"Bearer {getenv(PHI_API_KEY_ENV_VAR)}",
                     "PHI-WORKSPACE": f"{getenv(PHI_WS_KEY_ENV_VAR)}",
                 },
                 json={
-                    "run": run.model_dump(exclude_none=True),
+                    "thread_run": thread_run.model_dump(exclude_none=True),
                 },
             )
             if invalid_response(r):

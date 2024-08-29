@@ -265,7 +265,7 @@ def main() -> None:
                         _team_member_memory_container.json(team_member.memory.get_llm_messages())
 
     if agent.storage:
-        agent_run_ids: List[str] = agent.storage.get_all_run_ids()
+        agent_run_ids: List[str] = agent.storage.get_all_thread_ids()
         new_agent_run_id = st.sidebar.selectbox("Run ID", options=agent_run_ids)
         if st.session_state["agent_run_id"] != new_agent_run_id:
             logger.info(f"---*--- Loading {llm_id} run: {new_agent_run_id} ---*---")

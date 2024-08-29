@@ -127,7 +127,7 @@ def main() -> None:
             alert.empty()
 
     if assistant.storage:
-        assistant_run_ids: List[str] = assistant.storage.get_all_run_ids(user_id=username)
+        assistant_run_ids: List[str] = assistant.storage.get_all_thread_ids(user_id=username)
         new_assistant_run_id = st.sidebar.selectbox("Run ID", options=assistant_run_ids)
         if st.session_state["assistant_run_id"] != new_assistant_run_id:
             logger.info(f"---*--- Loading Hermes2 run: {new_assistant_run_id} ---*---")

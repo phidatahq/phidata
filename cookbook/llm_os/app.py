@@ -265,7 +265,7 @@ def main() -> None:
                         _team_member_memory_container.json(team_member.memory.get_llm_messages())
 
     if llm_os.storage:
-        llm_os_run_ids: List[str] = llm_os.storage.get_all_run_ids()
+        llm_os_run_ids: List[str] = llm_os.storage.get_all_thread_ids()
         new_llm_os_run_id = st.sidebar.selectbox("Run ID", options=llm_os_run_ids)
         if st.session_state["llm_os_run_id"] != new_llm_os_run_id:
             logger.info(f"---*--- Loading {llm_id} run: {new_llm_os_run_id} ---*---")

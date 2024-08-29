@@ -121,12 +121,12 @@ class SqlAssistantStorage(AssistantStorage):
             logger.warning(e)
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantThread]:
+    def read(self, thread_id: str) -> Optional[AssistantThread]:
         with self.Session() as sess:
-            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
+            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=thread_id)
             return AssistantThread.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
+    def get_all_thread_ids(self, user_id: Optional[str] = None) -> List[str]:
         run_ids: List[str] = []
         try:
             with self.Session() as sess:
@@ -146,7 +146,7 @@ class SqlAssistantStorage(AssistantStorage):
             pass
         return run_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantThread]:
+    def get_all_threads(self, user_id: Optional[str] = None) -> List[AssistantThread]:
         conversations: List[AssistantThread] = []
         try:
             with self.Session() as sess:
@@ -205,14 +205,14 @@ class SqlAssistantStorage(AssistantStorage):
             try:
                 sess.execute(stmt)
                 sess.commit()  # Make sure to commit the changes to the database
-                return self.read(run_id=row.run_id)
+                return self.read(thread_id=row.run_id)
             except OperationalError as oe:
                 logger.debug(f"OperationalError occurred: {oe}")
                 self.create()  # This will only create the table if it doesn't exist
                 try:
                     sess.execute(stmt)
                     sess.commit()
-                    return self.read(run_id=row.run_id)
+                    return self.read(thread_id=row.run_id)
                 except Exception as e:
                     logger.warning(f"Error during upsert: {e}")
                     sess.rollback()  # Rollback the session in case of any error

@@ -99,8 +99,8 @@ class PgAssistantStorage(AssistantStorage):
             logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, run_id: str) -> Optional[Row[Any]]:
-        stmt = select(self.table).where(self.table.c.run_id == run_id)
+    def _read(self, session: Session, thread_id: str) -> Optional[Row[Any]]:
+        stmt = select(self.table).where(self.table.c.thread_id == thread_id)
         try:
             return session.execute(stmt).first()
         except Exception:
@@ -108,22 +108,22 @@ class PgAssistantStorage(AssistantStorage):
             self.create()
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantThread]:
+    def read(self, thread_id: str) -> Optional[AssistantThread]:
         with self.Session() as sess, sess.begin():
-            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
+            existing_row: Optional[Row[Any]] = self._read(session=sess, thread_id=thread_id)
             try:
                 return AssistantThread.model_validate(existing_row) if existing_row is not None else None
             except Exception:
-                logger.error(f"Error reading run: {run_id}")
+                logger.error(f"Error reading run: {thread_id}")
                 # MIGRATE
                 # if an automatic migration is possible, great
                 # otherwise, throw and error pointing to the documentaion and support channel
 
-    def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
-        run_ids: List[str] = []
+    def get_all_thread_ids(self, user_id: Optional[str] = None) -> List[str]:
+        thread_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
-                # get all run_ids for this user
+                # get all thread_ids for this user
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -132,13 +132,13 @@ class PgAssistantStorage(AssistantStorage):
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row is not None and row.run_id is not None:
-                        run_ids.append(row.run_id)
+                    if row is not None and row.thread_id is not None:
+                        thread_ids.append(row.thread_id)
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
-        return run_ids
+        return thread_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantThread]:
+    def get_all_threads(self, user_id: Optional[str] = None) -> List[AssistantThread]:
         runs: List[AssistantThread] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -151,7 +151,7 @@ class PgAssistantStorage(AssistantStorage):
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row.run_id is not None:
+                    if row.thread_id is not None:
                         runs.append(AssistantThread.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -165,16 +165,13 @@ class PgAssistantStorage(AssistantStorage):
         with self.Session() as sess, sess.begin():
             # Create an insert statement
             stmt = postgresql.insert(self.table).values(
-                run_id=row.run_id,
-                name=row.name,
-                run_name=row.run_name,
+                thread_id=row.thread_id,
                 user_id=row.user_id,
                 llm=row.llm,
                 memory=row.memory,
                 assistant_data=row.assistant_data,
-                run_data=row.run_data,
+                thread_data=row.thread_data,
                 user_data=row.user_data,
-                task_data=row.task_data,
             )
 
             # Define the upsert if the thread_id already exists
@@ -182,15 +179,12 @@ class PgAssistantStorage(AssistantStorage):
             stmt = stmt.on_conflict_do_update(
                 index_elements=["thread_id"],
                 set_=dict(
-                    name=row.name,
-                    run_name=row.run_name,
                     user_id=row.user_id,
                     llm=row.llm,
                     memory=row.memory,
                     assistant_data=row.assistant_data,
-                    run_data=row.run_data,
+                    thread_data=row.thread_data,
                     user_data=row.user_data,
-                    task_data=row.task_data,
                 ),  # The updated value for each column
             )
 
@@ -200,7 +194,7 @@ class PgAssistantStorage(AssistantStorage):
                 # Create table and try again
                 self.create()
                 sess.execute(stmt)
-        return self.read(run_id=row.run_id)
+        return self.read(thread_id=row.thread_id)
 
     def delete(self) -> None:
         if self.table_exists():

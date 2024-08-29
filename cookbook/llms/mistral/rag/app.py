@@ -142,7 +142,7 @@ def main() -> None:
             st.sidebar.success("Knowledge base cleared")
 
     if mistral_assistant.storage:
-        mistral_assistant_run_ids: List[str] = mistral_assistant.storage.get_all_run_ids()
+        mistral_assistant_run_ids: List[str] = mistral_assistant.storage.get_all_thread_ids()
         new_mistral_assistant_run_id = st.sidebar.selectbox("Run ID", options=mistral_assistant_run_ids)
         if st.session_state["mistral_assistant_run_id"] != new_mistral_assistant_run_id:
             logger.info(f"---*--- Loading {mistral_model} run: {new_mistral_assistant_run_id} ---*---")

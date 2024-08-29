@@ -110,7 +110,7 @@ def main() -> None:
         sql_assistant.auto_rename_run()
 
     if sql_assistant.storage:
-        sql_assistant_run_ids: List[str] = sql_assistant.storage.get_all_run_ids()
+        sql_assistant_run_ids: List[str] = sql_assistant.storage.get_all_thread_ids()
         new_sql_assistant_run_id = st.sidebar.selectbox("Run ID", options=sql_assistant_run_ids)
         if st.session_state["sql_assistant_run_id"] != new_sql_assistant_run_id:
             logger.info(f"Loading run {new_sql_assistant_run_id}")

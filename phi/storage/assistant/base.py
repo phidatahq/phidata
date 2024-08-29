@@ -10,15 +10,15 @@ class AssistantStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, run_id: str) -> Optional[AssistantThread]:
+    def read(self, thread_id: str) -> Optional[AssistantThread]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
+    def get_all_thread_ids(self, user_id: Optional[str] = None) -> List[str]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantThread]:
+    def get_all_threads(self, user_id: Optional[str] = None) -> List[AssistantThread]:
         raise NotImplementedError
 
     @abstractmethod

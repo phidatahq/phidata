@@ -337,6 +337,14 @@ class Assistant(BaseModel):
     def to_database_row(self) -> AssistantThread:
         """Create a AssistantThread for the current Assistant (to save to the database)"""
 
+        if self.name:
+            self.assistant_data = self.assistant_data or {}
+            self.assistant_data["name"] = self.name
+
+        if self.thread_name:
+            self.thread_data = self.thread_data or {}
+            self.thread_data["thread_name"] = self.thread_name
+
         return AssistantThread(
             thread_id=self.thread_id,
             user_id=self.user_id,
@@ -426,9 +434,9 @@ class Assistant(BaseModel):
         if self.storage is not None and self.thread_id is not None:
             self.db_row = self.storage.read(thread_id=self.thread_id)
             if self.db_row is not None:
-                logger.debug(f"-*- Loading run: {self.db_row.thread_id}")
+                logger.debug(f"-*- Loading thread: {self.db_row.thread_id}")
                 self.from_database_row(row=self.db_row)
-                logger.debug(f"-*- Loaded run: {self.thread_id}")
+                logger.debug(f"-*- Loaded thread: {self.thread_id}")
         self.load_memory()
         return self.db_row
 
@@ -446,35 +454,40 @@ class Assistant(BaseModel):
             if len(self.memory.chat_history) == 0:
                 self.memory.add_chat_message(Message(role="assistant", content=introduction))
 
-    def create_run(self) -> Optional[str]:
+    def create_thread(self) -> Optional[str]:
         """Create a run in the database and return the thread_id.
         This function:
-            - Creates a new run in the storage if it does not exist
-            - Load the assistant from the storage if it exists
+            - Creates a new thread in the storage if it does not exist
+            - Load the thread from the storage if it does exist
         """
 
-        # If a database_row exists, return the id from the database_row
+        # If a database_row exists, return the thread_id from the database_row
         if self.db_row is not None:
             return self.db_row.thread_id
 
-        # Create a new run or load an existing run
+        # Create a new thread or load an existing thread
         if self.storage is not None:
             # Load existing run if it exists
-            logger.debug(f"Reading run: {self.thread_id}")
+            logger.debug(f"Reading thread: {self.thread_id}")
             self.read_from_storage()
 
-            # Create a new run
+            # Create a new thread
             if self.db_row is None:
-                logger.debug("-*- Creating new assistant run")
+                logger.debug("-*- Creating new assistant thread")
                 if self.introduction:
                     self.add_introduction(self.introduction)
                 self.db_row = self.write_to_storage()
                 if self.db_row is None:
-                    raise Exception("Failed to create new assistant run in storage")
-                logger.debug(f"-*- Created assistant run: {self.db_row.thread_id}")
+                    raise Exception("Failed to create new assistant thread in storage")
+                logger.debug(f"-*- Created assistant thread: {self.db_row.thread_id}")
                 self.from_database_row(row=self.db_row)
                 self._log_assistant_thread()
         return self.thread_id
+
+    def create_run(self) -> Optional[str]:
+        """Deprecated: Use create_thread instead"""
+
+        return self.create_thread()
 
     def get_json_output_prompt(self) -> str:
         json_output_prompt = "\nProvide your output as a JSON containing the following fields:"
@@ -800,7 +813,7 @@ class Assistant(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Iterator[str]:
-        logger.debug(f"*********** Assistant Run Start: {self.thread_id} ***********")
+        logger.debug(f"*********** Assistant Run Start. Thread id: {self.thread_id} ***********")
         # Load run from storage
         self.read_from_storage()
 
@@ -880,7 +893,7 @@ class Assistant(BaseModel):
 
         # -*- Update Memory
         # Build the user message to add to the memory - this is added to the chat_history
-        # TODO: update to handle messages
+        # TODO: update to handle messages list
         user_message = Message(role="user", content=message) if message is not None else None
         # Add user message to the memory
         if user_message is not None:
@@ -920,7 +933,7 @@ class Assistant(BaseModel):
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 
-        # -*- Log run event
+        # -*- Log assistant run
         llm_response_type = "text"
         if self.output_model is not None:
             llm_response_type = "json"
@@ -933,7 +946,6 @@ class Assistant(BaseModel):
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
 
-        run_data = None
         if self.monitoring:
             run_data = {
                 "user_message": message,
@@ -951,9 +963,9 @@ class Assistant(BaseModel):
                 "functions": functions,
                 "metrics": self.llm.metrics if self.llm else None,
             }
-        self._api_log_assistant_run(run_data=run_data)
+        self._api_log_assistant_thread_run(run_data=run_data)
 
-        logger.debug(f"*********** Assistant Run End: {self.thread_id} ***********")
+        logger.debug(f"*********** Assistant Run End. Thread id: {self.thread_id} ***********")
 
         # -*- Yield final response if not streaming
         if not stream:
@@ -1007,7 +1019,7 @@ class Assistant(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> AsyncIterator[str]:
-        logger.debug(f"*********** Run Start: {self.thread_id} ***********")
+        logger.debug(f"*********** Assistant Run Start. Thread id: {self.thread_id} ***********")
         # Load run from storage
         self.read_from_storage()
 
@@ -1089,7 +1101,7 @@ class Assistant(BaseModel):
 
         # -*- Update Memory
         # Build the user message to add to the memory - this is added to the chat_history
-        # TODO: update to handle messages
+        # TODO: update to handle messages list
         user_message = Message(role="user", content=message) if message is not None else None
         # Add user message to the memory
         if user_message is not None:
@@ -1116,7 +1128,7 @@ class Assistant(BaseModel):
         # -*- Save run to storage
         self.write_to_storage()
 
-        # -*- Log run event
+        # -*- Log assistant run
         llm_response_type = "text"
         if self.output_model is not None:
             llm_response_type = "json"
@@ -1129,7 +1141,6 @@ class Assistant(BaseModel):
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
 
-        run_data = None
         if self.monitoring:
             run_data = {
                 "user_message": message,
@@ -1147,9 +1158,9 @@ class Assistant(BaseModel):
                 "functions": functions,
                 "metrics": self.llm.metrics if self.llm else None,
             }
-        self._api_log_assistant_run(run_data=run_data)
+        self._api_log_assistant_thread_run(run_data=run_data)
 
-        logger.debug(f"*********** Assistant Run End: {self.thread_id} ***********")
+        logger.debug(f"*********** Assistant Run End. Thread id: {self.thread_id} ***********")
 
         # -*- Yield final response if not streaming
         if not stream:
@@ -1409,16 +1420,16 @@ class Assistant(BaseModel):
         except Exception as e:
             logger.debug(f"Could not create assistant monitor: {e}")
 
-    def _api_log_assistant_run(self, run_data: Optional[Dict[str, Any]] = None) -> None:
+    def _api_log_assistant_thread_run(self, run_data: Optional[Dict[str, Any]] = None) -> None:
         if not self.telemetry:
             return
 
-        from phi.api.assistant import create_assistant_run, AssistantRunCreate
+        from phi.api.assistant import create_assistant_thread_run, AssistantThreadRunCreate
 
         try:
             database_row: AssistantThread = self.db_row or self.to_database_row()
-            create_assistant_run(
-                run=AssistantRunCreate(
+            create_assistant_thread_run(
+                thread_run=AssistantThreadRunCreate(
                     thread_id=database_row.thread_id,
                     assistant_data=database_row.monitoring_data() if self.monitoring else database_row.telemetry_data(),
                     run_data=run_data,

@@ -201,6 +201,8 @@ class Assistant(BaseModel):
     debug_mode: bool = False
     # monitoring=True logs Assistant runs on phidata.com
     monitoring: bool = getenv("PHI_MONITORING", "false").lower() == "true"
+    # telemetry=True logs Assistant telemetry on phidata.com
+    telemetry: bool = getenv("PHI_TELEMETRY", "true").lower() == "true"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -943,25 +945,33 @@ class Assistant(BaseModel):
             llm_response_type = "json"
         elif self.markdown:
             llm_response_type = "markdown"
+
         functions = {}
         if self.llm is not None and self.llm.functions is not None:
             for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
-        event_data = {
-            "event_type": "run",
-            "run_type": "assistant",
-            "user_message": message,
-            "response": llm_response,
-            "response_format": llm_response_type,
-            "messages": llm_messages,
-            "metrics": self.llm.metrics if self.llm else None,
-            "functions": functions,
-            # To be removed
-            "llm_response": llm_response,
-            "llm_response_type": llm_response_type,
-        }
-        self._log_assistant_event(event_data=event_data)
+
+        event_data = None
+        if self.monitoring:
+            event_data = {
+                "user_message": message,
+                "response": llm_response,
+                "response_format": llm_response_type,
+                "messages": llm_messages,
+                "functions": functions,
+                "metrics": self.llm.metrics if self.llm else None,
+                # To be removed
+                "llm_response": llm_response,
+                "llm_response_type": llm_response_type,
+            }
+        else:
+            event_data = {
+                "functions": functions,
+                "metrics": self.llm.metrics if self.llm else None,
+            }
+
+        self._api_log_assistant_event(event_type="run", event_data=event_data)
 
         logger.debug(f"*********** Assistant Run End: {self.run_id} ***********")
 
@@ -1390,43 +1400,6 @@ class Assistant(BaseModel):
     # Api functions
     ###########################################################################
 
-    def _log_assistant_event(self, event_data: Optional[Dict[str, Any]] = None) -> None:
-        # if telemetry is not enabled, return
-        from os import getenv
-
-        telemetry_enabled = getenv("PHI_TELEMETRY", "true").lower() == "true"
-        if not telemetry_enabled:
-            return
-
-        from phi.api.assistant import create_assistant_event, AssistantEventCreate
-
-        if self.monitoring:
-            logger.info("Logging monitoring event")
-            # try:
-            #     database_row: AssistantRun = self.db_row or self.to_database_row()
-            #     create_assistant_event(
-            #         event=AssistantEventCreate(
-            #             run_id=database_row.run_id,
-            #             assistant_data=database_row.assistant_dict(),
-            #             event_data=event_data,
-            #         ),
-            #     )
-            # except Exception as e:
-            #     logger.debug(f"Could not create assistant event: {e}")
-        else:
-            logger.info("Logging telemetry event")
-            # try:
-            #     database_row: AssistantRun = self.db_row or self.to_database_row()
-            #     create_assistant_event(
-            #         event=AssistantEventCreate(
-            #             run_id=database_row.run_id,
-            #             assistant_data=database_row.assistant_dict(),
-            #             event_data=event_data,
-            #         ),
-            #     )
-            # except Exception as e:
-            #     logger.debug(f"Could not create assistant event: {e}")
-
     def _api_log_assistant_run(self):
         if not self.monitoring:
             return
@@ -1438,14 +1411,14 @@ class Assistant(BaseModel):
             create_assistant_run(
                 run=AssistantRunCreate(
                     run_id=database_row.run_id,
-                    assistant_data=database_row.assistant_dict(),
+                    assistant_data=database_row.assistant_dict() if self.monitoring else database_row.telemetry_data(),
                 ),
             )
         except Exception as e:
             logger.debug(f"Could not create assistant monitor: {e}")
 
     def _api_log_assistant_event(self, event_type: str = "run", event_data: Optional[Dict[str, Any]] = None) -> None:
-        if not self.monitoring:
+        if not self.telemetry:
             return
 
         from phi.api.assistant import create_assistant_event, AssistantEventCreate
@@ -1455,7 +1428,7 @@ class Assistant(BaseModel):
             create_assistant_event(
                 event=AssistantEventCreate(
                     run_id=database_row.run_id,
-                    assistant_data=database_row.assistant_dict(),
+                    assistant_data=database_row.assistant_dict() if self.monitoring else database_row.telemetry_data(),
                     event_type=event_type,
                     event_data=event_data,
                 ),

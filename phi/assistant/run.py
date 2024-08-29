@@ -44,3 +44,9 @@ class AssistantRun(BaseModel):
         _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
         _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
         return _dict
+
+    def telemetry_data(self) -> Dict[str, Any]:
+        _dict = self.model_dump(include={"llm"})
+        _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
+        _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
+        return _dict

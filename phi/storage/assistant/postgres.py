@@ -24,6 +24,7 @@ class PgAssistantStorage(AssistantStorage):
         schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
+        auto_upgrade_schema: bool = False,
     ):
         """
         This class provides assistant storage using a postgres table.

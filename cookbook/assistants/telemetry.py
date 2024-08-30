@@ -11,4 +11,7 @@ assistant = Assistant(
     debug_mode=True,
     storage=PgAssistantStorage(table_name="assistant_threads", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
+# assistant.create_thread()
 assistant.print_response("What is the stock price of NVDA")
+
+# assistant.storage.upgrade_schema()

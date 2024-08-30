@@ -28,3 +28,7 @@ class AssistantStorage(ABC):
     @abstractmethod
     def delete(self) -> None:
         raise NotImplementedError
+
+    @abstractmethod
+    def upgrade_schema(self) -> None:
+        raise NotImplementedError

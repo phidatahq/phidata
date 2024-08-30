@@ -1,66 +1,72 @@
-from typing import Optional, Dict, Any, List
+import json
+from typing import Optional, List, Dict, Any
+
 from phi.tools import Toolkit
 
 try:
     from firecrawl import FirecrawlApp
 except ImportError:
-    raise ImportError(
-        "`firecrawl` not installed. Please install using `pip install firecrawl`"
-    )
+    raise ImportError("`firecrawl` not installed. Please install using `pip install firecrawl`")
+
 
 class FirecrawlTools(Toolkit):
     def __init__(
         self,
-        api_key: str,
-        max_length: Optional[int] = None,
+        api_key: Optional[str] = None,
+        formats: Optional[List[str]] = None,
+        limit: int = 10,
+        scrape: bool = True,
+        crawl: bool = False,
     ):
         super().__init__(name="firecrawl_tools")
 
-        self.api_key = api_key
-        self.max_length = max_length
-        self.app = FirecrawlApp(api_key=self.api_key)
+        self.api_key: Optional[str] = api_key
+        self.formats: Optional[List[str]] = formats
+        self.limit: int = limit
+        self.app: FirecrawlApp = FirecrawlApp(api_key=self.api_key)
 
-        self.register(self.scrape_or_crawl_website)
+        if scrape:
+            self.register(self.scrape_website)
+        if crawl:
+            self.register(self.crawl_website)
 
-    def scrape_or_crawl_website(self, url: str, method: str = "scrape", limit: int = 10, formats: str = "", max_length: Optional[int] = None) -> str:
-        """
-        Scrapes or crawls a website using Firecrawl's methods.
+    def scrape_website(self, url: str) -> str:
+        """Use this function to Scrapes a website using Firecrawl.
 
-        :param url: The URL to scrape or crawl.
-        :param method: The method to use, either "scrape" or "crawl".
-        :param limit: The maximum number of pages to crawl (only used for crawl method).
-        :param formats: Comma-separated list of formats to return (e.g., "markdown,html").
-        :param max_length: The maximum length of the extracted content.
+        Args:
+            url (str): The URL to scrape.
 
-        :return: The results of the scraping or crawling.
+        Returns:
+            The results of the scraping.
         """
         if url is None:
             return "No URL provided"
 
         params = {}
-        if formats:
-            params['formats'] = formats.split(',')
+        if self.formats:
+            params["formats"] = self.formats
 
-        if method.lower() == "crawl":
-            params['limit'] = limit
-            params['scrapeOptions'] = params.copy()
-            status = self.app.crawl_url(
-                url,
-                params=params,
-                wait_until_done=True,
-                poll_interval=30
-            )
-        else:  # default to scrape
-            status = self.app.scrape_url(url, params=params)
+        scrape_result = self.app.scrape_url(url, params=params)
+        return json.dumps(scrape_result)
 
-        # Assuming the status contains the scraped/crawled content
-        result = str(status)  # Convert to string, adjust based on actual return type
+    def crawl_website(self, url: str, limit: Optional[int] = None) -> str:
+        """Use this function to Crawls a website using Firecrawl.
 
-        # Determine the length to use
-        length = self.max_length or max_length
+        Args:
+            url (str): The URL to crawl.
+            limit (int): The maximum number of pages to crawl
 
-        # Truncate if length is specified
-        if length:
-            result = result[:length]
+        Returns:
+            The results of the crawling.
+        """
+        if url is None:
+            return "No URL provided"
 
-        return result
+        params: Dict[str, Any] = {}
+        if self.limit or limit:
+            params["limit"] = self.limit or limit
+            if self.formats:
+                params["scrapeOptions"] = {"formats": self.formats}
+
+        crawl_result = self.app.crawl_url(url, params=params, wait_until_done=True, poll_interval=30)
+        return json.dumps(crawl_result)

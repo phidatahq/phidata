@@ -11,7 +11,7 @@ assistant = Assistant(
     description="You are a venture capitalist at Redpoint Ventures writing a memo about investing in a company.",
     instructions=[
         "First search exa for Redpoint Ventures to learn about us.",
-        "Then use exa to search for '{company name} {current year}'.",
+        # "Then use exa to search for '{company name} {current year}'.",
         "Then scrape the provided company urls to get more information about the company and the product.",
         "Then write a proposal to send to your investment committee."
         "Break the memo into sections and make a recommendation at the end.",

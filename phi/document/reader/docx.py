@@ -4,6 +4,7 @@ from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
 import io
+from docx import Document as DocxDocument
 
 class DocxReader(Reader):
     """Reader for Doc/Docx files"""
@@ -13,25 +14,22 @@ class DocxReader(Reader):
             raise ValueError("No file provided")
 
         try:
-            import textract  # noqa: F401
-        except ImportError:
-            raise ImportError("`textract` not installed")
-
-        try:
             if isinstance(file, Path):
                 logger.info(f"Reading: {file}")
-                doc_content = textract.process(file)
+                docx_document = DocxDocument(file)
                 doc_name = file.stem
             else:  # Handle file-like object from upload
                 logger.info(f"Reading uploaded file: {file.name}")
-                doc_content = textract.process(file.read())
+                docx_document = DocxDocument(file)
                 doc_name = file.name.split(".")[0]
+
+            doc_content = "\n\n".join([para.text for para in docx_document.paragraphs])
 
             documents = [
                 Document(
                     name=doc_name,
                     id=doc_name,
-                    content=doc_content.decode("utf-8"),
+                    content=doc_content,
                 )
             ]
             if self.chunk:

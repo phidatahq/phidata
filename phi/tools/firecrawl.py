@@ -15,8 +15,9 @@ class FirecrawlTools(Toolkit):
         api_key: Optional[str] = None,
         formats: Optional[List[str]] = None,
         limit: int = 10,
-        scrape: bool = True,
-        crawl: bool = False,
+        scrape: bool = False,
+        crawl: bool = True,
+        wait_until_done: bool = True,
     ):
         super().__init__(name="firecrawl_tools")
 
@@ -24,7 +25,7 @@ class FirecrawlTools(Toolkit):
         self.formats: Optional[List[str]] = formats
         self.limit: int = limit
         self.app: FirecrawlApp = FirecrawlApp(api_key=self.api_key)
-
+        self.wait_until_done: bool = wait_until_done
         if scrape:
             self.register(self.scrape_website)
         if crawl:
@@ -49,16 +50,17 @@ class FirecrawlTools(Toolkit):
         scrape_result = self.app.scrape_url(url, params=params)
         return json.dumps(scrape_result)
 
-    def crawl_website(self, url: str, limit: Optional[int] = None) -> str:
+    def crawl_website(self, url: str, limit: Optional[int] = None, wait_until_done: Optional[bool] = None) -> str:
         """Use this function to Crawls a website using Firecrawl.
 
         Args:
             url (str): The URL to crawl.
             limit (int): The maximum number of pages to crawl
-
+            wait_until_done (bool): Whether to wait until the crawling is done
         Returns:
             The results of the crawling.
         """
+
         if url is None:
             return "No URL provided"
 
@@ -67,6 +69,7 @@ class FirecrawlTools(Toolkit):
             params["limit"] = self.limit or limit
             if self.formats:
                 params["scrapeOptions"] = {"formats": self.formats}
-
-        crawl_result = self.app.crawl_url(url, params=params, wait_until_done=True, poll_interval=30)
+        wait_until_done = wait_until_done if wait_until_done is not None else self.wait_until_done
+        print(wait_until_done)
+        crawl_result = self.app.crawl_url(url, params=params, wait_until_done=wait_until_done, poll_interval=30)
         return json.dumps(crawl_result)

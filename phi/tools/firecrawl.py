@@ -15,8 +15,8 @@ class FirecrawlTools(Toolkit):
         api_key: Optional[str] = None,
         formats: Optional[List[str]] = None,
         limit: int = 10,
-        scrape: bool = False,
-        crawl: bool = True,
+        scrape: bool = True,
+        crawl: bool = False,
         wait_until_done: bool = True,
     ):
         super().__init__(name="firecrawl_tools")

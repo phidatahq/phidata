@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 import json
-import requests
+import httpx
 from xml.etree import ElementTree
 from phi.tools import Toolkit
 
@@ -26,14 +26,14 @@ class PubmedTools(Toolkit):
             "email": email,
             "usehistory": "y",
         }
-        response = requests.get(url, params=params)
+        response = httpx.get(url, params=params)  # type: ignore
         root = ElementTree.fromstring(response.content)
         return [id_elem.text for id_elem in root.findall(".//Id") if id_elem.text is not None]
 
     def fetch_details(self, pubmed_ids: List[str]) -> ElementTree.Element:
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
         params = {"db": "pubmed", "id": ",".join(pubmed_ids), "retmode": "xml"}
-        response = requests.get(url, params=params)
+        response = httpx.get(url, params=params)
         return ElementTree.fromstring(response.content)
 
     def parse_details(self, xml_root: ElementTree.Element) -> List[Dict[str, Any]]:

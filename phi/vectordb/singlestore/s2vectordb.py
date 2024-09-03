@@ -13,12 +13,13 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
+
+# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
 
 
@@ -31,6 +32,7 @@ class S2VectorDb(VectorDb):
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
+        # index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -45,12 +47,19 @@ class S2VectorDb(VectorDb):
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
         self.embedder: Embedder = embedder
-        self.dimensions: int = self.embedder.dimensions
+        self.dimensions: Optional[int] = self.embedder.dimensions
         self.distance: Distance = distance
+        # self.index: Optional[Union[Ivfflat, HNSW]] = index
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         self.table: Table = self.get_table()
 
     def get_table(self) -> Table:
+        """
+        Define the table structure.
+
+        Returns:
+            Table: SQLAlchemy Table object.
+        """
         return Table(
             self.collection,
             self.metadata,
@@ -58,7 +67,7 @@ class S2VectorDb(VectorDb):
             Column("name", mysql.TEXT),
             Column("meta_data", mysql.TEXT),
             Column("content", mysql.TEXT),
-            Column("embedding", mysql.BLOB),  # Use BLOB for storing vector embeddings
+            Column("embedding", mysql.TEXT),  # Placeholder for the vector column
             Column("usage", mysql.TEXT),
             Column("created_at", DateTime(timezone=True), server_default=text("now()")),
             Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
@@ -66,23 +75,57 @@ class S2VectorDb(VectorDb):
             extend_existing=True,
         )
 
+    def create(self) -> None:
+        """
+        Create the table if it does not exist.
+        """
+        if not self.table_exists():
+            logger.info(f"Creating table: {self.collection}")
+            logger.info(f"""
+                    CREATE TABLE IF NOT EXISTS {self.schema}.{self.collection} (
+                        id TEXT,
+                        name TEXT,
+                        meta_data TEXT,
+                        content TEXT,
+                        embedding VECTOR({self.dimensions}) NOT NULL,
+                        `usage` TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        content_hash TEXT
+                    );
+                    """)
+            with self.db_engine.connect() as connection:
+                connection.execute(
+                    text(f"""
+                    CREATE TABLE IF NOT EXISTS {self.schema}.{self.collection} (
+                        id TEXT,
+                        name TEXT,
+                        meta_data TEXT,
+                        content TEXT,
+                        embedding VECTOR({self.dimensions}) NOT NULL,
+                        `usage` TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        content_hash TEXT
+                    );
+                    """)
+                )
+            # Call optimize to create indexes
+            self.optimize()
+
     def table_exists(self) -> bool:
+        """
+        Check if the table exists.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
             return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
         except Exception as e:
             logger.error(e)
             return False
-
-    def create(self) -> None:
-        if not self.table_exists():
-            # with self.Session() as sess:
-            #     with sess.begin():
-            #         if self.schema is not None:
-            #             logger.debug(f"Creating schema: {self.schema}")
-            #             sess.execute(text(f"CREATE DATABASE IF NOT EXISTS {self.schema};"))
-            logger.info(f"Creating table: {self.collection}")
-            self.table.create(self.db_engine)
 
     def doc_exists(self, document: Document) -> bool:
         """
@@ -123,6 +166,13 @@ class S2VectorDb(VectorDb):
             return result is not None
 
     def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+        """
+        Insert documents into the table.
+
+        Args:
+            documents (List[Document]): List of documents to insert.
+            batch_size (int): Number of documents to insert in each batch.
+        """
         with self.Session.begin() as sess:
             counter = 0
             for document in documents:
@@ -133,15 +183,16 @@ class S2VectorDb(VectorDb):
 
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
+
+                # Convert embedding to a JSON array string
                 embedding_json = json.dumps(document.embedding)
-                json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
 
                 stmt = mysql.insert(self.table).values(
                     id=_id,
                     name=document.name,
                     meta_data=meta_data_json,
                     content=cleaned_content,
-                    embedding=json_array_pack,
+                    embedding=embedding_json,  # Properly formatted embedding as a JSON array string
                     usage=usage_json,
                     content_hash=content_hash,
                 )
@@ -149,20 +200,16 @@ class S2VectorDb(VectorDb):
                 counter += 1
                 logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-            # Commit all documents
             sess.commit()
             logger.debug(f"Committed {counter} documents")
 
-    def upsert_available(self) -> bool:
-        return False
-
     def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
         """
-        Upsert documents into the database.
+        Upsert (insert or update) documents in the table.
 
         Args:
-            documents (List[Document]): List of documents to upsert
-            batch_size (int): Batch size for upserting documents
+            documents (List[Document]): List of documents to upsert.
+            batch_size (int): Number of documents to upsert in each batch.
         """
         with self.Session.begin() as sess:
             counter = 0
@@ -174,27 +221,49 @@ class S2VectorDb(VectorDb):
 
                 meta_data_json = json.dumps(document.meta_data)
                 usage_json = json.dumps(document.usage)
-                embedding_json = json.dumps(document.embedding)
-                json_array_pack = text("JSON_ARRAY_PACK(:embedding)").bindparams(embedding=embedding_json)
 
-                stmt = mysql.insert(self.table).values(
-                    id=_id,
-                    name=document.name,
-                    meta_data=meta_data_json,
-                    content=cleaned_content,
-                    embedding=json_array_pack,
-                    usage=usage_json,
-                    content_hash=content_hash,
+                # Convert embedding to a JSON array string
+                embedding_json = json.dumps(document.embedding)
+
+                stmt = (
+                    mysql.insert(self.table)
+                    .values(
+                        id=_id,
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
+                    .on_duplicate_key_update(
+                        name=document.name,
+                        meta_data=meta_data_json,
+                        content=cleaned_content,
+                        embedding=embedding_json,
+                        usage=usage_json,
+                        content_hash=content_hash,
+                    )
                 )
                 sess.execute(stmt)
                 counter += 1
-                logger.debug(f"Inserted document: {document.id} | {document.name} | {document.meta_data}")
+                logger.debug(f"Upserted document: {document.name} ({document.meta_data})")
 
-            # Commit all remaining documents
             sess.commit()
             logger.debug(f"Committed {counter} documents")
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Search for documents based on a query and optional filters.
+
+        Args:
+            query (str): The search query.
+            limit (int): The maximum number of results to return.
+            filters (Optional[Dict[str, Any]]): Optional filters for the search.
+
+        Returns:
+            List[Document]: List of documents that match the query.
+        """
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -204,9 +273,7 @@ class S2VectorDb(VectorDb):
             self.table.c.name,
             self.table.c.meta_data,
             self.table.c.content,
-            func.json_array_unpack(self.table.c.embedding).label(
-                "embedding"
-            ),  # Unpack embedding here # self.table.c.embedding,
+            self.table.c.embedding,
             self.table.c.usage,
         ]
 
@@ -221,7 +288,7 @@ class S2VectorDb(VectorDb):
             stmt = stmt.order_by(self.table.c.embedding.max_inner_product(query_embedding))
         if self.distance == Distance.cosine:
             embedding_json = json.dumps(query_embedding)
-            dot_product_expr = func.dot_product(self.table.c.embedding, text("JSON_ARRAY_PACK(:embedding)"))
+            dot_product_expr = func.dot_product(self.table.c.embedding, text(":embedding"))
             stmt = stmt.order_by(dot_product_expr.desc())
             stmt = stmt.params(embedding=embedding_json)
             # stmt = stmt.order_by(self.table.c.embedding.cosine_distance(query_embedding))
@@ -267,14 +334,29 @@ class S2VectorDb(VectorDb):
         return search_results
 
     def delete(self) -> None:
+        """
+        Delete the table.
+        """
         if self.table_exists():
             logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
 
     def exists(self) -> bool:
+        """
+        Check if the table exists.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         return self.table_exists()
 
     def get_count(self) -> int:
+        """
+        Get the count of rows in the table.
+
+        Returns:
+            int: The count of rows.
+        """
         with self.Session.begin() as sess:
             stmt = select(func.count(self.table.c.name)).select_from(self.table)
             result = sess.execute(stmt).scalar()
@@ -286,8 +368,15 @@ class S2VectorDb(VectorDb):
         pass
 
     def clear(self) -> bool:
-        logger.info(f"Deleting table: {self.collection}")
+        """
+        Clear all rows from the table.
+
+        Returns:
+            bool: True if the table was cleared, False otherwise.
+        """
+        from sqlalchemy import delete
+
         with self.Session.begin() as sess:
-            stmt = self.table.delete()
+            stmt = delete(self.table)
             sess.execute(stmt)
             return True

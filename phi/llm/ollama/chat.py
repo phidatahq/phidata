@@ -4,6 +4,7 @@ from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
+from phi.llm.ollama.utils import extract_tool_calls, MessageToolCallExtractionResult
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -27,7 +28,7 @@ class Ollama(LLM):
     client_kwargs: Optional[Dict[str, Any]] = None
     ollama_client: Optional[OllamaClient] = None
     # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 5
+    function_call_limit: int = 10
     # Deactivate tool calls after 1 tool call
     deactivate_tools_after_use: bool = False
     # After a tool call is run, add the user message as a reminder to the LLM
@@ -87,14 +88,14 @@ class Ollama(LLM):
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         return self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             **self.api_kwargs,
-        )
+        )  # type: ignore
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[Mapping[str, Any]]:
         yield from self.client.chat(
             model=self.model,
-            messages=[self.to_llm_message(m) for m in messages],
+            messages=[self.to_llm_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.api_kwargs,
         )  # type: ignore
@@ -128,34 +129,41 @@ class Ollama(LLM):
             role=response_role or "assistant",
             content=response_content,
         )
+
         # Check if the response is a tool call
         try:
             if response_content is not None:
                 _tool_call_content = response_content.strip()
-                if _tool_call_content.startswith("{") and _tool_call_content.endswith("}"):
-                    _tool_call_content_json = json.loads(_tool_call_content)
-                    if "tool_calls" in _tool_call_content_json:
-                        assistant_tool_calls = _tool_call_content_json.get("tool_calls")
-                        if isinstance(assistant_tool_calls, list):
-                            # Build tool calls
-                            tool_calls: List[Dict[str, Any]] = []
-                            logger.debug(f"Building tool calls from {assistant_tool_calls}")
-                            for tool_call in assistant_tool_calls:
-                                tool_call_name = tool_call.get("name")
-                                tool_call_args = tool_call.get("arguments")
-                                _function_def = {"name": tool_call_name}
-                                if tool_call_args is not None:
-                                    _function_def["arguments"] = json.dumps(tool_call_args)
-                                tool_calls.append(
-                                    {
-                                        "type": "function",
-                                        "function": _function_def,
-                                    }
-                                )
-                            assistant_message.tool_calls = tool_calls
-                            assistant_message.role = "assistant"
+                tool_calls_result: MessageToolCallExtractionResult = extract_tool_calls(_tool_call_content)
+
+                # it is a tool call?
+                if tool_calls_result.tool_calls is None and not tool_calls_result.invalid_json_format:
+                    if tool_calls_result.invalid_json_format:
+                        assistant_message.tool_call_error = True
+
+                    if tool_calls_result.tool_calls is not None:
+                        # Build tool calls
+                        tool_calls: List[Dict[str, Any]] = []
+                        logger.debug(f"Building tool calls from {tool_calls_result}")
+                        for tool_call in tool_calls_result.tool_calls:
+                            tool_call_name = tool_call.get("name")
+                            tool_call_args = tool_call.get("arguments")
+                            _function_def = {"name": tool_call_name}
+                            if tool_call_args is not None:
+                                _function_def["arguments"] = json.dumps(tool_call_args)
+                            tool_calls.append(
+                                {
+                                    "type": "function",
+                                    "function": _function_def,
+                                }
+                            )
+
+                        # Add tool calls to assistant message
+                        assistant_message.tool_calls = tool_calls
+                        assistant_message.role = "assistant"
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {response_content}")
+            assistant_message.tool_call_error = True
             pass
 
         # -*- Update usage metrics
@@ -165,13 +173,33 @@ class Ollama(LLM):
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
 
+        # Add token usage to metrics
+        # Currently there is a bug in Ollama where sometimes the input tokens are not always returned
+        input_tokens = response.get("prompt_eval_count", 0)
+        output_tokens = response.get("eval_count", 0)
+
+        assistant_message.metrics["input_tokens"] = input_tokens
+        assistant_message.metrics["output_tokens"] = output_tokens
+
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
-            final_response = ""
+        final_response = ""
+        if assistant_message.tool_call_error:
+            # Add error message to the messages to let the LLM know that the tool call failed
+            messages = self.add_tool_call_error_message(messages)
+
+            # -*- Yield new response using results of tool calls
+            final_response += self.response(messages=messages)
+            return final_response
+
+        elif assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -193,11 +221,20 @@ class Ollama(LLM):
                     final_response += "\n\n"
 
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
-            if len(function_call_results) > 0:
+
+            # This case rarely happens but it should be handled
+            if len(function_calls_to_run) != len(function_call_results):
+                return final_response + self.response(messages=messages)
+
+            # Add results of the function calls to the messages
+            elif len(function_call_results) > 0:
                 messages.extend(function_call_results)
                 # Reconfigure messages so the LLM is reminded of the original task
                 if self.add_user_message_after_tool_call:
-                    messages = self.add_original_user_message(messages)
+                    if any(item.tool_call_error for item in function_call_results):
+                        messages = self.add_tool_call_error_message(messages)
+                    else:
+                        messages = self.add_original_user_message(messages)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
@@ -206,10 +243,13 @@ class Ollama(LLM):
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages)
             return final_response
+
         logger.debug("---------- Ollama Response End ----------")
+
         # -*- Return content if no function calls are present
         if assistant_message.content is not None:
             return assistant_message.get_content_string()
+
         return "Something went wrong, please try again."
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
@@ -224,8 +264,10 @@ class Ollama(LLM):
         is_last_tool_call_bracket = False
         completion_tokens = 0
         time_to_first_token = None
+        response_metrics: Mapping[str, Any] = {}
         response_timer = Timer()
         response_timer.start()
+
         for response in self.invoke_stream(messages=messages):
             completion_tokens += 1
             if completion_tokens == 1:
@@ -244,8 +286,10 @@ class Ollama(LLM):
                 assistant_message_content += response_content
 
             # Strip out tool calls from the response
-            # If the response is a tool call, it will start with a {
-            if not response_is_tool_call and assistant_message_content.strip().startswith("{"):
+            extract_tool_calls_result = extract_tool_calls(assistant_message_content)
+            if not response_is_tool_call and (
+                extract_tool_calls_result.tool_calls is not None or extract_tool_calls_result.invalid_json_format
+            ):
                 response_is_tool_call = True
 
             # If the response is a tool call, count the number of brackets
@@ -271,6 +315,9 @@ class Ollama(LLM):
 
                 yield response_content
 
+            if response.get("done"):
+                response_metrics = response
+
         response_timer.stop()
         logger.debug(f"Tokens generated: {completion_tokens}")
         if completion_tokens > 0:
@@ -283,33 +330,40 @@ class Ollama(LLM):
             role="assistant",
             content=assistant_message_content,
         )
+
         # Check if the response is a tool call
         try:
             if response_is_tool_call and assistant_message_content != "":
                 _tool_call_content = assistant_message_content.strip()
-                if _tool_call_content.startswith("{") and _tool_call_content.endswith("}"):
-                    _tool_call_content_json = json.loads(_tool_call_content)
-                    if "tool_calls" in _tool_call_content_json:
-                        assistant_tool_calls = _tool_call_content_json.get("tool_calls")
-                        if isinstance(assistant_tool_calls, list):
-                            # Build tool calls
-                            tool_calls: List[Dict[str, Any]] = []
-                            logger.debug(f"Building tool calls from {assistant_tool_calls}")
-                            for tool_call in assistant_tool_calls:
-                                tool_call_name = tool_call.get("name")
-                                tool_call_args = tool_call.get("arguments")
-                                _function_def = {"name": tool_call_name}
-                                if tool_call_args is not None:
-                                    _function_def["arguments"] = json.dumps(tool_call_args)
-                                tool_calls.append(
-                                    {
-                                        "type": "function",
-                                        "function": _function_def,
-                                    }
-                                )
-                            assistant_message.tool_calls = tool_calls
+                tool_calls_result: MessageToolCallExtractionResult = extract_tool_calls(_tool_call_content)
+
+                # it is a tool call?
+                if tool_calls_result.tool_calls is None and not tool_calls_result.invalid_json_format:
+                    if tool_calls_result.invalid_json_format:
+                        assistant_message.tool_call_error = True
+
+                    if not assistant_message.tool_call_error and tool_calls_result.tool_calls is not None:
+                        # Build tool calls
+                        tool_calls: List[Dict[str, Any]] = []
+                        logger.debug(f"Building tool calls from {tool_calls_result.tool_calls}")
+                        for tool_call in tool_calls_result.tool_calls:
+                            tool_call_name = tool_call.get("name")
+                            tool_call_args = tool_call.get("arguments")
+                            _function_def = {"name": tool_call_name}
+                            if tool_call_args is not None:
+                                _function_def["arguments"] = json.dumps(tool_call_args)
+                            tool_calls.append(
+                                {
+                                    "type": "function",
+                                    "function": _function_def,
+                                }
+                            )
+
+                        # Add tool calls to assistant message
+                        assistant_message.tool_calls = tool_calls
         except Exception:
             logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
+            assistant_message.tool_call_error = True
             pass
 
         # -*- Update usage metrics
@@ -331,12 +385,31 @@ class Ollama(LLM):
                 self.metrics["tokens_per_second"] = []
             self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
+        # Add token usage to metrics
+        # Currently there is a bug in Ollama where sometimes the input tokens are not returned
+        input_tokens = response_metrics.get("prompt_eval_count", 0)
+        output_tokens = response_metrics.get("eval_count", 0)
+
+        assistant_message.metrics["input_tokens"] = input_tokens
+        assistant_message.metrics["output_tokens"] = output_tokens
+
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_call_error:
+            # Add error message to the messages to let the LLM know that the tool call failed
+            messages = self.add_tool_call_error_message(messages)
+
+            # -*- Yield new response using results of tool calls
+            yield from self.response_stream(messages=messages)
+
+        elif assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -358,12 +431,21 @@ class Ollama(LLM):
                     yield "\n\n"
 
             function_call_results = self.run_function_calls(function_calls_to_run, role="user")
+
+            # This case rarely happens but it should be handled
+            if len(function_calls_to_run) != len(function_call_results):
+                messages = self.add_tool_call_error_message(messages)
+
             # Add results of the function calls to the messages
-            if len(function_call_results) > 0:
+            elif len(function_call_results) > 0:
                 messages.extend(function_call_results)
+
                 # Reconfigure messages so the LLM is reminded of the original task
                 if self.add_user_message_after_tool_call:
-                    messages = self.add_original_user_message(messages)
+                    if any(item.tool_call_error for item in function_call_results):
+                        messages = self.add_tool_call_error_message(messages)
+                    else:
+                        messages = self.add_original_user_message(messages)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
@@ -371,6 +453,7 @@ class Ollama(LLM):
 
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages)
+
         logger.debug("---------- Ollama Response End ----------")
 
     def add_original_user_message(self, messages: List[Message]) -> List[Message]:
@@ -380,34 +463,82 @@ class Ollama(LLM):
             if m.role == "user":
                 original_user_message_content = m.content
                 break
+
         if original_user_message_content is not None:
             _content = (
-                "Using the results of the tools above, respond to the following message:"
+                "Using the results of the tools above, respond to the following message. "
+                "If the user explicitly requests raw data or specific formats like JSON, provide it as requested. "
+                "Otherwise, use the tool results to provide a clear and relevant answer without "
+                "returning the raw results directly:"
                 f"\n\n<user_message>\n{original_user_message_content}\n</user_message>"
             )
+
             messages.append(Message(role="user", content=_content))
 
+        return messages
+
+    def add_tool_call_error_message(self, messages: List[Message]) -> List[Message]:
+        # Add error message to the messages to let the LLM know that the tool call failed
+        content = (
+            "Output from the tool indicates an arguments error, take a step back and adjust the tool arguments "
+            "then use the same tool again with the new arguments. "
+            "Ensure the response does not mention any failed tool calls, Just the adjusted tool calls."
+        )
+        messages.append(Message(role="user", tool_call_error=True, content=content))
         return messages
 
     def get_instructions_to_generate_tool_calls(self) -> List[str]:
         if self.functions is not None:
             return [
                 "To respond to the users message, you can use one or more of the tools provided above.",
+                # Tool usage instructions
                 "If you decide to use a tool, you must respond in the JSON format matching the following schema:\n"
                 + dedent(
                     """\
                     {
-                        "tool_calls": [{
-                            "name": "<name of the selected tool>",
-                            "arguments": <parameters for the selected tool, matching the tool's JSON schema
-                        }]
+                        "tool_calls": [
+                            {
+                                "name": "<name of the selected tool>",
+                                "arguments": <parameters for the selected tool, matching the tool's JSON schema>
+                            }
+                        ]
                     }\
                     """
                 ),
-                "To use a tool, just respond with the JSON matching the schema. Nothing else. Do not add any additional notes or explanations",
-                "After you use a tool, the next message you get will contain the result of the tool call.",
-                "REMEMBER: To use a tool, you must respond only in JSON format.",
-                "After you use a tool and receive the result back, respond regularly to answer the users question.",
+                "REMEMBER: To use a tool, you MUST respond ONLY in JSON format.",
+                (
+                    "REMEMBER: You can use multiple tools in a single response if necessary, "
+                    'by including multiple entries in the "tool_calls" array.'
+                ),
+                "You may use the same tool multiple times in a single response, but only with different arguments.",
+                (
+                    "To use a tool, ONLY respond with the JSON matching the schema. Nothing else. "
+                    "Do not add any additional notes or explanations"
+                ),
+                (
+                    "REMEMBER: The ONLY valid way to use this tool is to ensure the ENTIRE response is in JSON format, "
+                    "matching the specified schema."
+                ),
+                "Do not inform the user that you used a tool in your response.",
+                "Do not suggest tools to use in your responses. You should use them to obtain answers.",
+                "Ensure each tool use is formatted correctly and independently.",
+                'REMEMBER: The "arguments" field must contain valid parameters as per the tool\'s JSON schema.',
+                "Ensure accuracy by using tools to obtain your answers, avoiding assumptions about tool output.",
+                # Response instructions
+                "After you use a tool, the next message you get will contain the result of the tool use.",
+                "If the result of one tool requires using another tool, use needed tool first and then use the result.",
+                (
+                    "If the result from a tool indicates an input error, "
+                    "You must adjust the parameters and try use the tool again."
+                ),
+                (
+                    "If the tool results are used in your response, you do not need to mention the knowledge cutoff. "
+                    "Use the information directly from the tool's output, which is assumed to be up-to-date."
+                ),
+                (
+                    "After you use a tool and receive the result back, take a step back and provide clear and relevant "
+                    "answers based on the user's query and tool results."
+                ),
             ]
         return []
 

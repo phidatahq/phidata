@@ -6,8 +6,7 @@ try:
     from qdrant_client.http import models
 except ImportError:
     raise ImportError(
-        "The `qdrant-client` package is not installed. "
-        "Please install it via `pip install pip install qdrant-client`."
+        "The `qdrant-client` package is not installed. " "Please install it via `pip install qdrant-client`."
     )
 
 from phi.document import Document
@@ -42,7 +41,7 @@ class Qdrant(VectorDb):
 
         # Embedder for embedding the document contents
         self.embedder: Embedder = embedder
-        self.dimensions: int = self.embedder.dimensions
+        self.dimensions: Optional[int] = self.embedder.dimensions
 
         # Distance metric
         self.distance: Distance = distance

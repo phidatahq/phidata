@@ -15,15 +15,7 @@ st.title("SQL Assistant")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 with st.expander(":rainbow[:point_down: Example Questions]"):
     st.markdown("- Which driver has the most race wins?")
-    st.markdown("- Who won the most Constructors Championships?")
-    st.markdown("- Tell me the name of the driver with the longest racing career?")
-    st.markdown("- Show me the races venues per year.")
-
-
-def restart_assistant():
-    st.session_state["sql_assistant"] = None
-    st.session_state["sql_assistant_run_id"] = None
-    st.rerun()
+    st.markdown("- Which team won the most Constructors Championships?")
 
 
 def main() -> None:
@@ -43,7 +35,7 @@ def main() -> None:
     # Create assistant run (i.e. log to database) and save run_id in session state
     st.session_state["sql_assistant_run_id"] = sql_assistant.create_run()
 
-    # Load messages for existing run
+    # Load existing messages
     assistant_chat_history = sql_assistant.memory.get_chat_history()
     if len(assistant_chat_history) > 0:
         logger.debug("Loading chat history")
@@ -61,12 +53,16 @@ def main() -> None:
         _message = "Which tables do you have access to?"
         st.session_state["messages"].append({"role": "user", "content": _message})
 
+    if st.sidebar.button("Describe tables"):
+        _message = "Tell me more about these tables."
+        st.session_state["messages"].append({"role": "user", "content": _message})
+
     if st.sidebar.button("Most Race Wins"):
         _message = "Which driver has the most race wins?"
         st.session_state["messages"].append({"role": "user", "content": _message})
 
     if st.sidebar.button("Most Constructors Championships"):
-        _message = "Who won the most Constructors Championships?"
+        _message = "Which team won the most Constructors Championships?"
         st.session_state["messages"].append({"role": "user", "content": _message})
 
     if st.sidebar.button("Longest Racing Career"):
@@ -74,7 +70,11 @@ def main() -> None:
         st.session_state["messages"].append({"role": "user", "content": _message})
 
     if st.sidebar.button("Races per year"):
-        _message = "Show me the races venues per year. Dont skip any info."
+        _message = "Show me the number of races per year."
+        st.session_state["messages"].append({"role": "user", "content": _message})
+
+    if st.sidebar.button("Team position for driver with most wins"):
+        _message = "Write a query to identify the drivers that won the most races per year from 2010 onwards and the position of their team that year."
         st.session_state["messages"].append({"role": "user", "content": _message})
 
     if st.sidebar.button(":orange_heart: This is awesome!"):
@@ -123,6 +123,13 @@ def main() -> None:
     sql_assistant_run_name = sql_assistant.run_name
     if sql_assistant_run_name:
         st.sidebar.write(f":thread: {sql_assistant_run_name}")
+
+
+def restart_assistant():
+    logger.debug("---*--- Restarting Assistant ---*---")
+    st.session_state["sql_assistant"] = None
+    st.session_state["sql_assistant_run_id"] = None
+    st.rerun()
 
 
 main()

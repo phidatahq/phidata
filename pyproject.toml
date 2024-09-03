@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.13"
+version = "2.4.32"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -26,7 +26,8 @@ dev = [
     "mypy",
     "pytest",
     "ruff",
-    "types-pyyaml"
+    "types-pyyaml",
+    "timeout-decorator",
 ]
 docker = [
     "docker"
@@ -37,6 +38,15 @@ aws = [
 ]
 k8s = [
     "docker",
+    "kubernetes"
+]
+all = [
+    "mypy",
+    "pytest",
+    "ruff",
+    "types-pyyaml",
+    "docker",
+    "boto3",
     "kubernetes"
 ]
 
@@ -58,6 +68,7 @@ include = ["phi*"]
 phi = ["py.typed"]
 
 [tool.pytest.ini_options]
+log_cli = true
 testpaths = "tests"
 
 [tool.ruff]
@@ -78,47 +89,56 @@ exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/examples/*
 [[tool.mypy.overrides]]
 module = [
   "altair.*",
-  "arxiv.*",
   "anthropic.*",
   "apify_client.*",
+  "arxiv.*",
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "chromadb.*",
   "cohere.*",
+  "crawl4ai.*",
   "docker.*",
   "duckdb.*",
+  "duckduckgo_search.*",
   "exa_py.*",
   "firecrawl.*",
-  "duckduckgo_search.*",
+  "google.*",
+  "googlesearch.*",
   "groq.*",
+  "huggingface_hub.*",
   "kubernetes.*",
   "lancedb.*",
   "langchain.*",
   "langchain_core.*",
   "llama_index.*",
   "mistralai.*",
-  "newspaper.*",
   "nest_asyncio.*",
+  "newspaper.*",
   "numpy.*",
   "ollama.*",
   "openai.*",
   "openbb.*",
   "pandas.*",
-  "pinecone.*",
-  "pyarrow.*",
   "pgvector.*",
+  "pinecone.*",
   "psycopg.*",
+  "psycopg2.*",
+  "pyarrow.*",
+  "pycountry.*",
   "pypdf.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
   "requests.*",
-  "simplejson.*",
   "serpapi.*",
   "setuptools.*",
+  "simplejson.*",
+  "spider.*",
   "sqlalchemy.*",
   "streamlit.*",
   "tavily.*",
   "textract.*",
+  "timeout_decorator.*",
   "vertexai.*",
   "voyageai.*",
   "wikipedia.*",

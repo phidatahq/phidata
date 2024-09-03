@@ -59,7 +59,7 @@ class PgVector2(VectorDb):
 
             _embedder = OpenAIEmbedder()
         self.embedder: Embedder = _embedder
-        self.dimensions: int = self.embedder.dimensions
+        self.dimensions: Optional[int] = self.embedder.dimensions
 
         # Distance metric
         self.distance: Distance = distance

@@ -123,7 +123,7 @@ class YFinanceTools(Toolkit):
         """
         try:
             stock = yf.Ticker(symbol)
-            historical_price = stock.history(period="1d")
+            historical_price = stock.history(period=period, interval=interval)
             return historical_price.to_json(orient="index")
         except Exception as e:
             return f"Error fetching historical prices for {symbol}: {e}"

@@ -167,15 +167,15 @@ def main() -> None:
             )
             st.rerun()
 
-    assistant_run_name = rag_assistant.run_name
-    if assistant_run_name:
-        st.sidebar.write(f":thread: {assistant_run_name}")
+    assistant_thread_name = rag_assistant.thread_name
+    if assistant_thread_name:
+        st.sidebar.write(f":thread: {assistant_thread_name}")
 
     if st.sidebar.button("New Run"):
         restart_assistant()
 
     if st.sidebar.button("Auto Rename"):
-        rag_assistant.auto_rename_run()
+        rag_assistant.auto_rename_thread()
 
     if rag_assistant.knowledge_base:
         if st.sidebar.button("Clear Knowledge Base"):

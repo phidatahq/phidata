@@ -101,7 +101,7 @@ def main() -> None:
             st.sidebar.success("Knowledge base cleared")
 
     if st.sidebar.button("Auto Rename"):
-        assistant.auto_rename_run()
+        assistant.auto_rename_thread()
 
     # Upload PDF
     if assistant.knowledge_base:
@@ -138,7 +138,7 @@ def main() -> None:
             )
             st.rerun()
 
-    assistant_run_name = assistant.run_name
+    assistant_run_name = assistant.thread_name
     if assistant_run_name:
         st.sidebar.write(f":thread: {assistant_run_name}")
 

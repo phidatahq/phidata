@@ -201,3 +201,6 @@ class PgAssistantStorage(AssistantStorage):
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
+
+    def upgrade_schema(self) -> None:
+        pass

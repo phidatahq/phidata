@@ -42,7 +42,7 @@ def qdrant_assistant(user: str = "user"):
     )
 
     if run_id is None:
-        run_id = assistant.run_id
+        run_id = assistant.thread_id
         print(f"Started Run: {run_id}\n")
     else:
         print(f"Continuing Run: {run_id}\n")

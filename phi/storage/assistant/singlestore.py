@@ -185,22 +185,22 @@ class S2AssistantStorage(AssistantStorage):
                 sess.execute(
                     upsert_sql,
                     {
-                        "thread_id": row.run_id,
-                        "name": row.name,
-                        "run_name": row.run_name,
+                        "thread_id": row.thread_id,
+                        # "name": row.name,
+                        # "thread_name": row.thread_name,
                         "user_id": row.user_id,
                         "llm": json.dumps(row.llm, ensure_ascii=False) if row.llm is not None else None,
                         "memory": json.dumps(row.memory, ensure_ascii=False) if row.memory is not None else None,
                         "assistant_data": json.dumps(row.assistant_data, ensure_ascii=False)
                         if row.assistant_data is not None
                         else None,
-                        "run_data": json.dumps(row.run_data, ensure_ascii=False) if row.run_data is not None else None,
+                        # "thread_data": json.dumps(row.thread_data, ensure_ascii=False) if row.thread_data is not None else None,
                         "user_data": json.dumps(row.user_data, ensure_ascii=False)
                         if row.user_data is not None
                         else None,
-                        "task_data": json.dumps(row.task_data, ensure_ascii=False)
-                        if row.task_data is not None
-                        else None,
+                        # "task_data": json.dumps(row.task_data, ensure_ascii=False)
+                        # if row.task_data is not None
+                        # else None,
                     },
                 )
             except Exception:
@@ -209,25 +209,25 @@ class S2AssistantStorage(AssistantStorage):
                 sess.execute(
                     upsert_sql,
                     {
-                        "thread_id": row.run_id,
-                        "name": row.name,
-                        "run_name": row.run_name,
+                        "thread_id": row.thread_id,
+                        # "name": row.name,
+                        # "run_name": row.run_name,
                         "user_id": row.user_id,
                         "llm": json.dumps(row.llm) if row.llm is not None else None,
                         "memory": json.dumps(row.memory, ensure_ascii=False) if row.memory is not None else None,
                         "assistant_data": json.dumps(row.assistant_data, ensure_ascii=False)
                         if row.assistant_data is not None
                         else None,
-                        "run_data": json.dumps(row.run_data, ensure_ascii=False) if row.run_data is not None else None,
+                        # "run_data": json.dumps(row.run_data, ensure_ascii=False) if row.run_data is not None else None,
                         "user_data": json.dumps(row.user_data, ensure_ascii=False)
                         if row.user_data is not None
                         else None,
-                        "task_data": json.dumps(row.task_data, ensure_ascii=False)
-                        if row.task_data is not None
-                        else None,
+                        # "task_data": json.dumps(row.task_data, ensure_ascii=False)
+                        # if row.task_data is not None
+                        # else None,
                     },
                 )
-        return self.read(thread_id=row.run_id)
+        return self.read(thread_id=row.thread_id)
 
     def delete(self) -> None:
         if self.table_exists():

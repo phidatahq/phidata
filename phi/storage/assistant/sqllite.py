@@ -173,16 +173,16 @@ class SqlAssistantStorage(AssistantStorage):
         with self.Session() as sess:
             # Create an insert statement
             stmt = sqlite.insert(self.table).values(
-                run_id=row.run_id,
-                name=row.name,
-                run_name=row.run_name,
+                run_id=row.thread_id,
+                # name=row.name,
+                # run_name=row.run_name,
                 user_id=row.user_id,
                 llm=row.llm,
                 memory=row.memory,
                 assistant_data=row.assistant_data,
-                run_data=row.run_data,
+                # run_data=row.run_data,
                 user_data=row.user_data,
-                task_data=row.task_data,
+                # task_data=row.task_data,
             )
 
             # Define the upsert if the thread_id already exists
@@ -190,29 +190,29 @@ class SqlAssistantStorage(AssistantStorage):
             stmt = stmt.on_conflict_do_update(
                 index_elements=["thread_id"],
                 set_=dict(
-                    name=row.name,
-                    run_name=row.run_name,
+                    # name=row.name,
+                    # run_name=row.run_name,
                     user_id=row.user_id,
                     llm=row.llm,
                     memory=row.memory,
                     assistant_data=row.assistant_data,
-                    run_data=row.run_data,
+                    # run_data=row.run_data,
                     user_data=row.user_data,
-                    task_data=row.task_data,
+                    # task_data=row.task_data,
                 ),  # The updated value for each column
             )
 
             try:
                 sess.execute(stmt)
                 sess.commit()  # Make sure to commit the changes to the database
-                return self.read(thread_id=row.run_id)
+                return self.read(thread_id=row.thread_id)
             except OperationalError as oe:
                 logger.debug(f"OperationalError occurred: {oe}")
                 self.create()  # This will only create the table if it doesn't exist
                 try:
                     sess.execute(stmt)
                     sess.commit()
-                    return self.read(thread_id=row.run_id)
+                    return self.read(thread_id=row.thread_id)
                 except Exception as e:
                     logger.warning(f"Error during upsert: {e}")
                     sess.rollback()  # Rollback the session in case of any error

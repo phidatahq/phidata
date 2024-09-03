@@ -62,8 +62,8 @@ class CohereChat(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
-        if self.run_id is not None and not self.add_chat_history:
-            _request_params["conversation_id"] = self.run_id
+        # if self.thread_id is not None and not self.add_chat_history:
+        #     _request_params["conversation_id"] = self.thread_id
         if self.temperature:
             _request_params["temperature"] = self.temperature
         if self.max_tokens:

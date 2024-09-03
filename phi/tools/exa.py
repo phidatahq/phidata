@@ -1,6 +1,6 @@
 import json
 from os import getenv
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -26,6 +26,7 @@ class ExaTools(Toolkit):
         use_autoprompt: Optional[bool] = None,
         type: Optional[str] = None,
         category: Optional[str] = None,
+        include_domains: Optional[List[str]] = None,
         show_results: bool = False,
     ):
         super().__init__(name="exa")
@@ -46,6 +47,7 @@ class ExaTools(Toolkit):
         self.end_published_date: Optional[str] = end_published_date
         self.use_autoprompt: Optional[bool] = use_autoprompt
         self.type: Optional[str] = type
+        self.include_domains: Optional[List[str]] = include_domains
         self.category: Optional[str] = category
 
         self.register(self.search_exa)
@@ -77,6 +79,7 @@ class ExaTools(Toolkit):
                 "use_autoprompt": self.use_autoprompt,
                 "type": self.type,
                 "category": self.category,
+                "include_domains": self.include_domains,
             }
             # Clean up the kwargs
             search_kwargs = {k: v for k, v in search_kwargs.items() if v is not None}

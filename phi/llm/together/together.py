@@ -124,7 +124,11 @@ class Together(OpenAILike):
                     )
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
+                    messages.append(
+                        Message(
+                            role="tool", tool_call_id=_tool_call_id, tool_call_error=True, content=_function_call.error
+                        )
+                    )
                     continue
                 function_calls_to_run.append(_function_call)
 

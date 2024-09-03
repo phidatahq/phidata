@@ -2,13 +2,13 @@ from pathlib import Path
 from typing import Union, List, Iterator
 
 from phi.document import Document
-from phi.document.reader.pdf import PDFReader, PDFUrlReader
+from phi.document.reader.pdf import PDFReader, PDFUrlReader, PDFImageReader, PDFUrlImageReader
 from phi.knowledge.base import AssistantKnowledge
 
 
 class PDFKnowledgeBase(AssistantKnowledge):
     path: Union[str, Path]
-    reader: PDFReader = PDFReader()
+    reader: Union[PDFReader, PDFImageReader] = PDFReader()
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -30,7 +30,7 @@ class PDFKnowledgeBase(AssistantKnowledge):
 
 class PDFUrlKnowledgeBase(AssistantKnowledge):
     urls: List[str] = []
-    reader: PDFUrlReader = PDFUrlReader()
+    reader: Union[PDFUrlReader, PDFUrlImageReader] = PDFUrlReader()
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:

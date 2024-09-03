@@ -14,7 +14,7 @@ vector_db = PineconeDB(
     name=index_name,
     dimension=1536,
     metric="cosine",
-    spec={"serverless": {"cloud": "aws", "region": "us-west-2"}},
+    spec={"serverless": {"cloud": "aws", "region": "us-east-1"}},
     api_key=api_key,
 )
 
@@ -34,7 +34,6 @@ def pinecone_assistant(user: str = "user"):
         run_id=run_id,
         user_id=user,
         knowledge_base=knowledge_base,
-        tool_calls=True,
         use_tools=True,
         show_tool_calls=True,
         debug_mode=True,

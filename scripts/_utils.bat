@@ -23,6 +23,6 @@ call :print_horizontal_line
 goto :eof
 
 :: Function to print a status message
-:print_status
+:print_info
 echo -*- %~1
 goto :eof

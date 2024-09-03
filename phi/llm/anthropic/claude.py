@@ -1,7 +1,5 @@
 import json
-from textwrap import dedent
-from typing import Optional, List, Iterator, Dict, Any
-
+from typing import Optional, List, Iterator, Dict, Any, Union
 
 from phi.llm.base import LLM
 from phi.llm.message import Message
@@ -10,13 +8,17 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import (
     get_function_call_for_tool_call,
-    extract_tool_from_xml,
-    remove_function_calls_from_string,
 )
 
 try:
     from anthropic import Anthropic as AnthropicClient
-    from anthropic.types import Message as AnthropicMessage
+    from anthropic.types import Message as AnthropicMessage, TextBlock, ToolUseBlock, Usage, TextDelta
+    from anthropic.lib.streaming._types import (
+        MessageStopEvent,
+        RawContentBlockDeltaEvent,
+        ContentBlockStopEvent,
+    )
+
 except ImportError:
     logger.error("`anthropic` not installed")
     raise
@@ -70,35 +72,83 @@ class Claude(LLM):
             _request_params.update(self.request_params)
         return _request_params
 
+    def get_tools(self):
+        """
+        Refactors the tools in a format accepted by the Anthropic API.
+        """
+        if not self.functions:
+            return None
+
+        tools: List = []
+        for f_name, function in self.functions.items():
+            required_params = [
+                param_name
+                for param_name, param_info in function.parameters.get("properties", {}).items()
+                if "null"
+                not in (
+                    param_info.get("type") if isinstance(param_info.get("type"), list) else [param_info.get("type")]
+                )
+            ]
+            tools.append(
+                {
+                    "name": f_name,
+                    "description": function.description or "",
+                    "input_schema": {
+                        "type": function.parameters.get("type") or "object",
+                        "properties": {
+                            param_name: {
+                                "type": param_info.get("type") or "",
+                                "description": param_info.get("description") or "",
+                            }
+                            for param_name, param_info in function.parameters.get("properties", {}).items()
+                        },
+                        "required": required_params,
+                    },
+                }
+            )
+        return tools
+
     def invoke(self, messages: List[Message]) -> AnthropicMessage:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_messages: List[dict] = []
+        system_messages: List[str] = []
 
-        for m in messages:
-            if m.role == "system":
-                api_kwargs["system"] = m.content
+        for idx, message in enumerate(messages):
+            if message.role == "system" or (message.role != "user" and idx in [0, 1]):
+                system_messages.append(message.content)  # type: ignore
             else:
-                api_messages.append({"role": m.role, "content": m.content or ""})
+                api_messages.append({"role": message.role, "content": message.content or ""})
+
+        api_kwargs["system"] = " ".join(system_messages)
+
+        if self.tools:
+            api_kwargs["tools"] = self.get_tools()
 
         return self.client.messages.create(
             model=self.model,
-            messages=api_messages,
+            messages=api_messages,  # type: ignore
             **api_kwargs,
         )
 
     def invoke_stream(self, messages: List[Message]) -> Any:
         api_kwargs: Dict[str, Any] = self.api_kwargs
         api_messages: List[dict] = []
+        system_messages: List[str] = []
 
-        for m in messages:
-            if m.role == "system":
-                api_kwargs["system"] = m.content
+        for idx, message in enumerate(messages):
+            if message.role == "system" or (message.role != "user" and idx in [0, 1]):
+                system_messages.append(message.content)  # type: ignore
             else:
-                api_messages.append({"role": m.role, "content": m.content or ""})
+                api_messages.append({"role": message.role, "content": message.content or ""})
+
+        api_kwargs["system"] = " ".join(system_messages)
+
+        if self.tools:
+            api_kwargs["tools"] = self.get_tools()
 
         return self.client.messages.stream(
             model=self.model,
-            messages=api_messages,
+            messages=api_messages,  # type: ignore
             **api_kwargs,
         )
 
@@ -115,7 +165,7 @@ class Claude(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Parse response
-        response_content = response.content[0].text
+        response_content: TextBlock = response.content[0].text  # type: ignore
 
         # -*- Create assistant message
         assistant_message = Message(
@@ -123,41 +173,32 @@ class Claude(LLM):
             content=response_content,
         )
 
+        logger.debug(f"Response: {response}")
+
         # Check if the response contains a tool call
-        try:
-            if response_content is not None:
-                if "<function_calls>" in response_content:
-                    # List of tool calls added to the assistant message
-                    tool_calls: List[Dict[str, Any]] = []
+        if response.stop_reason == "tool_use":
+            tool_calls: List[Dict[str, Any]] = []
+            tool_ids: List[str] = []
+            for block in response.content:
+                if isinstance(block, ToolUseBlock):
+                    tool_use: ToolUseBlock = block
+                    tool_name = tool_use.name
+                    tool_input = tool_use.input
+                    tool_ids.append(tool_use.id)
 
-                    # Add function call closing tag to the assistant message
-                    # This is because we add </function_calls> as a stop sequence
-                    assistant_message.content += "</function_calls>"  # type: ignore
+                    function_def = {"name": tool_name}
+                    if tool_input:
+                        function_def["arguments"] = json.dumps(tool_input)
+                    tool_calls.append(
+                        {
+                            "type": "function",
+                            "function": function_def,
+                        }
+                    )
+            assistant_message.content = response.content  # type: ignore
 
-                    # If the assistant is calling multiple functions, the response will contain multiple <invoke> tags
-                    response_content = response_content.split("</invoke>")
-                    for tool_call_response in response_content:
-                        if "<invoke>" in tool_call_response:
-                            # Extract tool call string from response
-                            tool_call_dict = extract_tool_from_xml(tool_call_response)
-                            tool_call_name = tool_call_dict.get("tool_name")
-                            tool_call_args = tool_call_dict.get("parameters")
-                            function_def = {"name": tool_call_name}
-                            if tool_call_args is not None:
-                                function_def["arguments"] = json.dumps(tool_call_args)
-                            tool_calls.append(
-                                {
-                                    "type": "function",
-                                    "function": function_def,
-                                }
-                            )
-                            logger.debug(f"Tool Calls: {tool_calls}")
-
-                    if len(tool_calls) > 0:
-                        assistant_message.tool_calls = tool_calls
-        except Exception as e:
-            logger.warning(e)
-            pass
+            if len(tool_calls) > 0:
+                assistant_message.tool_calls = tool_calls
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -166,6 +207,23 @@ class Claude(LLM):
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
 
+        # Add token usage to metrics
+        response_usage: Usage = response.usage
+        if response_usage:
+            input_tokens = response_usage.input_tokens
+            output_tokens = response_usage.output_tokens
+
+            if input_tokens is not None:
+                assistant_message.metrics["input_tokens"] = input_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+
+            if output_tokens is not None:
+                assistant_message.metrics["output_tokens"] = output_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+
+            if input_tokens is not None and output_tokens is not None:
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
@@ -173,7 +231,8 @@ class Claude(LLM):
         # -*- Parse and run function call
         if assistant_message.tool_calls is not None and self.run_tools:
             # Remove the tool call from the response content
-            final_response = remove_function_calls_from_string(assistant_message.content)  # type: ignore
+            final_response = str(response_content)
+            final_response += "\n\n"
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -194,16 +253,18 @@ class Claude(LLM):
                         final_response += f"\n - {_f.get_call_str()}"
                     final_response += "\n\n"
 
-            function_call_results = self.run_function_calls(function_calls_to_run, role="user")
+            function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
-                fc_responses = "<function_results>"
+                fc_responses: List = []
 
-                for _fc_message in function_call_results:
-                    fc_responses += "<result>"
-                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"  # type: ignore
-                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"  # type: ignore
-                    fc_responses += "</result>"
-                fc_responses += "</function_results>"
+                for _fc_message_index, _fc_message in enumerate(function_call_results):
+                    fc_responses.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_ids[_fc_message_index],
+                            "content": _fc_message.content,
+                        }
+                    )
 
                 messages.append(Message(role="user", content=fc_responses))
 
@@ -222,98 +283,56 @@ class Claude(LLM):
         for m in messages:
             m.log()
 
-        assistant_message_content = ""
-        tool_calls_counter = 0
-        response_is_tool_call = False
-        is_closing_tool_call_tag = False
+        response_content_text = ""
+        response_content: List[Optional[Union[TextBlock, ToolUseBlock]]] = []
+        response_usage: Optional[Usage] = None
+        tool_calls: List[Dict[str, Any]] = []
+        tool_ids: List[str] = []
         response_timer = Timer()
         response_timer.start()
         response = self.invoke_stream(messages=messages)
         with response as stream:
-            for stream_delta in stream.text_stream:
-                # logger.debug(f"Stream Delta: {stream_delta}")
+            for delta in stream:
+                if isinstance(delta, RawContentBlockDeltaEvent):
+                    if isinstance(delta.delta, TextDelta):
+                        yield delta.delta.text
+                        response_content_text += delta.delta.text
 
-                # Add response content to assistant message
-                if stream_delta is not None:
-                    assistant_message_content += stream_delta
+                if isinstance(delta, ContentBlockStopEvent):
+                    if isinstance(delta.content_block, ToolUseBlock):
+                        tool_use = delta.content_block
+                        tool_name = tool_use.name
+                        tool_input = tool_use.input
+                        tool_ids.append(tool_use.id)
 
-                # Detect if response is a tool call
-                if not response_is_tool_call and ("<function" in stream_delta or "<invoke" in stream_delta):
-                    response_is_tool_call = True
-                    # logger.debug(f"Response is tool call: {response_is_tool_call}")
-
-                # If response is a tool call, count the number of tool calls
-                if response_is_tool_call:
-                    # If the response is an opening tool call tag, increment the tool call counter
-                    if "<invoke" in stream_delta:
-                        tool_calls_counter += 1
-
-                    # If the response is a closing tool call tag, decrement the tool call counter
-                    if assistant_message_content.strip().endswith("</invoke>"):
-                        tool_calls_counter -= 1
-
-                    # If the response is a closing tool call tag and the tool call counter is 0,
-                    # tool call response is complete
-                    if tool_calls_counter == 0 and stream_delta.strip().endswith(">"):
-                        response_is_tool_call = False
-                        # logger.debug(f"Response is tool call: {response_is_tool_call}")
-                        is_closing_tool_call_tag = True
-
-                # -*- Yield content if not a tool call and content is not None
-                if not response_is_tool_call and stream_delta is not None:
-                    if is_closing_tool_call_tag and stream_delta.strip().endswith(">"):
-                        is_closing_tool_call_tag = False
-                        continue
-
-                    yield stream_delta
-
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-
-        # Add function call closing tag to the assistant message
-        if assistant_message_content.count("<function_calls>") == 1:
-            assistant_message_content += "</function_calls>"
-
-        # -*- Create assistant message
-        assistant_message = Message(
-            role="assistant",
-            content=assistant_message_content,
-        )
-
-        # Check if the response contains tool calls
-        try:
-            if "<invoke>" in assistant_message_content and "</invoke>" in assistant_message_content:
-                # List of tool calls added to the assistant message
-                tool_calls: List[Dict[str, Any]] = []
-                # Break the response into tool calls
-                tool_call_responses = assistant_message_content.split("</invoke>")
-                for tool_call_response in tool_call_responses:
-                    # Add back the closing tag if this is not the last tool call
-                    if tool_call_response != tool_call_responses[-1]:
-                        tool_call_response += "</invoke>"
-
-                    if "<invoke>" in tool_call_response and "</invoke>" in tool_call_response:
-                        # Extract tool call string from response
-                        tool_call_dict = extract_tool_from_xml(tool_call_response)
-                        tool_call_name = tool_call_dict.get("tool_name")
-                        tool_call_args = tool_call_dict.get("parameters")
-                        function_def = {"name": tool_call_name}
-                        if tool_call_args is not None:
-                            function_def["arguments"] = json.dumps(tool_call_args)
+                        function_def = {"name": tool_name}
+                        if tool_input:
+                            function_def["arguments"] = json.dumps(tool_input)
                         tool_calls.append(
                             {
                                 "type": "function",
                                 "function": function_def,
                             }
                         )
-                        logger.debug(f"Tool Calls: {tool_calls}")
+                    response_content.append(delta.content_block)
 
-                # If tool call parsing is successful, add tool calls to the assistant message
-                if len(tool_calls) > 0:
-                    assistant_message.tool_calls = tool_calls
-        except Exception:
-            logger.warning(f"Could not parse tool calls from response: {assistant_message_content}")
-            pass
+                if isinstance(delta, MessageStopEvent):
+                    response_usage = delta.message.usage
+
+        yield "\n\n"
+
+        response_timer.stop()
+        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+
+        # -*- Create assistant message
+        assistant_message = Message(
+            role="assistant",
+            content="",
+        )
+        assistant_message.content = response_content  # type: ignore
+
+        if len(tool_calls) > 0:
+            assistant_message.tool_calls = tool_calls
 
         # -*- Update usage metrics
         # Add response time to metrics
@@ -322,12 +341,29 @@ class Claude(LLM):
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
 
+        # Add token usage to metrics
+        if response_usage:
+            input_tokens = response_usage.input_tokens
+            output_tokens = response_usage.output_tokens
+
+            if input_tokens is not None:
+                assistant_message.metrics["input_tokens"] = input_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
+
+            if output_tokens is not None:
+                assistant_message.metrics["output_tokens"] = output_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
+
+            if input_tokens is not None and output_tokens is not None:
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
 
         # -*- Parse and run function call
         if assistant_message.tool_calls is not None and self.run_tools:
+            # Remove the tool call from the response content
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -341,71 +377,35 @@ class Claude(LLM):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield f"- Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    yield f" - Running: {function_calls_to_run[0].get_call_str()}\n\n"
                 elif len(function_calls_to_run) > 1:
                     yield "Running:"
                     for _f in function_calls_to_run:
                         yield f"\n - {_f.get_call_str()}"
                     yield "\n\n"
 
-            function_call_results = self.run_function_calls(function_calls_to_run, role="user")
-            # Add results of the function calls to the messages
+            function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
-                fc_responses = "<function_results>"
+                fc_responses: List = []
 
-                for _fc_message in function_call_results:
-                    fc_responses += "<result>"
-                    fc_responses += "<tool_name>" + _fc_message.tool_call_name + "</tool_name>"  # type: ignore
-                    fc_responses += "<stdout>" + _fc_message.content + "</stdout>"  # type: ignore
-                    fc_responses += "</result>"
-                fc_responses += "</function_results>"
+                for _fc_message_index, _fc_message in enumerate(function_call_results):
+                    fc_responses.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_ids[_fc_message_index],
+                            "content": _fc_message.content,
+                        }
+                    )
 
                 messages.append(Message(role="user", content=fc_responses))
 
             # -*- Yield new response using results of tool calls
-            yield from self.response_stream(messages=messages)
+            yield from self.response(messages=messages)
         logger.debug("---------- Claude Response End ----------")
 
     def get_tool_call_prompt(self) -> Optional[str]:
         if self.functions is not None and len(self.functions) > 0:
-            tool_call_prompt = dedent(
-                """\
-            In this environment you have access to a set of tools you can use to answer the user's question.
-
-            You may call them like this:
-            <function_calls>
-            <invoke>
-            <tool_name>$TOOL_NAME</tool_name>
-            <parameters>
-            <$PARAMETER_NAME>$PARAMETER_VALUE</$PARAMETER_NAME>
-            ...
-            </parameters>
-            </invoke>
-            </function_calls>
-            """
-            )
-            tool_call_prompt += "\nHere are the tools available:"
-            tool_call_prompt += "\n<tools>"
-            for _f_name, _function in self.functions.items():
-                _function_def = _function.get_definition_for_prompt_dict()
-                if _function_def:
-                    tool_call_prompt += "\n<tool_description>"
-                    tool_call_prompt += f"\n<tool_name>{_function_def.get('name')}</tool_name>"
-                    tool_call_prompt += f"\n<description>{_function_def.get('description')}</description>"
-                    arguments = _function_def.get("arguments")
-                    if arguments:
-                        tool_call_prompt += "\n<parameters>"
-                        for arg in arguments:
-                            tool_call_prompt += "\n<parameter>"
-                            tool_call_prompt += f"\n<name>{arg}</name>"
-                            if isinstance(arguments.get(arg).get("type"), str):
-                                tool_call_prompt += f"\n<type>{arguments.get(arg).get('type')}</type>"
-                            else:
-                                tool_call_prompt += f"\n<type>{arguments.get(arg).get('type')[0]}</type>"
-                            tool_call_prompt += "\n</parameter>"
-                    tool_call_prompt += "\n</parameters>"
-                    tool_call_prompt += "\n</tool_description>"
-            tool_call_prompt += "\n</tools>"
+            tool_call_prompt = "Do not reflect on the quality of the returned search results in your response"
             return tool_call_prompt
         return None
 

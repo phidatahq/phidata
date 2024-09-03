@@ -29,14 +29,16 @@ TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.ai_api: "ai-api",
     WorkspaceStarterTemplate.django_app: "django-app",
     WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
-    WorkspaceStarterTemplate.junior_de: "junior-de",
+    WorkspaceStarterTemplate.llm_os: "llm-os",
+    WorkspaceStarterTemplate.agentic_rag: "agentic-rag",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.ai_app: "https://github.com/phidatahq/ai-app.git",
     WorkspaceStarterTemplate.ai_api: "https://github.com/phidatahq/ai-api.git",
     WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
     WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
-    WorkspaceStarterTemplate.junior_de: "https://github.com/phidatahq/junior-de.git",
+    WorkspaceStarterTemplate.llm_os: "https://github.com/phidatahq/llm-os.git",
+    WorkspaceStarterTemplate.agentic_rag: "https://github.com/phidatahq/personalized-agentic-rag.git",
 }
 
 

@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-import requests
+import httpx
 from pydantic import BaseModel, HttpUrl, Field
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -29,7 +29,7 @@ class JinaReaderTools(Toolkit):
         full_url = f"{self.base_url}{url}"
         logger.info(f"Reading URL: {full_url}")
         try:
-            response = requests.get(full_url, headers=self._get_headers())
+            response = httpx.get(full_url, headers=self._get_headers())
             response.raise_for_status()
             content = response.json()
             return self._truncate_content(str(content))
@@ -43,7 +43,7 @@ class JinaReaderTools(Toolkit):
         full_url = f"{self.search_url}{query}"
         logger.info(f"Performing search: {full_url}")
         try:
-            response = requests.get(full_url, headers=self._get_headers())
+            response = httpx.get(full_url, headers=self._get_headers())
             response.raise_for_status()
             content = response.json()
             return self._truncate_content(str(content))

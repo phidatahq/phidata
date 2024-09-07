@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.32"
+version = "2.4.33"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -132,6 +132,7 @@ module = [
   "requests.*",
   "serpapi.*",
   "setuptools.*",
+  "sentence_transformers.*",
   "simplejson.*",
   "spider.*",
   "sqlalchemy.*",

@@ -40,6 +40,9 @@ k8s = [
     "docker",
     "kubernetes"
 ]
+server = [
+    "fastapi"
+]
 all = [
     "mypy",
     "pytest",
@@ -47,7 +50,8 @@ all = [
     "types-pyyaml",
     "docker",
     "boto3",
-    "kubernetes"
+    "kubernetes",
+    "fastapi",
 ]
 
 [project.scripts]

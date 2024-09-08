@@ -317,12 +317,12 @@ class Assistant(BaseModel):
         if self.llm.tool_choice is None and self.tool_choice is not None:
             self.llm.tool_choice = self.tool_choice
 
-        # Set tool_call_limit if it is less than the llm tool_call_limit
-        if self.tool_call_limit is not None and self.tool_call_limit < self.llm.function_call_limit:
-            self.llm.function_call_limit = self.tool_call_limit
+        # Set tool_call_limit if set on the assistant
+        if self.tool_call_limit is not None:
+            self.llm.tool_call_limit = self.tool_call_limit
 
         if self.run_id is not None:
-            self.llm.run_id = self.run_id
+            self.llm.session_id = self.run_id
 
     def load_memory(self) -> None:
         if self.memory is not None:

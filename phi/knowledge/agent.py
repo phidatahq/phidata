@@ -20,7 +20,7 @@ class AgentKnowledge(BaseModel):
     # Chunker to chunk documents into smaller documents before storing in vector db
     chunker: Chunker = Chunker()
     # Retriever to retrieve relevant documents from vector db
-    retriever: Optional[Retriever] = None
+    retriever: Retriever = Retriever()
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -38,7 +38,7 @@ class AgentKnowledge(BaseModel):
                 logger.warning("No vector db provided")
                 return []
 
-            _num_documents = num_documents or self.num_documents
+            _num_documents = num_documents or self.retriever.num_documents
             logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
             return self.vector_db.search(query=query, limit=_num_documents)
         except Exception as e:

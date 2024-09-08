@@ -11,12 +11,14 @@
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "${CURR_DIR}")"
 VENV_DIR="${REPO_ROOT}/phienv"
+PYTHON_VERSION=$(python3 --version)
 source "${CURR_DIR}/_utils.sh"
 
 main() {
-  print_heading "phidata dev setup"
+  print_heading "Phidata dev setup"
   print_heading "Creating venv: ${VENV_DIR}"
 
+  print_info "Python version: ${PYTHON_VERSION}"
   print_info "Removing existing venv: ${VENV_DIR}"
   rm -rf "${VENV_DIR}"
 

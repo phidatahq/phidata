@@ -287,7 +287,7 @@ class Agent(BaseModel):
         # Add tools for accessing knowledge
         if self.knowledge is not None:
             if self.search_knowledge:
-                self.llm.add_tool(self.search_knowledge)
+                self.llm.add_tool(self.search_knowledge_base)
             if self.update_knowledge:
                 self.llm.add_tool(self.add_to_knowledge)
 
@@ -309,9 +309,13 @@ class Agent(BaseModel):
         if self.llm.tool_choice is None and self.tool_choice is not None:
             self.llm.tool_choice = self.tool_choice
 
-        # Set tool_call_limit if it is less than the llm tool_call_limit
-        if self.tool_call_limit is not None and self.tool_call_limit < self.llm.function_call_limit:
-            self.llm.function_call_limit = self.tool_call_limit
+        # Set tool_call_limit if set on the agent
+        if self.tool_call_limit is not None:
+            self.llm.tool_call_limit = self.tool_call_limit
+
+        # Add session_id to the llm
+        if self.session_id is not None:
+            self.llm.session_id = self.session_id
 
     def load_memory(self) -> None:
         if self.memory is not None:
@@ -596,11 +600,13 @@ class Agent(BaseModel):
             )
         # 4.2 Add instructions for using the AgentKnowledge
         if self.add_knowledge_instructions and self.knowledge is not None:
-            instructions.extend([
-                "Always prefer information from the knowledge base over your own knowledge.",
-                "Do not use phrases like 'based on the information provided.'",
-                "Do not reveal that your information is 'from the knowledge base.'",
-            ])
+            instructions.extend(
+                [
+                    "Always prefer information from the knowledge base over your own knowledge.",
+                    "Do not use phrases like 'based on the information provided.'",
+                    "Do not reveal that your information is 'from the knowledge base.'",
+                ]
+            )
         # 4.3 Add instructions to prevent hallucinations
         if self.prevent_prompt_injection and self.knowledge is not None:
             instructions.extend(
@@ -644,9 +650,11 @@ class Agent(BaseModel):
             system_prompt_lines.append(system_prompt_from_llm)
         # 5.4 Then add instructions to the system prompt
         if len(instructions) > 0:
-            system_prompt_lines.append(dedent("""\
+            system_prompt_lines.append(
+                dedent("""\
             You must follow these instructions carefully:
-            <instructions>"""))
+            <instructions>""")
+            )
             for i, instruction in enumerate(instructions):
                 system_prompt_lines.append(f"{i+1}. {instruction}")
             system_prompt_lines.append("</instructions>")
@@ -716,7 +724,9 @@ class Agent(BaseModel):
 
         return json.dumps([doc.to_dict() for doc in relevant_docs], indent=2)
 
-    def get_user_prompt(self, message: Optional[Union[List, Dict, str]] = None, references: Optional[str] = None) -> Optional[Union[List, Dict, str]]:
+    def get_user_prompt(
+        self, message: Optional[Union[List, Dict, str]] = None, references: Optional[str] = None
+    ) -> Optional[Union[List, Dict, str]]:
         """Build the user prompt given a message and references.
 
         How the user prompt is built:
@@ -863,7 +873,9 @@ class Agent(BaseModel):
                 )
                 logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
             # 7.3.2 Get the user prompt
-            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(message=message, references=user_prompt_references)
+            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+                message=message, references=user_prompt_references
+            )
             # 7.3.3 Create user prompt message
             user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
             # 7.3.4 Add user prompt message to the messages list
@@ -947,7 +959,7 @@ class Agent(BaseModel):
                 "functions": functions,
                 "metrics": self.llm.metrics if self.llm else None,
             }
-        self._api_log_agent_run(run_data=run_data)
+        self.log_agent_run(run_data=run_data)
 
         logger.debug(f"*********** Agent Run End: {self.session_id} ***********")
 
@@ -963,7 +975,6 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Union[Iterator[str], str, BaseModel]:
-
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
@@ -1065,7 +1076,9 @@ class Agent(BaseModel):
                 )
                 logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
             # 7.3.2 Get the user prompt
-            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(message=message, references=user_prompt_references)
+            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+                message=message, references=user_prompt_references
+            )
             # 7.3.3 Create user prompt message
             user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
             # 7.3.4 Add user prompt message to the messages list
@@ -1150,7 +1163,7 @@ class Agent(BaseModel):
                 "functions": functions,
                 "metrics": self.llm.metrics if self.llm else None,
             }
-        self._api_log_agent_run(run_data=run_data)
+        self.log_agent_run(run_data=run_data)
 
         logger.debug(f"*********** Agent Run End: {self.session_id} ***********")
 
@@ -1166,7 +1179,6 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Union[AsyncIterator[str], str, BaseModel]:
-
         # Convert response to structured output if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
@@ -1201,12 +1213,22 @@ class Agent(BaseModel):
                 return await resp.__anext__()
 
     def chat(
-        self, message: Union[List, Dict, str], *, stream: bool = True, messages: Optional[List[Union[Dict, Message]]] = None,**kwargs: Any
+        self,
+        message: Union[List, Dict, str],
+        *,
+        stream: bool = True,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
     ) -> Union[Iterator[str], str, BaseModel]:
         return self.run(message=message, stream=stream, messages=messages, **kwargs)
 
     async def achat(
-        self, message: Union[List, Dict, str], *, stream: bool = True, messages: Optional[List[Union[Dict, Message]]] = None,**kwargs: Any
+        self,
+        message: Union[List, Dict, str],
+        *,
+        stream: bool = True,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
     ) -> Union[AsyncIterator[str], str, BaseModel]:
         # NOTE: this needs to be tested
         return await self.arun(message=message, stream=stream, messages=messages, **kwargs)
@@ -1269,21 +1291,22 @@ class Agent(BaseModel):
         generated_name = self.llm.response(messages=generate_name_messages)
         if len(generated_name.split()) > 15:
             logger.error("Generated name is too long. Trying again.")
-            return self.generate_name()
+            return self.generate_session_name()
         return generated_name.replace('"', "").strip()
 
     def auto_rename_session(self) -> None:
         """Automatically rename the session and save to storage"""
+
         # -*- Read from storage
         self.read_from_storage()
-        # -*- Generate name for thread
+        # -*- Generate name for session
         generated_session_name = self.generate_session_name()
-        logger.debug(f"Generated name: {generated_session_name}")
+        logger.debug(f"Generated Session Name: {generated_session_name}")
         # -*- Rename thread
         self.session_name = generated_session_name
         # -*- Save to storage
         self.write_to_storage()
-        # -*- Log assistant thread
+        # -*- Log Agent Session
         self.log_agent_session()
 
     ###########################################################################
@@ -1341,7 +1364,7 @@ class Agent(BaseModel):
         logger.debug(f"tool_calls: {tool_calls}")
         return json.dumps(tool_calls)
 
-    def search_knowledge(self, query: str) -> str:
+    def search_knowledge_base(self, query: str) -> str:
         """Use this function to search the knowledge base for information about a query.
 
         Args:
@@ -1402,36 +1425,35 @@ class Agent(BaseModel):
     ###########################################################################
 
     def log_agent_session(self):
-        if not self.monitoring:
+        if not self.telemetry:
             return
 
-        from phi.api.agent import create_agent_run, AgentSessionCreate
+        from phi.api.agent import create_agent_session, AgentSessionCreate
 
         try:
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
-            create_agent_run(
-                run=AgentSessionCreate(
+            create_agent_session(
+                session=AgentSessionCreate(
                     session_id=agent_session.session_id,
-                    agent_data=agent_session.agent_dict(),
+                    agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
                 ),
             )
         except Exception as e:
             logger.debug(f"Could not create agent monitor: {e}")
 
-    def _api_log_agent_event(self, event_type: str = "run", event_data: Optional[Dict[str, Any]] = None) -> None:
+    def log_agent_run(self, run_data: Optional[Dict[str, Any]] = None) -> None:
         if not self.monitoring:
             return
 
-        from phi.api.agent import create_agent_event, AgentEventCreate
+        from phi.api.agent import create_agent_run, AgentRunCreate
 
         try:
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
-            create_agent_event(
-                event=AgentEventCreate(
+            create_agent_run(
+                run=AgentRunCreate(
                     session_id=agent_session.session_id,
-                    agent_data=agent_session.agent_dict(),
-                    event_type=event_type,
-                    event_data=event_data,
+                    agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
+                    run_data=run_data,
                 ),
             )
         except Exception as e:

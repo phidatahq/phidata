@@ -26,5 +26,9 @@ class AgentStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete(self) -> None:
+    def drop(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def upgrade_schema(self) -> None:
         raise NotImplementedError

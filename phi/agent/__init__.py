@@ -1,10 +1,10 @@
-from phi.assistant.assistant import (
-    Assistant,
-    AssistantRun,
-    AssistantMemory,
+from phi.agent.agent import (
+    Agent,
+    AgentSession,
+    AgentMemory,
+    AgentStorage,
+    AgentKnowledge,
     MemoryRetrieval,
-    AssistantStorage,
-    AssistantKnowledge,
     Function,
     Tool,
     Toolkit,

@@ -20,9 +20,9 @@ class AgentSession(BaseModel):
     user_data: Optional[Dict[str, Any]] = None
     # Session Metadata
     session_data: Optional[Dict[str, Any]] = None
-    # The timestamp of when this run was created
+    # The timestamp of when this session was created
     created_at: Optional[datetime] = None
-    # The timestamp of when this run was last updated
+    # The timestamp of when this session was last updated
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

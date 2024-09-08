@@ -36,7 +36,7 @@ def create_agent_session(session: AgentSessionCreate) -> bool:
             logger.debug(f"Response: {response_json}")
             return True
         except Exception as e:
-            logger.debug(f"Could not create assistant run: {e}")
+            logger.debug(f"Could not create Agent session: {e}")
     return False
 
 
@@ -44,7 +44,7 @@ def create_agent_run(run: AgentRunCreate) -> bool:
     if not phi_cli_settings.api_enabled:
         return True
 
-    logger.debug("--**-- Creating Assistant Event")
+    logger.debug("--**-- Creating Agent Run")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -65,5 +65,5 @@ def create_agent_run(run: AgentRunCreate) -> bool:
             logger.debug(f"Response: {response_json}")
             return True
         except Exception as e:
-            logger.debug(f"Could not create assistant event: {e}")
+            logger.debug(f"Could not create Agent run: {e}")
     return False

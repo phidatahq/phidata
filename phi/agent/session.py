@@ -6,8 +6,6 @@ from pydantic import BaseModel, ConfigDict
 class AgentSession(BaseModel):
     """Agent Session that is stored in the database"""
 
-    # Assistant name
-    name: Optional[str] = None
     # Session UUID
     session_id: str
     # ID of the user interacting with this agent

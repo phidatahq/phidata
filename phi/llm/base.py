@@ -47,9 +47,6 @@ class LLM(BaseModel):
     system_prompt: Optional[str] = None
     instructions: Optional[List[str]] = None
 
-    # State from the run
-    run_id: Optional[str] = None
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property

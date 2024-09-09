@@ -1,10 +1,12 @@
 from os import getenv
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Iterator
 from phi.utils.log import logger
+from phi.llm.message import Message
 from phi.llm.openai.like import OpenAILike
 
 try:
     from openai import AzureOpenAI as AzureOpenAIClient
+    from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 except ImportError:
     logger.error("`azure openai` not installed")
     raise
@@ -50,3 +52,11 @@ class AzureOpenAIChat(OpenAILike):
             _client_params.update(self.client_params)
 
         return AzureOpenAIClient(**_client_params)
+
+    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
+        yield from self.get_client().chat.completions.create(
+            model=self.model,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            stream=True,
+            **self.api_kwargs,
+        )  # type: ignore

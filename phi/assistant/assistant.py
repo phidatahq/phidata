@@ -578,7 +578,8 @@ class Assistant(BaseModel):
             raise Exception("LLM not set")
 
         # -*- Build a list of instructions for the Assistant
-        instructions = self.instructions.copy() if self.instructions is not None else []
+        instructions = self.instructions.copy() if self.instructions is not None else None
+
         # Add default instructions
         if instructions is None:
             instructions = []

@@ -1,5 +1,3 @@
-import uvicorn
-
 from phi.agent import Agent
 from phi.llm.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
@@ -17,7 +15,9 @@ agent = Agent(
 # agent.create_session()
 # agent.print_response("What is the stock price of NVDA")
 
-api = Playground(agents=[agent]).api()
+playground = Playground(agents=[agent])
+app = playground.get_api_app()
 
 if __name__ == "__main__":
-    uvicorn.run("serve:api", host="0.0.0.0", port=8000, reload=True)
+    playground.serve("serve:app")
+    # uvicorn.run("serve:app", host="0.0.0.0", port=8000, reload=True)

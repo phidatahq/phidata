@@ -16,10 +16,10 @@ class Playground:
     ):
         self.agents: List[Agent] = agents
         self.settings: PlaygroundSettings = settings or PlaygroundSettings()
-        self.api_app: Optional[FastAPI] = None
-        self.api_router: Optional[APIRouter] = None
+        self.api_app: Optional[FastAPI] = api_app
+        self.api_router: Optional[APIRouter] = api_router
 
-    def get_agent_router(self):
+    def get_api_router(self):
         agent_router = APIRouter(prefix="/agent", tags=["Agent"])
 
         @agent_router.get("/health")
@@ -28,7 +28,7 @@ class Playground:
 
         return agent_router
 
-    def api(self) -> FastAPI:
+    def get_api_app(self) -> FastAPI:
         """Create a FastAPI App for the Playground
 
         Returns:
@@ -55,7 +55,7 @@ class Playground:
         if not self.api_router:
             raise Exception("API Router could not be created.")
 
-        self.api_router.include_router(self.get_agent_router())
+        self.api_router.include_router(self.get_api_router())
         self.api_app.include_router(self.api_router)
 
         # Add Middlewares
@@ -70,14 +70,22 @@ class Playground:
 
         return self.api_app
 
-    def serve(self, *, host: Optional[str] = None, port: Optional[int] = None, reload: bool = False):
+    def serve(
+        self,
+        app: Optional[str] = None,
+        *,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        reload: bool = False,
+        **kwargs,
+    ):
         import uvicorn
 
-        if not self.api_app:
-            self.api()
+        _app = app or self.api_app
+        if _app is None:
+            _app = self.get_api_app()
 
-        _app = self.api_app
         _host = host or "0.0.0.0"
         _port = port or 8000
 
-        uvicorn.run(app=_app, host=_host, port=_port, reload=reload)
+        uvicorn.run(app=_app, host=_host, port=_port, reload=reload, **kwargs)

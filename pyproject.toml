@@ -147,6 +147,7 @@ module = [
   "vertexai.*",
   "voyageai.*",
   "wikipedia.*",
+  "uvicorn.*",
   "yfinance.*",
   "youtube_transcript_api.*",
 ]

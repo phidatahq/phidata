@@ -114,7 +114,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         else:
             # Get default_ws_name from template
             default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "ai-app")
-        logger.debug(f"asking for ws name with default: {default_ws_name}")
+        logger.debug(f"Asking for ws name with default: {default_ws_name}")
         # Ask user for workspace name if not provided
         ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name, console=console)
 

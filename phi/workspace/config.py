@@ -267,8 +267,6 @@ class WorkspaceConfig(BaseModel):
         if self.ws_schema is not None:
             if self.ws_schema.id_workspace is not None:
                 environ[WORKSPACE_ID_ENV_VAR] = str(self.ws_schema.id_workspace)
-            if self.ws_schema.ws_hash is not None:
-                environ[WORKSPACE_HASH_ENV_VAR] = self.ws_schema.ws_hash
 
         if environ.get(AWS_REGION_ENV_VAR) is None:
             if self.workspace_settings is not None:

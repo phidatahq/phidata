@@ -8,7 +8,7 @@ assistant = Assistant(
 )
 
 # Use the assistant to read a webpage
-assistant.print_response("Search on openai.com for content related to Q* and summarize its main points", markdown=True)
+assistant.print_response("Summarize the latest https://news.ycombinator.com/", markdown=True)
 
 
 # Use the assistant to search

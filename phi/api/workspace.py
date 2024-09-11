@@ -21,7 +21,7 @@ def get_primary_workspace(user: UserSchema) -> Optional[WorkspaceSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Get primary workspace")
+    logger.debug("--**-- Get primary workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -46,7 +46,7 @@ def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceSchema]
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Get available workspaces")
+    logger.debug("--**-- Get available workspaces")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -75,7 +75,7 @@ def create_workspace_for_user(user: UserSchema, workspace: WorkspaceCreate) -> O
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Create workspace")
+    logger.debug("--**-- Create workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -104,7 +104,7 @@ def update_workspace_for_user(user: UserSchema, workspace: WorkspaceUpdate) -> O
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Update workspace")
+    logger.debug("--**-- Update workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -133,7 +133,7 @@ def update_primary_workspace_for_user(user: UserSchema, workspace: UpdatePrimary
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug(f"--o-o-- Update primary workspace to: {workspace.ws_name}")
+    logger.debug(f"--**-- Update primary workspace to: {workspace.ws_name}")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -162,7 +162,7 @@ def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceDelete) -> O
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Delete workspace")
+    logger.debug("--**-- Delete workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -191,7 +191,7 @@ def log_workspace_event(user: UserSchema, workspace_event: WorkspaceEvent) -> bo
     if not phi_cli_settings.api_enabled:
         return False
 
-    logger.debug("--o-o-- Log workspace event")
+    logger.debug("--**-- Log workspace event")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(

@@ -312,7 +312,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
                 workspace=WorkspaceCreate(
                     ws_name=new_workspace_name,
                     git_url=git_remote_origin_url,
-                    is_primary_for_user=True,
+                    is_active_for_user=True,
                 ),
             )
             if ws_schema is not None:

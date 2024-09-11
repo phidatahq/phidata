@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from pydantic import BaseModel
 
@@ -6,13 +6,14 @@ from pydantic import BaseModel
 class UserSchema(BaseModel):
     """Schema for user data returned by the API."""
 
-    id_user: int
+    id_user: str
     email: Optional[str] = None
     username: Optional[str] = None
-    is_active: Optional[bool] = True
-    is_bot: Optional[bool] = False
     name: Optional[str] = None
     email_verified: Optional[bool] = False
+    is_active: Optional[bool] = True
+    is_machine: Optional[bool] = False
+    user_data: Optional[Dict[str, Any]] = None
 
 
 class EmailPasswordAuthSchema(BaseModel):

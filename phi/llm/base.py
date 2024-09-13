@@ -14,6 +14,8 @@ class LLM(BaseModel):
     model: str
     # Name for this LLM. Note: This is not sent to the LLM API.
     name: Optional[str] = None
+    # Provider of this LLM. Note: This is not sent to the LLM API.
+    provider: Optional[str] = None
     # Metrics collected for this LLM. Note: This is not sent to the LLM API.
     metrics: Dict[str, Any] = {}
     response_format: Optional[Any] = None

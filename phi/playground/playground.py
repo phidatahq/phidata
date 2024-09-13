@@ -1,9 +1,33 @@
-from fastapi import FastAPI
-from typing import List, Optional
-from fastapi.routing import APIRouter
+from typing import List, Optional, Generator
 
+from fastapi import FastAPI, HTTPException
+from fastapi.routing import APIRouter
+from fastapi.responses import StreamingResponse
+
+from pydantic import BaseModel
 from phi.agent.agent import Agent
 from phi.playground.settings import PlaygroundSettings
+from phi.utils.log import logger
+
+
+class AgentLLM(BaseModel):
+    name: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+
+
+class AgentGetResponse(BaseModel):
+    agent_id: str
+    llm: Optional[AgentLLM] = None
+    name: Optional[str] = None
+
+
+class AgentChatRequest(BaseModel):
+    message: str
+    agent_id: str
+    stream: bool = True
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 class Playground:
@@ -20,13 +44,54 @@ class Playground:
         self.api_router: Optional[APIRouter] = api_router
 
     def get_api_router(self):
-        agent_router = APIRouter(prefix="/agent", tags=["Agent"])
+        playground_routes = APIRouter(prefix="/playground", tags=["Playground"])
 
-        @agent_router.get("/health")
-        def agent_run_health():
-            return {"status": "success", "path": "/agent/health"}
+        @playground_routes.get("/status")
+        def playground_status():
+            return {"playground": "available"}
 
-        return agent_router
+        @playground_routes.get("/agent/get", response_model=List[AgentGetResponse])
+        def agent_get():
+            agent_list: List[AgentGetResponse] = []
+            for agent in self.agents:
+                agent_list.append(
+                    AgentGetResponse(
+                        llm=AgentLLM(
+                            provider=agent.llm.provider or agent.llm.__class__.__name__,
+                            name=agent.llm.name or agent.llm.__class__.__name__,
+                            model=agent.llm.model,
+                        ),
+                        name=agent.name,
+                        agent_id=agent.agent_id,
+                    )
+                )
+
+            return agent_list
+
+        def chat_response_streamer(agent: Agent, message: str) -> Generator:
+            for chunk in agent.run(message):
+                yield chunk
+
+        @playground_routes.post("/agent/chat")
+        def agent_get(body: AgentChatRequest):
+            logger.debug(f"ChatRequest: {body}")
+            agent: Optional[Agent] = None
+            for _agent in self.agents:
+                if _agent.agent_id == body.agent_id:
+                    agent = _agent
+                    break
+            if agent is None:
+                raise HTTPException(status_code=404, detail="Agent not found")
+
+            if body.stream:
+                return StreamingResponse(
+                    chat_response_streamer(agent, body.message),
+                    media_type="text/event-stream",
+                )
+            else:
+                return agent.run(body.message, stream=False)
+
+        return playground_routes
 
     def get_api_app(self) -> FastAPI:
         """Create a FastAPI App for the Playground
@@ -86,6 +151,6 @@ class Playground:
             _app = self.get_api_app()
 
         _host = host or "0.0.0.0"
-        _port = port or 8000
+        _port = port or 7777
 
         uvicorn.run(app=_app, host=_host, port=_port, reload=reload, **kwargs)

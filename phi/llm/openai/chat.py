@@ -30,8 +30,9 @@ except ImportError:
 
 
 class OpenAIChat(LLM):
-    name: str = "OpenAIChat"
     model: str = "gpt-4o"
+    name: str = "OpenAIChat"
+    provider: str = "OpenAI"
     # -*- Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None

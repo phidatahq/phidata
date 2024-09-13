@@ -5,6 +5,7 @@ from phi.storage.agent.postgres import PgAgentStorage
 from phi.playground import Playground
 
 agent = Agent(
+    agent_id="finance",
     llm=OpenAIChat(model="gpt-4o"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
@@ -19,5 +20,5 @@ playground = Playground(agents=[agent])
 app = playground.get_api_app()
 
 if __name__ == "__main__":
-    playground.serve("serve:app")
+    playground.serve("serve:app", reload=True)
     # uvicorn.run("serve:app", host="0.0.0.0", port=8000, reload=True)

@@ -198,16 +198,20 @@ class Agent(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @field_validator("agent_id", mode="before")
+    def set_agent_id(cls, v: Optional[str]) -> str:
+        return v if v is not None else str(uuid4())
+
+    @field_validator("session_id", mode="before")
+    def set_session_id(cls, v: Optional[str]) -> str:
+        return v if v is not None else str(uuid4())
+
     @field_validator("debug_mode", mode="before")
     def set_log_level(cls, v: bool) -> bool:
         if v:
             set_log_level_to_debug()
             logger.debug("Debug logs enabled")
         return v
-
-    @field_validator("session_id", mode="before")
-    def set_session_id(cls, v: Optional[str]) -> str:
-        return v if v is not None else str(uuid4())
 
     @property
     def streamable(self) -> bool:

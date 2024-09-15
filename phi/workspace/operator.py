@@ -190,8 +190,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
     2. Create or Update WorkspaceSchema
     If a ws_schema exists for this workspace, this workspace has a record in the backend
     2.1 Create WorkspaceSchema for a NEWLY CREATED WORKSPACE
-    2.2 Set workspace as primary if needed
-    2.3 Update WorkspaceSchema if git_url has changed
+    2.2 Update WorkspaceSchema if git_url is updated
     """
     from phi.cli.operator import initialize_phi
     from phi.utils.git import get_remote_origin_for_dir
@@ -257,18 +256,13 @@ def setup_workspace(ws_root_path: Path) -> bool:
         return False
 
     ######################################################
-    # 1.4 Load workspace and set as active
+    # 1.4 Set workspace as active
     ######################################################
-    # Load and save the workspace config
-    # ws_config.load()
     # Get the workspace dir name
     ws_dir_name = ws_config.ws_root_path.stem
     # Set the workspace as active if it is not already
-    # update_primary_ws is a flag to update the primary workspace in the backend
-    update_primary_ws = False
     if phi_config.active_ws_dir is None or phi_config.active_ws_dir != ws_dir_name:
         phi_config.set_active_ws_dir(ws_config.ws_root_path)
-        update_primary_ws = True
 
     ######################################################
     # 1.5 Check if remote origin is available
@@ -306,13 +300,13 @@ def setup_workspace(ws_root_path: Path) -> bool:
             logger.debug("Creating ws_schema for new workspace")
             logger.debug(f"ws_dir_name: {ws_dir_name}")
             logger.debug(f"workspace_name: {new_workspace_name}")
+            logger.debug(f"git_url: {git_remote_origin_url}")
 
             ws_schema = create_workspace_for_user(
                 user=phi_config.user,
                 workspace=WorkspaceCreate(
                     ws_name=new_workspace_name,
                     git_url=git_remote_origin_url,
-                    is_active_for_user=True,
                 ),
             )
             if ws_schema is not None:
@@ -321,33 +315,9 @@ def setup_workspace(ws_root_path: Path) -> bool:
                 logger.debug("Failed to sync workspace with api. Please setup again")
 
         ######################################################
-        # 2.2 Set workspace as primary if needed
+        # 2.2 Update WorkspaceSchema if git_url is updated
         ######################################################
-        elif update_primary_ws:
-            from phi.api.workspace import update_primary_workspace_for_user
-
-            logger.debug("Setting workspace as primary")
-            logger.debug(f"ws_dir_name: {ws_dir_name}")
-            logger.debug(f"workspace_name: {ws_schema.ws_name}")
-
-            updated_workspace_schema = update_primary_workspace_for_user(
-                user=phi_config.user,
-                workspace=UpdatePrimaryWorkspace(
-                    id_workspace=ws_schema.id_workspace,
-                    ws_name=ws_schema.ws_name,
-                ),
-            )
-
-            if updated_workspace_schema is not None:
-                # Update the ws_schema for this workspace.
-                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=updated_workspace_schema)
-            else:
-                logger.debug("Failed to sync workspace with api. Please setup again")
-
-        ######################################################
-        # 2.3 Update WorkspaceSchema if git_url has changed
-        ######################################################
-        if ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
+        if git_remote_origin_url is not None and ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
             from phi.api.workspace import update_workspace_for_user
 
             logger.debug("Updating git_url for existing workspace")
@@ -732,52 +702,21 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
         return
 
     ######################################################
-    # 1.3 Validate PhiWsData is available i.e. a workspace is available at this directory
+    # 1.3 Validate WorkspaceConfig is available i.e. a workspace is available at this directory
     ######################################################
     logger.debug(f"Checking for a workspace at path: {ws_root_path}")
     active_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(ws_root_path)
     if active_ws_config is None:
         # This happens when the workspace is not yet setup
         print_info(f"Could not find a workspace at path: {ws_root_path}")
+        # TODO: setup automatically for the user
         print_info("If this workspace has not been setup, please run `phi ws setup` from the workspace directory")
         return
-
-    print_heading(f"Setting workspace {active_ws_config.ws_root_path.stem} as active")
-    # if load:
-    #     try:
-    #         active_ws_config.load()
-    #     except Exception as e:
-    #         logger.error("Could not load workspace config, please fix errors and try again")
-    #         logger.error(e)
-    #         return
-
-    ######################################################
-    # 1.4 Make api request if updating active workspace
-    ######################################################
-    logger.debug("Updating active workspace api")
-    if phi_config.user is not None:
-        ws_schema: Optional[WorkspaceSchema] = active_ws_config.ws_schema
-        if ws_schema is None:
-            logger.warning(f"Please setup {active_ws_config.ws_root_path.stem} by running `phi ws setup`")
-        else:
-            from phi.api.workspace import update_primary_workspace_for_user
-
-            updated_workspace_schema = update_primary_workspace_for_user(
-                user=phi_config.user,
-                workspace=UpdatePrimaryWorkspace(
-                    id_workspace=ws_schema.id_workspace,
-                    ws_name=ws_schema.ws_name,
-                ),
-            )
-            if updated_workspace_schema is not None:
-                # Update the ws_schema for this workspace.
-                phi_config.update_ws_config(
-                    ws_root_path=active_ws_config.ws_root_path, ws_schema=updated_workspace_schema
-                )
 
     ######################################################
     ## 2. Set workspace as active
     ######################################################
+    print_heading(f"Setting workspace {active_ws_config.ws_root_path.stem} as active")
     phi_config.set_active_ws_dir(active_ws_config.ws_root_path)
     print_info("Active workspace updated")
     return

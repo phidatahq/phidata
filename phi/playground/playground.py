@@ -145,6 +145,7 @@ class Playground:
         **kwargs,
     ):
         import uvicorn
+        from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
 
         _app = app or self.api_app
         if _app is None:
@@ -152,5 +153,14 @@ class Playground:
 
         _host = host or "0.0.0.0"
         _port = port or 7777
+
+        try:
+            create_playground_endpoint(
+                playground=PlaygroundEndpointCreate(endpoint=f"http://{_host}:{_port}"),
+            )
+        except Exception as e:
+            logger.error(f"Could not create Playground Endpoint: {e}")
+            logger.error("Please try again.")
+            return
 
         uvicorn.run(app=_app, host=_host, port=_port, reload=reload, **kwargs)

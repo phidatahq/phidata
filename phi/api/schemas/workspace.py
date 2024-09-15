@@ -6,7 +6,6 @@ from pydantic import BaseModel
 class WorkspaceCreate(BaseModel):
     ws_name: str
     git_url: Optional[str] = None
-    is_active_for_user: Optional[bool] = False
     visibility: Optional[str] = None
     ws_data: Optional[Dict[str, Any]] = None
 
@@ -18,11 +17,6 @@ class WorkspaceUpdate(BaseModel):
     visibility: Optional[str] = None
     ws_data: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
-
-
-class UpdatePrimaryWorkspace(BaseModel):
-    id_workspace: str
-    ws_name: Optional[str] = None
 
 
 class WorkspaceDelete(BaseModel):

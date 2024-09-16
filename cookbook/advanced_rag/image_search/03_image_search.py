@@ -3,7 +3,6 @@ import clip
 from pinecone import Pinecone
 import os
 import json
-from pathlib import Path
 
 from phi.assistant import Assistant
 from phi.llm.openai import OpenAIChat

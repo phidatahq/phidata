@@ -1,9 +1,13 @@
+import os
+from pathlib import Path
+from typing import List, Tuple, Dict, Any
+
 import torch
 from PIL import Image
-import clip
-import os
-from pinecone import Pinecone, ServerlessSpec
-from pathlib import Path
+from pinecone import Pinecone, ServerlessSpec, Index
+
+# Type ignore for third-party libraries without type stubs
+import clip  # type: ignore
 
 # Load the CLIP model
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -16,12 +20,12 @@ pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
 data_dir = Path(__file__).parent.parent.parent.joinpath("wip", "data", "generated_images")
 
 
-def create_index_if_not_exists(index_name, dimension=512):
+def create_index_if_not_exists(index_name: str, dimension: int = 512) -> None:
     """Create Pinecone index if it doesn't exist."""
     try:
         pc.describe_index(index_name)
         print(f"Index '{index_name}' already exists.")
-    except Exception as e:
+    except Exception:
         print(f"Index '{index_name}' does not exist. Creating...")
         pc.create_index(
             name=index_name, dimension=dimension, metric="cosine", spec=ServerlessSpec(cloud="aws", region="us-west-2")
@@ -29,12 +33,12 @@ def create_index_if_not_exists(index_name, dimension=512):
         print(f"Index '{index_name}' created successfully.")
 
 
-def load_image(image_path):
+def load_image(image_path: Path) -> Image.Image:
     """Load and preprocess the image."""
     return Image.open(image_path)
 
 
-def get_image_embedding(image_path):
+def get_image_embedding(image_path: Path) -> torch.Tensor:
     """Get embedding for the image."""
     image = preprocess(load_image(image_path)).unsqueeze(0).to(device)
 
@@ -44,7 +48,7 @@ def get_image_embedding(image_path):
     return image_features.cpu().numpy()[0]
 
 
-def upsert_to_pinecone(index, image_path, id, metadata):
+def upsert_to_pinecone(index: Index, image_path: Path, id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Get image embedding and upsert to Pinecone."""
     image_embedding = get_image_embedding(image_path)
 
@@ -62,7 +66,7 @@ if __name__ == "__main__":
     index = pc.Index(index_name)
 
     # Define image-text pairs (text is now used as metadata)
-    image_text_pairs = [
+    image_text_pairs: List[Tuple[str, str]] = [
         ("siamese_cat.png", "a white siamese cat"),
         ("saint_bernard.png", "a saint bernard"),
         ("cheeseburger.png", "a cheeseburger"),

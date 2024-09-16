@@ -9,6 +9,7 @@ client = OpenAI()
 data_dir = Path(__file__).parent.parent.parent.joinpath("wip", "data", "generated_images")
 data_dir.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
 
+
 def generate_and_download_image(prompt, filename):
     # Generate image
     response = client.images.generate(
@@ -31,6 +32,7 @@ def generate_and_download_image(prompt, filename):
         print(f"Image downloaded and saved as {file_path}")
     else:
         print("Failed to download the image")
+
 
 # Example usage
 generate_and_download_image("a white siamese cat", "siamese_cat.png")

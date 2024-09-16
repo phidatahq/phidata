@@ -10,10 +10,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 
 # Initialize Pinecone
-pc = Pinecone(api_key=os.environ.get('PINECONE_API_KEY'))
+pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
 
 # Set up the data directory
 data_dir = Path(__file__).parent.parent.parent.joinpath("wip", "data", "generated_images")
+
 
 def create_index_if_not_exists(index_name, dimension=512):
     """Create Pinecone index if it doesn't exist."""
@@ -23,19 +24,15 @@ def create_index_if_not_exists(index_name, dimension=512):
     except Exception as e:
         print(f"Index '{index_name}' does not exist. Creating...")
         pc.create_index(
-            name=index_name,
-            dimension=dimension,
-            metric='cosine',
-            spec=ServerlessSpec(
-                cloud='aws',
-                region='us-west-2'
-            )
+            name=index_name, dimension=dimension, metric="cosine", spec=ServerlessSpec(cloud="aws", region="us-west-2")
         )
         print(f"Index '{index_name}' created successfully.")
+
 
 def load_image(image_path):
     """Load and preprocess the image."""
     return Image.open(image_path)
+
 
 def get_image_embedding(image_path):
     """Get embedding for the image."""
@@ -46,24 +43,21 @@ def get_image_embedding(image_path):
 
     return image_features.cpu().numpy()[0]
 
+
 def upsert_to_pinecone(index, image_path, id, metadata):
     """Get image embedding and upsert to Pinecone."""
     image_embedding = get_image_embedding(image_path)
-    
+
     # Upsert to Pinecone
-    upsert_response = index.upsert(
-        vectors=[
-            (id, image_embedding.tolist(), metadata)
-        ],
-        namespace="image-embeddings"
-    )
+    upsert_response = index.upsert(vectors=[(id, image_embedding.tolist(), metadata)], namespace="image-embeddings")
     return upsert_response
+
 
 # Example usage
 if __name__ == "__main__":
     index_name = "my-image-index"
     create_index_if_not_exists(index_name, dimension=512)  # CLIP ViT-B/32 produces 512-dimensional embeddings
-    
+
     # Get the index after ensuring it exists
     index = pc.Index(index_name)
 
@@ -73,7 +67,7 @@ if __name__ == "__main__":
         ("saint_bernard.png", "a saint bernard"),
         ("cheeseburger.png", "a cheeseburger"),
         ("snowy_mountain.png", "a snowy mountain landscape"),
-        ("busy_city_street.png", "a busy city street")
+        ("busy_city_street.png", "a busy city street"),
     ]
 
     for i, (image_filename, description) in enumerate(image_text_pairs):

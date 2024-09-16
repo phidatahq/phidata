@@ -10,8 +10,8 @@ class AgentSession(BaseModel):
     session_id: str
     # ID of the user interacting with this agent
     user_id: Optional[str] = None
-    # LLM data (name, model, etc.)
-    llm: Optional[Dict[str, Any]] = None
+    # Model data (name, model, etc.)
+    model: Optional[Dict[str, Any]] = None
     # Agent Memory
     memory: Optional[Dict[str, Any]] = None
     # Agent Metadata
@@ -34,7 +34,7 @@ class AgentSession(BaseModel):
         return _dict
 
     def telemetry_data(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"llm"}, exclude={"created_at", "updated_at"})
+        _dict = self.model_dump(include={"model"}, exclude={"created_at", "updated_at"})
         _dict["created_at"] = self.created_at.isoformat() if self.created_at else None
         _dict["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
         return _dict

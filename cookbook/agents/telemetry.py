@@ -1,10 +1,10 @@
 from phi.agent import Agent
-from phi.llm.openai import OpenAIChat
+from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 from phi.storage.agent.postgres import PgAgentStorage
 
 agent = Agent(
-    llm=OpenAIChat(model="gpt-4o"),
+    model=OpenAIChat(model="gpt-4o"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
+from phi.agent.run import RunResponse
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
 from phi.llm.message import Message
@@ -797,10 +798,10 @@ class Agent(BaseModel):
         self,
         message: Optional[Union[List, Dict, str]] = None,
         *,
-        stream: bool = True,
+        stream: bool = False,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> Iterator[str]:
+    ) -> Iterator[RunResponse]:
         """Run the Agent with a message and return the response.
 
         This function does the following:
@@ -1628,3 +1629,222 @@ class Agent(BaseModel):
                 break
 
             self.print_response(message=message, stream=stream, markdown=markdown, **kwargs)
+
+    # def _run(
+    #     self,
+    #     message: Optional[Union[List, Dict, str]] = None,
+    #     *,
+    #     stream: bool = True,
+    #     messages: Optional[List[Union[Dict, Message]]] = None,
+    #     **kwargs: Any,
+    # ) -> Iterator[str]:
+    #     """Run the Agent with a message and return the response.
+    #
+    #     This function does the following:
+    #     1. Read existing session from storage
+    #     2. Update the Model (set defaults, add tools, etc.)
+    #     3. Prepare the List of messages to send to the Model
+    #     4. Build the System Prompt
+    #     5. Add extra messages to the messages list
+    #     6. Add chat history to the messages list
+    #     7. Build the User Prompt
+    #     8. Generate a response from the Model (includes running function calls)
+    #     9. Update Memory
+    #     10. Save session to storage
+    #     11. Save output to file if save_output_to_file is set
+    #     12. Log Agent Run
+    #     """
+    #     logger.debug(f"*********** Agent Run Start: {self.session_id} ***********")
+    #     # 1. Read existing session from storage
+    #     self.read_from_storage()
+    #
+    #     # 2. Update the Model (set defaults, add tools, etc.)
+    #     self.update_model()
+    #
+    #     # 3. Prepare the List of messages to send to the Model
+    #     llm_messages: List[Message] = []
+    #
+    #     # 4. Build the System Prompt
+    #     # 4.1 Get the system prompt
+    #     system_prompt = self.get_system_prompt()
+    #     # 4.2 Create system prompt message
+    #     system_prompt_message = Message(role="system", content=system_prompt)
+    #     # 4.3 Add system prompt message to the messages list
+    #     if system_prompt_message.content_is_valid():
+    #         llm_messages.append(system_prompt_message)
+    #
+    #     # 5. Add extra messages to the messages list
+    #     if self.extra_messages is not None:
+    #         for _m in self.extra_messages:
+    #             if isinstance(_m, Message):
+    #                 llm_messages.append(_m)
+    #             elif isinstance(_m, dict):
+    #                 try:
+    #                     llm_messages.append(Message.model_validate(_m))
+    #                 except Exception as e:
+    #                     logger.warning(f"Failed to validate message: {e}")
+    #
+    #     # 6. Add chat history to the messages list
+    #     if self.add_history_to_messages and self.memory is not None:
+    #         llm_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+    #
+    #     # 7. Build the User Prompt
+    #     # 7.1 References to add to the user_prompt if enable_rag is True
+    #     references: Optional[References] = None
+    #     # 7.2 If messages are provided, simply use them
+    #     if messages is not None and len(messages) > 0:
+    #         for _m in messages:
+    #             if isinstance(_m, Message):
+    #                 llm_messages.append(_m)
+    #             elif isinstance(_m, dict):
+    #                 try:
+    #                     llm_messages.append(Message.model_validate(_m))
+    #                 except Exception as e:
+    #                     logger.warning(f"Failed to validate message: {e}")
+    #     # 7.3 Otherwise, build the user prompt message
+    #     else:
+    #         # 7.3.1 Get references to add to the user_prompt
+    #         user_prompt_references = None
+    #         if self.enable_rag and message and isinstance(message, str):
+    #             reference_timer = Timer()
+    #             reference_timer.start()
+    #             user_prompt_references = self.get_references_from_knowledge(query=message)
+    #             reference_timer.stop()
+    #             references = References(
+    #                 query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+    #             )
+    #             logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+    #         # 7.3.2 Get the user prompt
+    #         user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+    #             message=message, references=user_prompt_references
+    #         )
+    #         # 7.3.3 Create user prompt message
+    #         user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
+    #         # 7.3.4 Add user prompt message to the messages list
+    #         if user_prompt_message is not None:
+    #             llm_messages += [user_prompt_message]
+    #
+    #     # 8. Generate a response from the Model (includes running function calls)
+    #     llm_response = ""
+    #     self.model = cast(Model, self.model)
+    #     if stream and self.streamable:
+    #         for response_chunk in self.model.response_stream(messages=llm_messages):
+    #             llm_response += response_chunk
+    #             yield response_chunk
+    #     else:
+    #         llm_response = self.model.response(messages=llm_messages)
+    #
+    #     # 9. Update Memory
+    #     # Build the user message to add to the memory - this is added to the chat_history
+    #     # TODO: fix this to handle messages
+    #     user_message = Message(role="user", content=message) if message is not None else None
+    #     # Add user message to the memory
+    #     if user_message is not None:
+    #         self.memory.add_chat_message(message=user_message)
+    #         # Update the memory with the user message if needed
+    #         if self.create_memories and self.update_memory_after_run:
+    #             self.memory.update_memory(input=user_message.get_content_string())
+    #
+    #     # Build the Model response message to add to the memory - this is added to the chat_history
+    #     llm_response_message = Message(role="assistant", content=llm_response)
+    #     # Add Model response to the chat history
+    #     self.memory.add_chat_message(message=llm_response_message)
+    #     # Add references to the memory
+    #     if references:
+    #         self.memory.add_references(references=references)
+    #
+    #     # Add Model messages to the memory
+    #     # This includes the raw system messages, user messages, and Model messages
+    #     self.memory.add_llm_messages(messages=llm_messages)
+    #
+    #     # Update run output
+    #     self.output = llm_response
+    #
+    #     # 10. Save session to storage
+    #     self.write_to_storage()
+    #
+    #     # 11. Save output to file if save_output_to_file is set
+    #     if self.save_output_to_file is not None:
+    #         try:
+    #             fn = self.save_output_to_file.format(
+    #                 name=self.name, session_id=self.session_id, user_id=self.user_id, message=message
+    #             )
+    #             fn_path = Path(fn)
+    #             if not fn_path.parent.exists():
+    #                 fn_path.parent.mkdir(parents=True, exist_ok=True)
+    #             fn_path.write_text(self.output)
+    #         except Exception as e:
+    #             logger.warning(f"Failed to save output to file: {e}")
+    #
+    #     # 12. Log Agent Run
+    #     agent_response_format = "text"
+    #     if self.output_model is not None:
+    #         agent_response_format = "json"
+    #     elif self.markdown:
+    #         agent_response_format = "markdown"
+    #     functions = {}
+    #     if self.model is not None and self.model.functions is not None:
+    #         for _f_name, _func in self.model.functions.items():
+    #             if isinstance(_func, Function):
+    #                 functions[_f_name] = _func.to_dict()
+    #     if self.monitoring:
+    #         run_data = {
+    #             "user_message": message,
+    #             "agent_response": llm_response,
+    #             "response_format": agent_response_format,
+    #             "messages": llm_messages,
+    #             "functions": functions,
+    #             "metrics": self.model.metrics if self.model else None,
+    #         }
+    #     else:
+    #         run_data = {
+    #             "functions": functions,
+    #             "metrics": self.model.metrics if self.model else None,
+    #         }
+    #     self.log_agent_run(run_data=run_data)
+    #
+    #     logger.debug(f"*********** Agent Run End: {self.session_id} ***********")
+    #
+    #     # -*- Yield final response if not streaming
+    #     if not stream:
+    #         yield llm_response
+    #
+    # def run(
+    #     self,
+    #     message: Optional[Union[List, Dict, str]] = None,
+    #     *,
+    #     stream: bool = True,
+    #     messages: Optional[List[Union[Dict, Message]]] = None,
+    #     **kwargs: Any,
+    # ) -> Union[Iterator[str], str, BaseModel]:
+    #     # Convert response to structured output if output_model is set
+    #     if self.output_model is not None and self.parse_output:
+    #         logger.debug("Setting stream=False as output_model is set")
+    #         json_resp = next(self._run(message=message, messages=messages, stream=False, **kwargs))
+    #         try:
+    #             structured_output = None
+    #             try:
+    #                 structured_output = self.output_model.model_validate_json(json_resp)
+    #             except ValidationError:
+    #                 # Check if response starts with ```json
+    #                 if json_resp.startswith("```json"):
+    #                     json_resp = json_resp.replace("```json\n", "").replace("\n```", "")
+    #                     try:
+    #                         structured_output = self.output_model.model_validate_json(json_resp)
+    #                     except ValidationError as exc:
+    #                         logger.warning(f"Failed to validate response: {exc}")
+    #
+    #             # -*- Update agent output to the structured output
+    #             if structured_output is not None:
+    #                 self.output = structured_output
+    #         except Exception as e:
+    #             logger.warning(f"Failed to convert response to output model: {e}")
+    #
+    #         return self.output or json_resp
+    #     else:
+    #         if stream and self.streamable:
+    #             resp = self._run(message=message, messages=messages, stream=True, **kwargs)
+    #             return resp
+    #         else:
+    #             resp = self._run(message=message, messages=messages, stream=False, **kwargs)
+    #             return next(resp)

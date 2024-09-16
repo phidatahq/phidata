@@ -5,7 +5,7 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 try:
-    from unify.clients import Unify as UnifyClient, AsyncUnify as AsyncUnifyClient
+    from unify import Unify as UnifyClient, AsyncUnify as AsyncUnifyClient
 except ImportError:
     logger.error("`unify` not installed")
     raise

@@ -20,10 +20,9 @@ class MemoryRetrieval(str, Enum):
 
 class AgentMemory(BaseModel):
     # Messages between the user and the Agent.
-    # Note: the llm prompts and responses are stored in the llm_messages
     chat_history: List[Message] = []
     # Prompts sent to the LLM and the LLM responses.
-    llm_messages: List[Message] = []
+    run_messages: List[Message] = []
     # References from the vector database.
     references: List[References] = []
 
@@ -51,17 +50,17 @@ class AgentMemory(BaseModel):
         """Adds a Message to the chat_history."""
         self.chat_history.append(message)
 
-    def add_llm_message(self, message: Message) -> None:
-        """Adds a Message to the llm_messages."""
-        self.llm_messages.append(message)
+    def add_run_message(self, message: Message) -> None:
+        """Adds a Message to the run_messages."""
+        self.run_messages.append(message)
 
     def add_chat_messages(self, messages: List[Message]) -> None:
         """Adds a list of messages to the chat_history."""
         self.chat_history.extend(messages)
 
-    def add_llm_messages(self, messages: List[Message]) -> None:
-        """Adds a list of messages to the llm_messages."""
-        self.llm_messages.extend(messages)
+    def add_run_messages(self, messages: List[Message]) -> None:
+        """Adds a list of messages to the run_messages."""
+        self.run_messages.extend(messages)
 
     def add_references(self, references: References) -> None:
         """Adds references to the references list."""
@@ -83,9 +82,9 @@ class AgentMemory(BaseModel):
         """
         return self.chat_history[-last_n:] if last_n else self.chat_history
 
-    def get_llm_messages(self) -> List[Dict[str, Any]]:
-        """Returns the llm_messages as a list of dictionaries."""
-        return [message.model_dump(exclude_none=True) for message in self.llm_messages]
+    def get_run_messages(self) -> List[Dict[str, Any]]:
+        """Returns the run_messages as a list of dictionaries."""
+        return [message.model_dump(exclude_none=True) for message in self.run_messages]
 
     def get_formatted_chat_history(self, num_messages: Optional[int] = None) -> str:
         """Returns the chat_history as a formatted string."""
@@ -129,12 +128,12 @@ class AgentMemory(BaseModel):
         return all_chats
 
     def get_tool_calls(self, num_calls: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Returns a list of tool calls from the llm_messages."""
+        """Returns a list of tool calls from the run_messages."""
 
         tool_calls = []
-        for llm_message in self.llm_messages[::-1]:
-            if llm_message.tool_calls:
-                for tool_call in llm_message.tool_calls:
+        for run_message in self.run_messages[::-1]:
+            if run_message.tool_calls:
+                for tool_call in run_message.tool_calls:
                     tool_calls.append(tool_call)
 
         if num_calls:
@@ -224,7 +223,7 @@ class AgentMemory(BaseModel):
     def clear(self) -> None:
         """Clears the assistant memory"""
         self.chat_history = []
-        self.llm_messages = []
+        self.run_messages = []
         self.references = []
         self.memories = None
         logger.debug("Agent Memory cleared")

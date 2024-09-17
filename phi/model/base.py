@@ -1,12 +1,13 @@
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union, AsyncIterator
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from phi.llm.message import Message
+from phi.model.message import Message
+from phi.model.response import ModelResponse
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
-from phi.utils.timer import Timer
 from phi.utils.log import logger
+from phi.utils.timer import Timer
 
 
 class Model(BaseModel):
@@ -46,10 +47,12 @@ class Model(BaseModel):
     # Function call stack.
     function_call_stack: Optional[List[FunctionCall]] = None
 
+    # System prompt from the model added to the Agent.
     system_prompt: Optional[str] = None
+    # Instructions from the model added to the Agent.
     instructions: Optional[List[str]] = None
 
-    # State from the Agent
+    # Agent Session ID
     session_id: Optional[str] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -67,29 +70,23 @@ class Model(BaseModel):
     def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
         raise NotImplementedError
 
-    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+    async def ainvoke_stream(self, *args, **kwargs) -> AsyncIterator[Any]:
         raise NotImplementedError
 
-    def response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> ModelResponse:
         raise NotImplementedError
 
-    async def aresponse(self, messages: List[Message]) -> str:
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
         raise NotImplementedError
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         raise NotImplementedError
 
-    async def aresponse_stream(self, messages: List[Message]) -> Any:
-        raise NotImplementedError
-
-    def generate(self, messages: List[Message]) -> Dict:
-        raise NotImplementedError
-
-    def generate_stream(self, messages: List[Message]) -> Iterator[Dict]:
+    async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"name", "model", "metrics"})
+        _dict = self.model_dump(include={"name", "model", "provider", "metrics"})
         if self.functions:
             _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
             _dict["tool_call_limit"] = self.tool_call_limit
@@ -169,7 +166,8 @@ class Model(BaseModel):
                 role=role,
                 content=function_call.result if function_call_success else function_call.error,
                 tool_call_id=function_call.call_id,
-                tool_call_name=function_call.function.name,
+                tool_name=function_call.function.name,
+                tool_args=function_call.arguments,
                 tool_call_error=not function_call_success,
                 metrics={"time": _function_call_timer.elapsed},
             )

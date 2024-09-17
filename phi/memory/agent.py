@@ -3,12 +3,12 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.llm.message import Message
-from phi.llm.references import References
-from phi.memory.db import MemoryDb
-from phi.memory.memory import Memory
-from phi.memory.manager import MemoryManager
 from phi.memory.classifier import MemoryClassifier
+from phi.memory.db import MemoryDb
+from phi.memory.manager import MemoryManager
+from phi.memory.memory import Memory
+from phi.model.message import Message
+from phi.model.references import References
 from phi.utils.log import logger
 
 

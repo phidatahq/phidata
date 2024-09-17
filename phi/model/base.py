@@ -70,7 +70,7 @@ class Model(BaseModel):
     def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
         raise NotImplementedError
 
-    async def ainvoke_stream(self, *args, **kwargs) -> AsyncIterator[Any]:
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
     def response(self, messages: List[Message]) -> ModelResponse:

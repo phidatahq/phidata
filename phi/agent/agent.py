@@ -396,8 +396,8 @@ class Agent(BaseModel):
             try:
                 if "chat_history" in session.memory:
                     self.memory.chat_history = [Message(**m) for m in session.memory["chat_history"]]
-                if "llm_messages" in session.memory:
-                    self.memory.llm_messages = [Message(**m) for m in session.memory["llm_messages"]]
+                if "run_messages" in session.memory:
+                    self.memory.run_messages = [Message(**m) for m in session.memory["run_messages"]]
                 if "references" in session.memory:
                     self.memory.references = [References(**r) for r in session.memory["references"]]
                 if "memories" in session.memory:
@@ -820,7 +820,7 @@ class Agent(BaseModel):
         12. Log Agent Run
         """
         # Create the run_response object
-        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model)
+        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
 
         logger.debug(f"*********** Agent Run Start: {run_response.run_id} ***********")
         # 1. Read existing session from storage
@@ -1359,7 +1359,7 @@ class Agent(BaseModel):
             logger.warning(f"Failed to generate name: {e}")
         finally:
             if len(_messages_for_generating_name) == 0:
-                _messages_for_generating_name = self.memory.llm_messages[-4:]
+                _messages_for_generating_name = self.memory.run_messages[-4:]
 
         for message in _messages_for_generating_name:
             _conv += f"{message.role.upper()}: {message.content}\n"

@@ -1,5 +1,5 @@
 import httpx
-from typing import Optional, List, Iterator, Dict, Any, Union, Tuple, AsyncIterator
+from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -19,10 +19,7 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import (
-        ChatCompletionMessage,
-        FunctionCall as ChatCompletionFunctionCall,
-    )
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage
     from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
 except ImportError:
     logger.error("`openai` not installed")
@@ -224,7 +221,7 @@ class OpenAIChat(Model):
             **self.api_kwargs,
         )  # type: ignore
 
-    async def ainvoke_stream(self, messages: List[Message]) -> AsyncIterator[ChatCompletionChunk]:
+    async def ainvoke_stream(self, messages: List[Message]) -> Any:
         async_stream = await self.get_async_client().chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
@@ -256,7 +253,6 @@ class OpenAIChat(Model):
         response_message: ChatCompletionMessage = response.choices[0].message
         response_role = response_message.role
         response_content: Optional[str] = response_message.content
-        response_function_call: Optional[ChatCompletionFunctionCall] = response_message.function_call
         response_tool_calls: Optional[List[ChatCompletionMessageToolCall]] = response_message.tool_calls
 
         # -*- Create assistant message
@@ -264,8 +260,6 @@ class OpenAIChat(Model):
             role=response_role or "assistant",
             content=response_content,
         )
-        if response_function_call is not None:
-            assistant_message.function_call = response_function_call.model_dump()
         if response_tool_calls is not None:
             assistant_message.tool_calls = [t.model_dump() for t in response_tool_calls]
 
@@ -342,7 +336,8 @@ class OpenAIChat(Model):
                 messages.extend(function_call_results)
             # -*- Get new response using result of tool call
             response_after_tool_calls = self.response(messages=messages)
-            model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.content is not None:
+                model_response.content += response_after_tool_calls.content
             return model_response
 
         # -*- Return content if no function calls are present
@@ -374,7 +369,6 @@ class OpenAIChat(Model):
         response_message: ChatCompletionMessage = response.choices[0].message
         response_role = response_message.role
         response_content: Optional[str] = response_message.content
-        response_function_call: Optional[ChatCompletionFunctionCall] = response_message.function_call
         response_tool_calls: Optional[List[ChatCompletionMessageToolCall]] = response_message.tool_calls
 
         # -*- Create assistant message
@@ -382,8 +376,6 @@ class OpenAIChat(Model):
             role=response_role or "assistant",
             content=response_content,
         )
-        if response_function_call is not None:
-            assistant_message.function_call = response_function_call.model_dump()
         if response_tool_calls is not None:
             assistant_message.tool_calls = [t.model_dump() for t in response_tool_calls]
 
@@ -463,7 +455,8 @@ class OpenAIChat(Model):
                 messages.extend(function_call_results)
             # -*- Get new response using result of tool call
             response_after_tool_calls = await self.aresponse(messages=messages)
-            model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.content is not None:
+                model_response.content += response_after_tool_calls.content
             return model_response
 
         # -*- Return content if no function calls are present
@@ -584,7 +577,7 @@ class OpenAIChat(Model):
         if completion_tokens > 0:
             assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
 
-        # Add response time to LLM metrics
+        # Add response time to Model metrics
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
@@ -670,7 +663,7 @@ class OpenAIChat(Model):
             yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
 
-    async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
         logger.debug("---------- OpenAI Async Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -679,6 +672,10 @@ class OpenAIChat(Model):
         assistant_message_content = ""
         assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
         completion_tokens = 0
+        response_prompt_tokens = 0
+        response_completion_tokens = 0
+        response_total_tokens = 0
+        time_to_first_token = None
         response_timer = Timer()
         response_timer.start()
         async_stream = self.ainvoke_stream(messages=messages)
@@ -697,6 +694,9 @@ class OpenAIChat(Model):
             if response_content is not None:
                 assistant_message_content += response_content
                 completion_tokens += 1
+                if completion_tokens == 1:
+                    time_to_first_token = response_timer.elapsed
+                    logger.debug(f"Time to first token: {time_to_first_token:.4f}s")
                 yield response_content
 
             # -*- Parse tool calls
@@ -707,6 +707,9 @@ class OpenAIChat(Model):
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        if completion_tokens > 0:
+            logger.debug(f"Time per output token: {response_timer.elapsed / completion_tokens:.4f}s")
+            logger.debug(f"Throughput: {completion_tokens / response_timer.elapsed:.4f} tokens/s")
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -759,95 +762,97 @@ class OpenAIChat(Model):
         # -*- Update usage metrics
         # Add response time to metrics
         assistant_message.metrics["time"] = response_timer.elapsed
+        if time_to_first_token is not None:
+            assistant_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
+        if completion_tokens > 0:
+            assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
+
+        # Add response time to Model metrics
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
+        if time_to_first_token is not None:
+            if "time_to_first_token" not in self.metrics:
+                self.metrics["time_to_first_token"] = []
+            self.metrics["time_to_first_token"].append(f"{time_to_first_token:.4f}s")
+        if completion_tokens > 0:
+            if "tokens_per_second" not in self.metrics:
+                self.metrics["tokens_per_second"] = []
+            self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
         # Add token usage to metrics
-        # TODO: compute prompt tokens
-        prompt_tokens = 0
-        assistant_message.metrics["prompt_tokens"] = prompt_tokens
+        assistant_message.metrics["prompt_tokens"] = response_prompt_tokens
         if "prompt_tokens" not in self.metrics:
-            self.metrics["prompt_tokens"] = prompt_tokens
+            self.metrics["prompt_tokens"] = response_prompt_tokens
         else:
-            self.metrics["prompt_tokens"] += prompt_tokens
-        logger.debug(f"Estimated completion tokens: {completion_tokens}")
-        assistant_message.metrics["completion_tokens"] = completion_tokens
+            self.metrics["prompt_tokens"] += response_prompt_tokens
+        assistant_message.metrics["completion_tokens"] = response_completion_tokens
         if "completion_tokens" not in self.metrics:
-            self.metrics["completion_tokens"] = completion_tokens
+            self.metrics["completion_tokens"] = response_completion_tokens
         else:
-            self.metrics["completion_tokens"] += completion_tokens
-        total_tokens = prompt_tokens + completion_tokens
-        assistant_message.metrics["total_tokens"] = total_tokens
+            self.metrics["completion_tokens"] += response_completion_tokens
+        assistant_message.metrics["input_tokens"] = response_prompt_tokens
+        if "input_tokens" not in self.metrics:
+            self.metrics["input_tokens"] = response_prompt_tokens
+        else:
+            self.metrics["input_tokens"] += response_prompt_tokens
+        assistant_message.metrics["output_tokens"] = response_completion_tokens
+        if "output_tokens" not in self.metrics:
+            self.metrics["output_tokens"] = response_completion_tokens
+        else:
+            self.metrics["output_tokens"] += response_completion_tokens
+        assistant_message.metrics["total_tokens"] = response_total_tokens
         if "total_tokens" not in self.metrics:
-            self.metrics["total_tokens"] = total_tokens
+            self.metrics["total_tokens"] = response_total_tokens
         else:
-            self.metrics["total_tokens"] += total_tokens
+            self.metrics["total_tokens"] += response_total_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
 
-        # -*- Parse and run function call
-        need_to_run_functions = assistant_message.function_call is not None or assistant_message.tool_calls is not None
-        if need_to_run_functions and self.run_tools:
-            if assistant_message.function_call is not None:
-                function_call_message, function_call = self.run_function(function_call=assistant_message.function_call)
-                messages.append(function_call_message)
-                if self.show_tool_calls and function_call is not None:
-                    yield f"\n - Running: {function_call.get_call_str()}\n\n"
-                # -*- Yield new response using result of function call
-                fc_stream = self.aresponse_stream(messages=messages)
-                async for fc in fc_stream:
-                    yield fc
-                # yield from self.response_stream(messages=messages)
-            elif assistant_message.tool_calls is not None:
-                function_calls_to_run: List[FunctionCall] = []
-                for tool_call in assistant_message.tool_calls:
-                    _tool_call_id = tool_call.get("id")
-                    _function_call = get_function_call_for_tool_call(tool_call, self.functions)
-                    if _function_call is None:
-                        messages.append(
-                            Message(
-                                role="tool",
-                                tool_call_id=_tool_call_id,
-                                content="Could not find function to call.",
-                            )
+        # -*- Parse and run tool calls
+        if assistant_message.tool_calls is not None and self.run_tools:
+            function_calls_to_run: List[FunctionCall] = []
+            for tool_call in assistant_message.tool_calls:
+                _tool_call_id = tool_call.get("id")
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    messages.append(
+                        Message(
+                            role="tool",
+                            tool_call_id=_tool_call_id,
+                            content="Could not find function to call.",
                         )
-                        continue
-                    if _function_call.error is not None:
-                        messages.append(
-                            Message(
-                                role="tool",
-                                tool_call_id=_tool_call_id,
-                                content=_function_call.error,
-                            )
+                    )
+                    continue
+                if _function_call.error is not None:
+                    messages.append(
+                        Message(
+                            role="tool",
+                            tool_call_id=_tool_call_id,
+                            content=_function_call.error,
                         )
-                        continue
-                    function_calls_to_run.append(_function_call)
+                    )
+                    continue
+                function_calls_to_run.append(_function_call)
 
-                if self.show_tool_calls:
-                    if len(function_calls_to_run) == 1:
-                        yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
-                    elif len(function_calls_to_run) > 1:
-                        yield "\nRunning:"
-                        for _f in function_calls_to_run:
-                            yield f"\n - {_f.get_call_str()}"
-                        yield "\n\n"
+            if self.show_tool_calls:
+                if len(function_calls_to_run) == 1:
+                    yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                elif len(function_calls_to_run) > 1:
+                    yield "\nRunning:"
+                    for _f in function_calls_to_run:
+                        yield f"\n - {_f.get_call_str()}"
+                    yield "\n\n"
 
-                function_call_results = self.run_function_calls(function_calls_to_run)
-                if len(function_call_results) > 0:
-                    messages.extend(function_call_results)
-                    # Code to show function call results
-                    # for f in function_call_results:
-                    #     yield "\n"
-                    #     yield f.get_content_string()
-                    #     yield "\n"
-                # -*- Yield new response using results of tool calls
-                fc_stream = self.aresponse_stream(messages=messages)
-                async for fc in fc_stream:
-                    yield fc
-                # yield from self.response_stream(messages=messages)
+            function_call_results = self.run_function_calls(function_calls_to_run)
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
+            # -*- Yield new response using results of tool calls
+            fc_stream = self.aresponse_stream(messages=messages)
+            async for fc in fc_stream:
+                yield fc
         logger.debug("---------- OpenAI Async Response End ----------")
 
     def run_function(self, function_call: Dict[str, Any]) -> Tuple[Message, Optional[FunctionCall]]:

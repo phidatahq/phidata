@@ -17,7 +17,6 @@ try:
     from openai.types.chat.chat_completion_chunk import (
         ChatCompletionChunk,
         ChoiceDelta,
-        ChoiceDeltaFunctionCall,
         ChoiceDeltaToolCall,
     )
     from openai.types.chat.chat_completion_message import (
@@ -482,8 +481,6 @@ class OpenAIChat(Model):
 
         # -*- Get response
         assistant_message_content = ""
-        assistant_message_function_name = ""
-        assistant_message_function_arguments_str = ""
         assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
         completion_tokens = 0
         response_prompt_tokens = 0
@@ -496,13 +493,11 @@ class OpenAIChat(Model):
             # logger.debug(f"OpenAI response type: {type(response)}")
             # logger.debug(f"OpenAI response: {response}")
             response_content: Optional[str] = None
-            response_function_call: Optional[ChoiceDeltaFunctionCall] = None
             response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
             if len(response.choices) > 0:
                 # -*- Parse response
                 response_delta: ChoiceDelta = response.choices[0].delta
                 response_content = response_delta.content
-                response_function_call = response_delta.function_call
                 response_tool_calls = response_delta.tool_calls
 
             # -*- Return content if present, otherwise get function call
@@ -682,8 +677,6 @@ class OpenAIChat(Model):
             m.log()
 
         assistant_message_content = ""
-        assistant_message_function_name = ""
-        assistant_message_function_arguments_str = ""
         assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
         completion_tokens = 0
         response_timer = Timer()
@@ -693,13 +686,11 @@ class OpenAIChat(Model):
             # logger.debug(f"OpenAI response type: {type(response)}")
             # logger.debug(f"OpenAI response: {response}")
             response_content: Optional[str] = None
-            response_function_call: Optional[ChoiceDeltaFunctionCall] = None
             response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
             if len(response.choices) > 0:
                 # -*- Parse response
                 response_delta: ChoiceDelta = response.choices[0].delta
                 response_content = response_delta.content
-                response_function_call = response_delta.function_call
                 response_tool_calls = response_delta.tool_calls
 
             # -*- Return content if present, otherwise get function call
@@ -707,15 +698,6 @@ class OpenAIChat(Model):
                 assistant_message_content += response_content
                 completion_tokens += 1
                 yield response_content
-
-            # -*- Parse function call
-            if response_function_call is not None:
-                _function_name_stream = response_function_call.name
-                if _function_name_stream is not None:
-                    assistant_message_function_name += _function_name_stream
-                _function_args_stream = response_function_call.arguments
-                if _function_args_stream is not None:
-                    assistant_message_function_arguments_str += _function_args_stream
 
             # -*- Parse tool calls
             if response_tool_calls is not None:
@@ -731,12 +713,6 @@ class OpenAIChat(Model):
         # -*- Add content to assistant message
         if assistant_message_content != "":
             assistant_message.content = assistant_message_content
-        # -*- Add function call to assistant message
-        if assistant_message_function_name != "":
-            assistant_message.function_call = {
-                "name": assistant_message_function_name,
-                "arguments": assistant_message_function_arguments_str,
-            }
         # -*- Add tool calls to assistant message
         if assistant_message_tool_calls is not None:
             # Build tool calls

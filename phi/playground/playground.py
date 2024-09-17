@@ -73,7 +73,7 @@ class Playground:
                 yield chunk
 
         @playground_routes.post("/agent/chat")
-        def agent_get(body: AgentChatRequest):
+        def agent_chat(body: AgentChatRequest):
             logger.debug(f"ChatRequest: {body}")
             agent: Optional[Agent] = None
             for _agent in self.agents:

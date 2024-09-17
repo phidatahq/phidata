@@ -61,19 +61,23 @@ class Claude(AwsBedrock):
             ]
             tools.append(
                 {
-                    "name": f_name,
-                    "description": function.description or "",
-                    "input_schema": {
-                        "type": function.parameters.get("type") or "object",
-                        "properties": {
-                            param_name: {
-                                "type": param_info.get("type") or "",
-                                "description": param_info.get("description") or "",
+                    "toolSpec": {
+                        "name": f_name,
+                        "description": function.description or "",
+                        "inputSchema": {
+                                "json": {
+                                "type": function.parameters.get("type") or "object",
+                                "properties": {
+                                    param_name: {
+                                        "type": param_info.get("type") or "",
+                                        "description": param_info.get("description") or "",
+                                    }
+                                    for param_name, param_info in function.parameters.get("properties", {}).items()
+                                },
+                                "required": required_params,
                             }
-                            for param_name, param_info in function.parameters.get("properties", {}).items()
                         },
-                        "required": required_params,
-                    },
+                    }
                 }
             )
         return tools
@@ -85,7 +89,10 @@ class Claude(AwsBedrock):
             if m.role == "system":
                 system_prompt = m.content
             else:
-                messages_for_api.append({"role": m.role, "content": m.content})
+                messages_for_api.append({
+                    "role": m.role, 
+                    "content": [{"text": m.content}]
+                })
 
         # -*- Build request body
         request_body = {
@@ -93,32 +100,29 @@ class Claude(AwsBedrock):
             **self.api_kwargs,
         }
         if self.tools:
-            request_body["tools"] = self.get_tools()
+            request_body["tools"] = self.get_tools()            
 
         if system_prompt:
             request_body["system"] = system_prompt
         return request_body
 
     def parse_response_message(self, response: Dict[str, Any]) -> Message:
-        if response.get("type") == "message":
-            response_message = Message(role=response.get("role"))
-            content: Optional[str] = ""
-            if response.get("content"):
-                _content = response.get("content")
-                if isinstance(_content, str):
-                    content = _content
-                elif isinstance(_content, dict):
-                    content = _content.get("text", "")
-                elif isinstance(_content, list):
-                    content = "\n".join([c.get("text") for c in _content])
-
-            response_message.content = content
-            return response_message
-
-        return Message(
-            role="assistant",
-            content=response.get("completion"),
-        )
+        output = response.get("output", {})
+        message = output.get("message", {})
+        
+        role = message.get("role", "assistant")
+        content = message.get("content", [])
+        
+        if isinstance(content, list):
+            text_content = "\n".join([item.get("text", "") for item in content if isinstance(item, dict)])
+        elif isinstance(content, dict):
+            text_content = content.get("text", "")
+        elif isinstance(content, str):
+            text_content = content
+        else:
+            text_content = ""
+        
+        return Message(role=role, content=text_content)
 
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
         if "delta" in response:

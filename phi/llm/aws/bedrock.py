@@ -6,6 +6,9 @@ from phi.llm.base import LLM
 from phi.llm.message import Message
 from phi.utils.log import logger
 from phi.utils.timer import Timer
+from phi.utils.tools import (
+    get_function_call_for_tool_call,
+)
 
 try:
     from boto3 import session  # noqa: F401
@@ -106,17 +109,13 @@ class AwsBedrock(LLM):
 
         return model_details["modelDetails"]
 
-    def invoke(self, body: Dict[str, Any]) -> Dict[str, Any]:
-        response = self.bedrock_runtime_client.invoke_model(
-            body=json.dumps(body),
+    def converse(self, body: Dict[str, Any]) -> Dict[str, Any]:
+        response = self.bedrock_runtime_client.converse(
             modelId=self.model,
-            accept="application/json",
-            contentType="application/json",
+            messages=body.get("messages", []),
+            toolConfig=body.get("toolConfig", {}),
         )
-        response_body = response.get("body")
-        if response_body is None:
-            return {}
-        return json.loads(response_body.read())
+        return response
 
     def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         response = self.bedrock_runtime_client.invoke_model_with_response_stream(
@@ -139,20 +138,70 @@ class AwsBedrock(LLM):
 
     def response(self, messages: List[Message]) -> str:
         logger.debug("---------- Bedrock Response Start ----------")
-        # -*- Log messages for debugging
+        # Log messages for debugging
         for m in messages:
             m.log()
 
         response_timer = Timer()
         response_timer.start()
-        response: Dict[str, Any] = self.invoke(body=self.get_request_body(messages))
+        request_body = self.get_request_body(messages)
+        tools = request_body.get("tools", {})
+        response: Dict[str, Any] = self.bedrock_runtime_client.converse(
+            modelId=self.model,
+            messages=self.get_request_body(messages).get("messages", []),
+            toolConfig={"tools": tools},
+        )
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        logger.debug(f"Response: {response}")
 
-        # -*- Create assistant message
+        # Parse response
+        response_content = response.get('output', {}).get('message', {}).get('content', [])
+        logger.debug(f"Response content: {response_content}")
+        
+        # Create assistant message
         assistant_message = self.parse_response_message(response)
+        logger.debug(f"Assistant message: {assistant_message}")
 
-        # -*- Update usage metrics
+        # Check if the response contains a tool call
+        if response.get('stopReason') == 'tool_use':
+            tool_calls: List[Dict[str, Any]] = []
+            tool_ids: List[str] = []
+            for tool_use in response_content:
+                if 'toolUse' in tool_use:
+                    tool = tool_use['toolUse']
+                    tool_name = tool['name']
+                    tool_input = tool['input']
+                    tool_use_id = tool['toolUseId']
+                    tool_ids.append(tool_use_id)
+
+                    logger.info(f"Tool request: {tool_name}. Input: {tool_input}")
+                    logger.info(f"Tool use ID: {tool_use_id}")
+
+                    function_def = {"name": tool_name}
+                    if tool_input:
+                        function_def["arguments"] = json.dumps(tool_input)
+                    tool_calls.append(
+                        {
+                            "type": "function",
+                            "function": function_def,
+                        }
+                    )
+            logger.info(f"Response: {response}")
+            
+            # Convert response_content to string
+            try:
+                assistant_message.content = json.dumps(response_content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Error serializing response_content: {e}")
+                assistant_message.content = str(response_content)  # Fallback to string representation
+            logger.info(f"Assistant content: {assistant_message.content}")
+
+            if len(tool_calls) > 0:
+                assistant_message.tool_calls = tool_calls
+            logger.info(f"Assistant message: {assistant_message}")
+                    
+        # Update usage metrics
         # Add response time to metrics
         assistant_message.metrics["time"] = response_timer.elapsed
         if "response_times" not in self.metrics:
@@ -160,14 +209,14 @@ class AwsBedrock(LLM):
         self.metrics["response_times"].append(response_timer.elapsed)
 
         # Add token usage to metrics
-        prompt_tokens = 0
+        prompt_tokens = 0  # You may need to get this from the response if available
+        completion_tokens = 0  # You may need to get this from the response if available
         if prompt_tokens is not None:
             assistant_message.metrics["prompt_tokens"] = prompt_tokens
             if "prompt_tokens" not in self.metrics:
                 self.metrics["prompt_tokens"] = prompt_tokens
             else:
                 self.metrics["prompt_tokens"] += prompt_tokens
-        completion_tokens = 0
         if completion_tokens is not None:
             assistant_message.metrics["completion_tokens"] = completion_tokens
             if "completion_tokens" not in self.metrics:
@@ -182,13 +231,63 @@ class AwsBedrock(LLM):
             else:
                 self.metrics["total_tokens"] += total_tokens
 
-        # -*- Add assistant message to messages
+        # Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
 
+        # Parse and run function call
+        if assistant_message.tool_calls is not None and self.run_tools:
+            # Remove the tool call from the response content
+            final_response = str(assistant_message.content)
+            final_response += "\n\n"
+            function_calls_to_run = []
+            for tool_call in assistant_message.tool_calls:
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    messages.append(Message(role="user", content="Could not find function to call."))
+                    continue
+                if _function_call.error is not None:
+                    messages.append(Message(role="user", content=_function_call.error))
+                    continue
+                function_calls_to_run.append(_function_call)
+
+            if self.show_tool_calls:
+                if len(function_calls_to_run) == 1:
+                    final_response += f" - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                elif len(function_calls_to_run) > 1:
+                    final_response += "Running:"
+                    for _f in function_calls_to_run:
+                        final_response += f"\n - {_f.get_call_str()}"
+                    final_response += "\n\n"
+
+            function_call_results = self.run_function_calls(function_calls_to_run)
+            if len(function_call_results) > 0:
+                fc_responses: List[Dict[str, Any]] = []
+
+                for _fc_message_index, _fc_message in enumerate(function_call_results):
+                    fc_responses.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_ids[_fc_message_index],
+                            "content": _fc_message.content,
+                        }
+                    )
+
+                # Convert fc_responses to string
+                try:
+                    messages.append(Message(role="user", content=json.dumps(fc_responses)))
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error serializing fc_responses: {e}")
+                    messages.append(Message(role="user", content=str(fc_responses)))  # Fallback to string representation
+                    
+            # Yield new response using results of tool calls
+            final_response += self.response(messages=messages)
+            return final_response
         logger.debug("---------- Bedrock Response End ----------")
-        # -*- Return content
-        return assistant_message.get_content_string()
+        # Return content
+        if assistant_message.content is not None:
+            return assistant_message.get_content_string()
+        return "Something went wrong, please try again."
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Bedrock Response Start ----------")

@@ -4,6 +4,7 @@ from typing import Optional, List, Iterator, Dict, Any
 from phi.aws.api_client import AwsApiClient
 from phi.llm.base import LLM
 from phi.llm.message import Message
+from phi.utils.retry import exponential_backoff
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import (
@@ -12,6 +13,7 @@ from phi.utils.tools import (
 
 try:
     from boto3 import session  # noqa: F401
+    from botocore.exceptions import ClientError
 except ImportError:
     logger.error("`boto3` not installed")
     raise
@@ -109,13 +111,27 @@ class AwsBedrock(LLM):
 
         return model_details["modelDetails"]
 
-    def converse(self, body: Dict[str, Any]) -> Dict[str, Any]:
-        response = self.bedrock_runtime_client.converse(
-            modelId=self.model,
-            messages=body.get("messages", []),
-            toolConfig=body.get("toolConfig", {}),
-        )
-        return response
+    @exponential_backoff(
+        exceptions=(ClientError,),
+        max_retries=5,
+        base_delay=1,
+        max_delay=60,
+        factor=2,
+        jitter=True
+    )
+    def _make_bedrock_request(self, modelId, messages, toolConfig=None, system=None):
+        request_params = {
+            "modelId": modelId,
+            "messages": messages
+        }
+
+        if toolConfig is not None:
+            request_params["toolConfig"] = toolConfig
+
+        if system is not None:
+            request_params["system"] = system
+
+        return self.bedrock_runtime_client.converse(**request_params)
 
     def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         response = self.bedrock_runtime_client.invoke_model_with_response_stream(
@@ -145,12 +161,21 @@ class AwsBedrock(LLM):
         response_timer = Timer()
         response_timer.start()
         request_body = self.get_request_body(messages)
-        tools = request_body.get("tools", {})
-        response: Dict[str, Any] = self.bedrock_runtime_client.converse(
-            modelId=self.model,
-            messages=self.get_request_body(messages).get("messages", []),
-            toolConfig={"tools": tools},
-        )
+        tools = request_body.get("tools")
+        sys_prompt = [{"text": request_body.get("system")}]
+        
+        try:
+            response: Dict[str, Any] = self._make_bedrock_request(
+                modelId=self.model,
+                messages=request_body.get("messages", []),
+                toolConfig={"tools": tools} if tools else None,
+                system=sys_prompt if sys_prompt else None
+            )
+        except Exception as e:
+            logger.error(f"Error making Bedrock request: {str(e)}")
+            return "An error occurred while processing your request. Please try again later."
+
+
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
         logger.debug(f"Response: {response}")

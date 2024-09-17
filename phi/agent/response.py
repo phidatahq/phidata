@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict
 
@@ -11,7 +11,7 @@ class RunResponse(BaseModel):
     run_id: str
     content: Optional[Any] = None
     content_type: str = "str"
-    messages: Optional[Message] = None
+    messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
     model: Optional[str] = None
 

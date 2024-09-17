@@ -13,7 +13,7 @@ from phi.api.schemas.prompt import (
     PromptTemplateSchema,
 )
 from phi.api.schemas.workspace import WorkspaceIdentifier
-from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_HASH_ENV_VAR, WORKSPACE_KEY_ENV_VAR
+from phi.constants import WORKSPACE_ID_ENV_VAR, WORKSPACE_KEY_ENV_VAR
 from phi.cli.settings import phi_cli_settings
 from phi.utils.common import str_to_int
 from phi.utils.log import logger
@@ -30,7 +30,6 @@ def sync_prompt_registry_api(
         try:
             workspace_identifier = WorkspaceIdentifier(
                 id_workspace=str_to_int(getenv(WORKSPACE_ID_ENV_VAR)),
-                ws_hash=getenv(WORKSPACE_HASH_ENV_VAR),
                 ws_key=getenv(WORKSPACE_KEY_ENV_VAR),
             )
             r: Response = api_client.post(
@@ -72,7 +71,6 @@ def sync_prompt_template_api(
         try:
             workspace_identifier = WorkspaceIdentifier(
                 id_workspace=str_to_int(getenv(WORKSPACE_ID_ENV_VAR)),
-                ws_hash=getenv(WORKSPACE_HASH_ENV_VAR),
                 ws_key=getenv(WORKSPACE_KEY_ENV_VAR),
             )
             r: Response = api_client.post(

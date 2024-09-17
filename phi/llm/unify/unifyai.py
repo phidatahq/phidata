@@ -5,7 +5,7 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 try:
-    from unify import Unify as UnifyClient, AsyncUnify as AsyncUnifyClient
+    from unifyai import Unify as UnifyClient, AsyncUnify as AsyncUnifyClient
 except ImportError:
     logger.error("`unify` not installed")
     raise
@@ -75,30 +75,62 @@ class UnifyChat(LLM):
 
     def invoke(self, messages: List[Message]) -> Any:
         client = self.get_client()
+        if not messages:
+            raise ValueError("The messages list cannot be empty")
+        
+        last_message = messages[-1]
+        if last_message.role != "user":
+            raise ValueError("The last message must be from the user")
+
         return client.generate(
-            messages=[m.to_dict() for m in messages],
+            user_message=last_message.content,
+            messages=[m.to_dict() for m in messages[:-1]] if len(messages) > 1 else None,
             **self.api_kwargs,
         )
 
     async def ainvoke(self, messages: List[Message]) -> Any:
         client = self.get_async_client()
+        if not messages:
+            raise ValueError("The messages list cannot be empty")
+        
+        last_message = messages[-1]
+        if last_message.role != "user":
+            raise ValueError("The last message must be from the user")
+
         return await client.generate(
-            messages=[m.to_dict() for m in messages],
+            user_message=last_message.content,
+            messages=[m.to_dict() for m in messages[:-1]] if len(messages) > 1 else None,
             **self.api_kwargs,
         )
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[Any]:
         client = self.get_client()
+        if not messages:
+            raise ValueError("The messages list cannot be empty")
+        
+        last_message = messages[-1]
+        if last_message.role != "user":
+            raise ValueError("The last message must be from the user")
+
         return client.generate(
-            messages=[m.to_dict() for m in messages],
+            user_message=last_message.content,
+            messages=[m.to_dict() for m in messages[:-1]] if len(messages) > 1 else None,
             stream=True,
             **self.api_kwargs,
         )
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         client = self.get_async_client()
+        if not messages:
+            raise ValueError("The messages list cannot be empty")
+        
+        last_message = messages[-1]
+        if last_message.role != "user":
+            raise ValueError("The last message must be from the user")
+
         async for chunk in await client.generate(
-            messages=[m.to_dict() for m in messages],
+            user_message=last_message.content,
+            messages=[m.to_dict() for m in messages[:-1]] if len(messages) > 1 else None,
             stream=True,
             **self.api_kwargs,
         ):

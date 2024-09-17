@@ -353,7 +353,12 @@ class OpenAIChat(LLM):
                 final_response = ""
                 if self.show_tool_calls and function_call is not None:
                     final_response += f"\n - Running: {function_call.get_call_str()}\n\n"
+                # -*- Deactivate function calls when we already have the result
+                previous_tool_choice = self.tool_choice
+                self.deactivate_function_calls()
                 final_response += self.response(messages=messages)
+                # -*- Reset tool choice
+                self.tool_choice = previous_tool_choice
                 return final_response
             elif assistant_message.tool_calls is not None:
                 final_response = ""
@@ -393,8 +398,13 @@ class OpenAIChat(LLM):
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
+                # -*- Deactivate function calls when we already have the result
+                previous_tool_choice = self.tool_choice
+                self.deactivate_function_calls()
                 # -*- Get new response using result of tool call
                 final_response += self.response(messages=messages)
+                # -*- Reset tool choice
+                self.tool_choice = previous_tool_choice
                 return final_response
         logger.debug("---------- OpenAI Response End ----------")
         # -*- Return content if no function calls are present
@@ -478,7 +488,12 @@ class OpenAIChat(LLM):
                 final_response = ""
                 if self.show_tool_calls and function_call is not None:
                     final_response += f"\n - Running: {function_call.get_call_str()}\n\n"
+                # -*- Deactivate function calls when we already have the result
+                previous_tool_choice = self.tool_choice
+                self.deactivate_function_calls()
                 final_response += self.response(messages=messages)
+                # -*- Reset tool choice
+                self.tool_choice = previous_tool_choice
                 return final_response
             elif assistant_message.tool_calls is not None:
                 final_response = ""
@@ -518,8 +533,13 @@ class OpenAIChat(LLM):
                 function_call_results = self.run_function_calls(function_calls_to_run)
                 if len(function_call_results) > 0:
                     messages.extend(function_call_results)
+                # -*- Deactivate function calls when we already have the result
+                previous_tool_choice = self.tool_choice
+                self.deactivate_function_calls()
                 # -*- Get new response using result of tool call
                 final_response += await self.aresponse(messages=messages)
+                # -*- Reset tool choice
+                self.tool_choice = previous_tool_choice
                 return final_response
         logger.debug("---------- OpenAI Async Response End ----------")
         # -*- Return content if no function calls are present

@@ -1,8 +1,8 @@
-import json
-from typing import Optional, List, Iterator, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 
 from phi.llm.message import Message
 from phi.llm.aws.bedrock import AwsBedrock
+
 
 class Claude(AwsBedrock):
     name: str = "AwsBedrockAnthropicClaude"
@@ -65,7 +65,7 @@ class Claude(AwsBedrock):
                         "name": f_name,
                         "description": function.description or "",
                         "inputSchema": {
-                                "json": {
+                            "json": {
                                 "type": function.parameters.get("type") or "object",
                                 "properties": {
                                     param_name: {
@@ -89,10 +89,7 @@ class Claude(AwsBedrock):
             if m.role == "system":
                 system_prompt = m.content
             else:
-                messages_for_api.append({
-                    "role": m.role, 
-                    "content": [{"text": m.content}]
-                })
+                messages_for_api.append({"role": m.role, "content": [{"text": m.content}]})
 
         # -*- Build request body
         request_body = {
@@ -100,7 +97,7 @@ class Claude(AwsBedrock):
             **self.api_kwargs,
         }
         if self.tools:
-            request_body["tools"] = self.get_tools()            
+            request_body["tools"] = self.get_tools()
 
         if system_prompt:
             request_body["system"] = system_prompt
@@ -109,10 +106,10 @@ class Claude(AwsBedrock):
     def parse_response_message(self, response: Dict[str, Any]) -> Message:
         output = response.get("output", {})
         message = output.get("message", {})
-        
+
         role = message.get("role", "assistant")
         content = message.get("content", [])
-        
+
         if isinstance(content, list):
             text_content = "\n".join([item.get("text", "") for item in content if isinstance(item, dict)])
         elif isinstance(content, dict):
@@ -121,7 +118,7 @@ class Claude(AwsBedrock):
             text_content = content
         else:
             text_content = ""
-        
+
         return Message(role=role, content=text_content)
 
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:

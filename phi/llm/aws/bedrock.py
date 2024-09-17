@@ -156,23 +156,26 @@ class AwsBedrock(LLM):
         logger.debug(f"Response: {response}")
 
         # Parse response
-        response_content = response.get('output', {}).get('message', {}).get('content', [])
+        response_content = response["output"]["message"]["content"][0]["text"]
+        response_role = response["output"]["message"]["role"]
         logger.debug(f"Response content: {response_content}")
-        
+
         # Create assistant message
-        assistant_message = self.parse_response_message(response)
-        logger.debug(f"Assistant message: {assistant_message}")
+        assistant_message = Message(
+            role=response_role,
+            content=response_content,
+        )
 
         # Check if the response contains a tool call
-        if response.get('stopReason') == 'tool_use':
+        if response.get("stopReason") == "tool_use":
             tool_calls: List[Dict[str, Any]] = []
             tool_ids: List[str] = []
-            for tool_use in response_content:
-                if 'toolUse' in tool_use:
-                    tool = tool_use['toolUse']
-                    tool_name = tool['name']
-                    tool_input = tool['input']
-                    tool_use_id = tool['toolUseId']
+            for tool_use in response["output"]["message"]["content"]:
+                if "toolUse" in tool_use:
+                    tool = tool_use["toolUse"]
+                    tool_name = tool["name"]
+                    tool_input = tool["input"]
+                    tool_use_id = tool["toolUseId"]
                     tool_ids.append(tool_use_id)
 
                     logger.info(f"Tool request: {tool_name}. Input: {tool_input}")
@@ -187,20 +190,15 @@ class AwsBedrock(LLM):
                             "function": function_def,
                         }
                     )
-            logger.info(f"Response: {response}")
-            
+
             # Convert response_content to string
-            try:
-                assistant_message.content = json.dumps(response_content)
-            except json.JSONDecodeError as e:
-                logger.error(f"Error serializing response_content: {e}")
-                assistant_message.content = str(response_content)  # Fallback to string representation
+            assistant_message.content = response_content
             logger.info(f"Assistant content: {assistant_message.content}")
 
             if len(tool_calls) > 0:
                 assistant_message.tool_calls = tool_calls
             logger.info(f"Assistant message: {assistant_message}")
-                    
+
         # Update usage metrics
         # Add response time to metrics
         assistant_message.metrics["time"] = response_timer.elapsed
@@ -278,8 +276,10 @@ class AwsBedrock(LLM):
                     messages.append(Message(role="user", content=json.dumps(fc_responses)))
                 except json.JSONDecodeError as e:
                     logger.error(f"Error serializing fc_responses: {e}")
-                    messages.append(Message(role="user", content=str(fc_responses)))  # Fallback to string representation
-                    
+                    messages.append(
+                        Message(role="user", content=str(fc_responses))
+                    )  # Fallback to string representation
+
             # Yield new response using results of tool calls
             final_response += self.response(messages=messages)
             return final_response

@@ -166,7 +166,7 @@ class Claude(LLM):
 
         # -*- Parse response
         response_content: TextBlock = response.content[0].text  # type: ignore
-
+        logger.debug(f"Response content: {response_content}")
         # -*- Create assistant message
         assistant_message = Message(
             role=response.role or "assistant",

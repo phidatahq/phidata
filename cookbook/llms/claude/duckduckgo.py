@@ -6,9 +6,12 @@ assistant = Assistant(
     llm=Claude(model="claude-3-5-sonnet-20240620"),
     tools=[DuckDuckGo()],
     instructions=["use your tools to search internet"],
-    # debug_mode=True,
+    debug_mode=True,
 )
 
 
-res = assistant.run("you need to preform multiple searches. first list top 5 college football teams. then search for the mascot of the team with the most wins", stream=False)
+res = assistant.run(
+    "you need to preform multiple searches. first list top 5 college football teams. then search for the mascot of the team with the most wins",
+    stream=False,
+)
 print(res)

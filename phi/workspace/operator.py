@@ -8,7 +8,6 @@ from phi.api.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceUpdate,
     WorkspaceEvent,
-    UpdatePrimaryWorkspace,
 )
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (

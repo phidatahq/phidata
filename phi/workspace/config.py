@@ -241,7 +241,6 @@ class WorkspaceConfig(BaseModel):
             WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
-            WORKSPACE_HASH_ENV_VAR,
             AWS_REGION_ENV_VAR,
         )
 

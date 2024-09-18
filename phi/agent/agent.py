@@ -269,6 +269,37 @@ class Agent(BaseModel):
             return delegation_prompt
         return ""
 
+    def get_tools(self) -> Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]]:
+        tools: List[Union[Tool, Toolkit, Callable, Dict, Function]] = []
+
+        # Add provided tools
+        if self.tools is not None:
+            for tool in self.tools:
+                tools.append(tool)
+
+        # Add tools for accessing memory
+        if self.memory is not None:
+            if self.read_chat_history:
+                tools.append(self.get_chat_history)
+            if self.read_tool_call_history:
+                tools.append(self.get_tool_call_history)
+            if self.create_memories:
+                tools.append(self.update_memory)
+
+        # Add tools for accessing knowledge
+        if self.knowledge is not None:
+            if self.search_knowledge:
+                tools.append(self.search_knowledge_base)
+            if self.update_knowledge:
+                tools.append(self.add_to_knowledge)
+
+        # Add delegation tools
+        if self.team is not None and len(self.team) > 0:
+            for agent_index, agent in enumerate(self.team):
+                tools.append(self.get_delegation_function(agent, agent_index))
+
+        return tools
+
     def update_model(self) -> None:
         if self.model is None:
             try:
@@ -286,31 +317,11 @@ class Agent(BaseModel):
         if self.output_model is not None and self.model.response_format is None:
             self.model.response_format = {"type": "json_object"}
 
-        # Add tools for accessing memory
-        if self.memory is not None:
-            if self.read_chat_history:
-                self.model.add_tool(self.get_chat_history)
-            if self.read_tool_call_history:
-                self.model.add_tool(self.get_tool_call_history)
-            if self.create_memories:
-                self.model.add_tool(self.update_memory)
-
-        # Add tools for accessing knowledge
-        if self.knowledge is not None:
-            if self.search_knowledge:
-                self.model.add_tool(self.search_knowledge_base)
-            if self.update_knowledge:
-                self.model.add_tool(self.add_to_knowledge)
-
         # Add tools to the Model
-        if self.tools is not None:
-            for tool in self.tools:
+        agent_tools = self.get_tools()
+        if agent_tools is not None:
+            for tool in agent_tools:
                 self.model.add_tool(tool)
-
-        # Add delegation tools to the Model
-        if self.team is not None and len(self.team) > 0:
-            for agent_index, agent in enumerate(self.team):
-                self.model.add_tool(self.get_delegation_function(agent, agent_index))
 
         # Set show_tool_calls if it is not set on the Model
         if self.model.show_tool_calls is None and self.show_tool_calls is not None:

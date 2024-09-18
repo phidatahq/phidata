@@ -14,7 +14,7 @@ agent = Agent(
     storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
 
-run1: RunResponse = agent.run("What is the stock price of NVDA")
+run1: RunResponse = agent.run("What is the stock price of NVDA")  # type: ignore
 # run2: RunResponse = agent.run({"text": "What is the stock price of NVDA", "image": "https://example.com/image.jpg"})
 pprint(run1)
 # print("------------*******************------------")

@@ -815,6 +815,7 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
+        images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Iterator[RunResponse]:
@@ -874,10 +875,47 @@ class Agent(BaseModel):
         # 7. Build the User Prompt
         # 7.1 References to add to the user_prompt if enable_rag is True
         references: Optional[References] = None
-        # 7.2.1 If message is provided, use it directly
-        if message is not None and isinstance(message, Message):
-            run_messages.append(message)
-        # 7.2.2 If messages are provided, use them directly
+        # 7.2 If message is provided use it for the user prompt
+        if message is not None:
+            # 7.2.1 If message is provided as a Message, use it directly
+            if isinstance(message, Message):
+                run_messages.append(message)
+            # 7.2.2 If message is provided as a str, build the user prompt message
+            elif isinstance(message, str):
+                # Get references to add to the user_prompt
+                user_prompt_references = None
+                if self.enable_rag and message and isinstance(message, str):
+                    reference_timer = Timer()
+                    reference_timer.start()
+                    user_prompt_references = self.get_references_from_knowledge(query=message)
+                    reference_timer.stop()
+                    references = References(
+                        query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+                    )
+                    logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+                # Get the user prompt
+                user_prompt_content: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+                    message=message, references=user_prompt_references
+                )
+                # If images are provided, add them to the user prompt
+                if images is not None and len(images) > 0:
+                    if isinstance(user_prompt_content, str):
+                        user_prompt_content = [{"type": "text", "text": user_prompt_content}]
+                        for image in images:
+                            if isinstance(image, str):
+                                user_prompt_content.append({"type": "image_url", "image_url": {"url": image}})
+                            elif isinstance(image, dict):
+                                user_prompt_content.append({"type": "image_url", "image_url": image})
+                    else:
+                        logger.warning(f"Input type not supported with images: {type(user_prompt_content)}")
+                # Create user prompt message
+                user_prompt_message = (
+                    Message(role="user", content=user_prompt_content, **kwargs) if user_prompt_content else None
+                )
+                # Add user prompt message to the messages list
+                if user_prompt_message is not None:
+                    run_messages.append(user_prompt_message)
+        # 7.3 If messages are provided as a list, add them to the run_messages
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
@@ -887,28 +925,6 @@ class Agent(BaseModel):
                         run_messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
-        # 7.3 Otherwise, build the user prompt message
-        else:
-            # 7.3.1 Get references to add to the user_prompt
-            user_prompt_references = None
-            if self.enable_rag and message and isinstance(message, str):
-                reference_timer = Timer()
-                reference_timer.start()
-                user_prompt_references = self.get_references_from_knowledge(query=message)
-                reference_timer.stop()
-                references = References(
-                    query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-                )
-                logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-            # 7.3.2 Get the user prompt
-            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
-                message=message, references=user_prompt_references
-            )
-            # 7.3.3 Create user prompt message
-            user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
-            # 7.3.4 Add user prompt message to the messages list
-            if user_prompt_message is not None:
-                run_messages.append(user_prompt_message)
 
         # 8. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
@@ -1047,6 +1063,7 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = False,
+        images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Union[Iterator[RunResponse], RunResponse]:
@@ -1055,7 +1072,9 @@ class Agent(BaseModel):
         # Convert response.content to a pydantic model if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
-            run_response: RunResponse = next(self._run(message=message, messages=messages, stream=False, **kwargs))
+            run_response: RunResponse = next(
+                self._run(message=message, stream=False, images=images, messages=messages, **kwargs)
+            )
             if isinstance(run_response.content, str):
                 try:
                     structured_output = None
@@ -1084,10 +1103,10 @@ class Agent(BaseModel):
             return run_response  # TODO: Unsure about this logic
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, messages=messages, stream=True, **kwargs)
+                resp = self._run(message=message, stream=True, images=images, messages=messages, **kwargs)
                 return resp
             else:
-                resp = self._run(message=message, messages=messages, stream=False, **kwargs)
+                resp = self._run(message=message, stream=False, images=images, messages=messages, **kwargs)
                 return next(resp)
 
     async def _arun(
@@ -1095,6 +1114,7 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = True,
+        images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> AsyncIterator[RunResponse]:
@@ -1138,10 +1158,47 @@ class Agent(BaseModel):
         # 7. Build the User Prompt
         # 7.1 References to add to the user_prompt if enable_rag is True
         references: Optional[References] = None
-        # 7.2.1 If message is provided, use it directly
-        if message is not None and isinstance(message, Message):
-            run_messages.append(message)
-        # 7.2.2 If messages are provided, use them directly
+        # 7.2 If message is provided use it for the user prompt
+        if message is not None:
+            # 7.2.1 If message is provided as a Message, use it directly
+            if isinstance(message, Message):
+                run_messages.append(message)
+            # 7.2.2 If message is provided as a str, build the user prompt message
+            elif isinstance(message, str):
+                # Get references to add to the user_prompt
+                user_prompt_references = None
+                if self.enable_rag and message and isinstance(message, str):
+                    reference_timer = Timer()
+                    reference_timer.start()
+                    user_prompt_references = self.get_references_from_knowledge(query=message)
+                    reference_timer.stop()
+                    references = References(
+                        query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
+                    )
+                    logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
+                # Get the user prompt
+                user_prompt_content: Optional[Union[List, Dict, str]] = self.get_user_prompt(
+                    message=message, references=user_prompt_references
+                )
+                # If images are provided, add them to the user prompt
+                if images is not None and len(images) > 0:
+                    if isinstance(user_prompt_content, str):
+                        user_prompt_content = [{"type": "text", "text": user_prompt_content}]
+                        for image in images:
+                            if isinstance(image, str):
+                                user_prompt_content.append({"type": "image_url", "image_url": {"url": image}})
+                            elif isinstance(image, dict):
+                                user_prompt_content.append({"type": "image_url", "image_url": image})
+                    else:
+                        logger.warning(f"Input type not supported with images: {type(user_prompt_content)}")
+                # Create user prompt message
+                user_prompt_message = (
+                    Message(role="user", content=user_prompt_content, **kwargs) if user_prompt_content else None
+                )
+                # Add user prompt message to the messages list
+                if user_prompt_message is not None:
+                    run_messages.append(user_prompt_message)
+        # 7.3 If messages are provided as a list, add them to the run_messages
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
@@ -1151,28 +1208,6 @@ class Agent(BaseModel):
                         run_messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
-        # 7.3 Otherwise, build the user prompt message
-        else:
-            # 7.3.1 Get references to add to the user_prompt
-            user_prompt_references = None
-            if self.enable_rag and message and isinstance(message, str):
-                reference_timer = Timer()
-                reference_timer.start()
-                user_prompt_references = self.get_references_from_knowledge(query=message)
-                reference_timer.stop()
-                references = References(
-                    query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-                )
-                logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-            # 7.3.2 Get the user prompt
-            user_prompt: Optional[Union[List, Dict, str]] = self.get_user_prompt(
-                message=message, references=user_prompt_references
-            )
-            # 7.3.3 Create user prompt message
-            user_prompt_message = Message(role="user", content=user_prompt, **kwargs) if user_prompt else None
-            # 7.3.4 Add user prompt message to the messages list
-            if user_prompt_message is not None:
-                run_messages.append(user_prompt_message)
 
         # 8. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
@@ -1311,6 +1346,7 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = True,
+        images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Union[AsyncIterator[RunResponse], RunResponse]:
@@ -1319,7 +1355,9 @@ class Agent(BaseModel):
         # Convert response.content to a pydantic model if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
-            run_response = await self._arun(message=message, messages=messages, stream=False, **kwargs).__anext__()
+            run_response = await self._arun(
+                message=message, stream=False, images=images, messages=messages, **kwargs
+            ).__anext__()
             if isinstance(run_response.content, str):
                 try:
                     structured_output = None
@@ -1348,10 +1386,10 @@ class Agent(BaseModel):
             return run_response  # TODO: Unsure about this logic
         else:
             if stream and self.streamable:
-                resp = self._arun(message=message, messages=messages, stream=True, **kwargs)
+                resp = self._arun(message=message, stream=True, images=images, messages=messages, **kwargs)
                 return resp
             else:
-                resp = self._arun(message=message, messages=messages, stream=False, **kwargs)
+                resp = self._arun(message=message, stream=False, images=images, messages=messages, **kwargs)
                 return await resp.__anext__()
 
     def rename(self, name: str) -> None:

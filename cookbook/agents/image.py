@@ -1,4 +1,3 @@
-from rich.pretty import pprint
 from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 
@@ -30,4 +29,4 @@ run: RunResponse = agent.run(
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
     ],
 )  # type: ignore
-pprint(run.content)
+print(run.content)

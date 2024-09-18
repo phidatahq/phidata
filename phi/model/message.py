@@ -1,4 +1,5 @@
 import json
+from time import time
 from typing import Optional, Any, Dict, List, Union
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,6 +30,8 @@ class Message(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
     # Metrics for the message, tokes + the time it took to generate the response.
     metrics: Dict[str, Any] = Field(default_factory=dict)
+    # The Unix timestamp the message was created.
+    created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 

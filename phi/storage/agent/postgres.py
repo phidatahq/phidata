@@ -8,7 +8,7 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
-    from sqlalchemy.types import DateTime, String
+    from sqlalchemy.types import DateTime, String, BigInteger
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -81,10 +81,10 @@ class PgAgentStorage(AgentStorage):
             Column("user_data", postgresql.JSONB),
             # Session Metadata
             Column("session_data", postgresql.JSONB),
-            # The timestamp of when this session was created.
-            Column("created_at", DateTime(timezone=True), server_default=text("now()")),
-            # The timestamp of when this session was last updated.
-            Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
+            # The Unix timestamp of when this session was created.
+            Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
+            # The Unix timestamp of when this session was last updated.
+            Column("updated_at", BigInteger, onupdate=text("(extract(epoch from now()))::bigint")),
             extend_existing=True,
         )
 

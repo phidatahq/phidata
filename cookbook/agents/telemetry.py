@@ -1,4 +1,4 @@
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 from phi.storage.agent.postgres import PgAgentStorage
@@ -12,7 +12,8 @@ agent = Agent(
     storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
 
-# run: RunResponse = agent.run("What is the stock price of NVDA")
+# run1: RunResponse = agent.run("What is the stock price of NVDA")
+# run2: RunResponse = agent.run({"text": "What is the stock price of NVDA", "image": "https://example.com/image.jpg"})
 # print(run.content)
 # print("------------*******************------------")
 # print(run)

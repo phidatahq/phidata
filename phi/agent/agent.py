@@ -1002,7 +1002,6 @@ class Agent(BaseModel):
         if self.monitoring:
             run_data = {
                 "run_input": run_input,
-                "run_output": run_output,
                 "run_response": self.run_response,
                 "run_response_format": run_response_format,
                 "functions": functions,
@@ -1256,7 +1255,6 @@ class Agent(BaseModel):
         if self.monitoring:
             run_data = {
                 "run_input": run_input,
-                "run_output": run_output,
                 "run_response": self.run_response,
                 "run_response_format": run_response_format,
                 "functions": functions,

@@ -1,7 +1,7 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
-# from phi.storage.agent.postgres import PgAgentStorage
+from phi.storage.agent.postgres import PgAgentStorage
 
 agent = Agent(
     model=OpenAIChat(model="gpt-4o"),
@@ -9,7 +9,7 @@ agent = Agent(
     show_tool_calls=True,
     markdown=True,
     debug_mode=True,
-    # storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
+    storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
 
 # run: RunResponse = agent.run("What is the stock price of NVDA")
@@ -28,4 +28,4 @@ agent = Agent(
 #     print(run.content)
 
 # agent.create_session()
-agent.print_response("What is the stock price of NVDA? Tell me a joke about GPUs")
+agent.print_response("What is the stock price of NVDA?")

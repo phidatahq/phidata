@@ -57,9 +57,9 @@ class Playground:
                 agent_list.append(
                     AgentGetResponse(
                         llm=AgentLLM(
-                            provider=agent.llm.provider or agent.llm.__class__.__name__,
-                            name=agent.llm.name or agent.llm.__class__.__name__,
-                            model=agent.llm.model,
+                            provider=agent.model.provider or agent.model.__class__.__name__ if agent.model else None,
+                            name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
+                            model=agent.model.model if agent.model else None,
                         ),
                         name=agent.name,
                         agent_id=agent.agent_id,

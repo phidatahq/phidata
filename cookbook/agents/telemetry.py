@@ -8,7 +8,7 @@ agent = Agent(
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,
-    # debug_mode=True,
+    debug_mode=True,
     storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
 
@@ -29,4 +29,4 @@ agent = Agent(
 #     print(run.content)
 
 # agent.create_session()
-agent.print_response("What is the stock price of NVDA")
+agent.print_response("What is the stock price of NVDA?")

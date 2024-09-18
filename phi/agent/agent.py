@@ -901,10 +901,11 @@ class Agent(BaseModel):
         if stream and self.streamable:
             model_response = ModelResponse(content="")
             for model_response_chunk in self.model.response_stream(messages=run_messages):
-                model_response.content += model_response_chunk.content
-                run_response.content = model_response_chunk.content
-                run_response.messages = run_messages
-                yield run_response
+                if model_response_chunk.content is not None and model_response.content is not None:
+                    model_response.content += model_response_chunk.content
+                    run_response.content = model_response_chunk.content
+                    run_response.messages = run_messages
+                    yield run_response
         else:
             model_response = self.model.response(messages=run_messages)
             run_response.content = model_response.content
@@ -934,10 +935,15 @@ class Agent(BaseModel):
                         _um = Message.model_validate(_m)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
-                if _um is not None:
-                    self.memory.add_chat_message(message=_m)
+                else:
+                    logger.warning(f"Unsupported message type: {type(_m)}")
+                    continue
+                if _um:
+                    self.memory.add_chat_message(message=_um)
                     if self.create_memories and self.update_memory_after_run:
-                        self.memory.update_memory(input=_m.get_content_string())
+                        self.memory.update_memory(input=_um.get_content_string())
+                else:
+                    logger.warning("Unable to add message to memory")
 
         # Build the Assistant Message to add to the memory - this is added to the chat_history
         assistant_message = Message(role="assistant", content=model_response.content)
@@ -969,7 +975,10 @@ class Agent(BaseModel):
                 fn_path = Path(fn)
                 if not fn_path.parent.exists():
                     fn_path.parent.mkdir(parents=True, exist_ok=True)
-                fn_path.write_text(self.run_response.content)
+                if isinstance(self.run_response.content, str):
+                    fn_path.write_text(self.run_response.content)
+                else:
+                    logger.warning("Run Response is not a string. Cannot save to file.")
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 
@@ -986,7 +995,7 @@ class Agent(BaseModel):
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
 
-        run_input = None
+        run_input: Any = None
         if message is not None:
             if isinstance(message, str):
                 run_input = message
@@ -1034,28 +1043,33 @@ class Agent(BaseModel):
         # Convert response.content to a pydantic model if output_model is set
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
-            run_response = next(self._run(message=message, messages=messages, stream=False, **kwargs))
-            try:
-                structured_output = None
+            run_response: RunResponse = next(self._run(message=message, messages=messages, stream=False, **kwargs))
+            if isinstance(run_response.content, str):
                 try:
-                    structured_output = self.output_model.model_validate_json(run_response.content)
-                except ValidationError:
-                    # Check if response starts with ```json
-                    if run_response.content.startswith("```json"):
-                        run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
-                        try:
-                            structured_output = self.output_model.model_validate_json(run_response.content)
-                        except ValidationError as exc:
-                            logger.warning(f"Failed to validate response: {exc}")
+                    structured_output = None
+                    try:
+                        structured_output = self.output_model.model_validate(run_response.content)
+                    except ValidationError:
+                        # Check if response starts with ```json
+                        if run_response.content.startswith("```json"):
+                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.output_model.model_validate_json(run_response.content)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to validate response: {exc}")
 
-                # -*- Update agent output to the structured output
-                if structured_output is not None:
-                    self.run_response.content = structured_output
-                    self.run_response.content_type = self.output_model.__class__.__name__
-            except Exception as e:
-                logger.warning(f"Failed to convert response to output model: {e}")
+                    # -*- Update agent output to the structured output
+                    if structured_output is not None and self.run_response is not None:
+                        self.run_response.content = structured_output
+                        self.run_response.content_type = self.output_model.__class__.__name__
+                except Exception as e:
+                    logger.warning(f"Failed to convert response to output model: {e}")
+            else:
+                logger.warning("Run response content is not a string")
 
-            return self.run_response
+            if self.run_response is not None:
+                return self.run_response
+            return run_response  # TODO: Unsure about this logic
         else:
             if stream and self.streamable:
                 resp = self._run(message=message, messages=messages, stream=True, **kwargs)
@@ -1073,7 +1087,7 @@ class Agent(BaseModel):
         **kwargs: Any,
     ) -> AsyncIterator[RunResponse]:
         # Create the run_response object
-        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model)
+        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
 
         logger.debug(f"*********** Agent Run Start: {run_response.run_id} ***********")
         # 1. Read existing session from storage
@@ -1188,10 +1202,15 @@ class Agent(BaseModel):
                         _um = Message.model_validate(_m)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
-                if _um is not None:
-                    self.memory.add_chat_message(message=_m)
+                else:
+                    logger.warning(f"Unsupported message type: {type(_m)}")
+                    continue
+                if _um:
+                    self.memory.add_chat_message(message=_um)
                     if self.create_memories and self.update_memory_after_run:
-                        self.memory.update_memory(input=_m.get_content_string())
+                        self.memory.update_memory(input=_um.get_content_string())
+                else:
+                    logger.warning("Unable to add message to memory")
 
         # Build the Assistant Message to add to the memory - this is added to the chat_history
         assistant_message = Message(role="assistant", content=model_response.content)
@@ -1223,7 +1242,10 @@ class Agent(BaseModel):
                 fn_path = Path(fn)
                 if not fn_path.parent.exists():
                     fn_path.parent.mkdir(parents=True, exist_ok=True)
-                fn_path.write_text(self.output)
+                if isinstance(self.run_response.content, str):
+                    fn_path.write_text(self.run_response.content)
+                else:
+                    logger.warning("Run Response is not a string. Cannot save to file.")
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 
@@ -1240,7 +1262,7 @@ class Agent(BaseModel):
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
 
-        run_input = None
+        run_input: Any = None
         if message is not None:
             if isinstance(message, str):
                 run_input = message
@@ -1289,27 +1311,32 @@ class Agent(BaseModel):
         if self.output_model is not None and self.parse_output:
             logger.debug("Setting stream=False as output_model is set")
             run_response = await self._arun(message=message, messages=messages, stream=False, **kwargs).__anext__()
-            try:
-                structured_output = None
+            if isinstance(run_response.content, str):
                 try:
-                    structured_output = self.output_model.model_validate_json(run_response.content)
-                except ValidationError:
-                    # Check if response starts with ```json
-                    if run_response.content.startswith("```json"):
-                        run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
-                        try:
-                            structured_output = self.output_model.model_validate_json(run_response.content)
-                        except ValidationError as exc:
-                            logger.warning(f"Failed to validate response: {exc}")
+                    structured_output = None
+                    try:
+                        structured_output = self.output_model.model_validate_json(run_response.content)
+                    except ValidationError:
+                        # Check if response starts with ```json
+                        if run_response.content.startswith("```json"):
+                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.output_model.model_validate_json(run_response.content)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to validate response: {exc}")
 
-                # -*- Update agent output to the structured output
-                if structured_output is not None:
-                    self.run_response.content = structured_output
-                    self.run_response.content_type = self.output_model.__class__.__name__
-            except Exception as e:
-                logger.warning(f"Failed to convert response to output model: {e}")
+                    # -*- Update agent output to the structured output
+                    if structured_output is not None and self.run_response is not None:
+                        self.run_response.content = structured_output
+                        self.run_response.content_type = self.output_model.__class__.__name__
+                except Exception as e:
+                    logger.warning(f"Failed to convert response to output model: {e}")
+            else:
+                logger.warning("Run response content is not a string")
 
-            return self.run_response
+            if self.run_response is not None:
+                return self.run_response
+            return run_response  # TODO: Unsure about this logic
         else:
             if stream and self.streamable:
                 resp = self._arun(message=message, messages=messages, stream=True, **kwargs)
@@ -1373,11 +1400,15 @@ class Agent(BaseModel):
         )
         user_message = Message(role="user", content=_conv)
         generate_name_messages = [system_message, user_message]
-        generated_name = self.model.response(messages=generate_name_messages)
-        if len(generated_name.split()) > 15:
+        generated_name: ModelResponse = self.model.response(messages=generate_name_messages)
+        content = generated_name.content
+        if content is None:
+            logger.error("Generated name is None. Trying again.")
+            return self.generate_session_name()
+        if len(content.split()) > 15:
             logger.error("Generated name is too long. Trying again.")
             return self.generate_session_name()
-        return generated_name.replace('"', "").strip()
+        return content.replace('"', "").strip()
 
     def auto_rename_session(self) -> None:
         """Automatically rename the session and save to storage"""
@@ -1584,14 +1615,14 @@ class Agent(BaseModel):
             stream = False
 
         if stream:
-            _response_content = ""
+            _response_content: str = ""
             with Live() as live_log:
                 status = Status("Working...", spinner="dots")
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
                 for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
-                    if isinstance(resp.content, str):
+                    if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         _response_content += resp.content
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
@@ -1600,7 +1631,7 @@ class Agent(BaseModel):
                         table.show_header = True
                         table.add_column("Message")
                         table.add_column(get_text_from_message(message))
-                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)
+                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
                     live_log.update(table)
                 response_timer.stop()
         else:
@@ -1613,18 +1644,20 @@ class Agent(BaseModel):
                 run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
 
             response_timer.stop()
-            response_content = (
-                Markdown(run_response.content)
-                if self.markdown
-                else self.convert_response_to_string(run_response.content)
-            )
+            response_content = ""
+            if isinstance(run_response, RunResponse) and isinstance(run_response.content, str):
+                response_content = (
+                    Markdown(run_response.content)
+                    if self.markdown
+                    else self.convert_response_to_string(run_response.content)
+                )
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:
                 table.show_header = True
                 table.add_column("Message")
                 table.add_column(get_text_from_message(message))
-            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)
+            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
             console.print(table)
 
     async def async_print_response(
@@ -1658,7 +1691,7 @@ class Agent(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):
+                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore #TODO: Review this
                     if isinstance(resp, str):
                         _response_content += resp
                     response_content = Markdown(_response_content) if self.markdown else _response_content
@@ -1668,7 +1701,7 @@ class Agent(BaseModel):
                         table.show_header = True
                         table.add_column("Message")
                         table.add_column(get_text_from_message(message))
-                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)
+                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
                     live_log.update(table)
                 response_timer.stop()
         else:
@@ -1678,21 +1711,23 @@ class Agent(BaseModel):
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
                 progress.add_task("Working...")
-                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
+                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore #TODO: Review this
 
             response_timer.stop()
-            response_content = (
-                Markdown(run_response.content)
-                if self.markdown
-                else self.convert_response_to_string(run_response.content)
-            )
+            response_content = ""
+            if isinstance(run_response, RunResponse) and isinstance(run_response.content, str):
+                response_content = (
+                    Markdown(run_response.content)
+                    if self.markdown
+                    else self.convert_response_to_string(run_response.content)
+                )
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:
                 table.show_header = True
                 table.add_column("Message")
                 table.add_column(get_text_from_message(message))
-            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)
+            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
             console.print(table)
 
     def cli_app(

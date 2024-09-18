@@ -1,11 +1,11 @@
-from typing import List, Optional, Generator
+from typing import List, Optional, Generator, Iterator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.routing import APIRouter
 from fastapi.responses import StreamingResponse
 
 from pydantic import BaseModel
-from phi.agent.agent import Agent
+from phi.agent.agent import Agent, RunResponse
 from phi.playground.settings import PlaygroundSettings
 from phi.utils.log import logger
 
@@ -69,8 +69,10 @@ class Playground:
             return agent_list
 
         def chat_response_streamer(agent: Agent, message: str) -> Generator:
-            for chunk in agent.run(message):
-                yield chunk
+            logger.info(f"ChatRequest: {message} for Agent: {agent.agent_id}")
+            run_response: Iterator[RunResponse] = agent.run(message, stream=True)
+            for run_response_chunk in run_response:
+                yield run_response_chunk.content
 
         @playground_routes.post("/agent/chat")
         def agent_chat(body: AgentChatRequest):

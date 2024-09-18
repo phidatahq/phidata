@@ -52,6 +52,10 @@ class Agent(BaseModel):
     # Agent introduction. This is added to the chat history when a run is started.
     introduction: Optional[str] = None
 
+    # -*- Reasoning settings
+    reasoning: bool = False
+    reasoning_strategy: Literal["chain-of-thought"] = "chain-of-thought"
+
     # -*- User settings
     # ID of the user interacting with this agent
     user_id: Optional[str] = None

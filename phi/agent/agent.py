@@ -1552,7 +1552,7 @@ class Agent(BaseModel):
             logger.debug(f"Could not create agent monitor: {e}")
 
     def log_agent_run(self, run_id: str, run_data: Optional[Dict[str, Any]] = None) -> None:
-        if not self.monitoring:
+        if not self.telemetry:
             return
 
         from phi.api.agent import create_agent_run, AgentRunCreate

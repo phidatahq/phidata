@@ -8,7 +8,7 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
-    from sqlalchemy.types import DateTime, String
+    from sqlalchemy.types import String, BigInteger
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -71,8 +71,8 @@ class PgAgentStorage(AgentStorage):
             Column("session_id", String, primary_key=True),
             # ID of the user interacting with this agent
             Column("user_id", String),
-            # LLM data (name, model, etc.)
-            Column("llm", postgresql.JSONB),
+            # Model data (name, model, etc.)
+            Column("model", postgresql.JSONB),
             # Agent Memory
             Column("memory", postgresql.JSONB),
             # Agent Metadata
@@ -81,10 +81,10 @@ class PgAgentStorage(AgentStorage):
             Column("user_data", postgresql.JSONB),
             # Session Metadata
             Column("session_data", postgresql.JSONB),
-            # The timestamp of when this session was created.
-            Column("created_at", DateTime(timezone=True), server_default=text("now()")),
-            # The timestamp of when this session was last updated.
-            Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
+            # The Unix timestamp of when this session was created.
+            Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
+            # The Unix timestamp of when this session was last updated.
+            Column("updated_at", BigInteger, onupdate=text("(extract(epoch from now()))::bigint")),
             extend_existing=True,
         )
 
@@ -170,7 +170,7 @@ class PgAgentStorage(AgentStorage):
             stmt = postgresql.insert(self.table).values(
                 session_id=session.session_id,
                 user_id=session.user_id,
-                llm=session.llm,
+                model=session.model,
                 memory=session.memory,
                 agent_data=session.agent_data,
                 user_data=session.user_data,
@@ -183,7 +183,7 @@ class PgAgentStorage(AgentStorage):
                 index_elements=["session_id"],
                 set_=dict(
                     user_id=session.user_id,
-                    llm=session.llm,
+                    model=session.model,
                     memory=session.memory,
                     agent_data=session.agent_data,
                     user_data=session.user_data,

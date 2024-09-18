@@ -8,7 +8,7 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
-    from sqlalchemy.types import DateTime, String, BigInteger
+    from sqlalchemy.types import String, BigInteger
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 

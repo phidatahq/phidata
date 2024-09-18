@@ -1006,8 +1006,6 @@ class Agent(BaseModel):
         elif messages is not None:
             run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
 
-        run_output = self.run_response.content
-
         if self.monitoring:
             run_data = {
                 "run_input": run_input,
@@ -1271,8 +1269,6 @@ class Agent(BaseModel):
                 run_input = message
         elif messages is not None:
             run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-
-        run_output = self.run_response.content
 
         if self.monitoring:
             run_data = {

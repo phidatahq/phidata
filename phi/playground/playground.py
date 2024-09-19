@@ -156,7 +156,7 @@ class Playground:
                     break
 
             if agent is None:
-                return JSONResponse(status_code=404, content=f"couldn't find agent with id {body.agent_id}")
+                return JSONResponse(status_code=404, content="Agent not found.")
 
             if agent.storage is None:
                 return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
@@ -181,7 +181,7 @@ class Playground:
                     break
 
             if agent is None:
-                return JSONResponse(status_code=404, content=f"couldn't find agent with id {body.agent_id}")
+                return JSONResponse(status_code=404, content="Agent not found.")
 
             agent.session_id = session_id
             agent.read_from_storage()

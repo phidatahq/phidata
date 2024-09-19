@@ -96,7 +96,9 @@ class Playground:
                         ),
                         enable_rag=agent.enable_rag,
                         tools=formatted_tools,
-                        memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
+                        memory={"name": agent.memory.db.__class__.__name__}
+                        if agent.memory and agent.memory.db
+                        else None,
                         storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
                         knowledge={"name": agent.knowledge.__class__.__name__} if agent.knowledge else None,
                         description=agent.description,

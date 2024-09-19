@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Iterator, Dict, Any, Union
+from typing import Optional, List, Iterator, Dict, Any, Union, cast
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -168,10 +168,19 @@ class Claude(Model):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        # -*- Parse response
-        response_content: TextBlock = response.content[0].text  # type: ignore
+        # logger.debug(f"Response: {response}")
+        # logger.debug(f"Response content: {response.content[0]}")
 
-        # -*- Create assistant message
+        # -*- Parse response
+        response_content: str = ""
+        response_block: Union[TextBlock, ToolUseBlock] = response.content[0]
+        if isinstance(response_block, TextBlock):
+            response_content = response_block.text
+        elif isinstance(response_block, ToolUseBlock):
+            tool_block = cast(dict[str, Any], response_block.input)
+            response_content = tool_block.get("query", "")
+
+        # -*- Create agent message
         agent_message = Message(
             role=response.role or "assistant",
             content=response_content,
@@ -197,7 +206,7 @@ class Claude(Model):
                             "function": function_def,
                         }
                     )
-            agent_message.content = response.content  # type: ignore
+            agent_message.content = response.content
 
             if len(tool_calls) > 0:
                 agent_message.tool_calls = tool_calls
@@ -227,7 +236,7 @@ class Claude(Model):
                 agent_message.metrics["total_tokens"] = input_tokens + output_tokens
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
-        # -*- Add assistant message to messages
+        # -*- Add agent message to messages
         messages.append(agent_message)
         agent_message.log()
 
@@ -330,12 +339,12 @@ class Claude(Model):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        # -*- Create assistant message
+        # -*- Create agent message
         agent_message = Message(
             role="assistant",
             content="",
         )
-        agent_message.content = response_content  # type: ignore
+        agent_message.content = response_content
 
         if len(tool_calls) > 0:
             agent_message.tool_calls = tool_calls
@@ -364,7 +373,7 @@ class Claude(Model):
                 agent_message.metrics["total_tokens"] = input_tokens + output_tokens
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
-        # -*- Add assistant message to messages
+        # -*- Add agent message to messages
         messages.append(agent_message)
         agent_message.log()
 

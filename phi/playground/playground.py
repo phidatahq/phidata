@@ -136,6 +136,20 @@ class Playground:
                 run_response = cast(RunResponse, agent.run(body.message, stream=False))
                 return run_response.model_dump_json()
 
+        @playground_routes.post("/agent/sessions/all")
+        def get_agent_sessions():
+            session_data = []
+            for agent in self.agents:
+                session_data.append(agent.get_session_data())
+            return session_data
+
+        @playground_routes.post("/agent/sessions/{session_id}")
+        def get_agent_session(session_id):
+            for agent in self.agents:
+                if agent.session_id == session_id:
+                    return agent.get_session_data()
+            return JSONResponse(status=404, content=f"couldn't find {session_id} session")
+
         @playground_routes.post("/agent/rename")
         def agent_rename(body: AgentRenameRequest):
             for agent in self.agents:

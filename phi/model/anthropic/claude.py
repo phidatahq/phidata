@@ -1,8 +1,9 @@
 import json
 from typing import Optional, List, Iterator, Dict, Any, Union
 
-from phi.llm.base import LLM
+from phi.model.base import Model
 from phi.llm.message import Message
+from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -24,9 +25,9 @@ except ImportError:
     raise
 
 
-class Claude(LLM):
+class Claude(Model):
     name: str = "claude"
-    model: str = "claude-3-opus-20240229"
+    model: str = "claude-3-5-sonnet-2024062"
     # -*- Request parameters
     max_tokens: Optional[int] = 1024
     temperature: Optional[float] = None
@@ -113,13 +114,14 @@ class Claude(LLM):
         api_messages: List[dict] = []
         system_messages: List[str] = []
 
+        logger.debug(f"Messages: {messages}")
+
         for idx, message in enumerate(messages):
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
                 system_messages.append(message.content)  # type: ignore
             else:
                 api_messages.append({"role": message.role, "content": message.content or ""})
 
-        logger.debug(f"Messages: {messages}")
         logger.debug(f"System Messages: {system_messages}")
 
         api_kwargs["system"] = " ".join(system_messages)
@@ -155,11 +157,14 @@ class Claude(LLM):
             **api_kwargs,
         )
 
-    def response(self, messages: List[Message]) -> str:
+    def response(self, messages: List[Message]) -> ModelResponse:
         logger.debug("---------- Claude Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
             m.log()
+
+        # -*- Create a ModelResponse object to return
+        model_response = ModelResponse()
 
         response_timer = Timer()
         response_timer.start()
@@ -171,12 +176,10 @@ class Claude(LLM):
         response_content: TextBlock = response.content[0].text  # type: ignore
 
         # -*- Create assistant message
-        assistant_message = Message(
+        agent_message = Message(
             role=response.role or "assistant",
             content=response_content,
         )
-
-        logger.debug(f"Response: {response}")
 
         # Check if the response contains a tool call
         if response.stop_reason == "tool_use":
@@ -198,14 +201,14 @@ class Claude(LLM):
                             "function": function_def,
                         }
                     )
-            assistant_message.content = response.content  # type: ignore
+            agent_message.content = response.content  # type: ignore
 
             if len(tool_calls) > 0:
-                assistant_message.tool_calls = tool_calls
+                agent_message.tool_calls = tool_calls
 
         # -*- Update usage metrics
         # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
+        agent_message.metrics["time"] = response_timer.elapsed
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
@@ -217,28 +220,28 @@ class Claude(LLM):
             output_tokens = response_usage.output_tokens
 
             if input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = input_tokens
+                agent_message.metrics["input_tokens"] = input_tokens
                 self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
 
             if output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = output_tokens
+                agent_message.metrics["output_tokens"] = output_tokens
                 self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
 
             if input_tokens is not None and output_tokens is not None:
-                assistant_message.metrics["total_tokens"] = input_tokens + output_tokens
+                agent_message.metrics["total_tokens"] = input_tokens + output_tokens
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
-        messages.append(assistant_message)
-        assistant_message.log()
+        messages.append(agent_message)
+        agent_message.log()
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if agent_message.tool_calls is not None and self.run_tools:
             # Remove the tool call from the response content
-            final_response = str(response_content)
-            final_response += "\n\n"
+            model_response.content = str(response_content)
+            model_response.content += "\n\n"
             function_calls_to_run: List[FunctionCall] = []
-            for tool_call in assistant_message.tool_calls:
+            for tool_call in agent_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
                     messages.append(Message(role="user", content="Could not find function to call."))
@@ -250,12 +253,12 @@ class Claude(LLM):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    final_response += f" - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    model_response.content += f" - Running: {function_calls_to_run[0].get_call_str()}\n\n"
                 elif len(function_calls_to_run) > 1:
-                    final_response += "Running:"
+                    model_response.content += "Running:"
                     for _f in function_calls_to_run:
-                        final_response += f"\n - {_f.get_call_str()}"
-                    final_response += "\n\n"
+                        model_response.content += f"\n - {_f.get_call_str()}"
+                    model_response.content += "\n\n"
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
@@ -273,13 +276,16 @@ class Claude(LLM):
                 messages.append(Message(role="user", content=fc_responses))
 
             # -*- Yield new response using results of tool calls
-            final_response += self.response(messages=messages)
-            return final_response
-        logger.debug("---------- Claude Response End ----------")
+            response_after_tool_calls = self.response(messages=messages)
+            if response_after_tool_calls.content is not None:
+                model_response.content += response_after_tool_calls.content
+            return model_response
         # -*- Return content if no function calls are present
-        if assistant_message.content is not None:
-            return assistant_message.get_content_string()
-        return "Something went wrong, please try again."
+        if agent_message.content is not None:
+            model_response.content = agent_message.get_content_string()
+
+        logger.debug("---------- Claude Response End ----------")
+        return model_response
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Claude Response Start ----------")
@@ -329,18 +335,18 @@ class Claude(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
-        assistant_message = Message(
+        agent_message = Message(
             role="assistant",
             content="",
         )
-        assistant_message.content = response_content  # type: ignore
+        agent_message.content = response_content  # type: ignore
 
         if len(tool_calls) > 0:
-            assistant_message.tool_calls = tool_calls
+            agent_message.tool_calls = tool_calls
 
         # -*- Update usage metrics
         # Add response time to metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
+        agent_message.metrics["time"] = response_timer.elapsed
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
@@ -351,26 +357,26 @@ class Claude(LLM):
             output_tokens = response_usage.output_tokens
 
             if input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = input_tokens
+                agent_message.metrics["input_tokens"] = input_tokens
                 self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
 
             if output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = output_tokens
+                agent_message.metrics["output_tokens"] = output_tokens
                 self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
 
             if input_tokens is not None and output_tokens is not None:
-                assistant_message.metrics["total_tokens"] = input_tokens + output_tokens
+                agent_message.metrics["total_tokens"] = input_tokens + output_tokens
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
-        messages.append(assistant_message)
-        assistant_message.log()
+        messages.append(agent_message)
+        agent_message.log()
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if agent_message.tool_calls is not None and self.run_tools:
             # Remove the tool call from the response content
             function_calls_to_run: List[FunctionCall] = []
-            for tool_call in assistant_message.tool_calls:
+            for tool_call in agent_message.tool_calls:
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
                     messages.append(Message(role="user", content="Could not find function to call."))
@@ -414,5 +420,5 @@ class Claude(LLM):
             return tool_call_prompt
         return None
 
-    def get_system_prompt_from_llm(self) -> Optional[str]:
+    def get_system_prompt_from_model(self) -> Optional[str]:
         return self.get_tool_call_prompt()

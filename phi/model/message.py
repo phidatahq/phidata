@@ -14,7 +14,7 @@ class Message(BaseModel):
     role: str
     # The contents of the message. content is required for all messages,
     # and may be null for assistant messages with function calls.
-    content: Optional[Union[List[Dict], str]] = None
+    content: Optional[Union[List[Any], str]] = None
     # An optional name for the participant.
     # Provides the model information to differentiate between participants of the same role.
     name: Optional[str] = None

@@ -23,42 +23,42 @@ export ANTHROPIC_API_KEY=xxx
 pip install -U anthropic duckduckgo-search duckdb yfinance exa_py phidata
 ```
 
-### 4. Run Assistant
+### 4. Run Agent
 
 - stream on
 
 ```shell
-python cookbook/llms/claude/assistant.py
+python cookbook/providers/claude/assistant.py
 ```
 
 - stream off
 
 ```shell
-python cookbook/llms/claude/assistant_stream_off.py
+python cookbook/providers/claude/assistant_stream_off.py
 ```
 
-### 5. Run Assistant with Tools
+### 5. Run Agent with Tools
 
 - YFinance
 
 ```shell
-python cookbook/llms/claude/finance.py
+python cookbook/providers/claude/finance.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/llms/claude/data_analyst.py
+python cookbook/providers/claude/data_analyst.py
 ```
 
 - Exa Search
 
 ```shell
-python cookbook/llms/claude/exa_search.py
+python cookbook/providers/claude/exa_search.py
 ```
 
-### 6. Run Assistant with Structured output
+### 6. Run Agent with Structured output
 
 ```shell
-python cookbook/llms/claude/structured_output.py
+python cookbook/providers/claude/structured_output.py
 ```

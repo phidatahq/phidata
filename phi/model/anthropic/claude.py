@@ -2,7 +2,7 @@ import json
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 from phi.model.base import Model
-from phi.llm.message import Message
+from phi.model.message import Message
 from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
@@ -114,15 +114,11 @@ class Claude(Model):
         api_messages: List[dict] = []
         system_messages: List[str] = []
 
-        logger.debug(f"Messages: {messages}")
-
         for idx, message in enumerate(messages):
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
                 system_messages.append(message.content)  # type: ignore
             else:
                 api_messages.append({"role": message.role, "content": message.content or ""})
-
-        logger.debug(f"System Messages: {system_messages}")
 
         api_kwargs["system"] = " ".join(system_messages)
 
@@ -287,7 +283,7 @@ class Claude(Model):
         logger.debug("---------- Claude Response End ----------")
         return model_response
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         logger.debug("---------- Claude Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -305,7 +301,7 @@ class Claude(Model):
             for delta in stream:
                 if isinstance(delta, RawContentBlockDeltaEvent):
                     if isinstance(delta.delta, TextDelta):
-                        yield delta.delta.text
+                        yield ModelResponse(content=delta.delta.text)
                         response_content_text += delta.delta.text
 
                 if isinstance(delta, ContentBlockStopEvent):
@@ -329,7 +325,7 @@ class Claude(Model):
                 if isinstance(delta, MessageStopEvent):
                     response_usage = delta.message.usage
 
-        yield "\n\n"
+        yield ModelResponse(content="\n\n")
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
@@ -388,12 +384,12 @@ class Claude(Model):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield f" - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    yield ModelResponse(content=f" - Running: {function_calls_to_run[0].get_call_str()}\n\n")
                 elif len(function_calls_to_run) > 1:
-                    yield "Running:"
+                    yield ModelResponse(content="Running:")
                     for _f in function_calls_to_run:
-                        yield f"\n - {_f.get_call_str()}"
-                    yield "\n\n"
+                        yield ModelResponse(content="\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
@@ -411,7 +407,7 @@ class Claude(Model):
                 messages.append(Message(role="user", content=fc_responses))
 
             # -*- Yield new response using results of tool calls
-            yield from self.response(messages=messages)
+            yield from self.response_stream(messages=messages)
         logger.debug("---------- Claude Response End ----------")
 
     def get_tool_call_prompt(self) -> Optional[str]:

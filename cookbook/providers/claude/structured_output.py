@@ -1,8 +1,8 @@
 from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
-from phi.assistant import Assistant
-from phi.llm.anthropic import Claude
+from phi.agent import Agent
+from phi.model.anthropic import Claude
 
 
 class MovieScript(BaseModel):
@@ -16,11 +16,11 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-movie_assistant = Assistant(
-    llm=Claude(model="claude-3-opus-20240229"),
+movie_agent = Agent(
+    model=Claude(model="claude-3-5-sonnet-20240620"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
-    # debug_mode=True,
+    debug_mode=True,
 )
 
-pprint(movie_assistant.run("New York"))
+pprint(movie_agent.run("New York", stream=True))

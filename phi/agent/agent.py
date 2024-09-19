@@ -360,7 +360,7 @@ class Agent(BaseModel):
 
     def get_session_data(self) -> Dict[str, Any]:
         session_data = self.session_data or {}
-        if self.session_name:
+        if self.session_name is not None:
             session_data["session_name"] = self.session_name
         return session_data
 

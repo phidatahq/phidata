@@ -148,23 +148,28 @@ class Playground:
                 return run_response.model_dump_json()
 
         @playground_routes.post("/agent/sessions/all")
-        def get_agent_sessions(body: GetAgentSessionsRequest) -> List[GetAgentSessionsResponse]:
+        def get_agent_sessions(body: GetAgentSessionsRequest):
             agent: Optional[Agent] = None
             for _agent in self.agents:
                 if _agent.agent_id == body.agent_id:
                     agent = _agent
                     break
 
+            if agent is None:
+                return JSONResponse(status_code=404, content=f"couldn't find agent with id {body.agent_id}")
+
             if agent.storage is None:
-                return JSONResponse(status_code=404, content=f"Agent does not have storage enabled.")
+                return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
 
             agent_sessions: List[GetAgentSessionsResponse] = []
             all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
             for session in all_agent_sessions:
-                agent_sessions.append(GetAgentSessionsResponse(
-                    session_id=session.session_id,
-                    session_data=session.session_data,
-                ))
+                agent_sessions.append(
+                    GetAgentSessionsResponse(
+                        session_id=session.session_id,
+                        session_data=session.session_data,
+                    )
+                )
             return agent_sessions
 
         @playground_routes.post("/agent/sessions/{session_id}")
@@ -174,6 +179,9 @@ class Playground:
                 if _agent.agent_id == body.agent_id:
                     agent = _agent
                     break
+
+            if agent is None:
+                return JSONResponse(status_code=404, content=f"couldn't find agent with id {body.agent_id}")
 
             agent.session_id = session_id
             agent.read_from_storage()

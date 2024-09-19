@@ -836,7 +836,10 @@ class Agent(BaseModel):
         12. Log Agent Run
         """
         # Create the run_response object
-        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
+        run_response = RunResponse(
+            run_id=str(uuid4()),
+            model=self.model.model if self.model is not None else None,
+        )
 
         logger.debug(f"*********** Agent Run Start: {run_response.run_id} ***********")
         # 1. Read existing session from storage
@@ -941,6 +944,9 @@ class Agent(BaseModel):
             model_response = self.model.response(messages=run_messages)
             run_response.content = model_response.content
             run_response.messages = run_messages
+
+        # Add the model metrics to the run_response
+        run_response.metrics = self.model.metrics if self.model else {}
 
         # 9. Update Memory
         # Add the user message to memory

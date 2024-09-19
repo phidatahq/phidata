@@ -39,6 +39,7 @@ class AgentRunRequest(BaseModel):
 class AgentRenameRequest(BaseModel):
     name: str
     agent_id: str
+    session_id: str
 
 
 class GetAgentSessionsRequest(BaseModel):
@@ -187,11 +188,11 @@ class Playground:
             agent.read_from_storage()
             return agent.to_agent_session()
 
-        @playground_routes.post("/agent/rename")
+        @playground_routes.post("/agent/session/rename")
         def agent_rename(body: AgentRenameRequest):
             for agent in self.agents:
-                print(agent.session_name)
                 if agent.agent_id == body.agent_id:
+                    agent.session_id = body.session_id
                     agent.rename_session(body.name)
                     return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
             return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")

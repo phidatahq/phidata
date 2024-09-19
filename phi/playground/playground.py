@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from phi.agent.agent import Agent, RunResponse, Tool, Toolkit, Function
 from phi.playground.settings import PlaygroundSettings
 from phi.utils.log import logger
+from phi.agent.session import AgentSession
 
 
 class AgentModel(BaseModel):
@@ -38,6 +39,16 @@ class AgentRunRequest(BaseModel):
 class AgentRenameRequest(BaseModel):
     name: str
     agent_id: str
+
+
+class GetAgentSessionsRequest(BaseModel):
+    agent_id: str
+    user_id: Optional[str] = None
+
+
+class GetAgentSessionsResponse(BaseModel):
+    session_id: Optional[str] = None
+    session_data: Optional[Dict[str, Any]] = None
 
 
 class Playground:
@@ -137,18 +148,36 @@ class Playground:
                 return run_response.model_dump_json()
 
         @playground_routes.post("/agent/sessions/all")
-        def get_agent_sessions():
-            session_data = []
-            for agent in self.agents:
-                session_data.append(agent.get_session_data())
-            return session_data
+        def get_agent_sessions(body: GetAgentSessionsRequest) -> List[GetAgentSessionsResponse]:
+            agent: Optional[Agent] = None
+            for _agent in self.agents:
+                if _agent.agent_id == body.agent_id:
+                    agent = _agent
+                    break
+
+            if agent.storage is None:
+                return JSONResponse(status_code=404, content=f"Agent does not have storage enabled.")
+
+            agent_sessions: List[GetAgentSessionsResponse] = []
+            all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
+            for session in all_agent_sessions:
+                agent_sessions.append(GetAgentSessionsResponse(
+                    session_id=session.session_id,
+                    session_data=session.session_data,
+                ))
+            return agent_sessions
 
         @playground_routes.post("/agent/sessions/{session_id}")
-        def get_agent_session(session_id):
-            for agent in self.agents:
-                if agent.session_id == session_id:
-                    return agent.get_session_data()
-            return JSONResponse(status=404, content=f"couldn't find {session_id} session")
+        def get_agent_session(session_id: str, body: GetAgentSessionsRequest):
+            agent: Optional[Agent] = None
+            for _agent in self.agents:
+                if _agent.agent_id == body.agent_id:
+                    agent = _agent
+                    break
+
+            agent.session_id = session_id
+            agent.read_from_storage()
+            return agent.to_agent_session()
 
         @playground_routes.post("/agent/rename")
         def agent_rename(body: AgentRenameRequest):

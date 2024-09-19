@@ -22,9 +22,11 @@ class AgentGetResponse(BaseModel):
     model: Optional[AgentModel] = None
     enable_rag: Optional[bool] = None
     tools: Optional[List[Dict[str, Any]]] = None
+    memory: Optional[Dict[str, Any]] = None
     storage: Optional[Dict[str, Any]] = None
     knowledge: Optional[Dict[str, Any]] = None
-    details: Optional[Dict[str, Any]] = None
+    description: Optional[str] = None
+    instructions: Optional[List[str]] = None
 
 
 class AgentRunRequest(BaseModel):
@@ -94,12 +96,11 @@ class Playground:
                         ),
                         enable_rag=agent.enable_rag,
                         tools=formatted_tools,
+                        memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
                         storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
-                        knowledge={agent.knowledge.__class__.__name__} if agent.knowledge else None,
-                        details={
-                            "description": agent.description,
-                            "instructions": agent.instructions,
-                        },
+                        knowledge={"name": agent.knowledge.__class__.__name__} if agent.knowledge else None,
+                        description=agent.description,
+                        instructions=agent.instructions,
                     )
                 )
 

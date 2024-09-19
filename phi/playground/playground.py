@@ -1,8 +1,8 @@
 from typing import List, Optional, Generator, Any, Dict, cast
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from fastapi.routing import APIRouter
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from pydantic import BaseModel
 from phi.agent.agent import Agent, RunResponse, Tool, Toolkit, Function
@@ -33,6 +33,11 @@ class AgentRunRequest(BaseModel):
     stream: bool = True
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+
+
+class AgentRenameRequest(BaseModel):
+    name: str
+    agent_id: str
 
 
 class Playground:
@@ -130,6 +135,15 @@ class Playground:
             else:
                 run_response = cast(RunResponse, agent.run(body.message, stream=False))
                 return run_response.model_dump_json()
+
+        @playground_routes.post("/agent/rename")
+        def agent_rename(body: AgentRenameRequest):
+            for agent in self.agents:
+                print(agent.session_name)
+                if agent.agent_id == body.agent_id:
+                    agent.rename_session(body.name)
+                    return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
+            return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
 
         return playground_routes
 

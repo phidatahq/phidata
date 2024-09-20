@@ -2,12 +2,13 @@ from typing import List, Optional, Generator, Any, Dict, cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.routing import APIRouter
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from pydantic import BaseModel
 from phi.agent.agent import Agent, RunResponse, Tool, Toolkit, Function
 from phi.playground.settings import PlaygroundSettings
 from phi.utils.log import logger
+from phi.agent.session import AgentSession
 
 
 class AgentModel(BaseModel):
@@ -35,6 +36,22 @@ class AgentRunRequest(BaseModel):
     stream: bool = True
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+
+
+class AgentRenameRequest(BaseModel):
+    name: str
+    agent_id: str
+    session_id: str
+
+
+class GetAgentSessionsRequest(BaseModel):
+    agent_id: str
+    user_id: Optional[str] = None
+
+
+class GetAgentSessionsResponse(BaseModel):
+    session_id: Optional[str] = None
+    session_data: Optional[Dict[str, Any]] = None
 
 
 class Playground:
@@ -131,6 +148,55 @@ class Playground:
             else:
                 run_response = cast(RunResponse, agent.run(body.message, stream=False))
                 return run_response.model_dump_json()
+
+        @playground_routes.post("/agent/sessions/all")
+        def get_agent_sessions(body: GetAgentSessionsRequest):
+            agent: Optional[Agent] = None
+            for _agent in self.agents:
+                if _agent.agent_id == body.agent_id:
+                    agent = _agent
+                    break
+
+            if agent is None:
+                return JSONResponse(status_code=404, content="Agent not found.")
+
+            if agent.storage is None:
+                return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
+
+            agent_sessions: List[GetAgentSessionsResponse] = []
+            all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
+            for session in all_agent_sessions:
+                agent_sessions.append(
+                    GetAgentSessionsResponse(
+                        session_id=session.session_id,
+                        session_data=session.session_data,
+                    )
+                )
+            return agent_sessions
+
+        @playground_routes.post("/agent/sessions/{session_id}")
+        def get_agent_session(session_id: str, body: GetAgentSessionsRequest):
+            agent: Optional[Agent] = None
+            for _agent in self.agents:
+                if _agent.agent_id == body.agent_id:
+                    agent = _agent
+                    break
+
+            if agent is None:
+                return JSONResponse(status_code=404, content="Agent not found.")
+
+            agent.session_id = session_id
+            agent.read_from_storage()
+            return agent.to_agent_session()
+
+        @playground_routes.post("/agent/session/rename")
+        def agent_rename(body: AgentRenameRequest):
+            for agent in self.agents:
+                if agent.agent_id == body.agent_id:
+                    agent.session_id = body.session_id
+                    agent.rename_session(body.name)
+                    return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
+            return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
 
         return playground_routes
 

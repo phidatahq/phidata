@@ -20,7 +20,6 @@ movie_agent = Agent(
     model=CohereChat(model="command-r"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
-    # debug_mode=True,
 )
 
 pprint(movie_agent.run("New York"))

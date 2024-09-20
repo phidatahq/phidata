@@ -19,7 +19,6 @@ try:
         RawContentBlockDeltaEvent,
         ContentBlockStopEvent,
     )
-
 except ImportError:
     logger.error("`anthropic` not installed")
     raise
@@ -187,9 +186,9 @@ class Claude(Model):
         )
 
         # Check if the response contains a tool call
+        tool_calls: List[Dict[str, Any]] = []
+        tool_ids: List[str] = []
         if response.stop_reason == "tool_use":
-            tool_calls: List[Dict[str, Any]] = []
-            tool_ids: List[str] = []
             for block in response.content:
                 if isinstance(block, ToolUseBlock):
                     tool_use: ToolUseBlock = block
@@ -206,6 +205,7 @@ class Claude(Model):
                             "function": function_def,
                         }
                     )
+            # Anthropic API requires ToolUseBlock to be included in the message content
             agent_message.content = response.content
 
             if len(tool_calls) > 0:
@@ -342,11 +342,11 @@ class Claude(Model):
         # -*- Create agent message
         agent_message = Message(
             role="assistant",
-            content="",
+            content=response_content_text,
         )
-        agent_message.content = response_content
 
         if len(tool_calls) > 0:
+            agent_message.content = response_content
             agent_message.tool_calls = tool_calls
 
         # -*- Update usage metrics

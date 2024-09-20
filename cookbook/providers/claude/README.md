@@ -25,19 +25,31 @@ pip install -U anthropic duckduckgo-search duckdb yfinance exa_py phidata
 
 ### 4. Run Agent
 
-- stream on
-
-```shell
-python cookbook/providers/claude/assistant.py
-```
-
 - stream off
 
 ```shell
-python cookbook/providers/claude/assistant_stream_off.py
+python cookbook/providers/claude/basic.py
+```
+
+- stream on
+
+```shell
+python cookbook/providers/claude/basic_stream.py
 ```
 
 ### 5. Run Agent with Tools
+
+- DuckDuckGo Search
+
+```shell
+python cookbook/providers/claude/agent.py
+```
+
+- DuckDuckGo Search Stream
+
+```shell
+python cookbook/providers/claude/agent_stream.py
+```
 
 - YFinance
 

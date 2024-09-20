@@ -8,4 +8,4 @@ agent = Agent(
     show_tool_calls=True,
     # debug_mode=True,
 )
-agent.print_response("Whats happening in France", markdown=True, stream=True)
+agent.print_response("Whats happening in France?", markdown=True)

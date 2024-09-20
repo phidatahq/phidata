@@ -9,7 +9,6 @@ agent = Agent(
     description="You are an investment analyst that researches stock prices, analyst recommendations, and stock fundamentals.",
     instructions=["Use tables to display data where possible."],
     markdown=True,
-    # debug_mode=True,
 )
 agent.print_response("Summarize fundamentals for TSLA")
 # agent.print_response("Share the NVDA stock price and analyst recommendations")

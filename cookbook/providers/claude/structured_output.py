@@ -20,7 +20,6 @@ movie_agent = Agent(
     model=Claude(model="claude-3-5-sonnet-20240620"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
-    debug_mode=True,
 )
 
 pprint(movie_agent.run("New York", stream=True))

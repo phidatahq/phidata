@@ -15,6 +15,5 @@ agent = Agent(
     Here are the tables you have access to:
     - movies: Contains information about movies from IMDB.
     """,
-    # debug_mode=True,
 )
-agent.print_response("What is the average rating of movies?", markdown=True, stream=False)
+agent.print_response("What is the average rating of movies?", markdown=True)

@@ -115,7 +115,9 @@ class Playground:
                         ),
                         enable_rag=agent.enable_rag,
                         tools=formatted_tools,
-                        memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
+                        memory={"name": agent.memory.db.__class__.__name__}
+                        if agent.memory and agent.memory.db
+                        else None,
                         storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
                         knowledge={"name": agent.knowledge.__class__.__name__} if agent.knowledge else None,
                         description=agent.description,
@@ -125,7 +127,9 @@ class Playground:
 
             return self.agent_list
 
-        def chat_response_streamer(agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None) -> Generator:
+        def chat_response_streamer(
+            agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
+        ) -> Generator:
             run_response = agent.run(message, images=images, stream=True)
             for run_response_chunk in run_response:
                 run_response_chunk = cast(RunResponse, run_response_chunk)
@@ -133,13 +137,9 @@ class Playground:
 
         def process_image(file: UploadFile) -> List[Union[str, Dict]]:
             content = file.file.read()
-            encoded = base64.b64encode(content).decode('utf-8')
+            encoded = base64.b64encode(content).decode("utf-8")
 
-            image_info = {
-                "filename": file.filename,
-                "content_type": file.content_type,
-                "size": len(content)
-            }
+            image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
 
             return [encoded, image_info]
 
@@ -154,17 +154,17 @@ class Playground:
             if agent is None:
                 raise HTTPException(status_code=404, detail="Agent not found")
 
-            image: Optional[List[Union[str, Dict]]] = None
+            base64_image: Optional[List[Union[str, Dict]]] = None
             if body.image:
-                base64_image = process_image(image)
+                base64_image = process_image(body.image)
 
             if body.stream:
                 return StreamingResponse(
-                    chat_response_streamer(agent, body.message, image),
+                    chat_response_streamer(agent, body.message, base64_image),
                     media_type="text/event-stream",
                 )
             else:
-                run_response = cast(RunResponse, agent.run(body.message, images=image, stream=False))
+                run_response = cast(RunResponse, agent.run(body.message, images=base64_image, stream=False))
                 return run_response.model_dump_json()
 
         @playground_routes.post("/agent/sessions/all")

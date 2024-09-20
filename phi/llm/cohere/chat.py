@@ -15,11 +15,11 @@ try:
     from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
     from cohere.types.streamed_chat_response import (
         StreamedChatResponse,
-        StreamedChatResponse_StreamStart,
-        StreamedChatResponse_TextGeneration,
-        StreamedChatResponse_ToolCallsChunk,
-        StreamedChatResponse_ToolCallsGeneration,
-        StreamedChatResponse_StreamEnd,
+        StreamStartStreamedChatResponse,
+        TextGenerationStreamedChatResponse,
+        ToolCallsChunkStreamedChatResponse,
+        ToolCallsGenerationStreamedChatResponse,
+        StreamEndStreamedChatResponse,
     )
     from cohere.types.tool_result import ToolResult
     from cohere.types.tool_parameter_definitions_value import ToolParameterDefinitionsValue
@@ -307,20 +307,20 @@ class CohereChat(LLM):
         response_timer = Timer()
         response_timer.start()
         for response in self.invoke_stream(messages=messages, tool_results=tool_results):
-            if isinstance(response, StreamedChatResponse_StreamStart):
+            if isinstance(response, StreamStartStreamedChatResponse):
                 pass
 
-            if isinstance(response, StreamedChatResponse_TextGeneration):
+            if isinstance(response, TextGenerationStreamedChatResponse):
                 if response.text is not None:
                     assistant_message_content += response.text
                     yield response.text
 
-            if isinstance(response, StreamedChatResponse_ToolCallsChunk):
+            if isinstance(response, ToolCallsChunkStreamedChatResponse):
                 if response.tool_call_delta is None:
                     yield response.text
 
             # Detect if response is a tool call
-            if isinstance(response, StreamedChatResponse_ToolCallsGeneration):
+            if isinstance(response, ToolCallsGenerationStreamedChatResponse):
                 for tc in response.tool_calls:
                     response_tool_calls.append(tc)
                     tool_calls.append(
@@ -333,7 +333,7 @@ class CohereChat(LLM):
                         }
                     )
 
-            if isinstance(response, StreamedChatResponse_StreamEnd):
+            if isinstance(response, StreamEndStreamedChatResponse):
                 last_delta = response.response
 
         yield "\n\n"

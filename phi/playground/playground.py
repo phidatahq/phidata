@@ -1,6 +1,7 @@
-from typing import List, Optional, Generator, Any, Dict, cast
+from typing import List, Optional, Generator, Any, Dict, cast, Union
+import base64
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.routing import APIRouter
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -36,6 +37,7 @@ class AgentRunRequest(BaseModel):
     stream: bool = True
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    image: Optional[UploadFile]
 
 
 class AgentRenameRequest(BaseModel):
@@ -123,11 +125,23 @@ class Playground:
 
             return self.agent_list
 
-        def chat_response_streamer(agent: Agent, message: str) -> Generator:
-            run_response = agent.run(message, stream=True)
+        def chat_response_streamer(agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None) -> Generator:
+            run_response = agent.run(message, images=images, stream=True)
             for run_response_chunk in run_response:
                 run_response_chunk = cast(RunResponse, run_response_chunk)
                 yield run_response_chunk.model_dump_json()
+
+        def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+            content = file.file.read()
+            encoded = base64.b64encode(content).decode('utf-8')
+
+            image_info = {
+                "filename": file.filename,
+                "content_type": file.content_type,
+                "size": len(content)
+            }
+
+            return [encoded, image_info]
 
         @playground_routes.post("/agent/run")
         def agent_chat(body: AgentRunRequest):
@@ -140,13 +154,17 @@ class Playground:
             if agent is None:
                 raise HTTPException(status_code=404, detail="Agent not found")
 
+            image: Optional[List[Union[str, Dict]]] = None
+            if body.image:
+                base64_image = process_image(image)
+
             if body.stream:
                 return StreamingResponse(
-                    chat_response_streamer(agent, body.message),
+                    chat_response_streamer(agent, body.message, image),
                     media_type="text/event-stream",
                 )
             else:
-                run_response = cast(RunResponse, agent.run(body.message, stream=False))
+                run_response = cast(RunResponse, agent.run(body.message, images=image, stream=False))
                 return run_response.model_dump_json()
 
         @playground_routes.post("/agent/sessions/all")

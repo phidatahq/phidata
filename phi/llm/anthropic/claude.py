@@ -119,9 +119,6 @@ class Claude(LLM):
             else:
                 api_messages.append({"role": message.role, "content": message.content or ""})
 
-        logger.debug(f"Messages: {messages}")
-        logger.debug(f"System Messages: {system_messages}")
-
         api_kwargs["system"] = " ".join(system_messages)
 
         if self.tools:

@@ -74,6 +74,10 @@ class ChromaDb(VectorDb):
             self._collection = self.client.create_collection(
                 name=self.collection, metadata={"hnsw:space": self.distance.value}
             )
+        
+        else:
+            logger.debug(f"Collection already exists: {self.collection}")
+            self._collection = self.client.get_collection(name=self.collection)
 
     def doc_exists(self, document: Document) -> bool:
         """Check if a document exists in the collection.
@@ -125,10 +129,11 @@ class ChromaDb(VectorDb):
             docs_embeddings.append(document.embedding)
             docs.append(cleaned_content)
             ids.append(doc_id)
+            logger.debug(f"Inserted document: {document.id} | {document.name} | {document.meta_data}")
 
         if len(docs) > 0 and self._collection is not None:
             self._collection.add(ids=ids, embeddings=docs_embeddings, documents=docs)
-            logger.debug(f"Inserted {len(docs)} documents")
+            logger.debug(f"Committed {len(docs)} documents")
         else:
             logger.error("Collection does not exist")
 
@@ -137,7 +142,7 @@ class ChromaDb(VectorDb):
         Args:
             documents (List[Document]): List of documents to upsert
         """
-        logger.debug(f"Inserting {len(documents)} documents")
+        logger.debug(f"Upserting {len(documents)} documents")
         ids: List = []
         docs: List = []
         docs_embeddings: List = []
@@ -149,10 +154,12 @@ class ChromaDb(VectorDb):
             docs_embeddings.append(document.embedding)
             docs.append(cleaned_content)
             ids.append(doc_id)
+            logger.debug(f"Upserted document: {document.id} | {document.name} | {document.meta_data}")
 
         if len(docs) > 0 and self._collection is not None:
             self._collection.upsert(ids=ids, embeddings=docs_embeddings, documents=docs)
-            logger.debug(f"Inserted {len(docs)} documents")
+            logger.debug(f"Committed {len(docs)} documents")
+            
         else:
             logger.error("Collection does not exist")
 
@@ -233,7 +240,11 @@ class ChromaDb(VectorDb):
         return 0
 
     def optimize(self) -> None:
-        pass
+        raise NotImplementedError
 
     def clear(self) -> bool:
-        return False
+        try:
+            self.client.delete_collection(name=self.collection)
+            return True
+        except:
+            return False

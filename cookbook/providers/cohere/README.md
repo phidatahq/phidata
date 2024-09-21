@@ -20,7 +20,7 @@ export CO_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U cohere duckduckgo-search yfinance exa_py phidata
+pip install -U cohere duckduckgo-search duckdb yfinance exa_py phidata
 ```
 
 ### 4. Run Agent

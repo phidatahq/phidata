@@ -1,4 +1,4 @@
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse
 from phi.model.cohere import CohereChat
 from phi.tools.duckduckgo import DuckDuckGo
 
@@ -8,4 +8,9 @@ agent = Agent(
     show_tool_calls=True,
     # debug_mode=True,
 )
-agent.print_response("Whats happening in France?", markdown=True)
+
+
+# Return the result as a string
+run: RunResponse = agent.run("Share a healthy breakfast recipe")  # type: ignore
+
+print(run.content)

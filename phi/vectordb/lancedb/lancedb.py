@@ -57,8 +57,10 @@ class LanceDb(VectorDb):
         # Lancedb kwargs
         self.kwargs = kwargs
 
-    def create(self) -> lancedb.db.LanceTable:
-        return self._init_table()
+    def create(self) -> None:
+        """Create the table if it does not exist."""
+        if not self.exists():
+            self.connection = self._init_table()  # Connection update is needed
 
     def _init_table(self) -> lancedb.db.LanceTable:
         self._id = "id"

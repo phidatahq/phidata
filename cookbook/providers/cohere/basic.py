@@ -1,5 +1,5 @@
 from phi.assistant import Assistant
-from phi.llm.cohere import CohereChat
+from phi.model.cohere import CohereChat
 
 assistant = Assistant(
     model=CohereChat(model="command-r"),

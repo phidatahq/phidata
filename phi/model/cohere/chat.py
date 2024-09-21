@@ -202,6 +202,10 @@ class CohereChat(Model):
         function_calls_to_run: List[FunctionCall] = []
         error_messages: List[Message] = []
 
+        # Check if tool_calls is None or empty
+        if not agent_message.tool_calls:
+            return function_calls_to_run, error_messages
+
         # Process each tool call in the agent message
         for tool_call in agent_message.tool_calls:
             # Attempt to get a function call for the tool call

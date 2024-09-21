@@ -1,7 +1,6 @@
 from typing import List
 from pydantic import BaseModel, Field
-from rich.pretty import pprint
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse
 from phi.model.cohere import CohereChat
 
 
@@ -22,4 +21,6 @@ movie_agent = Agent(
     output_model=MovieScript,
 )
 
-pprint(movie_agent.run("New York"))
+run: RunResponse = movie_agent.run("New York")
+
+print(run.content)

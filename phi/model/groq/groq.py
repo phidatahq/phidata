@@ -365,9 +365,7 @@ class Groq(Model):
             agent_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
         return agent_message
 
-    def _update_usage_metrics(
-        self, agent_message: Message, elapsed_time: float, response: Optional[Any]
-    ) -> None:
+    def _update_usage_metrics(self, agent_message: Message, elapsed_time: float, response: Optional[Any]) -> None:
         """
         Updates the usage metrics based on the agent message and response.
 
@@ -413,9 +411,7 @@ class Groq(Model):
                 )
                 continue
             if _function_call.error is not None:
-                messages.append(
-                    Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error)
-                )
+                messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
                 continue
             function_calls_to_run.append(_function_call)
 
@@ -440,9 +436,7 @@ class Groq(Model):
             model_response.content += response_after_tool_calls.content
         return model_response
 
-    def _handle_tool_calls_stream(
-        self, agent_message: Message, messages: List[Message]
-    ) -> Iterator[ModelResponse]:
+    def _handle_tool_calls_stream(self, agent_message: Message, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Parses and runs tool calls from the agent message in a streaming manner.
 
@@ -465,9 +459,7 @@ class Groq(Model):
                 )
                 continue
             if _function_call.error is not None:
-                messages.append(
-                    Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error)
-                )
+                messages.append(Message(role="tool", tool_call_id=_tool_call_id, content=_function_call.error))
                 continue
             function_calls_to_run.append(_function_call)
 

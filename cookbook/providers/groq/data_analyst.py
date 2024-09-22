@@ -1,5 +1,5 @@
 from phi.agent import Agent
-from phi.model.cohere import CohereChat
+from phi.model.groq import Groq
 from phi.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
@@ -8,7 +8,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=CohereChat(model="command-r-plus"),
+    model=Groq(model="llama3-70b-8192"),
     tools=[duckdb_tools],
     show_tool_calls=True,
     add_to_system_prompt="""

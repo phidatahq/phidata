@@ -1,9 +1,9 @@
 from phi.agent import Agent, RunResponse
-from phi.model.cohere import CohereChat
+from phi.model.groq import Groq
 from phi.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
-    model=CohereChat(model="command-r-plus"),
+    model=Groq(model="llama3-70b-8192"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
     # debug_mode=True,

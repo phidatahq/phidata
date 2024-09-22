@@ -21,20 +21,6 @@ export GROQ_API_KEY=***
 pip install -U groq duckduckgo-search duckdb yfinance exa_py phidata
 ```
 
-### 4. Run Agent
-
-- stream off
-
-```shell
-python cookbook/providers/groq/basic.py
-```
-
-- stream on
-
-```shell
-python cookbook/providers/groq/basic_stream.py
-```
-
 ### 5. Run Agent with Tools
 
 - DuckDuckGo Search

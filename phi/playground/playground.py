@@ -156,7 +156,7 @@ class Playground:
 
             image: Optional[List[Union[str, Dict]]] = None
             if body.image:
-                base64_image = process_image(image)
+                process_image(image)
 
             if body.stream:
                 return StreamingResponse(

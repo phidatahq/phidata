@@ -1,7 +1,7 @@
 from typing import List
 from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse
-from phi.model.cohere import CohereChat
+from phi.model.groq import Groq
 
 
 class MovieScript(BaseModel):
@@ -16,7 +16,7 @@ class MovieScript(BaseModel):
 
 
 movie_agent = Agent(
-    model=CohereChat(model="command-r"),
+    model=Groq(model="llama3-8b-8192"),
     description="You help people write movie scripts.",
     output_model=MovieScript,
 )

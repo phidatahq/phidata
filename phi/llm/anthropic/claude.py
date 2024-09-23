@@ -165,7 +165,12 @@ class Claude(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Parse response
-        response_content: TextBlock = response.content[0].text  # type: ignore
+        response_content = response.content[0]  # type: ignore
+        if isinstance(response.content[0], ToolUseBlock):
+            response_content = response.content[0].input["query"]
+
+        elif isinstance(response.content[0], TextBlock):
+            response_content = response.content[0].text
 
         # -*- Create assistant message
         assistant_message = Message(

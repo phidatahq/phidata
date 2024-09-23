@@ -37,7 +37,7 @@ class AgentRunRequest(BaseModel):
     stream: bool = True
     session_id: Optional[str] = None
     user_id: Optional[str] = None
-    image: Optional[UploadFile]
+    image: Optional[UploadFile] = None
 
 
 class AgentRenameRequest(BaseModel):

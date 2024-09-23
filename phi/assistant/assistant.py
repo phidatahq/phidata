@@ -535,7 +535,9 @@ class Assistant(BaseModel):
 
                     if len(output_model_properties) > 0:
                         json_output_prompt += "\n<json_fields>"
-                        json_output_prompt += f"\n{json.dumps(list(output_model_properties.keys()))}"
+                        json_output_prompt += (
+                            f"\n{json.dumps([key for key in output_model_properties.keys() if key != '$defs'])}"
+                        )
                         json_output_prompt += "\n</json_fields>"
                         json_output_prompt += "\nHere are the properties for each field:"
                         json_output_prompt += "\n<json_field_properties>"

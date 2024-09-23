@@ -167,9 +167,9 @@ class Claude(LLM):
         # -*- Parse response
         response_content = response.content[0]  # type: ignore
         if isinstance(response.content[0], ToolUseBlock):
-            response_content = response.content[0].input['query']
-            
-        elif isinstance(response.content[0],TextBlock):
+            response_content = response.content[0].input["query"]
+
+        elif isinstance(response.content[0], TextBlock):
             response_content = response.content[0].text
 
         # -*- Create assistant message

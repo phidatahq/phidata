@@ -20,7 +20,6 @@ try:
         ChoiceDeltaToolCall,
     )
     from openai.types.chat.chat_completion_message import ChatCompletionMessage
-    from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
 except ImportError:
     logger.error("`openai` not installed")
     raise
@@ -29,7 +28,7 @@ except ImportError:
 class OpenAIChat(Model):
     """
     A class representing an OpenAI chat model.
-    
+
     This class provides methods to interact with OpenAI's chat models,
     including sending requests and handling responses.
     """
@@ -37,7 +36,7 @@ class OpenAIChat(Model):
     model: str = "gpt-4o"
     name: str = "OpenAIChat"
     provider: str = "OpenAI"
-    
+
     # Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
@@ -54,7 +53,7 @@ class OpenAIChat(Model):
     extra_headers: Optional[Any] = None
     extra_query: Optional[Any] = None
     request_params: Optional[Dict[str, Any]] = None
-    
+
     # Client parameters
     api_key: Optional[str] = None
     organization: Optional[str] = None
@@ -65,11 +64,11 @@ class OpenAIChat(Model):
     default_query: Optional[Any] = None
     http_client: Optional[httpx.Client] = None
     client_params: Optional[Dict[str, Any]] = None
-    
+
     # OpenAI clients
     client: Optional[OpenAIClient] = None
     async_client: Optional[AsyncOpenAIClient] = None
-    
+
     # Deprecated: will be removed in v3
     openai_client: Optional[OpenAIClient] = None
 
@@ -791,6 +790,15 @@ class OpenAIChat(Model):
         return tool_calls
 
     def run_function(self, function_call: Dict[str, Any]) -> Tuple[Message, Optional[FunctionCall]]:
+        """
+        Run a function call.
+
+        Args:
+            function_call (Dict[str, Any]): The function call to run.
+
+        Returns:
+            Tuple[Message, Optional[FunctionCall]]: The function call message and the function call.
+        """
         _function_name = function_call.get("name")
         _function_arguments_str = function_call.get("arguments")
         if _function_name is not None:

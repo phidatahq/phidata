@@ -5,6 +5,7 @@ import json
 try:
     import lancedb
     import pyarrow as pa
+    from lancedb.rerankers import Reranker
 except ImportError:
     raise ImportError("`lancedb` not installed.")
 
@@ -24,8 +25,9 @@ class LanceDb(VectorDb):
         connection: Optional[lancedb.db.LanceTable] = None,
         uri: Optional[str] = "/tmp/lancedb",
         table_name: Optional[str] = "phi",
-        nprobes: Optional[int] = 20,
-        **kwargs,
+        nprobes: Optional[int] = None,
+        query_type: Optional[str] = "vector",
+        reranker: Optional[Reranker] = None,
     ):
         # Embedder for embedding the document contents
         self.embedder: Embedder = embedder
@@ -55,7 +57,10 @@ class LanceDb(VectorDb):
             self.connection = self._init_table()
 
         # Lancedb kwargs
-        self.kwargs = kwargs
+        self.query_type = query_type
+        self.reranker = reranker
+
+        self.fts_index_exists = False
 
     def create(self) -> None:
         """Create the table if it does not exist."""
@@ -133,24 +138,81 @@ class LanceDb(VectorDb):
         self.insert(documents)
 
     def search(self, query: str, limit: int = 5) -> List[Document]:
+        if self.query_type == "vector":
+            return self.vector_search(query, limit)
+        elif self.query_type == "hybrid":
+            return self.hybrid_search(query, limit)
+        elif self.query_type == "fts":
+            return self.fulltext_search(query, limit)
+        else:
+            logger.error(f"Invalid query type: {self.query_type} Supported query types: ['vector', 'hybrid', 'fts']")
+            return []
+
+    def vector_search(self, query: str, limit: int = 5) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
 
+        results = self.connection.search(
+            query=query_embedding,
+            vector_column_name=self._vector_col,
+        ).limit(limit)
+        if self.nprobes:
+            results.nprobes(self.nprobes)
+        if self.reranker:
+            results.rerank(reranker=self.reranker)
+        results = results.to_pandas()
+
+        search_results = self._build_search_results(results)
+
+        return search_results
+
+    def hybrid_search(self, query: str, limit: int = 5) -> List[Document]:
+        query_embedding = self.embedder.get_embedding(query)
+        if query_embedding is None:
+            logger.error(f"Error getting embedding for Query: {query}")
+            return []
+
+        if not self.fts_index_exists:
+            self.connection.create_fts_index("payload", replace=True)
+            self.fts_index_exists = True
+
+        results = self.connection.search(
+            query=(query_embedding, query),
+            vector_column_name=self._vector_col,
+            query_type="hybrid",
+        ).limit(limit)
+        if self.nprobes:
+            results.nprobes(self.nprobes)
+        if self.reranker:
+            results.rerank(reranker=self.reranker)
+        results = results.to_pandas()
+
+        search_results = self._build_search_results(results)
+
+        return search_results
+
+    def fulltext_search(self, query: str, limit: int = 5) -> List[Document]:
+        if not self.fts_index_exists:
+            self.connection.create_fts_index("payload", replace=True)
+            self.fts_index_exists = True
+
         results = (
             self.connection.search(
-                query=query_embedding,
-                vector_column_name=self._vector_col,
+                query=query,
+                query_type="fts",
             )
             .limit(limit)
-            .nprobes(self.nprobes)
             .to_pandas()
         )
 
-        # Build search results
-        search_results: List[Document] = []
+        search_results = self._build_search_results(results)
 
+        return search_results
+
+    def _build_search_results(self, results) -> List[Document]:  # TODO: typehint pandas?
+        search_results: List[Document] = []
         try:
             for _, item in results.iterrows():
                 payload = json.loads(item["payload"])

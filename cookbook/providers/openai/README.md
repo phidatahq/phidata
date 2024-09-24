@@ -1,4 +1,4 @@
-# OpenAI Chat function calling
+# OpenAI Cookbook
 
 > Note: Fork and clone this repository if needed
 
@@ -9,7 +9,7 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Export your OpenaiChat API Key
+### 2. Export your `OPENAI_API_KEY`
 
 ```shell
 export OPENAI_API_KEY=***

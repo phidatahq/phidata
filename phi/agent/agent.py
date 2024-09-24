@@ -884,7 +884,7 @@ class Agent(BaseModel):
         7. Save output to file if save_output_to_file is set
         """
         # Create the run_response object
-        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
+        run_response = RunResponse(run_id=str(uuid4()))
 
         logger.debug(f"*********** Agent Run Start: {run_response.run_id} ***********")
         # 1. Read existing session from storage
@@ -892,6 +892,7 @@ class Agent(BaseModel):
 
         # 2. Update the Model (set defaults, add tools, etc.)
         self.update_model()
+        run_response.model = self.model.model if self.model is not None else None
 
         # 3. Prepare the List of messages to send to the Model
         messages_for_model: List[Message] = []

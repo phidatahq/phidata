@@ -965,6 +965,8 @@ class Agent(BaseModel):
             run_response.content = model_response.content
             run_response.messages = messages_for_model
 
+        # Add the model metrics to the run_response
+        run_response.metrics = self.model.metrics if self.model else None
         # 5. Update Memory
         # Add the user message to the chat history
         if message is not None:

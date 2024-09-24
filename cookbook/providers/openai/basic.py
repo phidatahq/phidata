@@ -3,7 +3,7 @@ from phi.model.openai import OpenAIChat
 
 agent = Agent(
     model=OpenAIChat(model="gpt-4o"),
-    instructions=["Respond in a southern tone"]
+    instructions=["Respond in a southern tone"],
     # debug_mode=True,
 )
 

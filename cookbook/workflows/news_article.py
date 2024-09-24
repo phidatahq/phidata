@@ -67,7 +67,7 @@ writer = Assistant(
     ### Takeaways
     {provide key takeaways from the article}
 
-    ### MessageContext
+    ### References
     - [Title](url)
     - [Title](url)
     - [Title](url)

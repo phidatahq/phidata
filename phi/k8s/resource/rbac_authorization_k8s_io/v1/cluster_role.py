@@ -37,7 +37,7 @@ class PolicyRule(K8sObject):
 
 class ClusterRole(K8sResource):
     """
-    MessageContext:
+    References:
     - Doc: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#clusterrole-v1-rbac-authorization-k8s-io
     - Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_cluster_role.py
     """

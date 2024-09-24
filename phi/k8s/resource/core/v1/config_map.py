@@ -15,7 +15,7 @@ class ConfigMap(K8sResource):
     ConfigMaps allow you to decouple configuration from image content to keep containerized applications portable.
     In short, they store configs. For config variables which contain sensitive info, use Secrets.
 
-    MessageContext:
+    References:
         * Docs:
             https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#configmap-v1-core
             https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

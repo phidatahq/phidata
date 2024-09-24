@@ -128,7 +128,7 @@ class IngressSpec(K8sObject):
 
 class Ingress(K8sResource):
     """
-    MessageContext:
+    References:
     - Docs: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#ingress-v1-networking-k8s-io
     - Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_ingress.py
     """

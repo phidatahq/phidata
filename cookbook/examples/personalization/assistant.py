@@ -108,7 +108,7 @@ def get_personalized_assistant(
             - **Summary of report:** Recap of the key findings from the report.
             - **Implications:** What these findings mean for the future.
 
-            ## MessageContext
+            ## References
             - [Reference 1](Link to Source)
             - [Reference 2](Link to Source)
             </report_format>

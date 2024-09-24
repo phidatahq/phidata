@@ -47,6 +47,8 @@ class PgVector(VectorDb):
             raise ValueError("Must provide either 'db_url' or 'db_engine'.")
 
         if db_engine is None:
+            if db_url is None:
+                raise ValueError("Must provide 'db_url' if 'db_engine' is not provided")
             try:
                 db_engine = create_engine(db_url)
             except Exception as e:

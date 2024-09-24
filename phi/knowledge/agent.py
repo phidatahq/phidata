@@ -17,7 +17,7 @@ class AgentKnowledge(BaseModel):
     # Vector db for storing knowledge
     vector_db: Optional[VectorDb] = None
     # Number of relevant documents to return on search
-    num_documents: int = 2
+    num_documents: int = 5
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
     # ChunkingStrategy to chunk documents into smaller documents before storing in vector db

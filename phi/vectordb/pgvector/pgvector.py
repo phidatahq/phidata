@@ -38,7 +38,7 @@ class PgVector(VectorDb):
         search_type: SearchType = SearchType.hybrid,
         vector_index: Union[Ivfflat, HNSW] = HNSW(),
         distance: Distance = Distance.cosine,
-        prefix_match: bool = True,
+        prefix_match: bool = False,
         vector_score_weight: float = 0.5,
         content_language: str = "english",
         schema_version: int = 1,

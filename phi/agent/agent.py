@@ -1172,6 +1172,21 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> AsyncIterator[RunResponse]:
+        """Run the Agent with a message and return the response.
+
+        This function does the following:
+        1. Read existing session from storage
+        2. Update the Model (set defaults, add tools, etc.)
+        3. Prepare the List of messages to send to the Model
+            3.1. Add the System Message to the messages list
+            3.2 Add extra messages to the messages list
+            3.3 Add chat history to the messages list
+            3.4. Add the User Messages to the messages list
+        4. Generate a response from the Model (includes running function calls)
+        5. Update Memory
+        6. Save session to storage
+        7. Save output to file if save_output_to_file is set
+        """
         # Create the run_response object
         run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
 
@@ -1183,73 +1198,78 @@ class Agent(BaseModel):
         self.update_model()
 
         # 3. Prepare the List of messages to send to the Model
-        run_messages: List[Message] = []
+        messages_for_model: List[Message] = []
 
-        # 4. Add the System Message to the messages list
+        # 3.1. Add the System Message to the messages list
         system_message = self.get_system_message()
         if system_message is not None:
-            run_messages.append(system_message)
+            messages_for_model.append(system_message)
 
-        # 5. Add extra messages to the messages list
+        # 3.2 Add extra messages to the messages list
         if self.add_messages is not None:
             for _m in self.add_messages:
                 if isinstance(_m, Message):
-                    run_messages.append(_m)
+                    messages_for_model.append(_m)
                 elif isinstance(_m, dict):
                     try:
-                        run_messages.append(Message.model_validate(_m))
+                        messages_for_model.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
 
-        # 6. Add chat history to the messages list
+        # 3.3 Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            run_messages += self.memory.get_last_n_run_messages(last_n=self.num_history_messages)
-        # 7. Add the User Messages to the messages list
-        # 7.1 If message is provided use it for the user message
+            messages_for_model += self.memory.get_last_n_run_messages(last_n=self.num_history_messages)
+
+        # 3.4. Add the User Messages to the messages list
+        # 3.4.1 Build user message from message if provided
         if message is not None:
-            # 7.1.1 If message is provided as a Message, use it directly
+            # If message is provided as a Message, use it directly
             if isinstance(message, Message):
-                run_messages.append(message)
-            # 7.1.2 If message is provided as a str, build the user message
+                messages_for_model.append(message)
+            # If message is provided as a str, build the user message
             elif isinstance(message, str):
                 # Get the user message
                 user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
                 # Add user message to the messages list
                 if user_message is not None:
-                    run_messages.append(user_message)
-        # 7.2 If messages are provided as a list, add them to the run_messages
+                    messages_for_model.append(user_message)
+                    if user_message.context is not None:
+                        if run_response.context is None:
+                            run_response.context = []
+                        run_response.context.append(user_message.context)
+        # 3.4.2 Build user messages from messages list if provided
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
-                    run_messages.append(_m)
+                    messages_for_model.append(_m)
                 elif isinstance(_m, dict):
                     try:
-                        run_messages.append(Message.model_validate(_m))
+                        messages_for_model.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
 
         # Track the number of messages in the run_messages that SHOULD NOT BE ADDED TO MEMORY
-        # -1 is used to exclude the user message from the count
-        num_messages_to_skip = len(run_messages) - 1
+        # -1 is used to exclude the user message from the count as the user message should be added to memory
+        num_messages_to_skip = len(messages_for_model) - 1
 
-        # 8. Generate a response from the Model (includes running function calls)
+        # 4. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if stream and self.streamable:
             model_response = ModelResponse(content="")
-            model_response_stream = self.model.aresponse_stream(messages=run_messages)
+            model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
             async for model_response_chunk in model_response_stream:  # type: ignore
                 if model_response_chunk.content is not None and model_response.content is not None:
                     model_response.content += model_response_chunk.content
                     run_response.content = model_response_chunk.content
-                    run_response.messages = run_messages
+                    run_response.messages = messages_for_model
                     yield run_response
         else:
-            model_response = await self.model.aresponse(messages=run_messages)
+            model_response = await self.model.aresponse(messages=messages_for_model)
             run_response.content = model_response.content
-            run_response.messages = run_messages
+            run_response.messages = messages_for_model
 
-        # 9. Update Memory
+        # 5. Update Memory
         # Add the user message to the chat history
         if message is not None:
             user_message_for_chat_history = None
@@ -1289,19 +1309,33 @@ class Agent(BaseModel):
         self.memory.add_chat_message(message=assistant_message)
 
         # Add messages from this particular run to the memory
+        run_messages = messages_for_model[num_messages_to_skip:]
         # Add all messages including and after the user message to the memory
-        self.memory.add_run_messages(messages=run_messages[num_messages_to_skip:])
+        self.memory.add_run_messages(messages=run_messages)
 
         # Update run_response for the Agent
         self.run_response = run_response
         # Update content if streaming as run_response will only contain the last chunk
         if stream:
             self.run_response.content = model_response.content
+        # Add tools from this run to the run_response
+        for _run_message in run_messages:
+            if _run_message.tool_name is not None:
+                if self.run_response.tools is None:
+                    self.run_response.tools = []
+                self.run_response.tools.append(
+                    {
+                        "name": _run_message.tool_name,
+                        "args": _run_message.tool_args,
+                        "result": _run_message.content,
+                        "error": _run_message.tool_call_error,
+                    }
+                )
 
-        # 10. Save session to storage
+        # 6. Save session to storage
         self.write_to_storage()
 
-        # 11. Save output to file if save_output_to_file is set
+        # 7. Save output to file if save_output_to_file is set
         if self.save_output_to_file is not None:
             try:
                 fn = self.save_output_to_file.format(
@@ -1317,7 +1351,7 @@ class Agent(BaseModel):
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 
-        # 12. Log Agent Run
+        # Log Agent Run
         run_response_format = "text"
         if self.output_model is not None:
             run_response_format = "json"

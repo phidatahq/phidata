@@ -55,7 +55,7 @@ class Model(BaseModel):
     # Agent Session ID
     session_id: Optional[str] = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:

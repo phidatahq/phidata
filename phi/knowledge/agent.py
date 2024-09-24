@@ -25,6 +25,11 @@ class AgentKnowledge(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
+    def num_documents(self) -> int:
+        """Number of relevant documents to return on search"""
+        return self.retriever.num_documents
+
+    @property
     def document_lists(self) -> Iterator[List[Document]]:
         """Iterator that yields lists of documents in the knowledge base
         Each object yielded by the iterator is a list of documents.
@@ -42,7 +47,7 @@ class AgentKnowledge(BaseModel):
 
             _num_documents = num_documents or self.retriever.num_documents
             logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
-            return self.vector_db.search(query=query, limit=_num_documents)
+            return self.vector_db.search(query=query, limit=_num_documents, filters=filters)
         except Exception as e:
             logger.error(f"Error searching for documents: {e}")
             return []

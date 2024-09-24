@@ -87,13 +87,13 @@ class PgVector(VectorDb):
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
 
-        # Database table
-        self.table: Table = self.get_table()
-
         # Table schema version
         self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
+
+        # Database table
+        self.table: Table = self.get_table()
 
         logger.debug(f"Initialized PgVector with table '{self.table_name}' in schema '{self.schema}'.")
 
@@ -148,7 +148,7 @@ class PgVector(VectorDb):
     def _record_exists(self, column, value) -> bool:
         try:
             with self.Session() as sess:
-                stmt = select([1]).where(column == value).limit(1)
+                stmt = select(1).where(column == value).limit(1)
                 result = sess.execute(stmt).first()
                 return result is not None
         except Exception as e:
@@ -196,7 +196,8 @@ class PgVector(VectorDb):
             with self.Session() as sess:
                 for i in range(0, len(records), batch_size):
                     batch = records[i : i + batch_size]
-                    sess.execute(self.table.insert(), batch)
+                    insert_stmt = postgresql.insert(self.table)
+                    sess.execute(insert_stmt, batch)
                     sess.commit()
                     logger.info(f"Inserted batch of {len(batch)} documents.")
         except Exception as e:
@@ -234,7 +235,20 @@ class PgVector(VectorDb):
             with self.Session() as sess:
                 for i in range(0, len(records), batch_size):
                     batch = records[i : i + batch_size]
-                    sess.execute(self.table.update(), batch)
+                    insert_stmt = postgresql.insert(self.table).values(batch)
+                    upsert_stmt = insert_stmt.on_conflict_do_update(
+                        index_elements=["id"],
+                        set_=dict(
+                            name=insert_stmt.excluded.name,
+                            meta_data=insert_stmt.excluded.meta_data,
+                            filters=insert_stmt.excluded.filters,
+                            content=insert_stmt.excluded.content,
+                            embedding=insert_stmt.excluded.embedding,
+                            usage=insert_stmt.excluded.usage,
+                            content_hash=insert_stmt.excluded.content_hash,
+                        ),
+                    )
+                    sess.execute(upsert_stmt)
                     sess.commit()
                     logger.info(f"Upserted batch of {len(batch)} documents.")
         except Exception as e:

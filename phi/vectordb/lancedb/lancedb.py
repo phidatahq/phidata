@@ -1,5 +1,5 @@
 from hashlib import md5
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import json
 
 try:
@@ -102,7 +102,14 @@ class LanceDb(VectorDb):
             return len(result) > 0
         return False
 
-    def insert(self, documents: List[Document]) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Insert documents into the database.
+
+        Args:
+            documents (List[Document]): List of documents to insert
+            filters (Optional[Dict[str, Any]]): Filters to apply while inserting documents
+        """
         logger.debug(f"Inserting {len(documents)} documents")
         data = []
         for document in documents:
@@ -127,17 +134,18 @@ class LanceDb(VectorDb):
         self.connection.add(data)
         logger.debug(f"Upsert {len(data)} documents")
 
-    def upsert(self, documents: List[Document]) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """
         Upsert documents into the database.
 
         Args:
             documents (List[Document]): List of documents to upsert
+            filters (Optional[Dict[str, Any]]): Filters to apply while upserting
         """
         logger.debug("Redirecting the request to insert")
         self.insert(documents)
 
-    def search(self, query: str, limit: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         if self.query_type == "vector":
             return self.vector_search(query, limit)
         elif self.query_type == "hybrid":

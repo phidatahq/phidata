@@ -32,6 +32,38 @@ class OpenAIChat(Model):
 
     This class provides methods to interact with OpenAI's chat models,
     including sending requests and handling responses.
+
+    Attributes:
+        model (str): The name of the OpenAI model to use. Default is "gpt-4o".
+        name (str): The name of this chat model instance. Default is "OpenAIChat".
+        provider (str): The provider of the model. Default is "OpenAI".
+        frequency_penalty (Optional[float]): Penalizes new tokens based on their frequency in the text so far.
+        logit_bias (Optional[Any]): Modifies the likelihood of specified tokens appearing in the completion.
+        logprobs (Optional[bool]): Include the log probabilities on the logprobs most likely tokens.
+        max_tokens (Optional[int]): The maximum number of tokens to generate in the chat completion.
+        presence_penalty (Optional[float]): Penalizes new tokens based on whether they appear in the text so far.
+        response_format (Optional[Dict[str, Any]]): Specifies the format in which the model should return its response.
+        seed (Optional[int]): A seed for deterministic sampling.
+        stop (Optional[Union[str, List[str]]]): Up to 4 sequences where the API will stop generating further tokens.
+        temperature (Optional[float]): Controls randomness in the model's output.
+        top_logprobs (Optional[int]): How many log probability results to return per token.
+        user (Optional[str]): A unique identifier representing your end-user.
+        top_p (Optional[float]): Controls diversity via nucleus sampling.
+        extra_headers (Optional[Any]): Additional headers to send with the request.
+        extra_query (Optional[Any]): Additional query parameters to send with the request.
+        request_params (Optional[Dict[str, Any]]): Additional parameters to include in the request.
+        api_key (Optional[str]): The API key for authenticating with OpenAI.
+        organization (Optional[str]): The organization to use for API requests.
+        base_url (Optional[Union[str, httpx.URL]]): The base URL for API requests.
+        timeout (Optional[float]): The timeout for API requests.
+        max_retries (Optional[int]): The maximum number of retries for failed requests.
+        default_headers (Optional[Any]): Default headers to include in all requests.
+        default_query (Optional[Any]): Default query parameters to include in all requests.
+        http_client (Optional[httpx.Client]): An optional pre-configured HTTP client.
+        client_params (Optional[Dict[str, Any]]): Additional parameters for client configuration.
+        client (Optional[OpenAIClient]): The OpenAI client instance.
+        async_client (Optional[AsyncOpenAIClient]): The asynchronous OpenAI client instance.
+
     """
 
     model: str = "gpt-4o"

@@ -739,9 +739,9 @@ class Agent(BaseModel):
             return None
         return [doc.to_dict() for doc in relevant_docs]
 
-    def convert_documents_to_string(self, docs: Optional[List[Document]]) -> Optional[str]:
+    def convert_documents_to_string(self, docs: List[Dict[str, Any]]) -> str:
         if docs is None or len(docs) == 0:
-            return None
+            return ""
 
         if self.rag_format == "yaml":
             import yaml
@@ -837,10 +837,10 @@ class Agent(BaseModel):
         user_prompt += f"USER: {message}\n"
 
         # 6.1 Add context to user message
-        if context:
+        if context and context.docs and len(context.docs) > 0:
             user_prompt += "\nUse the following information from the knowledge base if it helps:\n"
             user_prompt += "<knowledge>\n"
-            user_prompt += self.convert_context_to_string(context.docs) + "\n"
+            user_prompt += self.convert_documents_to_string(context.docs) + "\n"
             user_prompt += "</knowledge>\n"
 
         # 6.2 Add the message again at the end of the user message
@@ -1556,7 +1556,10 @@ class Agent(BaseModel):
         Returns:
             str: A string containing the response from the knowledge base.
         """
-        return self.convert_documents_to_string(self.get_relevant_docs_from_knowledge(query=query)) or ""
+        relevant_docs = self.get_relevant_docs_from_knowledge(query=query)
+        if relevant_docs is None:
+            return ""
+        return self.convert_documents_to_string(relevant_docs)
 
     def add_to_knowledge(self, query: str, result: str) -> str:
         """Use this function to add information to the knowledge base for future use.

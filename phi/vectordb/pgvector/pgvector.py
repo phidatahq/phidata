@@ -8,7 +8,7 @@ try:
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, func, select, desc
+    from sqlalchemy.sql.expression import text, func, select, desc, bindparam
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -31,24 +31,25 @@ class PgVector(VectorDb):
         self,
         table_name: str,
         schema: str = "ai",
-        search_type: str = "vector",
         index: Union[Ivfflat, HNSW] = HNSW(),
         distance: Distance = Distance.cosine,
-        schema_version: int = 1,
-        auto_upgrade_schema: bool = False,
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
+        search_type: str = "vector",
+        content_language: str = "english",
+        schema_version: int = 1,
+        auto_upgrade_schema: bool = False,
     ):
         if not table_name:
             raise ValueError("Table name must be provided.")
 
         if db_engine is None and db_url is None:
-            raise ValueError("Must provide either 'db_url' or 'db_engine'.")
+            raise ValueError("Either 'db_url' or 'db_engine' must be provided.")
 
         if db_engine is None:
             if db_url is None:
-                raise ValueError("Must provide 'db_url' if 'db_engine' is not provided")
+                raise ValueError("Must provide 'db_url' if 'db_engine' is None.")
             try:
                 db_engine = create_engine(db_url)
             except Exception as e:
@@ -73,7 +74,7 @@ class PgVector(VectorDb):
         self.dimensions: Optional[int] = self.embedder.dimensions
 
         if self.dimensions is None:
-            raise ValueError("Embedder must have 'dimensions' attribute set.")
+            raise ValueError("Embedder.dimensions must be set.")
 
         # Distance metric
         self.distance: Distance = distance
@@ -83,6 +84,9 @@ class PgVector(VectorDb):
 
         # Search type
         self.search_type: str = search_type
+
+        # Content language for full-text search
+        self.content_language: str = content_language
 
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
@@ -133,13 +137,14 @@ class PgVector(VectorDb):
     def create(self) -> None:
         if not self.table_exists():
             try:
-                with self.db_engine.connect() as conn:
-                    logger.debug("Creating extension 'vector' if not exists.")
-                    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-                    if self.schema is not None:
-                        logger.debug(f"Creating schema '{self.schema}' if not exists.")
-                        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
-                logger.debug(f"Creating table '{self.table.fullname}'.")
+                with self.Session() as sess:
+                    with sess.begin():
+                        logger.debug("Creating extension 'vector' if not exists.")
+                        sess.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                        if self.schema is not None:
+                            logger.debug(f"Creating schema '{self.schema}' if not exists.")
+                            sess.execute(text(f"create schema if not exists {self.schema};"))
+                logger.debug(f"Creating table: {self.table_name}")
                 self.table.create(self.db_engine, checkfirst=True)
             except Exception as e:
                 logger.error(f"Error creating table '{self.table.fullname}': {e}")
@@ -175,88 +180,105 @@ class PgVector(VectorDb):
         filters: Optional[Dict[str, Any]] = None,
         batch_size: int = 100,
     ) -> None:
-        records = []
-        for document in documents:
-            try:
-                document.embed(embedder=self.embedder)
-                cleaned_content = self._clean_content(document.content)
-                content_hash = md5(cleaned_content.encode()).hexdigest()
-                _id = document.id or content_hash
-                record = {
-                    "id": _id,
-                    "name": document.name,
-                    "meta_data": document.meta_data,
-                    "filters": filters,
-                    "content": cleaned_content,
-                    "embedding": document.embedding,
-                    "usage": document.usage,
-                    "content_hash": content_hash,
-                }
-                records.append(record)
-            except Exception as e:
-                logger.error(f"Error processing document '{document.name}': {e}")
         try:
             with self.Session() as sess:
-                for i in range(0, len(records), batch_size):
-                    batch = records[i : i + batch_size]
-                    insert_stmt = postgresql.insert(self.table)
-                    sess.execute(insert_stmt, batch)
-                    sess.commit()
-                    logger.info(f"Inserted batch of {len(batch)} documents.")
+                for i in range(0, len(documents), batch_size):
+                    batch_docs = documents[i : i + batch_size]
+                    try:
+                        # Prepare documents for insertion
+                        batch_records = []
+                        for doc in batch_docs:
+                            try:
+                                doc.embed(embedder=self.embedder)
+                                cleaned_content = self._clean_content(doc.content)
+                                content_hash = md5(cleaned_content.encode()).hexdigest()
+                                _id = doc.id or content_hash
+                                record = {
+                                    "id": _id,
+                                    "name": doc.name,
+                                    "meta_data": doc.meta_data,
+                                    "filters": filters,
+                                    "content": cleaned_content,
+                                    "embedding": doc.embedding,
+                                    "usage": doc.usage,
+                                    "content_hash": content_hash,
+                                }
+                                batch_records.append(record)
+                            except Exception as e:
+                                logger.error(f"Error processing document '{doc.name}': {e}")
+
+                        # Insert the batch of records
+                        insert_stmt = postgresql.insert(self.table)
+                        sess.execute(insert_stmt, batch_records)
+                        sess.commit()
+                        logger.info(f"Inserted batch of {len(batch_records)} documents.")
+                    except Exception as e:
+                        logger.error(f"Error with batch {i}: {e}")
+                        sess.rollback()
+                        raise
         except Exception as e:
             logger.error(f"Error inserting documents: {e}")
-            sess.rollback()
             raise
 
     def upsert_available(self) -> bool:
         return True
 
     def upsert(
-        self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 100
+        self,
+        documents: List[Document],
+        filters: Optional[Dict[str, Any]] = None,
+        batch_size: int = 100,
     ) -> None:
-        records = []
-        for document in documents:
-            try:
-                document.embed(embedder=self.embedder)
-                cleaned_content = self._clean_content(document.content)
-                content_hash = md5(cleaned_content.encode()).hexdigest()
-                _id = document.id or content_hash
-                record = {
-                    "id": _id,
-                    "name": document.name,
-                    "meta_data": document.meta_data,
-                    "filters": filters,
-                    "content": cleaned_content,
-                    "embedding": document.embedding,
-                    "usage": document.usage,
-                    "content_hash": content_hash,
-                }
-                records.append(record)
-            except Exception as e:
-                logger.error(f"Error processing document '{document.name}': {e}")
         try:
             with self.Session() as sess:
-                for i in range(0, len(records), batch_size):
-                    batch = records[i : i + batch_size]
-                    insert_stmt = postgresql.insert(self.table).values(batch)
-                    upsert_stmt = insert_stmt.on_conflict_do_update(
-                        index_elements=["id"],
-                        set_=dict(
-                            name=insert_stmt.excluded.name,
-                            meta_data=insert_stmt.excluded.meta_data,
-                            filters=insert_stmt.excluded.filters,
-                            content=insert_stmt.excluded.content,
-                            embedding=insert_stmt.excluded.embedding,
-                            usage=insert_stmt.excluded.usage,
-                            content_hash=insert_stmt.excluded.content_hash,
-                        ),
-                    )
-                    sess.execute(upsert_stmt)
-                    sess.commit()
-                    logger.info(f"Upserted batch of {len(batch)} documents.")
+                for i in range(0, len(documents), batch_size):
+                    batch_docs = documents[i : i + batch_size]
+                    try:
+                        # Prepare documents for upserting
+                        batch_records = []
+                        for doc in batch_docs:
+                            try:
+                                doc.embed(embedder=self.embedder)
+                                cleaned_content = self._clean_content(doc.content)
+                                content_hash = md5(cleaned_content.encode()).hexdigest()
+                                _id = doc.id or content_hash
+                                record = {
+                                    "id": _id,
+                                    "name": doc.name,
+                                    "meta_data": doc.meta_data,
+                                    "filters": filters,
+                                    "content": cleaned_content,
+                                    "embedding": doc.embedding,
+                                    "usage": doc.usage,
+                                    "content_hash": content_hash,
+                                }
+                                batch_records.append(record)
+                            except Exception as e:
+                                logger.error(f"Error processing document '{doc.name}': {e}")
+
+                        # Upsert the batch of records
+                        insert_stmt = postgresql.insert(self.table).values(batch_records)
+                        upsert_stmt = insert_stmt.on_conflict_do_update(
+                            index_elements=["id"],
+                            set_=dict(
+                                name=insert_stmt.excluded.name,
+                                meta_data=insert_stmt.excluded.meta_data,
+                                filters=insert_stmt.excluded.filters,
+                                content=insert_stmt.excluded.content,
+                                embedding=insert_stmt.excluded.embedding,
+                                usage=insert_stmt.excluded.usage,
+                                content_hash=insert_stmt.excluded.content_hash,
+                            ),
+                        )
+                        sess.execute(upsert_stmt)
+                        sess.commit()
+                        logger.info(f"Upserted batch of {len(batch_records)} documents.")
+                    except Exception as e:
+                        logger.error(f"Error with batch {i}: {e}")
+                        sess.rollback()
+                        raise
         except Exception as e:
             logger.error(f"Error upserting documents: {e}")
-            sess.rollback()
             raise
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -320,6 +342,8 @@ class PgVector(VectorDb):
 
             # Limit the number of results
             stmt = stmt.limit(limit)
+
+            # Log the query for debugging
             logger.debug(f"Vector search query: {stmt}")
 
             # Execute the query
@@ -330,89 +354,14 @@ class PgVector(VectorDb):
                             sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
                         elif isinstance(self.index, HNSW):
                             sess.execute(text(f"SET LOCAL hnsw.ef_search = {self.index.ef_search}"))
-                    neighbors = sess.execute(stmt).fetchall()
+                    results = sess.execute(stmt).fetchall()
             except Exception as e:
-                logger.error(f"Error searching for documents: {e}")
+                logger.error(f"Error performing semantic search: {e}")
                 logger.error("Table might not exist, creating for future use")
                 self.create()
                 return []
 
-            # Build the list of Document objects
-            search_results: List[Document] = []
-            for neighbor in neighbors:
-                search_results.append(
-                    Document(
-                        id=neighbor.id,
-                        name=neighbor.name,
-                        meta_data=neighbor.meta_data,
-                        content=neighbor.content,
-                        embedder=self.embedder,
-                        embedding=neighbor.embedding,
-                        usage=neighbor.usage,
-                    )
-                )
-
-            return search_results
-        except Exception as e:
-            logger.error(f"Error during vector search: {e}")
-            return []
-
-    def keyword_search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        """
-        Perform a full-text search on the 'content' column.
-
-        Args:
-            query (str): The search query string.
-            limit (int): The maximum number of results to return.
-            filters (Optional[Dict[str, Any]]): Optional filters to apply.
-
-        Returns:
-            List[Document]: A list of matching Document objects.
-        """
-        try:
-            # Define the columns to select
-            columns = [
-                self.table.c.id,
-                self.table.c.name,
-                self.table.c.meta_data,
-                self.table.c.content,
-                self.table.c.embedding,
-                self.table.c.usage,
-            ]
-
-            # Build the text search vector and query
-            ts_vector = func.to_tsvector("english", self.table.c.content)
-            ts_query = func.plainto_tsquery("english", query)
-            rank = func.ts_rank_cd(ts_vector, ts_query)
-
-            # Build the base statement
-            stmt = select(*columns)
-
-            # Add the full-text search condition
-            stmt = stmt.where(ts_vector.op("@@")(ts_query))
-
-            # Apply filters if provided
-            if filters is not None:
-                stmt = stmt.where(self.table.c.filters.contains(filters))
-
-            # Order by the relevance rank
-            stmt = stmt.order_by(rank.desc())
-
-            # Limit the number of results
-            stmt = stmt.limit(limit)
-
-            logger.debug(f"Full-text search query: {stmt}")
-
-            # Execute the query
-            try:
-                with self.Session() as sess:
-                    with sess.begin():
-                        results = sess.execute(stmt).fetchall()
-            except Exception as e:
-                logger.error(f"Error performing full-text search: {e}")
-                return []
-
-            # Build the list of Document objects
+            # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
                 search_results.append(
@@ -429,10 +378,107 @@ class PgVector(VectorDb):
 
             return search_results
         except Exception as e:
-            logger.error(f"Error during full-text search: {e}")
+            logger.error(f"Error during vector search: {e}")
             return []
 
-    def hybrid_search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def enable_prefix_matching(self, query: str) -> str:
+        """Preprocess the query for prefix matching"""
+
+        # Append '*' to each word for prefix matching
+        words = query.strip().split()
+        processed_words = [word + "*" for word in words]
+        return " ".join(processed_words)
+
+    def keyword_search(
+        self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None, prefix_match: bool = True
+    ) -> List[Document]:
+        """
+        Perform a keyword search on the 'content' column.
+
+        Args:
+            query (str): The search query string.
+            limit (int): The maximum number of results to return.
+            filters (Optional[Dict[str, Any]]): Optional filters to apply.
+            prefix_match (bool): If True, enables prefix matching for full-text search.
+
+        Returns:
+            List[Document]: A list of matching Document objects.
+        """
+        try:
+            # Define the columns to select
+            columns = [
+                self.table.c.id,
+                self.table.c.name,
+                self.table.c.meta_data,
+                self.table.c.content,
+                self.table.c.embedding,
+                self.table.c.usage,
+            ]
+
+            # Build the base statement
+            stmt = select(*columns)
+
+            # Build the text search vector
+            ts_vector = func.to_tsvector(self.content_language, self.table.c.content)
+            # Create the ts_query using websearch_to_tsquery with parameter binding
+            processed_query = self.enable_prefix_matching(query) if prefix_match else query
+            ts_query = func.websearch_to_tsquery(self.content_language, bindparam("query", value=processed_query))
+            # Compute the text rank
+            text_rank = func.ts_rank_cd(ts_vector, ts_query)
+
+            # Apply filters if provided
+            if filters is not None:
+                # Use the contains() method for JSONB columns to check if the filters column contains the specified filters
+                stmt = stmt.where(self.table.c.filters.contains(filters))
+
+            # Order by the relevance rank
+            stmt = stmt.order_by(text_rank.desc())
+
+            # Limit the number of results
+            stmt = stmt.limit(limit)
+
+            # Log the query for debugging
+            logger.debug(f"Keyword search query: {stmt}")
+
+            # Execute the query
+            try:
+                with self.Session() as sess:
+                    with sess.begin():
+                        results = sess.execute(stmt).fetchall()
+            except Exception as e:
+                logger.error(f"Error performing keyword search: {e}")
+                logger.error("Table might not exist, creating for future use")
+                self.create()
+                return []
+
+            # Process the results and convert to Document objects
+            search_results: List[Document] = []
+            for result in results:
+                search_results.append(
+                    Document(
+                        id=result.id,
+                        name=result.name,
+                        meta_data=result.meta_data,
+                        content=result.content,
+                        embedder=self.embedder,
+                        embedding=result.embedding,
+                        usage=result.usage,
+                    )
+                )
+
+            return search_results
+        except Exception as e:
+            logger.error(f"Error during keyword search: {e}")
+            return []
+
+    def hybrid_search(
+        self,
+        query: str,
+        limit: int = 5,
+        filters: Optional[Dict[str, Any]] = None,
+        vector_score_weight: float = 0.5,
+        prefix_match: bool = True,
+    ) -> List[Document]:
         """
         Perform a hybrid search combining vector similarity and full-text search.
 
@@ -440,6 +486,8 @@ class PgVector(VectorDb):
             query (str): The query string to search for.
             limit (int): The maximum number of results to return.
             filters (Optional[Dict[str, Any]]): Optional filters to apply.
+            vector_score_weight (float): The weight to apply to the vector similarity score.
+            prefix_match (bool): If True, enables prefix matching for full-text search.
 
         Returns:
             List[Document]: A list of matching Document objects.
@@ -461,9 +509,12 @@ class PgVector(VectorDb):
                 self.table.c.usage,
             ]
 
-            # Build the text search vector and query
-            ts_vector = func.to_tsvector("english", self.table.c.content)
-            ts_query = func.plainto_tsquery("english", query)
+            # Build the text search vector
+            ts_vector = func.to_tsvector(self.content_language, self.table.c.content)
+            # Create the ts_query using websearch_to_tsquery with parameter binding
+            processed_query = self.enable_prefix_matching(query) if prefix_match else query
+            ts_query = func.websearch_to_tsquery(self.content_language, bindparam("query", value=processed_query))
+            # Compute the text rank
             text_rank = func.ts_rank_cd(ts_vector, ts_query)
 
             # Compute the vector similarity score
@@ -487,7 +538,9 @@ class PgVector(VectorDb):
                 return []
 
             # Apply weights to control the influence of each score
-            vector_score_weight = 0.5  # weight for vector score
+            # Validate the vector_weight parameter
+            if not 0 <= vector_score_weight <= 1:
+                raise ValueError("vector_score_weight must be between 0 and 1")
             text_rank_weight = 1 - vector_score_weight  # weight for text rank
 
             # Combine the scores into a hybrid score
@@ -497,7 +550,7 @@ class PgVector(VectorDb):
             stmt = select(*columns, hybrid_score.label("hybrid_score"))
 
             # Add the full-text search condition
-            stmt = stmt.where(ts_vector.op("@@")(ts_query))
+            # stmt = stmt.where(ts_vector.op("@@")(ts_query))
 
             # Apply filters if provided
             if filters is not None:
@@ -508,6 +561,8 @@ class PgVector(VectorDb):
 
             # Limit the number of results
             stmt = stmt.limit(limit)
+
+            # Log the query for debugging
             logger.debug(f"Hybrid search query: {stmt}")
 
             # Execute the query
@@ -523,7 +578,7 @@ class PgVector(VectorDb):
                 logger.error(f"Error performing hybrid search: {e}")
                 return []
 
-            # Build the list of Document objects
+            # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
                 search_results.append(
@@ -723,7 +778,7 @@ class PgVector(VectorDb):
                     # Create index
                     create_gin_index_sql = text(
                         f'CREATE INDEX "{gin_index_name}" ON {self.table.fullname} '
-                        f"USING gin (to_tsvector('english', content));"
+                        f"USING GIN (to_tsvector({self.content_language}, content));"
                     )
                     sess.execute(create_gin_index_sql)
         except Exception as e:

@@ -163,9 +163,13 @@ class LLM(BaseModel):
             function_call_success = function_call.execute()
             _function_call_timer.stop()
 
+            content = function_call.result if function_call_success else function_call.error
+            if isinstance(content, BaseModel):
+                content = content.model_dump_json()
+
             _function_call_result = Message(
                 role=role,
-                content=function_call.result if function_call_success else function_call.error,
+                content=content,
                 tool_call_id=function_call.call_id,
                 tool_call_name=function_call.function.name,
                 tool_call_error=not function_call_success,

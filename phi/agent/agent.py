@@ -198,7 +198,7 @@ class Agent(BaseModel):
     # This helps us improve the Agent and provide better support
     telemetry: bool = getenv("PHI_TELEMETRY", "true").lower() == "true"
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @field_validator("agent_id", mode="before")
     def set_agent_id(cls, v: Optional[str]) -> str:
@@ -1136,7 +1136,7 @@ class Agent(BaseModel):
                 try:
                     structured_output = None
                     try:
-                        structured_output = self.output_model.model_validate(json.loads(run_response.content))
+                        structured_output = self.output_model.model_validate_json(run_response.content)
                     except ValidationError:
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):
@@ -1191,7 +1191,7 @@ class Agent(BaseModel):
         7. Save output to file if save_output_to_file is set
         """
         # Create the run_response object
-        run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
+        run_response = RunResponse(run_id=str(uuid4()))
 
         logger.debug(f"*********** Agent Run Start: {run_response.run_id} ***********")
         # 1. Read existing session from storage
@@ -1199,6 +1199,7 @@ class Agent(BaseModel):
 
         # 2. Update the Model (set defaults, add tools, etc.)
         self.update_model()
+        run_response.model = self.model.model if self.model is not None else None
 
         # 3. Prepare the List of messages to send to the Model
         messages_for_model: List[Message] = []
@@ -1419,7 +1420,7 @@ class Agent(BaseModel):
                 try:
                     structured_output = None
                     try:
-                        structured_output = self.output_model.model_validate(json.loads(run_response.content))
+                        structured_output = self.output_model.model_validate_json(run_response.content)
                     except ValidationError:
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):

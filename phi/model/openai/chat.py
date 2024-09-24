@@ -1,5 +1,5 @@
 import httpx
-from typing import Optional, List, Generator, Dict, Any, Union, Tuple
+from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -212,7 +212,7 @@ class OpenAIChat(Model):
             **self.api_kwargs,
         )
 
-    def invoke_stream(self, messages: List[Message]) -> Generator[ChatCompletionChunk]:
+    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         yield from self.get_client().chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
@@ -466,7 +466,7 @@ class OpenAIChat(Model):
         logger.debug("---------- OpenAI Async Response End ----------")
         return model_response
 
-    def response_stream(self, messages: List[Message]) -> Generator[ModelResponse]:
+    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:

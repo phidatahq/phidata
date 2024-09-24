@@ -1,5 +1,5 @@
 import asyncio  # noqa
-from typing import Generator  # noqa
+from typing import Iterator  # noqa
 from rich.pretty import pprint  # noqa
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
@@ -27,7 +27,7 @@ agent = Agent(
 #     print(m)
 #     print("---")
 
-run: Generator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
+run: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
 for chunk in run:
     print(chunk.content)
 

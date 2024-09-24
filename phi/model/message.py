@@ -3,8 +3,18 @@ from time import time
 from typing import Optional, Any, Dict, List, Union
 from pydantic import BaseModel, ConfigDict, Field
 
-from phi.model.context import Context
 from phi.utils.log import logger
+
+
+class MessageContext(BaseModel):
+    """The context added to user message for RAG"""
+
+    # The query used to retrieve the context.
+    query: str
+    # The content from the vector database.
+    content: Optional[Union[str, List, Dict]] = None
+    # Time taken to retrieve the context.
+    time: Optional[float] = None
 
 
 class Message(BaseModel):
@@ -36,7 +46,7 @@ class Message(BaseModel):
     metrics: Dict[str, Any] = Field(default_factory=dict)
 
     # The context added to the message for RAG
-    context: Optional[Context] = None
+    context: Optional[MessageContext] = None
 
     # The Unix timestamp the message was created.
     created_at: int = Field(default_factory=lambda: int(time()))

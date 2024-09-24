@@ -193,7 +193,7 @@ class PgVector(VectorDb):
         try:
             with self.Session() as sess:
                 for i in range(0, len(records), batch_size):
-                    batch = records[i: i + batch_size]
+                    batch = records[i : i + batch_size]
                     sess.execute(self.table.insert(), batch)
                     sess.commit()
                     logger.info(f"Inserted batch of {len(batch)} documents.")
@@ -231,7 +231,7 @@ class PgVector(VectorDb):
         try:
             with self.Session() as sess:
                 for i in range(0, len(records), batch_size):
-                    batch = records[i: i + batch_size]
+                    batch = records[i : i + batch_size]
                     sess.execute(self.table.update(), batch)
                     sess.commit()
                     logger.info(f"Upserted batch of {len(batch)} documents.")

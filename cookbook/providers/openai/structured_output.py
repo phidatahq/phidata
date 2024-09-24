@@ -1,7 +1,7 @@
 from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 
 
@@ -16,12 +16,16 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
+class Movies(BaseModel):
+    scripts: List[MovieScript] = Field(..., description="Provide 3 movie scripts.")
+
+
 movie_agent = Agent(
     model=OpenAIChat(model="gpt-4o"),
     description="You help people write movie scripts.",
-    output_model=MovieScript,
+    output_model=Movies,
     # debug_mode=True,
 )
 
-run = movie_agent.run("New York")
-pprint(run.messages)
+run: RunResponse = movie_agent.run("New York")
+pprint(run.content)

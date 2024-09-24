@@ -5,17 +5,18 @@ from pathlib import Path
 from textwrap import dedent
 from datetime import datetime
 from typing import (
-    List,
     Any,
-    Optional,
-    Dict,
-    Iterator,
+    AsyncGenerator,
     Callable,
-    Union,
-    Type,
+    Dict,
+    Generator,
+    List,
     Literal,
+    Optional,
+    Type,
+    Union,
     cast,
-    AsyncIterator,
+    overload,
 )
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
@@ -26,7 +27,7 @@ from phi.agent.response import RunResponse
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
 from phi.model.message import Message
-from phi.model.references import References  # noqa: F401
+from phi.model.context import Context
 from phi.model.response import ModelResponse
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory  # noqa: F401
 from phi.prompt.template import PromptTemplate
@@ -127,24 +128,24 @@ class Agent(BaseModel):
     # -*- Extra Messages
     # A list of extra messages added after the system prompt and before the user prompt.
     # Use these for few-shot learning or to provide additional context to the Model.
-    extra_messages: Optional[List[Union[Dict, Message]]] = None
+    add_messages: Optional[List[Union[Dict, Message]]] = None
 
     # -*- System Prompt Settings
     # System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
     # System prompt template: provide the system prompt as a PromptTemplate
     system_prompt_template: Optional[PromptTemplate] = None
-    # If True, build a default system prompt using instructions and extra_instructions
-    build_default_system_prompt: bool = True
+    # If True, build a default system message using agent settings and use that
+    use_default_system_message: bool = True
 
-    # -*- Settings for building the default system prompt
-    # A description of the Agent that is added to the system prompt.
+    # -*- Settings for building the default system message
+    # A description of the Agent that is added to the system message.
     description: Optional[str] = None
     # Describe the task the agent should achieve.
     task: Optional[str] = None
-    # List of instructions added to the system prompt in `<instructions>` tags.
+    # List of instructions added to the system message in `<instructions>` tags.
     instructions: Optional[List[str]] = None
-    # List of extra_instructions added to the default system prompt
+    # List of extra_instructions added to the default system message
     # Use these when you want to add some extra instructions at the end of the default instructions.
     extra_instructions: Optional[List[str]] = None
     # Provide the expected output from the Agent. This is added to the end of the system prompt.
@@ -170,7 +171,7 @@ class Agent(BaseModel):
     # User prompt template: provide the user prompt as a PromptTemplate
     user_prompt_template: Optional[PromptTemplate] = None
     # If True, build a default user prompt using references and chat history
-    build_default_user_prompt: bool = True
+    use_default_user_message: bool = True
 
     # -*- Agent Output Settings
     # Provide an output model to get the response as a Pydantic model or JSON dict
@@ -409,8 +410,6 @@ class Agent(BaseModel):
                     self.memory.chat_history = [Message(**m) for m in session.memory["chat_history"]]
                 if "run_messages" in session.memory:
                     self.memory.run_messages = [Message(**m) for m in session.memory["run_messages"]]
-                if "references" in session.memory:
-                    self.memory.references = [References(**r) for r in session.memory["references"]]
                 if "memories" in session.memory:
                     self.memory.memories = [Memory(**m) for m in session.memory["memories"]]
             except Exception as e:
@@ -556,7 +555,9 @@ class Agent(BaseModel):
 
                     if len(output_model_properties) > 0:
                         json_output_prompt += "\n<json_fields>"
-                        json_output_prompt += f"\n{json.dumps(list(output_model_properties.keys()))}"
+                        json_output_prompt += (
+                            f"\n{json.dumps([key for key in output_model_properties.keys() if key != '$defs'])}"
+                        )
                         json_output_prompt += "\n</json_fields>"
                         json_output_prompt += "\nHere are the properties for each field:"
                         json_output_prompt += "\n<json_field_properties>"
@@ -572,35 +573,37 @@ class Agent(BaseModel):
         json_output_prompt += "\nMake sure it only contains valid JSON."
         return json_output_prompt
 
-    def get_system_prompt(self) -> Optional[str]:
-        """Return the system prompt for the Agent.
+    def get_system_message(self) -> Optional[Message]:
+        """Return the system message for the Agent.
 
-        How the system prompt is built:
-        1. If the system_prompt is set, return it.
-        2. If the system_prompt_template is set, build the system_prompt using the template.
-        3. If build_default_system_prompt is False, return None.
+        1. If the system_prompt is provided, use that.
+        2. If the system_prompt_template is provided, build the system_message using the template.
+        3. If use_default_system_message is False, return None.
         4. Build the list of instructions for the system prompt.
-        5. Build the default system prompt for Model.
+        5. Build the default system message for Model.
         """
 
-        # 1. If the system_prompt is set, return it.
+        # Role for the system message
+        system_role = "system"
+
+        # 1. If the system_prompt is provided, use that.
         if self.system_prompt is not None:
             if self.output_model is not None:
                 sys_prompt = self.system_prompt
                 sys_prompt += f"\n{self.get_json_output_prompt()}"
-                return sys_prompt
-            return self.system_prompt
+                return Message(role=system_role, content=sys_prompt)
+            return Message(role=system_role, content=self.system_prompt)
 
-        # 2. If the system_prompt_template is set, build the system_prompt using the template.
+        # 2. If the system_prompt_template is provided, build the system_message using the template.
         if self.system_prompt_template is not None:
-            sys_prompt_kwargs = {"agent": self}
-            sys_prompt_from_template = self.system_prompt_template.get_prompt(**sys_prompt_kwargs)
-            if sys_prompt_from_template is not None and self.output_model is not None:
-                sys_prompt_from_template += f"\n{self.get_json_output_prompt()}"
-            return sys_prompt_from_template
+            system_prompt_kwargs = {"agent": self}
+            system_prompt_from_template = self.system_prompt_template.get_prompt(**system_prompt_kwargs)
+            if system_prompt_from_template is not None and self.output_model is not None:
+                system_prompt_from_template += f"\n{self.get_json_output_prompt()}"
+            return Message(role=system_role, content=system_prompt_from_template)
 
-        # 3. If build_default_system_prompt is False, return None.
-        if not self.build_default_system_prompt:
+        # 3. If use_default_system_message is False, return None.
+        if not self.use_default_system_message:
             return None
 
         if self.model is None:
@@ -654,7 +657,7 @@ class Agent(BaseModel):
         if self.extra_instructions is not None:
             instructions.extend(self.extra_instructions)
 
-        # 5. Build the default system prompt for the Agent.
+        # 5. Build the default system message for the Agent.
         system_prompt_lines = []
         # 5.1 First add the Agent description if provided
         if self.description is not None:
@@ -718,7 +721,7 @@ class Agent(BaseModel):
 
         # Return the system prompt
         if len(system_prompt_lines) > 0:
-            return "\n".join(system_prompt_lines)
+            return Message(role=system_role, content="\n".join(system_prompt_lines))
         return None
 
     def get_references_from_knowledge(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
@@ -742,69 +745,114 @@ class Agent(BaseModel):
 
         return json.dumps([doc.to_dict() for doc in relevant_docs], indent=2)
 
-    def get_user_prompt(
-        self, message: Optional[Union[str, List, Dict]], references: Optional[str] = None
-    ) -> Optional[Union[str, List, Dict]]:
-        """Build the user prompt given a message and references.
+    def add_images_to_message_content(
+        self, message_content: Union[List, Dict, str], images: Optional[List[Union[str, Dict]]] = None
+    ) -> Union[List, Dict, str]:
+        # If images are provided, add them to the user message text
+        if images is not None and len(images) > 0:
+            if isinstance(message_content, str):
+                message_content_with_image: List[Dict[str, Any]] = [{"type": "text", "text": message_content}]
+                for image in images:
+                    if isinstance(image, str):
+                        message_content_with_image.append({"type": "image_url", "image_url": {"url": image}})
+                    elif isinstance(image, dict):
+                        message_content_with_image.append({"type": "image_url", "image_url": image})
+                return message_content_with_image
+            else:
+                logger.warning(f"User Message type not supported with images: {type(message_content)}")
+        return message_content
+
+    def get_user_message(
+        self,
+        message: Optional[Union[str, List, Dict, Message]],
+        images: Optional[List[Union[str, Dict]]] = None,
+        **kwargs: Any,
+    ) -> Optional[Message]:
+        """Return the user message for the Agent.
 
         How the user prompt is built:
-        1. If the user_prompt is set, return it.
-        2. If the user_prompt_template is set, build the user prompt using the template.
-        3. If the message is None, return the message as is (None).
-        4. If build_default_user_prompt is False, return the message as is.
-        5. If the message is not a string, return the message as is.
-        6. If enable_rag is False or references are None, return the message as is.
-        7. Build the default user prompt for the Model.
+        1. If the user_prompt is provided, use that.
+        2. If the user_prompt_template is provided, build the user_message using the template.
+        3. If the message is None, return None.
+        4. 4. If use_default_user_message is False or If the message is not a string, return the message as is.
+        5. If enable_rag is False or context is None, return the message as is.
+        6. Build the default user message for the Agent
         """
 
-        # 1. If the user_prompt is set, return it.
+        # Role for the user message
+        user_role = "user"
+
+        # 1. If the user_prompt is provided, use that.
         # Note: this ignores the message provided to the run function
         if self.user_prompt is not None:
-            return self.user_prompt
+            return Message(
+                role=user_role,
+                content=self.add_images_to_message_content(message_content=self.user_prompt, images=images),
+                **kwargs,
+            )
 
-        # 2. If the user_prompt_template is set, build the user_prompt using the template.
+        # Get references from the knowledge base related to the user message
+        context = None
+        if self.enable_rag and message and isinstance(message, str):
+            retrieval_timer = Timer()
+            retrieval_timer.start()
+            context_from_knowledge = self.get_references_from_knowledge(query=message)
+            context = Context(query=message, content=context_from_knowledge, time=round(retrieval_timer.elapsed, 4))
+            retrieval_timer.stop()
+            logger.debug(f"Time to get context: {retrieval_timer.elapsed:.4f}s")
+
+        # 2. If the user_prompt_template is provided, build the user_message using the template.
         if self.user_prompt_template is not None:
-            user_prompt_kwargs = {"agent": self, "message": message, "references": references}
-            _user_prompt_from_template = self.user_prompt_template.get_prompt(**user_prompt_kwargs)
-            return _user_prompt_from_template
+            user_prompt_kwargs = {"agent": self, "message": message, "context": context}
+            user_prompt_from_template = self.user_prompt_template.get_prompt(**user_prompt_kwargs)
+            return Message(
+                role=user_role,
+                content=self.add_images_to_message_content(message_content=user_prompt_from_template, images=images),
+                **kwargs,
+            )
 
-        # 3. If the message is None, return the message as is (None).
+        # 3. If the message is None, return None
         if message is None:
             return None
 
-        # 4. If build_default_user_prompt is False, return the message as is.
-        if not self.build_default_user_prompt:
-            return message
+        # 4. If use_default_user_message is False or If the message is not a string, return the message as is.
+        if not self.use_default_user_message or not isinstance(message, str):
+            return Message(role=user_role, content=message, **kwargs)
 
-        # 5. If the message is not a string, return the message as is
-        if not isinstance(message, str):
-            return message
+        # 5. If enable_rag is False or context is None, return the message as is
+        if self.enable_rag is False or context is None:
+            return Message(
+                role=user_role,
+                content=self.add_images_to_message_content(message_content=message, images=images),
+                **kwargs,
+            )
 
-        # 6. If enable_rag is False or references are None, return the message as is
-        if self.enable_rag is False or references is None:
-            return message
+        # 6. Build the default user message for the Agent
+        user_prompt = "Respond to the following message from a user:\n"
+        user_prompt += f"USER: {message}\n"
 
-        # 7. Build the default user prompt for the Model
-        _user_prompt = "Respond to the following message from a user:\n"
-        _user_prompt += f"USER: {message}\n"
+        # 6.1 Add context to user message
+        if context:
+            user_prompt += "\nUse the following information from the knowledge base if it helps:\n"
+            user_prompt += "<knowledge>\n"
+            user_prompt += f"{context.content}\n"
+            user_prompt += "</knowledge>\n"
 
-        # 7.1 Add references to prompt
-        if references:
-            _user_prompt += "\nUse this information from the knowledge base if it helps:\n"
-            _user_prompt += "<knowledge>\n"
-            _user_prompt += f"{references}\n"
-            _user_prompt += "</knowledge>\n"
+        # 6.2 Add the message again at the end of the user message
+        if context:
+            user_prompt += "\nRemember, your task is to respond to the following message:"
+            user_prompt += f"\nUSER: {message}"
 
-        # 7.2 Add message again at the end of the user prompt
-        if references:
-            _user_prompt += "\nRemember, your task is to respond to the following message:"
-            _user_prompt += f"\nUSER: {message}"
+        # 6.3 Add the assistant pre-fill at the end of the user prompt
+        user_prompt += "\n\nASSISTANT: "
 
-        # 7.3 Add the assistant pre-fill at the end of the user prompt
-        _user_prompt += "\n\nASSISTANT: "
-
-        # Return the user prompt
-        return _user_prompt
+        # Return the user message
+        return Message(
+            role=user_role,
+            content=self.add_images_to_message_content(message_content=message, images=images),
+            context=context,
+            **kwargs,
+        )
 
     def _run(
         self,
@@ -814,17 +862,17 @@ class Agent(BaseModel):
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> Iterator[RunResponse]:
+    ) -> Generator[RunResponse]:
         """Run the Agent with a message and return the response.
 
         This function does the following:
         1. Read existing session from storage
         2. Update the Model (set defaults, add tools, etc.)
         3. Prepare the List of messages to send to the Model
-        4. Build the System Prompt
+        4. Build the System Message
         5. Add extra messages to the messages list
         6. Add chat history to the messages list
-        7. Build the User Prompt
+        7. Build the User Message
         8. Generate a response from the Model (includes running function calls)
         9. Update Memory
         10. Save session to storage
@@ -844,18 +892,14 @@ class Agent(BaseModel):
         # 3. Prepare the List of messages to send to the Model
         run_messages: List[Message] = []
 
-        # 4. Build the System Prompt
-        # 4.1 Get the system prompt
-        system_prompt = self.get_system_prompt()
-        # 4.2 Create system prompt message
-        system_prompt_message = Message(role="system", content=system_prompt)
-        # 4.3 Add system prompt message to the messages list
-        if system_prompt_message.content_is_valid():
-            run_messages.append(system_prompt_message)
+        # 4. Add the System Message to the messages list
+        system_message = self.get_system_message()
+        if system_message is not None:
+            run_messages.append(system_message)
 
         # 5. Add extra messages to the messages list
-        if self.extra_messages is not None:
-            for _m in self.extra_messages:
+        if self.add_messages is not None:
+            for _m in self.add_messages:
                 if isinstance(_m, Message):
                     run_messages.append(_m)
                 elif isinstance(_m, dict):
@@ -866,52 +910,22 @@ class Agent(BaseModel):
 
         # 6. Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            run_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+            run_messages += self.memory.get_last_n_run_messages(last_n=self.num_history_messages)
 
-        # 7. Build the User Prompt
-        # 7.1 References to add to the user_prompt if enable_rag is True
-        references: Optional[References] = None
-        # 7.2 If message is provided use it for the user prompt
+        # 7. Add the User Messages to the messages list
+        # 7.1 If message is provided use it for the user message
         if message is not None:
-            # 7.2.1 If message is provided as a Message, use it directly
+            # 7.1.1 If message is provided as a Message, use it directly
             if isinstance(message, Message):
                 run_messages.append(message)
-            # 7.2.2 If message is provided as a str, build the user prompt message
+            # 7.1.2 If message is provided as a str, build the user message
             elif isinstance(message, str):
-                # Get references to add to the user_prompt
-                user_prompt_references = None
-                if self.enable_rag and message and isinstance(message, str):
-                    reference_timer = Timer()
-                    reference_timer.start()
-                    user_prompt_references = self.get_references_from_knowledge(query=message)
-                    reference_timer.stop()
-                    references = References(
-                        query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-                    )
-                    logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-                # Get the user prompt
-                user_prompt_content: Optional[Union[List, Dict, str]] = self.get_user_prompt(
-                    message=message, references=user_prompt_references
-                )
-                # If images are provided, add them to the user prompt
-                if images is not None and len(images) > 0:
-                    if isinstance(user_prompt_content, str):
-                        user_prompt_content = [{"type": "text", "text": user_prompt_content}]
-                        for image in images:
-                            if isinstance(image, str):
-                                user_prompt_content.append({"type": "image_url", "image_url": {"url": image}})
-                            elif isinstance(image, dict):
-                                user_prompt_content.append({"type": "image_url", "image_url": image})
-                    else:
-                        logger.warning(f"Input type not supported with images: {type(user_prompt_content)}")
-                # Create user prompt message
-                user_prompt_message = (
-                    Message(role="user", content=user_prompt_content, **kwargs) if user_prompt_content else None
-                )
-                # Add user prompt message to the messages list
-                if user_prompt_message is not None:
-                    run_messages.append(user_prompt_message)
-        # 7.3 If messages are provided as a list, add them to the run_messages
+                # Get the user message
+                user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
+                # Add user message to the messages list
+                if user_message is not None:
+                    run_messages.append(user_message)
+        # 7.2 If messages are provided as a list, add them to the run_messages
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
@@ -921,6 +935,10 @@ class Agent(BaseModel):
                         run_messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
+
+        # Track the number of messages in the run_messages that SHOULD NOT BE ADDED TO MEMORY
+        # -1 is used to exclude the user message from the count
+        num_messages_to_skip = len(run_messages) - 1
 
         # 8. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
@@ -939,19 +957,19 @@ class Agent(BaseModel):
             run_response.messages = run_messages
 
         # 9. Update Memory
-        # Add the user message to memory
+        # Add the user message to the chat history
         if message is not None:
-            user_message = None
+            user_message_for_chat_history = None
             if isinstance(message, str):
-                user_message = Message(role="user", content=message)
+                user_message_for_chat_history = Message(role="user", content=message)
             elif isinstance(message, Message):
-                user_message = message
+                user_message_for_chat_history = message
             # Add user message is added to the chat_history
-            if user_message is not None:
-                self.memory.add_chat_message(message=user_message)
-                # Update the memory with the user message if needed
+            if user_message_for_chat_history is not None:
+                self.memory.add_chat_message(message=user_message_for_chat_history)
+                # Update the memories with the user message if needed
                 if self.create_memories and self.update_memory_after_run:
-                    self.memory.update_memory(input=user_message.get_content_string())
+                    self.memory.update_memory(input=user_message_for_chat_history.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 _um = None
@@ -976,13 +994,10 @@ class Agent(BaseModel):
         assistant_message = Message(role="assistant", content=model_response.content)
         # Add Assistant Message to the chat history
         self.memory.add_chat_message(message=assistant_message)
-        # Add references to the memory
-        if references:
-            self.memory.add_references(references=references)
 
-        # Add run messages to the memory
-        # This includes the raw system messages, user messages, and Model messages
-        self.memory.add_run_messages(messages=run_messages)
+        # Add messages from this particular run to the memory
+        # Add all messages including and after the user message to the memory
+        self.memory.add_run_messages(messages=run_messages[num_messages_to_skip:])
 
         # Update run_response for the Agent
         self.run_response = run_response
@@ -1010,12 +1025,6 @@ class Agent(BaseModel):
                 logger.warning(f"Failed to save output to file: {e}")
 
         # 12. Log Agent Run
-        run_response_format = "text"
-        if self.output_model is not None:
-            run_response_format = "json"
-        elif self.markdown:
-            run_response_format = "markdown"
-
         functions = {}
         if self.model is not None and self.model.functions is not None:
             for _f_name, _func in self.model.functions.items():
@@ -1037,7 +1046,7 @@ class Agent(BaseModel):
             run_data = {
                 "run_input": run_input,
                 "run_response": self.run_response,
-                "run_response_format": run_response_format,
+                "run_response_format": "markdown" if self.markdown else "text",
                 "functions": functions,
                 "metrics": self.model.metrics if self.model else None,
             }
@@ -1054,6 +1063,28 @@ class Agent(BaseModel):
         if not stream:
             yield run_response
 
+    @overload
+    def run(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        *,
+        stream: Literal[False],
+        images: Optional[List[Union[str, Dict]]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
+    ) -> RunResponse: ...
+
+    @overload
+    def run(
+        self,
+        message: Optional[Union[List, Dict, str]] = None,
+        *,
+        stream: Literal[True],
+        images: Optional[List[Union[str, Dict]]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
+    ) -> Generator[RunResponse]: ...
+
     def run(
         self,
         message: Optional[Union[List, Dict, str]] = None,
@@ -1062,7 +1093,7 @@ class Agent(BaseModel):
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> Union[Iterator[RunResponse], RunResponse]:
+    ) -> Union[RunResponse, Generator[RunResponse]]:
         """Run the Agent with a message and return the response."""
 
         # Convert response.content to a pydantic model if output_model is set
@@ -1096,7 +1127,7 @@ class Agent(BaseModel):
 
             if self.run_response is not None:
                 return self.run_response
-            return run_response  # TODO: Unsure about this logic
+            return run_response
         else:
             if stream and self.streamable:
                 resp = self._run(message=message, stream=True, images=images, messages=messages, **kwargs)
@@ -1113,7 +1144,7 @@ class Agent(BaseModel):
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> AsyncIterator[RunResponse]:
+    ) -> AsyncGenerator[RunResponse]:
         # Create the run_response object
         run_response = RunResponse(run_id=str(uuid4()), model=self.model.model if self.model is not None else None)
 
@@ -1127,18 +1158,14 @@ class Agent(BaseModel):
         # 3. Prepare the List of messages to send to the Model
         run_messages: List[Message] = []
 
-        # 4. Build the System Prompt
-        # 4.1 Get the system prompt
-        system_prompt = self.get_system_prompt()
-        # 4.2 Create system prompt message
-        system_prompt_message = Message(role="system", content=system_prompt)
-        # 4.3 Add system prompt message to the messages list
-        if system_prompt_message.content_is_valid():
-            run_messages.append(system_prompt_message)
+        # 4. Add the System Message to the messages list
+        system_message = self.get_system_message()
+        if system_message is not None:
+            run_messages.append(system_message)
 
         # 5. Add extra messages to the messages list
-        if self.extra_messages is not None:
-            for _m in self.extra_messages:
+        if self.add_messages is not None:
+            for _m in self.add_messages:
                 if isinstance(_m, Message):
                     run_messages.append(_m)
                 elif isinstance(_m, dict):
@@ -1149,52 +1176,21 @@ class Agent(BaseModel):
 
         # 6. Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            run_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
-
-        # 7. Build the User Prompt
-        # 7.1 References to add to the user_prompt if enable_rag is True
-        references: Optional[References] = None
-        # 7.2 If message is provided use it for the user prompt
+            run_messages += self.memory.get_last_n_run_messages(last_n=self.num_history_messages)
+        # 7. Add the User Messages to the messages list
+        # 7.1 If message is provided use it for the user message
         if message is not None:
-            # 7.2.1 If message is provided as a Message, use it directly
+            # 7.1.1 If message is provided as a Message, use it directly
             if isinstance(message, Message):
                 run_messages.append(message)
-            # 7.2.2 If message is provided as a str, build the user prompt message
+            # 7.1.2 If message is provided as a str, build the user message
             elif isinstance(message, str):
-                # Get references to add to the user_prompt
-                user_prompt_references = None
-                if self.enable_rag and message and isinstance(message, str):
-                    reference_timer = Timer()
-                    reference_timer.start()
-                    user_prompt_references = self.get_references_from_knowledge(query=message)
-                    reference_timer.stop()
-                    references = References(
-                        query=message, references=user_prompt_references, time=round(reference_timer.elapsed, 4)
-                    )
-                    logger.debug(f"Time to get references: {reference_timer.elapsed:.4f}s")
-                # Get the user prompt
-                user_prompt_content: Optional[Union[List, Dict, str]] = self.get_user_prompt(
-                    message=message, references=user_prompt_references
-                )
-                # If images are provided, add them to the user prompt
-                if images is not None and len(images) > 0:
-                    if isinstance(user_prompt_content, str):
-                        user_prompt_content = [{"type": "text", "text": user_prompt_content}]
-                        for image in images:
-                            if isinstance(image, str):
-                                user_prompt_content.append({"type": "image_url", "image_url": {"url": image}})
-                            elif isinstance(image, dict):
-                                user_prompt_content.append({"type": "image_url", "image_url": image})
-                    else:
-                        logger.warning(f"Input type not supported with images: {type(user_prompt_content)}")
-                # Create user prompt message
-                user_prompt_message = (
-                    Message(role="user", content=user_prompt_content, **kwargs) if user_prompt_content else None
-                )
-                # Add user prompt message to the messages list
-                if user_prompt_message is not None:
-                    run_messages.append(user_prompt_message)
-        # 7.3 If messages are provided as a list, add them to the run_messages
+                # Get the user message
+                user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
+                # Add user message to the messages list
+                if user_message is not None:
+                    run_messages.append(user_message)
+        # 7.2 If messages are provided as a list, add them to the run_messages
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
@@ -1205,6 +1201,10 @@ class Agent(BaseModel):
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
 
+        # Track the number of messages in the run_messages that SHOULD NOT BE ADDED TO MEMORY
+        # -1 is used to exclude the user message from the count
+        num_messages_to_skip = len(run_messages) - 1
+
         # 8. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
@@ -1212,29 +1212,30 @@ class Agent(BaseModel):
             model_response = ModelResponse(content="")
             model_response_stream = self.model.aresponse_stream(messages=run_messages)
             async for model_response_chunk in model_response_stream:  # type: ignore
-                model_response.content += model_response_chunk.content
-                run_response.content = model_response_chunk.content
-                run_response.messages = run_messages
-                yield run_response
+                if model_response_chunk.content is not None and model_response.content is not None:
+                    model_response.content += model_response_chunk.content
+                    run_response.content = model_response_chunk.content
+                    run_response.messages = run_messages
+                    yield run_response
         else:
             model_response = await self.model.aresponse(messages=run_messages)
             run_response.content = model_response.content
             run_response.messages = run_messages
 
         # 9. Update Memory
-        # Add the user message to memory
+        # Add the user message to the chat history
         if message is not None:
-            user_message = None
+            user_message_for_chat_history = None
             if isinstance(message, str):
-                user_message = Message(role="user", content=message)
+                user_message_for_chat_history = Message(role="user", content=message)
             elif isinstance(message, Message):
-                user_message = message
+                user_message_for_chat_history = message
             # Add user message is added to the chat_history
-            if user_message is not None:
-                self.memory.add_chat_message(message=user_message)
-                # Update the memory with the user message if needed
+            if user_message_for_chat_history is not None:
+                self.memory.add_chat_message(message=user_message_for_chat_history)
+                # Update the memories with the user message if needed
                 if self.create_memories and self.update_memory_after_run:
-                    self.memory.update_memory(input=user_message.get_content_string())
+                    self.memory.update_memory(input=user_message_for_chat_history.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 _um = None
@@ -1259,13 +1260,10 @@ class Agent(BaseModel):
         assistant_message = Message(role="assistant", content=model_response.content)
         # Add Assistant Message to the chat history
         self.memory.add_chat_message(message=assistant_message)
-        # Add references to the memory
-        if references:
-            self.memory.add_references(references=references)
 
-        # Add run messages to the memory
-        # This includes the raw system messages, user messages, and Model messages
-        self.memory.add_run_messages(messages=run_messages)
+        # Add messages from this particular run to the memory
+        # Add all messages including and after the user message to the memory
+        self.memory.add_run_messages(messages=run_messages[num_messages_to_skip:])
 
         # Update run_response for the Agent
         self.run_response = run_response
@@ -1293,12 +1291,6 @@ class Agent(BaseModel):
                 logger.warning(f"Failed to save output to file: {e}")
 
         # 12. Log Agent Run
-        run_response_format = "text"
-        if self.output_model is not None:
-            run_response_format = "json"
-        elif self.markdown:
-            run_response_format = "markdown"
-
         functions = {}
         if self.model is not None and self.model.functions is not None:
             for _f_name, _func in self.model.functions.items():
@@ -1320,7 +1312,7 @@ class Agent(BaseModel):
             run_data = {
                 "run_input": run_input,
                 "run_response": self.run_response,
-                "run_response_format": run_response_format,
+                "run_response_format": "markdown" if self.markdown else "text",
                 "functions": functions,
                 "metrics": self.model.metrics if self.model else None,
             }
@@ -1345,7 +1337,7 @@ class Agent(BaseModel):
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> Union[AsyncIterator[RunResponse], RunResponse]:
+    ) -> Any:
         """Run the Agent with a message and return the response."""
 
         # Convert response.content to a pydantic model if output_model is set
@@ -1379,7 +1371,7 @@ class Agent(BaseModel):
 
             if self.run_response is not None:
                 return self.run_response
-            return run_response  # TODO: Unsure about this logic
+            return run_response
         else:
             if stream and self.streamable:
                 resp = self._arun(message=message, stream=True, images=images, messages=messages, **kwargs)
@@ -1532,13 +1524,7 @@ class Agent(BaseModel):
         Returns:
             str: A string containing the response from the knowledge base.
         """
-        reference_timer = Timer()
-        reference_timer.start()
-        references = self.get_references_from_knowledge(query=query)
-        reference_timer.stop()
-        _ref = References(query=query, references=references, time=round(reference_timer.elapsed, 4))
-        self.memory.add_references(references=_ref)
-        return references or ""
+        return self.get_references_from_knowledge(query=query) or ""
 
     def add_to_knowledge(self, query: str, result: str) -> str:
         """Use this function to add information to the knowledge base for future use.

@@ -1,4 +1,4 @@
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union, AsyncIterator
+from typing import List, Generator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,7 +67,7 @@ class Model(BaseModel):
     async def ainvoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
-    def invoke_stream(self, *args, **kwargs) -> Iterator[Any]:
+    def invoke_stream(self, *args, **kwargs) -> Generator[Any]:
         raise NotImplementedError
 
     async def ainvoke_stream(self, *args, **kwargs) -> Any:
@@ -79,10 +79,10 @@ class Model(BaseModel):
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         raise NotImplementedError
 
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+    def response_stream(self, messages: List[Message]) -> Generator[ModelResponse]:
         raise NotImplementedError
 
-    async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:

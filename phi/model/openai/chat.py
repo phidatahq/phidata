@@ -1,5 +1,5 @@
 import httpx
-from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
+from typing import Optional, List, Generator, Dict, Any, Union, Tuple
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -212,7 +212,7 @@ class OpenAIChat(Model):
             **self.api_kwargs,
         )
 
-    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
+    def invoke_stream(self, messages: List[Message]) -> Generator[ChatCompletionChunk]:
         yield from self.get_client().chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
@@ -466,7 +466,7 @@ class OpenAIChat(Model):
         logger.debug("---------- OpenAI Async Response End ----------")
         return model_response
 
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+    def response_stream(self, messages: List[Message]) -> Generator[ModelResponse]:
         logger.debug("---------- OpenAI Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -697,7 +697,7 @@ class OpenAIChat(Model):
                 if completion_tokens == 1:
                     time_to_first_token = response_timer.elapsed
                     logger.debug(f"Time to first token: {time_to_first_token:.4f}s")
-                yield response_content
+                yield ModelResponse(content=response_content)
 
             # -*- Parse tool calls
             if response_tool_calls is not None:
@@ -839,12 +839,12 @@ class OpenAIChat(Model):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
                 elif len(function_calls_to_run) > 1:
-                    yield "\nRunning:"
+                    yield ModelResponse(content="\nRunning:")
                     for _f in function_calls_to_run:
-                        yield f"\n - {_f.get_call_str()}"
-                    yield "\n\n"
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:

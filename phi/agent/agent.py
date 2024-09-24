@@ -1134,7 +1134,7 @@ class Agent(BaseModel):
                 try:
                     structured_output = None
                     try:
-                        structured_output = self.output_model.model_validate(run_response.content)
+                        structured_output = self.output_model.model_validate(json.loads(run_response.content))
                     except ValidationError:
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):
@@ -1417,7 +1417,7 @@ class Agent(BaseModel):
                 try:
                     structured_output = None
                     try:
-                        structured_output = self.output_model.model_validate_json(run_response.content)
+                        structured_output = self.output_model.model_validate(json.loads(run_response.content))
                     except ValidationError:
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):

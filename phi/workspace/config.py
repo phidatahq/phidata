@@ -143,6 +143,8 @@ class WorkspaceConfig(BaseModel):
     ws_root_path: Path
     # WorkspaceSchema: This field indicates that the workspace is synced with the api
     ws_schema: Optional[WorkspaceSchema] = None
+    # The Team name for the workspace
+    ws_team: Optional[str] = None
 
     # Path to the "workspace" directory inside the workspace root
     _workspace_dir_path: Optional[Path] = None

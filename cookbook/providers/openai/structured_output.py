@@ -23,4 +23,5 @@ movie_agent = Agent(
     # debug_mode=True,
 )
 
-pprint(movie_agent.run("New York"))
+run = movie_agent.run("New York")
+pprint(run.messages)

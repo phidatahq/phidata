@@ -14,7 +14,7 @@ from phi.utils.log import logger
 
 class Secret(K8sResource):
     """
-    References:
+    MessageContext:
     - Doc: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secret-v1-core
     - Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_secret.py
     """

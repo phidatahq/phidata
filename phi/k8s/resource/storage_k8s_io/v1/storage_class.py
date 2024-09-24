@@ -13,7 +13,7 @@ from phi.utils.log import logger
 
 class StorageClass(K8sResource):
     """
-    References:
+    MessageContext:
     - Doc: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#storageclass-v1-storage-k8s-io
     - Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_storage_class.py
     """

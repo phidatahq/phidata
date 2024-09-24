@@ -24,7 +24,7 @@ class AssistantMemory(BaseModel):
     chat_history: List[Message] = []
     # Prompts sent to the LLM and the LLM responses.
     llm_messages: List[Message] = []
-    # References from the vector database.
+    # MessageContext from the vector database.
     references: List[References] = []
 
     # Create personalized memories for this user

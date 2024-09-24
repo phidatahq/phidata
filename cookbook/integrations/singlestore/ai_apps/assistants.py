@@ -200,7 +200,7 @@ def get_research_assistant(
         - **Summary of report:** Recap of the key findings from the report.
         - **Implications:** What these findings mean for the future.
 
-        ## References
+        ## MessageContext
         - [Reference 1](Link to Source)
         - [Reference 2](Link to Source)
         - Report generated on: {Month Date, Year (hh:mm AM/PM)}

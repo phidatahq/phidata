@@ -47,7 +47,7 @@ assistant = Assistant(
     ### Takeaways
     {provide key takeaways from the article}
 
-    ### References
+    ### MessageContext
     - [Reference 1](link)
     - [Reference 2](link)
     - [Reference 3](link)

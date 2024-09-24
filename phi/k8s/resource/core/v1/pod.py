@@ -14,7 +14,7 @@ class Pod(K8sResource):
     There are no attributes in the Pod model because we don't create Pods manually.
     This class exists only to read from the K8s cluster.
 
-    References:
+    MessageContext:
         * Doc: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#pod-v1-core
         * Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_pod.py
     """

@@ -11,8 +11,8 @@ class MessageContext(BaseModel):
 
     # The query used to retrieve the context.
     query: str
-    # The content from the vector database.
-    content: Optional[Union[str, List, Dict]] = None
+    # Documents from the vector database.
+    docs: Optional[List[Union[str, Dict]]] = None
     # Time taken to retrieve the context.
     time: Optional[float] = None
 

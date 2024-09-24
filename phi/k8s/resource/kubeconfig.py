@@ -56,7 +56,7 @@ class Kubeconfig(BaseModel):
     Locally the kubeconfig file is usually stored at ~/.kube/config
     View your local kubeconfig using `kubectl config view`
 
-    References:
+    MessageContext:
         * Docs:
             https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
         * Go Doc: https://godoc.org/k8s.io/client-go/tools/clientcmd/api#Config

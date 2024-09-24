@@ -129,7 +129,7 @@ class PersistentVolume(K8sResource):
 
     A pod uses a persistent volume claim to to get read and write access to the persistent volume.
 
-    References:
+    MessageContext:
         * Docs:
             https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#persistentvolume-v1-core
             https://kubernetes.io/docs/concepts/storage/persistent-volumes/

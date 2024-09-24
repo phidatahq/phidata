@@ -50,7 +50,7 @@ def main() -> None:
     max_references = 10
     default_references = 3
     num_documents = st.sidebar.number_input(
-        "Number of References", value=default_references, min_value=1, max_value=max_references
+        "Number of MessageContext", value=default_references, min_value=1, max_value=max_references
     )
     if "prev_num_documents" not in st.session_state:
         st.session_state["prev_num_documents"] = num_documents

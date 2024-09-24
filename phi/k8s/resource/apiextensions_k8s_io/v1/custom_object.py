@@ -16,7 +16,7 @@ class CustomObject(K8sResource):
     When creating a CustomObject, provide the spec and generate the object body using
         get_k8s_object()
 
-    References:
+    MessageContext:
         * https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CustomObjectsApi.md
         * https://github.com/kubernetes-client/python/blob/master/examples/custom_object.py
     """

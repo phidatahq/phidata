@@ -31,7 +31,6 @@ from phi.model.response import ModelResponse
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory  # noqa: F401
 from phi.prompt.template import PromptTemplate
 from phi.storage.agent import AgentStorage
-from phi.utils.format_str import remove_indent
 from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.message import get_text_from_message
@@ -81,12 +80,12 @@ class Agent(BaseModel):
     knowledge: Optional[AgentKnowledge] = Field(None, alias="knowledge")
     # Enable RAG by adding references from the AgentKnowledge to the user prompt.
     enable_rag: bool = False
-    # Function to get references for the user_prompt
+    # Function to get context to add to the user_message
     # This function, if provided, is called when enable_rag is True
     # Signature:
-    # def rag_function(agent: Agent, query: str) -> Optional[str]:
+    # def retriever(agent: Agent, query: str, num_documents: Optional[int], **kwargs) -> Optional[list[dict]]:
     #     ...
-    rag_function: Optional[Callable[..., Optional[str]]] = None
+    retriever: Optional[Callable[..., Optional[list[dict]]]] = None
     rag_format: Literal["json", "yaml"] = "json"
     # If True, add instructions for using the RAG to the system prompt (if knowledge is also provided)
     # For example: add an instruction to prefer information from the knowledge base over its training data.
@@ -144,13 +143,13 @@ class Agent(BaseModel):
     task: Optional[str] = None
     # List of instructions added to the system message in `<instructions>` tags.
     instructions: Optional[List[str]] = None
+    # Add additional context to the end of the default system prompt
+    additional_context: Optional[str] = None
+    # Provide the expected output from the Agent. This is added to the end of the system prompt.
+    expected_output: Optional[str] = None
     # List of extra_instructions added to the default system message
     # Use these when you want to add some extra instructions at the end of the default instructions.
     extra_instructions: Optional[List[str]] = None
-    # Provide the expected output from the Agent. This is added to the end of the system prompt.
-    expected_output: Optional[str] = None
-    # Add a string to the end of the default system prompt
-    add_to_system_prompt: Optional[str] = None
     # If True, add instructions to return "I dont know" when the agent does not know the answer.
     prevent_hallucinations: bool = False
     # If True, add instructions to prevent prompt injection attacks
@@ -682,8 +681,8 @@ class Agent(BaseModel):
         if self.expected_output is not None:
             system_prompt_lines.append(f"\nThe expected output is: {self.expected_output}")
         # 5.6 Then add user provided additional information to the system prompt
-        if self.add_to_system_prompt is not None:
-            system_prompt_lines.append(self.add_to_system_prompt)
+        if self.additional_context is not None:
+            system_prompt_lines.append(self.additional_context)
         # 5.7 Then add the delegation_prompt to the system prompt
         if self.has_team():
             system_prompt_lines.append(f"\n{self.get_delegation_prompt()}")
@@ -723,26 +722,33 @@ class Agent(BaseModel):
             return Message(role=system_role, content="\n".join(system_prompt_lines))
         return None
 
-    def get_references_from_knowledge(self, query: str, num_documents: Optional[int] = None) -> Optional[str]:
+    def get_relevant_docs_from_knowledge(
+        self, query: str, num_documents: Optional[int] = None, **kwargs
+    ) -> Optional[List[Dict[str, Any]]]:
         """Return a list of references from the knowledge base"""
 
-        if self.rag_function is not None:
-            reference_kwargs = {"agent": self, "query": query, "num_documents": num_documents}
-            return remove_indent(self.rag_function(**reference_kwargs))
+        if self.retriever is not None:
+            reference_kwargs = {"agent": self, "query": query, "num_documents": num_documents, **kwargs}
+            return self.retriever(**reference_kwargs)
 
         if self.knowledge is None:
             return None
 
-        relevant_docs: List[Document] = self.knowledge.search(query=query, num_documents=num_documents)
+        relevant_docs: List[Document] = self.knowledge.search(query=query, num_documents=num_documents, **kwargs)
         if len(relevant_docs) == 0:
+            return None
+        return [doc.to_dict() for doc in relevant_docs]
+
+    def convert_documents_to_string(self, docs: Optional[List[Document]]) -> Optional[str]:
+        if docs is None or len(docs) == 0:
             return None
 
         if self.rag_format == "yaml":
             import yaml
 
-            return yaml.dump([doc.to_dict() for doc in relevant_docs])
+            return yaml.dump(docs)
 
-        return json.dumps([doc.to_dict() for doc in relevant_docs], indent=2)
+        return json.dumps(docs, indent=2)
 
     def add_images_to_message_content(
         self, message_content: Union[List, Dict, str], images: Optional[List[Union[str, Dict]]] = None
@@ -795,10 +801,8 @@ class Agent(BaseModel):
         if self.enable_rag and message and isinstance(message, str):
             retrieval_timer = Timer()
             retrieval_timer.start()
-            context_from_knowledge = self.get_references_from_knowledge(query=message)
-            context = MessageContext(
-                query=message, content=context_from_knowledge, time=round(retrieval_timer.elapsed, 4)
-            )
+            docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
+            context = MessageContext(query=message, docs=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4))
             retrieval_timer.stop()
             logger.debug(f"Time to get context: {retrieval_timer.elapsed:.4f}s")
 
@@ -836,7 +840,7 @@ class Agent(BaseModel):
         if context:
             user_prompt += "\nUse the following information from the knowledge base if it helps:\n"
             user_prompt += "<knowledge>\n"
-            user_prompt += f"{context.content}\n"
+            user_prompt += self.convert_context_to_string(context.docs) + "\n"
             user_prompt += "</knowledge>\n"
 
         # 6.2 Add the message again at the end of the user message
@@ -1552,7 +1556,7 @@ class Agent(BaseModel):
         Returns:
             str: A string containing the response from the knowledge base.
         """
-        return self.get_references_from_knowledge(query=query) or ""
+        return self.convert_documents_to_string(self.get_relevant_docs_from_knowledge(query=query)) or ""
 
     def add_to_knowledge(self, query: str, result: str) -> str:
         """Use this function to add information to the knowledge base for future use.

@@ -22,6 +22,7 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
+from phi.vectordb.search import SearchType
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
 
@@ -31,12 +32,14 @@ class PgVector(VectorDb):
         self,
         table_name: str,
         schema: str = "ai",
-        index: Union[Ivfflat, HNSW] = HNSW(),
-        distance: Distance = Distance.cosine,
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
-        search_type: str = "vector",
+        search_type: SearchType = SearchType.hybrid,
+        vector_index: Union[Ivfflat, HNSW] = HNSW(),
+        distance: Distance = Distance.cosine,
+        prefix_match: bool = True,
+        vector_score_weight: float = 0.5,
         content_language: str = "english",
         schema_version: int = 1,
         auto_upgrade_schema: bool = False,
@@ -56,11 +59,9 @@ class PgVector(VectorDb):
                 logger.error(f"Failed to create engine from 'db_url': {e}")
                 raise
 
-        # Collection attributes
+        # Database settings
         self.table_name: str = table_name
         self.schema: str = schema
-
-        # Database attributes
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = db_engine
         self.metadata: MetaData = MetaData(schema=self.schema)
@@ -76,26 +77,26 @@ class PgVector(VectorDb):
         if self.dimensions is None:
             raise ValueError("Embedder.dimensions must be set.")
 
-        # Distance metric
-        self.distance: Distance = distance
-
-        # Index for the table
-        self.index: Union[Ivfflat, HNSW] = index
-
         # Search type
         self.search_type: str = search_type
-
+        # Index for the table
+        self.vector_index: Union[Ivfflat, HNSW] = vector_index
+        # Distance metric
+        self.distance: Distance = distance
+        # Enable prefix matching for full-text search
+        self.prefix_match: bool = prefix_match
+        # Weight for the vector similarity score in hybrid search
+        self.vector_score_weight: float = vector_score_weight
         # Content language for full-text search
         self.content_language: str = content_language
-
-        # Database session
-        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
 
         # Table schema version
         self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
+        # Database session
+        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         # Database table
         self.table: Table = self.get_table()
 
@@ -349,11 +350,11 @@ class PgVector(VectorDb):
             # Execute the query
             try:
                 with self.Session() as sess:
-                    if self.index is not None:
-                        if isinstance(self.index, Ivfflat):
-                            sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
-                        elif isinstance(self.index, HNSW):
-                            sess.execute(text(f"SET LOCAL hnsw.ef_search = {self.index.ef_search}"))
+                    if self.vector_index is not None:
+                        if isinstance(self.vector_index, Ivfflat):
+                            sess.execute(text(f"SET LOCAL ivfflat.probes = {self.vector_index.probes}"))
+                        elif isinstance(self.vector_index, HNSW):
+                            sess.execute(text(f"SET LOCAL hnsw.ef_search = {self.vector_index.ef_search}"))
                     results = sess.execute(stmt).fetchall()
             except Exception as e:
                 logger.error(f"Error performing semantic search: {e}")
@@ -389,9 +390,7 @@ class PgVector(VectorDb):
         processed_words = [word + "*" for word in words]
         return " ".join(processed_words)
 
-    def keyword_search(
-        self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None, prefix_match: bool = True
-    ) -> List[Document]:
+    def keyword_search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Perform a keyword search on the 'content' column.
 
@@ -421,7 +420,7 @@ class PgVector(VectorDb):
             # Build the text search vector
             ts_vector = func.to_tsvector(self.content_language, self.table.c.content)
             # Create the ts_query using websearch_to_tsquery with parameter binding
-            processed_query = self.enable_prefix_matching(query) if prefix_match else query
+            processed_query = self.enable_prefix_matching(query) if self.prefix_match else query
             ts_query = func.websearch_to_tsquery(self.content_language, bindparam("query", value=processed_query))
             # Compute the text rank
             text_rank = func.ts_rank_cd(ts_vector, ts_query)
@@ -476,8 +475,6 @@ class PgVector(VectorDb):
         query: str,
         limit: int = 5,
         filters: Optional[Dict[str, Any]] = None,
-        vector_score_weight: float = 0.5,
-        prefix_match: bool = True,
     ) -> List[Document]:
         """
         Perform a hybrid search combining vector similarity and full-text search.
@@ -512,7 +509,7 @@ class PgVector(VectorDb):
             # Build the text search vector
             ts_vector = func.to_tsvector(self.content_language, self.table.c.content)
             # Create the ts_query using websearch_to_tsquery with parameter binding
-            processed_query = self.enable_prefix_matching(query) if prefix_match else query
+            processed_query = self.enable_prefix_matching(query) if self.prefix_match else query
             ts_query = func.websearch_to_tsquery(self.content_language, bindparam("query", value=processed_query))
             # Compute the text rank
             text_rank = func.ts_rank_cd(ts_vector, ts_query)
@@ -539,12 +536,12 @@ class PgVector(VectorDb):
 
             # Apply weights to control the influence of each score
             # Validate the vector_weight parameter
-            if not 0 <= vector_score_weight <= 1:
+            if not 0 <= self.vector_score_weight <= 1:
                 raise ValueError("vector_score_weight must be between 0 and 1")
-            text_rank_weight = 1 - vector_score_weight  # weight for text rank
+            text_rank_weight = 1 - self.vector_score_weight  # weight for text rank
 
             # Combine the scores into a hybrid score
-            hybrid_score = (vector_score_weight * vector_score) + (text_rank_weight * text_rank)
+            hybrid_score = (self.vector_score_weight * vector_score) + (text_rank_weight * text_rank)
 
             # Build the base statement, including the hybrid score
             stmt = select(*columns, hybrid_score.label("hybrid_score"))
@@ -568,11 +565,11 @@ class PgVector(VectorDb):
             # Execute the query
             try:
                 with self.Session() as sess:
-                    if self.index is not None:
-                        if isinstance(self.index, Ivfflat):
-                            sess.execute(text(f"SET LOCAL ivfflat.probes = {self.index.probes}"))
-                        elif isinstance(self.index, HNSW):
-                            sess.execute(text(f"SET LOCAL hnsw.ef_search = {self.index.ef_search}"))
+                    if self.vector_index is not None:
+                        if isinstance(self.vector_index, Ivfflat):
+                            sess.execute(text(f"SET LOCAL ivfflat.probes = {self.vector_index.probes}"))
+                        elif isinstance(self.vector_index, HNSW):
+                            sess.execute(text(f"SET LOCAL hnsw.ef_search = {self.vector_index.ef_search}"))
                     results = sess.execute(stmt).fetchall()
             except Exception as e:
                 logger.error(f"Error performing hybrid search: {e}")
@@ -655,14 +652,14 @@ class PgVector(VectorDb):
             raise
 
     def _create_vector_index(self, force_recreate: bool = False) -> None:
-        if self.index is None:
+        if self.vector_index is None:
             logger.debug("No vector index specified, skipping vector index optimization.")
             return
 
         # Generate index name if not provided
-        if self.index.name is None:
-            index_type = "ivfflat" if isinstance(self.index, Ivfflat) else "hnsw"
-            self.index.name = f"{self.table_name}_{index_type}_index"
+        if self.vector_index.name is None:
+            index_type = "ivfflat" if isinstance(self.vector_index, Ivfflat) else "hnsw"
+            self.vector_index.name = f"{self.table_name}_{index_type}_index"
 
         # Determine index distance operator
         index_distance = {
@@ -675,15 +672,15 @@ class PgVector(VectorDb):
         table_fullname = self.table.fullname  # includes schema if any
 
         # Check if vector index already exists
-        vector_index_exists = self._index_exists(self.index.name)
+        vector_index_exists = self._index_exists(self.vector_index.name)
 
         if vector_index_exists:
-            logger.info(f"Vector index '{self.index.name}' already exists.")
+            logger.info(f"Vector index '{self.vector_index.name}' already exists.")
             if force_recreate:
-                logger.info(f"Force recreating vector index '{self.index.name}'. Dropping existing index.")
-                self._drop_index(self.index.name)
+                logger.info(f"Force recreating vector index '{self.vector_index.name}'. Dropping existing index.")
+                self._drop_index(self.vector_index.name)
             else:
-                logger.info(f"Skipping vector index creation as index '{self.index.name}' already exists.")
+                logger.info(f"Skipping vector index creation as index '{self.vector_index.name}' already exists.")
                 return
 
         # Proceed to create the vector index
@@ -691,29 +688,29 @@ class PgVector(VectorDb):
             with self.Session() as sess:
                 with sess.begin():
                     # Set configuration parameters
-                    if self.index.configuration:
-                        logger.debug(f"Setting configuration: {self.index.configuration}")
-                        for key, value in self.index.configuration.items():
+                    if self.vector_index.configuration:
+                        logger.debug(f"Setting configuration: {self.vector_index.configuration}")
+                        for key, value in self.vector_index.configuration.items():
                             sess.execute(text(f"SET {key} = :value;"), {"value": value})
 
-                    if isinstance(self.index, Ivfflat):
+                    if isinstance(self.vector_index, Ivfflat):
                         self._create_ivfflat_index(sess, table_fullname, index_distance)
-                    elif isinstance(self.index, HNSW):
+                    elif isinstance(self.vector_index, HNSW):
                         self._create_hnsw_index(sess, table_fullname, index_distance)
                     else:
-                        logger.error(f"Unknown index type: {type(self.index)}")
+                        logger.error(f"Unknown index type: {type(self.vector_index)}")
                         return
         except Exception as e:
-            logger.error(f"Error creating vector index '{self.index.name}': {e}")
+            logger.error(f"Error creating vector index '{self.vector_index.name}': {e}")
             raise
 
     def _create_ivfflat_index(self, sess: Session, table_fullname: str, index_distance: str) -> None:
         # Cast index to Ivfflat for type hinting
-        self.index = cast(Ivfflat, self.index)
+        self.vector_index = cast(Ivfflat, self.vector_index)
 
         # Determine number of lists
-        num_lists = self.index.lists
-        if self.index.dynamic_lists:
+        num_lists = self.vector_index.lists
+        if self.vector_index.dynamic_lists:
             total_records = self.get_count()
             logger.debug(f"Number of records: {total_records}")
             if total_records < 1000000:
@@ -722,17 +719,17 @@ class PgVector(VectorDb):
                 num_lists = max(int(sqrt(total_records)), 1)
 
         # Set ivfflat.probes
-        sess.execute(text("SET ivfflat.probes = :probes;"), {"probes": self.index.probes})
+        sess.execute(text("SET ivfflat.probes = :probes;"), {"probes": self.vector_index.probes})
 
         logger.debug(
-            f"Creating Ivfflat index '{self.index.name}' on table '{table_fullname}' with "
-            f"lists: {num_lists}, probes: {self.index.probes}, "
+            f"Creating Ivfflat index '{self.vector_index.name}' on table '{table_fullname}' with "
+            f"lists: {num_lists}, probes: {self.vector_index.probes}, "
             f"and distance metric: {index_distance}"
         )
 
         # Create index
         create_index_sql = text(
-            f'CREATE INDEX "{self.index.name}" ON {table_fullname} '
+            f'CREATE INDEX "{self.vector_index.name}" ON {table_fullname} '
             f"USING ivfflat (embedding {index_distance}) "
             f"WITH (lists = :num_lists);"
         )
@@ -740,21 +737,21 @@ class PgVector(VectorDb):
 
     def _create_hnsw_index(self, sess: Session, table_fullname: str, index_distance: str) -> None:
         # Cast index to HNSW for type hinting
-        self.index = cast(HNSW, self.index)
+        self.vector_index = cast(HNSW, self.vector_index)
 
         logger.debug(
-            f"Creating HNSW index '{self.index.name}' on table '{table_fullname}' with "
-            f"m: {self.index.m}, ef_construction: {self.index.ef_construction}, "
+            f"Creating HNSW index '{self.vector_index.name}' on table '{table_fullname}' with "
+            f"m: {self.vector_index.m}, ef_construction: {self.vector_index.ef_construction}, "
             f"and distance metric: {index_distance}"
         )
 
         # Create index
         create_index_sql = text(
-            f'CREATE INDEX "{self.index.name}" ON {table_fullname} '
+            f'CREATE INDEX "{self.vector_index.name}" ON {table_fullname} '
             f"USING hnsw (embedding {index_distance}) "
             f"WITH (m = :m, ef_construction = :ef_construction);"
         )
-        sess.execute(create_index_sql, {"m": self.index.m, "ef_construction": self.index.ef_construction})
+        sess.execute(create_index_sql, {"m": self.vector_index.m, "ef_construction": self.vector_index.ef_construction})
 
     def _create_gin_index(self, force_recreate: bool = False) -> None:
         gin_index_name = f"{self.table_name}_content_gin_index"

@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict
 from phi.document import Document
 from phi.document.reader.base import Reader
 from phi.knowledge.chunking import CharacterChunks, ChunkingStrategy
-from phi.knowledge.retieval import RetrievalStrategy, SemanticSearch
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
@@ -17,17 +16,14 @@ class AgentKnowledge(BaseModel):
     reader: Optional[Reader] = None
     # Vector db for storing knowledge
     vector_db: Optional[VectorDb] = None
+    # Number of relevant documents to return on search
+    num_documents: int = 2
+    # Number of documents to optimize the vector db on
+    optimize_on: Optional[int] = 1000
     # ChunkingStrategy to chunk documents into smaller documents before storing in vector db
     chunking_strategy: ChunkingStrategy = CharacterChunks()
-    # RetrievalStrategy to retrieve relevant documents from vector db
-    retrieval_strategy: RetrievalStrategy = SemanticSearch()
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @property
-    def num_documents(self) -> int:
-        """Number of relevant documents to return on search"""
-        return self.retrieval_strategy.num_documents
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -45,7 +41,7 @@ class AgentKnowledge(BaseModel):
                 logger.warning("No vector db provided")
                 return []
 
-            _num_documents = num_documents or self.retrieval_strategy.num_documents
+            _num_documents = num_documents or self.num_documents
             logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
             return self.vector_db.search(query=query, limit=_num_documents, filters=filters)
         except Exception as e:

@@ -1,5 +1,7 @@
-from rich.pretty import pprint
-from phi.agent import Agent, RunResponse
+import asyncio  # noqa
+from typing import Iterator  # noqa
+from rich.pretty import pprint  # noqa
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 from phi.storage.agent.postgres import PgAgentStorage
@@ -15,7 +17,6 @@ agent = Agent(
 )
 
 run1: RunResponse = agent.run("What is the stock price of NVDA")  # type: ignore
-# run2: RunResponse = agent.run({"text": "What is the stock price of NVDA", "image": "https://example.com/image.jpg"})
 pprint(run1)
 # print("------------*******************------------")
 # print(run)
@@ -26,9 +27,14 @@ pprint(run1)
 #     print(m)
 #     print("---")
 
-# run_stream: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
-# for run in run_stream:
-#     print(run.content)
+# run: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
+# for chunk in run:
+#     print(chunk.content)
 
+# async def main():
+#     async for chunk in await agent.arun("What is the stock price of NVDA", stream=True):
+#         print(chunk.content)
+
+# asyncio.run(main())
 # agent.create_session()
 # agent.print_response("What is the stock price of NVDA?")

@@ -697,7 +697,7 @@ class OpenAIChat(Model):
                 if completion_tokens == 1:
                     time_to_first_token = response_timer.elapsed
                     logger.debug(f"Time to first token: {time_to_first_token:.4f}s")
-                yield response_content
+                yield ModelResponse(content=response_content)
 
             # -*- Parse tool calls
             if response_tool_calls is not None:
@@ -839,12 +839,12 @@ class OpenAIChat(Model):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
                 elif len(function_calls_to_run) > 1:
-                    yield "\nRunning:"
+                    yield ModelResponse(content="\nRunning:")
                     for _f in function_calls_to_run:
-                        yield f"\n - {_f.get_call_str()}"
-                    yield "\n\n"
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:

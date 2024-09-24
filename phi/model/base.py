@@ -1,4 +1,4 @@
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union, AsyncIterator
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,7 +55,7 @@ class Model(BaseModel):
     # Agent Session ID
     session_id: Optional[str] = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
@@ -82,7 +82,7 @@ class Model(BaseModel):
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         raise NotImplementedError
 
-    async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:

@@ -1043,6 +1043,11 @@ class Agent(BaseModel):
                 logger.warning(f"Failed to save output to file: {e}")
 
         # Log Agent Run
+        run_response_format = "text"
+        if self.output_model is not None:
+            run_response_format = "json"
+        elif self.markdown:
+            run_response_format = "markdown"
         functions = {}
         if self.model is not None and self.model.functions is not None:
             for _f_name, _func in self.model.functions.items():
@@ -1064,7 +1069,7 @@ class Agent(BaseModel):
             run_data = {
                 "run_input": run_input,
                 "run_response": self.run_response,
-                "run_response_format": "markdown" if self.markdown else "text",
+                "run_response_format": run_response_format,
                 "functions": functions,
                 "metrics": self.model.metrics if self.model else None,
             }
@@ -1309,6 +1314,11 @@ class Agent(BaseModel):
                 logger.warning(f"Failed to save output to file: {e}")
 
         # 12. Log Agent Run
+        run_response_format = "text"
+        if self.output_model is not None:
+            run_response_format = "json"
+        elif self.markdown:
+            run_response_format = "markdown"
         functions = {}
         if self.model is not None and self.model.functions is not None:
             for _f_name, _func in self.model.functions.items():
@@ -1330,7 +1340,7 @@ class Agent(BaseModel):
             run_data = {
                 "run_input": run_input,
                 "run_response": self.run_response,
-                "run_response_format": "markdown" if self.markdown else "text",
+                "run_response_format": run_response_format,
                 "functions": functions,
                 "metrics": self.model.metrics if self.model else None,
             }

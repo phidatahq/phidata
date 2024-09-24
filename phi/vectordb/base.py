@@ -40,7 +40,7 @@ class VectorDb(ABC):
     def vector_search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
-    def fulltext_search(self, query: str, limit: int = 5) -> List[Document]:
+    def keyword_search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
     def hybrid_search(self, query: str, limit: int = 5) -> List[Document]:

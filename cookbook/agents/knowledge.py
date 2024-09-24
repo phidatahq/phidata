@@ -19,9 +19,23 @@ assistant = Agent(
     markdown=True,
     debug_mode=True,
 )
-knowledge_base.load(recreate=True)  # Comment out after first run
+# knowledge_base.load(recreate=True)  # Comment out after first run
+# knowledge_base.load(recreate=True, upsert=True)  # Comment out after first run
+# knowledge_base.load(upsert=True)  # Comment out after first run
 
-# assistant.print_response("How to make Thai curry?")
+results = knowledge_base.vector_db.vector_search("Gluai Buat Chi")
+print("Vector search results:")
+pprint([r.id for r in results])
 
-# run1: RunResponse = agent.run("How to make Thai curry?")  # type: ignore
+results = knowledge_base.vector_db.keyword_search("Gluai Buat Chi")
+print("Fulltext search results:")
+pprint([r.id for r in results])
+
+results = knowledge_base.vector_db.hybrid_search("Gluai Buat Chi")
+print("Hybrid search results:")
+pprint([r.id for r in results])
+
+# assistant.print_response("How to make Gluai Buat Chi?")
+
+# run1: RunResponse = agent.run("How to make Gluai Buat Chi?")  # type: ignore
 # pprint(run1)

@@ -151,7 +151,7 @@ class LanceDb(VectorDb):
         elif self.query_type == "hybrid":
             return self.hybrid_search(query, limit)
         elif self.query_type == "fts":
-            return self.fulltext_search(query, limit)
+            return self.keyword_search(query, limit)
         else:
             logger.error(f"Invalid query type: {self.query_type} Supported query types: ['vector', 'hybrid', 'fts']")
             return []
@@ -201,7 +201,7 @@ class LanceDb(VectorDb):
 
         return search_results
 
-    def fulltext_search(self, query: str, limit: int = 5) -> List[Document]:
+    def keyword_search(self, query: str, limit: int = 5) -> List[Document]:
         if not self.fts_index_exists:
             self.connection.create_fts_index("payload", replace=True)
             self.fts_index_exists = True

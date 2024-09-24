@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict
 
 class RetrievalStrategy(str, Enum):
     semantic = "semantic"
+    keyword = "keyword"
+    hybrid = "hybrid"
 
 
 class Retriever(BaseModel):

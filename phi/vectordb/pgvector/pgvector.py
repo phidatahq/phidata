@@ -263,7 +263,7 @@ class PgVector(VectorDb):
         if self.search_type == "vector":
             return self.vector_search(query=query, limit=limit, filters=filters)
         elif self.search_type == "fulltext":
-            return self.fulltext_search(query=query, limit=limit, filters=filters)
+            return self.keyword_search(query=query, limit=limit, filters=filters)
         elif self.search_type == "hybrid":
             return self.hybrid_search(query=query, limit=limit, filters=filters)
         else:
@@ -291,6 +291,7 @@ class PgVector(VectorDb):
 
             # Define the columns to select
             columns = [
+                self.table.c.id,
                 self.table.c.name,
                 self.table.c.meta_data,
                 self.table.c.content,
@@ -341,6 +342,7 @@ class PgVector(VectorDb):
             for neighbor in neighbors:
                 search_results.append(
                     Document(
+                        id=neighbor.id,
                         name=neighbor.name,
                         meta_data=neighbor.meta_data,
                         content=neighbor.content,
@@ -355,7 +357,7 @@ class PgVector(VectorDb):
             logger.error(f"Error during vector search: {e}")
             return []
 
-    def fulltext_search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def keyword_search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Perform a full-text search on the 'content' column.
 
@@ -370,6 +372,7 @@ class PgVector(VectorDb):
         try:
             # Define the columns to select
             columns = [
+                self.table.c.id,
                 self.table.c.name,
                 self.table.c.meta_data,
                 self.table.c.content,
@@ -414,6 +417,7 @@ class PgVector(VectorDb):
             for result in results:
                 search_results.append(
                     Document(
+                        id=result.id,
                         name=result.name,
                         meta_data=result.meta_data,
                         content=result.content,
@@ -449,6 +453,7 @@ class PgVector(VectorDb):
 
             # Define the columns to select
             columns = [
+                self.table.c.id,
                 self.table.c.name,
                 self.table.c.meta_data,
                 self.table.c.content,
@@ -523,6 +528,7 @@ class PgVector(VectorDb):
             for result in results:
                 search_results.append(
                     Document(
+                        id=result.id,
                         name=result.name,
                         meta_data=result.meta_data,
                         content=result.content,

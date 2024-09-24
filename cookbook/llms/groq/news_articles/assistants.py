@@ -79,7 +79,7 @@ def get_article_writer(
         ### Takeaways
         {provide key takeaways from the article}
 
-        ### MessageContext
+        ### References
         - [Title](url)
         - [Title](url)
         - [Title](url)

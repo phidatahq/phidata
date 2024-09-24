@@ -150,7 +150,7 @@ class PgVector2(VectorDb):
                 result = sess.execute(stmt).first()
                 return result is not None
 
-    def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 10) -> None:
         with self.Session() as sess:
             counter = 0
             for document in documents:
@@ -185,12 +185,13 @@ class PgVector2(VectorDb):
     def upsert_available(self) -> bool:
         return True
 
-    def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 20) -> None:
         """
         Upsert documents into the database.
 
         Args:
             documents (List[Document]): List of documents to upsert
+            filters (Optional[Dict[str, Any]]): Filters to apply while upserting documents
             batch_size (int): Batch size for upserting documents
         """
         with self.Session() as sess:

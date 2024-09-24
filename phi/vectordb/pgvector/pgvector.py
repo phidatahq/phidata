@@ -30,15 +30,15 @@ class PgVector(VectorDb):
     def __init__(
         self,
         table_name: str,
-        schema: Optional[str] = "ai",
+        schema: str = "ai",
+        search_type: str = "vector",
+        index: Union[Ivfflat, HNSW] = HNSW(),
+        distance: Distance = Distance.cosine,
+        schema_version: int = 1,
+        auto_upgrade_schema: bool = False,
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
-        distance: Distance = Distance.cosine,
-        index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
-        search_type: Optional[str] = "vector",
-        schema_version: int = 1,
-        auto_upgrade_schema: bool = False,
     ):
         if not table_name:
             raise ValueError("Table name must be provided.")
@@ -57,7 +57,7 @@ class PgVector(VectorDb):
 
         # Collection attributes
         self.table_name: str = table_name
-        self.schema: Optional[str] = schema
+        self.schema: str = schema
 
         # Database attributes
         self.db_url: Optional[str] = db_url
@@ -79,7 +79,7 @@ class PgVector(VectorDb):
         self.distance: Distance = distance
 
         # Index for the table
-        self.index: Optional[Union[Ivfflat, HNSW]] = index
+        self.index: Union[Ivfflat, HNSW] = index
 
         # Search type
         self.search_type: str = search_type
@@ -170,7 +170,10 @@ class PgVector(VectorDb):
         return content.replace("\x00", "\ufffd")
 
     def insert(
-        self, documents: List[Document], batch_size: int = 100, filters: Optional[Dict[str, Any]] = None
+        self,
+        documents: List[Document],
+        filters: Optional[Dict[str, Any]] = None,
+        batch_size: int = 100,
     ) -> None:
         records = []
         for document in documents:
@@ -209,7 +212,7 @@ class PgVector(VectorDb):
         return True
 
     def upsert(
-        self, documents: List[Document], batch_size: int = 100, filters: Optional[Dict[str, Any]] = None
+        self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 100
     ) -> None:
         records = []
         for document in documents:

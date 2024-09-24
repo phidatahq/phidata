@@ -19,7 +19,7 @@ class ServiceAccount(K8sResource):
     When you create a pod, if you do not specify a service account, it is automatically assigned the default
     service account in the same namespace.
 
-    MessageContext:
+    References:
     - Docs: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#serviceaccount-v1-core
     - Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_service_account.py
     """

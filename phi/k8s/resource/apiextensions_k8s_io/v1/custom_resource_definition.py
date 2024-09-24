@@ -163,7 +163,7 @@ class CustomResourceDefinitionSpec(K8sObject):
 
 class CustomResourceDefinition(K8sResource):
     """
-    MessageContext:
+    References:
     - Doc: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#customresourcedefinition-v1-apiextensions-k8s-io
     - Type: https://github.com/kubernetes-client/python/blob/master/kubernetes/client/models/v1_custom_resource_definition.py
     """

@@ -69,7 +69,7 @@ class Deployment(K8sResource):
     Containers are run in Pods or ReplicaSets, and Deployments manages those Pods or ReplicaSets.
     A Deployment provides declarative updates for Pods and ReplicaSets.
 
-    MessageContext:
+    References:
     - Docs:
         https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#deployment-v1-apps
         https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

@@ -229,7 +229,7 @@ class Service(K8sResource):
     """A service resource exposes an application running on a set of Pods
     as a network service.
 
-    MessageContext:
+    References:
     - Docs:
         https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#service-v1-core
         https://kubernetes.io/docs/concepts/services-networking/service/

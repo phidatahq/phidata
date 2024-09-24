@@ -6,7 +6,7 @@ from phi.cli.settings import phi_cli_settings
 
 class CliAuthRequestHandler(BaseHTTPRequestHandler):
     """Request Handler to accept the CLI auth token after the web based auth flow.
-    MessageContext:
+    References:
         https://medium.com/@hasinthaindrajee/browser-sso-for-cli-applications-b0be743fa656
         https://gist.github.com/mdonkers/63e115cc0c79b4f6b8b3a6b797e485c7
 

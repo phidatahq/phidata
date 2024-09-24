@@ -58,7 +58,7 @@ class PersistentVolumeClaim(K8sResource):
     by an administrator or dynamically provisioned using Storage Classes.
     With Pak8, we prefer to use Storage Classes, read more about Dynamic provisioning here: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#dynamic
 
-    MessageContext:
+    References:
         * Docs:
             https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#persistentvolumeclaim-v1-core
             https://kubernetes.io/docs/concepts/storage/persistent-volumes/

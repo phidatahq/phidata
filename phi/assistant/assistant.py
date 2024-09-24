@@ -851,7 +851,7 @@ class Assistant(BaseModel):
             llm_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
 
         # -*- Build the User prompt
-        # MessageContext to add to the user_prompt if add_references_to_prompt is True
+        # References to add to the user_prompt if add_references_to_prompt is True
         references: Optional[References] = None
         # If messages are provided, simply use them
         if messages is not None and len(messages) > 0:
@@ -1052,7 +1052,7 @@ class Assistant(BaseModel):
                 llm_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
 
         # -*- Build the User prompt
-        # MessageContext to add to the user_prompt if add_references_to_prompt is True
+        # References to add to the user_prompt if add_references_to_prompt is True
         references: Optional[References] = None
         # If messages are provided, simply use them
         if messages is not None and len(messages) > 0:

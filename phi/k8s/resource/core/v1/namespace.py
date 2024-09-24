@@ -36,7 +36,7 @@ class Namespace(K8sResource):
     """
     Kubernetes supports multiple virtual clusters backed by the same physical cluster.
     These virtual clusters are called namespaces.
-    MessageContext:
+    References:
         * Docs:
             https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#namespace-v1-core
             https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/

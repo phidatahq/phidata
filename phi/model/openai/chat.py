@@ -1,4 +1,5 @@
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
+
 import httpx
 
 from phi.model.base import Model
@@ -69,9 +70,6 @@ class OpenAIChat(Model):
     client: Optional[OpenAIClient] = None
     async_client: Optional[AsyncOpenAIClient] = None
 
-    # Deprecated: will be removed in v3
-    openai_client: Optional[OpenAIClient] = None
-
     def get_client(self) -> OpenAIClient:
         """
         Get or create an OpenAI client.
@@ -81,9 +79,6 @@ class OpenAIChat(Model):
         """
         if self.client:
             return self.client
-
-        if self.openai_client:
-            return self.openai_client
 
         _client_params: Dict[str, Any] = {}
         # Set client parameters if they are provided

@@ -56,16 +56,15 @@ class PgAgentStorage(AgentStorage):
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
 
-        # Database session
-        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
-
-        # Database table for storage
-        self.table: Table = self.get_table()
-
         # Table schema version
         self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
+
+        # Database session
+        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
+        # Database table for storage
+        self.table: Table = self.get_table()
 
     def get_table_v1(self) -> Table:
         return Table(

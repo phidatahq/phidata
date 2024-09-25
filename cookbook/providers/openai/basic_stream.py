@@ -1,12 +1,14 @@
-from phi.agent import Agent
+from typing import Iterator  # noqa
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
 
-agent = Agent(
-    model=OpenAIChat(model="gpt-4-turbo"),
-    instructions=["Respond in a southern tone"],
-    # debug_mode=True,
-)
+agent = Agent(model=OpenAIChat(model="gpt-4o"), instructions=["Respond in a southern tone"], markdown=True)
 
+# Get the response in a variable
+# run_response: Iterator[RunResponse] = agent.run("Explain simulation theory", stream=True)
+# for chunk in run_response:
+#     print(chunk.content)
+# print(agent.run_response.content)
 
-# Return the result as a string
-agent.print_response("What is a type 2 civilization? How close are we?", stream=True)  # type: ignore
+# Print the response on the terminal
+agent.print_response("Explain simulation theory", stream=True)

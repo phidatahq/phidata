@@ -1,14 +1,11 @@
-from phi.agent import Agent, RunResponse
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
 
-agent = Agent(
-    model=OpenAIChat(model="gpt-4o"),
-    instructions=["Respond in a southern tone"],
-    # debug_mode=True,
-)
+agent = Agent(model=OpenAIChat(model="gpt-4o"), instructions=["Respond in a southern tone"], markdown=True)
 
+# Get the response in a variable
+# run: RunResponse = agent.run("Explain simulation theory")
+# print(run.content)
 
-# Return the result as a string
-run: RunResponse = agent.run("Explain simulation theory")  # type: ignore
-
-print(run.content)
+# Print the response on the terminal
+agent.print_response("Explain simulation theory")

@@ -11,7 +11,7 @@ agent = Agent(
     model=OpenAIChat(model="gpt-4o"),
     tools=[duckdb_tools],
     show_tool_calls=True,
-    add_to_system_prompt="""
+    additional_context="""
     Here are the tables you have access to:
     - movies: Contains information about movies from IMDB.
     """,

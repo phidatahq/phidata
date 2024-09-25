@@ -185,12 +185,14 @@ class Playground:
             all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
             for session in all_agent_sessions:
                 memory = session.memory
-                chat_history = memory.get('chat_history')
                 title: Optional[str] = None
-                for history in chat_history:
-                    if history.get('role') == 'user':
-                        title = history.get('content')
-                        break
+                if memory is not None:
+                    chat_history = memory.get("chat_history")
+                    if chat_history is not None:
+                        for history in chat_history:
+                            if history.get("role") == "user":
+                                title = history.get("content")
+                                break
 
                 agent_sessions.append(
                     GetAgentSessionsResponse(

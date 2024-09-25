@@ -53,7 +53,7 @@ class GetAgentSessionsRequest(BaseModel):
 
 class GetAgentSessionsResponse(BaseModel):
     session_id: Optional[str] = None
-    session_data: Optional[Dict[str, Any]] = None
+    title: Optional[str] = None
 
 
 class Playground:
@@ -184,10 +184,18 @@ class Playground:
             agent_sessions: List[GetAgentSessionsResponse] = []
             all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
             for session in all_agent_sessions:
+                memory = session.memory
+                chat_history = memory.get('chat_history')
+                title: Optional[str] = None
+                for history in chat_history:
+                    if history.get('role') == 'user':
+                        title = history.get('content')
+                        break
+
                 agent_sessions.append(
                     GetAgentSessionsResponse(
                         session_id=session.session_id,
-                        session_data=session.session_data,
+                        title=title,
                     )
                 )
             return agent_sessions

@@ -474,6 +474,8 @@ class OpenAIChat(Model):
         if self._handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
+                if model_response.content is None:
+                    model_response.content = ""
                 model_response.content += response_after_tool_calls.content
             return model_response
 
@@ -513,6 +515,8 @@ class OpenAIChat(Model):
         if self._handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = await self.aresponse(messages=messages)
             if response_after_tool_calls.content is not None:
+                if model_response.content is None:
+                    model_response.content = ""
                 model_response.content += response_after_tool_calls.content
             return model_response
 

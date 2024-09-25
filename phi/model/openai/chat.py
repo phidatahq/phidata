@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
@@ -23,6 +24,18 @@ try:
 except ImportError:
     logger.error("`openai` not installed")
     raise
+
+
+@dataclass
+class StreamData:
+    response_content: str = ""
+    response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
+    completion_tokens: int = 0
+    response_prompt_tokens: int = 0
+    response_completion_tokens: int = 0
+    response_total_tokens: int = 0
+    time_to_first_token: Optional[float] = None
+    response_timer: Timer = field(default_factory=Timer)
 
 
 class OpenAIChat(Model):
@@ -526,69 +539,50 @@ class OpenAIChat(Model):
         logger.debug("---------- OpenAI Async Response End ----------")
         return model_response
 
-    def _initialize_stream_variables(self):
-        """
-        Initialize the variables for the streaming response.
-
-        Returns:
-            Dict[str, Any]: The variables dictionary.
-        """
-        return {
-            "response_content": "",
-            "response_tool_calls": None,
-            "completion_tokens": 0,
-            "response_prompt_tokens": 0,
-            "response_completion_tokens": 0,
-            "response_total_tokens": 0,
-            "time_to_first_token": None,
-            "response_timer": Timer(),
-        }
-
-    def _update_stream_metrics(self, vars_dict, assistant_message):
+    def _update_stream_metrics(self, stream_data: StreamData, assistant_message: Message):
         """
         Update the metrics for the streaming response.
 
         Args:
-            vars_dict (Dict[str, Any]): The variables dictionary.
+            stream_data (StreamData): The streaming data
             assistant_message (Message): The assistant message.
         """
-        response_timer = vars_dict["response_timer"]
-        completion_tokens = vars_dict["completion_tokens"]
-        time_to_first_token = vars_dict["time_to_first_token"]
-        response_prompt_tokens = vars_dict["response_prompt_tokens"]
-        response_completion_tokens = vars_dict["response_completion_tokens"]
-        response_total_tokens = vars_dict["response_total_tokens"]
-
-        assistant_message.metrics["time"] = response_timer.elapsed
-        if time_to_first_token is not None:
-            assistant_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
-        if completion_tokens > 0:
-            assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
+        assistant_message.metrics["time"] = stream_data.response_timer.elapsed
+        if stream_data.time_to_first_token is not None:
+            assistant_message.metrics["time_to_first_token"] = f"{stream_data.time_to_first_token:.4f}s"
+        if stream_data.completion_tokens > 0:
+            assistant_message.metrics["time_per_output_token"] = (
+                f"{stream_data.response_timer.elapsed / stream_data.completion_tokens:.4f}s"
+            )
 
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer.elapsed)
-        if time_to_first_token is not None:
+        self.metrics["response_times"].append(stream_data.response_timer.elapsed)
+        if stream_data.time_to_first_token is not None:
             if "time_to_first_token" not in self.metrics:
                 self.metrics["time_to_first_token"] = []
-            self.metrics["time_to_first_token"].append(f"{time_to_first_token:.4f}s")
-        if completion_tokens > 0:
+            self.metrics["time_to_first_token"].append(f"{stream_data.time_to_first_token:.4f}s")
+        if stream_data.completion_tokens > 0:
             if "tokens_per_second" not in self.metrics:
                 self.metrics["tokens_per_second"] = []
-            self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
+            self.metrics["tokens_per_second"].append(
+                f"{stream_data.completion_tokens / stream_data.response_timer.elapsed:.4f}"
+            )
 
-        assistant_message.metrics["prompt_tokens"] = response_prompt_tokens
-        assistant_message.metrics["input_tokens"] = response_prompt_tokens
-        self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + response_prompt_tokens
-        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + response_prompt_tokens
+        assistant_message.metrics["prompt_tokens"] = stream_data.response_prompt_tokens
+        assistant_message.metrics["input_tokens"] = stream_data.response_prompt_tokens
+        self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + stream_data.response_prompt_tokens
+        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + stream_data.response_prompt_tokens
 
-        assistant_message.metrics["completion_tokens"] = response_completion_tokens
-        assistant_message.metrics["output_tokens"] = response_completion_tokens
-        self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + response_completion_tokens
-        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + response_completion_tokens
+        assistant_message.metrics["completion_tokens"] = stream_data.response_completion_tokens
+        assistant_message.metrics["output_tokens"] = stream_data.response_completion_tokens
+        self.metrics["completion_tokens"] = (
+            self.metrics.get("completion_tokens", 0) + stream_data.response_completion_tokens
+        )
+        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + stream_data.response_completion_tokens
 
-        assistant_message.metrics["total_tokens"] = response_total_tokens
-        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + response_total_tokens
+        assistant_message.metrics["total_tokens"] = stream_data.response_total_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + stream_data.response_total_tokens
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
@@ -603,50 +597,50 @@ class OpenAIChat(Model):
         logger.debug("---------- OpenAI Response Start ----------")
         self._log_messages(messages)
 
-        vars_dict = self._initialize_stream_variables()
-        vars_dict["response_timer"].start()
+        stream_data: StreamData = StreamData()
+        stream_data.response_timer.start()
 
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 response_delta: ChoiceDelta = response.choices[0].delta
-                response_content = response_delta.content
-                response_tool_calls = response_delta.tool_calls
+                response_content: Optional[str] = response_delta.content
+                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 
                 if response_content is not None:
-                    vars_dict["response_content"] += response_content
-                    vars_dict["completion_tokens"] += 1
-                    if vars_dict["completion_tokens"] == 1:
-                        vars_dict["time_to_first_token"] = vars_dict["response_timer"].elapsed
-                        logger.debug(f"Time to first token: {vars_dict['time_to_first_token']:.4f}s")
+                    stream_data.response_content += response_content
+                    stream_data.completion_tokens += 1
+                    if stream_data.completion_tokens == 1:
+                        stream_data.time_to_first_token = stream_data.response_timer.elapsed
+                        logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
                     yield ModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
-                    if vars_dict["response_tool_calls"] is None:
-                        vars_dict["response_tool_calls"] = []
-                    vars_dict["response_tool_calls"].extend(response_tool_calls)
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(response_tool_calls)
 
                 if response.usage:
                     response_usage: Optional[CompletionUsage] = response.usage
                     if response_usage:
-                        vars_dict["response_prompt_tokens"] = response_usage.prompt_tokens
-                        vars_dict["response_completion_tokens"] = response_usage.completion_tokens
-                        vars_dict["response_total_tokens"] = response_usage.total_tokens
+                        stream_data.response_prompt_tokens = response_usage.prompt_tokens
+                        stream_data.response_completion_tokens = response_usage.completion_tokens
+                        stream_data.response_total_tokens = response_usage.total_tokens
 
-        vars_dict["response_timer"].stop()
-        completion_tokens = vars_dict["completion_tokens"]
+        stream_data.response_timer.stop()
+        completion_tokens = stream_data.completion_tokens
         if completion_tokens > 0:
-            logger.debug(f"Time per output token: {vars_dict['response_timer'].elapsed / completion_tokens:.4f}s")
-            logger.debug(f"Throughput: {completion_tokens / vars_dict['response_timer'].elapsed:.4f} tokens/s")
+            logger.debug(f"Time per output token: {stream_data.response_timer.elapsed / completion_tokens:.4f}s")
+            logger.debug(f"Throughput: {completion_tokens / stream_data.response_timer.elapsed:.4f} tokens/s")
 
         assistant_message = Message(role="assistant")
-        if vars_dict["response_content"] != "":
-            assistant_message.content = vars_dict["response_content"]
+        if stream_data.response_content != "":
+            assistant_message.content = stream_data.response_content
 
-        if vars_dict["response_tool_calls"] is not None:
+        if stream_data.response_tool_calls is not None:
             # Build tool calls (simplified for brevity)
-            assistant_message.tool_calls = self._build_tool_calls(vars_dict["response_tool_calls"])
+            assistant_message.tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
 
-        self._update_stream_metrics(vars_dict, assistant_message)
+        self._update_stream_metrics(stream_data=stream_data, assistant_message=assistant_message)
         messages.append(assistant_message)
         assistant_message.log()
 
@@ -698,8 +692,8 @@ class OpenAIChat(Model):
         logger.debug("---------- OpenAI Async Response Start ----------")
         self._log_messages(messages)
 
-        vars_dict = self._initialize_stream_variables()
-        vars_dict["response_timer"].start()
+        stream_data: StreamData = StreamData()
+        stream_data.response_timer.start()
         async_stream = self.ainvoke_stream(messages=messages)
 
         async for response in async_stream:
@@ -709,32 +703,32 @@ class OpenAIChat(Model):
                 response_tool_calls = response_delta.tool_calls
 
                 if response_content is not None:
-                    vars_dict["response_content"] += response_content
-                    vars_dict["completion_tokens"] += 1
-                    if vars_dict["completion_tokens"] == 1:
-                        vars_dict["time_to_first_token"] = vars_dict["response_timer"].elapsed
-                        logger.debug(f"Time to first token: {vars_dict['time_to_first_token']:.4f}s")
+                    stream_data.response_content += response_content
+                    stream_data.completion_tokens += 1
+                    if stream_data.completion_tokens == 1:
+                        stream_data.time_to_first_token = stream_data.response_timer.elapsed
+                        logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
                     yield ModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
-                    if vars_dict["response_tool_calls"] is None:
-                        vars_dict["response_tool_calls"] = []
-                    vars_dict["response_tool_calls"].extend(response_tool_calls)
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(response_tool_calls)
 
-        vars_dict["response_timer"].stop()
-        completion_tokens = vars_dict["completion_tokens"]
+        stream_data.response_timer.stop()
+        completion_tokens = stream_data.completion_tokens
         if completion_tokens > 0:
-            logger.debug(f"Time per output token: {vars_dict['response_timer'].elapsed / completion_tokens:.4f}s")
-            logger.debug(f"Throughput: {completion_tokens / vars_dict['response_timer'].elapsed:.4f} tokens/s")
+            logger.debug(f"Time per output token: {stream_data.response_timer.elapsed / completion_tokens:.4f}s")
+            logger.debug(f"Throughput: {completion_tokens / stream_data.response_timer.elapsed:.4f} tokens/s")
 
         assistant_message = Message(role="assistant")
-        if vars_dict["response_content"] != "":
-            assistant_message.content = vars_dict["response_content"]
+        if stream_data.response_content != "":
+            assistant_message.content = stream_data.response_content
 
-        if vars_dict["response_tool_calls"] is not None:
-            assistant_message.tool_calls = self._build_tool_calls(vars_dict["response_tool_calls"])
+        if stream_data.response_tool_calls is not None:
+            assistant_message.tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
 
-        self._update_stream_metrics(vars_dict, assistant_message)
+        self._update_stream_metrics(stream_data=stream_data, assistant_message=assistant_message)
         messages.append(assistant_message)
         assistant_message.log()
 

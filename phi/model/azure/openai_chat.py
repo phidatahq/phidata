@@ -1,27 +1,16 @@
 from os import getenv
-<<<<<<< HEAD
 from typing import Optional, Dict, Any
 from phi.utils.log import logger
-=======
-from typing import Optional, Dict, Any, List, Iterator
-from phi.utils.log import logger
-from phi.model.message import Message
->>>>>>> 46a54c3b2a88d06f8fb9d31b6db168f1c8fef00c
 from phi.model.openai.like import OpenAILike
 
 try:
     from openai import AzureOpenAI as AzureOpenAIClient
-<<<<<<< HEAD
-=======
-    from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
->>>>>>> 46a54c3b2a88d06f8fb9d31b6db168f1c8fef00c
 except ImportError:
     logger.error("`azure openai` not installed")
     raise
 
 
 class AzureOpenAIChat(OpenAILike):
-<<<<<<< HEAD
     """
     Azure OpenAI Chat model
 
@@ -39,8 +28,6 @@ class AzureOpenAIChat(OpenAILike):
         openai_client (Optional[AzureOpenAIClient]): The OpenAI client to use.
     """
 
-=======
->>>>>>> 46a54c3b2a88d06f8fb9d31b6db168f1c8fef00c
     name: str = "AzureOpenAIChat"
     model: str
     api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")
@@ -54,7 +41,6 @@ class AzureOpenAIChat(OpenAILike):
     openai_client: Optional[AzureOpenAIClient] = None
 
     def get_client(self) -> AzureOpenAIClient:
-<<<<<<< HEAD
         """
         Get the OpenAI client.
 
@@ -62,8 +48,6 @@ class AzureOpenAIChat(OpenAILike):
             AzureOpenAIClient: The OpenAI client.
 
         """
-=======
->>>>>>> 46a54c3b2a88d06f8fb9d31b6db168f1c8fef00c
         if self.openai_client:
             return self.openai_client
 
@@ -90,14 +74,3 @@ class AzureOpenAIChat(OpenAILike):
             _client_params.update(self.client_params)
 
         return AzureOpenAIClient(**_client_params)
-<<<<<<< HEAD
-=======
-
-    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
-        yield from self.get_client().chat.completions.create(
-            model=self.model,
-            messages=[m.to_dict() for m in messages],  # type: ignore
-            stream=True,
-            **self.api_kwargs,
-        )  # type: ignore
->>>>>>> 46a54c3b2a88d06f8fb9d31b6db168f1c8fef00c

@@ -1149,7 +1149,7 @@ class Agent(BaseModel):
                     # -*- Update agent output to the structured output
                     if structured_output is not None and self.run_response is not None:
                         self.run_response.content = structured_output
-                        self.run_response.content_type = self.output_model.__class__.__name__
+                        self.run_response.content_type = self.output_model.__name__
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:

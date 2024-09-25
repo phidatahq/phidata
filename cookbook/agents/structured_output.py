@@ -24,4 +24,4 @@ movie_agent = Agent(
 )
 
 run: RunResponse = movie_agent.run("New York")
-pprint(run.content)
+pprint(run)

@@ -1,3 +1,4 @@
+from rich.pretty import pprint  # noqa
 from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 
@@ -30,3 +31,4 @@ run: RunResponse = agent.run(
     ],
 )  # type: ignore
 print(run.content)
+# pprint(run)

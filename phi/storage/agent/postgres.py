@@ -24,6 +24,7 @@ class PgAgentStorage(AgentStorage):
         schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
+        schema_version: int = 1,
         auto_upgrade_schema: bool = False,
     ):
         """
@@ -38,6 +39,7 @@ class PgAgentStorage(AgentStorage):
             schema: The schema to store the table in.
             db_url: The database URL to connect to.
             db_engine: The database engine to use.
+            schema_version: The version of the schema.
             auto_upgrade_schema: If True, automatically upgrade the schema.
         """
         _engine: Optional[Engine] = db_engine
@@ -60,10 +62,12 @@ class PgAgentStorage(AgentStorage):
         # Database table for storage
         self.table: Table = self.get_table()
 
+        # Table schema version
+        self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
-    def get_table(self) -> Table:
+    def get_table_v1(self) -> Table:
         return Table(
             self.table_name,
             self.metadata,
@@ -87,6 +91,12 @@ class PgAgentStorage(AgentStorage):
             Column("updated_at", BigInteger, onupdate=text("(extract(epoch from now()))::bigint")),
             extend_existing=True,
         )
+
+    def get_table(self) -> Table:
+        if self.schema_version == 1:
+            return self.get_table_v1()
+        else:
+            raise ValueError(f"Unsupported schema version: {self.schema_version}")
 
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")

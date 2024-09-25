@@ -710,7 +710,7 @@ class OpenAIChat(Model):
                     if vars_dict["completion_tokens"] == 1:
                         vars_dict["time_to_first_token"] = vars_dict["response_timer"].elapsed
                         logger.debug(f"Time to first token: {vars_dict['time_to_first_token']:.4f}s")
-                    yield response_content
+                    yield ModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
                     if vars_dict["response_tool_calls"] is None:
@@ -760,8 +760,13 @@ class OpenAIChat(Model):
                 function_calls_to_run.append(_function_call)
 
             if self.show_tool_calls:
-                for _f in function_calls_to_run:
-                    yield f"\n - Running: {_f.get_call_str()}\n\n"
+                if len(function_calls_to_run) == 1:
+                    yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
+                elif len(function_calls_to_run) > 1:
+                    yield ModelResponse(content="\nRunning:")
+                    for _f in function_calls_to_run:
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:

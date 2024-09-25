@@ -37,7 +37,7 @@ class AgentRunRequest(BaseModel):
     stream: bool = True
     session_id: Optional[str] = None
     user_id: Optional[str] = None
-    image: Optional[UploadFile]
+    image: Optional[UploadFile] = None
 
 
 class AgentRenameRequest(BaseModel):
@@ -154,17 +154,17 @@ class Playground:
             if agent is None:
                 raise HTTPException(status_code=404, detail="Agent not found")
 
-            image: Optional[List[Union[str, Dict]]] = None
+            base64_image: Optional[List[Union[str, Dict]]] = None
             if body.image:
-                process_image(image)
+                base64_image = process_image(body.image)
 
             if body.stream:
                 return StreamingResponse(
-                    chat_response_streamer(agent, body.message, image),
+                    chat_response_streamer(agent, body.message, base64_image),
                     media_type="text/event-stream",
                 )
             else:
-                run_response = cast(RunResponse, agent.run(body.message, images=image, stream=False))
+                run_response = cast(RunResponse, agent.run(body.message, images=base64_image, stream=False))
                 return run_response.model_dump_json()
 
         @playground_routes.post("/agent/sessions/all")

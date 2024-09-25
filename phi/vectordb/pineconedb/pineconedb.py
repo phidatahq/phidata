@@ -185,6 +185,7 @@ class PineconeDB(VectorDb):
     def upsert(
         self,
         documents: List[Document],
+        filters: Optional[Dict[str, Any]] = None,
         namespace: Optional[str] = None,
         batch_size: Optional[int] = None,
         show_progress: bool = False,
@@ -193,6 +194,7 @@ class PineconeDB(VectorDb):
 
         Args:
             documents (List[Document]): The documents to upsert.
+            filters (Optional[Dict[str, Any]], optional): The filters for the upsert. Defaults to None.
             namespace (Optional[str], optional): The namespace for the documents. Defaults to None.
             batch_size (Optional[int], optional): The batch size for upsert. Defaults to None.
             show_progress (bool, optional): Whether to show progress during upsert. Defaults to False.
@@ -226,13 +228,14 @@ class PineconeDB(VectorDb):
         """
         return True
 
-    def insert(self, documents: List[Document]) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """Insert documents into the index.
 
         This method is not supported by Pinecone. Use `upsert` instead.
 
         Args:
             documents (List[Document]): The documents to insert.
+            filters (Optional[Dict[str, Any]], optional): The filters for the insert. Defaults to None.
 
         Raises:
             NotImplementedError: This method is not supported by Pinecone.
@@ -244,8 +247,8 @@ class PineconeDB(VectorDb):
         self,
         query: str,
         limit: int = 5,
+        filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         namespace: Optional[str] = None,
-        filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         include_values: Optional[bool] = None,
     ) -> List[Document]:
         """Search for similar documents in the index.
@@ -253,8 +256,8 @@ class PineconeDB(VectorDb):
         Args:
             query (str): The query to search for.
             limit (int, optional): The maximum number of results to return. Defaults to 5.
+            filters (Optional[Dict[str, Union[str, float, int, bool, List, dict]]], optional): The filter for the search. Defaults to None.
             namespace (Optional[str], optional): The namespace to search in. Defaults to None.
-            filter (Optional[Dict[str, Union[str, float, int, bool, List, dict]]], optional): The filter for the search. Defaults to None.
             include_values (Optional[bool], optional): Whether to include values in the search results. Defaults to None.
             include_metadata (Optional[bool], optional): Whether to include metadata in the search results. Defaults to None.
 
@@ -272,7 +275,7 @@ class PineconeDB(VectorDb):
             vector=query_embedding,
             top_k=limit,
             namespace=namespace,
-            filter=filter,
+            filter=filters,
             include_values=include_values,
             include_metadata=True,
         )

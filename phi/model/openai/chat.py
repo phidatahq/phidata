@@ -1,4 +1,4 @@
-from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
+from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
 
@@ -8,7 +8,6 @@ from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
-from phi.utils.functions import get_function_call
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
@@ -31,7 +30,7 @@ class OpenAIChat(Model):
     A class representing an OpenAI chat model.
 
     This class provides methods to interact with OpenAI's chat models,
-    including sending requests and handling responses.
+    including sending requests, handling responses and running tool calls.
 
     Attributes:
         model (str): The name of the OpenAI model to use. Default is "gpt-4o".
@@ -63,7 +62,6 @@ class OpenAIChat(Model):
         client_params (Optional[Dict[str, Any]]): Additional parameters for client configuration.
         client (Optional[OpenAIClient]): The OpenAI client instance.
         async_client (Optional[AsyncOpenAIClient]): The asynchronous OpenAI client instance.
-
     """
 
     model: str = "gpt-4o"
@@ -172,7 +170,7 @@ class OpenAIChat(Model):
         return AsyncOpenAIClient(**_client_params)
 
     @property
-    def api_kwargs(self) -> Dict[str, Any]:
+    def request_kwargs(self) -> Dict[str, Any]:
         """
         Generate keyword arguments for API requests.
 
@@ -277,7 +275,7 @@ class OpenAIChat(Model):
         return self.get_client().chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
-            **self.api_kwargs,
+            **self.request_kwargs,
         )
 
     async def ainvoke(self, messages: List[Message]) -> ChatCompletion:
@@ -293,7 +291,7 @@ class OpenAIChat(Model):
         return await self.get_async_client().chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
-            **self.api_kwargs,
+            **self.request_kwargs,
         )
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
@@ -311,7 +309,7 @@ class OpenAIChat(Model):
             messages=[m.to_dict() for m in messages],  # type: ignore
             stream=True,
             stream_options={"include_usage": True},
-            **self.api_kwargs,
+            **self.request_kwargs,
         )  # type: ignore
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
@@ -328,7 +326,7 @@ class OpenAIChat(Model):
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore
             stream=True,
-            **self.api_kwargs,
+            **self.request_kwargs,
         )
         async for chunk in async_stream:  # type: ignore
             yield chunk
@@ -337,12 +335,12 @@ class OpenAIChat(Model):
         for m in messages:
             m.log()
 
-    def _update_usage_metrics(self, agent_message: Message, response_usage: Optional[CompletionUsage]) -> None:
+    def _update_usage_metrics(self, assistant_message: Message, response_usage: Optional[CompletionUsage]) -> None:
         """
         Update the usage metrics for the assistant message.
 
         Args:
-            agent_message (Message): The assistant message.
+            assistant_message (Message): The assistant message.
             response_usage (Optional[CompletionUsage]): The response usage.
         """
         if response_usage:
@@ -351,37 +349,37 @@ class OpenAIChat(Model):
             total_tokens = response_usage.total_tokens
 
             if prompt_tokens is not None:
-                agent_message.metrics["prompt_tokens"] = prompt_tokens
-                agent_message.metrics["input_tokens"] = prompt_tokens
+                assistant_message.metrics["prompt_tokens"] = prompt_tokens
+                assistant_message.metrics["input_tokens"] = prompt_tokens
                 self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + prompt_tokens
                 self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + prompt_tokens
             if completion_tokens is not None:
-                agent_message.metrics["completion_tokens"] = completion_tokens
-                agent_message.metrics["output_tokens"] = completion_tokens
+                assistant_message.metrics["completion_tokens"] = completion_tokens
+                assistant_message.metrics["output_tokens"] = completion_tokens
                 self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + completion_tokens
                 self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + completion_tokens
             if total_tokens is not None:
-                agent_message.metrics["total_tokens"] = total_tokens
+                assistant_message.metrics["total_tokens"] = total_tokens
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
 
     def _handle_tool_calls(
-        self, agent_message: Message, messages: List[Message], model_response: ModelResponse
+        self, assistant_message: Message, messages: List[Message], model_response: ModelResponse
     ) -> Optional[ModelResponse]:
         """
         Handle tool calls in the assistant message.
 
         Args:
-            agent_message (Message): The assistant message.
+            assistant_message (Message): The assistant message.
             messages (List[Message]): The list of messages.
             model_response (ModelResponse): The model response.
 
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if agent_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None and self.run_tools:
             model_response.content = ""
             function_calls_to_run: List[FunctionCall] = []
-            for tool_call in agent_message.tool_calls:
+            for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
@@ -414,7 +412,7 @@ class OpenAIChat(Model):
             return model_response
         return None
 
-    def _create_agent_message(
+    def _create_assistant_message(
         self,
         response_message: ChatCompletionMessage,
         response_timer: Timer,
@@ -431,22 +429,21 @@ class OpenAIChat(Model):
         Returns:
             Message: The assistant message.
         """
-        agent_message = Message(
+        assistant_message = Message(
             role=response_message.role or "assistant",
             content=response_message.content,
         )
         if response_message.tool_calls is not None:
-            agent_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
 
-        agent_message.metrics["time"] = response_timer.elapsed
+        assistant_message.metrics["time"] = response_timer.elapsed
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
 
-        self._update_usage_metrics(agent_message, response_usage)
-        return agent_message
+        self._update_usage_metrics(assistant_message, response_usage)
+        return assistant_message
 
-    # Refactored response method
     def response(self, messages: List[Message]) -> ModelResponse:
         """
         Send a chat completion request to the OpenAI API.
@@ -470,23 +467,22 @@ class OpenAIChat(Model):
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
 
-        agent_message = self._create_agent_message(response_message, response_timer, response_usage)
-        messages.append(agent_message)
-        agent_message.log()
+        assistant_message = self._create_assistant_message(response_message, response_timer, response_usage)
+        messages.append(assistant_message)
+        assistant_message.log()
 
-        if self._handle_tool_calls(agent_message, messages, model_response):
+        if self._handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
                 model_response.content += response_after_tool_calls.content
             return model_response
 
-        if agent_message.content is not None:
-            model_response.content = agent_message.get_content_string()
+        if assistant_message.content is not None:
+            model_response.content = assistant_message.get_content_string()
 
         logger.debug("---------- OpenAI Response End ----------")
         return model_response
 
-    # Refactored aresponse method
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         """
         Asynchronously send a chat completion request to the OpenAI API.
@@ -510,23 +506,22 @@ class OpenAIChat(Model):
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
 
-        agent_message = self._create_agent_message(response_message, response_timer, response_usage)
-        messages.append(agent_message)
-        agent_message.log()
+        assistant_message = self._create_assistant_message(response_message, response_timer, response_usage)
+        messages.append(assistant_message)
+        assistant_message.log()
 
-        if self._handle_tool_calls(agent_message, messages, model_response):
+        if self._handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = await self.aresponse(messages=messages)
             if response_after_tool_calls.content is not None:
                 model_response.content += response_after_tool_calls.content
             return model_response
 
-        if agent_message.content is not None:
-            model_response.content = agent_message.get_content_string()
+        if assistant_message.content is not None:
+            model_response.content = assistant_message.get_content_string()
 
         logger.debug("---------- OpenAI Async Response End ----------")
         return model_response
 
-    # Additional helper methods for streaming responses
     def _initialize_stream_variables(self):
         """
         Initialize the variables for the streaming response.
@@ -535,8 +530,8 @@ class OpenAIChat(Model):
             Dict[str, Any]: The variables dictionary.
         """
         return {
-            "agent_message_content": "",
-            "agent_message_tool_calls": None,
+            "response_content": "",
+            "response_tool_calls": None,
             "completion_tokens": 0,
             "response_prompt_tokens": 0,
             "response_completion_tokens": 0,
@@ -545,13 +540,13 @@ class OpenAIChat(Model):
             "response_timer": Timer(),
         }
 
-    def _update_stream_metrics(self, vars_dict, agent_message):
+    def _update_stream_metrics(self, vars_dict, assistant_message):
         """
         Update the metrics for the streaming response.
 
         Args:
             vars_dict (Dict[str, Any]): The variables dictionary.
-            agent_message (Message): The assistant message.
+            assistant_message (Message): The assistant message.
         """
         response_timer = vars_dict["response_timer"]
         completion_tokens = vars_dict["completion_tokens"]
@@ -560,11 +555,11 @@ class OpenAIChat(Model):
         response_completion_tokens = vars_dict["response_completion_tokens"]
         response_total_tokens = vars_dict["response_total_tokens"]
 
-        agent_message.metrics["time"] = response_timer.elapsed
+        assistant_message.metrics["time"] = response_timer.elapsed
         if time_to_first_token is not None:
-            agent_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
+            assistant_message.metrics["time_to_first_token"] = f"{time_to_first_token:.4f}s"
         if completion_tokens > 0:
-            agent_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
+            assistant_message.metrics["time_per_output_token"] = f"{response_timer.elapsed / completion_tokens:.4f}s"
 
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
@@ -578,20 +573,19 @@ class OpenAIChat(Model):
                 self.metrics["tokens_per_second"] = []
             self.metrics["tokens_per_second"].append(f"{completion_tokens / response_timer.elapsed:.4f}")
 
-        agent_message.metrics["prompt_tokens"] = response_prompt_tokens
-        agent_message.metrics["input_tokens"] = response_prompt_tokens
+        assistant_message.metrics["prompt_tokens"] = response_prompt_tokens
+        assistant_message.metrics["input_tokens"] = response_prompt_tokens
         self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + response_prompt_tokens
         self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + response_prompt_tokens
 
-        agent_message.metrics["completion_tokens"] = response_completion_tokens
-        agent_message.metrics["output_tokens"] = response_completion_tokens
+        assistant_message.metrics["completion_tokens"] = response_completion_tokens
+        assistant_message.metrics["output_tokens"] = response_completion_tokens
         self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + response_completion_tokens
         self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + response_completion_tokens
 
-        agent_message.metrics["total_tokens"] = response_total_tokens
+        assistant_message.metrics["total_tokens"] = response_total_tokens
         self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + response_total_tokens
 
-    # Refactored response_stream method
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Send a streaming chat completion request to the OpenAI API.
@@ -615,7 +609,7 @@ class OpenAIChat(Model):
                 response_tool_calls = response_delta.tool_calls
 
                 if response_content is not None:
-                    vars_dict["agent_message_content"] += response_content
+                    vars_dict["response_content"] += response_content
                     vars_dict["completion_tokens"] += 1
                     if vars_dict["completion_tokens"] == 1:
                         vars_dict["time_to_first_token"] = vars_dict["response_timer"].elapsed
@@ -623,9 +617,9 @@ class OpenAIChat(Model):
                     yield ModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
-                    if vars_dict["agent_message_tool_calls"] is None:
-                        vars_dict["agent_message_tool_calls"] = []
-                    vars_dict["agent_message_tool_calls"].extend(response_tool_calls)
+                    if vars_dict["response_tool_calls"] is None:
+                        vars_dict["response_tool_calls"] = []
+                    vars_dict["response_tool_calls"].extend(response_tool_calls)
 
                 if response.usage:
                     response_usage: Optional[CompletionUsage] = response.usage
@@ -640,21 +634,21 @@ class OpenAIChat(Model):
             logger.debug(f"Time per output token: {vars_dict['response_timer'].elapsed / completion_tokens:.4f}s")
             logger.debug(f"Throughput: {completion_tokens / vars_dict['response_timer'].elapsed:.4f} tokens/s")
 
-        agent_message = Message(role="assistant")
-        if vars_dict["agent_message_content"] != "":
-            agent_message.content = vars_dict["agent_message_content"]
+        assistant_message = Message(role="assistant")
+        if vars_dict["response_content"] != "":
+            assistant_message.content = vars_dict["response_content"]
 
-        if vars_dict["agent_message_tool_calls"] is not None:
+        if vars_dict["response_tool_calls"] is not None:
             # Build tool calls (simplified for brevity)
-            agent_message.tool_calls = self._build_tool_calls(vars_dict["agent_message_tool_calls"])
+            assistant_message.tool_calls = self._build_tool_calls(vars_dict["response_tool_calls"])
 
-        self._update_stream_metrics(vars_dict, agent_message)
-        messages.append(agent_message)
-        agent_message.log()
+        self._update_stream_metrics(vars_dict, assistant_message)
+        messages.append(assistant_message)
+        assistant_message.log()
 
-        if agent_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
-            for tool_call in agent_message.tool_calls:
+            for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
@@ -687,7 +681,6 @@ class OpenAIChat(Model):
             yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
 
-    # Similar refactoring applied to aresponse_stream method
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
         Asynchronously send a streaming chat completion request to the OpenAI API.
@@ -712,7 +705,7 @@ class OpenAIChat(Model):
                 response_tool_calls = response_delta.tool_calls
 
                 if response_content is not None:
-                    vars_dict["agent_message_content"] += response_content
+                    vars_dict["response_content"] += response_content
                     vars_dict["completion_tokens"] += 1
                     if vars_dict["completion_tokens"] == 1:
                         vars_dict["time_to_first_token"] = vars_dict["response_timer"].elapsed
@@ -720,9 +713,9 @@ class OpenAIChat(Model):
                     yield response_content
 
                 if response_tool_calls is not None:
-                    if vars_dict["agent_message_tool_calls"] is None:
-                        vars_dict["agent_message_tool_calls"] = []
-                    vars_dict["agent_message_tool_calls"].extend(response_tool_calls)
+                    if vars_dict["response_tool_calls"] is None:
+                        vars_dict["response_tool_calls"] = []
+                    vars_dict["response_tool_calls"].extend(response_tool_calls)
 
         vars_dict["response_timer"].stop()
         completion_tokens = vars_dict["completion_tokens"]
@@ -730,20 +723,20 @@ class OpenAIChat(Model):
             logger.debug(f"Time per output token: {vars_dict['response_timer'].elapsed / completion_tokens:.4f}s")
             logger.debug(f"Throughput: {completion_tokens / vars_dict['response_timer'].elapsed:.4f} tokens/s")
 
-        agent_message = Message(role="assistant")
-        if vars_dict["agent_message_content"] != "":
-            agent_message.content = vars_dict["agent_message_content"]
+        assistant_message = Message(role="assistant")
+        if vars_dict["response_content"] != "":
+            assistant_message.content = vars_dict["response_content"]
 
-        if vars_dict["agent_message_tool_calls"] is not None:
-            agent_message.tool_calls = self._build_tool_calls(vars_dict["agent_message_tool_calls"])
+        if vars_dict["response_tool_calls"] is not None:
+            assistant_message.tool_calls = self._build_tool_calls(vars_dict["response_tool_calls"])
 
-        self._update_stream_metrics(vars_dict, agent_message)
-        messages.append(agent_message)
-        agent_message.log()
+        self._update_stream_metrics(vars_dict, assistant_message)
+        messages.append(assistant_message)
+        assistant_message.log()
 
-        if agent_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None and self.run_tools:
             function_calls_to_run: List[FunctionCall] = []
-            for tool_call in agent_message.tool_calls:
+            for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
@@ -815,59 +808,3 @@ class OpenAIChat(Model):
                 if _tool_call_type:
                     tool_call_entry["type"] = _tool_call_type
         return tool_calls
-
-    def run_function(self, function_call: Dict[str, Any]) -> Tuple[Message, Optional[FunctionCall]]:
-        """
-        Run a function call.
-
-        Args:
-            function_call (Dict[str, Any]): The function call to run.
-
-        Returns:
-            Tuple[Message, Optional[FunctionCall]]: The function call message and the function call.
-        """
-        _function_name = function_call.get("name")
-        _function_arguments_str = function_call.get("arguments")
-        if _function_name is not None:
-            # Get function call
-            _function_call = get_function_call(
-                name=_function_name,
-                arguments=_function_arguments_str,
-                functions=self.functions,
-            )
-            if _function_call is None:
-                return Message(role="function", content="Could not find function to call."), None
-            if _function_call.error is not None:
-                return Message(role="function", tool_call_error=True, content=_function_call.error), _function_call
-
-            if self.function_call_stack is None:
-                self.function_call_stack = []
-
-            # -*- Check function call limit
-            if self.tool_call_limit and len(self.function_call_stack) > self.tool_call_limit:
-                self.tool_choice = "none"
-                return Message(
-                    role="function",
-                    content=f"Function call limit ({self.tool_call_limit}) exceeded.",
-                ), _function_call
-
-            # -*- Run function call
-            self.function_call_stack.append(_function_call)
-            _function_call_timer = Timer()
-            _function_call_timer.start()
-            function_call_success = _function_call.execute()
-            _function_call_timer.stop()
-            _function_call_message = Message(
-                role="function",
-                name=_function_call.function.name,
-                content=_function_call.result if function_call_success else _function_call.error,
-                tool_call_error=not function_call_success,
-                metrics={"time": _function_call_timer.elapsed},
-            )
-            if "function_call_times" not in self.metrics:
-                self.metrics["function_call_times"] = {}
-            if _function_call.function.name not in self.metrics["function_call_times"]:
-                self.metrics["function_call_times"][_function_call.function.name] = []
-            self.metrics["function_call_times"][_function_call.function.name].append(_function_call_timer.elapsed)
-            return _function_call_message, _function_call
-        return Message(role="function", content="Function name is None."), None

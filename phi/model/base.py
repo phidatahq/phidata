@@ -58,8 +58,15 @@ class Model(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
-    def api_kwargs(self) -> Dict[str, Any]:
+    def request_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
+
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = self.model_dump(include={"name", "model", "provider", "metrics"})
+        if self.functions:
+            _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
+            _dict["tool_call_limit"] = self.tool_call_limit
+        return _dict
 
     def invoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
@@ -84,13 +91,6 @@ class Model(BaseModel):
 
     async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
         raise NotImplementedError
-
-    def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"name", "model", "provider", "metrics"})
-        if self.functions:
-            _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
-            _dict["tool_call_limit"] = self.tool_call_limit
-        return _dict
 
     def get_tools_for_api(self) -> Optional[List[Dict[str, Any]]]:
         if self.tools is None:

@@ -347,10 +347,12 @@ class Agent(BaseModel):
 
     def get_agent_data(self) -> Dict[str, Any]:
         agent_data = self.agent_data or {}
-        if self.name:
+        if self.name is not None:
             agent_data["name"] = self.name
-        if self.agent_id:
+        if self.agent_id is not None:
             agent_data["agent_id"] = self.agent_id
+        if self.model is not None:
+            agent_data["model"] = self.model.to_dict()
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:
@@ -366,7 +368,6 @@ class Agent(BaseModel):
             session_id=self.session_id,
             user_id=self.user_id,
             memory=self.memory.to_dict(),
-            model=self.model.to_dict() if self.model is not None else None,
             agent_data=self.get_agent_data(),
             user_data=self.user_data,
             session_data=self.get_session_data(),
@@ -392,14 +393,16 @@ class Agent(BaseModel):
             self.user_id = session.user_id
 
         # Update model data from the AgentSession
-        if session.model is not None:
+        if session.agent_data is not None and "model" in session.agent_data:
+            model_data = session.agent_data.get("model")
             # Update model metrics from the AgentSession
-            model_metrics_from_db = session.model.get("metrics")
-            if model_metrics_from_db is not None and isinstance(model_metrics_from_db, dict) and self.model:
-                try:
-                    self.model.metrics = model_metrics_from_db
-                except Exception as e:
-                    logger.warning(f"Failed to load model from AgentSession: {e}")
+            if model_data is not None and isinstance(model_data, dict):
+                model_metrics_from_db = model_data.get("metrics")
+                if model_metrics_from_db is not None and isinstance(model_metrics_from_db, dict) and self.model:
+                    try:
+                        self.model.metrics = model_metrics_from_db
+                    except Exception as e:
+                        logger.warning(f"Failed to load model from AgentSession: {e}")
 
         # Update memory from the AgentSession
         if session.memory is not None:

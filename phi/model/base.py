@@ -12,7 +12,7 @@ from phi.utils.timer import Timer
 
 class Model(BaseModel):
     # ID of the model to use.
-    model: str = Field(..., alias="model_id")
+    id: str = Field(..., alias="model")
     # Name for this Model. Note: This is not sent to the Model API.
     name: Optional[str] = None
     # Provider for this Model. Note: This is not sent to the Model API.
@@ -62,7 +62,7 @@ class Model(BaseModel):
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"name", "model", "provider", "metrics"})
+        _dict = self.model_dump(include={"name", "id", "provider", "metrics"})
         if self.functions:
             _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
             _dict["tool_call_limit"] = self.tool_call_limit

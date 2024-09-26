@@ -74,8 +74,6 @@ class PgAgentStorage(AgentStorage):
             Column("session_id", String, primary_key=True),
             # ID of the user interacting with this agent
             Column("user_id", String),
-            # Model data (name, model, etc.)
-            Column("model", postgresql.JSONB),
             # Agent Memory
             Column("memory", postgresql.JSONB),
             # Agent Metadata
@@ -179,7 +177,6 @@ class PgAgentStorage(AgentStorage):
             stmt = postgresql.insert(self.table).values(
                 session_id=session.session_id,
                 user_id=session.user_id,
-                model=session.model,
                 memory=session.memory,
                 agent_data=session.agent_data,
                 user_data=session.user_data,
@@ -192,7 +189,6 @@ class PgAgentStorage(AgentStorage):
                 index_elements=["session_id"],
                 set_=dict(
                     user_id=session.user_id,
-                    model=session.model,
                     memory=session.memory,
                     agent_data=session.agent_data,
                     user_data=session.user_data,

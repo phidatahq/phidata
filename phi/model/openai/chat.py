@@ -77,7 +77,7 @@ class OpenAIChat(Model):
         async_client (Optional[AsyncOpenAIClient]): The asynchronous OpenAI client instance.
     """
 
-    model: str = "gpt-4o"
+    id: str = "gpt-4o"
     name: str = "OpenAIChat"
     provider: str = "OpenAI"
 
@@ -286,7 +286,7 @@ class OpenAIChat(Model):
             ChatCompletion: The chat completion response from the API.
         """
         return self.get_client().chat.completions.create(
-            model=self.model,
+            model=self.id,
             messages=[m.to_dict() for m in messages],  # type: ignore
             **self.request_kwargs,
         )
@@ -302,7 +302,7 @@ class OpenAIChat(Model):
             ChatCompletion: The chat completion response from the API.
         """
         return await self.get_async_client().chat.completions.create(
-            model=self.model,
+            model=self.id,
             messages=[m.to_dict() for m in messages],  # type: ignore
             **self.request_kwargs,
         )
@@ -318,7 +318,7 @@ class OpenAIChat(Model):
             Iterator[ChatCompletionChunk]: An iterator of chat completion chunks.
         """
         yield from self.get_client().chat.completions.create(
-            model=self.model,
+            model=self.id,
             messages=[m.to_dict() for m in messages],  # type: ignore
             stream=True,
             stream_options={"include_usage": True},
@@ -336,7 +336,7 @@ class OpenAIChat(Model):
             Any: An asynchronous iterator of chat completion chunks.
         """
         async_stream = await self.get_async_client().chat.completions.create(
-            model=self.model,
+            model=self.id,
             messages=[m.to_dict() for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,

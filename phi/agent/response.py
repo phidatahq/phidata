@@ -27,7 +27,7 @@ class RunResponse(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     context: Optional[List[MessageContext]] = None
     model: Optional[str] = None
-    event: RunEvent = RunEvent.agent_response
+    event: str = RunEvent.agent_response.value
     created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True)

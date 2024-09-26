@@ -913,7 +913,7 @@ class Agent(BaseModel):
                 run_id=self.run_response.run_id,
                 content="Run started",
                 model=self.run_response.model,
-                event=RunEvent.run_start,
+                event=RunEvent.run_start.value,
             )
 
         # 2. Read existing session from storage

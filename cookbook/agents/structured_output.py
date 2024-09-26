@@ -19,7 +19,7 @@ class MovieScript(BaseModel):
 movie_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You help people write movie scripts.",
-    output_model=MovieScript,
+    response_model=MovieScript,
     # debug_mode=True,
 )
 

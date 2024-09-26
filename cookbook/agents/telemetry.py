@@ -27,9 +27,11 @@ agent = Agent(
 #     print(m)
 #     print("---")
 
-# run: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
-# for chunk in run:
-#     print(chunk.content)
+run: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
+for chunk in run:
+    print("---")
+    pprint(chunk.model_dump(exclude={"messages"}))
+    print("---")
 
 # async def main():
 #     async for chunk in await agent.arun("What is the stock price of NVDA", stream=True):
@@ -37,4 +39,4 @@ agent = Agent(
 
 # asyncio.run(main())
 # agent.create_session()
-agent.print_response("What is the stock price of NVDA?")
+# agent.print_response("What is the stock price of NVDA?")

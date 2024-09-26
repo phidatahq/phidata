@@ -7,13 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from phi.model.message import Message, MessageContext
 
 
-class RunEvent(str, Enum):
+class RunResponseEvent(str, Enum):
     """Events that can be sent by the Agent.run() method"""
 
-    run_start = "RunStart"
-    intermediate_step = "IntermediateStep"
     agent_response = "AgentResponse"
-    run_end = "RunEnd"
+    run_completed = "RunCompleted"
+    run_started = "RunStarted"
+    tool_call = "ToolCall"
+    updating_memory = "UpdatingMemory"
 
 
 class RunResponse(BaseModel):
@@ -27,7 +28,7 @@ class RunResponse(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     context: Optional[List[MessageContext]] = None
     model: Optional[str] = None
-    event: str = RunEvent.agent_response.value
+    event: str = RunResponseEvent.agent_response.value
     created_at: int = Field(default_factory=lambda: int(time()))
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, use_enum_values=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)

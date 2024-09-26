@@ -9,7 +9,7 @@ from phi.storage.agent.postgres import PgAgentStorage
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True)],
-    show_tool_calls=True,
+    # show_tool_calls=True,
     markdown=True,
     # debug_mode=True,
     # monitoring=False,
@@ -27,7 +27,7 @@ agent = Agent(
 #     print(m)
 #     print("---")
 
-run: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
+run: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True, stream_intermediate_steps=True)
 for chunk in run:
     print("---")
     pprint(chunk.model_dump(exclude={"messages"}))

@@ -23,11 +23,11 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.agent.response import RunResponse, RunEvent
+from phi.agent.response import RunResponse, RunResponseEvent
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
 from phi.model.message import Message, MessageContext
-from phi.model.response import ModelResponse
+from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory  # noqa: F401
 from phi.prompt.template import PromptTemplate
 from phi.storage.agent import AgentStorage
@@ -883,6 +883,7 @@ class Agent(BaseModel):
         stream: bool = False,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Iterator[RunResponse]:
         """Run the Agent with a message and return the response.
@@ -900,6 +901,9 @@ class Agent(BaseModel):
         6. Save session to storage
         7. Save output to file if save_output_to_file is set
         """
+        # Evaluate if streaming is enabled
+        stream_agent_response = stream and self.streamable
+        stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
         # Create the run_response object
         self.run_response = RunResponse(run_id=str(uuid4()))
 
@@ -908,12 +912,11 @@ class Agent(BaseModel):
         # 1. Update the Model (set defaults, add tools, etc.)
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
-        if stream and self.streamable:
+        if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_response.run_id,
                 content="Run started",
-                model=self.run_response.model,
-                event=RunEvent.run_start.value,
+                event=RunResponseEvent.run_started.value,
             )
 
         # 2. Read existing session from storage
@@ -977,14 +980,22 @@ class Agent(BaseModel):
         # 4. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
-        if stream and self.streamable:
+        if stream_agent_response:
             model_response = ModelResponse(content="")
             for model_response_chunk in self.model.response_stream(messages=messages_for_model):
-                if model_response_chunk.content is not None and model_response.content is not None:
-                    model_response.content += model_response_chunk.content
-                    self.run_response.content = model_response_chunk.content
-                    self.run_response.messages = messages_for_model
-                    yield self.run_response
+                if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
+                    if model_response_chunk.content is not None and model_response.content is not None:
+                        model_response.content += model_response_chunk.content
+                        self.run_response.content = model_response_chunk.content
+                        self.run_response.messages = messages_for_model
+                        yield self.run_response
+                elif model_response_chunk.event == ModelResponseEvent.tool_call.value:
+                    if stream_intermediate_steps:
+                        yield RunResponse(
+                            run_id=self.run_response.run_id,
+                            content=model_response_chunk.content,
+                            event=RunResponseEvent.tool_call.value,
+                        )
         else:
             model_response = self.model.response(messages=messages_for_model)
             self.run_response.content = model_response.content
@@ -993,6 +1004,12 @@ class Agent(BaseModel):
         # Add the model metrics to the run_response
         self.run_response.metrics = self.model.metrics if self.model else None
         # 5. Update Memory
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_response.run_id,
+                content="Updating memory",
+                event=RunResponseEvent.updating_memory.value,
+            )
         # Add the user message to the chat history
         if message is not None:
             user_message_for_chat_history = None
@@ -1038,7 +1055,7 @@ class Agent(BaseModel):
 
         # Update the run_response
         # Update content if streaming as run_response will only contain the last chunk
-        if stream:
+        if stream_agent_response:
             self.run_response.content = model_response.content
         # Add tools from this run to the run_response
         for _run_message in run_messages:
@@ -1112,9 +1129,15 @@ class Agent(BaseModel):
         self.log_agent_run(run_id=self.run_response.run_id, run_data=run_data)
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_response.run_id,
+                content="Run completed",
+                event=RunResponseEvent.run_completed.value,
+            )
 
-        # -*- Yield final response if not streaming
-        if not stream:
+        # -*- Yield final response if not streaming so that run() can get the response
+        if not stream_agent_response:
             yield self.run_response
 
     @overload
@@ -1125,6 +1148,7 @@ class Agent(BaseModel):
         stream: Literal[False] = False,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> RunResponse: ...
 
@@ -1136,6 +1160,7 @@ class Agent(BaseModel):
         stream: Literal[True] = True,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Iterator[RunResponse]: ...
 
@@ -1146,6 +1171,7 @@ class Agent(BaseModel):
         stream: bool = False,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Union[RunResponse, Iterator[RunResponse]]:
         """Run the Agent with a message and return the response."""
@@ -1155,7 +1181,14 @@ class Agent(BaseModel):
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
             run_response: RunResponse = next(
-                self._run(message=message, stream=False, images=images, messages=messages, **kwargs)
+                self._run(
+                    message=message,
+                    stream=False,
+                    images=images,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
             )
 
             # If the model natively supports structured outputs, the content is already in the structured format
@@ -1193,10 +1226,24 @@ class Agent(BaseModel):
                 return run_response
         else:
             if stream and self.streamable:
-                resp = self._run(message=message, stream=True, images=images, messages=messages, **kwargs)
+                resp = self._run(
+                    message=message,
+                    stream=True,
+                    images=images,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
                 return resp
             else:
-                resp = self._run(message=message, stream=False, images=images, messages=messages, **kwargs)
+                resp = self._run(
+                    message=message,
+                    stream=False,
+                    images=images,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
                 return next(resp)
 
     async def _arun(
@@ -1206,6 +1253,7 @@ class Agent(BaseModel):
         stream: bool = False,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> AsyncIterator[RunResponse]:
         """Async Run the Agent with a message and return the response.
@@ -1236,7 +1284,7 @@ class Agent(BaseModel):
                 run_id=self.run_response.run_id,
                 content="Run started",
                 model=self.run_response.model,
-                event=RunEvent.run_start,
+                event=RunResponseEvent.run_started.value,
             )
 
         # 2. Read existing session from storage
@@ -1448,6 +1496,7 @@ class Agent(BaseModel):
         stream: bool = False,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Any:
         """Async Run the Agent with a message and return the response."""
@@ -1457,7 +1506,12 @@ class Agent(BaseModel):
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
             run_response = await self._arun(
-                message=message, stream=False, images=images, messages=messages, **kwargs
+                message=message,
+                stream=False,
+                images=images,
+                messages=messages,
+                stream_intermediate_steps=stream_intermediate_steps,
+                **kwargs,
             ).__anext__()
 
             # If the model natively supports structured outputs, the content is already in the structured format
@@ -1495,10 +1549,24 @@ class Agent(BaseModel):
                 return run_response
         else:
             if stream and self.streamable:
-                resp = self._arun(message=message, stream=True, images=images, messages=messages, **kwargs)
+                resp = self._arun(
+                    message=message,
+                    stream=True,
+                    images=images,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
                 return resp
             else:
-                resp = self._arun(message=message, stream=False, images=images, messages=messages, **kwargs)
+                resp = self._arun(
+                    message=message,
+                    stream=False,
+                    images=images,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
                 return await resp.__anext__()
 
     def rename(self, name: str) -> None:

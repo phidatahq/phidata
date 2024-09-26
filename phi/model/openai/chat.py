@@ -46,7 +46,7 @@ class OpenAIChat(Model):
     including sending requests, handling responses and running tool calls.
 
     Attributes:
-        model (str): The name of the OpenAI model to use. Default is "gpt-4o".
+        id (str): The id of the OpenAI model to use. Default is "gpt-4o".
         name (str): The name of this chat model instance. Default is "OpenAIChat".
         provider (str): The provider of the model. Default is "OpenAI".
         frequency_penalty (Optional[float]): Penalizes new tokens based on their frequency in the text so far.
@@ -54,7 +54,7 @@ class OpenAIChat(Model):
         logprobs (Optional[bool]): Include the log probabilities on the logprobs most likely tokens.
         max_tokens (Optional[int]): The maximum number of tokens to generate in the chat completion.
         presence_penalty (Optional[float]): Penalizes new tokens based on whether they appear in the text so far.
-        response_format (Optional[Dict[str, Any]]): Specifies the format in which the model should return its response.
+        response_format (Optional[Any]): An object specifying the format that the model must output.
         seed (Optional[int]): A seed for deterministic sampling.
         stop (Optional[Union[str, List[str]]]): Up to 4 sequences where the API will stop generating further tokens.
         temperature (Optional[float]): Controls randomness in the model's output.
@@ -75,6 +75,8 @@ class OpenAIChat(Model):
         client_params (Optional[Dict[str, Any]]): Additional parameters for client configuration.
         client (Optional[OpenAIClient]): The OpenAI client instance.
         async_client (Optional[AsyncOpenAIClient]): The asynchronous OpenAI client instance.
+        structured_outputs (bool): Whether to use the structured outputs from the Model. Default is False.
+        supports_structured_outputs (bool): Whether the Model supports structured outputs. Default is True.
     """
 
     id: str = "gpt-4o"
@@ -87,7 +89,7 @@ class OpenAIChat(Model):
     logprobs: Optional[bool] = None
     max_tokens: Optional[int] = None
     presence_penalty: Optional[float] = None
-    response_format: Optional[Dict[str, Any]] = None
+    response_format: Optional[Any] = None
     seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
     temperature: Optional[float] = None
@@ -112,6 +114,12 @@ class OpenAIChat(Model):
     # OpenAI clients
     client: Optional[OpenAIClient] = None
     async_client: Optional[AsyncOpenAIClient] = None
+
+    # Internal parameters: not used for API requests
+    # Whether to use the structured outputs from the Model.
+    structured_outputs: bool = False
+    # Whether the Model supports structured outputs.
+    supports_structured_outputs: bool = True
 
     def get_client(self) -> OpenAIClient:
         """

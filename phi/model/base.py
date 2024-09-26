@@ -54,6 +54,10 @@ class Model(BaseModel):
 
     # Agent Session ID
     session_id: Optional[str] = None
+    # Whether to use the structured outputs from the Model.
+    structured_outputs: Optional[bool] = None
+    # Whether the Model supports structured outputs.
+    supports_structured_outputs: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 

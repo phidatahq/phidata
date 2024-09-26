@@ -3,14 +3,19 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 from phi.model.message import Message
-from phi.model.response import ModelResponse
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 
 
-class Model(BaseModel):
+class LanguageModelResponse(BaseModel):
+    """Response returned by LanguageModel.response()"""
+
+    content: Optional[str] = None
+
+
+class LanguageModel(BaseModel):
     # ID of the model to use.
     model: str = Field(..., alias="model_id")
     # Name for this Model. Note: This is not sent to the Model API.
@@ -80,13 +85,13 @@ class Model(BaseModel):
     async def ainvoke_stream(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
-    def response(self, messages: List[Message]) -> ModelResponse:
+    def response(self, messages: List[Message]) -> LanguageModelResponse:
         raise NotImplementedError
 
-    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+    async def aresponse(self, messages: List[Message]) -> LanguageModelResponse:
         raise NotImplementedError
 
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+    def response_stream(self, messages: List[Message]) -> Iterator[LanguageModelResponse]:
         raise NotImplementedError
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:

@@ -9,8 +9,8 @@ class AgentSession(BaseModel):
     session_id: str
     # ID of the user interacting with this agent
     user_id: Optional[str] = None
-    # Model data (name, model, etc.)
-    model: Optional[Dict[str, Any]] = None
+    # Agent Models
+    models: Optional[Dict[str, Any]] = None
     # Agent Memory
     memory: Optional[Dict[str, Any]] = None
     # Agent Metadata

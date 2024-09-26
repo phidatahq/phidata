@@ -16,7 +16,8 @@ class RunResponse(BaseModel):
     metrics: Optional[Dict[str, Any]] = None
     tools: Optional[List[Dict[str, Any]]] = None
     context: Optional[List[MessageContext]] = None
-    model: Optional[str] = None
+    event: str = "AgentResponse"
+    models: Optional[Dict[str, Any]] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

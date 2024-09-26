@@ -1,1 +1,1 @@
-from phi.model.base import Model
+from phi.model.language import LanguageModel, LanguageModelResponse

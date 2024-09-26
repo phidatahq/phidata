@@ -3,9 +3,8 @@ from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
 
-from phi.model.base import Model
+from phi.model.language import LanguageModel, LanguageModelResponse
 from phi.model.message import Message
-from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -38,7 +37,7 @@ class StreamData:
     response_timer: Timer = field(default_factory=Timer)
 
 
-class OpenAIChat(Model):
+class OpenAIChat(LanguageModel):
     """
     A class representing an OpenAI chat model.
 
@@ -376,18 +375,18 @@ class OpenAIChat(Model):
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
 
     def _handle_tool_calls(
-        self, assistant_message: Message, messages: List[Message], model_response: ModelResponse
-    ) -> Optional[ModelResponse]:
+        self, assistant_message: Message, messages: List[Message], model_response: LanguageModelResponse
+    ) -> Optional[LanguageModelResponse]:
         """
         Handle tool calls in the assistant message.
 
         Args:
             assistant_message (Message): The assistant message.
             messages (List[Message]): The list of messages.
-            model_response (ModelResponse): The model response.
+            model_response (LanguageModelResponse): The model response.
 
         Returns:
-            Optional[ModelResponse]: The model response after handling tool calls.
+            Optional[LanguageModelResponse]: The model response after handling tool calls.
         """
         if assistant_message.tool_calls is not None and self.run_tools:
             model_response.content = ""
@@ -457,7 +456,7 @@ class OpenAIChat(Model):
         self._update_usage_metrics(assistant_message, response_usage)
         return assistant_message
 
-    def response(self, messages: List[Message]) -> ModelResponse:
+    def response(self, messages: List[Message]) -> LanguageModelResponse:
         """
         Send a chat completion request to the OpenAI API.
 
@@ -465,11 +464,11 @@ class OpenAIChat(Model):
             messages (List[Message]): A list of message objects representing the conversation.
 
         Returns:
-            ModelResponse: The model response from the API.
+            LanguageModelResponse: The model response from the API.
         """
         logger.debug("---------- OpenAI Response Start ----------")
         self._log_messages(messages)
-        model_response = ModelResponse()
+        model_response = LanguageModelResponse()
 
         response_timer = Timer()
         response_timer.start()
@@ -498,7 +497,7 @@ class OpenAIChat(Model):
         logger.debug("---------- OpenAI Response End ----------")
         return model_response
 
-    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+    async def aresponse(self, messages: List[Message]) -> LanguageModelResponse:
         """
         Asynchronously send a chat completion request to the OpenAI API.
 
@@ -506,11 +505,11 @@ class OpenAIChat(Model):
             messages (List[Message]): A list of message objects representing the conversation.
 
         Returns:
-            ModelResponse: The model response from the API.
+            LanguageModelResponse: The model response from the API.
         """
         logger.debug("---------- OpenAI Response Start ----------")
         self._log_messages(messages)
-        model_response = ModelResponse()
+        model_response = LanguageModelResponse()
 
         response_timer = Timer()
         response_timer.start()
@@ -584,7 +583,7 @@ class OpenAIChat(Model):
         assistant_message.metrics["total_tokens"] = stream_data.response_total_tokens
         self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + stream_data.response_total_tokens
 
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+    def response_stream(self, messages: List[Message]) -> Iterator[LanguageModelResponse]:
         """
         Send a streaming chat completion request to the OpenAI API.
 
@@ -592,7 +591,7 @@ class OpenAIChat(Model):
             messages (List[Message]): A list of message objects representing the conversation.
 
         Returns:
-            Iterator[ModelResponse]: An iterator of model responses.
+            Iterator[LanguageModelResponse]: An iterator of model responses.
         """
         logger.debug("---------- OpenAI Response Start ----------")
         self._log_messages(messages)
@@ -612,7 +611,7 @@ class OpenAIChat(Model):
                     if stream_data.completion_tokens == 1:
                         stream_data.time_to_first_token = stream_data.response_timer.elapsed
                         logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
-                    yield ModelResponse(content=response_content)
+                    yield LanguageModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -671,7 +670,7 @@ class OpenAIChat(Model):
 
             if self.show_tool_calls:
                 for _f in function_calls_to_run:
-                    yield ModelResponse(content=f"\n - Running: {_f.get_call_str()}\n\n")
+                    yield LanguageModelResponse(content=f"\n - Running: {_f.get_call_str()}\n\n")
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:
@@ -708,7 +707,7 @@ class OpenAIChat(Model):
                     if stream_data.completion_tokens == 1:
                         stream_data.time_to_first_token = stream_data.response_timer.elapsed
                         logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
-                    yield ModelResponse(content=response_content)
+                    yield LanguageModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -759,12 +758,12 @@ class OpenAIChat(Model):
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
+                    yield LanguageModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
                 elif len(function_calls_to_run) > 1:
-                    yield ModelResponse(content="\nRunning:")
+                    yield LanguageModelResponse(content="\nRunning:")
                     for _f in function_calls_to_run:
-                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
-                    yield ModelResponse(content="\n\n")
+                        yield LanguageModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield LanguageModelResponse(content="\n\n")
 
             function_call_results = self.run_function_calls(function_calls_to_run)
             if len(function_call_results) > 0:

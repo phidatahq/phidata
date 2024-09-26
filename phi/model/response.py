@@ -1,17 +1,20 @@
+import queue
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
+from dataclasses import dataclass
 
-from pydantic import BaseModel
+from phi.utils.log import logger
 
 
 class ModelResponseEvent(str, Enum):
     """Events that can be sent by the Model.response() method"""
 
     tool_call = "ToolCall"
-    assistant_response = "ModelResponse"
+    assistant_response = "AssistantResponse"
 
 
-class ModelResponse(BaseModel):
+@dataclass
+class ModelResponse:
     """Response returned by Model.response()"""
 
     content: Optional[str] = None

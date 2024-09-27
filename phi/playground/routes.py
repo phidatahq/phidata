@@ -40,7 +40,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
                     model=AgentModel(
                         provider=agent.model.provider or agent.model.__class__.__name__ if agent.model else None,
                         name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
-                        model=agent.model.model if agent.model else None,
+                        model=agent.model.id if agent.model else None,
                     ),
                     enable_rag=agent.enable_rag,
                     tools=formatted_tools,

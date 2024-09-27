@@ -295,7 +295,10 @@ class OpenAIChat(Model):
         Returns:
             ChatCompletion: The chat completion response from the API.
         """
-        if self.response_format is not None and issubclass(self.response_format, BaseModel) and self.structured_outputs:
+        if (self.response_format is not None and 
+            isinstance(self.response_format, type) and 
+            issubclass(self.response_format, BaseModel) and 
+            self.structured_outputs):
             return self.get_client().beta.chat.completions.parse(
                 model=self.id,
                 messages=[m.to_dict() for m in messages],  # type: ignore

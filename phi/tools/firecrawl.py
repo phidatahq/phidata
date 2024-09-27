@@ -68,5 +68,5 @@ class FirecrawlTools(Toolkit):
             if self.formats:
                 params["scrapeOptions"] = {"formats": self.formats}
 
-        crawl_result = self.app.crawl_url(url, params=params, wait_until_done=True, poll_interval=30)
+        crawl_result = self.app.crawl_url(url, params=params, poll_interval=30)
         return json.dumps(crawl_result)

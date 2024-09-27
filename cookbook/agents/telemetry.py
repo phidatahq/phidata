@@ -30,11 +30,13 @@ agent = Agent(
 # run: RunResponse = agent.run("What is the stock price of NVDA")
 # pprint(run.content)
 
-# run_stream: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True, stream_intermediate_steps=True)
-# for chunk in run_stream:
-#     print("---")
-#     pprint(chunk.model_dump(exclude={"messages"}))
-#     print("---")
+run_stream: Iterator[RunResponse] = agent.run(
+    "What is the stock price of NVDA", stream=True, stream_intermediate_steps=True
+)
+for chunk in run_stream:
+    print("---")
+    pprint(chunk.model_dump(exclude={"messages"}))
+    print("---")
 
 
 # async def main():
@@ -46,5 +48,5 @@ agent = Agent(
 #
 # asyncio.run(main())
 
-agent.print_response("What is the stock price of NVDA and TSLA?")
-agent.print_response("What is the stock price of NVDA and TSLA?", stream=True)
+# agent.print_response("What is the stock price of NVDA and TSLA?")
+# agent.print_response("What is the stock price of NVDA and TSLA?", stream=True)

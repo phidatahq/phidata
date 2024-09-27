@@ -359,7 +359,6 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
             params = {"workspace_url": ws_schema.ws_name}
             data = {"user": {"id_user": phi_config.user.id_user, "email": phi_config.user.email}}
             response = requests.post(url, params=params, json=data, headers=headers)
-            logger.info(response.json())
             if response.status_code == 200:
                 print_info(f"New API Key created for workspace: {ws_schema.ws_name}")
             else:

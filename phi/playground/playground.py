@@ -1,13 +1,13 @@
 from typing import List, Optional
+
 from fastapi import FastAPI
 from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
+from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
+from phi.playground.routes import create_playground_routes
 from phi.playground.settings import PlaygroundSettings
 from phi.utils.log import logger
-from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
-
-from .routes import create_playground_routes
 
 
 class Playground:

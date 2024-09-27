@@ -1,12 +1,13 @@
-from typing import List, Optional, Generator, Dict, cast, Union
 import base64
+from typing import List, Optional, Generator, Dict, cast, Union
+
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from phi.agent.agent import Agent, RunResponse
-from phi.utils.log import logger
 from phi.agent.session import AgentSession
-from .operator import get_agent_by_id, get_session_title, format_tools
+from phi.playground.operator import format_tools, get_agent_by_id, get_session_title
+from phi.utils.log import logger
 
 from .schemas import (
     AgentGetResponse,

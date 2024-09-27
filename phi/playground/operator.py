@@ -1,8 +1,8 @@
 from typing import List, Optional
 
 from phi.agent.agent import Agent, Tool, Toolkit, Function
-from phi.utils.log import logger
 from phi.agent.session import AgentSession
+from phi.utils.log import logger
 
 
 def format_tools(agent_tools):

@@ -700,14 +700,15 @@ class OpenAIChat(Model):
             assistant_message.content = stream_data.response_content
 
         if stream_data.response_tool_calls is not None:
-            # Build tool calls (simplified for brevity)
-            assistant_message.tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
+            _tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
+            if len(_tool_calls) > 0:
+                assistant_message.tool_calls = _tool_calls
 
         self._update_stream_metrics(stream_data=stream_data, assistant_message=assistant_message)
         messages.append(assistant_message)
         assistant_message.log()
 
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
@@ -801,13 +802,15 @@ class OpenAIChat(Model):
             assistant_message.content = stream_data.response_content
 
         if stream_data.response_tool_calls is not None:
-            assistant_message.tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
+            _tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
+            if len(_tool_calls) > 0:
+                assistant_message.tool_calls = _tool_calls
 
         self._update_stream_metrics(stream_data=stream_data, assistant_message=assistant_message)
         messages.append(assistant_message)
         assistant_message.log()
 
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []

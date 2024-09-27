@@ -3,7 +3,7 @@ from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=OpenAIChat(model="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],
     show_tool_calls=True,
     description="You are an investment analyst that researches stock prices, analyst recommendations, and stock fundamentals.",

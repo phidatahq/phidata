@@ -10,5 +10,6 @@ agent = Agent(
     instructions=["Use tables to display data where possible."],
     markdown=True,
 )
-# agent.print_response("Share the NVDA stock price and analyst recommendations")
-agent.print_response("Summarize fundamentals for TSLA")
+
+# agent.print_response("Share the NVDA stock price and analyst recommendations", stream=True)
+agent.print_response("Summarize fundamentals for TSLA", stream=True)

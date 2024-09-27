@@ -1870,6 +1870,7 @@ class Agent(BaseModel):
         from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
         from rich.markdown import Markdown
+        from rich.json import JSON
 
         if markdown:
             self.markdown = True
@@ -1910,12 +1911,23 @@ class Agent(BaseModel):
 
             response_timer.stop()
             response_content = ""
-            if isinstance(run_response, RunResponse) and isinstance(run_response.content, str):
-                response_content = (
-                    Markdown(run_response.content)
-                    if self.markdown
-                    else self.convert_response_to_string(run_response.content)
-                )
+            if isinstance(run_response, RunResponse):
+                if isinstance(run_response.content, str):
+                    response_content = (
+                        Markdown(run_response.content)
+                        if self.markdown
+                        else self.convert_response_to_string(run_response.content)
+                    )
+                elif self.response_model is not None and isinstance(run_response.content, BaseModel):
+                    try:
+                        response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                    except Exception as e:
+                        logger.warning(f"Failed to convert response to Markdown: {e}")
+                else:
+                    try:
+                        response_content = JSON(json.dumps(run_response.content), indent=4)
+                    except Exception as e:
+                        logger.warning(f"Failed to convert response to string: {e}")
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:

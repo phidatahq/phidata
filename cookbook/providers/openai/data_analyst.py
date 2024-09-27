@@ -1,3 +1,4 @@
+from textwrap import dedent
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.duckdb import DuckDbTools
@@ -8,12 +9,13 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=OpenAIChat(model="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[duckdb_tools],
+    markdown=True,
     show_tool_calls=True,
-    additional_context="""
-    Here are the tables you have access to:
+    additional_context=dedent("""\
+    You have access to the following tables:
     - movies: Contains information about movies from IMDB.
-    """,
+    """),
 )
-agent.print_response("What is the average rating of movies?", markdown=True, stream=False)
+agent.print_response("What is the average rating of movies?", stream=False)

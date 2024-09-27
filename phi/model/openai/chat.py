@@ -2,10 +2,11 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
+from pydantic import BaseModel
 
 from phi.model.base import Model
 from phi.model.message import Message
-from phi.model.response import ModelResponse, ModelResponseEvent
+from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -15,6 +16,7 @@ try:
     from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
     from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
     from openai.types.chat.chat_completion_chunk import (
         ChatCompletionChunk,
         ChoiceDelta,
@@ -283,7 +285,7 @@ class OpenAIChat(Model):
                 _dict["tool_choice"] = self.tool_choice
         return _dict
 
-    def invoke(self, messages: List[Message]) -> ChatCompletion:
+    def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
         Send a chat completion request to the OpenAI API.
 
@@ -293,13 +295,20 @@ class OpenAIChat(Model):
         Returns:
             ChatCompletion: The chat completion response from the API.
         """
-        return self.get_client().chat.completions.create(
-            model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
-            **self.request_kwargs,
-        )
+        if self.response_format is not None and issubclass(self.response_format, BaseModel) and self.structured_outputs:
+            return self.get_client().beta.chat.completions.parse(
+                model=self.id,
+                messages=[m.to_dict() for m in messages],  # type: ignore
+                **self.request_kwargs,
+            )
+        else:
+            return self.get_client().chat.completions.create(
+                model=self.id,
+                messages=[m.to_dict() for m in messages],  # type: ignore
+                **self.request_kwargs,
+            )
 
-    async def ainvoke(self, messages: List[Message]) -> ChatCompletion:
+    async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
         Asynchronously send a chat completion request to the OpenAI API.
 
@@ -309,11 +318,18 @@ class OpenAIChat(Model):
         Returns:
             ChatCompletion: The chat completion response from the API.
         """
-        return await self.get_async_client().chat.completions.create(
-            model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
-            **self.request_kwargs,
-        )
+        if self.response_format is not None and issubclass(self.response_format, BaseModel) and self.structured_outputs:
+            return await self.get_async_client().beta.chat.completions.parse(
+                model=self.id,
+                messages=[m.to_dict() for m in messages],  # type: ignore
+                **self.request_kwargs,
+            )
+        else:
+            return await self.get_async_client().chat.completions.create(
+                model=self.id,
+                messages=[m.to_dict() for m in messages],  # type: ignore
+                **self.request_kwargs,
+            )
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         """
@@ -397,9 +413,11 @@ class OpenAIChat(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             model_response.content = ""
+            tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
+            function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -424,12 +442,23 @@ class OpenAIChat(Model):
                 function_calls_to_run.append(_function_call)
 
             if self.show_tool_calls:
-                calls_str = "\n".join(f" - Running: {_f.get_call_str()}" for _f in function_calls_to_run)
-                model_response.content += f"\n{calls_str}\n\n"
+                if len(function_calls_to_run) == 1:
+                    calls_str = f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                    model_response.content += calls_str
+                elif len(function_calls_to_run) > 1:
+                    model_response.content += "\nRunning:"
+                    for _f in function_calls_to_run:
+                        model_response.content += f"\n - {_f.get_call_str()}"
+                    model_response.content += "\n\n"
 
-            function_call_results = self.run_function_calls(function_calls_to_run)
+            for _ in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                pass
+
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
+
             return model_response
         return None
 
@@ -454,7 +483,7 @@ class OpenAIChat(Model):
             role=response_message.role or "assistant",
             content=response_message.content,
         )
-        if response_message.tool_calls is not None:
+        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
             assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
 
         assistant_message.metrics["time"] = response_timer.elapsed
@@ -481,12 +510,25 @@ class OpenAIChat(Model):
 
         response_timer = Timer()
         response_timer.start()
-        response: ChatCompletion = self.invoke(messages=messages)
+        response: Union[ChatCompletion, ParsedChatCompletion] = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+
+        # Handle structured outputs
+        try:
+            if (
+                self.response_format is not None
+                and self.structured_outputs
+                and issubclass(self.response_format, BaseModel)
+            ):
+                parsed_object = response_message.parsed  # type: ignore
+                if parsed_object is not None:
+                    model_response.parsed = parsed_object
+        except Exception as e:
+            logger.warning(f"Error retrieving structured outputs: {e}")
 
         assistant_message = self._create_assistant_message(response_message, response_timer, response_usage)
         messages.append(assistant_message)
@@ -522,12 +564,25 @@ class OpenAIChat(Model):
 
         response_timer = Timer()
         response_timer.start()
-        response: ChatCompletion = await self.ainvoke(messages=messages)
+        response: Union[ChatCompletion, ParsedChatCompletion] = await self.ainvoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+
+        # Handle structured outputs
+        try:
+            if (
+                self.response_format is not None
+                and self.structured_outputs
+                and issubclass(self.response_format, BaseModel)
+            ):
+                parsed_object = response_message.parsed  # type: ignore
+                if parsed_object is not None:
+                    model_response.parsed = parsed_object
+        except Exception as e:
+            logger.warning(f"Error retrieving structured outputs: {e}")
 
         assistant_message = self._create_assistant_message(response_message, response_timer, response_usage)
         messages.append(assistant_message)
@@ -653,14 +708,16 @@ class OpenAIChat(Model):
         assistant_message.log()
 
         if assistant_message.tool_calls is not None and self.run_tools:
+            tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
+            function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
                     messages.append(
                         Message(
-                            role="tool",
+                            role=tool_role,
                             tool_call_id=_tool_call_id,
                             content="Could not find function to call.",
                         )
@@ -669,7 +726,7 @@ class OpenAIChat(Model):
                 if _function_call.error is not None:
                     messages.append(
                         Message(
-                            role="tool",
+                            role=tool_role,
                             tool_call_id=_tool_call_id,
                             content=_function_call.error,
                         )
@@ -677,11 +734,6 @@ class OpenAIChat(Model):
                     continue
                 function_calls_to_run.append(_function_call)
 
-            # Yield intermediate messages for tool calls
-            for _f in function_calls_to_run:
-                yield ModelResponse(content=_f.get_call_str(), event=ModelResponseEvent.tool_call.value)
-
-            # Yield tool call
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
                     yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
@@ -691,9 +743,14 @@ class OpenAIChat(Model):
                         yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                     yield ModelResponse(content="\n\n")
 
-            function_call_results = self.run_function_calls(function_calls_to_run)
+            for intermediate_model_response in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                yield intermediate_model_response
+
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
+
             yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
 
@@ -751,7 +808,9 @@ class OpenAIChat(Model):
         assistant_message.log()
 
         if assistant_message.tool_calls is not None and self.run_tools:
+            tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
+            function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -775,11 +834,6 @@ class OpenAIChat(Model):
                     continue
                 function_calls_to_run.append(_function_call)
 
-            # Yield intermediate messages for tool calls
-            for _f in function_calls_to_run:
-                yield ModelResponse(content=_f.get_call_str(), event=ModelResponseEvent.tool_call.value)
-
-            # Yield tool call
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
                     yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
@@ -789,9 +843,14 @@ class OpenAIChat(Model):
                         yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                     yield ModelResponse(content="\n\n")
 
-            function_call_results = self.run_function_calls(function_calls_to_run)
+            for intermediate_model_response in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                yield intermediate_model_response
+
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
+
             async for content in self.aresponse_stream(messages=messages):
                 yield content
         logger.debug("---------- OpenAI Async Response End ----------")

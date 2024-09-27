@@ -3,7 +3,7 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 from phi.model.message import Message
-from phi.model.response import ModelResponse
+from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
 from phi.utils.log import logger
@@ -154,8 +154,45 @@ class Model(BaseModel):
         # This is triggered when the function call limit is reached.
         self.tool_choice = "none"
 
-    def run_function_calls(self, function_calls: List[FunctionCall], role: str = "tool") -> List[Message]:
-        function_call_results: List[Message] = []
+    # def run_function_calls(self, function_calls: List[FunctionCall], role: str = "tool") -> List[Message]:
+    #     function_call_results: List[Message] = []
+    #     for function_call in function_calls:
+    #         if self.function_call_stack is None:
+    #             self.function_call_stack = []
+    #
+    #         # -*- Run function call
+    #         _function_call_timer = Timer()
+    #         _function_call_timer.start()
+    #         function_call_success = function_call.execute()
+    #         _function_call_timer.stop()
+    #
+    #         _function_call_result = Message(
+    #             role=role,
+    #             content=function_call.result if function_call_success else function_call.error,
+    #             tool_call_id=function_call.call_id,
+    #             tool_name=function_call.function.name,
+    #             tool_args=function_call.arguments,
+    #             tool_call_error=not function_call_success,
+    #             metrics={"time": _function_call_timer.elapsed},
+    #         )
+    #         if "tool_call_times" not in self.metrics:
+    #             self.metrics["tool_call_times"] = {}
+    #         if function_call.function.name not in self.metrics["tool_call_times"]:
+    #             self.metrics["tool_call_times"][function_call.function.name] = []
+    #         self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
+    #         function_call_results.append(_function_call_result)
+    #         self.function_call_stack.append(function_call)
+    #
+    #         # -*- Check function call limit
+    #         if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
+    #             self.deactivate_function_calls()
+    #             break  # Exit early if we reach the function call limit
+    #
+    #     return function_call_results
+
+    def run_function_calls(
+        self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
+    ) -> Iterator[ModelResponse]:
         for function_call in function_calls:
             if self.function_call_stack is None:
                 self.function_call_stack = []
@@ -163,11 +200,16 @@ class Model(BaseModel):
             # -*- Run function call
             _function_call_timer = Timer()
             _function_call_timer.start()
+            yield ModelResponse(content=function_call.get_call_str(), event=ModelResponseEvent.tool_call.value)
             function_call_success = function_call.execute()
             _function_call_timer.stop()
+            yield ModelResponse(
+                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
+                event=ModelResponseEvent.tool_call.value,
+            )
 
             _function_call_result = Message(
-                role=role,
+                role=tool_role,
                 content=function_call.result if function_call_success else function_call.error,
                 tool_call_id=function_call.call_id,
                 tool_name=function_call.function.name,
@@ -187,8 +229,6 @@ class Model(BaseModel):
             if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
-
-        return function_call_results
 
     def get_system_prompt_from_model(self) -> Optional[str]:
         return self.system_prompt

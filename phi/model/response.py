@@ -1,9 +1,6 @@
-import queue
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, Any
 from dataclasses import dataclass
-
-from phi.utils.log import logger
 
 
 class ModelResponseEvent(str, Enum):
@@ -18,4 +15,5 @@ class ModelResponse:
     """Response returned by Model.response()"""
 
     content: Optional[str] = None
+    parsed: Optional[Any] = None
     event: str = ModelResponseEvent.assistant_response.value

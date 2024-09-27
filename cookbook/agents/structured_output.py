@@ -1,3 +1,4 @@
+import asyncio  # noqa
 from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
@@ -16,12 +17,44 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-movie_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+# movie_agent_1 = Agent(
+#     model=OpenAIChat(id="gpt-4o"),
+#     description="You help people write movie scripts.",
+#     response_model=MovieScript,
+#     # debug_mode=True,
+# )
+#
+# run: RunResponse = movie_agent_1.run("New York")
+# pprint(run.content)
+
+# movie_agent_2 = Agent(
+#     model=OpenAIChat(id="gpt-4o-2024-08-06"),
+#     description="You help people write movie scripts.",
+#     response_model=MovieScript,
+#     structured_outputs=True,
+#     debug_mode=True,
+# )
+#
+# run: RunResponse = movie_agent_2.run("New York")
+# pprint(run)
+# pprint(run.content)
+
+movie_agent_2 = Agent(
+    model=OpenAIChat(id="gpt-4o-2024-08-06"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
+    structured_outputs=True,
     # debug_mode=True,
 )
 
-run: RunResponse = movie_agent.run("New York")
-pprint(run)
+run1: RunResponse = movie_agent_2.run("New York")
+# pprint(run1)
+pprint(run1.content)
+
+async def main():
+    run2: RunResponse = await movie_agent_2.arun("New York")
+    # pprint(run2)
+    pprint(run2.content)
+
+
+asyncio.run(main())

@@ -321,6 +321,7 @@ class Agent(BaseModel):
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:
             if self.structured_outputs and self.model.supports_structured_outputs:
+                logger.debug("Setting Model.response_format to Agent.response_model")
                 self.model.response_format = self.response_model
                 self.model.structured_outputs = True
             else:
@@ -601,8 +602,8 @@ class Agent(BaseModel):
 
         # 1. If the system_prompt is provided, use that.
         if self.system_prompt is not None:
-            # If the response_model is provided and structured_outputs is False, add the JSON output prompt.
-            if self.response_model is not None and self.structured_outputs is False:
+            # Add the JSON output prompt if response_model is provided and structured_outputs is False
+            if self.response_model is not None and not self.structured_outputs:
                 sys_prompt = self.system_prompt
                 sys_prompt += f"\n{self.get_json_output_prompt()}"
                 return Message(role=self.system_message_role, content=sys_prompt)
@@ -731,8 +732,8 @@ class Agent(BaseModel):
             system_prompt_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user."
             )
-        # 5.9 Then add the json output prompt if response_model is set
-        if self.response_model is not None:
+        # 5.9 Add the JSON output prompt if response_model is provided and structured_outputs is False
+        if self.response_model is not None and not self.structured_outputs:
             system_prompt_lines.append(f"\n{self.get_json_output_prompt()}")
         # 5.10 Finally, add instructions to prevent prompt injection
         if self.prevent_prompt_injection:
@@ -998,7 +999,12 @@ class Agent(BaseModel):
                         )
         else:
             model_response = self.model.response(messages=messages_for_model)
-            self.run_response.content = model_response.content
+            # Handle structured outputs
+            if self.response_model is not None and self.structured_outputs:
+                self.run_response.content = model_response.parsed
+                self.run_response.content_type = self.response_model.__name__
+            else:
+                self.run_response.content = model_response.content
             self.run_response.messages = messages_for_model
 
         # Add the model metrics to the run_response
@@ -1148,7 +1154,6 @@ class Agent(BaseModel):
         stream: Literal[False] = False,
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
-        stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> RunResponse: ...
 
@@ -1193,37 +1198,36 @@ class Agent(BaseModel):
 
             # If the model natively supports structured outputs, the content is already in the structured format
             if self.structured_outputs:
-                run_response.content_type = self.response_model.__name__
-                return run_response
-            # Otherwise convert the response to the structured output
-            else:
-                if isinstance(run_response.content, str):
-                    try:
-                        structured_output = None
-                        try:
-                            structured_output = self.response_model.model_validate_json(run_response.content)
-                        except ValidationError:
-                            # Check if response starts with ```json
-                            if run_response.content.startswith("```json"):
-                                run_response.content = run_response.content.replace("```json\n", "").replace(
-                                    "\n```", ""
-                                )
-                                try:
-                                    structured_output = self.response_model.model_validate_json(run_response.content)
-                                except ValidationError as exc:
-                                    logger.warning(f"Failed to validate response: {exc}")
+                # Do a final check confirming the content is in the response_model format
+                if isinstance(run_response.content, self.response_model):
+                    return run_response
 
-                        # -*- Update Agent response
-                        if structured_output is not None and self.run_response is not None:
-                            run_response.content = structured_output
-                            run_response.content_type = self.response_model.__name__
-                            self.run_response.content = structured_output
-                            self.run_response.content_type = self.response_model.__name__
-                    except Exception as e:
-                        logger.warning(f"Failed to convert response to output model: {e}")
-                else:
-                    logger.warning("Something went wrong. Run response content is not a string")
-                return run_response
+            # Otherwise convert the response to the structured format
+            if isinstance(run_response.content, str):
+                try:
+                    structured_output = None
+                    try:
+                        structured_output = self.response_model.model_validate_json(run_response.content)
+                    except ValidationError:
+                        # Check if response starts with ```json
+                        if run_response.content.startswith("```json"):
+                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.response_model.model_validate_json(run_response.content)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to validate response: {exc}")
+
+                    # -*- Update Agent response
+                    if structured_output is not None and self.run_response is not None:
+                        run_response.content = structured_output
+                        run_response.content_type = self.response_model.__name__
+                        self.run_response.content = structured_output
+                        self.run_response.content_type = self.response_model.__name__
+                except Exception as e:
+                    logger.warning(f"Failed to convert response to output model: {e}")
+            else:
+                logger.warning("Something went wrong. Run response content is not a string")
+            return run_response
         else:
             if stream and self.streamable:
                 resp = self._run(
@@ -1271,6 +1275,9 @@ class Agent(BaseModel):
         6. Save session to storage
         7. Save output to file if save_output_to_file is set
         """
+        # Evaluate if streaming is enabled
+        stream_agent_response = stream and self.streamable
+        stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
         # Create the run_response object
         self.run_response = RunResponse(run_id=str(uuid4()))
 
@@ -1279,11 +1286,10 @@ class Agent(BaseModel):
         # 1. Update the Model (set defaults, add tools, etc.)
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
-        if stream and self.streamable:
+        if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_response.run_id,
                 content="Run started",
-                model=self.run_response.model,
                 event=RunResponseEvent.run_started.value,
             )
 
@@ -1352,19 +1358,38 @@ class Agent(BaseModel):
             model_response = ModelResponse(content="")
             model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
             async for model_response_chunk in model_response_stream:  # type: ignore
-                if model_response_chunk.content is not None and model_response.content is not None:
-                    model_response.content += model_response_chunk.content
-                    self.run_response.content = model_response_chunk.content
-                    self.run_response.messages = messages_for_model
-                    yield self.run_response
+                if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
+                    if model_response_chunk.content is not None and model_response.content is not None:
+                        model_response.content += model_response_chunk.content
+                        self.run_response.content = model_response_chunk.content
+                        self.run_response.messages = messages_for_model
+                        yield self.run_response
+                elif model_response_chunk.event == ModelResponseEvent.tool_call.value:
+                    if stream_intermediate_steps:
+                        yield RunResponse(
+                            run_id=self.run_response.run_id,
+                            content=model_response_chunk.content,
+                            event=RunResponseEvent.tool_call.value,
+                        )
         else:
             model_response = await self.model.aresponse(messages=messages_for_model)
-            self.run_response.content = model_response.content
+            # Handle structured outputs
+            if self.response_model is not None and self.structured_outputs:
+                self.run_response.content = model_response.parsed
+                self.run_response.content_type = self.response_model.__name__
+            else:
+                self.run_response.content = model_response.content
             self.run_response.messages = messages_for_model
 
         # Add the model metrics to the run_response
         self.run_response.metrics = self.model.metrics if self.model else None
         # 5. Update Memory
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_response.run_id,
+                content="Updating memory",
+                event=RunResponseEvent.updating_memory.value,
+            )
         # Add the user message to the chat history
         if message is not None:
             user_message_for_chat_history = None
@@ -1410,7 +1435,7 @@ class Agent(BaseModel):
 
         # Update run_response
         # Update content if streaming as run_response will only contain the last chunk
-        if stream:
+        if stream_agent_response:
             self.run_response.content = model_response.content
         # Add tools from this run to the run_response
         for _run_message in run_messages:
@@ -1484,9 +1509,15 @@ class Agent(BaseModel):
         self.log_agent_run(run_id=self.run_response.run_id, run_data=run_data)
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_response.run_id,
+                content="Run completed",
+                event=RunResponseEvent.run_completed.value,
+            )
 
-        # -*- Yield final response if not streaming
-        if not stream:
+        # -*- Yield final response if not streaming so that run() can get the response
+        if not stream_agent_response:
             yield self.run_response
 
     async def arun(
@@ -1516,37 +1547,36 @@ class Agent(BaseModel):
 
             # If the model natively supports structured outputs, the content is already in the structured format
             if self.structured_outputs:
-                run_response.content_type = self.response_model.__name__
-                return run_response
-            # Otherwise convert the response to the structured output
-            else:
-                if isinstance(run_response.content, str):
-                    try:
-                        structured_output = None
-                        try:
-                            structured_output = self.response_model.model_validate_json(run_response.content)
-                        except ValidationError:
-                            # Check if response starts with ```json
-                            if run_response.content.startswith("```json"):
-                                run_response.content = run_response.content.replace("```json\n", "").replace(
-                                    "\n```", ""
-                                )
-                                try:
-                                    structured_output = self.response_model.model_validate_json(run_response.content)
-                                except ValidationError as exc:
-                                    logger.warning(f"Failed to validate response: {exc}")
+                # Do a final check confirming the content is in the response_model format
+                if isinstance(run_response.content, self.response_model):
+                    return run_response
 
-                        # -*- Update Agent response
-                        if structured_output is not None and self.run_response is not None:
-                            run_response.content = structured_output
-                            run_response.content_type = self.response_model.__name__
-                            self.run_response.content = structured_output
-                            self.run_response.content_type = self.response_model.__class__.__name__
-                    except Exception as e:
-                        logger.warning(f"Failed to convert response to output model: {e}")
-                else:
-                    logger.warning("Something went wrong. Run response content is not a string")
-                return run_response
+            # Otherwise convert the response to the structured format
+            if isinstance(run_response.content, str):
+                try:
+                    structured_output = None
+                    try:
+                        structured_output = self.response_model.model_validate_json(run_response.content)
+                    except ValidationError:
+                        # Check if response starts with ```json
+                        if run_response.content.startswith("```json"):
+                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.response_model.model_validate_json(run_response.content)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to validate response: {exc}")
+
+                    # -*- Update Agent response
+                    if structured_output is not None and self.run_response is not None:
+                        run_response.content = structured_output
+                        run_response.content_type = self.response_model.__name__
+                        self.run_response.content = structured_output
+                        self.run_response.content_type = self.response_model.__class__.__name__
+                except Exception as e:
+                    logger.warning(f"Failed to convert response to output model: {e}")
+            else:
+                logger.warning("Something went wrong. Run response content is not a string")
+            return run_response
         else:
             if stream and self.streamable:
                 resp = self._arun(

@@ -6,6 +6,7 @@ from phi.utils.log import logger
 import io
 from docx import Document as DocxDocument
 
+
 class DocxReader(Reader):
     """Reader for Doc/Docx files"""
 

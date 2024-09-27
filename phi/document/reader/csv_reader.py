@@ -6,6 +6,7 @@ from phi.document.reader.base import Reader
 from phi.utils.log import logger
 import io
 
+
 class CSVReader(Reader):
     """Reader for CSV files"""
 
@@ -18,11 +19,11 @@ class CSVReader(Reader):
                 if not file.exists():
                     raise FileNotFoundError(f"Could not find file: {file}")
                 logger.info(f"Reading: {file}")
-                file_content = file.open(newline="", mode='r', encoding='utf-8')
+                file_content = file.open(newline="", mode="r", encoding="utf-8")
             else:
                 logger.info(f"Reading uploaded file: {file.name}")
                 file.seek(0)
-                file_content = io.StringIO(file.read().decode('utf-8'))
+                file_content = io.StringIO(file.read().decode("utf-8"))
 
             csv_name = Path(file.name).stem if isinstance(file, Path) else file.name.split(".")[0]
             csv_content = ""

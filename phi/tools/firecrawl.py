@@ -6,7 +6,7 @@ from phi.tools import Toolkit
 try:
     from firecrawl import FirecrawlApp
 except ImportError:
-    raise ImportError("`firecrawl` not installed. Please install using `pip install firecrawl`")
+    raise ImportError("`firecrawl-py` not installed. Please install using `pip install firecrawl-py`")
 
 
 class FirecrawlTools(Toolkit):
@@ -25,10 +25,14 @@ class FirecrawlTools(Toolkit):
         self.limit: int = limit
         self.app: FirecrawlApp = FirecrawlApp(api_key=self.api_key)
 
-        if scrape:
-            self.register(self.scrape_website)
+        # Start with scrape by default. But if crawl is set, then set scrape to False.
         if crawl:
-            self.register(self.crawl_website)
+            scrape = False
+        elif not scrape:
+            crawl = True
+
+        self.register(self.scrape_website)
+        self.register(self.crawl_website)
 
     def scrape_website(self, url: str) -> str:
         """Use this function to Scrapes a website using Firecrawl.

@@ -4,8 +4,11 @@ import nest_asyncio
 import streamlit as st
 from phi.assistant import Assistant
 from phi.document import Document
-from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
+from phi.document.reader.pdf import PDFReader
+from phi.document.reader.text import TextReader
+from phi.document.reader.docx import DocxReader
+from phi.document.reader.csv_reader import CSVReader
 from phi.utils.log import logger
 
 from assistant import get_auto_rag_assistant  # type: ignore
@@ -117,13 +120,22 @@ def main() -> None:
             st.session_state["file_uploader_key"] = 100
 
         uploaded_file = st.sidebar.file_uploader(
-            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
+            "Add a Document (.pdf, .csv, .txt, or .docx) :page_facing_up:", key=st.session_state["file_uploader_key"]
         )
         if uploaded_file is not None:
-            alert = st.sidebar.info("Processing PDF...", icon="🧠")
+            alert = st.sidebar.info("Processing document...", icon="🧠")
             auto_rag_name = uploaded_file.name.split(".")[0]
             if f"{auto_rag_name}_uploaded" not in st.session_state:
-                reader = PDFReader()
+                file_type = uploaded_file.name.split(".")[-1].lower()
+
+                if file_type == "pdf":
+                    reader = PDFReader()
+                elif file_type == "csv":
+                    reader = CSVReader()
+                elif file_type == "txt":
+                    reader = TextReader()
+                elif file_type == "docx":
+                    reader = DocxReader()
                 auto_rag_documents: List[Document] = reader.read(uploaded_file)
                 if auto_rag_documents:
                     auto_rag_assistant.knowledge_base.load_documents(auto_rag_documents, upsert=True)

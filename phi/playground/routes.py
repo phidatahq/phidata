@@ -9,7 +9,7 @@ from phi.agent.session import AgentSession
 from phi.playground.operator import format_tools, get_agent_by_id, get_session_title
 from phi.utils.log import logger
 
-from .schemas import (
+from phi.playground.schemas import (
     AgentGetResponse,
     AgentRunRequest,
     GetAgentSessionsRequest,

@@ -1281,7 +1281,7 @@ class Agent(BaseModel):
         # Create the run_response object
         self.run_response = RunResponse(run_id=str(uuid4()))
 
-        logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
+        logger.debug(f"*********** Async Agent Run Start: {self.run_response.run_id} ***********")
 
         # 1. Update the Model (set defaults, add tools, etc.)
         self.update_model()
@@ -1508,7 +1508,7 @@ class Agent(BaseModel):
             }
         self.log_agent_run(run_id=self.run_response.run_id, run_data=run_data)
 
-        logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
+        logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_response.run_id,
@@ -1809,11 +1809,11 @@ class Agent(BaseModel):
         if not self.telemetry:
             return
 
-        from phi.api.agent import create_agent_session, AgentSessionCreate
+        from phi.api.agent import trigger_agent_session_creation, AgentSessionCreate
 
         try:
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
-            create_agent_session(
+            trigger_agent_session_creation(
                 session=AgentSessionCreate(
                     session_id=agent_session.session_id,
                     agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
@@ -1826,11 +1826,11 @@ class Agent(BaseModel):
         if not self.telemetry:
             return
 
-        from phi.api.agent import create_agent_run, AgentRunCreate
+        from phi.api.agent import trigger_agent_run_creation, AgentRunCreate
 
         try:
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
-            create_agent_run(
+            trigger_agent_run_creation(
                 run=AgentRunCreate(
                     run_id=run_id,
                     run_data=run_data,
@@ -1937,9 +1937,10 @@ class Agent(BaseModel):
             table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
             console.print(table)
 
-    async def async_print_response(
+    async def aprint_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
+        *,
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = False,
         markdown: bool = False,
@@ -1953,6 +1954,7 @@ class Agent(BaseModel):
         from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
         from rich.markdown import Markdown
+        from rich.json import JSON
 
         if markdown:
             self.markdown = True
@@ -1960,6 +1962,7 @@ class Agent(BaseModel):
         if self.response_model is not None:
             markdown = False
             self.markdown = False
+            stream = False
 
         if stream:
             _response_content = ""
@@ -1969,8 +1972,8 @@ class Agent(BaseModel):
                 response_timer = Timer()
                 response_timer.start()
                 async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore #TODO: Review this
-                    if isinstance(resp, str):
-                        _response_content += resp
+                    if isinstance(resp, RunResponse) and isinstance(resp.content, str):
+                        _response_content += resp.content
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
@@ -1992,12 +1995,23 @@ class Agent(BaseModel):
 
             response_timer.stop()
             response_content = ""
-            if isinstance(run_response, RunResponse) and isinstance(run_response.content, str):
-                response_content = (
-                    Markdown(run_response.content)
-                    if self.markdown
-                    else self.convert_response_to_string(run_response.content)
-                )
+            if isinstance(run_response, RunResponse):
+                if isinstance(run_response.content, str):
+                    response_content = (
+                        Markdown(run_response.content)
+                        if self.markdown
+                        else self.convert_response_to_string(run_response.content)
+                    )
+                elif self.response_model is not None and isinstance(run_response.content, BaseModel):
+                    try:
+                        response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                    except Exception as e:
+                        logger.warning(f"Failed to convert response to Markdown: {e}")
+                else:
+                    try:
+                        response_content = JSON(json.dumps(run_response.content), indent=4)
+                    except Exception as e:
+                        logger.warning(f"Failed to convert response to string: {e}")
 
             table = Table(box=ROUNDED, border_style="blue", show_header=False)
             if message and show_message:

@@ -11,7 +11,7 @@ agent = Agent(
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,
-    # debug_mode=True,
+    debug_mode=True,
     # monitoring=False,
     storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
@@ -30,23 +30,23 @@ agent = Agent(
 # run: RunResponse = agent.run("What is the stock price of NVDA")
 # pprint(run.content)
 
-run_stream: Iterator[RunResponse] = agent.run(
-    "What is the stock price of NVDA", stream=True, stream_intermediate_steps=True
-)
-for chunk in run_stream:
-    print("---")
-    pprint(chunk.model_dump(exclude={"messages"}))
-    print("---")
+# run_stream: Iterator[RunResponse] = agent.run(
+#     "What is the stock price of NVDA", stream=True, stream_intermediate_steps=True
+# )
+# for chunk in run_stream:
+#     print("---")
+#     pprint(chunk.model_dump(exclude={"messages"}))
+#     print("---")
 
 
-# async def main():
-#     run: RunResponse = await agent.arun("What is the stock price of NVDA and TSLA")
-#     pprint(run)
-#     # async for chunk in await agent.arun("What is the stock price of NVDA and TSLA", stream=True):
-#     #     print(chunk.content)
-#
-#
-# asyncio.run(main())
+async def main():
+    await agent.aprint_response("What is the stock price of NVDA and TSLA")
+    # run: RunResponse = await agent.arun("What is the stock price of NVDA and TSLA")
+    # pprint(run)
+    # async for chunk in await agent.arun("What is the stock price of NVDA and TSLA", stream=True):
+    #     print(chunk.content)
 
-# agent.print_response("What is the stock price of NVDA and TSLA?")
-# agent.print_response("What is the stock price of NVDA and TSLA?", stream=True)
+
+asyncio.run(main())
+
+agent.print_response("What is the stock price of NVDA and TSLA?", stream=True)

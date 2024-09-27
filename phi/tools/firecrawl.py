@@ -55,7 +55,6 @@ class FirecrawlTools(Toolkit):
         Args:
             url (str): The URL to crawl.
             limit (int): The maximum number of pages to crawl
-            wait_until_done (bool): Whether to wait until the crawling is done
         Returns:
             The results of the crawling.
         """

@@ -19,7 +19,7 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 def read_json_file(file_path: Optional[Path]) -> Optional[Union[Dict, List]]:
     if file_path is not None and file_path.exists() and file_path.is_file():
-        logger.debug(f"Reading {file_path}")
+        # logger.debug(f"Reading {file_path}")
         return json.loads(file_path.read_text())
     return None
 

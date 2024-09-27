@@ -18,47 +18,41 @@ export OPENAI_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai duckduckgo-search duckdb yfinance exa_py phidata
+pip install -U openai duckduckgo-search duckdb yfinance phidata
 ```
 
-### 4. Run Agent
+### 4. Run Agent without Tools
 
-- stream off
-
-```shell
-python cookbook/providers/openai/basic.py
-```
-
-- stream on
+- Streaming on
 
 ```shell
 python cookbook/providers/openai/basic_stream.py
 ```
 
-### 5. Run Agent with Tools
-
-- DuckDuckGo Search
+- Streaming off
 
 ```shell
-python cookbook/providers/openai/agent.py
+python cookbook/providers/openai/basic.py
 ```
 
-- DuckDuckGo Search Stream
+### 5. Run Agent with Tools
+
+- DuckDuckGo Search with streaming on
 
 ```shell
 python cookbook/providers/openai/agent_stream.py
 ```
 
-- YFinance
+- DuckDuckGo Search without streaming
 
 ```shell
-python cookbook/providers/openai/finance.py
+python cookbook/providers/openai/agent.py
 ```
 
-- Exa Search
+- Finance Agent
 
 ```shell
-python cookbook/providers/openai/exa_search.py
+python cookbook/providers/openai/finance_agent.py
 ```
 
 - Data Analyst
@@ -67,7 +61,7 @@ python cookbook/providers/openai/exa_search.py
 python cookbook/providers/openai/data_analyst.py
 ```
 
-### 6. Run Agent with Structured output
+### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/openai/structured_output.py

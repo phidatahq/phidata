@@ -4,6 +4,7 @@ from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
 
+
 class TextReader(Reader):
     """Reader for Text files"""
 

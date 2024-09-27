@@ -74,7 +74,7 @@ class ChromaDb(VectorDb):
             self._collection = self.client.create_collection(
                 name=self.collection, metadata={"hnsw:space": self.distance.value}
             )
-        
+
         else:
             logger.debug(f"Collection already exists: {self.collection}")
             self._collection = self.client.get_collection(name=self.collection)
@@ -159,7 +159,7 @@ class ChromaDb(VectorDb):
         if len(docs) > 0 and self._collection is not None:
             self._collection.upsert(ids=ids, embeddings=docs_embeddings, documents=docs)
             logger.debug(f"Committed {len(docs)} documents")
-            
+
         else:
             logger.error("Collection does not exist")
 
@@ -246,5 +246,6 @@ class ChromaDb(VectorDb):
         try:
             self.client.delete_collection(name=self.collection)
             return True
-        except:
+        except Exception as e:
+            logger.error(f"Error clearing collection: {e}")
             return False

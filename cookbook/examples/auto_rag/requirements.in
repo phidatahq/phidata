@@ -9,3 +9,6 @@ streamlit
 bs4
 duckduckgo-search
 nest_asyncio
+textract==1.6.3
+python-docx
+lxml

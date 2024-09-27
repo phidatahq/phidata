@@ -295,18 +295,22 @@ class OpenAIChat(Model):
         Returns:
             ChatCompletion: The chat completion response from the API.
         """
-        if self.response_format is not None and issubclass(self.response_format, BaseModel) and self.structured_outputs:
-            return self.get_client().beta.chat.completions.parse(
-                model=self.id,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                **self.request_kwargs,
-            )
-        else:
-            return self.get_client().chat.completions.create(
-                model=self.id,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                **self.request_kwargs,
-            )
+        if self.response_format is not None and self.structured_outputs:
+            try:
+                if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
+                    return self.get_client().beta.chat.completions.parse(
+                        model=self.id,
+                        messages=[m.to_dict() for m in messages],  # type: ignore
+                        **self.request_kwargs,
+                    )
+            except Exception as e:
+                logger.warning(f"response_format must be a subclass of BaseModel if structured_outputs=True: {e}")
+
+        return self.get_client().chat.completions.create(
+            model=self.id,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            **self.request_kwargs,
+        )
 
     async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
@@ -318,18 +322,22 @@ class OpenAIChat(Model):
         Returns:
             ChatCompletion: The chat completion response from the API.
         """
-        if self.response_format is not None and issubclass(self.response_format, BaseModel) and self.structured_outputs:
-            return await self.get_async_client().beta.chat.completions.parse(
-                model=self.id,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                **self.request_kwargs,
-            )
-        else:
-            return await self.get_async_client().chat.completions.create(
-                model=self.id,
-                messages=[m.to_dict() for m in messages],  # type: ignore
-                **self.request_kwargs,
-            )
+        if self.response_format is not None and self.structured_outputs:
+            try:
+                if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
+                    return await self.get_async_client().beta.chat.completions.parse(
+                        model=self.id,
+                        messages=[m.to_dict() for m in messages],  # type: ignore
+                        **self.request_kwargs,
+                    )
+            except Exception as e:
+                logger.warning(f"response_format must be a subclass of BaseModel if structured_outputs=True: {e}")
+
+        return await self.get_async_client().chat.completions.create(
+            model=self.id,
+            messages=[m.to_dict() for m in messages],  # type: ignore
+            **self.request_kwargs,
+        )
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         """

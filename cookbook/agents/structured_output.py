@@ -39,23 +39,30 @@ class MovieScript(BaseModel):
 # pprint(run)
 # pprint(run.content)
 
+movie_writer = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You help people write movie scripts.",
+    response_model=MovieScript,
+)
+
+run1: RunResponse = movie_writer.run("New York")
+pprint(run1.content)
+
 movie_agent_2 = Agent(
     model=OpenAIChat(id="gpt-4o-2024-08-06"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
     structured_outputs=True,
-    # debug_mode=True,
 )
 
-run1: RunResponse = movie_agent_2.run("New York")
-# pprint(run1)
-pprint(run1.content)
+run2: RunResponse = movie_agent_2.run("New York")
+pprint(run2.content)
 
 
 async def main():
-    run2: RunResponse = await movie_agent_2.arun("New York")
+    run3: RunResponse = await movie_agent_2.arun("New York")
     # pprint(run2)
-    pprint(run2.content)
+    pprint(run3.content)
 
 
 asyncio.run(main())

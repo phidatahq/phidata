@@ -107,6 +107,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
                 GetAgentSessionsResponse(
                     session_id=session.session_id,
                     title=title,
+                    created_at=session.created_at
                 )
             )
         return agent_sessions

@@ -46,3 +46,4 @@ class GetAgentSessionsRequest(BaseModel):
 class GetAgentSessionsResponse(BaseModel):
     session_id: Optional[str] = None
     title: Optional[str] = None
+    created_at: Optional[int] = None

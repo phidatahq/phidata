@@ -1,6 +1,8 @@
+from os import getenv
 from pathlib import Path
 from typing import Optional, Dict, List
 
+import requests
 
 from phi.api.workspace import log_workspace_event
 from phi.api.schemas.workspace import (
@@ -17,6 +19,8 @@ from phi.cli.console import (
     print_subheading,
     log_config_not_available_msg,
 )
+from phi.cli.credentials import read_auth_token
+from phi.constants import PHI_API_ENDPOINT_ENV_VAR
 from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
 from phi.workspace.config import WorkspaceConfig
@@ -343,6 +347,23 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
                 )
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")
+
+        ######################################################
+        # 2.3 Create API Key for User Workspace
+        ######################################################
+        if ws_schema:
+            url = getenv(PHI_API_ENDPOINT_ENV_VAR, "") + "v1/user-keys/refresh"
+            headers = {
+                "X-PHIDATA-AUTH-TOKEN": read_auth_token(),
+            }
+            params = {"workspace_url": ws_schema.ws_name}
+            data = {"user": {"id_user": phi_config.user.id_user, "email": phi_config.user.email}}
+            response = requests.post(url, params=params, json=data, headers=headers)
+            logger.info(response.json())
+            if response.status_code == 200:
+                print_info(f"New API Key created for workspace: {ws_schema.ws_name}")
+            else:
+                logger.error(f"Failed to create API Key for workspace: {ws_schema.ws_name}")
 
     if ws_config is not None:
         # logger.debug("Workspace Config: {}".format(ws_config.model_dump_json(indent=2)))

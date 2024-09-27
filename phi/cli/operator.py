@@ -24,12 +24,13 @@ def authenticate_user() -> None:
     1. Authenticate the user by opening the phidata sign-in url
         and the web-app will post an auth token to a mini http server
         running on the auth_server_port.
-    2. Using the auth_token, authenticate the CLI with api and
-        save the auth_token. This step is handled by authenticate_and_get_user()
+    2. Using the auth_token, authenticate the CLI with the api and get the user.
     3. After the user is authenticated update the PhiCliConfig.
+    4. Save the auth_token locally for future use.
     """
     from phi.api.user import authenticate_and_get_user
     from phi.api.schemas.user import UserSchema
+    from phi.cli.credentials import save_auth_token
     from phi.cli.auth_server import (
         get_port_for_auth_server,
         get_auth_token_from_web_flow,
@@ -44,23 +45,25 @@ def authenticate_user() -> None:
     typer_launch(auth_url)
     print_info("\nWaiting for a response from browser...\n")
 
-    tmp_auth_token = get_auth_token_from_web_flow(auth_server_port)
-    if tmp_auth_token is None:
+    auth_token = get_auth_token_from_web_flow(auth_server_port)
+    if auth_token is None:
         logger.error("Could not authenticate, please try again")
         return
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     existing_user: Optional[UserSchema] = phi_config.user if phi_config is not None else None
+    # Authenticate the user and claim any workspaces from anon user
     try:
-        user: Optional[UserSchema] = authenticate_and_get_user(
-            tmp_auth_token=tmp_auth_token, existing_user=existing_user
-        )
+        user: Optional[UserSchema] = authenticate_and_get_user(auth_token=auth_token, existing_user=existing_user)
     except Exception as e:
         logger.exception(e)
         logger.error("Could not authenticate, please try again")
         return
 
-    if user is None:
+    # Save the auth token if user is authenticated
+    if user is not None:
+        save_auth_token(auth_token)
+    else:
         logger.error("Could not authenticate, please try again")
         return
 

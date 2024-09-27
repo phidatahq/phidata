@@ -28,14 +28,14 @@ def user_ping() -> bool:
     return False
 
 
-def authenticate_and_get_user(tmp_auth_token: str, existing_user: Optional[UserSchema] = None) -> Optional[UserSchema]:
+def authenticate_and_get_user(auth_token: str, existing_user: Optional[UserSchema] = None) -> Optional[UserSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    from phi.cli.credentials import save_auth_token, read_auth_token
+    from phi.cli.credentials import read_auth_token
 
     logger.debug("--**-- Getting user")
-    auth_header = {phi_cli_settings.auth_token_header: tmp_auth_token}
+    auth_header = {phi_cli_settings.auth_token_header: auth_token}
     anon_user = None
     if existing_user is not None:
         if existing_user.email == "anon":
@@ -51,19 +51,11 @@ def authenticate_and_get_user(tmp_auth_token: str, existing_user: Optional[UserS
             if invalid_response(r):
                 return None
 
-            new_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
-            if new_auth_token is None:
-                logger.error("Could not authenticate user")
-                return None
-
             user_data = r.json()
             if not isinstance(user_data, dict):
                 return None
 
-            current_user: UserSchema = UserSchema.model_validate(user_data)
-            if current_user is not None:
-                save_auth_token(new_auth_token)
-                return current_user
+            return UserSchema.model_validate(user_data)
         except Exception as e:
             logger.debug(f"Could not authenticate user: {e}")
     return None

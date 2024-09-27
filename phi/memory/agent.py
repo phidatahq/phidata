@@ -23,8 +23,10 @@ class AgentMemory(BaseModel):
     # Messages sent to the Model and the Model responses.
     run_messages: List[Message] = []
 
-    # Create personalized memories for this user
+    # Create personalized memories for a user
+    # MemoryDb to store the memories
     db: Optional[MemoryDb] = None
+    # User ID for the memory
     user_id: Optional[str] = None
     retrieval: MemoryRetrieval = MemoryRetrieval.last_n
     memories: Optional[List[Memory]] = None

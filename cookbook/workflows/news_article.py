@@ -1,24 +1,14 @@
-"""
-Please install dependencies using:
-pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata
-"""
-
-from shutil import rmtree
-from pathlib import Path
 from textwrap import dedent
 from typing import Optional
 
+from rich.pretty import pprint
 from pydantic import BaseModel, Field
-from phi.assistant import Assistant
-from phi.workflow import Workflow, Task
+
+from phi.agent import Agent, RunResponse
+from phi.workflow import Workflow
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.newspaper4k import Newspaper4k
-
-
-articles_dir = Path(__file__).parent.parent.parent.joinpath("wip", "articles")
-if articles_dir.exists():
-    rmtree(path=articles_dir, ignore_errors=True)
-articles_dir.mkdir(parents=True, exist_ok=True)
+from phi.utils.log import logger
 
 
 class NewsArticle(BaseModel):
@@ -27,17 +17,17 @@ class NewsArticle(BaseModel):
     summary: Optional[str] = Field(..., description="Summary of the article if available.")
 
 
-researcher = Assistant(
-    name="Article Researcher",
+researcher = Agent(
+    name="Researcher",
     tools=[DuckDuckGo()],
     description="Given a topic, search for 15 articles and return the 7 most relevant articles.",
-    output_model=NewsArticle,
+    response_model=NewsArticle,
 )
 
-writer = Assistant(
-    name="Article Writer",
+writer = Agent(
+    name="Writer",
     tools=[Newspaper4k()],
-    description="You are a Senior NYT Editor and your task is to write a NYT cover story worthy article due tomorrow.",
+    description="You are a Senior NYT Editor and your task is to write a NYT cover story due tomorrow.",
     instructions=[
         "You will be provided with news articles and their links.",
         "Carefully read each article and think about the contents",
@@ -48,8 +38,7 @@ writer = Assistant(
         "Ignore articles that you cannot read or understand.",
         "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
     ],
-    expected_output=dedent(
-        """\
+    expected_output=dedent("""\
     An engaging, informative, and well-structured article in the following format:
     <article_format>
     ## Engaging Article Title
@@ -72,28 +61,18 @@ writer = Assistant(
     - [Title](url)
     - [Title](url)
     </article_format>
-    """
-    ),
+    """),
 )
 
-news_article = Workflow(
-    name="News Article Workflow",
-    tasks=[
-        Task(
-            description="Find the 7 most relevant articles on a topic.",
-            assistant=researcher,
-            show_output=False,
-        ),
-        Task(
-            description="Read each article and and write a NYT worthy news article.",
-            assistant=writer,
-        ),
-    ],
-    debug_mode=True,
-    save_output_to_file="news_article.md",
-)
 
-news_article.print_response(
-    "Hashicorp IBM acquisition",
-    markdown=True,
-)
+class WriteNewsArticle(Workflow):
+    def run(self, topic: str):
+        logger.info(f"Researching articles on: {topic}")
+        articles: RunResponse = researcher.run(topic=topic)
+        if articles.content:
+            logger.info(f"Received {len(articles.content)} articles.")
+        pprint(articles)
+
+
+# Run workflow
+WriteNewsArticle(debug_mode=True).run(topic="IBM Hashicorp Acquisition")

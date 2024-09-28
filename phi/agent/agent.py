@@ -1218,11 +1218,14 @@ class Agent(BaseModel):
                                 logger.warning(f"Failed to validate response: {exc}")
 
                     # -*- Update Agent response
-                    if structured_output is not None and self.run_response is not None:
+                    if structured_output is not None:
                         run_response.content = structured_output
                         run_response.content_type = self.response_model.__name__
-                        self.run_response.content = structured_output
-                        self.run_response.content_type = self.response_model.__name__
+                        if self.run_response is not None:
+                            self.run_response.content = structured_output
+                            self.run_response.content_type = self.response_model.__name__
+                    else:
+                        logger.warning("Failed to convert response to response_model")
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:
@@ -1567,11 +1570,12 @@ class Agent(BaseModel):
                                 logger.warning(f"Failed to validate response: {exc}")
 
                     # -*- Update Agent response
-                    if structured_output is not None and self.run_response is not None:
+                    if structured_output is not None:
                         run_response.content = structured_output
                         run_response.content_type = self.response_model.__name__
-                        self.run_response.content = structured_output
-                        self.run_response.content_type = self.response_model.__class__.__name__
+                        if self.run_response is not None:
+                            self.run_response.content = structured_output
+                            self.run_response.content_type = self.response_model.__name__
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:

@@ -17,11 +17,15 @@ class NewsArticle(BaseModel):
     summary: Optional[str] = Field(..., description="Summary of the article if available.")
 
 
+class NewsArticles(BaseModel):
+    articles: list[NewsArticle]
+
+
 researcher = Agent(
     name="Researcher",
     tools=[DuckDuckGo()],
-    description="Given a topic, search for 15 articles and return the 7 most relevant articles.",
-    response_model=NewsArticle,
+    description="Given a topic, search for 5 articles and return the 3 most relevant articles.",
+    response_model=NewsArticles,
 )
 
 writer = Agent(
@@ -65,14 +69,23 @@ writer = Agent(
 )
 
 
-class WriteNewsArticle(Workflow):
+class WriteNewsReport(Workflow):
     def run(self, topic: str):
         logger.info(f"Researching articles on: {topic}")
-        articles: RunResponse = researcher.run(topic=topic)
-        if articles.content:
-            logger.info(f"Received {len(articles.content)} articles.")
-        pprint(articles)
+        topic_research: RunResponse = researcher.run(topic)
+        if (
+            topic_research.content
+            and isinstance(topic_research.content, NewsArticles)
+            and topic_research.content.articles
+        ):
+            logger.info(f"Received {len(topic_research.content.articles)} articles.")
+        else:
+            logger.error("No articles found.")
+            return
+
+        logger.info("Reading each article and writing a report.")
+        writer.print_response(topic_research.content.model_dump_json(indent=2), markdown=True, show_message=False)
 
 
 # Run workflow
-WriteNewsArticle(debug_mode=True).run(topic="IBM Hashicorp Acquisition")
+WriteNewsReport(debug_mode=False).run(topic="IBM Hashicorp Acquisition")

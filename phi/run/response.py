@@ -28,7 +28,7 @@ class RunResponse(BaseModel):
     messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
     model: Optional[str] = None
-    run_id: str
+    run_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 

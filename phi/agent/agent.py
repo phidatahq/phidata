@@ -1159,7 +1159,7 @@ class Agent(BaseModel):
                 "functions": functions,
                 "metrics": self.model.metrics if self.model else None,
             }
-        self.log_agent_run(run_id=self.run_response.run_id, run_data=run_data)
+        self.log_agent_run(run_id=self.run_id, run_data=run_data)
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
@@ -1537,7 +1537,7 @@ class Agent(BaseModel):
                 "functions": functions,
                 "metrics": self.model.metrics if self.model else None,
             }
-        self.log_agent_run(run_id=self.run_response.run_id, run_data=run_data)
+        self.log_agent_run(run_id=self.run_id, run_data=run_data)
 
         logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:

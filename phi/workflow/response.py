@@ -17,6 +17,7 @@ class WorkflowResponse(BaseModel):
     """Response returned by Workflow.run()"""
 
     run_id: str
+    workflow_id: str
     content: Optional[Any] = None
     content_type: str = "str"
     event: str = WorkflowEvent.agent_response.value

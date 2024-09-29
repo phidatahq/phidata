@@ -74,7 +74,7 @@ class WriteNewsReport(Workflow):
         logger.info(f"Researching articles on: {topic}")
         research: AgentResponse = self.researcher.run(topic)
         if research.content and isinstance(research.content, NewsArticles) and research.content.articles:
-            logger.info(f"Received {len(research.content.articles)} articles.")
+            logger.info(f"Research identified {len(research.content.articles)} articles.")
         else:
             logger.error("No articles found.")
             return

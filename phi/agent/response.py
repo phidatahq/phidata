@@ -21,6 +21,8 @@ class AgentResponse(BaseModel):
     """Response returned by Agent.run()"""
 
     run_id: str
+    agent_id: str
+    session_id: str
     content: Optional[Any] = None
     content_type: str = "str"
     messages: Optional[List[Message]] = None

@@ -1,5 +1,5 @@
 from rich.pretty import pprint  # noqa
-from phi.agent import Agent, AgentResponse  # noqa
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector, SearchType
@@ -37,5 +37,5 @@ agent = Agent(
 
 agent.print_response("How do i make Chicken and Galangal in Coconut Milk Soup")
 
-# run1: AgentResponse = agent.run("How to make Gluai Buat Chi?")  # type: ignore
+# run1: RunResponse = agent.run("How to make Gluai Buat Chi?")  # type: ignore
 # pprint(run1)

@@ -4,7 +4,7 @@ from typing import List, Optional, Generator, Dict, cast, Union
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
 
-from phi.agent.agent import Agent, AgentResponse
+from phi.agent.agent import Agent, RunResponse
 from phi.agent.session import AgentSession
 from phi.playground.operator import format_tools, get_agent_by_id, get_session_title
 from phi.utils.log import logger
@@ -59,7 +59,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
     ) -> Generator:
         run_response = agent.run(message, images=images, stream=True)
         for run_response_chunk in run_response:
-            run_response_chunk = cast(AgentResponse, run_response_chunk)
+            run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.model_dump_json()
 
     def process_image(file: UploadFile) -> List[Union[str, Dict]]:
@@ -87,7 +87,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
                 media_type="text/event-stream",
             )
         else:
-            run_response = cast(AgentResponse, agent.run(body.message, images=base64_image, stream=False))
+            run_response = cast(RunResponse, agent.run(body.message, images=base64_image, stream=False))
             return run_response.model_dump_json()
 
     @playground_routes.post("/agent/sessions/all")

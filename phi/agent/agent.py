@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.agent.response import AgentResponse, AgentEvent
+from phi.run.response import RunResponse, RunEvent
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
 from phi.model.message import Message, MessageContext
@@ -184,8 +184,11 @@ class Agent(BaseModel):
     # Use the structured_outputs from the Model if available
     structured_outputs: bool = False
 
-    # -*- Final Agent Run Response
-    run_response: Optional[AgentResponse] = None
+    # -*- Agent run details
+    # Run ID: do not set manually
+    run_id: Optional[str] = None
+    # Response from the Agent run
+    run_response: Optional[RunResponse] = None
     # Save the response to a file
     save_response_to_file: Optional[str] = None
 
@@ -909,7 +912,7 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
-    ) -> Iterator[AgentResponse]:
+    ) -> Iterator[RunResponse]:
         """Run the Agent with a message and return the response.
 
         Steps:
@@ -929,7 +932,8 @@ class Agent(BaseModel):
         stream_agent_response = stream and self.streamable
         stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
         # Create the run_response object
-        self.run_response = AgentResponse(run_id=str(uuid4()), agent_id=self.agent_id, session_id=self.session_id)
+        self.run_id = str(uuid4())
+        self.run_response = RunResponse(run_id=self.run_id)
 
         logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
 
@@ -937,12 +941,10 @@ class Agent(BaseModel):
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
         if stream_intermediate_steps:
-            yield AgentResponse(
-                run_id=self.run_response.run_id,
-                agent_id=self.run_response.agent_id,
-                session_id=self.run_response.session_id,
+            yield RunResponse(
+                run_id=self.run_id,
                 content="Run started",
-                event=AgentEvent.run_started.value,
+                event=RunEvent.run_started.value,
             )
 
         # 2. Read existing session from storage
@@ -1017,12 +1019,10 @@ class Agent(BaseModel):
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call.value:
                     if stream_intermediate_steps:
-                        yield AgentResponse(
-                            run_id=self.run_response.run_id,
-                            agent_id=self.run_response.agent_id,
-                            session_id=self.run_response.session_id,
+                        yield RunResponse(
+                            run_id=self.run_id,
                             content=model_response_chunk.content,
-                            event=AgentEvent.tool_call.value,
+                            event=RunEvent.tool_call.value,
                         )
         else:
             model_response = self.model.response(messages=messages_for_model)
@@ -1038,12 +1038,10 @@ class Agent(BaseModel):
         self.run_response.metrics = self.model.metrics if self.model else None
         # 5. Update Memory
         if stream_intermediate_steps:
-            yield AgentResponse(
-                run_id=self.run_response.run_id,
-                agent_id=self.run_response.agent_id,
-                session_id=self.run_response.session_id,
+            yield RunResponse(
+                run_id=self.run_id,
                 content="Updating memory",
-                event=AgentEvent.updating_memory.value,
+                event=RunEvent.updating_memory.value,
             )
         # Add the user message to the chat history
         if message is not None:
@@ -1165,12 +1163,10 @@ class Agent(BaseModel):
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
-            yield AgentResponse(
-                run_id=self.run_response.run_id,
-                agent_id=self.run_response.agent_id,
-                session_id=self.run_response.session_id,
+            yield RunResponse(
+                run_id=self.run_id,
                 content="Run completed",
-                event=AgentEvent.run_completed.value,
+                event=RunEvent.run_completed.value,
             )
 
         # -*- Yield final response if not streaming so that run() can get the response
@@ -1186,7 +1182,7 @@ class Agent(BaseModel):
         images: Optional[List[Union[str, Dict]]] = None,
         messages: Optional[List[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> AgentResponse: ...
+    ) -> RunResponse: ...
 
     @overload
     def run(
@@ -1198,7 +1194,7 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
-    ) -> Iterator[AgentResponse]: ...
+    ) -> Iterator[RunResponse]: ...
 
     def run(
         self,
@@ -1209,14 +1205,14 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
-    ) -> Union[AgentResponse, Iterator[AgentResponse]]:
+    ) -> Union[RunResponse, Iterator[RunResponse]]:
         """Run the Agent with a message and return the response."""
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
-            run_response: AgentResponse = next(
+            run_response: RunResponse = next(
                 self._run(
                     message=message,
                     stream=False,
@@ -1293,7 +1289,7 @@ class Agent(BaseModel):
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
-    ) -> AsyncIterator[AgentResponse]:
+    ) -> AsyncIterator[RunResponse]:
         """Async Run the Agent with a message and return the response.
 
         Steps:
@@ -1313,7 +1309,8 @@ class Agent(BaseModel):
         stream_agent_response = stream and self.streamable
         stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
         # Create the run_response object
-        self.run_response = AgentResponse(run_id=str(uuid4()), agent_id=self.agent_id, session_id=self.session_id)
+        self.run_id = str(uuid4())
+        self.run_response = RunResponse(run_id=self.run_id)
 
         logger.debug(f"*********** Async Agent Run Start: {self.run_response.run_id} ***********")
 
@@ -1321,12 +1318,10 @@ class Agent(BaseModel):
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
         if stream_intermediate_steps:
-            yield AgentResponse(
-                run_id=self.run_response.run_id,
-                agent_id=self.run_response.agent_id,
-                session_id=self.run_response.session_id,
+            yield RunResponse(
+                run_id=self.run_id,
                 content="Run started",
-                event=AgentEvent.run_started.value,
+                event=RunEvent.run_started.value,
             )
 
         # 2. Read existing session from storage
@@ -1402,12 +1397,10 @@ class Agent(BaseModel):
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call.value:
                     if stream_intermediate_steps:
-                        yield AgentResponse(
-                            run_id=self.run_response.run_id,
-                            agent_id=self.run_response.agent_id,
-                            session_id=self.run_response.session_id,
+                        yield RunResponse(
+                            run_id=self.run_id,
                             content=model_response_chunk.content,
-                            event=AgentEvent.tool_call.value,
+                            event=RunEvent.tool_call.value,
                         )
         else:
             model_response = await self.model.aresponse(messages=messages_for_model)
@@ -1423,12 +1416,10 @@ class Agent(BaseModel):
         self.run_response.metrics = self.model.metrics if self.model else None
         # 5. Update Memory
         if stream_intermediate_steps:
-            yield AgentResponse(
-                run_id=self.run_response.run_id,
-                agent_id=self.run_response.agent_id,
-                session_id=self.run_response.session_id,
+            yield RunResponse(
+                run_id=self.run_id,
                 content="Updating memory",
-                event=AgentEvent.updating_memory.value,
+                event=RunEvent.updating_memory.value,
             )
         # Add the user message to the chat history
         if message is not None:
@@ -1550,12 +1541,10 @@ class Agent(BaseModel):
 
         logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
-            yield AgentResponse(
-                run_id=self.run_response.run_id,
-                agent_id=self.run_response.agent_id,
-                session_id=self.run_response.session_id,
+            yield RunResponse(
+                run_id=self.run_id,
                 content="Run completed",
-                event=AgentEvent.run_completed.value,
+                event=RunEvent.run_completed.value,
             )
 
         # -*- Yield final response if not streaming so that run() can get the response
@@ -1888,14 +1877,6 @@ class Agent(BaseModel):
     # Print Response
     ###########################################################################
 
-    def convert_response_to_string(self, response: Any) -> str:
-        if isinstance(response, str):
-            return response
-        elif isinstance(response, BaseModel):
-            return response.model_dump_json(exclude_none=True, indent=4)
-        else:
-            return json.dumps(response, indent=4)
-
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
@@ -1931,7 +1912,7 @@ class Agent(BaseModel):
                 response_timer = Timer()
                 response_timer.start()
                 for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
-                    if isinstance(resp, AgentResponse) and isinstance(resp.content, str):
+                    if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         _response_content += resp.content
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
@@ -1954,12 +1935,12 @@ class Agent(BaseModel):
 
             response_timer.stop()
             response_content = ""
-            if isinstance(run_response, AgentResponse):
+            if isinstance(run_response, RunResponse):
                 if isinstance(run_response.content, str):
                     response_content = (
                         Markdown(run_response.content)
                         if self.markdown
-                        else self.convert_response_to_string(run_response.content)
+                        else run_response.get_content_as_string(indent=4)
                     )
                 elif self.response_model is not None and isinstance(run_response.content, BaseModel):
                     try:
@@ -2015,7 +1996,7 @@ class Agent(BaseModel):
                 response_timer = Timer()
                 response_timer.start()
                 async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore #TODO: Review this
-                    if isinstance(resp, AgentResponse) and isinstance(resp.content, str):
+                    if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         _response_content += resp.content
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
@@ -2038,12 +2019,12 @@ class Agent(BaseModel):
 
             response_timer.stop()
             response_content = ""
-            if isinstance(run_response, AgentResponse):
+            if isinstance(run_response, RunResponse):
                 if isinstance(run_response.content, str):
                     response_content = (
                         Markdown(run_response.content)
                         if self.markdown
-                        else self.convert_response_to_string(run_response.content)
+                        else run_response.get_content_as_string(indent=4)
                     )
                 elif self.response_model is not None and isinstance(run_response.content, BaseModel):
                     try:

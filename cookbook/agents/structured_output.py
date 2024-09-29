@@ -9,7 +9,7 @@ from rich.spinner import Spinner
 from rich.text import Text
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent, AgentResponse
+from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 
 console = Console()
@@ -80,7 +80,7 @@ def run_agents():
         # Running movie_agent_1
         display_header("Running Agent with response_model=MovieScript", panel_title="Agent 1")
         with console.status("Running Agent 1...", spinner="dots"):
-            run_movie_agent_1: AgentResponse = movie_agent_1.run("New York")
+            run_movie_agent_1: RunResponse = movie_agent_1.run("New York")
         display_content(run_movie_agent_1.content, title="Agent 1 Response")
 
         # Running movie_agent_2
@@ -88,7 +88,7 @@ def run_agents():
             "Running Agent with response_model=MovieScript and structured_outputs=True", panel_title="Agent 2"
         )
         with console.status("Running Agent 2...", spinner="dots"):
-            run_movie_agent_2: AgentResponse = movie_agent_2.run("New York")
+            run_movie_agent_2: RunResponse = movie_agent_2.run("New York")
         display_content(run_movie_agent_2.content, title="Agent 2 Response")
     except Exception as e:
         console.print(f"[bold red]Error occurred while running agents: {e}[/bold red]")
@@ -99,7 +99,7 @@ async def run_agents_async():
         # Running movie_agent_1 asynchronously
         display_header("Running Agent with response_model=MovieScript (async)", panel_title="Async Agent 1")
         with console.status("Running Agent 1...", spinner="dots"):
-            async_run_movie_agent_1: AgentResponse = await movie_agent_1.arun("New York")
+            async_run_movie_agent_1: RunResponse = await movie_agent_1.arun("New York")
         display_content(async_run_movie_agent_1.content, title="Async Agent 1 Response")
 
         # Running movie_agent_2 asynchronously
@@ -108,7 +108,7 @@ async def run_agents_async():
             panel_title="Async Agent 2",
         )
         with console.status("Running Agent 2...", spinner="dots"):
-            async_run_movie_agent_2: AgentResponse = await movie_agent_2.arun("New York")
+            async_run_movie_agent_2: RunResponse = await movie_agent_2.arun("New York")
         display_content(async_run_movie_agent_2.content, title="Async Agent 2 Response")
     except Exception as e:
         console.print(f"[bold red]Error occurred while running async agents: {e}[/bold red]")

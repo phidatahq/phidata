@@ -4,7 +4,6 @@ from typing import Any, Optional, Callable, Dict
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
-from phi.workflow.response import WorkflowResponse
 from phi.utils.log import logger, set_log_level_to_debug
 
 
@@ -24,10 +23,9 @@ class Workflow(BaseModel):
     # WorkflowSession from the database: DO NOT SET MANUALLY
     workflow_session: Optional[Any] = None
 
-    # -*- Final Workflow Run Response
-    run_response: Optional[WorkflowResponse] = None
-    # Save the response to a file
-    save_response_to_file: Optional[str] = None
+    # -*- Workflow run details
+    # Run ID: do not set manually
+    run_id: Optional[str] = None
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
@@ -54,7 +52,9 @@ class Workflow(BaseModel):
         return
 
     def run_workflow(self, *args: Any, **kwargs: Any):
-        logger.debug(f"Running workflow: {self.workflow_id}")
+        self.run_id = str(uuid4())
+
+        logger.debug(f"*********** Running Workflow: {self.run_id} ***********")
         result = self._subclass_run(*args, **kwargs)
         return result
 

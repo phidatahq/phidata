@@ -1,4 +1,4 @@
-import asyncio  # noqa
+import asyncio
 from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
@@ -17,36 +17,14 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-# movie_agent_1 = Agent(
-#     model=OpenAIChat(id="gpt-4o"),
-#     description="You help people write movie scripts.",
-#     response_model=MovieScript,
-#     # debug_mode=True,
-# )
-#
-# run: AgentResponse = movie_agent_1.run("New York")
-# pprint(run.content)
-
-# movie_agent_2 = Agent(
-#     model=OpenAIChat(id="gpt-4o-2024-08-06"),
-#     description="You help people write movie scripts.",
-#     response_model=MovieScript,
-#     structured_outputs=True,
-#     debug_mode=True,
-# )
-#
-# run: AgentResponse = movie_agent_2.run("New York")
-# pprint(run)
-# pprint(run.content)
-
-movie_writer = Agent(
+movie_agent_1 = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
 )
-
-run1: AgentResponse = movie_writer.run("New York")
-pprint(run1.content)
+print("Running Agent with response_model=MovieScript")
+run_movie_agent_1: AgentResponse = movie_agent_1.run("New York")
+pprint(run_movie_agent_1.content)
 
 movie_agent_2 = Agent(
     model=OpenAIChat(id="gpt-4o-2024-08-06"),
@@ -55,14 +33,19 @@ movie_agent_2 = Agent(
     structured_outputs=True,
 )
 
-run2: AgentResponse = movie_agent_2.run("New York")
-pprint(run2.content)
+print("Running Agent with response_model=MovieScript and structured_outputs=True")
+run_movie_agent_2: AgentResponse = movie_agent_2.run("New York")
+pprint(run_movie_agent_2.content)
 
 
 async def main():
-    run3: AgentResponse = await movie_agent_2.arun("New York")
-    # pprint(run2)
-    pprint(run3.content)
+    print("Running Agent with response_model=MovieScript (async)")
+    async_run_movie_agent_1: AgentResponse = await movie_agent_1.arun("New York")
+    pprint(async_run_movie_agent_1.content)
+
+    print("Running Agent with response_model=MovieScript and structured_outputs=True (async)")
+    async_run_movie_agent_2: AgentResponse = await movie_agent_2.arun("New York")
+    pprint(async_run_movie_agent_2.content)
 
 
 asyncio.run(main())

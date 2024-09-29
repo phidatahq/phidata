@@ -1,15 +1,15 @@
 from typing import Optional
 
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.eval import Eval, EvalResult
-from phi.llm.openai import OpenAIChat
+from phi.model.openai import OpenAIChat
 from phi.tools.calculator import Calculator
 
 
 def multiply_and_exponentiate():
     evaluation = Eval(
-        assistant=Assistant(
-            llm=OpenAIChat(model="gpt-4o-mini"),
+        agent=Agent(
+            model=OpenAIChat(id="gpt-4o-mini"),
             tools=[Calculator(add=True, multiply=True, exponentiate=True)],
         ),
         question="What is 10*5 then to the power of 2? do it step by step",
@@ -23,8 +23,8 @@ def multiply_and_exponentiate():
 
 def factorial():
     evaluation = Eval(
-        assistant=Assistant(
-            llm=OpenAIChat(model="gpt-4o-mini"),
+        agent=Agent(
+            model=OpenAIChat(id="gpt-4o-mini"),
             tools=[Calculator(factorial=True)],
         ),
         question="What is 10!?",

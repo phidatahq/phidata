@@ -15,5 +15,5 @@ agent = Agent(
 # for chunk in run_response:
 #     print(chunk.content)
 
-# Print the response on the terminal
+# Print the response in the terminal
 agent.print_response("What is the stock price of NVDA and TSLA", stream=True)

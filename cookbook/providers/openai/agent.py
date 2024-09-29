@@ -13,5 +13,5 @@ agent = Agent(
 # run: RunResponse = agent.run("What is the stock price of NVDA and TSLA")
 # print(run.content)
 
-# Print the response on the terminal
+# Print the response in the terminal
 agent.print_response("What is the stock price of NVDA and TSLA")

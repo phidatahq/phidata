@@ -7,5 +7,5 @@ agent = Agent(model=OpenAIChat(id="gpt-4o"), instructions=["Respond in a souther
 # run: RunResponse = agent.run("Explain simulation theory")
 # print(run.content)
 
-# Print the response on the terminal
+# Print the response in the terminal
 agent.print_response("Explain simulation theory")

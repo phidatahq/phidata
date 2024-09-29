@@ -1,7 +1,7 @@
 from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from phi.agent import Agent, RunResponse  # noqa
+from phi.agent import Agent, AgentResponse  # noqa
 from phi.model.openai import OpenAIChat
 
 
@@ -25,7 +25,7 @@ movie_writer = Agent(
 )
 
 # Get the response in a variable
-# run: RunResponse = movie_agent.run("New York")
+# run: AgentResponse = movie_agent.run("New York")
 # pprint(run.content)
 
 movie_writer.print_response("New York")

@@ -9,5 +9,5 @@ from phi.agent.agent import (
     Tool,
     Toolkit,
     Message,
-    RunResponse,
+    AgentResponse,
 )

@@ -1,4 +1,4 @@
-from phi.agent import Agent, RunResponse  # noqa
+from phi.agent import Agent, AgentResponse  # noqa
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 
@@ -10,7 +10,7 @@ agent = Agent(
 )
 
 # Get the response in a variable
-# run: RunResponse = agent.run("What is the stock price of NVDA and TSLA")
+# run: AgentResponse = agent.run("What is the stock price of NVDA and TSLA")
 # print(run.content)
 
 # Print the response on the terminal

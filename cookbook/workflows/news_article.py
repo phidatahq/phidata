@@ -1,10 +1,9 @@
 from textwrap import dedent
 from typing import Optional
 
-from rich.pretty import pprint
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent, RunResponse
+from phi.agent import Agent, AgentResponse
 from phi.workflow import Workflow
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.newspaper4k import Newspaper4k
@@ -72,7 +71,7 @@ writer = Agent(
 class WriteNewsReport(Workflow):
     def run(self, topic: str):
         logger.info(f"Researching articles on: {topic}")
-        topic_research: RunResponse = researcher.run(topic)
+        topic_research: AgentResponse = researcher.run(topic)
         if (
             topic_research.content
             and isinstance(topic_research.content, NewsArticles)

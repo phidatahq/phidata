@@ -2,7 +2,7 @@ import asyncio  # noqa
 from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
-from phi.agent import Agent, RunResponse
+from phi.agent import Agent, AgentResponse
 from phi.model.openai import OpenAIChat
 
 
@@ -24,7 +24,7 @@ class MovieScript(BaseModel):
 #     # debug_mode=True,
 # )
 #
-# run: RunResponse = movie_agent_1.run("New York")
+# run: AgentResponse = movie_agent_1.run("New York")
 # pprint(run.content)
 
 # movie_agent_2 = Agent(
@@ -35,7 +35,7 @@ class MovieScript(BaseModel):
 #     debug_mode=True,
 # )
 #
-# run: RunResponse = movie_agent_2.run("New York")
+# run: AgentResponse = movie_agent_2.run("New York")
 # pprint(run)
 # pprint(run.content)
 
@@ -45,7 +45,7 @@ movie_writer = Agent(
     response_model=MovieScript,
 )
 
-run1: RunResponse = movie_writer.run("New York")
+run1: AgentResponse = movie_writer.run("New York")
 pprint(run1.content)
 
 movie_agent_2 = Agent(
@@ -55,12 +55,12 @@ movie_agent_2 = Agent(
     structured_outputs=True,
 )
 
-run2: RunResponse = movie_agent_2.run("New York")
+run2: AgentResponse = movie_agent_2.run("New York")
 pprint(run2.content)
 
 
 async def main():
-    run3: RunResponse = await movie_agent_2.arun("New York")
+    run3: AgentResponse = await movie_agent_2.arun("New York")
     # pprint(run2)
     pprint(run3.content)
 

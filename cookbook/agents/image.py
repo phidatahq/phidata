@@ -1,5 +1,5 @@
 from rich.pretty import pprint  # noqa
-from phi.agent import Agent, RunResponse
+from phi.agent import Agent, AgentResponse
 from phi.model.openai import OpenAIChat
 
 agent = Agent(
@@ -8,13 +8,13 @@ agent = Agent(
     debug_mode=True,
 )
 
-# run: RunResponse = agent.run(
+# run: AgentResponse = agent.run(
 #     "What’s in this image?",
 #     images=[
 #         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
 #     ],
 # )  # type: ignore
-# run: RunResponse = agent.run(
+# run: AgentResponse = agent.run(
 #     "What’s in this image?",
 #     images=[
 #         {
@@ -23,7 +23,7 @@ agent = Agent(
 #         }
 #     ],
 # )  # type: ignore
-run: RunResponse = agent.run(
+run: AgentResponse = agent.run(
     "What are in these images? Is there any difference between them?",
     images=[
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",

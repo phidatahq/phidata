@@ -25,7 +25,7 @@ class NewsArticles(BaseModel):
     articles: list[NewsArticle]
 
 
-class WriteNewsReport(Workflow):
+class NewsReporter(Workflow):
     researcher: Agent = Agent(
         name="Researcher",
         tools=[DuckDuckGo()],
@@ -90,6 +90,6 @@ class WriteNewsReport(Workflow):
 
 
 # Run workflow
-story: Iterator[RunResponse] = WriteNewsReport(debug_mode=False).run(topic="IBM Hashicorp Acquisition")
+report: Iterator[RunResponse] = NewsReporter(debug_mode=False).run(topic="IBM Hashicorp Acquisition")
 # Print the response
-pprint_run_response(story, markdown=True, show_time=True)
+pprint_run_response(report, markdown=True, show_time=True)

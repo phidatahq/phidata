@@ -114,11 +114,7 @@ async def run_agents_async():
         console.print(f"[bold red]Error occurred while running async agents: {e}[/bold red]")
 
 
-def main():
+if __name__ == "__main__":
     run_agents()
 
     asyncio.run(run_agents_async())
-
-
-if __name__ == "__main__":
-    main()

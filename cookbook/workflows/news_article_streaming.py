@@ -3,7 +3,7 @@ pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata
 """
 
 from textwrap import dedent
-from typing import Optional
+from typing import Optional, Iterator
 
 from pydantic import BaseModel, Field
 
@@ -73,22 +73,23 @@ class WriteNewsReport(Workflow):
         """),
     )
 
-    def run(self, topic: str) -> RunResponse:
+    def run(self, topic: str) -> Iterator[RunResponse]:
         logger.info(f"Researching articles on: {topic}")
         research: RunResponse = self.researcher.run(topic)
         if research and research.content and isinstance(research.content, NewsArticles) and research.content.articles:
             logger.info(f"Researcher identified {len(research.content.articles)} articles.")
         else:
-            return RunResponse(
+            yield RunResponse(
                 run_id=self.run_id,
                 content=f"Sorry could not find any articles on the topic: {topic}",
             )
+            return
 
         logger.info("Reading each article and writing a report.")
-        return self.writer.run(research.content.model_dump_json(indent=2))
+        yield from self.writer.run(research.content.model_dump_json(indent=2), stream=True)
 
 
 # Run workflow
-story: RunResponse = WriteNewsReport(debug_mode=False).run(topic="IBM Hashicorp Acquisition")
+story: Iterator[RunResponse] = WriteNewsReport(debug_mode=False).run(topic="IBM Hashicorp Acquisition")
 # Print the response
 pprint_run_response(story, markdown=True, show_time=True)

@@ -23,8 +23,6 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
         workspace_objects = {}
         docker_resources_available = False
         create_default_docker_resources = False
-        k8s_resources_available = False
-        create_default_k8s_resources = False
         aws_resources_available = False
         create_default_aws_resources = False
         for obj_name, obj in python_objects.items():
@@ -32,14 +30,11 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
             if _type_name in [
                 "WorkspaceSettings",
                 "DockerResources",
-                "K8sResources",
                 "AwsResources",
             ]:
                 workspace_objects[obj_name] = obj
                 if _type_name == "DockerResources":
                     docker_resources_available = True
-                elif _type_name == "K8sResources":
-                    k8s_resources_available = True
                 elif _type_name == "AwsResources":
                     aws_resources_available = True
 
@@ -47,9 +42,6 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
                 if not docker_resources_available:
                     if obj.__class__.__module__.startswith("phi.docker"):
                         create_default_docker_resources = True
-                if not k8s_resources_available:
-                    if obj.__class__.__module__.startswith("phi.k8s"):
-                        create_default_k8s_resources = True
                 if not aws_resources_available:
                     if obj.__class__.__module__.startswith("phi.aws"):
                         create_default_aws_resources = True
@@ -79,31 +71,6 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
 
             if add_default_docker_resources:
                 workspace_objects["default_docker_resources"] = default_docker_resources
-
-        if not k8s_resources_available and create_default_k8s_resources:
-            from phi.k8s.resources import K8sResources, K8sResource, K8sApp, CreateK8sResource
-
-            logger.debug("Creating default k8s resources")
-            default_k8s_resources = K8sResources()
-            add_default_k8s_resources = False
-            for obj_name, obj in python_objects.items():
-                _obj_class = obj.__class__
-                # logger.debug(f"Checking {_obj_class}: {obj_name}")
-                if issubclass(_obj_class, K8sResource) or issubclass(_obj_class, CreateK8sResource):
-                    if default_k8s_resources.resources is None:
-                        default_k8s_resources.resources = []
-                    default_k8s_resources.resources.append(obj)
-                    add_default_k8s_resources = True
-                    logger.debug(f"Added K8sResource: {obj_name}")
-                elif issubclass(_obj_class, K8sApp):
-                    if default_k8s_resources.apps is None:
-                        default_k8s_resources.apps = []
-                    default_k8s_resources.apps.append(obj)
-                    add_default_k8s_resources = True
-                    logger.debug(f"Added K8sApp: {obj_name}")
-
-            if add_default_k8s_resources:
-                workspace_objects["default_k8s_resources"] = default_k8s_resources
 
         if not aws_resources_available and create_default_aws_resources:
             from phi.aws.resources import AwsResources, AwsResource, AwsApp
@@ -286,7 +253,6 @@ class WorkspaceConfig(BaseModel):
 
         # Objects to read from the files in the workspace_dir_path
         docker_resource_groups: Optional[List[Any]] = None
-        k8s_resource_groups: Optional[List[Any]] = None
         aws_resource_groups: Optional[List[Any]] = None
 
         logger.debug("**--> Loading WorkspaceConfig")
@@ -327,7 +293,6 @@ class WorkspaceConfig(BaseModel):
                         if _type_name in [
                             "WorkspaceSettings",
                             "DockerResources",
-                            "K8sResources",
                             "AwsResources",
                         ]:
                             workspace_objects[obj_name] = obj
@@ -352,13 +317,6 @@ class WorkspaceConfig(BaseModel):
                     if docker_resource_groups is None:
                         docker_resource_groups = []
                     docker_resource_groups.append(obj)
-                elif _obj_type == "K8sResources":
-                    if not obj.enabled:
-                        logger.debug(f"Skipping {obj_name}: disabled")
-                        continue
-                    if k8s_resource_groups is None:
-                        k8s_resource_groups = []
-                    k8s_resource_groups.append(obj)
                 elif _obj_type == "AwsResources":
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
@@ -378,21 +336,14 @@ class WorkspaceConfig(BaseModel):
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
             if order == "delete":
-                if k8s_resource_groups is not None:
-                    filtered_infra_resources.extend(k8s_resource_groups)
                 if aws_resource_groups is not None:
                     filtered_infra_resources.extend(aws_resource_groups)
             else:
                 if aws_resource_groups is not None:
                     filtered_infra_resources.extend(aws_resource_groups)
-                if k8s_resource_groups is not None:
-                    filtered_infra_resources.extend(k8s_resource_groups)
         elif infra == "docker":
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
-        elif infra == "k8s":
-            if k8s_resource_groups is not None:
-                filtered_infra_resources.extend(k8s_resource_groups)
         elif infra == "aws":
             if aws_resource_groups is not None:
                 filtered_infra_resources.extend(aws_resource_groups)
@@ -432,7 +383,6 @@ class WorkspaceConfig(BaseModel):
 
         # Objects to read from the file
         docker_resource_groups: Optional[List[Any]] = None
-        k8s_resource_groups: Optional[List[Any]] = None
         aws_resource_groups: Optional[List[Any]] = None
 
         resource_file_parent_dir = resource_file.parent.resolve()
@@ -466,13 +416,6 @@ class WorkspaceConfig(BaseModel):
                 if docker_resource_groups is None:
                     docker_resource_groups = []
                 docker_resource_groups.append(obj)
-            elif _obj_type == "K8sResources":
-                if not obj.enabled:
-                    logger.debug(f"Skipping {obj_name}: disabled")
-                    continue
-                if k8s_resource_groups is None:
-                    k8s_resource_groups = []
-                k8s_resource_groups.append(obj)
             elif _obj_type == "AwsResources":
                 if not obj.enabled:
                     logger.debug(f"Skipping {obj_name}: disabled")
@@ -490,21 +433,14 @@ class WorkspaceConfig(BaseModel):
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
             if order == "delete":
-                if k8s_resource_groups is not None:
-                    filtered_infra_resources.extend(k8s_resource_groups)
                 if aws_resource_groups is not None:
                     filtered_infra_resources.extend(aws_resource_groups)
             else:
                 if aws_resource_groups is not None:
                     filtered_infra_resources.extend(aws_resource_groups)
-                if k8s_resource_groups is not None:
-                    filtered_infra_resources.extend(k8s_resource_groups)
         elif infra == "docker":
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
-        elif infra == "k8s":
-            if k8s_resource_groups is not None:
-                filtered_infra_resources.extend(k8s_resource_groups)
         elif infra == "aws":
             if aws_resource_groups is not None:
                 filtered_infra_resources.extend(aws_resource_groups)

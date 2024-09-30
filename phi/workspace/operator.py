@@ -130,6 +130,9 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         logger.error(f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace")
         return False
 
+    # TODO: check if user is part of any teams and ask user to select a team
+    # If its an anon user then skip the api call to get teams
+
     print_info(f"Creating {str(ws_root_path)}")
     logger.debug("Cloning: {}".format(repo_to_clone))
     try:
@@ -154,7 +157,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             logger.info("Please delete the .git folder manually")
             pass
 
-    phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
+    phi_config.add_new_ws_to_config(ws_root_path=ws_root_path, team=None)
 
     try:
         # workspace_dir_path is the path to the ws_root/workspace dir
@@ -172,10 +175,10 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         logger.warning("Please manually copy workspace/example_secrets to workspace/secrets")
 
     print_info(f"Your new workspace is available at {str(ws_root_path)}\n")
-    return setup_workspace(ws_root_path=ws_root_path)
+    return setup_workspace(ws_root_path=ws_root_path, team=None)
 
 
-def setup_workspace(ws_root_path: Path) -> bool:
+def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
     """Setup a phi workspace at `ws_root_path`.
 
     1. Validate pre-requisites
@@ -243,7 +246,7 @@ def setup_workspace(ws_root_path: Path) -> bool:
 
         # In this case, the local workspace directory exists but PhiCliConfig does not have a record
         print_info(f"Adding {str(ws_root_path.stem)} as a workspace")
-        phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
+        phi_config.add_new_ws_to_config(ws_root_path=ws_root_path, team=team)
         ws_config = phi_config.get_ws_config_by_path(ws_root_path)
     else:
         logger.debug(f"Found workspace at {ws_root_path}")
@@ -307,9 +310,10 @@ def setup_workspace(ws_root_path: Path) -> bool:
                     ws_name=new_workspace_name,
                     git_url=git_remote_origin_url,
                 ),
+                # team=team,
             )
             if ws_schema is not None:
-                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=ws_schema)
+                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=ws_schema, team=team)
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")
 
@@ -334,7 +338,9 @@ def setup_workspace(ws_root_path: Path) -> bool:
             )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=updated_workspace_schema)
+                ws_config = phi_config.update_ws_config(
+                    ws_root_path=ws_root_path, ws_schema=updated_workspace_schema, team=team
+                )
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")
 

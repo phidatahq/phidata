@@ -81,7 +81,7 @@ class PhiCliConfig:
         return list(self.ws_config_map.values())
 
     def _add_or_update_ws_config(
-        self, ws_root_path: Path, ws_schema: Optional[WorkspaceSchema] = None
+        self, ws_root_path: Path, ws_schema: Optional[WorkspaceSchema] = None, team: Optional[str] = None
     ) -> Optional[WorkspaceConfig]:
         """The main function to create, update or refresh a WorkspaceConfig.
 
@@ -101,6 +101,7 @@ class PhiCliConfig:
             new_workspace_config = WorkspaceConfig(
                 ws_root_path=ws_root_path,
                 ws_schema=ws_schema,
+                ws_team=team,
             )
             self.ws_config_map[ws_root_str] = new_workspace_config
             logger.debug(f"Workspace created at: {ws_root_str}")
@@ -121,6 +122,10 @@ class PhiCliConfig:
         # Update the ws_schema if it's not None and different from the existing one
         if ws_schema is not None and existing_ws_config.ws_schema != ws_schema:
             existing_ws_config.ws_schema = ws_schema
+
+        # Update the ws_team if it's not None and different from the existing one
+        if team is not None and existing_ws_config.ws_team != team:
+            existing_ws_config.ws_team = team
         logger.debug(f"Workspace updated: {ws_root_str}")
 
         # Return the updated_ws_config
@@ -130,10 +135,10 @@ class PhiCliConfig:
     # END
     ######################################################
 
-    def add_new_ws_to_config(self, ws_root_path: Path) -> Optional[WorkspaceConfig]:
+    def add_new_ws_to_config(self, ws_root_path: Path, team: Optional[str] = None) -> Optional[WorkspaceConfig]:
         """Adds a newly created workspace to the PhiCliConfig"""
 
-        ws_config = self._add_or_update_ws_config(ws_root_path=ws_root_path)
+        ws_config = self._add_or_update_ws_config(ws_root_path=ws_root_path, team=team)
         self.save_config()
         return ws_config
 
@@ -142,11 +147,13 @@ class PhiCliConfig:
         ws_root_path: Path,
         ws_schema: Optional[WorkspaceSchema] = None,
         set_as_active: bool = False,
+        team: Optional[str] = None,
     ) -> Optional[WorkspaceConfig]:
         """Updates WorkspaceConfig and returns True if successful"""
         ws_config = self._add_or_update_ws_config(
             ws_root_path=ws_root_path,
             ws_schema=ws_schema,
+            team=team,
         )
         if set_as_active:
             self._active_ws_dir = str(ws_root_path)

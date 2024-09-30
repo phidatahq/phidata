@@ -8,7 +8,6 @@ from phi.memory.db import MemoryDb
 from phi.memory.manager import MemoryManager
 from phi.memory.memory import Memory
 from phi.model.message import Message
-from phi.model.references import References
 from phi.utils.log import logger
 
 
@@ -21,13 +20,13 @@ class MemoryRetrieval(str, Enum):
 class AgentMemory(BaseModel):
     # Messages between the user and the Agent.
     chat_history: List[Message] = []
-    # Prompts sent to the LLM and the LLM responses.
+    # Messages sent to the Model and the Model responses.
     run_messages: List[Message] = []
-    # References from the vector database.
-    references: List[References] = []
 
-    # Create personalized memories for this user
+    # Create personalized memories for a user
+    # MemoryDb to store the memories
     db: Optional[MemoryDb] = None
+    # User ID for the memory
     user_id: Optional[str] = None
     retrieval: MemoryRetrieval = MemoryRetrieval.last_n
     memories: Optional[List[Memory]] = None
@@ -62,10 +61,6 @@ class AgentMemory(BaseModel):
         """Adds a list of messages to the run_messages."""
         self.run_messages.extend(messages)
 
-    def add_references(self, references: References) -> None:
-        """Adds references to the references list."""
-        self.references.append(references)
-
     def get_chat_history(self) -> List[Dict[str, Any]]:
         """Returns the chat_history as a list of dictionaries.
 
@@ -73,28 +68,28 @@ class AgentMemory(BaseModel):
         """
         return [message.model_dump(exclude_none=True) for message in self.chat_history]
 
-    def get_last_n_messages(self, last_n: Optional[int] = None) -> List[Message]:
-        """Returns the last n messages in the chat_history.
-
-        :param last_n: The number of messages to return from the end of the conversation.
-            If None, returns all messages.
-        :return: A list of Messages in the chat_history.
-        """
-        return self.chat_history[-last_n:] if last_n else self.chat_history
-
     def get_run_messages(self) -> List[Dict[str, Any]]:
         """Returns the run_messages as a list of dictionaries."""
         return [message.model_dump(exclude_none=True) for message in self.run_messages]
 
+    def get_last_n_run_messages(self, last_n: Optional[int] = None) -> List[Message]:
+        """Returns the last n messages from the run_messages.
+
+        :param last_n: The number of messages to return from the end of the conversation.
+            If None, returns all messages.
+        :return: A list of Messages in the run_messages.
+        """
+        return self.run_messages[-last_n:] if last_n else self.run_messages
+
     def get_formatted_chat_history(self, num_messages: Optional[int] = None) -> str:
         """Returns the chat_history as a formatted string."""
 
-        messages = self.get_last_n_messages(num_messages)
+        messages = self.get_last_n_run_messages(num_messages)
         if len(messages) == 0:
             return ""
 
         history = ""
-        for message in self.get_last_n_messages(num_messages):
+        for message in self.get_last_n_run_messages(num_messages):
             if message.role == "user":
                 history += "\n---\n"
             history += f"{message.role.upper()}: {message.content}\n"
@@ -224,6 +219,5 @@ class AgentMemory(BaseModel):
         """Clears the assistant memory"""
         self.chat_history = []
         self.run_messages = []
-        self.references = []
         self.memories = None
         logger.debug("Agent Memory cleared")

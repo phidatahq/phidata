@@ -7,7 +7,7 @@ from phi.playground import Playground
 agent = Agent(
     name="Finance Agent",
     agent_id="finance-agent",
-    model=OpenAIChat(model="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

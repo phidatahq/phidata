@@ -8,7 +8,6 @@ from typing import Optional
 import typer
 
 from phi.cli.ws.ws_cli import ws_cli
-from phi.cli.k.k_cli import k_cli
 from phi.utils.log import set_log_level_to_debug, logger
 
 phi_cli = typer.Typer(
@@ -645,4 +644,3 @@ def restart(
 
 
 phi_cli.add_typer(ws_cli)
-phi_cli.add_typer(k_cli)

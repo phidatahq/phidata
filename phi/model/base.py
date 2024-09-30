@@ -1,9 +1,9 @@
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union, AsyncIterator
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from phi.model.message import Message
-from phi.model.response import ModelResponse
+from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall
 from phi.utils.log import logger
@@ -12,7 +12,7 @@ from phi.utils.timer import Timer
 
 class Model(BaseModel):
     # ID of the model to use.
-    model: str = Field(..., alias="model_id")
+    id: str = Field(..., alias="model")
     # Name for this Model. Note: This is not sent to the Model API.
     name: Optional[str] = None
     # Provider for this Model. Note: This is not sent to the Model API.
@@ -54,12 +54,23 @@ class Model(BaseModel):
 
     # Agent Session ID
     session_id: Optional[str] = None
+    # Whether to use the structured outputs from the Model.
+    structured_outputs: Optional[bool] = None
+    # Whether the Model supports structured outputs.
+    supports_structured_outputs: bool = False
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @property
-    def api_kwargs(self) -> Dict[str, Any]:
+    def request_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
+
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = self.model_dump(include={"name", "id", "provider", "metrics"})
+        if self.functions:
+            _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
+            _dict["tool_call_limit"] = self.tool_call_limit
+        return _dict
 
     def invoke(self, *args, **kwargs) -> Any:
         raise NotImplementedError
@@ -82,15 +93,8 @@ class Model(BaseModel):
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         raise NotImplementedError
 
-    async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
         raise NotImplementedError
-
-    def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"name", "model", "provider", "metrics"})
-        if self.functions:
-            _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
-            _dict["tool_call_limit"] = self.tool_call_limit
-        return _dict
 
     def get_tools_for_api(self) -> Optional[List[Dict[str, Any]]]:
         if self.tools is None:
@@ -150,8 +154,9 @@ class Model(BaseModel):
         # This is triggered when the function call limit is reached.
         self.tool_choice = "none"
 
-    def run_function_calls(self, function_calls: List[FunctionCall], role: str = "tool") -> List[Message]:
-        function_call_results: List[Message] = []
+    def run_function_calls(
+        self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
+    ) -> Iterator[ModelResponse]:
         for function_call in function_calls:
             if self.function_call_stack is None:
                 self.function_call_stack = []
@@ -159,11 +164,16 @@ class Model(BaseModel):
             # -*- Run function call
             _function_call_timer = Timer()
             _function_call_timer.start()
+            yield ModelResponse(content=function_call.get_call_str(), event=ModelResponseEvent.tool_call.value)
             function_call_success = function_call.execute()
             _function_call_timer.stop()
+            yield ModelResponse(
+                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
+                event=ModelResponseEvent.tool_call.value,
+            )
 
             _function_call_result = Message(
-                role=role,
+                role=tool_role,
                 content=function_call.result if function_call_success else function_call.error,
                 tool_call_id=function_call.call_id,
                 tool_name=function_call.function.name,
@@ -183,8 +193,6 @@ class Model(BaseModel):
             if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
-
-        return function_call_results
 
     def get_system_prompt_from_model(self) -> Optional[str]:
         return self.system_prompt

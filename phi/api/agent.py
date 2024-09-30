@@ -1,3 +1,4 @@
+import asyncio
 from os import getenv
 from typing import Union, Dict, List
 
@@ -11,19 +12,19 @@ from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 
-def create_agent_session(session: AgentSessionCreate) -> bool:
+async def create_agent_session(session: AgentSessionCreate) -> None:
     if not phi_cli_settings.api_enabled:
-        return True
+        return
 
     phi_api_key = getenv(PHI_API_KEY_ENV_VAR)
     if phi_api_key is None:
         logger.warning(f"{PHI_API_KEY_ENV_VAR} not set. You can get one from https://phidata.app")
-        return False
+        return
 
-    logger.debug("--**-- Creating Agent Session")
-    with api.AuthenticatedClient() as api_client:
+    logger.debug("--**-- Logging Agent Session")
+    async with api.AuthenticatedAsyncClient() as api_client:
         try:
-            r: Response = api_client.post(
+            r: Response = await api_client.post(
                 ApiRoutes.AGENT_SESSION_CREATE,
                 headers={
                     "Authorization": f"Bearer {phi_api_key}",
@@ -31,32 +32,50 @@ def create_agent_session(session: AgentSessionCreate) -> bool:
                 json={"session": session.model_dump(exclude_none=True)},
             )
             if invalid_response(r):
-                return False
+                logger.debug(f"Invalid response: {r.status_code}, {r.text}")
+                return
 
             response_json: Union[Dict, List] = r.json()
             if response_json is None:
-                return False
+                return
 
             logger.debug(f"Response: {response_json}")
-            return True
+            return
         except Exception as e:
             logger.debug(f"Could not create Agent session: {e}")
-    return False
+    return
 
 
-def create_agent_run(run: AgentRunCreate) -> bool:
+def trigger_agent_session_creation(session: AgentSessionCreate) -> None:
+    try:
+        # Get the current event loop if it exists
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # If no loop is found, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+        # Schedule the coroutine within the running loop
+        asyncio.create_task(create_agent_session(session))
+    else:
+        # Create a new event loop to run the task
+        loop.run_until_complete(create_agent_session(session))
+
+
+async def create_agent_run(run: AgentRunCreate) -> None:
     if not phi_cli_settings.api_enabled:
-        return True
+        return
 
     phi_api_key = getenv(PHI_API_KEY_ENV_VAR)
     if phi_api_key is None:
         logger.warning(f"{PHI_API_KEY_ENV_VAR} not set. You can get one from https://phidata.app")
-        return False
+        return
 
-    logger.debug("--**-- Creating Agent Run")
-    with api.AuthenticatedClient() as api_client:
+    logger.debug("--**-- Logging Agent Run")
+    async with api.AuthenticatedAsyncClient() as api_client:
         try:
-            r: Response = api_client.post(
+            r: Response = await api_client.post(
                 ApiRoutes.AGENT_RUN_CREATE,
                 headers={
                     "Authorization": f"Bearer {phi_api_key}",
@@ -64,14 +83,32 @@ def create_agent_run(run: AgentRunCreate) -> bool:
                 json={"run": run.model_dump(exclude_none=True)},
             )
             if invalid_response(r):
-                return False
+                logger.debug(f"Invalid response: {r.status_code}, {r.text}")
+                return
 
             response_json: Union[Dict, List] = r.json()
             if response_json is None:
-                return False
+                return
 
             logger.debug(f"Response: {response_json}")
-            return True
+            return
         except Exception as e:
             logger.debug(f"Could not create Agent run: {e}")
-    return False
+    return
+
+
+def trigger_agent_run_creation(run: AgentRunCreate) -> None:
+    try:
+        # Get the current event loop if it exists
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # If no loop is found, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+        # Schedule the coroutine within the running loop
+        asyncio.create_task(create_agent_run(run))
+    else:
+        # Create a new event loop to run the task
+        loop.run_until_complete(create_agent_run(run))

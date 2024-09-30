@@ -9,7 +9,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=CohereChat(id="command-r-plus"),
+    model=CohereChat(id="command-r-08-2024"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

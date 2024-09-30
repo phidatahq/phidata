@@ -4,7 +4,7 @@ from phi.model.cohere import CohereChat
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=CohereChat(id="command-r-plus"),
+    model=CohereChat(id="command-r-08-2024"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

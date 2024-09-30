@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 movie_writer = Agent(
-    model=CohereChat(id="command-r-plus"),
+    model=CohereChat(id="command-r-08-2024"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
     # debug_mode=True,

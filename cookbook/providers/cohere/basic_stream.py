@@ -2,7 +2,7 @@ from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.cohere import CohereChat
 
-agent = Agent(model=CohereChat(id="command-r-plus"), instructions=["Respond in a southern tone"], markdown=True)
+agent = Agent(model=CohereChat(id="command-r-08-2024"), instructions=["Respond in a southern tone"], markdown=True)
 
 # Get the response in a variable
 # run_response: Iterator[RunResponse] = agent.run("Explain simulation theory", stream=True)

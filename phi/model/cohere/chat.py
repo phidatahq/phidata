@@ -233,94 +233,6 @@ class CohereChat(Model):
         for m in messages:
             m.log()
 
-    def _create_assistant_message(
-        self,
-        response_message: NonStreamedChatResponse,
-        response_timer: Timer,
-    ) -> Message:
-        """
-        Create an assistant message from the response message.
-
-        Args:
-            response_message (NonStreamedChatResponse): The response message.
-            response_timer (Timer): The response timer.
-
-        Returns:
-            Message: The assistant message.
-        """
-        assistant_message = Message(
-            role="assistant",
-            content=response_message.text,
-        )
-
-        response_tool_calls = response_message.tool_calls
-
-        if response_tool_calls:
-            tool_calls = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tools.name,
-                        "arguments": json.dumps(tools.parameters),
-                    },
-                }
-                for tools in response_tool_calls
-            ]
-            assistant_message.tool_calls = tool_calls
-
-        assistant_message.metrics["time"] = response_timer.elapsed
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer.elapsed)
-
-        # Update usage metrics
-        self._update_usage_metrics(
-            assistant_message, 
-            response_message, 
-            response_timer.elapsed
-        )
-        return assistant_message
-
-    def _update_usage_metrics(
-        self, 
-        assistant_message: Message, 
-        response: NonStreamedChatResponse, 
-        response_time: float
-    ) -> None:
-        
-        """
-        Update the usage metrics for the assistant message.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            response (NonStreamedChatResponse): The response message.
-            response_time (float): The response time.
-        """
-
-        assistant_message.metrics["time"] = response_time
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_time)
-
-        # Add token usage to metrics
-        meta: Optional[ApiMeta] = response.meta
-        tokens: Optional[ApiMetaTokens] = meta.tokens if meta else None
-
-        if tokens:
-            input_tokens = tokens.input_tokens
-            output_tokens = tokens.output_tokens
-
-            if input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
-
-            if output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
-
-            if input_tokens is not None and output_tokens is not None:
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
-
     def _prepare_function_calls(self, agent_message: Message) -> Tuple[List[FunctionCall], List[Message]]:
         """
         Prepares function calls based on tool calls in the agent message.
@@ -511,39 +423,35 @@ class CohereChat(Model):
         logger.debug("---------- Cohere Response End ----------")
         return model_response
     
-    def response_stream(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> Iterator[ModelResponse]:
+    def response_stream(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> Iterator[ModelResponse]:
         logger.debug("---------- Cohere Response Start ----------")
         # -*- Log messages for debugging
-        for m in messages:
-            m.log()
-
-        stream_data: StreamData = StreamData()
-        stream_data.response_timer.start()
+        self._log_messages(messages)
 
         assistant_message_content = ""
         tool_calls: List[Dict[str, Any]] = []
-        response_tool_calls: List[CohereTool] = []
+        response_tool_calls = []
         last_delta: Optional[NonStreamedChatResponse] = None
         response_timer = Timer()
         response_timer.start()
 
-        # Process the streaming response
         for response in self.invoke_stream(messages=messages, tool_results=tool_results):
             if isinstance(response, StreamStartStreamedChatResponse):
-                # Stream start, no action needed
                 pass
-            elif isinstance(response, TextGenerationStreamedChatResponse):
+
+            if isinstance(response, TextGenerationStreamedChatResponse):
                 if response.text is not None:
-                    stream_data.response_content += response.text
-                    stream_data.completion_tokens += 1
-                    if stream_data.completion_tokens == 1:
-                        stream_data.time_to_first_token = stream_data.response_timer.elapsed
-                        logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
+                    assistant_message_content += response.text
                     yield ModelResponse(content=response.text)
-            elif isinstance(response, ToolCallsChunkStreamedChatResponse):
+
+            if isinstance(response, ToolCallsChunkStreamedChatResponse):
                 if response.tool_call_delta is None:
                     yield ModelResponse(content=response.text)
-            elif isinstance(response, ToolCallsGenerationStreamedChatResponse):
+
+            # Detect if response is a tool call
+            if isinstance(response, ToolCallsGenerationStreamedChatResponse):
                 for tc in response.tool_calls:
                     response_tool_calls.append(tc)
                     tool_calls.append(
@@ -555,11 +463,12 @@ class CohereChat(Model):
                             },
                         }
                     )
-                stream_data.response_tool_calls.extend(response_tool_calls)
-            elif isinstance(response, StreamEndStreamedChatResponse):
-                last_meta = response.response.meta
+
+            if isinstance(response, StreamEndStreamedChatResponse):
+                last_delta = response.response
 
         yield ModelResponse(content="\n\n")
+
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
@@ -587,34 +496,47 @@ class CohereChat(Model):
             if input_tokens is not None:
                 assistant_message.metrics["input_tokens"] = input_tokens
                 self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
-                stream_data.response_prompt_tokens = input_tokens
+
             if output_tokens is not None:
                 assistant_message.metrics["output_tokens"] = output_tokens
                 self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
-                stream_data.response_completion_tokens = output_tokens
-            if input_tokens is not None and output_tokens is not None:
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
-                stream_data.response_total_tokens = input_tokens + output_tokens
 
-        stream_data.response_timer.stop()
-        completion_tokens = stream_data.completion_tokens
-        if completion_tokens > 0:
-            logger.debug(f"Time per output token: {stream_data.response_timer.elapsed / completion_tokens:.4f}s")
-            logger.debug(f"Throughput: {completion_tokens / stream_data.response_timer.elapsed:.4f} tokens/s")
+            if input_tokens is not None and output_tokens is not None:
+                assistant_message.metrics["total_tokens"] = input_tokens + output_tokens
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + input_tokens + output_tokens
 
         # -*- Add assistant message to messages
-        assistant_message = Message(role="assistant")
-        if stream_data.response_content != "":
-            assistant_message.content = stream_data.response_content        
+        messages.append(assistant_message)
+        assistant_message.log()
+        logger.debug(f"Assistant Message: {assistant_message}")
 
         # -*- Parse and run function call
-        if stream_data.response_tool_calls is not None:
-            model_response = ModelResponse()
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
-            tool_role: str = "tool"
-
-            function_calls_to_run, error_messages = self._prepare_function_calls(assistant_message)
+            for tool_call in assistant_message.tool_calls:
+                _tool_call_id = tool_call.get("id")
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    messages.append(
+                        Message(
+                            role=tool_role,
+                            tool_call_id=_tool_call_id,
+                            content="Could not find function to call.",
+                        )
+                    )
+                    continue
+                if _function_call.error is not None:
+                    messages.append(
+                        Message(
+                            role=tool_role,
+                            tool_call_id=_tool_call_id,
+                            content=_function_call.error,
+                        )
+                    )
+                    continue
+                function_calls_to_run.append(_function_call)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -625,29 +547,27 @@ class CohereChat(Model):
                         yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                     yield ModelResponse(content="\n\n")
 
-            for _ in self.run_function_calls(
-                function_calls=function_calls_to_run, 
-                function_call_results=function_call_results,
-                tool_role=tool_role
+            for intermediate_model_response in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
-                pass
+                yield intermediate_model_response
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
 
-            # Prepare tool results for the next API call
-            if response_tool_calls:
+            # Making sure the length of tool calls and function call results are the same to avoid unexpected behavior
+            if response_tool_calls is not None:
+                # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
+                # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
                     ToolResult(
-                        call=tool_call,
-                        outputs=[tool_call.parameters, {"result": fn_result.content}],
+                        call=tool_call, 
+                        outputs=[tool_call.parameters, {"result": fn_result.content}]
                     )
                     for tool_call, fn_result in zip(response_tool_calls, function_call_results)
                 ]
-            else:
-                tool_results = None
-
-            if tool_results:
                 messages.append(Message(role="user", content=""))
+
+            # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages, tool_results=tool_results)
         logger.debug("---------- Cohere Response End ----------")

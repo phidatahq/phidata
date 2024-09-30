@@ -1,11 +1,17 @@
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=OpenAIChat(model="gpt-4o"),
-    tools=[DuckDuckGo()],
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
-    # debug_mode=True,
+    markdown=True,
 )
-agent.print_response("Whats happening in France?", markdown=True)
+
+# Get the response in a variable
+# run: RunResponse = agent.run("What is the stock price of NVDA and TSLA")
+# print(run.content)
+
+# Print the response in the terminal
+agent.print_response("What is the stock price of NVDA and TSLA")

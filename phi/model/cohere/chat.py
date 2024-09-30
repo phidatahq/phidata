@@ -32,6 +32,7 @@ except ImportError:
     logger.error("`cohere` not installed")
     raise
 
+
 @dataclass
 class StreamData:
     response_content: str = ""
@@ -42,6 +43,7 @@ class StreamData:
     response_total_tokens: int = 0
     time_to_first_token: Optional[float] = None
     response_timer: Timer = field(default_factory=Timer)
+
 
 class CohereChat(Model):
     id: str = "command-r-plus"
@@ -276,11 +278,11 @@ class CohereChat(Model):
         return function_calls_to_run, error_messages
 
     def _handle_tool_calls(
-        self, 
-        assistant_message: Message, 
-        messages: List[Message], 
+        self,
+        assistant_message: Message,
+        messages: List[Message],
         response_tool_calls: List[Any],
-        model_response: ModelResponse
+        model_response: ModelResponse,
     ) -> Optional[Any]:
         """
         Handle tool calls in the assistant message.
@@ -320,8 +322,7 @@ class CohereChat(Model):
                     )
                 )
                 continue
-            function_calls_to_run.append(_function_call)            
-
+            function_calls_to_run.append(_function_call)
 
         if self.show_tool_calls:
             model_response.content += "\nRunning:"
@@ -334,9 +335,7 @@ class CohereChat(Model):
         function_calls_to_run, error_messages = self._prepare_function_calls(assistant_message)
 
         for _ in self.run_function_calls(
-            function_calls=function_calls_to_run, 
-            function_call_results=function_call_results,
-            tool_role=tool_role
+            function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
         ):
             pass
 
@@ -354,7 +353,7 @@ class CohereChat(Model):
             ]
         else:
             tool_results = None
-        
+
         return tool_results
 
     def response(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> ModelResponse:
@@ -404,7 +403,7 @@ class CohereChat(Model):
                 assistant_message=assistant_message,
                 messages=messages,
                 response_tool_calls=response_tool_calls,
-                model_response=model_response
+                model_response=model_response,
             )
 
             # Make a recursive call with tool results if available
@@ -493,7 +492,7 @@ class CohereChat(Model):
                     stream_data.completion_tokens += 1
                     if stream_data.completion_tokens == 1:
                         stream_data.time_to_first_token = stream_data.response_timer.elapsed
-                        logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")                    
+                        logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
                     yield ModelResponse(content=response.text)
 
             if isinstance(response, ToolCallsChunkStreamedChatResponse):
@@ -611,10 +610,7 @@ class CohereChat(Model):
                 # Constructs a list named tool_results, where each element is a dictionary that contains details of tool calls and their outputs.
                 # It pairs each tool call in response_tool_calls with its corresponding result in function_call_results.
                 tool_results = [
-                    ToolResult(
-                        call=tool_call, 
-                        outputs=[tool_call.parameters, {"result": fn_result.content}]
-                    )
+                    ToolResult(call=tool_call, outputs=[tool_call.parameters, {"result": fn_result.content}])
                     for tool_call, fn_result in zip(stream_data.response_tool_calls, function_call_results)
                 ]
                 messages.append(Message(role="user", content=""))

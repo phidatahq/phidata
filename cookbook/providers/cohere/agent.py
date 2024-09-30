@@ -4,7 +4,12 @@ from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=CohereChat(id="command-r-08-2024"),
-    tools=[YFinanceTools(company_info=True, stock_fundamentals=True,)],
+    tools=[
+        YFinanceTools(
+            company_info=True,
+            stock_fundamentals=True,
+        )
+    ],
     show_tool_calls=True,
     debug_mode=True,
     markdown=True,

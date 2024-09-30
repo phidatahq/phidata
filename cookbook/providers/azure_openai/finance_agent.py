@@ -1,10 +1,10 @@
 import os
 
+from dotenv import load_dotenv
+
 from phi.agent import Agent
 from phi.model.azure import AzureOpenAIChat
 from phi.tools.yfinance import YFinanceTools
-
-from dotenv import load_dotenv
 
 load_dotenv()
 

@@ -1,10 +1,10 @@
 import os
-
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.azure import AzureOpenAIChat
 
 from dotenv import load_dotenv
+
+from phi.agent import Agent, RunResponse  # noqa
+from phi.model.azure import AzureOpenAIChat
 
 load_dotenv()
 

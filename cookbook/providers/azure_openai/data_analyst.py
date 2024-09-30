@@ -1,11 +1,12 @@
 import os
-
 from textwrap import dedent
+
+from dotenv import load_dotenv
+
 from phi.agent import Agent
 from phi.model.azure import AzureOpenAIChat
 from phi.tools.duckdb import DuckDbTools
 
-from dotenv import load_dotenv
 
 load_dotenv()
 

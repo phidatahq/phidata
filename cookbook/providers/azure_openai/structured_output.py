@@ -2,10 +2,11 @@ import os
 from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.azure import AzureOpenAIChat
 
 from dotenv import load_dotenv
+
+from phi.agent import Agent, RunResponse  # noqa
+from phi.model.azure import AzureOpenAIChat
 
 load_dotenv()
 

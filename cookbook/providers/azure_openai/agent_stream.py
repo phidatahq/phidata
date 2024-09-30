@@ -1,11 +1,11 @@
 import os
-
 from typing import Iterator  # noqa
+
+from dotenv import load_dotenv
+
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.azure import AzureOpenAIChat
 from phi.tools.yfinance import YFinanceTools
-
-from dotenv import load_dotenv
 
 load_dotenv()
 

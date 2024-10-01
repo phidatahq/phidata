@@ -35,7 +35,7 @@ class PgVector(VectorDb):
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
-        search_type: SearchType = SearchType.hybrid,
+        search_type: SearchType = SearchType.vector,
         vector_index: Union[Ivfflat, HNSW] = HNSW(),
         distance: Distance = Distance.cosine,
         prefix_match: bool = False,
@@ -78,11 +78,11 @@ class PgVector(VectorDb):
             raise ValueError("Embedder.dimensions must be set.")
 
         # Search type
-        self.search_type: str = search_type
-        # Index for the table
-        self.vector_index: Union[Ivfflat, HNSW] = vector_index
+        self.search_type: SearchType = search_type
         # Distance metric
         self.distance: Distance = distance
+        # Index for the table
+        self.vector_index: Union[Ivfflat, HNSW] = vector_index
         # Enable prefix matching for full-text search
         self.prefix_match: bool = prefix_match
         # Weight for the vector similarity score in hybrid search
@@ -283,11 +283,11 @@ class PgVector(VectorDb):
             raise
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        if self.search_type == "vector":
+        if self.search_type == SearchType.vector:
             return self.vector_search(query=query, limit=limit, filters=filters)
-        elif self.search_type == "fulltext":
+        elif self.search_type == SearchType.keyword:
             return self.keyword_search(query=query, limit=limit, filters=filters)
-        elif self.search_type == "hybrid":
+        elif self.search_type == SearchType.hybrid:
             return self.hybrid_search(query=query, limit=limit, filters=filters)
         else:
             logger.error(f"Invalid search type '{self.search_type}'.")
@@ -398,7 +398,6 @@ class PgVector(VectorDb):
             query (str): The search query string.
             limit (int): The maximum number of results to return.
             filters (Optional[Dict[str, Any]]): Optional filters to apply.
-            prefix_match (bool): If True, enables prefix matching for full-text search.
 
         Returns:
             List[Document]: A list of matching Document objects.
@@ -483,8 +482,6 @@ class PgVector(VectorDb):
             query (str): The query string to search for.
             limit (int): The maximum number of results to return.
             filters (Optional[Dict[str, Any]]): Optional filters to apply.
-            vector_score_weight (float): The weight to apply to the vector similarity score.
-            prefix_match (bool): If True, enables prefix matching for full-text search.
 
         Returns:
             List[Document]: A list of matching Document objects.

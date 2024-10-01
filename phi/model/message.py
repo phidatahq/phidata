@@ -94,10 +94,11 @@ class Message(BaseModel):
         if self.tool_call_id:
             _logger(f"Call Id: {self.tool_call_id}")
         if self.content:
-            if isinstance(self.content, str):
-                _logger(self.content)
-            elif isinstance(self.content, list) or isinstance(self.content, dict):
-                _logger(json.dumps(self.content, indent=2))
+            _logger(self.content)
+            # if isinstance(self.content, str):
+            #     _logger(self.content)
+            # elif isinstance(self.content, list) or isinstance(self.content, dict):
+            #     _logger(json.dumps(self.content, indent=2))
         if self.tool_calls:
             _logger(f"Tool Calls: {json.dumps(self.tool_calls, indent=2)}")
         # if self.model_extra and "images" in self.model_extra:

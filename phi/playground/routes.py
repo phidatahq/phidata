@@ -15,7 +15,7 @@ from phi.playground.schemas import (
     GetAgentSessionsRequest,
     GetAgentSessionsResponse,
     AgentRenameRequest,
-    AgentModel,
+    AgentModel, AgentSessionDeleteRequest,
 )
 
 
@@ -130,5 +130,22 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         agent.session_id = body.session_id
         agent.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
+
+    @playground_routes.post("/agent/session/delete")
+    def agent_session_delete(body: AgentSessionDeleteRequest):
+        agent = get_agent_by_id(agents, body.agent_id)
+        if agent is None:
+            return JSONResponse(status_code=404, content="Agent not found.")
+
+        if agent.storage is None:
+            return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
+
+        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
+        for session in all_agent_sessions:
+            if session.session_id == body.session_id:
+                agent.delete_session(body.session_id)
+                return JSONResponse(content={"message": f"successfully deleted agent {agent.name}"})
+
+        return JSONResponse(status_code=404, content="Session not found.")
 
     return playground_routes

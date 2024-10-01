@@ -1,7 +1,7 @@
 from typing import List
 from pydantic import BaseModel, Field
-from rich.pretty import pprint # noqa
-from phi.agent import Agent, RunResponse # noqa
+from rich.pretty import pprint  # noqa
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.together import Together
 
 

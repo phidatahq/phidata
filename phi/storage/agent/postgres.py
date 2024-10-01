@@ -179,7 +179,7 @@ class PgAgentStorage(AgentStorage):
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
                 result = sess.execute(delete_stmt)
-                
+
                 if result.rowcount == 0:
                     logger.warning(f"No session found with session_id: {session_id}")
                 else:

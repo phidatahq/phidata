@@ -1713,6 +1713,8 @@ class Agent(BaseModel):
 
     def delete_session(self, session_id: str):
         """Delete the current session and save to storage"""
+        if self.storage is None:
+            return
         # -*- Delete session
         self.storage.delete_session(session_id=session_id)
         # -*- Save to storage

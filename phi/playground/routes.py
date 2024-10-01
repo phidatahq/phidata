@@ -15,7 +15,8 @@ from phi.playground.schemas import (
     GetAgentSessionsRequest,
     GetAgentSessionsResponse,
     AgentRenameRequest,
-    AgentModel, AgentSessionDeleteRequest,
+    AgentModel,
+    AgentSessionDeleteRequest,
 )
 
 

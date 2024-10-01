@@ -8,7 +8,7 @@ from phi.vectordb.pineconedb import PineconeDB
 from phi.knowledge.website import WebsiteKnowledgeBase
 
 api_key = os.getenv("PINECONE_API_KEY")
-index_name = "thai-recipe-index"
+index_name = "phidata-website-index"
 
 vector_db = PineconeDB(
     name=index_name,

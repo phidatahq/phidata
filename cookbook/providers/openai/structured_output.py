@@ -16,16 +16,27 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-movie_writer = Agent(
+# Agent with a response_model
+movie_agent_1 = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You help people write movie scripts.",
+    response_model=MovieScript,
+)
+
+# Agent with a response_model and structured_outputs
+movie_agent_2 = Agent(
     model=OpenAIChat(id="gpt-4o-2024-08-06"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
     structured_outputs=True,
-    # debug_mode=True,
 )
 
-# Get the response in a variable
-# run: RunResponse = movie_agent.run("New York")
-# pprint(run.content)
 
-movie_writer.print_response("New York")
+# Get the response in a variable
+run1: RunResponse = movie_agent_1.run("New York")
+pprint(run1.content)
+run2: RunResponse = movie_agent_2.run("New York")
+pprint(run2.content)
+
+movie_agent_1.print_response("New York")
+movie_agent_2.print_response("New York")

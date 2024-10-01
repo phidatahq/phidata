@@ -10,18 +10,15 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
-# Comment out after first run
-# knowledge_base.load(upsert=True)
+# Comment after first run to avoid reloading the knowledge base
+knowledge_base.load(upsert=True)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    knowledge=PDFUrlKnowledgeBase(
-        urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-        vector_db=vector_db,
-    ),
-    # Add a tool to search the knowledge base
+    knowledge=knowledge_base,
+    # Add a tool to search the knowledge base which enables agentic RAG.
     search_knowledge=True,
     show_tool_calls=True,
     markdown=True,
 )
-agent.print_response("How do I make chicken and galangal in Coconut Milk Soup")
+agent.print_response("How do I make chicken and galangal in coconut milk soup")

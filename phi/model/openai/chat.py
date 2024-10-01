@@ -51,6 +51,7 @@ class OpenAIChat(Model):
         id (str): The id of the OpenAI model to use. Default is "gpt-4o".
         name (str): The name of this chat model instance. Default is "OpenAIChat".
         provider (str): The provider of the model. Default is "OpenAI".
+        store (Optional[bool]): Whether or not to store the output of this chat completion request for use in the model distillation or evals products.
         frequency_penalty (Optional[float]): Penalizes new tokens based on their frequency in the text so far.
         logit_bias (Optional[Any]): Modifies the likelihood of specified tokens appearing in the completion.
         logprobs (Optional[bool]): Include the log probabilities on the logprobs most likely tokens.
@@ -86,6 +87,7 @@ class OpenAIChat(Model):
     provider: str = "OpenAI"
 
     # Request parameters
+    store: Optional[bool] = None
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
     logprobs: Optional[bool] = None
@@ -202,6 +204,8 @@ class OpenAIChat(Model):
         """
         _request_params: Dict[str, Any] = {}
         # Set request parameters if they are provided
+        if self.store:
+            _request_params["store"] = self.store
         if self.frequency_penalty:
             _request_params["frequency_penalty"] = self.frequency_penalty
         if self.logit_bias:

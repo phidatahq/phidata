@@ -1,4 +1,4 @@
-"""Run `pip install lancedb tantivy` to install dependencies."""
+"""Run `pip install openai lancedb` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
@@ -14,7 +14,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(upsert=True)
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o", store=True),
     knowledge=knowledge_base,
     # Add a tool to search the knowledge base which enables agentic RAG.
     search_knowledge=True,

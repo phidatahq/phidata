@@ -27,6 +27,24 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
+# Agent that uses JSON mode
+json_mode_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You help people write movie scripts.",
+    response_model=MovieScript,
+)
+
+# Agent that uses structured outputs
+structured_output_agent = Agent(
+    model=OpenAIChat(id="gpt-4o-2024-08-06"),
+    description="You help people write movie scripts.",
+    response_model=MovieScript,
+    structured_outputs=True,
+)
+
+# Helper functions to display the output
+
+
 def display_header(
     message: str,
     style: str = "bold cyan",
@@ -59,57 +77,41 @@ def display_content(content, title: str = "Content"):
     console.print(panel)
 
 
-# Agent with a response_model
-movie_agent_1 = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    description="You help people write movie scripts.",
-    response_model=MovieScript,
-)
-
-# Agent with a response_model and structured_outputs
-movie_agent_2 = Agent(
-    model=OpenAIChat(id="gpt-4o-2024-08-06"),
-    description="You help people write movie scripts.",
-    response_model=MovieScript,
-    structured_outputs=True,
-)
-
-
 def run_agents():
     try:
-        # Running movie_agent_1
+        # Running json_mode_agent
         display_header("Running Agent with response_model=MovieScript", panel_title="Agent 1")
         with console.status("Running Agent 1...", spinner="dots"):
-            run_movie_agent_1: RunResponse = movie_agent_1.run("New York")
-        display_content(run_movie_agent_1.content, title="Agent 1 Response")
+            run_json_mode_agent: RunResponse = json_mode_agent.run("New York")
+        display_content(run_json_mode_agent.content, title="Agent 1 Response")
 
-        # Running movie_agent_2
+        # Running structured_output_agent
         display_header(
             "Running Agent with response_model=MovieScript and structured_outputs=True", panel_title="Agent 2"
         )
         with console.status("Running Agent 2...", spinner="dots"):
-            run_movie_agent_2: RunResponse = movie_agent_2.run("New York")
-        display_content(run_movie_agent_2.content, title="Agent 2 Response")
+            run_structured_output_agent: RunResponse = structured_output_agent.run("New York")
+        display_content(run_structured_output_agent.content, title="Agent 2 Response")
     except Exception as e:
         console.print(f"[bold red]Error occurred while running agents: {e}[/bold red]")
 
 
 async def run_agents_async():
     try:
-        # Running movie_agent_1 asynchronously
+        # Running json_mode_agent asynchronously
         display_header("Running Agent with response_model=MovieScript (async)", panel_title="Async Agent 1")
         with console.status("Running Agent 1...", spinner="dots"):
-            async_run_movie_agent_1: RunResponse = await movie_agent_1.arun("New York")
-        display_content(async_run_movie_agent_1.content, title="Async Agent 1 Response")
+            async_run_json_mode_agent: RunResponse = await json_mode_agent.arun("New York")
+        display_content(async_run_json_mode_agent.content, title="Async Agent 1 Response")
 
-        # Running movie_agent_2 asynchronously
+        # Running structured_output_agent asynchronously
         display_header(
             "Running Agent with response_model=MovieScript and structured_outputs=True (async)",
             panel_title="Async Agent 2",
         )
         with console.status("Running Agent 2...", spinner="dots"):
-            async_run_movie_agent_2: RunResponse = await movie_agent_2.arun("New York")
-        display_content(async_run_movie_agent_2.content, title="Async Agent 2 Response")
+            async_run_structured_output_agent: RunResponse = await structured_output_agent.arun("New York")
+        display_content(async_run_structured_output_agent.content, title="Async Agent 2 Response")
     except Exception as e:
         console.print(f"[bold red]Error occurred while running async agents: {e}[/bold red]")
 

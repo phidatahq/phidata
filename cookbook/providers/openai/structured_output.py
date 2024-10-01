@@ -16,15 +16,15 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-# Agent with a response_model
-movie_agent_1 = Agent(
+# Agent that uses JSON mode
+json_mode_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
 )
 
-# Agent with a response_model and structured_outputs
-movie_agent_2 = Agent(
+# Agent that uses structured outputs
+structured_output_agent = Agent(
     model=OpenAIChat(id="gpt-4o-2024-08-06"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
@@ -33,10 +33,10 @@ movie_agent_2 = Agent(
 
 
 # Get the response in a variable
-run1: RunResponse = movie_agent_1.run("New York")
-pprint(run1.content)
-run2: RunResponse = movie_agent_2.run("New York")
-pprint(run2.content)
+# json_mode_response: RunResponse = json_mode_agent.run("New York")
+# pprint(json_mode_response.content)
+# structured_output_response: RunResponse = structured_output_agent.run("New York")
+# pprint(structured_output_response.content)
 
-movie_agent_1.print_response("New York")
-movie_agent_2.print_response("New York")
+json_mode_agent.print_response("New York")
+structured_output_agent.print_response("New York")

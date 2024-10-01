@@ -1,12 +1,14 @@
-from phi.agent import Agent, RunResponse  # noqa
+"""Run `pip install lancedb tantivy` to install dependencies."""
+
+from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector, SearchType
+from phi.vectordb.lancedb import LanceDb, SearchType
 
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+db_uri = "tmp/lancedb"
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(table_name="recipes", db_url=db_url, search_type=SearchType.hybrid),
+    vector_db=LanceDb(table_name="recipes", uri=db_uri, search_type=SearchType.vector),
 )
 # Comment after first run to avoid reloading the knowledge base
 knowledge_base.load(upsert=True)

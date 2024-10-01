@@ -1,11 +1,11 @@
-from phi.agent import Agent, RunResponse # noqa
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.anyscale import Anyscale
 
 agent = Agent(
     model=Anyscale(id="mistralai/Mixtral-8x7B-Instruct-v0.1"),
     description="You help people with their health and fitness goals.",
     markdown=True,
-    show_tool_calls=True
+    show_tool_calls=True,
 )
 
 # Get the response in a variable

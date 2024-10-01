@@ -8,7 +8,7 @@ agent = Agent(
     tools=[DuckDuckGo()],
     show_tool_calls=True,
     debug_mode=True,
-    markdown=True
+    markdown=True,
 )
 
 agent.print_response("Whats happening in France? Summarize top stories with sources.")

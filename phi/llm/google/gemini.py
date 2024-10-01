@@ -38,7 +38,7 @@ class Gemini(LLM):
         for msg in messages:
             content = msg.content
             if content is None or content == "" or msg.role == "tool":
-                role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
+                role = "model" if msg.role in ("system", "assistant") else "user" if msg.role == "tool" else msg.role
                 converted.append({"role": role, "parts": msg.parts})  # type: ignore
             else:
                 if isinstance(content, str):
@@ -47,7 +47,7 @@ class Gemini(LLM):
                     parts = content  # type: ignore
                 else:
                     parts = [" "]
-                role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
+                role = "model" if msg.role in ("system", "assistant") else "user" if msg.role == "tool" else msg.role
                 converted.append({"role": role, "parts": parts})
         return converted
 

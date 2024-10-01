@@ -260,7 +260,21 @@ class Agent(BaseModel):
 
     def get_delegation_function(self, agent: "Agent", index: int) -> Function:
         def _delegate_task_to_agent(task_description: str) -> str:
-            return agent.run(task_description, stream=False)  # type: ignore
+            agent_run_response: RunResponse = agent.run(task_description, stream=False)
+            if agent_run_response.content is None:
+                return "No response from the agent."
+            elif isinstance(agent_run_response.content, str):
+                return agent_run_response.content
+            elif issubclass(agent_run_response.content, BaseModel):
+                try:
+                    return agent_run_response.content.model_dump_json(indent=2)
+                except Exception as e:
+                    return str(e)
+            else:
+                try:
+                    return json.dumps(agent_run_response.content, indent=2)
+                except Exception as e:
+                    return str(e)
 
         agent_name = agent.name.replace(" ", "_").lower() if agent.name else f"agent_{index}"
         if agent.name is None:

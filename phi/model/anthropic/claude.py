@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.model.base import Model
@@ -24,11 +25,36 @@ except ImportError:
     raise
 
 
+@dataclass
+class MessageData:
+    response_content: str = ""
+    response_block: List[Union[TextBlock, ToolUseBlock]] = field(default_factory=list)
+    response_block_content: Optional[Union[TextBlock, ToolUseBlock]] = None
+    response_usage: Optional[Usage] = None
+    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    tool_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
+class UsageData:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+
+@dataclass
+class StreamUsageData:
+    completion_tokens: int = 0
+    time_to_first_token: Optional[float] = None
+    tokens_per_second: Optional[float] = None
+
+
 class Claude(Model):
     """
-    A class representing Anthropics Claude models.
+    A class representing Anthropic Claude model.
 
-    Claude models are designed to generate text based on a given input.
+
+    This class provides an interface for interacting with the Anthropic Claude model.
 
     Attributes:
         id (str): The id of the Anthropic Claude model to use. Defaults to "claude-3-5-sonnet-2024062".
@@ -45,7 +71,8 @@ class Claude(Model):
     """
 
     id: str = "claude-3-5-sonnet-20240620"
-    name: str = "claude"
+    name: str = "Claude"
+    provider: str = "Anthropic"
 
     # Request parameters
     max_tokens: Optional[int] = 1024
@@ -121,8 +148,7 @@ class Claude(Model):
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
                 system_messages.append(content)  # type: ignore
             else:
-                chat_messages.append({"role": message.role, "content": content}) # type: ignore
-
+                chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
     def _prepare_request_kwargs(self, system_message: str) -> Dict[str, Any]:
@@ -140,7 +166,6 @@ class Claude(Model):
 
         if self.tools:
             request_kwargs["tools"] = self._get_tools()
-
         return request_kwargs
 
     def _get_tools(self) -> Optional[List[Dict[str, Any]]]:
@@ -184,7 +209,6 @@ class Claude(Model):
                 },
             }
             tools.append(tool)
-
         return tools
 
     def invoke(self, messages: List[Message]) -> AnthropicMessage:
@@ -232,28 +256,47 @@ class Claude(Model):
         for m in messages:
             m.log()
 
-    def _update_usage_metrics(self, assistant_message: Message, usage: Optional[Usage]) -> None:
+    def _update_usage_metrics(
+        self,
+        assistant_message: Message,
+        usage: Optional[Usage] = None,
+        stream_usage_data: Optional[StreamUsageData] = None,
+    ) -> None:
         """
         Update the usage metrics for the assistant message.
 
         Args:
             assistant_message (Message): The assistant message.
             usage (Optional[Usage]): The usage metrics.
+            stream_usage_data (Optional[StreamUsageData]): The stream usage metrics.
         """
         if usage:
-            input_tokens = usage.input_tokens or 0
-            output_tokens = usage.output_tokens or 0
-            total_tokens = input_tokens + output_tokens
+            usage_data = UsageData()
+            usage_data.input_tokens = usage.input_tokens or 0
+            usage_data.output_tokens = usage.output_tokens or 0
+            usage_data.total_tokens = usage_data.input_tokens + usage_data.output_tokens
 
-            if input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + input_tokens
-            if output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + output_tokens
-            if total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
+            if usage_data.input_tokens is not None:
+                assistant_message.metrics["input_tokens"] = usage_data.input_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + usage_data.input_tokens
+            if usage_data.output_tokens is not None:
+                assistant_message.metrics["output_tokens"] = usage_data.output_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + usage_data.output_tokens
+            if usage_data.total_tokens is not None:
+                assistant_message.metrics["total_tokens"] = usage_data.total_tokens
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + usage_data.total_tokens
+
+            if stream_usage_data:
+                if stream_usage_data.time_to_first_token is not None:
+                    assistant_message.metrics["time_to_first_token"] = stream_usage_data.time_to_first_token
+                    self.metrics.setdefault("time_to_first_token", []).append(
+                        f"{stream_usage_data.time_to_first_token:.4f}s"
+                    )
+                if stream_usage_data.tokens_per_second is not None:
+                    assistant_message.metrics["tokens_per_second"] = stream_usage_data.tokens_per_second
+                    self.metrics.setdefault("tokens_per_second", []).append(
+                        f"{stream_usage_data.tokens_per_second:.4f}s"
+                    )
 
     def _create_assistant_message(
         self, response: AnthropicMessage, response_timer: Timer, response_usage: Optional[Usage]
@@ -269,55 +312,57 @@ class Claude(Model):
         Returns:
             Tuple[Message, str, List[str]]: A tuple containing the assistant message, the response content, and the tool ids.
         """
-        response_content: str = ""
-        response_block: Optional[Union[TextBlock, ToolUseBlock]] = None
-        tool_calls: List[Dict[str, Any]] = []
-        tool_ids: List[str] = []
+        message_data = MessageData()
 
         if response.content:
-            response_block = response.content[0]
+            message_data.response_block = response.content
+            message_data.response_block_content = response.content[0]
 
-        if response_block is not None:
-            if isinstance(response_block, TextBlock):
-                response_content = response_block.text
-            elif isinstance(response_block, ToolUseBlock):
-                tool_block_input = response_block.input
+        # Extract response content
+        if message_data.response_block_content is not None:
+            if isinstance(message_data.response_block_content, TextBlock):
+                message_data.response_content = message_data.response_block_content.text
+            elif isinstance(message_data.response_block_content, ToolUseBlock):
+                tool_block_input = message_data.response_block_content.input
                 if tool_block_input and isinstance(tool_block_input, dict):
-                    response_content = tool_block_input.get("query", "")
+                    message_data.response_content = tool_block_input.get("query", "")
 
+        # Create assistant message
         assistant_message = Message(
             role=response.role or "assistant",
-            content=response_content,
+            content=message_data.response_content,
         )
 
+        # Extract tool calls from the response
         if response.stop_reason == "tool_use":
             for block in response.content:
                 if isinstance(block, ToolUseBlock):
                     tool_use: ToolUseBlock = block
                     tool_name = tool_use.name
                     tool_input = tool_use.input
-                    tool_ids.append(tool_use.id)
+                    message_data.tool_ids.append(tool_use.id)
 
                     function_def = {"name": tool_name}
                     if tool_input:
                         function_def["arguments"] = json.dumps(tool_input)
-                    tool_calls.append(
+                    message_data.tool_calls.append(
                         {
                             "type": "function",
                             "function": function_def,
                         }
                     )
 
-            if len(tool_calls) > 0:
-                assistant_message.tool_calls = tool_calls
-                assistant_message.content = response.content
+        # Update assistant message if tool calls are present
+        if len(message_data.tool_calls) > 0:
+            assistant_message.tool_calls = message_data.tool_calls
+            assistant_message.content = message_data.response_block
 
         # Update usage metrics
         assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
+        self.metrics.setdefault("response_times", []).append(f"{response_timer.elapsed:.4f}s")
         self._update_usage_metrics(assistant_message, response_usage)
 
-        return assistant_message, response_content, tool_ids
+        return assistant_message, message_data.response_content, message_data.tool_ids
 
     def _handle_tool_calls(
         self,
@@ -397,10 +442,7 @@ class Claude(Model):
             ModelResponse: The response from the model.
         """
         logger.debug("---------- Claude Response Start ----------")
-        # Log messages for debugging
         self._log_messages(messages)
-
-        # Create a ModelResponse object to return
         model_response = ModelResponse()
 
         response_timer = Timer()
@@ -430,7 +472,7 @@ class Claude(Model):
         logger.debug("---------- Claude Response End ----------")
         return model_response
 
-    def _handle_tool_calls_stream(
+    def _handle_stream_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
@@ -489,14 +531,11 @@ class Claude(Model):
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         logger.debug("---------- Claude Response Start ----------")
-        # -*- Log messages for debugging
         self._log_messages(messages)
+        message_data = MessageData()
+        stream_usage_data = StreamUsageData()
 
-        response_content_text: str = ""
-        response_content: List[Optional[Union[TextBlock, ToolUseBlock]]] = []
         response_usage: Optional[Usage] = None
-        tool_calls: List[Dict[str, Any]] = []
-        tool_ids: List[str] = []
         response_timer = Timer()
         response_timer.start()
         response = self.invoke_stream(messages=messages)
@@ -505,25 +544,29 @@ class Claude(Model):
                 if isinstance(delta, RawContentBlockDeltaEvent):
                     if isinstance(delta.delta, TextDelta):
                         yield ModelResponse(content=delta.delta.text)
-                        response_content_text += delta.delta.text
+                        message_data.response_content += delta.delta.text
+                        stream_usage_data.completion_tokens += 1
+                        if stream_usage_data.completion_tokens == 1:
+                            stream_usage_data.time_to_first_token = response_timer.elapsed
+                            logger.debug(f"Time to first token: {stream_usage_data.time_to_first_token:.4f}s")
 
                 if isinstance(delta, ContentBlockStopEvent):
                     if isinstance(delta.content_block, ToolUseBlock):
                         tool_use = delta.content_block
                         tool_name = tool_use.name
                         tool_input = tool_use.input
-                        tool_ids.append(tool_use.id)
+                        message_data.tool_ids.append(tool_use.id)
 
                         function_def = {"name": tool_name}
                         if tool_input:
                             function_def["arguments"] = json.dumps(tool_input)
-                        tool_calls.append(
+                        message_data.tool_calls.append(
                             {
                                 "type": "function",
                                 "function": function_def,
                             }
                         )
-                    response_content.append(delta.content_block)
+                    message_data.response_block.append(delta.content_block)
 
                 if isinstance(delta, MessageStopEvent):
                     response_usage = delta.message.usage
@@ -532,29 +575,33 @@ class Claude(Model):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
+        if stream_usage_data.completion_tokens > 0:
+            stream_usage_data.tokens_per_second = response_timer.elapsed / stream_usage_data.completion_tokens
+            logger.debug(f"Time per output token: {stream_usage_data.tokens_per_second:.4f}s")
+            logger.debug(f"Throughput: {stream_usage_data.completion_tokens / response_timer.elapsed:.4f} tokens/s")
+
         # Create assistant message
         assistant_message = Message(
             role="assistant",
-            content=response_content_text,
+            content=message_data.response_content,
         )
 
-        if len(tool_calls) > 0:
-            assistant_message.content = response_content
-            assistant_message.tool_calls = tool_calls
+        # Update assistant message if tool calls are present
+        if len(message_data.tool_calls) > 0:
+            assistant_message.content = message_data.response_block
+            assistant_message.tool_calls = message_data.tool_calls
 
         # Update usage metrics
         assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
-        self._update_usage_metrics(assistant_message, response_usage)
+        self.metrics.setdefault("response_times", []).append(f"{response_timer.elapsed:.4f}s")
+        self._update_usage_metrics(assistant_message, response_usage, stream_usage_data=stream_usage_data)
 
         messages.append(assistant_message)
         assistant_message.log()
 
-        yield from self._handle_tool_calls_stream(assistant_message, messages, tool_ids)
-
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            yield from self._handle_stream_tool_calls(assistant_message, messages, message_data.tool_ids)
             yield from self.response_stream(messages=messages)
-
         logger.debug("---------- Claude Response End ----------")
 
     def get_tool_call_prompt(self) -> Optional[str]:

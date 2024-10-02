@@ -1,7 +1,7 @@
 from typing import List
+from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from rich.pretty import pprint
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse  # noqa
 from phi.model.anthropic import Claude
 
 
@@ -17,9 +17,13 @@ class MovieScript(BaseModel):
 
 
 movie_agent = Agent(
-    model=Claude(model="claude-3-5-sonnet-20240620"),
+    model=Claude(id="claude-3-5-sonnet-20240620"),
     description="You help people write movie scripts.",
-    output_model=MovieScript,
+    response_model=MovieScript,
 )
 
-pprint(movie_agent.run("New York", stream=True))
+# Get the response in a variable
+# movie_agent: RunResponse = movie_agent.run("New York")
+# pprint(movie_agent.content)
+
+movie_agent.print_response("New York")

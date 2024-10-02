@@ -364,6 +364,53 @@ class Claude(Model):
 
         return assistant_message, message_data.response_content, message_data.tool_ids
 
+    def _prepare_function_calls(self, assistant_message: Message, messages: List[Message]) -> List[FunctionCall]:
+        """
+        Prepare function calls for the assistant message.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of conversation messages.
+
+        Returns:
+            List[FunctionCall]: A list of function calls to run.
+        """
+        function_calls_to_run: List[FunctionCall] = []
+        if assistant_message.tool_calls is not None:
+            for tool_call in assistant_message.tool_calls:
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    messages.append(Message(role="user", content="Could not find function to call."))
+                    continue
+                if _function_call.error is not None:
+                    messages.append(Message(role="user", content=_function_call.error))
+                    continue
+                function_calls_to_run.append(_function_call)
+        return function_calls_to_run
+
+    def _handle_function_call_results(
+        self, function_call_results: List[Message], tool_ids: List[str], messages: List[Message]
+    ) -> None:
+        """
+        Handle the results of function calls.
+
+        Args:
+            function_call_results (List[Message]): The results of the function calls.
+            tool_ids (List[str]): The tool ids.
+            messages (List[Message]): The list of conversation messages.
+        """
+        if len(function_call_results) > 0:
+            fc_responses: List = []
+            for _fc_message_index, _fc_message in enumerate(function_call_results):
+                fc_responses.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_ids[_fc_message_index],
+                        "content": _fc_message.content,
+                    }
+                )
+            messages.append(Message(role="user", content=fc_responses))
+
     def _handle_tool_calls(
         self,
         assistant_message: Message,
@@ -388,17 +435,8 @@ class Claude(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             model_response.content = str(response_content)
             model_response.content += "\n\n"
-            function_calls_to_run: List[FunctionCall] = []
+            function_calls_to_run = self._prepare_function_calls(assistant_message, messages)
             function_call_results: List[Message] = []
-            for tool_call in assistant_message.tool_calls:
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
-                if _function_call is None:
-                    messages.append(Message(role="user", content="Could not find function to call."))
-                    continue
-                if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
-                    continue
-                function_calls_to_run.append(_function_call)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -415,18 +453,7 @@ class Claude(Model):
             ):
                 pass
 
-            if len(function_call_results) > 0:
-                fc_responses: List = []
-
-                for _fc_message_index, _fc_message in enumerate(function_call_results):
-                    fc_responses.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_ids[_fc_message_index],
-                            "content": _fc_message.content,
-                        }
-                    )
-                messages.append(Message(role="user", content=fc_responses))
+            self._handle_function_call_results(function_call_results, tool_ids, messages)
 
             return model_response
         return None
@@ -491,17 +518,8 @@ class Claude(Model):
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield ModelResponse(content="\n\n")
-            function_calls_to_run: List[FunctionCall] = []
+            function_calls_to_run = self._prepare_function_calls(assistant_message, messages)
             function_call_results: List[Message] = []
-            for tool_call in assistant_message.tool_calls:
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
-                if _function_call is None:
-                    messages.append(Message(role="user", content="Could not find function to call."))
-                    continue
-                if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
-                    continue
-                function_calls_to_run.append(_function_call)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -509,7 +527,7 @@ class Claude(Model):
                 elif len(function_calls_to_run) > 1:
                     yield ModelResponse(content="Running:")
                     for _f in function_calls_to_run:
-                        yield ModelResponse(content="\n - {_f.get_call_str()}")
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                     yield ModelResponse(content="\n\n")
 
             for intermediate_model_response in self.run_function_calls(
@@ -517,17 +535,7 @@ class Claude(Model):
             ):
                 yield intermediate_model_response
 
-            if len(function_call_results) > 0:
-                fc_responses: List = []
-                for _fc_message_index, _fc_message in enumerate(function_call_results):
-                    fc_responses.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_ids[_fc_message_index],
-                            "content": _fc_message.content,
-                        }
-                    )
-                messages.append(Message(role="user", content=fc_responses))
+            self._handle_function_call_results(function_call_results, tool_ids, messages)
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         logger.debug("---------- Claude Response Start ----------")

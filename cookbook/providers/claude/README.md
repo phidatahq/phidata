@@ -20,41 +20,35 @@ export ANTHROPIC_API_KEY=xxx
 ### 3. Install libraries
 
 ```shell
-pip install -U anthropic duckduckgo-search duckdb yfinance exa_py phidata
+pip install -U anthropic duckduckgo-search duckdb yfinance phidata
 ```
 
-### 4. Run Agent
+### 4. Run Agent without Tools
 
-- stream off
-
-```shell
-python cookbook/providers/claude/basic.py
-```
-
-- stream on
+- Streaming on
 
 ```shell
 python cookbook/providers/claude/basic_stream.py
 ```
 
-### 5. Run Agent with Tools
-
-- DuckDuckGo Search
+- Streaming off
 
 ```shell
-python cookbook/providers/claude/agent.py
+python cookbook/providers/claude/basic.py
 ```
 
-- DuckDuckGo Search Stream
+### 5. Run Agent with Tools
+
+- YFinance Agent with streaming on
 
 ```shell
 python cookbook/providers/claude/agent_stream.py
 ```
 
-- YFinance
+- YFinance Agent without streaming
 
 ```shell
-python cookbook/providers/claude/finance.py
+python cookbook/providers/claude/agent.py
 ```
 
 - Data Analyst
@@ -63,13 +57,19 @@ python cookbook/providers/claude/finance.py
 python cookbook/providers/claude/data_analyst.py
 ```
 
-- Exa Search
+- Web Search
 
 ```shell
-python cookbook/providers/claude/exa_search.py
+python cookbook/providers/claude/web_search.py
 ```
 
-### 6. Run Agent with Structured output
+- Finance Agent
+
+```shell
+python cookbook/providers/claude/finance.py
+```
+
+### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/claude/structured_output.py

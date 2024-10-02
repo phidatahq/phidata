@@ -1,3 +1,6 @@
+"""Run `pip install duckdb` to install dependencies."""
+
+from textwrap import dedent
 from phi.agent import Agent
 from phi.model.anthropic import Claude
 from phi.tools.duckdb import DuckDbTools
@@ -8,12 +11,13 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=Claude(model="claude-3-5-sonnet-20240620"),
+    model=Claude(id="claude-3-5-sonnet-20240620"),
     tools=[duckdb_tools],
+    markdown=True,
     show_tool_calls=True,
-    add_to_system_prompt="""
-    Here are the tables you have access to:
-    - movies: Contains information about movies from IMDB.
-    """,
+    additional_context=dedent("""\
+    You have access to the following tables:
+    - movies: contains information about movies from IMDB.
+    """),
 )
-agent.print_response("What is the average rating of movies?", markdown=True)
+agent.print_response("What is the average rating of movies?", stream=False)

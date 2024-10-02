@@ -8,7 +8,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(table_name="recipes", db_url=db_url, search_type=SearchType.hybrid),
 )
-# Comment after first run to avoid reloading the knowledge base
+# Load the knowledge base: Comment out after first run
 knowledge_base.load(upsert=True)
 
 agent = Agent(
@@ -16,8 +16,11 @@ agent = Agent(
     knowledge=knowledge_base,
     # Add a tool to search the knowledge base which enables agentic RAG.
     search_knowledge=True,
+    # Add a tool to read chat history.
+    read_chat_history=True,
     show_tool_calls=True,
     markdown=True,
     # debug_mode=True,
 )
-agent.print_response("How do I make chicken and galangal in coconut milk soup")
+agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+agent.print_response("What was my last question?", stream=True)

@@ -690,12 +690,12 @@ class OpenAIChat(Model):
                         stream_data.response_tool_calls = []
                     stream_data.response_tool_calls.extend(response_tool_calls)
 
-                if response.usage:
-                    response_usage: Optional[CompletionUsage] = response.usage
-                    if response_usage:
-                        stream_data.response_prompt_tokens = response_usage.prompt_tokens
-                        stream_data.response_completion_tokens = response_usage.completion_tokens
-                        stream_data.response_total_tokens = response_usage.total_tokens
+            if response.usage:
+                response_usage: Optional[CompletionUsage] = response.usage
+                if response_usage:
+                    stream_data.response_prompt_tokens = response_usage.prompt_tokens
+                    stream_data.response_completion_tokens = response_usage.completion_tokens
+                    stream_data.response_total_tokens = response_usage.total_tokens
 
         stream_data.response_timer.stop()
         completion_tokens = stream_data.completion_tokens

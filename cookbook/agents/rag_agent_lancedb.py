@@ -1,20 +1,23 @@
+"""Run `pip install openai lancedb` to install dependencies."""
+
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector, SearchType
+from phi.vectordb.lancedb import LanceDb, SearchType
 
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+db_uri = "tmp/lancedb"
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(table_name="recipes", db_url=db_url, search_type=SearchType.hybrid),
+    vector_db=LanceDb(table_name="recipes", uri=db_uri, search_type=SearchType.vector),
 )
-# Comment out after first run
+# Comment after first run to avoid reloading the knowledge base
 knowledge_base.load(upsert=True)
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o", store=True),
     knowledge=knowledge_base,
-    enable_rag=True,
+    # Add a tool to search the knowledge base which enables agentic RAG.
+    search_knowledge=True,
     show_tool_calls=True,
     markdown=True,
     # debug_mode=True,

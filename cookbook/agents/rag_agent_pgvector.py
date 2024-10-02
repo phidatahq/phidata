@@ -8,13 +8,14 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(table_name="recipes", db_url=db_url, search_type=SearchType.hybrid),
 )
-# Comment out after first run
+# Comment after first run to avoid reloading the knowledge base
 knowledge_base.load(upsert=True)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
-    enable_rag=True,
+    # Add a tool to search the knowledge base which enables agentic RAG.
+    search_knowledge=True,
     show_tool_calls=True,
     markdown=True,
     # debug_mode=True,

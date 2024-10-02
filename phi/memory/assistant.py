@@ -75,13 +75,13 @@ class AssistantMemory(BaseModel):
         return [message.model_dump(exclude_none=True) for message in self.chat_history]
 
     def get_last_n_messages(self, last_n: Optional[int] = None) -> List[Message]:
-        """Returns the last n messages in the chat_history.
+        """Returns the last n messages in the llm_messages.
 
         :param last_n: The number of messages to return from the end of the conversation.
             If None, returns all messages.
         :return: A list of Messages in the chat_history.
         """
-        return self.chat_history[-last_n:] if last_n else self.chat_history
+        return self.llm_messages[-last_n:] if last_n else self.llm_messages
 
     def get_llm_messages(self) -> List[Dict[str, Any]]:
         """Returns the llm_messages as a list of dictionaries."""

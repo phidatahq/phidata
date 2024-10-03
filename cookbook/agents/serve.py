@@ -15,6 +15,7 @@ agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     description="You are a finance agent",
+    add_datetime_to_instructions=True,
     storage=PgAgentStorage(table_name="agent_sessions", db_url="postgresql+psycopg://ai:ai@localhost:5532/ai"),
 )
 # agent.create_session()

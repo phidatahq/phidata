@@ -1,5 +1,13 @@
+# pip install firecrawl-py openai
+
+import os
+
 from phi.assistant import Assistant
 from phi.tools.firecrawl import FirecrawlTools
 
-assistant = Assistant(tools=[FirecrawlTools()], show_tool_calls=True, markdown=True)
-assistant.print_response("Tell me about https://github.com/phidatahq/phidata")
+api_key = os.getenv("FIRECRAWL_API_KEY")
+
+assistant = Assistant(
+    tools=[FirecrawlTools(api_key=api_key, scrape=False, crawl=True)], show_tool_calls=True, markdown=True
+)
+assistant.print_response("summarize this https://finance.yahoo.com/")

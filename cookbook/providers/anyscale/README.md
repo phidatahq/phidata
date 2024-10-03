@@ -1,54 +1,75 @@
-## Anyscale Endpoints
+# Anyscale Cookbook
 
 > Note: Fork and clone this repository if needed
 
-1. Create a virtual environment
+### 1. Create and activate a virtual environment
 
 ```shell
 python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-2. Install libraries
-
-```shell
-pip install -U openai phidata
-```
-
-3. Export `ANYSCALE_API_KEY`
+### 2. Export your `ANYSCALE_API_KEY`
 
 ```shell
 export ANYSCALE_API_KEY=***
 ```
 
-4. Test Anyscale Assistant
+### 3. Install libraries
 
-- Streaming
+```shell
+pip install -U openai duckduckgo-search duckdb yfinance phidata
+```
+
+### 4. Run Agent without Tools
+
+- Streaming on
+
+```shell
+python cookbook/providers/anyscale/basic_stream.py
+```
+
+- Streaming off
+
+```shell
+python cookbook/providers/anyscale/basic.py
+```
+
+### 5. Run Agent with Tools
+
+- Yahoo Finance with streaming on
 
 ```shell
 python cookbook/providers/anyscale/agent_stream.py
 ```
 
-- Without Streaming
+- Yahoo Finance without streaming
 
 ```shell
 python cookbook/providers/anyscale/agent.py
 ```
 
-5. Test Structured output
+- Finance Agent
+
+```shell
+python cookbook/providers/anyscale/finance_agent.py
+```
+
+- Data Analyst
+
+```shell
+python cookbook/providers/anyscale/data_analyst.py
+```
+
+- DuckDuckGo Search
+```shell
+python cookbook/providers/together/web_search.py
+```
+
+### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/anyscale/structured_output.py
 ```
 
-6. Test function calling
 
-```shell
-python cookbook/providers/anyscale/news_search.py
-```
-
-7. Test CLI App
-
-```shell
-python cookbook/providers/anyscale/cli.py
-```

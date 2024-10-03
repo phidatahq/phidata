@@ -22,6 +22,10 @@ class AgentStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def delete_session(self, session_id: Optional[str] = None):
+        raise NotImplementedError
+
+    @abstractmethod
     def upsert(self, session: AgentSession) -> Optional[AgentSession]:
         raise NotImplementedError
 

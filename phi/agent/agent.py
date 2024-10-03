@@ -1733,6 +1733,15 @@ class Agent(BaseModel):
         # -*- Log Agent Session
         self.log_agent_session()
 
+    def delete_session(self, session_id: str):
+        """Delete the current session and save to storage"""
+        if self.storage is None:
+            return
+        # -*- Delete session
+        self.storage.delete_session(session_id=session_id)
+        # -*- Save to storage
+        self.write_to_storage()
+
     ###########################################################################
     # Default Tools
     ###########################################################################

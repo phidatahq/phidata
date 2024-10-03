@@ -169,6 +169,25 @@ class PgAgentStorage(AgentStorage):
             logger.debug(f"Table does not exist: {self.table.name}")
         return sessions
 
+    def delete_session(self, session_id: Optional[str] = None):
+        if session_id is None:
+            logger.warning("No session_id provided for deletion.")
+            return
+
+        with self.Session() as sess, sess.begin():
+            try:
+                # Delete the session with the given session_id
+                delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
+                result = sess.execute(delete_stmt)
+
+                if result.rowcount == 0:
+                    logger.warning(f"No session found with session_id: {session_id}")
+                else:
+                    logger.info(f"Successfully deleted session with session_id: {session_id}")
+            except Exception as e:
+                logger.error(f"Error deleting session: {e}")
+                raise
+
     def upsert(self, session: AgentSession) -> Optional[AgentSession]:
         """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
 

@@ -39,6 +39,12 @@ class AgentRenameRequest(BaseModel):
     session_id: str
 
 
+class AgentSessionDeleteRequest(BaseModel):
+    agent_id: str
+    session_id: str
+    user_id: Optional[str] = None
+
+
 class GetAgentSessionsRequest(BaseModel):
     agent_id: str
     user_id: Optional[str] = None

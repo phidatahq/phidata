@@ -77,6 +77,9 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
+        if body.user_id:
+            agent.user_id = body.user_id
+
         if body.monitor:
             agent.monitoring = True
         else:

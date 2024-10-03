@@ -1,6 +1,6 @@
 from typing import List
-from pydantic import BaseModel, Field
 from rich.pretty import pprint  # noqa
+from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.together import Together
 
@@ -17,13 +17,15 @@ class MovieScript(BaseModel):
 
 
 movie_writer = Agent(
-    llm=Together(),
-    description="You help people write movie ideas.",
-    output_model=MovieScript,
+    model=Together(id="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"),
+    description="You help people write movie scripts.",
+    response_model=MovieScript,
+    structured_outputs=True,
+    # debug_mode=True,
 )
 
 # Get the response in a variable
-# run: RunResponse = movie_writer.run("New York")
+# run: RunResponse = movie_agent.run("New York")
 # pprint(run.content)
 
 movie_writer.print_response("New York")

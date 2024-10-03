@@ -1,19 +1,15 @@
 from typing import Optional, Dict, Union, List, Any
 
 try:
-    from pinecone import Pinecone
+    from pinecone import Pinecone, ServerlessSpec, PodSpec
     from pinecone.config import Config
 except ImportError:
-    raise ImportError(
-        "The `pinecone-client` package is not installed, please install using `pip install pinecone-client`."
-    )
+    raise ImportError("The `pinecone` package is not installed, please install using `pip install pinecone`.")
 
 from phi.document import Document
 from phi.embedder import Embedder
 from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
-from pinecone.models import ServerlessSpec, PodSpec
-from pinecone.core.openapi.data.model.vector import Vector
 
 
 class PineconeDB(VectorDb):
@@ -206,11 +202,11 @@ class PineconeDB(VectorDb):
             document.embed(embedder=self.embedder)
             document.meta_data["text"] = document.content
             vectors.append(
-                Vector(
-                    id=document.id,
-                    values=document.embedding,
-                    metadata=document.meta_data,
-                )
+                {
+                    "id": document.id,
+                    "values": document.embedding,
+                    "metadata": document.meta_data,
+                }
             )
         self.index.upsert(
             vectors=vectors,

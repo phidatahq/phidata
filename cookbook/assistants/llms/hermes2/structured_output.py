@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 movie_assistant = Assistant(
     llm=Hermes(model="adrienbrault/nous-hermes2pro:Q8_0"),
-    description="You help people write movie scripts.",
+    description="You write movie scripts.",
     output_model=MovieScript,
     # debug_mode=True,
 )

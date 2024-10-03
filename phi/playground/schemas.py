@@ -27,6 +27,7 @@ class AgentRunRequest(BaseModel):
     message: str
     agent_id: str
     stream: bool = True
+    monitor: bool = False
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     image: Optional[UploadFile] = None

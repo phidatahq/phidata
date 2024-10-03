@@ -34,6 +34,7 @@ class OpenAIChat(LLM):
     name: str = "OpenAIChat"
     provider: str = "OpenAI"
     # -*- Request parameters
+    store: Optional[bool] = None
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
     logprobs: Optional[bool] = None
@@ -125,6 +126,8 @@ class OpenAIChat(LLM):
     @property
     def api_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
+        if self.store:
+            _request_params["store"] = self.store
         if self.frequency_penalty:
             _request_params["frequency_penalty"] = self.frequency_penalty
         if self.logit_bias:
@@ -165,6 +168,8 @@ class OpenAIChat(LLM):
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = super().to_dict()
+        if self.store:
+            _dict["store"] = self.store
         if self.frequency_penalty:
             _dict["frequency_penalty"] = self.frequency_penalty
         if self.logit_bias:

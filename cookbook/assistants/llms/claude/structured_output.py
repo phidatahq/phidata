@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 movie_assistant = Assistant(
     llm=Claude(model="claude-3-opus-20240229"),
-    description="You help people write movie scripts.",
+    description="You write movie scripts.",
     output_model=MovieScript,
     # debug_mode=True,
 )

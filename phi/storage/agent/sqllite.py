@@ -1,3 +1,4 @@
+from sqlite3 import OperationalError
 from typing import Optional, Any, List
 
 from phi.agent import AgentSession
@@ -112,11 +113,7 @@ class SqlAgentStorage(AgentStorage):
 
     def create(self) -> None:
         if not self.table_exists():
-            if self.schema is not None:
-                with self.Session() as sess, sess.begin():
-                    logger.debug(f"Creating schema: {self.schema}")
-                    sess.execute(text(f"create schema if not exists {self.schema};"))
-            logger.debug(f"Creating table: {self.table_name}")
+            logger.debug(f"Creating table: {self.table.name}")
             self.table.create(self.db_engine)
 
     def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
@@ -190,10 +187,10 @@ class SqlAgentStorage(AgentStorage):
                 session_data=session.session_data,
             )
 
-            # Define the upsert if the session_id already exists
-            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
+            # Define the upsert if the run_id already exists
+            # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
             stmt = stmt.on_conflict_do_update(
-                index_elements=["session_id"],
+                index_elements=["run_id"],
                 set_=dict(
                     user_id=session.user_id,
                     memory=session.memory,
@@ -205,12 +202,22 @@ class SqlAgentStorage(AgentStorage):
 
             try:
                 sess.execute(stmt)
+                sess.commit()  # Make sure to commit the changes to the database
+                return self.read(session_id=session.session_id)
+            except OperationalError as oe:
+                logger.debug(f"OperationalError occurred: {oe}")
+                self.create()  # This will only create the table if it doesn't exist
+                try:
+                    sess.execute(stmt)
+                    sess.commit()
+                    return self.read(session_id=session.session_id)
+                except Exception as e:
+                    logger.warning(f"Error during upsert: {e}")
+                    sess.rollback()  # Rollback the session in case of any error
             except Exception as e:
-                logger.debug(f"Exception upserting into table: {e}")
-                # Create table and try again
-                self.create()
-                sess.execute(stmt)
-        return self.read(session_id=session.session_id)
+                logger.warning(f"Error during upsert: {e}")
+                sess.rollback()
+        return None
 
     def drop(self) -> None:
         if self.table_exists():

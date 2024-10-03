@@ -1,3 +1,5 @@
+"""Run `pip install duckdb` to install dependencies."""
+
 from textwrap import dedent
 from phi.agent import Agent
 from phi.model.groq import Groq

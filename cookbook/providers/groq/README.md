@@ -67,4 +67,8 @@ python cookbook/providers/groq/data_analyst.py
 python cookbook/providers/groq/structured_output.py
 ```
 
+### 7. Run Agent that uses web search
 
+```shell
+python cookbook/providers/groq/web_search.py
+```

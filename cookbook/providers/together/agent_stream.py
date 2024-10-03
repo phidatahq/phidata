@@ -4,10 +4,11 @@ from phi.model.together import Together
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Together(id="mistralai/Mixtral-8x7B-Instruct-v0.1"),
+    model=Together(id="mistralai/Mixtral-8x7B-Instruct-v0.1", monkey_patch=True),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,
+    debug_mode=True
 )
 
 # Get the response in a variable

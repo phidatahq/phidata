@@ -5,7 +5,7 @@ from phi.model.together import Together
 agent = Agent(
     model=Together(id="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"),
     instructions=["Respond in a southern tone"],
-    markdown=True
+    markdown=True,
 )
 
 # Get the response in a variable

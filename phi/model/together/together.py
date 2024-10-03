@@ -3,10 +3,11 @@ from os import getenv
 from typing import Optional, List, Iterator, Dict, Any
 
 from phi.model.message import Message
+from phi.model.openai.chat import StreamData
 from phi.model.openai.like import OpenAILike
+from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
-from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 
@@ -29,60 +30,70 @@ class Together(OpenAILike):
     base_url: str = "https://api.together.xyz/v1"
     monkey_patch: bool = False
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def _log_messages(self, messages: List[Message]) -> None:
+        """
+        Log the messages to the console.
+        Args:
+            messages (List[Message]): The list of messages.
+        """
+        for m in messages:
+            m.log()
+
+    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         if not self.monkey_patch:
             yield from super().response_stream(messages)
             return
 
         logger.debug("---------- Together Response Start ----------")
+        logger.debug("stream response")
         # -*- Log messages for debugging
-        for m in messages:
-            m.log()
+        self._log_messages(messages)
 
-        agent_message_content = ""
+        stream_data: StreamData = StreamData()
+        stream_data.response_timer.start()
+
         response_is_tool_call = False
-        completion_tokens = 0
-        response_timer = Timer()
-        response_timer.start()
+
+        stream_data.response_content = ""
+        tool_calls: List[Dict[str, Any]] = []
+        stream_data.response_tool_calls = []
+
         for response in self.invoke_stream(messages=messages):
             # logger.debug(f"Together response type: {type(response)}")
             logger.debug(f"Together response: {response}")
-            completion_tokens += 1
-
-            # -*- Parse response
-            response_content: Optional[str]
+            stream_data.completion_tokens += 1
             try:
-                response_token = response.token  # type: ignore
-                # logger.debug(f"Together response: {response_token}")
-                # logger.debug(f"Together response type: {type(response_token)}")
-                response_content = response_token.get("text")
-                response_tool_call = response_token.get("tool_call")
-                if response_tool_call:
+                stream_data.response_token = response.token  # type: ignore
+                logger.debug(f"Together response: {stream_data.response_token}")
+                logger.debug(f"Together response type: {type(stream_data.response_token)}")
+                response_content = stream_data.response_token.get("text")
+                stream_data.response_tool_call = stream_data.response_token.get("tool_call")
+                if stream_data.response_tool_call:
                     response_is_tool_call = True
-                # logger.debug(f"Together response content: {response_content}")
-                # logger.debug(f"Together response_is_tool_call: {response_tool_call}")
+                logger.debug(f"Together response content: {response_content }")
+                logger.debug(f"Together response_is_tool_call: {stream_data.response_tool_call}")
             except Exception:
                 response_content = response.choices[0].delta.content
 
             # -*- Add response content to agent message
             if response_content is not None:
-                agent_message_content += response_content
+                stream_data.response_content += response_content
                 # -*- Yield content if not a tool call
                 if not response_is_tool_call:
                     yield response_content
 
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        stream_data.response_timer.stop()
+        logger.debug(f"Time to generate response: {stream_data.response_timer.elapsed:.4f}s")
 
         # -*- Create agent message
         agent_message = Message(
             role="agent",
-            content=agent_message_content,
+            content=stream_data.response_content,
         )
         # -*- Check if the response is a tool call
         try:
-            if response_is_tool_call and agent_message_content != "":
-                _tool_call_content = agent_message_content.strip()
+            if response_is_tool_call and stream_data.response_content != "":
+                _tool_call_content = stream_data.response_content.strip()
                 _tool_call_list = json.loads(_tool_call_content)
                 if isinstance(_tool_call_list, list):
                     # Build tool calls
@@ -102,27 +113,29 @@ class Together(OpenAILike):
                         )
                     agent_message.tool_calls = _tool_calls
         except Exception:
-            logger.warning(f"Could not parse tool calls from response: {agent_message_content}")
+            logger.warning(f"Could not parse tool calls from response: {stream_data.response_content}")
             pass
 
         # -*- Update usage metrics
         # Add response time to metrics
-        agent_message.metrics["time"] = response_timer.elapsed
+        agent_message.metrics["time"] = stream_data.response_timer.elapsed
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer.elapsed)
+        self.metrics["response_times"].append(stream_data.response_timer.elapsed)
 
         # Add token usage to metrics
-        logger.debug(f"Estimated completion tokens: {completion_tokens}")
-        agent_message.metrics["completion_tokens"] = completion_tokens
+        logger.debug(f"Estimated completion tokens: {stream_data.completion_tokens}")
+        agent_message.metrics["completion_tokens"] = stream_data.completion_tokens
         if "completion_tokens" not in self.metrics:
-            self.metrics["completion_tokens"] = completion_tokens
+            self.metrics["completion_tokens"] = stream_data.completion_tokens
         else:
-            self.metrics["completion_tokens"] += completion_tokens
+            self.metrics["completion_tokens"] += stream_data.completion_tokens
 
         # -*- Add agent message to messages
+        self._update_stream_metrics(stream_data=stream_data, assistant_message=agent_message)
         messages.append(agent_message)
         agent_message.log()
+        logger.debug(f"Agent Message: {agent_message}")
 
         # -*- Parse and run tool calls
         if agent_message.tool_calls is not None:

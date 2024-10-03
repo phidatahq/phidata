@@ -35,9 +35,7 @@ class WebTools(Toolkit):
         if list_files:
             self.register(self.list_files)
 
-    def save_to_file_and_run(
-        self, file_name: str, code: str, overwrite: bool = True
-    ) -> str:
+    def save_to_file_and_run(self, file_name: str, code: str, overwrite: bool = True) -> str:
         """This function saves web development code (HTML, CSS, JS) to a file called `file_name` and then serves it.
         If successful, returns a success message.
         If failed, returns an error message.
@@ -86,7 +84,7 @@ class WebTools(Toolkit):
     def stop_web_server(self) -> str:
         """Stops the web server if it's running."""
         try:
-            if hasattr(self, 'server_process') and self.server_process:
+            if hasattr(self, "server_process") and self.server_process:
                 self.server_process.terminate()
                 self.server_process.wait()
                 logger.info("Stopped web server")
@@ -123,11 +121,11 @@ class WebTools(Toolkit):
             project_path = self.base_dir.joinpath(project_name)
             if project_path.exists():
                 return f"Project {project_name} already exists"
-            if framework.lower() == 'react':
+            if framework.lower() == "react":
                 subprocess.check_call(["npx", "create-react-app", project_name], cwd=str(self.base_dir))
-            elif framework.lower() == 'angular':
+            elif framework.lower() == "angular":
                 subprocess.check_call(["npx", "-p", "@angular/cli", "ng", "new", project_name], cwd=str(self.base_dir))
-            elif framework.lower() == 'vue':
+            elif framework.lower() == "vue":
                 subprocess.check_call(["npx", "@vue/cli", "create", project_name], cwd=str(self.base_dir))
             else:
                 return f"Unsupported framework: {framework}"

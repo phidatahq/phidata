@@ -53,10 +53,12 @@ assistant = Assistant(
     # debug_mode=True,
 )
 
-assistant.print_response("""\
+assistant.print_response(
+    """\
 I am writing a memo on investing in the company phidata.
 Please write a proposal for investing $2m @ $20m post to send to my investment committee.
 - Company website: https://www.phidata.com
 - Github project: https://github.com/phidatahq/phidata
 - Documentation: https://docs.phidata.com/introduction\
-""")
+"""
+)

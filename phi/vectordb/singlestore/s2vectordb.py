@@ -81,7 +81,8 @@ class S2VectorDb(VectorDb):
         """
         if not self.table_exists():
             logger.info(f"Creating table: {self.collection}")
-            logger.info(f"""
+            logger.info(
+                f"""
                     CREATE TABLE IF NOT EXISTS {self.schema}.{self.collection} (
                         id TEXT,
                         name TEXT,
@@ -93,10 +94,12 @@ class S2VectorDb(VectorDb):
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         content_hash TEXT
                     );
-                    """)
+                    """
+            )
             with self.db_engine.connect() as connection:
                 connection.execute(
-                    text(f"""
+                    text(
+                        f"""
                     CREATE TABLE IF NOT EXISTS {self.schema}.{self.collection} (
                         id TEXT,
                         name TEXT,
@@ -108,7 +111,8 @@ class S2VectorDb(VectorDb):
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         content_hash TEXT
                     );
-                    """)
+                    """
+                    )
                 )
             # Call optimize to create indexes
             self.optimize()

@@ -125,15 +125,14 @@ class WebAssistant(Assistant):
             _instructions += [
                 f"You can use the following web frameworks: {', '.join(self.web_frameworks)}",
             ]
-        
+
         if self.css_frameworks:
             _instructions += [
                 f"You can use the following CSS frameworks: {', '.join(self.css_frameworks)}",
             ]
 
-
         _instructions += [
-            'After you have written the necessary components, create a web application or scripts as appropriate.',
+            "After you have written the necessary components, create a web application or scripts as appropriate.",
         ]
 
         if self.save_and_run:

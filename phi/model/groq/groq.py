@@ -17,6 +17,7 @@ except ImportError:
     logger.error("`groq` not installed")
     raise
 
+
 @dataclass
 class StreamData:
     response_content: str = ""
@@ -27,6 +28,7 @@ class StreamData:
     response_total_tokens: int = 0
     time_to_first_token: Optional[float] = None
     response_timer: Timer = field(default_factory=Timer)
+
 
 class Groq(Model):
     """
@@ -60,10 +62,11 @@ class Groq(Model):
         client_params (dict): The client parameters.
         groq_client (GroqClient): The Groq client.
     """
+
     id: str = "llama3-groq-70b-8192-tool-use-preview"
     name: str = "Groq"
     provider: str = "Groq"
-    
+
     # -*- Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
@@ -273,13 +276,8 @@ class Groq(Model):
             role=response_message.role or "assistant",
             content=response_message.content,
         )
-        if (
-            response_message.tool_calls is not None
-            and len(response_message.tool_calls) > 0
-        ):
-            assistant_message.tool_calls = [
-                t.model_dump() for t in response_message.tool_calls
-            ]
+        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
+            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
         return assistant_message
 
     def _update_usage_metrics(
@@ -320,10 +318,7 @@ class Groq(Model):
         Returns:
             Optional[ModelResponse]: The model response.
         """
-        if (
-            assistant_message.tool_calls is not None
-            and len(assistant_message.tool_calls) > 0
-        ):
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = ""
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
@@ -331,9 +326,7 @@ class Groq(Model):
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(
-                    tool_call, self.functions
-                )
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -394,9 +387,7 @@ class Groq(Model):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         assistant_message = self._create_assistant_message(response)
-        self._update_usage_metrics(
-            assistant_message, response_timer.elapsed, response.usage
-        )
+        self._update_usage_metrics(assistant_message, response_timer.elapsed, response.usage)
 
         messages.append(assistant_message)
         assistant_message.log()
@@ -414,7 +405,7 @@ class Groq(Model):
             model_response.content = assistant_message.get_content_string()
 
         return model_response
-    
+
     def _update_stream_metrics(self, stream_data: StreamData, assistant_message: Message):
         """
         Update the metrics for the streaming response.
@@ -460,7 +451,6 @@ class Groq(Model):
         assistant_message.metrics["total_tokens"] = stream_data.response_total_tokens
         self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + stream_data.response_total_tokens
 
-
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Response the Groq model stream.
@@ -478,7 +468,6 @@ class Groq(Model):
 
         stream_data: StreamData = StreamData()
         stream_data.response_timer.start()
-
 
         for response in self.invoke_stream(messages=messages):
             # -*- Parse response
@@ -508,7 +497,7 @@ class Groq(Model):
                 if response_usage:
                     stream_data.response_prompt_tokens = response_usage.prompt_tokens
                     stream_data.response_completion_tokens = response_usage.completion_tokens
-                    stream_data.response_total_tokens = response_usage.total_tokens                
+                    stream_data.response_total_tokens = response_usage.total_tokens
 
         stream_data.response_timer.stop()
         completion_tokens = stream_data.completion_tokens

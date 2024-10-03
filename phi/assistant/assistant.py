@@ -848,7 +848,9 @@ class Assistant(BaseModel):
 
         # -*- Add chat history to the messages list
         if self.add_chat_history_to_messages:
-            llm_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+            llm_messages += self.memory.get_last_n_messages_starting_from_the_user_message(
+                last_n=self.num_history_messages
+            )
 
         # -*- Build the User prompt
         # References to add to the user_prompt if add_references_to_prompt is True
@@ -1055,7 +1057,9 @@ class Assistant(BaseModel):
         # -*- Add chat history to the messages list
         if self.add_chat_history_to_messages:
             if self.memory is not None:
-                llm_messages += self.memory.get_last_n_messages(last_n=self.num_history_messages)
+                llm_messages += self.memory.get_last_n_messages_starting_from_the_user_message(
+                    last_n=self.num_history_messages
+                )
 
         # -*- Build the User prompt
         # References to add to the user_prompt if add_references_to_prompt is True

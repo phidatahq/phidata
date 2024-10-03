@@ -79,6 +79,8 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         if body.monitor:
             agent.monitoring = True
+        else:
+            agent.monitoring = False
 
         base64_image: Optional[List[Union[str, Dict]]] = None
         if body.image:

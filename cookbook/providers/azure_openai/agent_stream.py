@@ -1,3 +1,5 @@
+"""Run `pip install yfinance` to install dependencies."""
+
 import os
 from typing import Iterator  # noqa
 

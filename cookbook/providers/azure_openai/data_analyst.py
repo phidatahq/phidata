@@ -1,3 +1,5 @@
+"""Run `pip install duckdb` to install dependencies."""
+
 import os
 from textwrap import dedent
 

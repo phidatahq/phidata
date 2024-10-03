@@ -29,7 +29,7 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-movie_writer = Agent(
+json_mode_agent = Agent(
     model=azure_model,
     description="You help people write movie scripts.",
     response_model=MovieScript,
@@ -37,7 +37,7 @@ movie_writer = Agent(
 )
 
 # Get the response in a variable
-# run: RunResponse = movie_agent.run("New York")
+# run: RunResponse = json_mode_agent.run("New York")
 # pprint(run.content)
 
-movie_writer.print_response("New York")
+json_mode_agent.print_response("New York")

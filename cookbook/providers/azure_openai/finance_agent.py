@@ -1,3 +1,5 @@
+"""Run `pip install yfinance` to install dependencies."""
+
 import os
 
 from dotenv import load_dotenv

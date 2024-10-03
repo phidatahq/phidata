@@ -1,3 +1,5 @@
+"""Run `pip install duckduckgo-search` to install dependencies."""
+
 import os
 
 from dotenv import load_dotenv
@@ -22,4 +24,4 @@ agent = Agent(
     markdown=True,
 )
 
-agent.print_response("Provide the latest news on NVIDIA", stream=True)
+agent.print_response("Whats happening in France?", stream=True)

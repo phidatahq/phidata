@@ -381,6 +381,9 @@ class OpenAIChat(Model):
             yield chunk
 
     def _log_messages(self, messages: List[Message]) -> None:
+        """
+        Log messages for debugging.
+        """
         for m in messages:
             m.log()
 

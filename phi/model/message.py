@@ -25,7 +25,7 @@ class Message(BaseModel):
     role: str
     # The contents of the message. content is required for all messages,
     # and may be null for assistant messages with function calls.
-    content: Optional[Union[List[Dict], str]] = None
+    content: Optional[Union[List[Any], str]] = None
     # An optional name for the participant.
     # Provides the model information to differentiate between participants of the same role.
     name: Optional[str] = None
@@ -94,9 +94,9 @@ class Message(BaseModel):
         if self.tool_call_id:
             _logger(f"Call Id: {self.tool_call_id}")
         if self.content:
-            if isinstance(self.content, str):
+            if isinstance(self.content, str) or isinstance(self.content, list):
                 _logger(self.content)
-            elif isinstance(self.content, list) or isinstance(self.content, dict):
+            elif isinstance(self.content, dict):
                 _logger(json.dumps(self.content, indent=2))
         if self.tool_calls:
             _logger(f"Tool Calls: {json.dumps(self.tool_calls, indent=2)}")

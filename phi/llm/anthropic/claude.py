@@ -165,12 +165,20 @@ class Claude(LLM):
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
         # -*- Parse response
+        response_content: str = ""
+        response_block: Optional[Union[TextBlock, ToolUseBlock]] = None
         response_content = response.content[0]  # type: ignore
-        if isinstance(response.content[0], ToolUseBlock):
-            response_content = response.content[0].input["query"]
 
-        elif isinstance(response.content[0], TextBlock):
-            response_content = response.content[0].text
+        if response.content:
+            response_block = response.content[0]
+
+        if response_block is not None:
+            if isinstance(response_block, TextBlock):
+                response_content = response_block.text
+            elif isinstance(response_block, ToolUseBlock):
+                tool_block_input = response_block.input
+                if tool_block_input and isinstance(tool_block_input, dict):
+                    response_content = tool_block_input.get("query", "")
 
         # -*- Create assistant message
         assistant_message = Message(

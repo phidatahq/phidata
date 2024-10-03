@@ -8,8 +8,9 @@ from phi.tools.yfinance import YFinanceTools
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True)],
-    show_tool_calls=True,
+    instructions=["Use tables where possible."],
     markdown=True,
+    show_tool_calls=True,
 )
 
 # Get the response in a variable

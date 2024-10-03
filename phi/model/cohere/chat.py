@@ -77,7 +77,7 @@ class CohereChat(Model):
         return CohereClient(**_client_params)
 
     @property
-    def api_kwargs(self) -> Dict[str, Any]:
+    def request_kwargs(self) -> Dict[str, Any]:
         _request_params: Dict[str, Any] = {}
         if self.session_id is not None and not self.add_chat_history:
             _request_params["conversation_id"] = self.session_id
@@ -97,7 +97,7 @@ class CohereChat(Model):
             _request_params.update(self.request_params)
         return _request_params
 
-    def get_tools(self) -> Optional[List[CohereTool]]:
+    def _get_tools(self) -> Optional[List[CohereTool]]:
         """
         Get the tools in the format supported by the Cohere API.
 
@@ -136,7 +136,7 @@ class CohereChat(Model):
         Returns:
             NonStreamedChatResponse: The non-streamed chat response.
         """
-        api_kwargs: Dict[str, Any] = self.api_kwargs
+        api_kwargs: Dict[str, Any] = self.request_kwargs
         chat_message: Optional[str] = None
 
         if self.add_chat_history:
@@ -167,7 +167,7 @@ class CohereChat(Model):
                     break
 
         if self.tools:
-            api_kwargs["tools"] = self.get_tools()
+            api_kwargs["tools"] = self._get_tools()
 
         if tool_results:
             api_kwargs["tool_results"] = tool_results
@@ -187,7 +187,7 @@ class CohereChat(Model):
         Returns:
             Iterator[StreamedChatResponse]: An iterator of streamed chat responses.
         """
-        api_kwargs: Dict[str, Any] = self.api_kwargs
+        api_kwargs: Dict[str, Any] = self.request_kwargs
         chat_message: Optional[str] = None
 
         if self.add_chat_history:
@@ -218,7 +218,7 @@ class CohereChat(Model):
                     break
 
         if self.tools:
-            api_kwargs["tools"] = self.get_tools()
+            api_kwargs["tools"] = self._get_tools()
 
         if tool_results:
             api_kwargs["tool_results"] = tool_results
@@ -356,6 +356,19 @@ class CohereChat(Model):
 
         return tool_results
 
+    def _create_assistant_message(self, response: NonStreamedChatResponse) -> Message:
+        """
+        Create an assistant message from the response.
+
+        Args:
+            response (NonStreamedChatResponse): The response from the Cohere API.
+
+        Returns:
+            Message: The assistant message.
+        """
+        response_content = response.text
+        return Message(role="assistant", content=response_content)
+
     def response(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> ModelResponse:
         """
         Send a chat completion request to the Cohere API.
@@ -378,12 +391,10 @@ class CohereChat(Model):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        # Create assistant message
-        response_content = response.text
-        response_tool_calls = response.tool_calls
-        assistant_message = Message(role="assistant", content=response_content)
+        assistant_message = self._create_assistant_message(response)
 
         # Process tool calls if present
+        response_tool_calls = response.tool_calls
         if response_tool_calls:
             tool_calls = [
                 {
@@ -408,6 +419,7 @@ class CohereChat(Model):
 
             # Make a recursive call with tool results if available
             if tool_results:
+                # Cohere doesn't allow tool calls in the same message as the user's message, so we add a new user message with empty content
                 messages.append(Message(role="user", content=""))
 
             response_after_tool_calls = self.response(messages=messages, tool_results=tool_results)

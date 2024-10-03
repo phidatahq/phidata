@@ -31,7 +31,7 @@ from phi.prompt.template import PromptTemplate
 from phi.storage.assistant import AssistantStorage
 from phi.utils.format_str import remove_indent
 from phi.tools import Tool, Toolkit, Function
-from phi.utils.log import logger, set_log_level_to_debug
+from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
 from phi.utils.timer import Timer
@@ -209,6 +209,10 @@ class Assistant(BaseModel):
         if v:
             set_log_level_to_debug()
             logger.debug("Debug logs enabled")
+        else:
+            set_log_level_to_info()
+            logger.info("Debug logs disabled")
+
         return v
 
     @field_validator("run_id", mode="before")

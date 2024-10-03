@@ -1,3 +1,5 @@
+"""Run `pip install duckduckgo-search` to install dependencies."""
+
 from phi.agent import Agent
 from phi.model.cohere import CohereChat
 from phi.tools.duckduckgo import DuckDuckGo
@@ -9,4 +11,4 @@ agent = Agent(
     markdown=True,
 )
 
-agent.print_response("Provide the latest news on NVIDIA", stream=False)
+agent.print_response("Whats happening in France?", stream=True)

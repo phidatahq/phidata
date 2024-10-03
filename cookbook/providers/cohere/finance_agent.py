@@ -1,3 +1,5 @@
+"""Run `pip install yfinance` to install dependencies."""
+
 from phi.agent import Agent
 from phi.model.cohere import CohereChat
 from phi.tools.yfinance import YFinanceTools

@@ -1,3 +1,5 @@
+"""Run `pip install yfinance` to install dependencies."""
+
 from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.cohere import CohereChat

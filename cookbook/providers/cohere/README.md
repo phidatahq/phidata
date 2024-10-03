@@ -67,4 +67,8 @@ python cookbook/providers/cohere/data_analyst.py
 python cookbook/providers/cohere/structured_output.py
 ```
 
+### 7. Run Agent that uses web search
 
+```shell
+python cookbook/providers/cohere/web_search.py
+```

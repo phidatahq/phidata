@@ -1,5 +1,7 @@
 from typing import Optional, Any, List
 
+from phi.agent import AgentSession
+
 try:
     from sqlalchemy.dialects import sqlite
     from sqlalchemy.engine import create_engine, Engine
@@ -7,26 +9,26 @@ try:
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import select
+    from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from sqlite3 import OperationalError
-
-from phi.assistant.run import AssistantRun
-from phi.storage.assistant.base import AssistantStorage
+from phi.storage.agent.base import AgentStorage
 from phi.utils.dttm import current_datetime
 from phi.utils.log import logger
 
 
-class SqlAssistantStorage(AssistantStorage):
+class SqlAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
+        schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_file: Optional[str] = None,
         db_engine: Optional[Engine] = None,
+        schema_version: int = 1,
+        auto_upgrade_schema: bool = False,
     ):
         """
         This class provides assistant storage using a sqlite database.
@@ -55,82 +57,90 @@ class SqlAssistantStorage(AssistantStorage):
 
         # Database attributes
         self.table_name: str = table_name
+        self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData()
 
+        # Table schema version
+        self.schema_version: int = schema_version
+        # Automatically upgrade schema if True
+        self.auto_upgrade_schema: bool = auto_upgrade_schema
+
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
-
         # Database table for storage
         self.table: Table = self.get_table()
 
-    def get_table(self) -> Table:
+    def get_table_v1(self) -> Table:
         return Table(
             self.table_name,
             self.metadata,
-            # Database ID/Primary key for this run
-            Column("run_id", String, primary_key=True),
-            # Assistant name
-            Column("name", String),
-            # Run name
-            Column("run_name", String),
-            # ID of the user participating in this run
+            # Session UUID: Primary Key
+            Column("session_id", String, primary_key=True),
+            # ID of the user interacting with this agent
             Column("user_id", String),
-            # -*- LLM data (name, model, etc.)
-            Column("llm", sqlite.JSON),
-            # -*- Assistant memory
+            # Agent Memory
             Column("memory", sqlite.JSON),
-            # Metadata associated with this assistant
-            Column("assistant_data", sqlite.JSON),
-            # Metadata associated with this run
-            Column("run_data", sqlite.JSON),
-            # Metadata associated the user participating in this run
+            # Agent Metadata
+            Column("agent_data", sqlite.JSON),
+            # User Metadata
             Column("user_data", sqlite.JSON),
-            # Metadata associated with the assistant tasks
-            Column("task_data", sqlite.JSON),
-            # The timestamp of when this run was created.
+            # Session Metadata
+            Column("session_data", sqlite.JSON),
+            # The Unix timestamp of when this session was created.
             Column("created_at", sqlite.DATETIME, default=current_datetime()),
-            # The timestamp of when this run was last updated.
+            # The Unix timestamp of when this session was last updated.
             Column("updated_at", sqlite.DATETIME, onupdate=current_datetime()),
             extend_existing=True,
             sqlite_autoincrement=True,
         )
 
+    def get_table(self) -> Table:
+        if self.schema_version == 1:
+            return self.get_table_v1()
+        else:
+            raise ValueError(f"Unsupported schema version: {self.schema_version}")
+
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name)
+            return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
         except Exception as e:
             logger.error(e)
             return False
 
     def create(self) -> None:
         if not self.table_exists():
-            logger.debug(f"Creating table: {self.table.name}")
+            if self.schema is not None:
+                with self.Session() as sess, sess.begin():
+                    logger.debug(f"Creating schema: {self.schema}")
+                    sess.execute(text(f"create schema if not exists {self.schema};"))
+            logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, run_id: str) -> Optional[Row[Any]]:
-        stmt = select(self.table).where(self.table.c.run_id == run_id)
+    def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
+        stmt = select(self.table).where(self.table.c.session_id == session_id)
         try:
             return session.execute(stmt).first()
-        except OperationalError:
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug(f"Creating table: {self.table_name}")
             # Create table if it does not exist
             self.create()
-        except Exception as e:
-            logger.warning(e)
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRun]:
-        with self.Session() as sess:
-            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
+    def read(self, session_id: str) -> Optional[AgentSession]:
+        with self.Session() as sess, sess.begin():
+            existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
+            return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
-        run_ids: List[str] = []
+    def get_all_session_ids(self, user_id: Optional[str] = None) -> List[str]:
+        session_ids: List[str] = []
         try:
-            with self.Session() as sess:
-                # get all run_ids for this user
+            with self.Session() as sess, sess.begin():
+                # get all session_ids for this user
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -139,18 +149,18 @@ class SqlAssistantStorage(AssistantStorage):
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row is not None and row.run_id is not None:
-                        run_ids.append(row.run_id)
-        except OperationalError:
+                    if row is not None and row.session_id is not None:
+                        session_ids.append(row.session_id)
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
-            pass
-        return run_ids
+        return session_ids
 
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
-        conversations: List[AssistantRun] = []
+    def get_all_sessions(self, user_id: Optional[str] = None) -> List[AgentSession]:
+        sessions: List[AgentSession] = []
         try:
-            with self.Session() as sess:
-                # get all runs for this user
+            with self.Session() as sess, sess.begin():
+                # get all sessions for this user
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -159,69 +169,53 @@ class SqlAssistantStorage(AssistantStorage):
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row.run_id is not None:
-                        conversations.append(AssistantRun.model_validate(row))
-        except OperationalError:
+                    if row.session_id is not None:
+                        sessions.append(AgentSession.model_validate(row))
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
-            pass
-        return conversations
+        return sessions
 
-    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
-        """
-        Create a new assistant run if it does not exist, otherwise update the existing conversation.
-        """
-        with self.Session() as sess:
+    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
+        """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
+
+        with self.Session() as sess, sess.begin():
             # Create an insert statement
             stmt = sqlite.insert(self.table).values(
-                run_id=row.run_id,
-                name=row.name,
-                run_name=row.run_name,
-                user_id=row.user_id,
-                llm=row.llm,
-                memory=row.memory,
-                assistant_data=row.assistant_data,
-                run_data=row.run_data,
-                user_data=row.user_data,
-                task_data=row.task_data,
+                session_id=session.session_id,
+                user_id=session.user_id,
+                memory=session.memory,
+                agent_data=session.agent_data,
+                user_data=session.user_data,
+                session_data=session.session_data,
             )
 
-            # Define the upsert if the run_id already exists
-            # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
+            # Define the upsert if the session_id already exists
+            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
             stmt = stmt.on_conflict_do_update(
-                index_elements=["run_id"],
+                index_elements=["session_id"],
                 set_=dict(
-                    name=row.name,
-                    run_name=row.run_name,
-                    user_id=row.user_id,
-                    llm=row.llm,
-                    memory=row.memory,
-                    assistant_data=row.assistant_data,
-                    run_data=row.run_data,
-                    user_data=row.user_data,
-                    task_data=row.task_data,
+                    user_id=session.user_id,
+                    memory=session.memory,
+                    agent_data=session.agent_data,
+                    user_data=session.user_data,
+                    session_data=session.session_data,
                 ),  # The updated value for each column
             )
 
             try:
                 sess.execute(stmt)
-                sess.commit()  # Make sure to commit the changes to the database
-                return self.read(run_id=row.run_id)
-            except OperationalError as oe:
-                logger.debug(f"OperationalError occurred: {oe}")
-                self.create()  # This will only create the table if it doesn't exist
-                try:
-                    sess.execute(stmt)
-                    sess.commit()
-                    return self.read(run_id=row.run_id)
-                except Exception as e:
-                    logger.warning(f"Error during upsert: {e}")
-                    sess.rollback()  # Rollback the session in case of any error
             except Exception as e:
-                logger.warning(f"Error during upsert: {e}")
-                sess.rollback()
-        return None
+                logger.debug(f"Exception upserting into table: {e}")
+                # Create table and try again
+                self.create()
+                sess.execute(stmt)
+        return self.read(session_id=session.session_id)
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
+
+    def upgrade_schema(self) -> None:
+        pass

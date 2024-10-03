@@ -72,12 +72,14 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         return [encoded, image_info]
 
     @playground_routes.post("/agent/run")
-    def agent_chat(body: AgentRunRequest):
+    def agent_run(body: AgentRunRequest):
         logger.debug(f"AgentRunRequest: {body}")
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
+        # Create a new instance of this agent
+        new_agent = agent.create_copy(update={"session_id": body.session_id})
         if body.user_id:
             agent.user_id = body.user_id
 
@@ -92,15 +94,16 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         if body.stream:
             return StreamingResponse(
-                chat_response_streamer(agent, body.message, base64_image),
+                chat_response_streamer(new_agent, body.message, base64_image),
                 media_type="text/event-stream",
             )
         else:
-            run_response = cast(RunResponse, agent.run(body.message, images=base64_image, stream=False))
+            run_response = cast(RunResponse, new_agent.run(body.message, images=base64_image, stream=False))
             return run_response.model_dump_json()
 
     @playground_routes.post("/agent/sessions/all")
     def get_agent_sessions(body: GetAgentSessionsRequest):
+        logger.debug(f"GetAgentSessionsRequest: {body}")
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")

@@ -232,36 +232,30 @@ class Agent(BaseModel):
         """
         return self.response_model is None
 
-    def create(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
-        """Creates a new instance of this Agent.
+    def create_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
+        """Create and return a copy of this Agent, optionally updating fields.
 
         Args:
-            update (Optional[Dict[str, Any]]): Optional dictionary to update the Agent with.
+            update (Optional[Dict[str, Any]]): Optional dictionary of fields for the new Agent.
 
         Returns:
             Agent: A new Agent instance.
         """
-        update = update or {}
+        # Extract the fields set on this Agent
+        fields_for_new_agent = {}
+        for field_name in self.model_fields_set:
+            field_value = getattr(self, field_name)
+            if field_value is not None:
+                fields_for_new_agent[field_name] = field_value
 
-        # Determine if 'agent_id' was set explicitly during initialization
-        agent_id_set_explicitly = "agent_id" in self.model_fields_set
-        # If 'agent_id' was not set explicitly and not being updated, generate a new one
-        if not agent_id_set_explicitly and "agent_id" not in update:
-            update["agent_id"] = str(uuid4())
+        if update is not None and isinstance(update, dict):
+            # Filter out any updates where the value is None
+            fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
 
-        # Determine if 'session_id' was set explicitly during initialization
-        session_id_set_explicitly = "session_id" in self.model_fields_set
-        # If 'session_id' was not set explicitly and not being updated, generate a new one
-        if not session_id_set_explicitly and "session_id" not in update:
-            update["session_id"] = str(uuid4())
-
-        # Determine if 'memory" was set explicitly during initialization
-        memory_set_explicitly = "memory" in self.model_fields_set
-        # If 'memory' was not set explicitly and not being updated, create a new memory
-        if not memory_set_explicitly and "memory" not in update:
-            update["memory"] = AgentMemory()
-
-        return self.model_copy(update=update, deep=True)
+        # Create a new Agent
+        new_agent = self.__class__.model_validate(fields_for_new_agent)
+        logger.debug(f"Created new Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
+        return new_agent
 
     def has_team(self) -> bool:
         return self.team is not None and len(self.team) > 0

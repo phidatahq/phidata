@@ -1,4 +1,5 @@
-# Import necessary modules from the phi library
+"""Run `pip install lancedb` to install dependencies."""
+
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.lancedb import LanceDb
 from phi.embedder.ollama import OllamaEmbedder
@@ -15,9 +16,9 @@ llm = Ollama(model="llama3:8b", temperature=0.0)
 # Create Ollama embedder
 embedder = OllamaEmbedder(model="nomic-embed-text", dimensions=768)
 
-# Create the vectore database
+# Create the vector database
 vector_db = LanceDb(
-    table_name="recipes",  # Table name in the vectore database
+    table_name="recipes",  # Table name in the vector database
     uri=db_url,  # Location to initiate/create the vector database
     embedder=embedder,  # Without using this, it will use OpenAI embeddings by default
 )
@@ -28,7 +29,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     vector_db=vector_db,
 )
 
-# Load the knowledge base without recreating it if it already exists in Vectore LanceDB
+# Load the knowledge base without recreating it if it already exists in Vector LanceDB
 knowledge_base.load(recreate=False)
 # agent.knowledge_base.load(recreate=False) # You can also use this to load a knowledge base after creating agent
 

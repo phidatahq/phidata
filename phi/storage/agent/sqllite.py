@@ -10,7 +10,7 @@ try:
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, select
+    from sqlalchemy.sql.expression import select
     from sqlalchemy.types import String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")

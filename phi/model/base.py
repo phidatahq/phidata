@@ -171,7 +171,6 @@ class Model(BaseModel):
                 content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
                 event=ModelResponseEvent.tool_call.value,
             )
-
             _function_call_result = Message(
                 role=tool_role,
                 content=function_call.result if function_call_success else function_call.error,

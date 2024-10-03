@@ -77,6 +77,11 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
+        if body.monitor:
+            agent.monitoring = True
+        else:
+            agent.monitoring = False
+
         base64_image: Optional[List[Union[str, Dict]]] = None
         if body.image:
             base64_image = process_image(body.image)

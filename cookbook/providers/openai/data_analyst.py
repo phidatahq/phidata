@@ -1,3 +1,5 @@
+"""Run `pip install duckdb` to install dependencies."""
+
 from textwrap import dedent
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
@@ -15,7 +17,7 @@ agent = Agent(
     show_tool_calls=True,
     additional_context=dedent("""\
     You have access to the following tables:
-    - movies: Contains information about movies from IMDB.
+    - movies: contains information about movies from IMDB.
     """),
 )
 agent.print_response("What is the average rating of movies?", stream=False)

@@ -4,7 +4,7 @@ from typing import Optional
 
 from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb.lancedb import LanceDb
+from phi.vectordb.lancedb import LanceDb
 
 # type: ignore
 db_url = "/tmp/lancedb"

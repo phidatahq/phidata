@@ -167,7 +167,7 @@ def up(
     Create resources for the active workspace
     Options can be used to limit the resources to create.
       --env     : Env (dev, stg, prd)
-      --infra   : Infra type (docker, aws, k8s)
+      --infra   : Infra type (docker, aws)
       --group   : Group name
       --name    : Resource name
       --type    : Resource type
@@ -333,7 +333,7 @@ def down(
     Delete resources for the active workspace.
     Options can be used to limit the resources to delete.
       --env     : Env (dev, stg, prd)
-      --infra   : Infra type (docker, aws, k8s)
+      --infra   : Infra type (docker, aws)
       --group   : Group name
       --name    : Resource name
       --type    : Resource type
@@ -497,7 +497,7 @@ def patch(
     Update resources for the active workspace.
     Options can be used to limit the resources to update.
       --env     : Env (dev, stg, prd)
-      --infra   : Infra type (docker, aws, k8s)
+      --infra   : Infra type (docker, aws)
       --group   : Group name
       --name    : Resource name
       --type    : Resource type

@@ -23,6 +23,6 @@ class CSVKnowledgeBase(AssistantKnowledge):
 
         if _csv_path.exists() and _csv_path.is_dir():
             for _csv in _csv_path.glob("**/*.csv"):
-                yield self.reader.read(path=_csv)
+                yield self.reader.read(file=_csv)
         elif _csv_path.exists() and _csv_path.is_file() and _csv_path.suffix == ".csv":
-            yield self.reader.read(path=_csv_path)
+            yield self.reader.read(file=_csv_path)

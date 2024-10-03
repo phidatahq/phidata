@@ -37,13 +37,13 @@ python cookbook/providers/openai/basic.py
 
 ### 5. Run Agent with Tools
 
-- DuckDuckGo Search with streaming on
+- Yahoo Finance with streaming on
 
 ```shell
 python cookbook/providers/openai/agent_stream.py
 ```
 
-- DuckDuckGo Search without streaming
+- Yahoo Finance without streaming
 
 ```shell
 python cookbook/providers/openai/agent.py
@@ -67,4 +67,8 @@ python cookbook/providers/openai/data_analyst.py
 python cookbook/providers/openai/structured_output.py
 ```
 
+### 7. Run Agent that uses web search
 
+```shell
+python cookbook/providers/openai/web_search.py
+```

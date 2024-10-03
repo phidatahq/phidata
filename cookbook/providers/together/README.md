@@ -37,13 +37,13 @@ python cookbook/providers/together/basic.py
 
 ### 5. Run Agent with Tools
 
-- YFinance Search with streaming on
+- Yahoo Finance with streaming on
 
 ```shell
 python cookbook/providers/together/agent_stream.py
 ```
 
-- YFinance Search without streaming
+- Yahoo Finance without streaming
 
 ```shell
 python cookbook/providers/together/agent.py

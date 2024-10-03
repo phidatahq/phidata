@@ -67,4 +67,8 @@ python cookbook/providers/openai/data_analyst.py
 python cookbook/providers/openai/structured_output.py
 ```
 
+### 7. Run Agent that uses web search
 
+```shell
+python cookbook/providers/openai/web_search.py
+```

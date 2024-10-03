@@ -116,7 +116,7 @@ class Ollama(LLM):
                 if m.role == "user":
                     current_user_query = m.content
                     break
-        
+
         response_timer = Timer()
         response_timer.start()
         response: Mapping[str, Any] = self.invoke(messages=messages)
@@ -457,7 +457,7 @@ class Ollama(LLM):
                     if any(item.tool_call_error for item in function_call_results):
                         messages = self.add_tool_call_error_message(messages)
                     else:
-                        messages = self.add_original_user_message(messages,original_user_message_content)
+                        messages = self.add_original_user_message(messages, original_user_message_content)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
@@ -468,7 +468,9 @@ class Ollama(LLM):
 
         logger.debug("---------- Ollama Response End ----------")
 
-    def add_original_user_message(self, messages: List[Message], current_user_query: str | None = None) -> List[Message]:
+    def add_original_user_message(
+        self, messages: List[Message], current_user_query: str | None = None
+    ) -> List[Message]:
         # Add the original user message to the messages to remind the LLM of the original task
         if current_user_query is not None:
             _content = (

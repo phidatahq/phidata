@@ -993,7 +993,9 @@ class Agent(BaseModel):
 
         # 3.3 Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            messages_for_model += self.memory.get_last_n_run_messages(last_n=self.num_history_messages)
+            messages_for_model += self.memory.get_last_n_run_messages_starting_from_user_message(
+                last_n=self.num_history_messages
+            )
 
         # 3.4. Add the User Messages to the messages list
         # 3.4.1 Build user message from message if provided
@@ -1370,7 +1372,9 @@ class Agent(BaseModel):
 
         # 3.3 Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            messages_for_model += self.memory.get_last_n_run_messages(last_n=self.num_history_messages)
+            messages_for_model += self.memory.get_last_n_run_messages_starting_from_user_message(
+                last_n=self.num_history_messages
+            )
 
         # 3.4. Add the User Messages to the messages list
         # 3.4.1 Build user message from message if provided

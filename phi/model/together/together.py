@@ -55,7 +55,6 @@ class Together(OpenAILike):
         response_is_tool_call = False
 
         stream_data.response_content = ""
-        tool_calls: List[Dict[str, Any]] = []
         stream_data.response_tool_calls = []
 
         for response in self.invoke_stream(messages=messages):

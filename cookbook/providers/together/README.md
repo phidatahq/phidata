@@ -18,7 +18,7 @@ export TOGETHER_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U together duckduckgo-search duckdb yfinance phidata
+pip install -U together openai duckduckgo-search duckdb yfinance phidata
 ```
 
 ### 4. Run Agent without Tools
@@ -37,13 +37,13 @@ python cookbook/providers/together/basic.py
 
 ### 5. Run Agent with Tools
 
-- DuckDuckGo Search with streaming on
+- YFinance Search with streaming on
 
 ```shell
 python cookbook/providers/together/agent_stream.py
 ```
 
-- DuckDuckGo Search without streaming
+- YFinance Search without streaming
 
 ```shell
 python cookbook/providers/together/agent.py
@@ -61,10 +61,14 @@ python cookbook/providers/together/finance_agent.py
 python cookbook/providers/together/data_analyst.py
 ```
 
+- DuckDuckGo Search
+```shell
+python cookbook/providers/together/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/together/structured_output.py
 ```
-
 

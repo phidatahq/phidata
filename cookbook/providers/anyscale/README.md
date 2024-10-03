@@ -44,7 +44,7 @@ python cookbook/providers/anyscale/structured_output.py
 6. Test function calling
 
 ```shell
-python cookbook/providers/anyscale/news_search.py
+python cookbook/providers/anyscale/web_search.py
 ```
 
 7. Test CLI App

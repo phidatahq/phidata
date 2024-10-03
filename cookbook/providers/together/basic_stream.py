@@ -4,14 +4,13 @@ from phi.model.together import Together
 
 agent = Agent(
     model=Together(id="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"),
-    instructions=["Respond in a southern tone"],
-    markdown=True,
+    markdown=True
 )
 
 # Get the response in a variable
-# run_response: Iterator[RunResponse] = agent.run("Explain simulation theory", stream=True)
+# run_response: Iterator[RunResponse] = agent.run("Share a 2 sentence horror story", stream=True)
 # for chunk in run_response:
 #     print(chunk.content)
 
-# Print the response on the terminal
-agent.print_response("Explain simulation theory", stream=True)
+# Print the response in the terminal
+agent.print_response("Share a 2 sentence horror story", stream=True)

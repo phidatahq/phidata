@@ -1,14 +1,16 @@
+"""Run `pip install yfinance` to install dependencies."""
+
 from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.together import Together
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Together(id="mistralai/Mixtral-8x7B-Instruct-v0.1", monkey_patch=True),
+    model=Together(id="mistralai/Mixtral-8x7B-Instruct-v0.1"),
     tools=[YFinanceTools(stock_price=True)],
+    instructions=["Use tables where possible."],
     show_tool_calls=True,
-    markdown=True,
-    debug_mode=True
+    markdown=True
 )
 
 # Get the response in a variable

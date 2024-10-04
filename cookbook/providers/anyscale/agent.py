@@ -17,4 +17,3 @@ agent = Agent(
 
 # Print the response in the terminal
 agent.print_response("What is the stock price of NVDA and TSLA")
-

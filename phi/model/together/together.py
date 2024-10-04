@@ -13,11 +13,9 @@ from phi.utils.tools import get_function_call_for_tool_call
 try:
     from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion_chunk import (
-        ChatCompletionChunk,
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage
 except ImportError:
     logger.error("`openai` not installed")
     raise

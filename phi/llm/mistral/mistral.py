@@ -8,21 +8,18 @@ from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    from mistralai.client import MistralClient
-    from mistralai.models.chat_completion import (
-        ChatMessage,
-        DeltaMessage,
-        ResponseFormat as ChatCompletionResponseFormat,
-        ChatCompletionResponse,
-        ChatCompletionStreamResponse,
-        ToolCall as ChoiceDeltaToolCall,
-    )
+    from mistralai import Mistral, models
+    from mistralai.models.chatcompletionresponse import ChatCompletionResponse
+    from mistralai.models.deltamessage import DeltaMessage
+    from mistralai.types.basemodel import Unset
 except ImportError:
     logger.error("`mistralai` not installed")
     raise
 
+MistralMessage = Union[models.UserMessage, models.AssistantMessage, models.SystemMessage, models.ToolMessage]
 
-class Mistral(LLM):
+
+class MistralChat(LLM):
     name: str = "Mistral"
     model: str = "mistral-large-latest"
     # -*- Request parameters
@@ -32,7 +29,7 @@ class Mistral(LLM):
     random_seed: Optional[int] = None
     safe_mode: bool = False
     safe_prompt: bool = False
-    response_format: Optional[Union[Dict[str, Any], ChatCompletionResponseFormat]] = None
+    response_format: Optional[Union[Dict[str, Any], ChatCompletionResponse]] = None
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
     api_key: Optional[str] = None
@@ -41,10 +38,10 @@ class Mistral(LLM):
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the MistralClient manually
-    mistral_client: Optional[MistralClient] = None
+    mistral_client: Optional[Mistral] = None
 
     @property
-    def client(self) -> MistralClient:
+    def client(self) -> Mistral:
         if self.mistral_client:
             return self.mistral_client
 
@@ -59,7 +56,7 @@ class Mistral(LLM):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return MistralClient(**_client_params)
+        return Mistral(**_client_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
@@ -103,18 +100,62 @@ class Mistral(LLM):
         return _dict
 
     def invoke(self, messages: List[Message]) -> ChatCompletionResponse:
-        return self.client.chat(
-            messages=[m.to_dict() for m in messages],
+        mistral_messages: List[MistralMessage] = []
+        for m in messages:
+            mistral_message: MistralMessage
+            if m.role == "user":
+                mistral_message = models.UserMessage(role=m.role, content=m.content)
+            elif m.role == "assistant":
+                if m.tool_calls is not None:
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
+                else:
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content)
+            elif m.role == "system":
+                mistral_message = models.SystemMessage(role=m.role, content=m.content)
+            elif m.role == "tool":
+                mistral_message = models.ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
+            else:
+                raise ValueError(f"Unknown role: {m.role}")
+            mistral_messages.append(mistral_message)
+        logger.debug(f"Mistral messages: {mistral_messages}")
+        response = self.client.chat.complete(
+            messages=mistral_messages,
             model=self.model,
             **self.api_kwargs,
         )
+        if response is None:
+            raise ValueError("Chat completion returned None")
+        return response
 
-    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionStreamResponse]:
-        yield from self.client.chat_stream(
-            messages=[m.to_dict() for m in messages],
+    def invoke_stream(self, messages: List[Message]) -> Iterator[Any]:
+        mistral_messages: List[MistralMessage] = []
+        for m in messages:
+            mistral_message: MistralMessage
+            if m.role == "user":
+                mistral_message = models.UserMessage(role=m.role, content=m.content)
+            elif m.role == "assistant":
+                if m.tool_calls is not None:
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
+                else:
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content)
+            elif m.role == "system":
+                mistral_message = models.SystemMessage(role=m.role, content=m.content)
+            elif m.role == "tool":
+                logger.debug(f"Tool message: {m}")
+                mistral_message = models.ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
+            else:
+                raise ValueError(f"Unknown role: {m.role}")
+            mistral_messages.append(mistral_message)
+        logger.debug(f"Mistral messages sending to stream endpoint: {mistral_messages}")
+        response = self.client.chat.stream(
+            messages=mistral_messages,
             model=self.model,
             **self.api_kwargs,
-        )  # type: ignore
+        )
+        if response is None:
+            raise ValueError("Chat stream returned None")
+        # Since response is a generator, use 'yield from' to yield its items
+        yield from response
 
     def response(self, messages: List[Message]) -> str:
         logger.debug("---------- Mistral Response Start ----------")
@@ -130,15 +171,18 @@ class Mistral(LLM):
         # logger.debug(f"Mistral response type: {type(response)}")
         # logger.debug(f"Mistral response: {response}")
 
-        # -*- Parse response
-        response_message: ChatMessage = response.choices[0].message
+        # -*- Ensure response.choices is not None
+        if response.choices is None or len(response.choices) == 0:
+            raise ValueError("Chat completion response has no choices")
+
+        response_message: models.AssistantMessage = response.choices[0].message
 
         # -*- Create assistant message
         assistant_message = Message(
             role=response_message.role or "assistant",
             content=response_message.content,
         )
-        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
+        if isinstance(response_message.tool_calls, list) and len(response_message.tool_calls) > 0:
             assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
 
         # -*- Update usage metrics
@@ -155,6 +199,7 @@ class Mistral(LLM):
         assistant_message.log()
 
         # -*- Parse and run tool calls
+        logger.debug(f"Functions: {self.functions}")
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             final_response = ""
             function_calls_to_run: List[FunctionCall] = []
@@ -204,18 +249,20 @@ class Mistral(LLM):
 
         assistant_message_role = None
         assistant_message_content = ""
-        assistant_message_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
+        assistant_message_tool_calls: Optional[List[Any]] = None
         response_timer = Timer()
         response_timer.start()
+        logger.debug("Invoking stream")
         for response in self.invoke_stream(messages=messages):
-            # logger.debug(f"Mistral response type: {type(response)}")
-            # logger.debug(f"Mistral response: {response}")
             # -*- Parse response
-            response_delta: DeltaMessage = response.choices[0].delta
+            response_delta: DeltaMessage = response.data.choices[0].delta
             if assistant_message_role is None and response_delta.role is not None:
                 assistant_message_role = response_delta.role
-            response_content: Optional[str] = response_delta.content
-            response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
+
+            response_content: Optional[str] = None
+            if response_delta.content is not None and not isinstance(response_delta.content, Unset):
+                response_content = response_delta.content
+            response_tool_calls = response_delta.tool_calls
 
             # -*- Return content if present, otherwise get tool call
             if response_content is not None:
@@ -223,11 +270,11 @@ class Mistral(LLM):
                 yield response_content
 
             # -*- Parse tool calls
-            if response_tool_calls is not None and len(response_tool_calls) > 0:
+            if response_tool_calls is not None:
                 if assistant_message_tool_calls is None:
                     assistant_message_tool_calls = []
                 assistant_message_tool_calls.extend(response_tool_calls)
-
+        logger.debug(f"Assistant message tool calls: {assistant_message_tool_calls}")
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 

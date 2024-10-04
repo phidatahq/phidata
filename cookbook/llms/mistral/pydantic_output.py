@@ -1,8 +1,9 @@
+import os
 from typing import List
 from pydantic import BaseModel, Field
 from rich.pretty import pprint
 from phi.assistant import Assistant
-from phi.llm.mistral import Mistral
+from phi.llm.mistral import MistralChat
 
 
 class MovieScript(BaseModel):
@@ -17,7 +18,10 @@ class MovieScript(BaseModel):
 
 
 movie_assistant = Assistant(
-    llm=Mistral(model="mistral-large-latest"),
+    llm=MistralChat(
+        model="mistral-large-latest",
+        api_key=os.environ["MISTRAL_API_KEY"],
+    ),
     description="You help people write movie ideas.",
     output_model=MovieScript,
 )

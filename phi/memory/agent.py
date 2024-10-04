@@ -3,12 +3,12 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
+from phi.agent.chat import AgentChat
 from phi.memory.classifier import MemoryClassifier
 from phi.memory.db import MemoryDb
 from phi.memory.manager import MemoryManager
 from phi.memory.memory import Memory
 from phi.model.message import Message
-from phi.run.history import RunHistory
 from phi.utils.log import logger
 
 
@@ -19,10 +19,10 @@ class MemoryRetrieval(str, Enum):
 
 
 class AgentMemory(BaseModel):
-    # Complete session history
-    history: List[RunHistory] = []
     # All messages in this session: system, user, tool and assistant messages.
     messages: List[Message] = []
+    # All chats in this session: (user message, agent run_response) pairs.
+    chats: List[AgentChat] = []
 
     # Create summary of the conversation
     summary: Optional[Any] = None
@@ -50,74 +50,68 @@ class AgentMemory(BaseModel):
         return _memory_dict
 
     def add_run_message(self, message: Message) -> None:
-        """Adds a Message to the messages list."""
+        """Add a Message to the messages list."""
         self.messages.append(message)
-        logger.debug("Added Message to memory")
+        logger.debug("Added Message to AgentMemory")
 
     def add_run_messages(self, messages: List[Message]) -> None:
-        """Adds a list of messages to the run_messages."""
+        """Add a list of messages to the messages list."""
         self.messages.extend(messages)
-        logger.debug(f"Added {len(messages)} Messages to memory")
+        logger.debug(f"Added {len(messages)} Messages to AgentMemory")
 
     def get_run_messages(self) -> List[Dict[str, Any]]:
-        """Returns the run_messages as a list of dictionaries."""
+        """Returns the messages list as a list of dictionaries."""
         return [message.model_dump(exclude_none=True) for message in self.messages]
 
-    def add_run_history(self, run_history: RunHistory) -> None:
-        """Adds an RunHistory to the history list."""
-        self.history.append(run_history)
-        logger.debug("Added RunHistory to memory")
+    def add_agent_chat(self, agent_chat: AgentChat) -> None:
+        """Adds an AgentChat to the chats list."""
+        self.chats.append(agent_chat)
+        logger.debug("Added AgentChat to AgentMemory")
 
     def get_messages_from_last_n_chats(self, last_n: Optional[int] = None) -> List[Message]:
-        """Returns the messages from the last_n history
+        """Returns the messages from the last_n chats
 
-        :param last_n: The number of history to return from the end of the conversation.
-        :return: A list of Messages in the last_n history.
+        :param last_n: The number of chats to return from the end of the conversation.
+        :return: A list of Messages in the last_n chats.
         """
-        logger.debug("Getting messages from all previous history")
+        logger.debug("Getting messages from all previous chats")
         if last_n is None:
             messages_from_all_history = []
-            for response in self.history:
+            for response in self.chats:
                 if response.response and response.response.messages:
                     messages_from_all_history.extend(response.response.messages)
-            logger.debug(f"Messages from previous history: {len(messages_from_all_history)}")
+            logger.debug(f"Messages from previous chats: {len(messages_from_all_history)}")
             return messages_from_all_history
 
-        logger.debug(f"Getting messages from last {last_n} history")
+        logger.debug(f"Getting messages from last {last_n} chats")
         messages_from_last_n_history = []
-        for response in self.history[-last_n:]:
+        for response in self.chats[-last_n:]:
             logger.debug(f"Response: {response}")
             if response.response and response.response.messages:
                 messages_from_last_n_history.extend(response.response.messages)
-        logger.debug(f"Messages from last {last_n} history: {len(messages_from_last_n_history)}")
+        logger.debug(f"Messages from last {last_n} chats: {len(messages_from_last_n_history)}")
         return messages_from_last_n_history
 
     def get_chats(self) -> List[Tuple[Message, Message]]:
-        """Returns a list of tuples of user messages and LLM history."""
+        """Returns a list of tuples of (user message, assistant response)."""
 
-        all_chats: List[Tuple[Message, Message]] = []
-        current_chat: List[Message] = []
-
-        # Make a copy of the chat_history and remove all system messages from the beginning.
-        chat_history = self.chat_history.copy()
-        while len(chat_history) > 0 and chat_history[0].role in ("system", "assistant"):
-            chat_history = chat_history[1:]
-
-        for m in chat_history:
-            if m.role == "system":
-                continue
-            if m.role == "user":
-                # This is a new chat record
-                if len(current_chat) == 2:
-                    all_chats.append((current_chat[0], current_chat[1]))
-                    current_chat = []
-                current_chat.append(m)
-            if m.role == "assistant":
-                current_chat.append(m)
-
-        if len(current_chat) >= 1:
-            all_chats.append((current_chat[0], current_chat[1]))
-        return all_chats
+        all_chats_as_message_tuples: List[Tuple[Message, Message]] = []
+        for chat in self.chats:
+            if chat.response and chat.response.messages:
+                user_messages_from_response = None
+                assistant_messages_from_response = None
+                for message in chat.response.messages:
+                    if message.role == "user":
+                        user_messages_from_response = message
+                    if message.role == "assistant":
+                        assistant_messages_from_response = message
+                    if user_messages_from_response and assistant_messages_from_response:
+                        all_chats_as_message_tuples.append(
+                            (user_messages_from_response, assistant_messages_from_response)
+                        )
+                        user_messages_from_response = None
+                        assistant_messages_from_response = None
+        return all_chats_as_message_tuples
 
     def get_tool_calls(self, num_calls: Optional[int] = None) -> List[Dict[str, Any]]:
         """Returns a list of tool calls from the run_messages."""
@@ -216,6 +210,6 @@ class AgentMemory(BaseModel):
         """Clears the AgentMemory"""
 
         self.messages = []
-        self.history = []
+        self.chats = []
         self.memories = None
         logger.debug("Agent Memory cleared")

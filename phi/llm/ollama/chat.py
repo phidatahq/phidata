@@ -105,7 +105,7 @@ class Ollama(LLM):
         # This is triggered when the function call limit is reached.
         self.format = ""
 
-    def response(self, messages: List[Message], current_user_query: str | None = None) -> str:
+    def response(self, messages: List[Message], current_user_query: Optional[str] = None) -> str:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -258,7 +258,7 @@ class Ollama(LLM):
 
         return "Something went wrong, please try again."
 
-    def response_stream(self, messages: List[Message], current_user_query: str | None = None) -> Iterator[str]:
+    def response_stream(self, messages: List[Message], current_user_query: Optional[str] = None) -> Iterator[str]:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -473,7 +473,7 @@ class Ollama(LLM):
         logger.debug("---------- Ollama Response End ----------")
 
     def add_original_user_message(
-        self, messages: List[Message], current_user_query: str | None = None
+        self, messages: List[Message], current_user_query: Optional[str] = None
     ) -> List[Message]:
         # Add the original user message to the messages to remind the LLM of the original task
         if current_user_query is not None:

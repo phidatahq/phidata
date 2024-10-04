@@ -161,16 +161,15 @@ class Model(BaseModel):
             if self.function_call_stack is None:
                 self.function_call_stack = []
 
-            # -*- Run function call
+            # -*- Start function call
             _function_call_timer = Timer()
             _function_call_timer.start()
-            yield ModelResponse(content=function_call.get_call_str(), event=ModelResponseEvent.tool_call.value)
+            yield ModelResponse(content=function_call.get_call_str(), event=ModelResponseEvent.tool_call_started.value)
+
+            # -*- Run function call
             function_call_success = function_call.execute()
             _function_call_timer.stop()
-            yield ModelResponse(
-                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
-                event=ModelResponseEvent.tool_call.value,
-            )
+
             _function_call_result = Message(
                 role=tool_role,
                 content=function_call.result if function_call_success else function_call.error,
@@ -180,11 +179,30 @@ class Model(BaseModel):
                 tool_call_error=not function_call_success,
                 metrics={"time": _function_call_timer.elapsed},
             )
+            yield ModelResponse(
+                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
+                tool_call=_function_call_result.model_dump(
+                    include={
+                        "content",
+                        "tool_call_id",
+                        "tool_name",
+                        "tool_args",
+                        "tool_call_error",
+                        "metrics",
+                        "created_at",
+                    }
+                ),
+                event=ModelResponseEvent.tool_call_completed.value,
+            )
+
+            # Add metrics to the model
             if "tool_call_times" not in self.metrics:
                 self.metrics["tool_call_times"] = {}
             if function_call.function.name not in self.metrics["tool_call_times"]:
                 self.metrics["tool_call_times"][function_call.function.name] = []
             self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
+
+            # Add the function call result to the function call results
             function_call_results.append(_function_call_result)
             self.function_call_stack.append(function_call)
 

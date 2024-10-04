@@ -1037,14 +1037,30 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         self.run_response.messages = messages_for_model
                         yield self.run_response
-                elif model_response_chunk.event == ModelResponseEvent.tool_call.value:
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
                             session_id=self.session_id,
                             agent_id=self.agent_id,
                             content=model_response_chunk.content,
-                            event=RunEvent.tool_call.value,
+                            tools=self.run_response.tools,
+                            event=RunEvent.tool_call_started.value,
+                        )
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None:
+                        if self.run_response.tools is None:
+                            self.run_response.tools = []
+                        self.run_response.tools.append(tool_call_dict)
+                    if stream_intermediate_steps:
+                        yield RunResponse(
+                            run_id=self.run_id,
+                            session_id=self.session_id,
+                            agent_id=self.agent_id,
+                            content=model_response_chunk.content,
+                            tools=self.run_response.tools,
+                            event=RunEvent.tool_call_completed.value,
                         )
         else:
             model_response = self.model.response(messages=messages_for_model)
@@ -1065,6 +1081,7 @@ class Agent(BaseModel):
                 session_id=self.session_id,
                 agent_id=self.agent_id,
                 content="Updating memory",
+                tools=self.run_response.tools,
                 event=RunEvent.updating_memory.value,
             )
         # Add the user message to the chat history
@@ -1110,23 +1127,9 @@ class Agent(BaseModel):
         # Add all messages including and after the user message to the memory
         self.memory.add_run_messages(messages=run_messages)
 
-        # Update the run_response
-        # Update content if streaming as run_response will only contain the last chunk
+        # Update the run_response content if streaming as run_response will only contain the last chunk
         if stream_agent_response:
             self.run_response.content = model_response.content
-        # Add tools from this run to the run_response
-        for _run_message in run_messages:
-            if _run_message.tool_name is not None:
-                if self.run_response.tools is None:
-                    self.run_response.tools = []
-                self.run_response.tools.append(
-                    {
-                        "name": _run_message.tool_name,
-                        "args": _run_message.tool_args,
-                        "result": _run_message.content,
-                        "error": _run_message.tool_call_error,
-                    }
-                )
 
         # 6. Save session to storage
         self.write_to_storage()
@@ -1192,6 +1195,7 @@ class Agent(BaseModel):
                 session_id=self.session_id,
                 agent_id=self.agent_id,
                 content=self.run_response.content,
+                tools=self.run_response.tools,
                 event=RunEvent.run_completed.value,
             )
 
@@ -1425,14 +1429,30 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         self.run_response.messages = messages_for_model
                         yield self.run_response
-                elif model_response_chunk.event == ModelResponseEvent.tool_call.value:
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
                             session_id=self.session_id,
                             agent_id=self.agent_id,
                             content=model_response_chunk.content,
-                            event=RunEvent.tool_call.value,
+                            tools=self.run_response.tools,
+                            event=RunEvent.tool_call_started.value,
+                        )
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None:
+                        if self.run_response.tools is None:
+                            self.run_response.tools = []
+                        self.run_response.tools.append(tool_call_dict)
+                    if stream_intermediate_steps:
+                        yield RunResponse(
+                            run_id=self.run_id,
+                            session_id=self.session_id,
+                            agent_id=self.agent_id,
+                            content=model_response_chunk.content,
+                            tools=self.run_response.tools,
+                            event=RunEvent.tool_call_completed.value,
                         )
         else:
             model_response = await self.model.aresponse(messages=messages_for_model)
@@ -1453,6 +1473,7 @@ class Agent(BaseModel):
                 session_id=self.session_id,
                 agent_id=self.agent_id,
                 content="Updating memory",
+                tools=self.run_response.tools,
                 event=RunEvent.updating_memory.value,
             )
         # Add the user message to the chat history
@@ -1498,23 +1519,9 @@ class Agent(BaseModel):
         # Add all messages including and after the user message to the memory
         self.memory.add_run_messages(messages=run_messages)
 
-        # Update run_response
-        # Update content if streaming as run_response will only contain the last chunk
+        # Update the run_response content if streaming as run_response will only contain the last chunk
         if stream_agent_response:
             self.run_response.content = model_response.content
-        # Add tools from this run to the run_response
-        for _run_message in run_messages:
-            if _run_message.tool_name is not None:
-                if self.run_response.tools is None:
-                    self.run_response.tools = []
-                self.run_response.tools.append(
-                    {
-                        "name": _run_message.tool_name,
-                        "args": _run_message.tool_args,
-                        "result": _run_message.content,
-                        "error": _run_message.tool_call_error,
-                    }
-                )
 
         # 6. Save session to storage
         self.write_to_storage()
@@ -1580,6 +1587,7 @@ class Agent(BaseModel):
                 session_id=self.session_id,
                 agent_id=self.agent_id,
                 content=self.run_response.content,
+                tools=self.run_response.tools,
                 event=RunEvent.run_completed.value,
             )
 

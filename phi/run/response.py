@@ -11,10 +11,11 @@ class RunEvent(str, Enum):
     """Events that can be sent by the run() functions"""
 
     run_started = "RunStarted"
-    tool_call = "ToolCall"
     run_response = "RunResponse"
-    updating_memory = "UpdatingMemory"
     run_completed = "RunCompleted"
+    tool_call_started = "ToolCallStarted"
+    tool_call_completed = "ToolCallCompleted"
+    updating_memory = "UpdatingMemory"
 
 
 class RunResponse(BaseModel):

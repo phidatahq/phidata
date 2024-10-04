@@ -33,17 +33,16 @@ def get_agent_by_id(agents: List[Agent], agent_id: str) -> Optional[Agent]:
     return None
 
 
-def get_session_title(session: AgentSession) -> Optional[str]:
-    return "no title"
-    # memory = session.memory
-    # if memory is not None:
-    #     chats = memory.get("chats")
-    #     if chats is not None:
-    #         for _chat in chats:
-    #             try:
-    #                 chat_parsed = AgentChat.model_validate(_chat)
-    #                 if chat_parsed.message is not None and chat_parsed.message.role == "user":
-    #                     return chat_parsed.message.content
-    #             except Exception as e:
-    #                 logger.error(f"Error parsing chat: {e}")
-    # return None
+def get_session_title(session: AgentSession) -> str:
+    memory = session.memory
+    if memory is not None:
+        chats = memory.get("chats")
+        if chats is not None:
+            for _chat in chats:
+                try:
+                    chat_parsed = AgentChat.model_validate(_chat)
+                    if chat_parsed.message is not None and chat_parsed.message.role == "user":
+                        return chat_parsed.message.content or "No title"
+                except Exception as e:
+                    logger.error(f"Error parsing chat: {e}")
+    return "Could not get session title"

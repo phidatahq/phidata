@@ -24,11 +24,12 @@ def generate_and_download_image(prompt, filename):
     print(f"Generated image URL: {image_url}")
 
     # Download image
-    if image_url is None:
-        print("Failed to generate the image")
-        return
+    if image_url is not None:
+        image_response = httpx.get(image_url)
+    else:
+        # Handle the case where image_url is None
+        return "No image URL available"
 
-    image_response = httpx.get(image_url)
     if image_response.status_code == 200:
         file_path = data_dir.joinpath(filename)
         with open(file_path, "wb") as file:

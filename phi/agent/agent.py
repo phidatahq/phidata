@@ -73,9 +73,13 @@ class Agent(BaseModel):
     # Number of historical responses to add to the messages.
     num_history_responses: int = 3
     # Create and store personalized memories for this user
-    create_memories: bool = False
+    create_user_memory: bool = False
     # Update memories for the user after each run
-    update_memory_after_run: bool = True
+    update_user_memory_after_run: bool = True
+    # Create and store session summaries
+    create_session_summary: bool = False
+    # Update session summaries after each run
+    update_session_summary_after_run: bool = True
 
     # -*- Agent Knowledge
     knowledge: Optional[AgentKnowledge] = Field(None, alias="knowledge_base")
@@ -331,7 +335,7 @@ class Agent(BaseModel):
                 tools.append(self.get_chat_history)
             if self.read_tool_call_history:
                 tools.append(self.get_tool_call_history)
-            if self.create_memories:
+            if self.create_user_memory:
                 tools.append(self.update_memory)
 
         # Add tools for accessing knowledge
@@ -752,7 +756,7 @@ class Agent(BaseModel):
         if self.has_team():
             system_prompt_lines.append(f"\n{self.get_delegation_prompt()}")
         # 5.8 Then add memories to the system prompt
-        if self.create_memories:
+        if self.create_user_memory:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_prompt_lines.append(
                     "\nYou have access to memory from previous interactions with the user that you can use:"
@@ -1105,7 +1109,7 @@ class Agent(BaseModel):
             if user_message_for_memory is not None:
                 agent_response.message = user_message_for_memory
                 # Update the memories with the user message if needed
-                if self.create_memories and self.update_memory_after_run:
+                if self.create_user_memory and self.update_user_memory_after_run:
                     self.memory.update_memory(input=user_message_for_memory.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
@@ -1124,7 +1128,7 @@ class Agent(BaseModel):
                     if agent_response.messages is None:
                         agent_response.messages = []
                     agent_response.messages.append(_um)
-                    if self.create_memories and self.update_memory_after_run:
+                    if self.create_user_memory and self.update_user_memory_after_run:
                         self.memory.update_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
@@ -1487,7 +1491,7 @@ class Agent(BaseModel):
             if user_message_for_chat_history is not None:
                 self.memory.add_chat_message(message=user_message_for_chat_history)
                 # Update the memories with the user message if needed
-                if self.create_memories and self.update_memory_after_run:
+                if self.create_user_memory and self.update_user_memory_after_run:
                     self.memory.update_memory(input=user_message_for_chat_history.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
@@ -1504,7 +1508,7 @@ class Agent(BaseModel):
                     continue
                 if _um:
                     self.memory.add_chat_message(message=_um)
-                    if self.create_memories and self.update_memory_after_run:
+                    if self.create_user_memory and self.update_user_memory_after_run:
                         self.memory.update_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")

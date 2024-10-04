@@ -23,6 +23,9 @@ class AgentMemory(BaseModel):
     messages: List[Message] = []
     responses: List[AgentResponse] = []
 
+    # Create summary of the conversation
+    summary: Optional[Any] = None
+
     # Create personalized memories for a user
     # MemoryDb to store the memories
     db: Optional[MemoryDb] = None

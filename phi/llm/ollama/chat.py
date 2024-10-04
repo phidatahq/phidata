@@ -113,10 +113,10 @@ class Ollama(LLM):
 
         if current_user_query is None:
             for m in reversed(messages):
-                if m.role == "user":
+                if m.role == "user" and isinstance(m.content, str):
                     current_user_query = m.content
                     break
-        
+
         response_timer = Timer()
         response_timer.start()
         response: Mapping[str, Any] = self.invoke(messages=messages)
@@ -258,7 +258,7 @@ class Ollama(LLM):
 
         return "Something went wrong, please try again."
 
-    def response_stream(self, messages: List[Message]) -> Iterator[str]:
+    def response_stream(self, messages: List[Message], current_user_query: str | None = None) -> Iterator[str]:
         logger.debug("---------- Ollama Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -457,7 +457,11 @@ class Ollama(LLM):
                     if any(item.tool_call_error for item in function_call_results):
                         messages = self.add_tool_call_error_message(messages)
                     else:
-                        messages = self.add_original_user_message(messages,original_user_message_content)
+                        # Ensure original_user_message_content is a string or None
+                        user_message = (
+                            original_user_message_content if isinstance(original_user_message_content, str) else None
+                        )
+                        messages = self.add_original_user_message(messages, user_message)
 
             # Deactivate tool calls by turning off JSON mode after 1 tool call
             if self.deactivate_tools_after_use:
@@ -468,7 +472,9 @@ class Ollama(LLM):
 
         logger.debug("---------- Ollama Response End ----------")
 
-    def add_original_user_message(self, messages: List[Message], current_user_query: str | None = None) -> List[Message]:
+    def add_original_user_message(
+        self, messages: List[Message], current_user_query: str | None = None
+    ) -> List[Message]:
         # Add the original user message to the messages to remind the LLM of the original task
         if current_user_query is not None:
             _content = (

@@ -3,12 +3,12 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.agent.response import AgentResponse
 from phi.memory.classifier import MemoryClassifier
 from phi.memory.db import MemoryDb
 from phi.memory.manager import MemoryManager
 from phi.memory.memory import Memory
 from phi.model.message import Message
+from phi.run.history import RunHistory
 from phi.utils.log import logger
 
 
@@ -19,9 +19,10 @@ class MemoryRetrieval(str, Enum):
 
 
 class AgentMemory(BaseModel):
-    # All messages handled by the Agent: system, user, tool and assistant messages.
+    # Complete session history
+    history: List[RunHistory] = []
+    # All messages in this session: system, user, tool and assistant messages.
     messages: List[Message] = []
-    responses: List[AgentResponse] = []
 
     # Create summary of the conversation
     summary: Optional[Any] = None
@@ -62,31 +63,37 @@ class AgentMemory(BaseModel):
         """Returns the run_messages as a list of dictionaries."""
         return [message.model_dump(exclude_none=True) for message in self.messages]
 
-    def add_agent_response(self, response: AgentResponse) -> None:
-        """Adds an AgentResponse to the responses list."""
-        self.responses.append(response)
-        logger.debug("Added AgentResponse to memory")
+    def add_run_history(self, run_history: RunHistory) -> None:
+        """Adds an RunHistory to the history list."""
+        self.history.append(run_history)
+        logger.debug("Added RunHistory to memory")
 
-    def get_messages_from_last_n_responses(self, last_n: Optional[int] = None) -> List[Message]:
-        """Returns the messages from the last_n responses
+    def get_messages_from_last_n_chats(self, last_n: Optional[int] = None) -> List[Message]:
+        """Returns the messages from the last_n history
 
-        :param last_n: The number of responses to return from the end of the conversation.
-        :return: A list of Messages in the last_n responses.
+        :param last_n: The number of history to return from the end of the conversation.
+        :return: A list of Messages in the last_n history.
         """
+        logger.debug("Getting messages from all previous history")
         if last_n is None:
-            return [message for response in self.responses for message in response.messages]
+            messages_from_all_history = []
+            for response in self.history:
+                if response.response and response.response.messages:
+                    messages_from_all_history.extend(response.response.messages)
+            logger.debug(f"Messages from previous history: {len(messages_from_all_history)}")
+            return messages_from_all_history
 
-        logger.info(f"Getting messages from last {last_n} responses")
-        messages_from_last_n_responses = []
-        for response in self.responses[-last_n:]:
+        logger.debug(f"Getting messages from last {last_n} history")
+        messages_from_last_n_history = []
+        for response in self.history[-last_n:]:
             logger.debug(f"Response: {response}")
             if response.response and response.response.messages:
-                messages_from_last_n_responses.extend(response.response.messages)
-        logger.info(f"Messages from last {last_n} responses: {len(messages_from_last_n_responses)}")
-        return messages_from_last_n_responses
+                messages_from_last_n_history.extend(response.response.messages)
+        logger.debug(f"Messages from last {last_n} history: {len(messages_from_last_n_history)}")
+        return messages_from_last_n_history
 
     def get_chats(self) -> List[Tuple[Message, Message]]:
-        """Returns a list of tuples of user messages and LLM responses."""
+        """Returns a list of tuples of user messages and LLM history."""
 
         all_chats: List[Tuple[Message, Message]] = []
         current_chat: List[Message] = []
@@ -209,6 +216,6 @@ class AgentMemory(BaseModel):
         """Clears the AgentMemory"""
 
         self.messages = []
-        self.responses = []
+        self.history = []
         self.memories = None
         logger.debug("Agent Memory cleared")

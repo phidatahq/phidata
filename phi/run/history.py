@@ -6,7 +6,7 @@ from phi.run.response import RunResponse
 from phi.model.message import Message
 
 
-class AgentResponse(BaseModel):
+class RunHistory(BaseModel):
     message: Optional[Message] = None
     messages: Optional[List[Message]] = None
     response: Optional[RunResponse] = None

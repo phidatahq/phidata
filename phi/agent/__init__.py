@@ -1,5 +1,6 @@
 from phi.agent.agent import (
     Agent,
+    AgentChat,
     AgentSession,
     AgentMemory,
     AgentStorage,

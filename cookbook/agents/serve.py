@@ -10,7 +10,7 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(enable_all_tools=True)],
     instructions=["Use tables where possible"],
-    # show_tool_calls=True,
+    show_tool_calls=True,
     markdown=True,
     debug_mode=True,
     add_history_to_messages=True,

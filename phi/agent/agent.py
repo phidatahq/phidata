@@ -949,7 +949,7 @@ class Agent(BaseModel):
         stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
         # Create the run_response object
         self.run_id = str(uuid4())
-        self.run_response = RunResponse(run_id=self.run_id)
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
 
         logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
 
@@ -959,6 +959,8 @@ class Agent(BaseModel):
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
                 content="Run started",
                 event=RunEvent.run_started.value,
             )
@@ -1039,6 +1041,8 @@ class Agent(BaseModel):
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
+                            session_id=self.session_id,
+                            agent_id=self.agent_id,
                             content=model_response_chunk.content,
                             event=RunEvent.tool_call.value,
                         )
@@ -1058,6 +1062,8 @@ class Agent(BaseModel):
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
                 content="Updating memory",
                 event=RunEvent.updating_memory.value,
             )
@@ -1183,7 +1189,9 @@ class Agent(BaseModel):
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
-                content="Run completed",
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content=self.run_response.content,
                 event=RunEvent.run_completed.value,
             )
 
@@ -1328,7 +1336,7 @@ class Agent(BaseModel):
         stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
         # Create the run_response object
         self.run_id = str(uuid4())
-        self.run_response = RunResponse(run_id=self.run_id)
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
 
         logger.debug(f"*********** Async Agent Run Start: {self.run_response.run_id} ***********")
 
@@ -1338,6 +1346,8 @@ class Agent(BaseModel):
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
                 content="Run started",
                 event=RunEvent.run_started.value,
             )
@@ -1419,6 +1429,8 @@ class Agent(BaseModel):
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
+                            session_id=self.session_id,
+                            agent_id=self.agent_id,
                             content=model_response_chunk.content,
                             event=RunEvent.tool_call.value,
                         )
@@ -1438,6 +1450,8 @@ class Agent(BaseModel):
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
                 content="Updating memory",
                 event=RunEvent.updating_memory.value,
             )
@@ -1563,7 +1577,9 @@ class Agent(BaseModel):
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
-                content="Run completed",
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content=self.run_response.content,
                 event=RunEvent.run_completed.value,
             )
 

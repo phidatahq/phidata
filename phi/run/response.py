@@ -12,7 +12,7 @@ class RunEvent(str, Enum):
 
     run_started = "RunStarted"
     tool_call = "ToolCall"
-    agent_response = "RunResponse"
+    run_response = "RunResponse"
     updating_memory = "UpdatingMemory"
     run_completed = "RunCompleted"
 
@@ -23,12 +23,14 @@ class RunResponse(BaseModel):
     content: Optional[Any] = None
     content_type: str = "str"
     context: Optional[List[MessageContext]] = None
-    event: str = RunEvent.agent_response.value
+    event: str = RunEvent.run_response.value
     event_data: Optional[Dict[str, Any]] = None
     messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
     model: Optional[str] = None
     run_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    session_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 

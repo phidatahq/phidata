@@ -18,16 +18,9 @@ class MovieScript(BaseModel):
 
 # Agent that uses JSON mode
 json_mode_agent = Agent(
-    model=Together(id="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"),
+    model=Together(id="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"),
     description="You write movie scripts.",
     response_model=MovieScript,
-)
-
-structured_output_agent = Agent(
-    model=Together(id="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-    structured_outputs=True,
 )
 
 # Get the response in a variable
@@ -37,4 +30,3 @@ structured_output_agent = Agent(
 # pprint(structured_output_response.content)
 
 json_mode_agent.print_response("New York")
-structured_output_agent.print_response("New York")

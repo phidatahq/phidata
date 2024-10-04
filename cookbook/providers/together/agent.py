@@ -5,7 +5,7 @@ from phi.model.together import Together
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Together(id="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"),
+    model=Together(id="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

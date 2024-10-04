@@ -34,7 +34,7 @@ knowledge_base.load(recreate=False)
 # agent.knowledge_base.load(recreate=False) # You can also use this to load a knowledge base after creating agent
 
 # Set up SQL storage for the agent's data
-storage = SqlAgentStorage(table_name="recipies", db_file="data.db")
+storage = SqlAgentStorage(table_name="recipes", db_file="data.db")
 storage.create()  # Create the storage if it doesn't exist
 
 # Initialize the Agent with various configurations including the knowledge base and storage

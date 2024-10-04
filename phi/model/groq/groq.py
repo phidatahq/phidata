@@ -13,6 +13,7 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from groq import Groq as GroqClient
+    from groq.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 except ImportError:
     logger.error("`groq` not installed")
     raise
@@ -21,7 +22,7 @@ except ImportError:
 @dataclass
 class StreamData:
     response_content: str = ""
-    response_tool_calls: Optional[List[str]] = None
+    response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
     completion_tokens: int = 0
     response_prompt_tokens: int = 0
     response_completion_tokens: int = 0
@@ -321,7 +322,6 @@ class Groq(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = ""
             tool_role: str = "tool"
-            function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
@@ -472,8 +472,6 @@ class Groq(Model):
         for response in self.invoke_stream(messages=messages):
             # -*- Parse response
             response_delta = response.choices[0].delta
-            if response_delta.role is not None:
-                stream_data.role = response_delta.role
             response_content: Optional[str] = response_delta.content
             response_tool_calls: Optional[List[Any]] = response_delta.tool_calls
 

@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field
 
 
 class StockPrice(BaseModel):
-    ticker: str = Field(..., example="NVDA")
-    price: float = Field(..., example=100.0)
-    currency: str = Field(..., example="USD")
+    ticker: str = Field(..., examples=["NVDA", "AMD"])
+    price: float = Field(..., examples=[100.0, 200.0])
+    currency: str = Field(..., examples=["USD", "EUR"])
 
 
 assistant = Assistant(

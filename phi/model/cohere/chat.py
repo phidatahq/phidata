@@ -301,6 +301,8 @@ class CohereChat(Model):
         tool_role: str = "tool"
         function_calls_to_run: List[FunctionCall] = []
         function_call_results: List[Message] = []
+        if assistant_message.tool_calls is None:
+            return None
         for tool_call in assistant_message.tool_calls:
             _tool_call_id = tool_call.get("id")
             _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -424,6 +426,8 @@ class CohereChat(Model):
 
             response_after_tool_calls = self.response(messages=messages, tool_results=tool_results)
             if response_after_tool_calls.content:
+                if model_response.content is None:
+                    model_response.content = ""
                 model_response.content += response_after_tool_calls.content
             return model_response
 

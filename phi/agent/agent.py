@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
+from phi.agent.response import AgentResponse
 from phi.run.response import RunResponse, RunEvent
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
@@ -69,8 +70,8 @@ class Agent(BaseModel):
     memory: AgentMemory = AgentMemory()
     # add_history_to_messages=true adds the chat history to the messages sent to the Model.
     add_history_to_messages: bool = Field(False, alias="add_chat_history_to_messages")
-    # Number of previous messages to add to the prompt or messages.
-    num_history_messages: int = 6
+    # Number of historical responses to add to the messages.
+    num_history_responses: int = 3
     # Create and store personalized memories for this user
     create_memories: bool = False
     # Update memories for the user after each run
@@ -187,7 +188,7 @@ class Agent(BaseModel):
     # -*- Agent run details
     # Run ID: do not set manually
     run_id: Optional[str] = None
-    # Response from the Agent run
+    # Response from the Agent run: do not set manually
     run_response: Optional[RunResponse] = None
     # Save the response to a file
     save_response_to_file: Optional[str] = None
@@ -989,9 +990,7 @@ class Agent(BaseModel):
 
         # 3.3 Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            messages_for_model += self.memory.get_last_n_run_messages_starting_from_user_message(
-                last_n=self.num_history_messages
-            )
+            messages_for_model += self.memory.get_messages_from_last_n_responses(last_n=self.num_history_responses)
 
         # 3.4. Add the User Messages to the messages list
         # 3.4.1 Build user message from message if provided
@@ -1072,8 +1071,12 @@ class Agent(BaseModel):
                 self.run_response.content = model_response.content
             self.run_response.messages = messages_for_model
 
-        # Add the model metrics to the run_response
+        # Add model metrics to the run_response
         self.run_response.metrics = self.model.metrics if self.model else None
+        # Update the run_response content if streaming as run_response will only contain the last chunk
+        if stream_agent_response:
+            self.run_response.content = model_response.content
+
         # 5. Update Memory
         if stream_intermediate_steps:
             yield RunResponse(
@@ -1084,19 +1087,26 @@ class Agent(BaseModel):
                 tools=self.run_response.tools,
                 event=RunEvent.updating_memory.value,
             )
-        # Add the user message to the chat history
+
+        # Add messages from this particular run to the memory
+        run_messages = messages_for_model[num_messages_to_skip:]
+        # Add all messages including and after the user message to the memory
+        self.memory.add_run_messages(messages=run_messages)
+
+        # Create an AgentResponse object to add to memory
+        agent_response = AgentResponse(response=self.run_response.model_copy(update={"messages": run_messages}))
         if message is not None:
-            user_message_for_chat_history = None
+            user_message_for_memory: Optional[Message] = None
             if isinstance(message, str):
-                user_message_for_chat_history = Message(role=self.user_message_role, content=message)
+                user_message_for_memory = Message(role=self.user_message_role, content=message)
             elif isinstance(message, Message):
-                user_message_for_chat_history = message
-            # Add user message is added to the chat_history
-            if user_message_for_chat_history is not None:
-                self.memory.add_chat_message(message=user_message_for_chat_history)
+                user_message_for_memory = message
+
+            if user_message_for_memory is not None:
+                agent_response.message = user_message_for_memory
                 # Update the memories with the user message if needed
                 if self.create_memories and self.update_memory_after_run:
-                    self.memory.update_memory(input=user_message_for_chat_history.get_content_string())
+                    self.memory.update_memory(input=user_message_for_memory.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 _um = None
@@ -1111,25 +1121,15 @@ class Agent(BaseModel):
                     logger.warning(f"Unsupported message type: {type(_m)}")
                     continue
                 if _um:
-                    self.memory.add_chat_message(message=_um)
+                    if agent_response.messages is None:
+                        agent_response.messages = []
+                    agent_response.messages.append(_um)
                     if self.create_memories and self.update_memory_after_run:
                         self.memory.update_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
-
-        # Build the Assistant Message to add to the memory - this is added to the chat_history
-        assistant_message = Message(role="assistant", content=model_response.content)
-        # Add Assistant Message to the chat history
-        self.memory.add_chat_message(message=assistant_message)
-
-        # Add messages from this particular run to the memory
-        run_messages = messages_for_model[num_messages_to_skip:]
-        # Add all messages including and after the user message to the memory
-        self.memory.add_run_messages(messages=run_messages)
-
-        # Update the run_response content if streaming as run_response will only contain the last chunk
-        if stream_agent_response:
-            self.run_response.content = model_response.content
+        # Add AgentResponse to memory
+        self.memory.add_agent_response(agent_response)
 
         # 6. Save session to storage
         self.write_to_storage()
@@ -1381,7 +1381,7 @@ class Agent(BaseModel):
         # 3.3 Add chat history to the messages list
         if self.add_history_to_messages and self.memory is not None:
             messages_for_model += self.memory.get_last_n_run_messages_starting_from_user_message(
-                last_n=self.num_history_messages
+                last_n=self.num_history_responses
             )
 
         # 3.4. Add the User Messages to the messages list

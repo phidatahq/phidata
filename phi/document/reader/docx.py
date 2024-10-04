@@ -4,7 +4,7 @@ from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
 import io
-from docx import Document as DocxDocument  # type: ignore
+from docx import Document as DocxDocument
 
 
 class DocxReader(Reader):

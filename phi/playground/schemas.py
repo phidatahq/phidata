@@ -45,12 +45,12 @@ class AgentSessionDeleteRequest(BaseModel):
     user_id: Optional[str] = None
 
 
-class GetAgentSessionsRequest(BaseModel):
+class AgentSessionsRequest(BaseModel):
     agent_id: str
     user_id: Optional[str] = None
 
 
-class GetAgentSessionsResponse(BaseModel):
+class AgentSessionsResponse(BaseModel):
     title: Optional[str] = None
     session_id: Optional[str] = None
     session_name: Optional[str] = None

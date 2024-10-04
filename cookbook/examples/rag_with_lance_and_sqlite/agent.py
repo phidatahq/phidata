@@ -39,7 +39,7 @@ storage.create()  # Create the storage if it doesn't exist
 
 # Initialize the Agent with various configurations including the knowledge base and storage
 agent = Agent(
-    run_id="run_id",  # use any unique identifier to identify the run
+    session_id="session_id",  # use any unique identifier to identify the run
     user_id="user",  # user identifier to identify the user
     llm=llm,
     knowledge_base=knowledge_base,

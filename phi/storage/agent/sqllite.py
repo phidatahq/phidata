@@ -1,3 +1,4 @@
+import time
 from sqlite3 import OperationalError
 from typing import Optional, Any, List
 
@@ -16,7 +17,6 @@ except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
 from phi.storage.agent.base import AgentStorage
-from phi.utils.dttm import current_datetime
 from phi.utils.log import logger
 
 
@@ -24,11 +24,9 @@ class SqlAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
-        schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_file: Optional[str] = None,
         db_engine: Optional[Engine] = None,
-        schema_version: int = 1,
         auto_upgrade_schema: bool = False,
     ):
         """
@@ -58,13 +56,10 @@ class SqlAgentStorage(AgentStorage):
 
         # Database attributes
         self.table_name: str = table_name
-        self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData()
 
-        # Table schema version
-        self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
@@ -73,7 +68,7 @@ class SqlAgentStorage(AgentStorage):
         # Database table for storage
         self.table: Table = self.get_table()
 
-    def get_table_v1(self) -> Table:
+    def get_table(self) -> Table:
         return Table(
             self.table_name,
             self.metadata,
@@ -90,23 +85,17 @@ class SqlAgentStorage(AgentStorage):
             # Session Metadata
             Column("session_data", sqlite.JSON),
             # The Unix timestamp of when this session was created.
-            Column("created_at", sqlite.DATETIME, default=current_datetime()),
+            Column("created_at", sqlite.INTEGER, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
-            Column("updated_at", sqlite.DATETIME, onupdate=current_datetime()),
+            Column("updated_at", sqlite.INTEGER, onupdate=lambda: int(time.time())),
             extend_existing=True,
             sqlite_autoincrement=True,
         )
 
-    def get_table(self) -> Table:
-        if self.schema_version == 1:
-            return self.get_table_v1()
-        else:
-            raise ValueError(f"Unsupported schema version: {self.schema_version}")
-
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
+            return inspect(self.db_engine).has_table(self.table.name)
         except Exception as e:
             logger.error(e)
             return False
@@ -187,10 +176,10 @@ class SqlAgentStorage(AgentStorage):
                 session_data=session.session_data,
             )
 
-            # Define the upsert if the run_id already exists
+            # Define the upsert if the session_id already exists
             # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
             stmt = stmt.on_conflict_do_update(
-                index_elements=["run_id"],
+                index_elements=["session_id"],
                 set_=dict(
                     user_id=session.user_id,
                     memory=session.memory,

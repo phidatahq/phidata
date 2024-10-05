@@ -258,6 +258,7 @@ class Agent(BaseModel):
             fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
 
         # Create a new Agent
+        logger.debug(f"Creating a new Agent with fields: {fields_for_new_agent}")
         new_agent = self.__class__.model_validate(fields_for_new_agent)
         logger.debug(f"Created Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent

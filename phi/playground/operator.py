@@ -34,6 +34,13 @@ def get_agent_by_id(agents: List[Agent], agent_id: str) -> Optional[Agent]:
 
 
 def get_session_title(session: AgentSession) -> str:
+    if session is None:
+        return "Unnamed session"
+
+    session_name = session.session_data.get("session_name") if session.session_data is not None else None
+    if session_name is not None:
+        return session_name
+
     memory = session.memory
     if memory is not None:
         chats = memory.get("chats")
@@ -45,4 +52,4 @@ def get_session_title(session: AgentSession) -> str:
                         return chat_parsed.message.content or "No title"
                 except Exception as e:
                     logger.error(f"Error parsing chat: {e}")
-    return "Could not get session title"
+    return "Unnamed session"

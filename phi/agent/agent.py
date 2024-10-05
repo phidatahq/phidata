@@ -237,8 +237,8 @@ class Agent(BaseModel):
         """
         return self.response_model is None
 
-    def create_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
-        """Create and return a copy of this Agent, optionally updating fields.
+    def create_new_instance(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
+        """Create and return a new instance of this Agent, optionally updating fields.
 
         Args:
             update (Optional[Dict[str, Any]]): Optional dictionary of fields for the new Agent.
@@ -258,9 +258,10 @@ class Agent(BaseModel):
             fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
 
         # Create a new Agent
-        logger.debug(f"Creating a new Agent with fields: {fields_for_new_agent}")
+        logger.debug(f"Creating a new Agent instance with fields: {fields_for_new_agent.keys()}")
+        logger.debug(f"Session_id: {fields_for_new_agent.get('session_id')}")
         new_agent = self.__class__.model_validate(fields_for_new_agent)
-        logger.debug(f"Created Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
+        logger.debug(f"Created new Agent instance: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent
 
     def has_team(self) -> bool:

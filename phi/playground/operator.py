@@ -49,7 +49,7 @@ def get_session_title(session: AgentSession) -> str:
                 try:
                     chat_parsed = AgentChat.model_validate(_chat)
                     if chat_parsed.message is not None and chat_parsed.message.role == "user":
-                        return chat_parsed.message.content or "No title"
+                        return chat_parsed.message.get_content_string() or "No title"
                 except Exception as e:
                     logger.error(f"Error parsing chat: {e}")
     return "Unnamed session"

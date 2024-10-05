@@ -79,7 +79,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Agent not found")
 
         # Create a new instance of this agent
-        new_agent_instance = agent.create_copy(update={"session_id": body.session_id})
+        new_agent_instance = agent.create_new_instance(update={"session_id": body.session_id})
         if body.user_id:
             new_agent_instance.user_id = body.user_id
 
@@ -133,7 +133,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
             return JSONResponse(status_code=404, content="Agent not found.")
 
         # Create a new instance of this agent
-        new_agent = agent.create_copy(update={"session_id": session_id})
+        new_agent = agent.create_new_instance(update={"session_id": session_id})
         new_agent.read_from_storage()
         return new_agent.to_agent_session()
 

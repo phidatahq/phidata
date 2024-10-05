@@ -1,17 +1,15 @@
 import os
 
-from rich.pretty import pprint
-from mistralai.client import MistralClient
+from mistralai import Mistral
 
 
 def main():
     api_key = os.environ["MISTRAL_API_KEY"]
-    client = MistralClient(api_key=api_key)
-    list_models_response = client.list_models()
-    available_models = []
-    for model in list_models_response.data:
-        available_models.append(model.id)
-    pprint(available_models)
+    client = Mistral(api_key=api_key)
+    list_models_response = client.models.list()
+    if list_models_response is not None:
+        for model in list_models_response:
+            print(model)
 
 
 if __name__ == "__main__":

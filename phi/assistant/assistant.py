@@ -958,11 +958,14 @@ class Assistant(BaseModel):
             llm_response_type = "json"
         elif self.markdown:
             llm_response_type = "markdown"
+
         functions = {}
         if self.llm is not None and self.llm.functions is not None:
             for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
+
+        logger.debug(f"######### Functions: {functions}")
         event_data = {
             "run_type": "assistant",
             "user_message": message,
@@ -975,6 +978,7 @@ class Assistant(BaseModel):
             "llm_response": llm_response,
             "llm_response_type": llm_response_type,
         }
+        logger.debug(f"Event data: {event_data}")
         self._api_log_assistant_event(event_type="run", event_data=event_data)
 
         logger.debug(f"*********** Assistant Run End: {self.run_id} ***********")

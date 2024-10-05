@@ -2,7 +2,7 @@ from typing import Optional
 
 from phi.assistant import Assistant
 from phi.knowledge import AssistantKnowledge
-from phi.llm.mistral import Mistral
+from phi.llm.mistral import MistralChat
 from phi.embedder.mistral import MistralEmbedder
 from phi.vectordb.pgvector import PgVector2
 from phi.storage.assistant.postgres import PgAssistantStorage
@@ -39,7 +39,7 @@ def get_mistral_assistant(
         name="mistral_rag_assistant",
         run_id=run_id,
         user_id=user_id,
-        llm=Mistral(model=model),
+        llm=MistralChat(model=model),
         storage=mistral_assistant_storage,
         knowledge_base=mistral_assistant_knowledge,
         description="You are an AI called 'Rocket' designed to help users answer questions from your knowledge base.",

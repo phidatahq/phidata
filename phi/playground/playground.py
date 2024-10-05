@@ -75,7 +75,7 @@ class Playground:
         if _app is None:
             _app = self.get_api_app()
 
-        _host = host or "0.0.0.0"
+        _host = host or "localhost"
         _port = port or 7777
 
         try:

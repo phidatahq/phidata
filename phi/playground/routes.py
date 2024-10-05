@@ -78,6 +78,11 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
+        if body.session_id is not None:
+            logger.debug(f"Continuing session: {body.session_id}")
+        else:
+            logger.debug("Creating new session")
+
         # Create a new instance of this agent
         new_agent_instance = agent.create_new_instance(update={"session_id": body.session_id})
         if body.user_id:
@@ -132,10 +137,14 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
-        # Create a new instance of this agent
-        new_agent = agent.create_new_instance(update={"session_id": session_id})
-        new_agent.read_from_storage()
-        return new_agent.to_agent_session()
+        if agent.storage is None:
+            return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
+
+        agent_session: Optional[AgentSession] = agent.storage.read(session_id)
+        if agent_session is None:
+            return JSONResponse(status_code=404, content="Session not found.")
+
+        return agent_session
 
     @playground_routes.post("/agent/session/rename")
     def agent_rename(body: AgentRenameRequest):

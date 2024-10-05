@@ -259,7 +259,7 @@ class Agent(BaseModel):
 
         # Create a new Agent
         new_agent = self.__class__.model_validate(fields_for_new_agent)
-        logger.debug(f"Created new Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
+        logger.debug(f"Created Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent
 
     def has_team(self) -> bool:

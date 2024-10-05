@@ -86,7 +86,6 @@ class AgentMemory(BaseModel):
         logger.debug(f"Getting messages from last {last_n} chats")
         messages_from_last_n_history = []
         for response in self.chats[-last_n:]:
-            logger.debug(f"Response: {response}")
             if response.response and response.response.messages:
                 messages_from_last_n_history.extend(response.response.messages)
         logger.debug(f"Messages from last {last_n} chats: {len(messages_from_last_n_history)}")

@@ -4,10 +4,8 @@ from fastapi import FastAPI
 from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
-from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
 from phi.playground.routes import create_playground_routes
 from phi.playground.settings import PlaygroundSettings
-from phi.utils.log import logger
 
 
 class Playground:
@@ -23,10 +21,10 @@ class Playground:
         self.api_app: Optional[FastAPI] = api_app
         self.router: Optional[APIRouter] = router
 
-    def get_router(self):
+    def get_router(self) -> APIRouter:
         return create_playground_routes(self.agents)
 
-    def get_api_app(self) -> FastAPI:
+    def get_app(self) -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware
 
         if not self.api_app:
@@ -59,32 +57,3 @@ class Playground:
         )
 
         return self.api_app
-
-    def serve(
-        self,
-        app: Optional[str] = None,
-        *,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        reload: bool = False,
-        **kwargs,
-    ):
-        import uvicorn
-
-        _app = app or self.api_app
-        if _app is None:
-            _app = self.get_api_app()
-
-        _host = host or "localhost"
-        _port = port or 7777
-
-        try:
-            create_playground_endpoint(
-                playground=PlaygroundEndpointCreate(endpoint=f"http://{_host}:{_port}"),
-            )
-        except Exception as e:
-            logger.error(f"Could not create Playground Endpoint: {e}")
-            logger.error("Please try again.")
-            return
-
-        uvicorn.run(app=_app, host=_host, port=_port, reload=reload, **kwargs)

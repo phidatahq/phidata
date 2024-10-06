@@ -8,6 +8,7 @@ class AgentSessionCreate(BaseModel):
 
     session_id: str
     agent_data: Optional[Dict[str, Any]] = None
+    monitoring: Optional[bool] = False
 
 
 class AgentRunCreate(BaseModel):
@@ -17,3 +18,4 @@ class AgentRunCreate(BaseModel):
     run_id: Optional[str] = None
     run_data: Optional[Dict[str, Any]] = None
     agent_data: Optional[Dict[str, Any]] = None
+    monitoring: Optional[bool] = False

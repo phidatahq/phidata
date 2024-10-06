@@ -1929,6 +1929,7 @@ class Agent(BaseModel):
                 session=AgentSessionCreate(
                     session_id=agent_session.session_id,
                     agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
+                    monitoring=self.monitoring,
                 ),
             )
         except Exception as e:
@@ -1948,6 +1949,7 @@ class Agent(BaseModel):
                     run_data=run_data,
                     session_id=agent_session.session_id,
                     agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
+                    monitoring=self.monitoring,
                 ),
             )
         except Exception as e:

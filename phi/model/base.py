@@ -116,7 +116,7 @@ class Model(BaseModel):
         if isinstance(tool, Tool) or isinstance(tool, Dict):
             if tool not in self.tools:
                 self.tools.append(tool)
-                logger.debug(f"Added tool {tool} to Model.")
+                logger.debug(f"Added tool {tool} to model.")
 
         # If the tool is a Callable or Toolkit, add its functions to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
@@ -130,13 +130,13 @@ class Model(BaseModel):
                     if name not in self.functions:
                         self.functions[name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
-                        logger.debug(f"Function {name} from {tool.name} added to Model.")
+                        logger.debug(f"Function {name} from {tool.name} added to model.")
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
                     self.functions[tool.name] = tool
                     self.tools.append({"type": "function", "function": tool.to_dict()})
-                    logger.debug(f"Function {tool.name} added to Model.")
+                    logger.debug(f"Function {tool.name} added to model.")
 
             elif callable(tool):
                 try:

@@ -677,7 +677,7 @@ class Agent(BaseModel):
             return None
 
         if self.model is None:
-            raise Exception("Model not set")
+            raise Exception("model not set")
 
         # 4. Build the list of instructions for the system prompt.
         instructions = self.instructions.copy() if self.instructions is not None else []

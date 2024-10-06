@@ -1,5 +1,5 @@
 import base64
-from typing import List, Optional, Generator, Dict, cast, Union
+from typing import List, Optional, Generator, Dict, cast, Union, Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -54,6 +54,39 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
             )
 
         return agent_list
+
+    @playground_routes.get("/agents/get", response_model=Dict[str, AgentGetResponse])
+    def agents_get():
+        agents_dict: Dict[str, Any] = {}
+        for agent in agents:
+            agent_tools = agent.get_tools()
+            formatted_tools = format_tools(agent_tools)
+            agent_id = agent.agent_id
+            if agent_id is None:
+                logger.warning(f"Agent ID not found for agent: {agent.name}. The agent will be skipped.")
+                continue
+            if agent_id in agents_dict:
+                logger.warning(f"Duplicate agent_id found: {agent_id}. The agent will be overwritten.")
+
+            agent_response = AgentGetResponse(
+                agent_id=agent.agent_id,
+                name=agent.name,
+                model=AgentModel(
+                    provider=agent.model.provider or agent.model.__class__.__name__ if agent.model else None,
+                    name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
+                    model=agent.model.id if agent.model else None,
+                ),
+                enable_rag=agent.enable_rag,
+                tools=formatted_tools,
+                memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
+                storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
+                knowledge={"name": agent.knowledge.__class__.__name__} if agent.knowledge else None,
+                description=agent.description,
+                instructions=agent.instructions,
+            )
+            agents_dict[agent_id] = agent_response
+
+        return agents_dict
 
     def chat_response_streamer(
         agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None

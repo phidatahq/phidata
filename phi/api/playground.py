@@ -23,7 +23,7 @@ def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
             if response_json is None:
                 return False
 
-            logger.debug(f"Response: {response_json}")
+            # logger.debug(f"Response: {response_json}")
             return True
         except Exception as e:
             logger.debug(f"Could not create Playground Endpoint: {e}")

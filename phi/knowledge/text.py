@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.text import TextReader
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 
 
-class TextKnowledgeBase(AssistantKnowledge):
+class TextKnowledgeBase(AgentKnowledge):
     path: Union[str, Path]
     formats: List[str] = [".txt"]
     reader: TextReader = TextReader()

@@ -14,7 +14,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(upsert=True)
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o", store=True),
+    model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     # Add a tool to search the knowledge base which enables agentic RAG.
     search_knowledge=True,

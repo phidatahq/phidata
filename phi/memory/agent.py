@@ -3,12 +3,12 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.agent.chat import AgentChat
 from phi.memory.classifier import MemoryClassifier
 from phi.memory.db import MemoryDb
 from phi.memory.manager import MemoryManager
 from phi.memory.memory import Memory
 from phi.model.message import Message
+from phi.run.response import RunResponse
 from phi.utils.log import logger
 
 
@@ -16,6 +16,14 @@ class MemoryRetrieval(str, Enum):
     last_n = "last_n"
     first_n = "first_n"
     semantic = "semantic"
+
+
+class AgentChat(BaseModel):
+    message: Optional[Message] = None
+    messages: Optional[List[Message]] = None
+    response: Optional[RunResponse] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AgentMemory(BaseModel):
@@ -49,6 +57,26 @@ class AgentMemory(BaseModel):
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict
 
+    def add_system_message(self, message: Message, system_message_role: str = "system") -> None:
+        """Add the system messages to the messages list"""
+        # If this is the first run in the session, add the system message to the messages list
+        if len(self.messages) == 0:
+            if message is not None:
+                self.messages.append(message)
+        # If there are messages in the memory, check if the system message is already in the memory
+        # If it is, update the system message if content has changed
+        # If it is not, add the system message to the messages list
+        else:
+            system_message_index = next((i for i, m in enumerate(self.messages) if m.role == system_message_role), None)
+            # Update the system message in memory if content has changed
+            if system_message_index is not None:
+                if self.messages[system_message_index].content != message.content:
+                    logger.info("Updating system message in memory")
+                    self.messages[system_message_index] = message
+            else:
+                # Add the system message to the messages list
+                self.messages.insert(0, message)
+
     def add_run_message(self, message: Message) -> None:
         """Add a Message to the messages list."""
         self.messages.append(message)
@@ -68,27 +96,40 @@ class AgentMemory(BaseModel):
         self.chats.append(agent_chat)
         logger.debug("Added AgentChat to AgentMemory")
 
-    def get_messages_from_last_n_chats(self, last_n: Optional[int] = None) -> List[Message]:
+    def get_messages_from_last_n_chats(
+        self, last_n: Optional[int] = None, skip_role: Optional[str] = None
+    ) -> List[Message]:
         """Returns the messages from the last_n chats
 
-        :param last_n: The number of chats to return from the end of the conversation.
-        :return: A list of Messages in the last_n chats.
+        Args:
+            last_n: The number of chats to return from the end of the conversation.
+            skip_role: Skip messages with this role.
+
+        Returns:
+            A list of Messages in the last_n chats.
         """
-        logger.debug("Getting messages from all previous chats")
         if last_n is None:
+            logger.debug("Getting messages from all previous chats")
             messages_from_all_history = []
-            for response in self.chats:
-                if response.response and response.response.messages:
-                    messages_from_all_history.extend(response.response.messages)
+            for prev_chat in self.chats:
+                if prev_chat.response and prev_chat.response.messages:
+                    if skip_role:
+                        prev_chat_messages = [m for m in prev_chat.response.messages if m.role != skip_role]
+                    else:
+                        prev_chat_messages = prev_chat.response.messages
+                    messages_from_all_history.extend(prev_chat_messages)
             logger.debug(f"Messages from previous chats: {len(messages_from_all_history)}")
             return messages_from_all_history
 
         logger.debug(f"Getting messages from last {last_n} chats")
         messages_from_last_n_history = []
-        for response in self.chats[-last_n:]:
-            logger.debug(f"Response: {response}")
-            if response.response and response.response.messages:
-                messages_from_last_n_history.extend(response.response.messages)
+        for prev_chat in self.chats[-last_n:]:
+            if prev_chat.response and prev_chat.response.messages:
+                if skip_role:
+                    prev_chat_messages = [m for m in prev_chat.response.messages if m.role != skip_role]
+                else:
+                    prev_chat_messages = prev_chat.response.messages
+                messages_from_last_n_history.extend(prev_chat_messages)
         logger.debug(f"Messages from last {last_n} chats: {len(messages_from_last_n_history)}")
         return messages_from_last_n_history
 
@@ -126,8 +167,8 @@ class AgentMemory(BaseModel):
             return tool_calls[:num_calls]
         return tool_calls
 
-    def load_memory(self) -> None:
-        """Load the memory from memory db for this user."""
+    def load_user_memories(self) -> None:
+        """Load memories from memory db for this user."""
         if self.db is None:
             return
 
@@ -194,7 +235,7 @@ class AgentMemory(BaseModel):
             self.manager = MemoryManager(user_id=self.user_id, db=self.db)
 
         response = self.manager.run(input)
-        self.load_memory()
+        self.load_user_memories()
         return response
 
     def get_memories_for_system_prompt(self) -> Optional[str]:

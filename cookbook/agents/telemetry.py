@@ -40,7 +40,7 @@ agent = Agent(
 
 
 async def main():
-    await agent.aprint_response("What is the stock price of NVDA and TSLA")
+    await agent.aprint_response("What is the stock price of NVDA and TSLA", stream=True)
     # run: RunResponse = await agent.arun("What is the stock price of NVDA and TSLA")
     # pprint(run)
     # async for chunk in await agent.arun("What is the stock price of NVDA and TSLA", stream=True):

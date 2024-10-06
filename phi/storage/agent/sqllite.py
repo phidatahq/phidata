@@ -27,6 +27,7 @@ class SqlAgentStorage(AgentStorage):
         db_url: Optional[str] = None,
         db_file: Optional[str] = None,
         db_engine: Optional[Engine] = None,
+        schema_version: int = 1,
         auto_upgrade_schema: bool = False,
     ):
         """
@@ -38,10 +39,11 @@ class SqlAgentStorage(AgentStorage):
             3. Use the db_file
             4. Create a new in-memory database
 
-        :param table_name: The name of the table to store assistant runs.
-        :param db_url: The database URL to connect to.
-        :param db_file: The database file to connect to.
-        :param db_engine: The database engine to use.
+        Args:
+            table_name: The name of the table to store Agent sessions.
+            db_url: The database URL to connect to.
+            db_file: The database file to connect to.
+            db_engine: The database engine to use.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -60,6 +62,8 @@ class SqlAgentStorage(AgentStorage):
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData()
 
+        # Table schema version
+        self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
@@ -68,12 +72,14 @@ class SqlAgentStorage(AgentStorage):
         # Database table for storage
         self.table: Table = self.get_table()
 
-    def get_table(self) -> Table:
+    def get_table_v1(self) -> Table:
         return Table(
             self.table_name,
             self.metadata,
             # Session UUID: Primary Key
             Column("session_id", String, primary_key=True),
+            # ID of the agent that this session is associated with
+            Column("agent_id", String),
             # ID of the user interacting with this agent
             Column("user_id", String),
             # Agent Memory
@@ -91,6 +97,12 @@ class SqlAgentStorage(AgentStorage):
             extend_existing=True,
             sqlite_autoincrement=True,
         )
+
+    def get_table(self) -> Table:
+        if self.schema_version == 1:
+            return self.get_table_v1()
+        else:
+            raise ValueError(f"Unsupported schema version: {self.schema_version}")
 
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")
@@ -122,7 +134,7 @@ class SqlAgentStorage(AgentStorage):
             existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
             return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_session_ids(self, user_id: Optional[str] = None) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         session_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -130,6 +142,8 @@ class SqlAgentStorage(AgentStorage):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
+                if agent_id is not None:
+                    stmt = stmt.where(self.table.c.agent_id == agent_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -142,7 +156,7 @@ class SqlAgentStorage(AgentStorage):
             logger.debug(f"Table does not exist: {self.table.name}")
         return session_ids
 
-    def get_all_sessions(self, user_id: Optional[str] = None) -> List[AgentSession]:
+    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         sessions: List[AgentSession] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -150,6 +164,8 @@ class SqlAgentStorage(AgentStorage):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
+                if agent_id is not None:
+                    stmt = stmt.where(self.table.c.agent_id == agent_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -169,6 +185,7 @@ class SqlAgentStorage(AgentStorage):
             # Create an insert statement
             stmt = sqlite.insert(self.table).values(
                 session_id=session.session_id,
+                agent_id=session.agent_id,
                 user_id=session.user_id,
                 memory=session.memory,
                 agent_data=session.agent_data,
@@ -181,6 +198,7 @@ class SqlAgentStorage(AgentStorage):
             stmt = stmt.on_conflict_do_update(
                 index_elements=["session_id"],
                 set_=dict(
+                    agent_id=session.agent_id,
                     user_id=session.user_id,
                     memory=session.memory,
                     agent_data=session.agent_data,

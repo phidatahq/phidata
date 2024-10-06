@@ -411,8 +411,6 @@ class Agent(BaseModel):
         agent_data = self.agent_data or {}
         if self.name is not None:
             agent_data["name"] = self.name
-        if self.agent_id is not None:
-            agent_data["agent_id"] = self.agent_id
         if self.model is not None:
             agent_data["model"] = self.model.to_dict()
         return agent_data
@@ -428,6 +426,7 @@ class Agent(BaseModel):
 
         return AgentSession(
             session_id=self.session_id,
+            agent_id=self.agent_id,
             user_id=self.user_id,
             memory=self.memory.to_dict(),
             agent_data=self.get_agent_data(),
@@ -438,21 +437,21 @@ class Agent(BaseModel):
     def from_agent_session(self, session: AgentSession):
         """Load the existing Agent from an AgentSession (from the database)"""
 
-        # Get the agent_data from the AgentSession and update the current Agent if not set
-        if self.name is None and session.agent_data is not None and "name" in session.agent_data:
-            self.name = session.agent_data.get("name")
-        if self.agent_id is None and session.agent_data is not None and "agent_id" in session.agent_data:
-            self.agent_id = session.agent_data.get("agent_id")
-
-        # Get the session_data from the AgentSession and update the current Agent if not set
-        if self.session_name is None and session.session_data is not None and "session_name" in session.session_data:
-            self.session_name = session.session_data.get("session_name")
-
-        # Get the session_id and user_id from the AgentSession
+        # Get the session_id, agent_id and user_id from the AgentSession
         if self.session_id is None and session.session_id is not None:
             self.session_id = session.session_id
+        if self.agent_id is None and session.agent_id is not None:
+            self.agent_id = session.agent_id
         if self.user_id is None and session.user_id is not None:
             self.user_id = session.user_id
+
+        # Get the name from AgentSession and update the current name if not set
+        if self.name is None and session.agent_data is not None and "name" in session.agent_data:
+            self.name = session.agent_data.get("name")
+
+        # Get the session_data from AgentSession and update the current Agent if not set
+        if self.session_name is None and session.session_data is not None and "session_name" in session.session_data:
+            self.session_name = session.session_data.get("session_name")
 
         # Update model data from the AgentSession
         if session.agent_data is not None and "model" in session.agent_data:

@@ -26,13 +26,13 @@ pip install -U google-generativeai duckduckgo-search yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/openai/basic_stream.py
+python cookbook/providers/google/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/openai/basic.py
+python cookbook/providers/google/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,30 +40,30 @@ python cookbook/providers/openai/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/openai/agent_stream.py
+python cookbook/providers/google/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/openai/agent.py
+python cookbook/providers/google/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/openai/finance_agent.py
+python cookbook/providers/google/finance_agent.py
 ```
 
 - Web Search Agent
 
 ```shell
-python cookbook/providers/openai/web_search.py
+python cookbook/providers/google/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/openai/structured_output.py
+python cookbook/providers/google/structured_output.py
 ```
 

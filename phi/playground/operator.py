@@ -37,12 +37,18 @@ def get_session_title(session: AgentSession) -> str:
     memory = session.memory
     if memory is not None:
         chats = memory.get("chats")
-        if chats is not None:
+        if isinstance(chats, list):
             for _chat in chats:
                 try:
                     chat_parsed = AgentChat.model_validate(_chat)
                     if chat_parsed.message is not None and chat_parsed.message.role == "user":
-                        return chat_parsed.message.content or "No title"
+                        content = chat_parsed.message.content
+                        if isinstance(content, str):
+                            return content
+                        elif isinstance(content, list):
+                            return " ".join(str(item) for item in content)
+                        else:
+                            return str(content) or "No title"
                 except Exception as e:
                     logger.error(f"Error parsing chat: {e}")
     return "Could not get session title"

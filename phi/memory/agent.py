@@ -3,12 +3,12 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.agent.chat import AgentChat
 from phi.memory.classifier import MemoryClassifier
 from phi.memory.db import MemoryDb
 from phi.memory.manager import MemoryManager
 from phi.memory.memory import Memory
 from phi.model.message import Message
+from phi.run.response import RunResponse
 from phi.utils.log import logger
 
 
@@ -16,6 +16,14 @@ class MemoryRetrieval(str, Enum):
     last_n = "last_n"
     first_n = "first_n"
     semantic = "semantic"
+
+
+class AgentChat(BaseModel):
+    message: Optional[Message] = None
+    messages: Optional[List[Message]] = None
+    response: Optional[RunResponse] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AgentMemory(BaseModel):

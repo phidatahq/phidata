@@ -23,13 +23,12 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.agent.chat import AgentChat
 from phi.run.response import RunResponse, RunEvent
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
 from phi.model.message import Message, MessageContext
 from phi.model.response import ModelResponse, ModelResponseEvent
-from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory  # noqa: F401
+from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentChat  # noqa: F401
 from phi.prompt.template import PromptTemplate
 from phi.storage.agent import AgentStorage
 from phi.tools import Tool, Toolkit, Function

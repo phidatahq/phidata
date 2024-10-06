@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.docx import DocxReader
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 
 
-class DocxKnowledgeBase(AssistantKnowledge):
+class DocxKnowledgeBase(AgentKnowledge):
     path: Union[str, Path]
     formats: List[str] = [".doc", ".docx"]
     reader: DocxReader = DocxReader()

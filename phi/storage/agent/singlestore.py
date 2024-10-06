@@ -9,34 +9,38 @@ try:
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
-    from sqlalchemy.types import DateTime
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.assistant.run import AssistantRun
-from phi.storage.assistant.base import AssistantStorage
+from phi.agent.session import AgentSession
+from phi.storage.agent.base import AgentStorage
 from phi.utils.log import logger
 
 
-class S2AssistantStorage(AssistantStorage):
+class S2AssistantStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
         schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
+        schema_version: int = 1,
+        auto_upgrade_schema: bool = False,
     ):
         """
-        This class provides assistant storage using a singlestore table.
+        This class provides Agent storage using a singlestore table.
 
         The following order is used to determine the database connection:
             1. Use the db_engine if provided
-            2. Use the db_url
+            2. Use the db_url if provided
 
-        :param table_name: The name of the table to store assistant runs.
-        :param schema: The schema to store the table in.
-        :param db_url: The database URL to connect to.
-        :param db_engine: The database engine to use.
+        Args:
+            table_name (str): The name of the table to store the agent data.
+            schema (Optional[str], optional): The schema of the table. Defaults to "ai".
+            db_url (Optional[str], optional): The database URL. Defaults to None.
+            db_engine (Optional[Engine], optional): The database engine. Defaults to None.
+            schema_version (int, optional): The schema version. Defaults to 1.
+            auto_upgrade_schema (bool, optional): Automatically upgrade the schema. Defaults to False.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -52,42 +56,54 @@ class S2AssistantStorage(AssistantStorage):
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
 
+        # Table schema version
+        self.schema_version: int = schema_version
+        # Automatically upgrade schema if True
+        self.auto_upgrade_schema: bool = auto_upgrade_schema
+
         # Database session
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
-
         # Database table for storage
         self.table: Table = self.get_table()
 
-    def get_table(self) -> Table:
+    def get_table_v1(self) -> Table:
         return Table(
             self.table_name,
             self.metadata,
-            # Primary key for this run
-            Column("run_id", mysql.TEXT, primary_key=True),
-            # Assistant name
-            Column("name", mysql.TEXT),
-            # Run name
-            Column("run_name", mysql.TEXT),
-            # ID of the user participating in this run
+            # Session UUID: Primary Key
+            Column("session_id", mysql.TEXT, primary_key=True),
+            # ID of the agent that this session is associated with
+            Column("agent_id", mysql.TEXT),
+            # ID of the user interacting with this agent
             Column("user_id", mysql.TEXT),
-            # -*- LLM data (name, model, etc.)
-            Column("llm", mysql.JSON),
-            # -*- Assistant memory
+            # Agent memory
             Column("memory", mysql.JSON),
-            # Metadata associated with this assistant
-            Column("assistant_data", mysql.JSON),
-            # Metadata associated with this run
-            Column("run_data", mysql.JSON),
-            # Metadata associated with the user participating in this run
+            # Agent Metadata
+            Column("agent_data", mysql.JSON),
+            # User Metadata
             Column("user_data", mysql.JSON),
-            # Metadata associated with the assistant tasks
-            Column("task_data", mysql.JSON),
-            # The timestamp of when this run was created.
-            Column("created_at", DateTime(timezone=True), server_default=text("now()")),
-            # The timestamp of when this run was last updated.
-            Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
+            # Session Metadata
+            Column("session_data", mysql.JSON),
+            # The Unix timestamp of when this session was created.
+            Column(
+                "created_at",
+                mysql.BIGINT,
+                nullable=False,
+            ),
+            # The Unix timestamp of when this session was last updated.
+            Column(
+                "updated_at",
+                mysql.BIGINT,
+                nullable=False,
+            ),
             extend_existing=True,
         )
+
+    def get_table(self) -> Table:
+        if self.schema_version == 1:
+            return self.get_table_v1()
+        else:
+            raise ValueError(f"Unsupported schema version: {self.schema_version}")
 
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table exists: {self.table.name}")
@@ -102,104 +118,106 @@ class S2AssistantStorage(AssistantStorage):
             logger.info(f"\nCreating table: {self.table_name}\n")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, run_id: str) -> Optional[Row[Any]]:
-        stmt = select(self.table).where(self.table.c.run_id == run_id)
+    def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
+        stmt = select(self.table).where(self.table.c.session_id == session_id)
         try:
             return session.execute(stmt).first()
         except Exception as e:
-            logger.debug(e)
-            # Create table if it does not exist
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug(f"Creating table: {self.table_name}")
             self.create()
         return None
 
-    def read(self, run_id: str) -> Optional[AssistantRun]:
+    def read(self, session_id: str) -> Optional[AgentSession]:
         with self.Session.begin() as sess:
-            existing_row: Optional[Row[Any]] = self._read(session=sess, run_id=run_id)
-            return AssistantRun.model_validate(existing_row) if existing_row is not None else None
+            existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
+            return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_run_ids(self, user_id: Optional[str] = None) -> List[str]:
-        run_ids: List[str] = []
+    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
+        session_ids: List[str] = []
         try:
             with self.Session.begin() as sess:
-                # get all run_ids for this user
-                stmt = select(self.table.c.run_id)
-                if user_id is not None:
-                    stmt = stmt.where(self.table.c.user_id == user_id)
-                # order by created_at desc
-                stmt = stmt.order_by(self.table.c.created_at.desc())
-                # execute query
-                rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row is not None and row.run_id is not None:
-                        run_ids.append(row.run_id)
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {str(e)}")
-        return run_ids
-
-    def get_all_runs(self, user_id: Optional[str] = None) -> List[AssistantRun]:
-        runs: List[AssistantRun] = []
-        try:
-            with self.Session.begin() as sess:
-                # get all runs for this user
+                # get all session_ids for this user
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
+                if agent_id is not None:
+                    stmt = stmt.where(self.table.c.agent_id == agent_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
-                    if row.run_id is not None:
-                        runs.append(AssistantRun.model_validate(row))
+                    if row is not None and row.session_id is not None:
+                        session_ids.append(row.session_id)
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {str(e)}")
+        return session_ids
+
+    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
+        sessions: List[AgentSession] = []
+        try:
+            with self.Session.begin() as sess:
+                # get all sessions for this user
+                stmt = select(self.table)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
+                if agent_id is not None:
+                    stmt = stmt.where(self.table.c.agent_id == agent_id)
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                for row in rows:
+                    if row.session_id is not None:
+                        sessions.append(AgentSession.model_validate(row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
-        return runs
+        return sessions
 
-    def upsert(self, row: AssistantRun) -> Optional[AssistantRun]:
+    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
         """
-        Create a new assistant run if it does not exist, otherwise update the existing assistant.
+        Create a new session if it does not exist, otherwise update the existing session.
         """
 
         with self.Session.begin() as sess:
-            # Create an insert statement using SingleStore's ON DUPLICATE KEY UPDATE syntax
+            # Create an insert statement using MySQL's ON DUPLICATE KEY UPDATE syntax
             upsert_sql = text(
                 f"""
-            INSERT INTO {self.schema}.{self.table_name}
-            (run_id, name, run_name, user_id, llm, memory, assistant_data, run_data, user_data, task_data)
-            VALUES
-            (:run_id, :name, :run_name, :user_id, :llm, :memory, :assistant_data, :run_data, :user_data, :task_data)
-            ON DUPLICATE KEY UPDATE
-                name = VALUES(name),
-                run_name = VALUES(run_name),
-                user_id = VALUES(user_id),
-                llm = VALUES(llm),
-                memory = VALUES(memory),
-                assistant_data = VALUES(assistant_data),
-                run_data = VALUES(run_data),
-                user_data = VALUES(user_data),
-                task_data = VALUES(task_data);
-            """
+                INSERT INTO {self.schema}.{self.table_name}
+                (session_id, agent_id, user_id, memory, agent_data, user_data, session_data, created_at, updated_at)
+                VALUES
+                (:session_id, :agent_id, :user_id, :memory, :agent_data, :user_data, :session_data, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+                ON DUPLICATE KEY UPDATE
+                    agent_id = VALUES(agent_id),
+                    user_id = VALUES(user_id),
+                    memory = VALUES(memory),
+                    agent_data = VALUES(agent_data),
+                    user_data = VALUES(user_data),
+                    session_data = VALUES(session_data),
+                    updated_at = UNIX_TIMESTAMP();
+                """
             )
 
             try:
                 sess.execute(
                     upsert_sql,
                     {
-                        "run_id": row.run_id,
-                        "name": row.name,
-                        "run_name": row.run_name,
-                        "user_id": row.user_id,
-                        "llm": json.dumps(row.llm, ensure_ascii=False) if row.llm is not None else None,
-                        "memory": json.dumps(row.memory, ensure_ascii=False) if row.memory is not None else None,
-                        "assistant_data": json.dumps(row.assistant_data, ensure_ascii=False)
-                        if row.assistant_data is not None
+                        "session_id": session.session_id,
+                        "agent_id": session.agent_id,
+                        "user_id": session.user_id,
+                        "memory": json.dumps(session.memory, ensure_ascii=False)
+                        if session.memory is not None
                         else None,
-                        "run_data": json.dumps(row.run_data, ensure_ascii=False) if row.run_data is not None else None,
-                        "user_data": json.dumps(row.user_data, ensure_ascii=False)
-                        if row.user_data is not None
+                        "agent_data": json.dumps(session.agent_data, ensure_ascii=False)
+                        if session.agent_data is not None
                         else None,
-                        "task_data": json.dumps(row.task_data, ensure_ascii=False)
-                        if row.task_data is not None
+                        "user_data": json.dumps(session.user_data, ensure_ascii=False)
+                        if session.user_data is not None
+                        else None,
+                        "session_data": json.dumps(session.session_data, ensure_ascii=False)
+                        if session.session_data is not None
                         else None,
                     },
                 )
@@ -209,27 +227,48 @@ class S2AssistantStorage(AssistantStorage):
                 sess.execute(
                     upsert_sql,
                     {
-                        "run_id": row.run_id,
-                        "name": row.name,
-                        "run_name": row.run_name,
-                        "user_id": row.user_id,
-                        "llm": json.dumps(row.llm) if row.llm is not None else None,
-                        "memory": json.dumps(row.memory, ensure_ascii=False) if row.memory is not None else None,
-                        "assistant_data": json.dumps(row.assistant_data, ensure_ascii=False)
-                        if row.assistant_data is not None
+                        "session_id": session.session_id,
+                        "agent_id": session.agent_id,
+                        "user_id": session.user_id,
+                        "memory": json.dumps(session.memory, ensure_ascii=False)
+                        if session.memory is not None
                         else None,
-                        "run_data": json.dumps(row.run_data, ensure_ascii=False) if row.run_data is not None else None,
-                        "user_data": json.dumps(row.user_data, ensure_ascii=False)
-                        if row.user_data is not None
+                        "agent_data": json.dumps(session.agent_data, ensure_ascii=False)
+                        if session.agent_data is not None
                         else None,
-                        "task_data": json.dumps(row.task_data, ensure_ascii=False)
-                        if row.task_data is not None
+                        "user_data": json.dumps(session.user_data, ensure_ascii=False)
+                        if session.user_data is not None
+                        else None,
+                        "session_data": json.dumps(session.session_data, ensure_ascii=False)
+                        if session.session_data is not None
                         else None,
                     },
                 )
-        return self.read(run_id=row.run_id)
+        return self.read(session_id=session.session_id)
 
-    def delete(self) -> None:
+    def delete_session(self, session_id: Optional[str] = None):
+        if session_id is None:
+            logger.warning("No session_id provided for deletion.")
+            return
+
+        with self.Session() as sess, sess.begin():
+            try:
+                # Delete the session with the given session_id
+                delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
+                result = sess.execute(delete_stmt)
+
+                if result.rowcount == 0:
+                    logger.warning(f"No session found with session_id: {session_id}")
+                else:
+                    logger.info(f"Successfully deleted session with session_id: {session_id}")
+            except Exception as e:
+                logger.error(f"Error deleting session: {e}")
+                raise
+
+    def drop(self) -> None:
         if self.table_exists():
             logger.info(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
+
+    def upgrade_schema(self) -> None:
+        pass

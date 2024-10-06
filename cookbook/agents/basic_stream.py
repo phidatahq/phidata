@@ -2,7 +2,7 @@ from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
 
-agent = Agent(model=OpenAIChat(id="gpt-4o", store=True), markdown=True)
+agent = Agent(model=OpenAIChat(id="gpt-4o"), markdown=True)
 
 # Get the response in a variable
 # run_response: Iterator[RunResponse] = agent.run("Share a 2 sentence horror story", stream=True)

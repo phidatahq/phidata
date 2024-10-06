@@ -72,9 +72,9 @@ class Agent(BaseModel):
     # Number of historical responses to add to the messages.
     num_history_responses: int = 3
     # Create and store personalized memories for this user
-    create_user_memory: bool = False
+    create_user_memories: bool = False
     # Update memories for the user after each run
-    update_user_memory_after_run: bool = True
+    update_user_memories_after_run: bool = True
     # Create and store session summaries
     create_session_summary: bool = False
     # Update session summaries after each run
@@ -130,6 +130,7 @@ class Agent(BaseModel):
     # -*- Extra Messages
     # A list of extra messages added after the system message and before the user message.
     # Use these for few-shot learning or to provide additional context to the Model.
+    # Note: these are not retained in memory, they are added directly to the messages sent to the model.
     add_messages: Optional[List[Union[Dict, Message]]] = None
 
     # -*- System Prompt Settings
@@ -334,7 +335,7 @@ class Agent(BaseModel):
                 tools.append(self.get_chat_history)
             if self.read_tool_call_history:
                 tools.append(self.get_tool_call_history)
-            if self.create_user_memory:
+            if self.create_user_memories:
                 tools.append(self.update_memory)
 
         # Add tools for accessing knowledge
@@ -395,16 +396,16 @@ class Agent(BaseModel):
         if self.session_id is not None:
             self.model.session_id = self.session_id
 
-    def load_memory(self) -> None:
-        if self.memory is not None:
+    def load_user_memories(self) -> None:
+        if self.memory is not None and self.create_user_memories:
             if self.user_id is not None:
                 self.memory.user_id = self.user_id
 
-            self.memory.load_memory()
-        if self.user_id is not None:
-            logger.debug(f"Loaded memory for user: {self.user_id}")
-        else:
-            logger.debug("Loaded memory")
+            self.memory.load_user_memories()
+            if self.user_id is not None:
+                logger.debug(f"Memories loaded for user: {self.user_id}")
+            else:
+                logger.debug("Memories loaded")
 
     def get_agent_data(self) -> Dict[str, Any]:
         agent_data = self.agent_data or {}
@@ -437,7 +438,6 @@ class Agent(BaseModel):
     def from_agent_session(self, session: AgentSession):
         """Load the existing Agent from an AgentSession (from the database)"""
 
-        logger.debug(f"-*- Loading AgentSession: {session.session_id}")
         # Get the agent_data from the AgentSession and update the current Agent if not set
         if self.name is None and session.agent_data is not None and "name" in session.agent_data:
             self.name = session.agent_data.get("name")
@@ -522,7 +522,7 @@ class Agent(BaseModel):
             self.agent_session = self.storage.read(session_id=self.session_id)
             if self.agent_session is not None:
                 self.from_agent_session(session=self.agent_session)
-        self.load_memory()
+        self.load_user_memories()
         return self.agent_session
 
     def write_to_storage(self) -> Optional[AgentSession]:
@@ -762,7 +762,7 @@ class Agent(BaseModel):
         if self.has_team():
             system_prompt_lines.append(f"\n{self.get_delegation_prompt()}")
         # 5.8 Then add memories to the system prompt
-        if self.create_user_memory:
+        if self.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_prompt_lines.append(
                     "\nYou have access to memory from previous interactions with the user that you can use:"
@@ -947,8 +947,8 @@ class Agent(BaseModel):
         2. Read existing session from storage
         3. Prepare the List of messages to send to the Model
             3.1 Add the System Message to the messages list
-            3.2 Add extra messages to the messages list
-            3.3 Add chat history to the messages list
+            3.2 Add extra messages to the messages list if provided
+            3.3 Add history to the messages list
             3.4 Add the User Messages to the messages list
         4. Generate a response from the Model (includes running function calls)
         5. Update Memory
@@ -987,7 +987,7 @@ class Agent(BaseModel):
         if system_message is not None:
             messages_for_model.append(system_message)
 
-        # 3.2 Add extra messages to the messages list
+        # 3.2 Add extra messages to the messages list if provided
         if self.add_messages is not None:
             for _m in self.add_messages:
                 if isinstance(_m, Message):
@@ -998,41 +998,46 @@ class Agent(BaseModel):
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
 
-        # 3.3 Add chat history to the messages list
+        # 3.3 Add history to the messages list
         if self.add_history_to_messages and self.memory is not None:
-            messages_for_model += self.memory.get_messages_from_last_n_chats(last_n=self.num_history_responses)
+            messages_for_model += self.memory.get_messages_from_last_n_chats(
+                last_n=self.num_history_responses, skip_role=self.system_message_role
+            )
 
         # 3.4. Add the User Messages to the messages list
+        user_messages: List[Message] = []
         # 3.4.1 Build user message from message if provided
         if message is not None:
             # If message is provided as a Message, use it directly
             if isinstance(message, Message):
-                messages_for_model.append(message)
+                user_messages.append(message)
             # If message is provided as a str, build the user message
             elif isinstance(message, str):
                 # Get the user message
                 user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
                 # Add user message to the messages list
                 if user_message is not None:
-                    messages_for_model.append(user_message)
                     if user_message.context is not None:
                         if self.run_response.context is None:
                             self.run_response.context = []
                         self.run_response.context.append(user_message.context)
+                    user_messages.append(user_message)
         # 3.4.2 Build user messages from messages list if provided
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
-                    messages_for_model.append(_m)
+                    user_messages.append(_m)
                 elif isinstance(_m, dict):
                     try:
-                        messages_for_model.append(Message.model_validate(_m))
+                        user_messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
+        # Add the User Messages to the messages list
+        messages_for_model.extend(user_messages)
 
-        # Track the number of messages in the run_messages that SHOULD NOT BE ADDED TO MEMORY
-        # -1 is used to exclude the user message from the count as the user message should be added to memory
-        num_messages_to_skip = len(messages_for_model) - 1
+        # Get the number of messages in messages_for_model that form the input
+        # We track these to skip when updating memory
+        num_input_messages = len(messages_for_model)
 
         # 4. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
@@ -1098,9 +1103,13 @@ class Agent(BaseModel):
                 event=RunEvent.updating_memory.value,
             )
 
-        # Add messages from this particular run to the memory
-        run_messages = messages_for_model[num_messages_to_skip:]
-        # Add all messages including and after the user message to the memory
+        # Build a list of messages that belong to this particular run
+        # We only add messages from this run to the memory
+        run_messages = user_messages + messages_for_model[num_input_messages:]
+        # Add the system message to the memory
+        if system_message is not None:
+            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
+        # Add messages from this particular run to memory (including the user messages)
         self.memory.add_run_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
@@ -1115,7 +1124,7 @@ class Agent(BaseModel):
             if user_message_for_memory is not None:
                 agent_chat.message = user_message_for_memory
                 # Update the memories with the user message if needed
-                if self.create_user_memory and self.update_user_memory_after_run:
+                if self.create_user_memories and self.update_user_memories_after_run:
                     self.memory.update_memory(input=user_message_for_memory.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
@@ -1134,7 +1143,7 @@ class Agent(BaseModel):
                     if agent_chat.messages is None:
                         agent_chat.messages = []
                     agent_chat.messages.append(_um)
-                    if self.create_user_memory and self.update_user_memory_after_run:
+                    if self.create_user_memories and self.update_user_memories_after_run:
                         self.memory.update_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
@@ -1506,7 +1515,7 @@ class Agent(BaseModel):
             if user_message_for_memory is not None:
                 agent_chat.message = user_message_for_memory
                 # Update the memories with the user message if needed
-                if self.create_user_memory and self.update_user_memory_after_run:
+                if self.create_user_memories and self.update_user_memories_after_run:
                     self.memory.update_memory(input=user_message_for_memory.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
@@ -1525,7 +1534,7 @@ class Agent(BaseModel):
                     if agent_chat.messages is None:
                         agent_chat.messages = []
                     agent_chat.messages.append(_um)
-                    if self.create_user_memory and self.update_user_memory_after_run:
+                    if self.create_user_memories and self.update_user_memories_after_run:
                         self.memory.update_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")

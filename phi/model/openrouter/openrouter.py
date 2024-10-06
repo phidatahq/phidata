@@ -11,7 +11,7 @@ class OpenRouter(OpenAILike):
     Attributes:
         id (str): The model id. Defaults to "gpt-4o".
         name (str): The model name. Defaults to "OpenRouter".
-        Provider (str): The provider name. Defaults to "OpenRouter: " + id.
+        provider (str): The provider name. Defaults to "OpenRouter: " + id.
         api_key (Optional[str]): The API key. Defaults to None.
         base_url (str): The base URL. Defaults to "https://openrouter.ai/api/v1".
         max_tokens (int): The maximum number of tokens. Defaults to 1024.
@@ -19,7 +19,7 @@ class OpenRouter(OpenAILike):
 
     id: str = "gpt-4o"
     name: str = "OpenRouter"
-    Provider: str = "OpenRouter: " + id
+    provider: str = "OpenRouter: " + id
 
     api_key: Optional[str] = getenv("OPENROUTER_API_KEY")
     base_url: str = "https://openrouter.ai/api/v1"

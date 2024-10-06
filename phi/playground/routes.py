@@ -91,7 +91,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
     def chat_response_streamer(
         agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
     ) -> Generator:
-        run_response = agent.run(message, images=images, stream=True)
+        run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.model_dump_json()

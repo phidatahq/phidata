@@ -989,14 +989,6 @@ class Agent(BaseModel):
         # 1. Update the Model (set defaults, add tools, etc.)
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
-        if stream_intermediate_steps:
-            yield RunResponse(
-                run_id=self.run_id,
-                session_id=self.session_id,
-                agent_id=self.agent_id,
-                content="Run started",
-                event=RunEvent.run_started.value,
-            )
 
         # 2. Read existing session from storage
         self.read_from_storage()
@@ -1061,6 +1053,18 @@ class Agent(BaseModel):
         # We track these to skip when updating memory
         num_input_messages = len(messages_for_model)
 
+        # Update the run_response messages with the messages list and yield a RunStarted event
+        self.run_response.messages = messages_for_model
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content="Run started",
+                messages=self.run_response.messages,
+                event=RunEvent.run_started.value,
+            )
+
         # 4. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
@@ -1071,7 +1075,6 @@ class Agent(BaseModel):
                     if model_response_chunk.content is not None and model_response.content is not None:
                         model_response.content += model_response_chunk.content
                         self.run_response.content = model_response_chunk.content
-                        self.run_response.messages = messages_for_model
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     if stream_intermediate_steps:
@@ -1081,6 +1084,7 @@ class Agent(BaseModel):
                             agent_id=self.agent_id,
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
+                            messages=self.run_response.messages,
                             event=RunEvent.tool_call_started.value,
                         )
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
@@ -1096,6 +1100,7 @@ class Agent(BaseModel):
                             agent_id=self.agent_id,
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
+                            messages=self.run_response.messages,
                             event=RunEvent.tool_call_completed.value,
                         )
         else:
@@ -1122,6 +1127,7 @@ class Agent(BaseModel):
                 agent_id=self.agent_id,
                 content="Updating memory",
                 tools=self.run_response.tools,
+                messages=self.run_response.messages,
                 event=RunEvent.updating_memory.value,
             )
 
@@ -1224,6 +1230,7 @@ class Agent(BaseModel):
                 agent_id=self.agent_id,
                 content=self.run_response.content,
                 tools=self.run_response.tools,
+                messages=self.run_response.messages,
                 event=RunEvent.run_completed.value,
             )
 

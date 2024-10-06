@@ -11,10 +11,10 @@ agent.print_response("What is the price of AAPL?", stream=True)
 # -*- Get the memory
 memory: AgentMemory = agent.memory
 
-# -*- Print Chat History
-print("============ Chat History ============")
-pprint(memory.chat_history)
+# -*- Print Messages
+print("============ Messages ============")
+pprint(memory.messages)
 
-# -*- Print Run Messages
-print("============ Run Messages ============")
-pprint(memory.run_messages)
+# -*- Print Chats
+print("============ Chats ============")
+pprint(memory.chats)

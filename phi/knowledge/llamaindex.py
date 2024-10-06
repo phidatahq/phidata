@@ -1,7 +1,7 @@
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Dict, Any
 
 from phi.document import Document
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 from phi.utils.log import logger
 
 try:
@@ -13,17 +13,20 @@ except ImportError:
     )
 
 
-class LlamaIndexKnowledgeBase(AssistantKnowledge):
+class LlamaIndexKnowledgeBase(AgentKnowledge):
     retriever: BaseRetriever
     loader: Optional[Callable] = None
 
-    def search(self, query: str, num_documents: Optional[int] = None) -> List[Document]:
+    def search(
+        self, query: str, num_documents: Optional[int] = None, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         """
         Returns relevant documents matching the query.
 
         Args:
             query (str): The query string to search for.
             num_documents (Optional[int]): The maximum number of documents to return. Defaults to None.
+            filters (Optional[Dict[str, Any]]): Filters to apply to the search. Defaults to None.
 
         Returns:
             List[Document]: A list of relevant documents matching the query.
@@ -46,7 +49,13 @@ class LlamaIndexKnowledgeBase(AssistantKnowledge):
             )
         return documents
 
-    def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
+    def load(
+        self,
+        recreate: bool = False,
+        upsert: bool = True,
+        skip_existing: bool = True,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if self.loader is None:
             logger.error("No loader provided for LlamaIndexKnowledgeBase")
             return

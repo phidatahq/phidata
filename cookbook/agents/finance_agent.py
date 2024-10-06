@@ -13,4 +13,4 @@ agent = Agent(
 )
 
 agent.print_response("What is the stock price of NVDA", stream=True)
-agent.print_response("Write a report comparing NVDA to TSLA", stream=True)
+agent.print_response("What is the stock price of TSLA", stream=True)

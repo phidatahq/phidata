@@ -1,7 +1,7 @@
 from typing import Iterator, List
 
 from phi.document import Document
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 
 try:
     import wikipedia  # noqa: F401
@@ -9,7 +9,7 @@ except ImportError:
     raise ImportError("The `wikipedia` package is not installed. Please install it via `pip install wikipedia`.")
 
 
-class WikipediaKnowledgeBase(AssistantKnowledge):
+class WikipediaKnowledgeBase(AgentKnowledge):
     topics: List[str] = []
 
     @property

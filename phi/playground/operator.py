@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from phi.agent.agent import Agent, Tool, Toolkit, Function
+from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentChat
 from phi.agent.session import AgentSession
 from phi.utils.log import logger
 
@@ -33,12 +33,23 @@ def get_agent_by_id(agents: List[Agent], agent_id: str) -> Optional[Agent]:
     return None
 
 
-def get_session_title(session: AgentSession) -> Optional[str]:
+def get_session_title(session: AgentSession) -> str:
+    if session is None:
+        return "Unnamed session"
+
+    session_name = session.session_data.get("session_name") if session.session_data is not None else None
+    if session_name is not None:
+        return session_name
+
     memory = session.memory
     if memory is not None:
-        chat_history = memory.get("chat_history")
-        if chat_history is not None:
-            for history in chat_history:
-                if history.get("role") == "user":
-                    return history.get("content")
-    return None
+        chats = memory.get("chats")
+        if chats is not None:
+            for _chat in chats:
+                try:
+                    chat_parsed = AgentChat.model_validate(_chat)
+                    if chat_parsed.message is not None and chat_parsed.message.role == "user":
+                        return chat_parsed.message.get_content_string() or "No title"
+                except Exception as e:
+                    logger.error(f"Error parsing chat: {e}")
+    return "Unnamed session"

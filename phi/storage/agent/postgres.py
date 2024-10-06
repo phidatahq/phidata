@@ -72,6 +72,8 @@ class PgAgentStorage(AgentStorage):
             self.metadata,
             # Session UUID: Primary Key
             Column("session_id", String, primary_key=True),
+            # ID of the agent that this session is associated with
+            Column("agent_id", String),
             # ID of the user interacting with this agent
             Column("user_id", String),
             # Agent Memory
@@ -129,7 +131,7 @@ class PgAgentStorage(AgentStorage):
             existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
             return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
-    def get_all_session_ids(self, user_id: Optional[str] = None) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         session_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -137,6 +139,8 @@ class PgAgentStorage(AgentStorage):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
+                if agent_id is not None:
+                    stmt = stmt.where(self.table.c.agent_id == agent_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -149,7 +153,7 @@ class PgAgentStorage(AgentStorage):
             logger.debug(f"Table does not exist: {self.table.name}")
         return session_ids
 
-    def get_all_sessions(self, user_id: Optional[str] = None) -> List[AgentSession]:
+    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         sessions: List[AgentSession] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -157,6 +161,8 @@ class PgAgentStorage(AgentStorage):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
+                if agent_id is not None:
+                    stmt = stmt.where(self.table.c.agent_id == agent_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -168,6 +174,44 @@ class PgAgentStorage(AgentStorage):
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
         return sessions
+
+    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
+        """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
+
+        with self.Session() as sess, sess.begin():
+            # Create an insert statement
+            stmt = postgresql.insert(self.table).values(
+                session_id=session.session_id,
+                agent_id=session.agent_id,
+                user_id=session.user_id,
+                memory=session.memory,
+                agent_data=session.agent_data,
+                user_data=session.user_data,
+                session_data=session.session_data,
+            )
+
+            # Define the upsert if the session_id already exists
+            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["session_id"],
+                set_=dict(
+                    agent_id=session.agent_id,
+                    user_id=session.user_id,
+                    memory=session.memory,
+                    agent_data=session.agent_data,
+                    user_data=session.user_data,
+                    session_data=session.session_data,
+                ),  # The updated value for each column
+            )
+
+            try:
+                sess.execute(stmt)
+            except Exception as e:
+                logger.debug(f"Exception upserting into table: {e}")
+                # Create table and try again
+                self.create()
+                sess.execute(stmt)
+        return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
         if session_id is None:
@@ -187,42 +231,6 @@ class PgAgentStorage(AgentStorage):
             except Exception as e:
                 logger.error(f"Error deleting session: {e}")
                 raise
-
-    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
-        """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
-
-        with self.Session() as sess, sess.begin():
-            # Create an insert statement
-            stmt = postgresql.insert(self.table).values(
-                session_id=session.session_id,
-                user_id=session.user_id,
-                memory=session.memory,
-                agent_data=session.agent_data,
-                user_data=session.user_data,
-                session_data=session.session_data,
-            )
-
-            # Define the upsert if the session_id already exists
-            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["session_id"],
-                set_=dict(
-                    user_id=session.user_id,
-                    memory=session.memory,
-                    agent_data=session.agent_data,
-                    user_data=session.user_data,
-                    session_data=session.session_data,
-                ),  # The updated value for each column
-            )
-
-            try:
-                sess.execute(stmt)
-            except Exception as e:
-                logger.debug(f"Exception upserting into table: {e}")
-                # Create table and try again
-                self.create()
-                sess.execute(stmt)
-        return self.read(session_id=session.session_id)
 
     def drop(self) -> None:
         if self.table_exists():

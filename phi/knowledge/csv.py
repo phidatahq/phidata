@@ -3,10 +3,10 @@ from typing import Union, List, Iterator
 
 from phi.document import Document
 from phi.document.reader.csv_reader import CSVReader
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 
 
-class CSVKnowledgeBase(AssistantKnowledge):
+class CSVKnowledgeBase(AgentKnowledge):
     path: Union[str, Path]
     reader: CSVReader = CSVReader()
 

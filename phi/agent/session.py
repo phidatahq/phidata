@@ -7,6 +7,8 @@ class AgentSession(BaseModel):
 
     # Session UUID
     session_id: str
+    # ID of the agent that this session is associated with
+    agent_id: Optional[str] = None
     # ID of the user interacting with this agent
     user_id: Optional[str] = None
     # Agent Memory

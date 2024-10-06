@@ -1,16 +1,21 @@
 from typing import List, Optional, Iterator, Dict, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from phi.document import Document
 from phi.document.reader.base import Reader
-from phi.knowledge.chunking import CharacterChunks, ChunkingStrategy
+from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.chunks import CharacterChunks, ChunkingStrategy
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
 
-class AgentKnowledge(BaseModel):
-    """Base class for Agent knowledge"""
+class AgentKnowledge(AssistantKnowledge):
+    """Base class for Agent knowledge
+
+    This class inherits from AssistantKnowledge only to maintain backward compatibility for downstream Knowledge bases.
+    In phidata 3.0.0, AssistantKnowledge will be deprecated and this class will inherit directly from BaseModel.
+    """
 
     # Reader for reading documents from files, pdfs, urls, etc.
     reader: Optional[Reader] = None

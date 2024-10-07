@@ -123,10 +123,13 @@ class AwsBedrock(LLM):
             for event in stream:
                 yield event
 
+    def create_assistant_message(self, request_body: Dict[str, Any]) -> Message:
+        raise NotImplementedError("Please use a subclass of AwsBedrock")
+
     def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
         raise NotImplementedError("Please use a subclass of AwsBedrock")
 
-    def parse_response_message(self, response: Dict[str, Any]) -> Message:
+    def parse_response_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
         raise NotImplementedError("Please use a subclass of AwsBedrock")
 
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
@@ -277,7 +280,7 @@ class AwsBedrock(LLM):
         # Initialize variables
         message = {}
         tool_use = {}
-        content = []
+        content: List[Dict[str, Any]] = []
         text = ""
         tool_ids = []
         tool_calls = []
@@ -416,9 +419,6 @@ class AwsBedrock(LLM):
                 # Append the tool results to the messages
                 messages.extend([Message(role="user", content=json.dumps(fc_responses))])
 
-            # Continue the conversation by recursively calling response_stream
-            # Be cautious with recursion to avoid infinite loops
-            for content in self.response_stream(messages=messages):
-                yield content
+            yield from self.response(messages=messages)
 
         logger.debug("---------- Bedrock Response End ----------")

@@ -50,7 +50,7 @@ class Claude(AwsBedrock):
             _request_params.update(self.request_params)
         return _request_params
 
-    def get_tools(self):
+    def get_tools(self) -> Optional[Dict[str, Any]]:
         """
         Refactors the tools in a format accepted by the Bedrock API.
         """
@@ -107,7 +107,7 @@ class Claude(AwsBedrock):
             request_body["system"] = [{"text": system_prompt}]
 
         # Add inferenceConfig
-        inference_config = {}
+        inference_config: Dict[str, Any] = {}
         rename_map = {"max_tokens": "maxTokens", "top_p": "topP", "top_k": "topK", "stop_sequences": "stopSequences"}
 
         for k, v in self.api_kwargs.items():
@@ -117,11 +117,11 @@ class Claude(AwsBedrock):
                 inference_config[k] = v
 
         if inference_config:
-            request_body["inferenceConfig"] = inference_config
+            request_body["inferenceConfig"] = inference_config  # type: ignore
 
         if self.tools:
             tools = self.get_tools()
-            request_body["toolConfig"] = tools
+            request_body["toolConfig"] = tools  # type: ignore
 
         return request_body
 

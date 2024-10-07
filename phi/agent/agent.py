@@ -1900,15 +1900,16 @@ class Agent(BaseModel):
         if not (self.telemetry or self.monitoring):
             return
 
-        from phi.api.agent import trigger_agent_session_creation, AgentSessionCreate
+        from phi.api.agent import create_agent_session, AgentSessionCreate
 
         try:
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
-            trigger_agent_session_creation(
+            create_agent_session(
                 session=AgentSessionCreate(
                     session_id=agent_session.session_id,
                     agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
                 ),
+                monitor=self.monitoring,
             )
         except Exception as e:
             logger.debug(f"Could not create agent monitor: {e}")
@@ -1917,7 +1918,7 @@ class Agent(BaseModel):
         if not (self.telemetry or self.monitoring):
             return
 
-        from phi.api.agent import trigger_agent_run_creation, AgentRunCreate
+        from phi.api.agent import create_agent_run, AgentRunCreate
 
         try:
             run_response_format = "text"
@@ -1946,13 +1947,14 @@ class Agent(BaseModel):
                 }
 
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
-            trigger_agent_run_creation(
+            create_agent_run(
                 run=AgentRunCreate(
                     run_id=self.run_id,
                     run_data=run_data,
                     session_id=agent_session.session_id,
                     agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
                 ),
+                monitor=self.monitoring,
             )
         except Exception as e:
             logger.debug(f"Could not create agent event: {e}")

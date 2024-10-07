@@ -20,6 +20,10 @@ class ApiRoutes:
     AGENT_SESSION_CREATE: str = "/v1/agent/session/create"
     AGENT_RUN_CREATE: str = "/v1/agent/run/create"
 
+    # Telemetry paths
+    AGENT_TELEMETRY_SESSION_CREATE: str = "/v1/telemetry/agent/session/create"
+    AGENT_TELEMETRY_RUN_CREATE: str = "/v1/telemetry/agent/run/create"
+
     # Playground paths
     PLAYGROUND_ENDPOINT_CREATE: str = "/v1/playground/endpoint/create"
 

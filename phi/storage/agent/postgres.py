@@ -1,4 +1,3 @@
-import time
 from typing import Optional, Any, List
 
 try:
@@ -86,9 +85,9 @@ class PgAgentStorage(AgentStorage):
             # Session Metadata
             Column("session_data", postgresql.JSONB),
             # The Unix timestamp of when this session was created.
-            Column("created_at", BigInteger, default=lambda: int(time.time())),
+            Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
             # The Unix timestamp of when this session was last updated.
-            Column("updated_at", BigInteger, onupdate=lambda: int(time.time())),
+            Column("updated_at", BigInteger, server_onupdate=text("(extract(epoch from now()))::bigint")),
             extend_existing=True,
         )
 

@@ -2,14 +2,25 @@ from typing import Optional, Dict, Any, List
 
 from phi.llm.message import Message
 from phi.llm.aws.bedrock import AwsBedrock
-from phi.utils.log import logger
-
-import logging
-
-logger.setLevel(logging.DEBUG)
 
 
 class Claude(AwsBedrock):
+    """
+    AWS Bedrock Claude model.
+
+    Args:
+        model (str): The model to use.
+        max_tokens (int): The maximum number of tokens to generate.
+        temperature (Optional[float]): The temperature to use.
+        top_p (Optional[float]): The top p to use.
+        top_k (Optional[int]): The top k to use.
+        stop_sequences (Optional[List[str]]): The stop sequences to use.
+        anthropic_version (str): The anthropic version to use.
+        request_params (Optional[Dict[str, Any]]): The request parameters to use.
+        client_params (Optional[Dict[str, Any]]): The client parameters to use.
+
+    """
+
     name: str = "AwsBedrockAnthropicClaude"
     model: str = "anthropic.claude-3-sonnet-20240229-v1:0"
     # -*- Request parameters
@@ -90,6 +101,15 @@ class Claude(AwsBedrock):
         return {"tools": tools}
 
     def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
+        """
+        Get the request body for the Bedrock API.
+
+        Args:
+            messages (List[Message]): The messages to include in the request.
+
+        Returns:
+            Dict[str, Any]: The request body for the Bedrock API.
+        """
         system_prompt = None
         messages_for_api = []
         for m in messages:
@@ -126,7 +146,15 @@ class Claude(AwsBedrock):
         return request_body
 
     def parse_response_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        logger.debug(f"Response: {response}")
+        """
+        Parse the response from the Bedrock API.
+
+        Args:
+            response (Dict[str, Any]): The response from the Bedrock API.
+
+        Returns:
+            Dict[str, Any]: The parsed response.
+        """
         res = {}
         if "output" in response and "message" in response["output"]:
             message = response["output"]["message"]
@@ -161,6 +189,15 @@ class Claude(AwsBedrock):
         return res
 
     def create_assistant_message(self, parsed_response: Dict[str, Any]) -> Message:
+        """
+        Create an assistant message from the parsed response.
+
+        Args:
+            parsed_response (Dict[str, Any]): The parsed response from the Bedrock API.
+
+        Returns:
+            Message: The assistant message.
+        """
         mesage = Message(
             role=parsed_response["role"],
             content=parsed_response["content"],
@@ -170,6 +207,15 @@ class Claude(AwsBedrock):
         return mesage
 
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
+        """
+        Parse the response delta from the Bedrock API.
+
+        Args:
+            response (Dict[str, Any]): The response from the Bedrock API.
+
+        Returns:
+            Optional[str]: The response delta.
+        """
         if "delta" in response:
             return response.get("delta", {}).get("text")
         return response.get("completion")

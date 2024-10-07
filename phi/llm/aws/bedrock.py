@@ -22,6 +22,19 @@ except ImportError:
 
 
 class AwsBedrock(LLM):
+    """
+    AWS Bedrock model.
+
+    Args:
+        model (str): The model to use.
+        aws_region (Optional[str]): The AWS region to use.
+        aws_profile (Optional[str]): The AWS profile to use.
+        aws_client (Optional[AwsApiClient]): The AWS client to use.
+        request_params (Optional[Dict[str, Any]]): The request parameters to use.
+        _bedrock_client (Optional[Any]): The Bedrock client to use.
+        _bedrock_runtime_client (Optional[Any]): The Bedrock runtime client to use.
+    """
+
     name: str = "AwsBedrock"
     model: str
 
@@ -70,15 +83,6 @@ class AwsBedrock(LLM):
         return self.aws_client
 
     @property
-    def bedrock_client(self):
-        if self._bedrock_client is not None:
-            return self._bedrock_client
-
-        boto3_session: session = self.get_aws_client().boto3_session
-        self._bedrock_client = boto3_session.client(service_name="bedrock")
-        return self._bedrock_client
-
-    @property
     def bedrock_runtime_client(self):
         if self._bedrock_runtime_client is not None:
             return self._bedrock_runtime_client
@@ -91,32 +95,28 @@ class AwsBedrock(LLM):
     def api_kwargs(self) -> Dict[str, Any]:
         return {}
 
-    def get_model_summaries(self) -> List[Dict[str, Any]]:
-        list_response: dict = self.bedrock_client.list_foundation_models()
-        if list_response is None or "modelSummaries" not in list_response:
-            return []
-
-        return list_response["modelSummaries"]
-
-    def get_model_ids(self) -> List[str]:
-        model_summaries: List[Dict[str, Any]] = self.get_model_summaries()
-        if len(model_summaries) == 0:
-            return []
-
-        return [model_summary["modelId"] for model_summary in model_summaries]
-
-    def get_model_details(self) -> Dict[str, Any]:
-        model_details: dict = self.bedrock_client.get_foundation_model(modelIdentifier=self.model)
-
-        if model_details is None or "modelDetails" not in model_details:
-            return {}
-
-        return model_details["modelDetails"]
-
     def invoke(self, body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Invoke the Bedrock API.
+
+        Args:
+            body (Dict[str, Any]): The request body.
+
+        Returns:
+            Dict[str, Any]: The response from the Bedrock API.
+        """
         return self.bedrock_runtime_client.converse(**body)
 
     def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        """
+        Invoke the Bedrock API with streaming.
+
+        Args:
+            body (Dict[str, Any]): The request body.
+
+        Returns:
+            Iterator[Dict[str, Any]]: The streamed response.
+        """
         response = self.bedrock_runtime_client.converse_stream(**body)
         stream = response.get("stream")
         if stream:
@@ -136,6 +136,15 @@ class AwsBedrock(LLM):
         raise NotImplementedError("Please use a subclass of AwsBedrock")
 
     def response(self, messages: List[Message]) -> str:
+        """
+        Generate a response from the Bedrock API.
+
+        Args:
+            messages (List[Message]): The messages to include in the request.
+
+        Returns:
+            str: The response from the Bedrock API.
+        """
         logger.debug("---------- Bedrock Response Start ----------")
         # -*- Log messages for debugging
         for m in messages:
@@ -268,6 +277,15 @@ class AwsBedrock(LLM):
         return "Something went wrong, please try again."
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
+        """
+        Stream the response from the Bedrock API.
+
+        Args:
+            messages (List[Message]): The messages to include in the request.
+
+        Returns:
+            Iterator[str]: The streamed response.
+        """
         logger.debug("---------- Bedrock Response Start ----------")
 
         assistant_message_content = ""

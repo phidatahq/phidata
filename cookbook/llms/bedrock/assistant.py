@@ -9,4 +9,6 @@ assistant = Assistant(
     debug_mode=True,
     add_datetime_to_instructions=True,
 )
-assistant.print_response("Who were the biggest upsets in the NFL? Who were the biggest upsets in College Football?", markdown=True)
+assistant.print_response(
+    "Who were the biggest upsets in the NFL? Who were the biggest upsets in College Football?", markdown=True
+)

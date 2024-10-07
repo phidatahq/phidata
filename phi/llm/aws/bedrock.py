@@ -11,6 +11,7 @@ from phi.utils.tools import (
 )
 
 import logging
+
 logger.setLevel(logging.DEBUG)
 
 try:
@@ -117,7 +118,7 @@ class AwsBedrock(LLM):
 
     def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         response = self.bedrock_runtime_client.converse_stream(**body)
-        stream = response.get('stream')
+        stream = response.get("stream")
         if stream:
             for event in stream:
                 yield event
@@ -146,7 +147,7 @@ class AwsBedrock(LLM):
 
         # -*- Parse response
         parsed_response = self.parse_response_message(response)
-        stop_reason = parsed_response['stop_reason']
+        stop_reason = parsed_response["stop_reason"]
 
         # -*- Create assistant message
         assistant_message = self.create_assistant_message(parsed_response)
@@ -187,26 +188,28 @@ class AwsBedrock(LLM):
 
         # -*- Create tool calls if needed
         if stop_reason == "tool_use":
-            tool_requests = parsed_response['tool_requests']
+            tool_requests = parsed_response["tool_requests"]
             if tool_requests is not None:
                 tool_calls: List[Dict[str, Any]] = []
                 tool_ids: List[str] = []
-                tool_response = tool_requests[0]['text']
+                tool_response = tool_requests[0]["text"]
                 for tool in tool_requests:
-                    if 'toolUse' in tool.keys():
-                        tool_id = tool["toolUse"]['toolUseId']
+                    if "toolUse" in tool.keys():
+                        tool_id = tool["toolUse"]["toolUseId"]
                         tool_name = tool["toolUse"]["name"]
-                        tool_args = tool['toolUse']['input']
+                        tool_args = tool["toolUse"]["input"]
 
                         tool_ids.append(tool_id)
-                        tool_calls.append({
-                            "type": "function",
-                            "function": {
-                                "name": tool_name,
-                                "arguments": json.dumps(tool_args),
+                        tool_calls.append(
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": json.dumps(tool_args),
+                                },
                             }
-                        })
-            
+                        )
+
             assistant_message.content = tool_response
             if len(tool_calls) > 0:
                 assistant_message.tool_calls = tool_calls
@@ -245,31 +248,21 @@ class AwsBedrock(LLM):
                         "toolUseId": tool_ids[_fc_message_index],
                         "content": [{"json": json.dumps(_fc_message.content)}],
                     }
-                    tool_result_message = {
-                        "role": "user",
-                        "content": json.dumps([{"toolResult": tool_result}])
-                    }
+                    tool_result_message = {"role": "user", "content": json.dumps([{"toolResult": tool_result}])}
                     fc_responses.append(tool_result_message)
-                
+
                 logger.debug(f"Tool call responses: {fc_responses}")
                 messages.append(Message(role="user", content=json.dumps(fc_responses)))
 
             # -*- Yield new response using results of tool calls
             final_response += self.response(messages=messages)
             return final_response
-        
+
         logger.debug("---------- Bedrock Response End ----------")
         # -*- Return content if no function calls are present
         if assistant_message.content is not None:
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
-
-    def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        response = self.bedrock_runtime_client.converse_stream(**body)
-        stream = response.get('stream')
-        if stream:
-            for event in stream:
-                yield event
 
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Bedrock Response Start ----------")
@@ -295,60 +288,60 @@ class AwsBedrock(LLM):
 
         # Process the streaming response
         for chunk in response:
-            if 'messageStart' in chunk:
-                message['role'] = chunk['messageStart']['role']
+            if "messageStart" in chunk:
+                message["role"] = chunk["messageStart"]["role"]
                 logger.debug(f"Role: {message['role']}")
 
-            elif 'contentBlockStart' in chunk:
-                tool = chunk['contentBlockStart']['start'].get('toolUse')
+            elif "contentBlockStart" in chunk:
+                tool = chunk["contentBlockStart"]["start"].get("toolUse")
                 if tool:
-                    tool_use['toolUseId'] = tool['toolUseId']
-                    tool_use['name'] = tool['name']
+                    tool_use["toolUseId"] = tool["toolUseId"]
+                    tool_use["name"] = tool["name"]
 
-            elif 'contentBlockDelta' in chunk:
-                delta = chunk['contentBlockDelta']['delta']
-                if 'toolUse' in delta:
-                    if 'input' not in tool_use:
-                        tool_use['input'] = ''
-                    tool_use['input'] += delta['toolUse']['input']
-                elif 'text' in delta:
-                    text += delta['text']
-                    assistant_message_content += delta['text']
-                    yield delta['text']  # Yield text content as it's received
+            elif "contentBlockDelta" in chunk:
+                delta = chunk["contentBlockDelta"]["delta"]
+                if "toolUse" in delta:
+                    if "input" not in tool_use:
+                        tool_use["input"] = ""
+                    tool_use["input"] += delta["toolUse"]["input"]
+                elif "text" in delta:
+                    text += delta["text"]
+                    assistant_message_content += delta["text"]
+                    yield delta["text"]  # Yield text content as it's received
 
-            elif 'contentBlockStop' in chunk:
-                if 'input' in tool_use:
+            elif "contentBlockStop" in chunk:
+                if "input" in tool_use:
                     # Finish collecting tool use input
                     try:
-                        tool_use['input'] = json.loads(tool_use['input'])
+                        tool_use["input"] = json.loads(tool_use["input"])
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse tool input as JSON: {e}")
-                        tool_use['input'] = {}
-                    content.append({'toolUse': tool_use})
-                    tool_ids.append(tool_use['toolUseId'])
+                        tool_use["input"] = {}
+                    content.append({"toolUse": tool_use})
+                    tool_ids.append(tool_use["toolUseId"])
                     # Prepare the tool call
                     tool_call = {
                         "type": "function",
                         "function": {
-                            "name": tool_use['name'],
-                            "arguments": json.dumps(tool_use['input']),
-                        }
+                            "name": tool_use["name"],
+                            "arguments": json.dumps(tool_use["input"]),
+                        },
                     }
                     tool_calls.append(tool_call)
                     tool_use = {}
                 else:
                     # Finish collecting text content
-                    content.append({'text': text})
-                    text = ''
+                    content.append({"text": text})
+                    text = ""
 
-            elif 'messageStop' in chunk:
-                stop_reason = chunk['messageStop']['stopReason']
+            elif "messageStop" in chunk:
+                stop_reason = chunk["messageStop"]["stopReason"]
                 logger.debug(f"Stop reason: {stop_reason}")
 
-            elif 'metadata' in chunk:
-                metadata = chunk['metadata']
-                if 'usage' in metadata:
-                    completion_tokens = metadata['usage']['outputTokens']
+            elif "metadata" in chunk:
+                metadata = chunk["metadata"]
+                if "usage" in metadata:
+                    completion_tokens = metadata["usage"]["outputTokens"]
                     logger.debug(f"Completion tokens: {completion_tokens}")
 
         response_timer.stop()
@@ -416,10 +409,7 @@ class AwsBedrock(LLM):
                         "toolUseId": tool_ids[_fc_message_index],
                         "content": [{"json": json.dumps(_fc_message.content)}],
                     }
-                    tool_result_message = {
-                        "role": "user",
-                        "content": json.dumps([{"toolResult": tool_result}])
-                    }
+                    tool_result_message = {"role": "user", "content": json.dumps([{"toolResult": tool_result}])}
                     fc_responses.append(tool_result_message)
 
                 logger.debug(f"Tool call responses: {fc_responses}")

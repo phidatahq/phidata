@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 
-from phi.llm.message import Message
-from phi.llm.aws.bedrock import AwsBedrock
+from phi.model.message import Message
+from phi.model.aws.bedrock import AwsBedrock
 
 
 class Claude(AwsBedrock):
@@ -21,8 +21,10 @@ class Claude(AwsBedrock):
 
     """
 
+    id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     name: str = "AwsBedrockAnthropicClaude"
-    model: str = "anthropic.claude-3-sonnet-20240229-v1:0"
+    provider: str = "AwsBedrock"
+
     # -*- Request parameters
     max_tokens: int = 4096
     temperature: Optional[float] = None
@@ -120,7 +122,7 @@ class Claude(AwsBedrock):
 
         request_body = {
             "messages": messages_for_api,
-            "modelId": self.model,
+            "modelId": self.id,
         }
 
         if system_prompt:

@@ -1897,7 +1897,7 @@ class Agent(BaseModel):
     ###########################################################################
 
     def log_agent_session(self):
-        if not self.telemetry or self.monitoring:
+        if not (self.telemetry or self.monitoring):
             return
 
         from phi.api.agent import trigger_agent_session_creation, AgentSessionCreate
@@ -1914,7 +1914,7 @@ class Agent(BaseModel):
             logger.debug(f"Could not create agent monitor: {e}")
 
     def log_agent_run(self, run_input: Optional[Union[str, List, Dict]]) -> None:
-        if not self.telemetry or self.monitoring:
+        if not (self.telemetry or self.monitoring):
             return
 
         from phi.api.agent import trigger_agent_run_creation, AgentRunCreate

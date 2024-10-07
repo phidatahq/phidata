@@ -8,7 +8,7 @@ agent = Agent(
     system_prompt="Your name is optimus",
     add_history_to_messages=True,
     markdown=True,
-    debug_mode=True,
+    # debug_mode=True,
 )
 agent.print_response("Share a 1 sentence horror story", stream=True)
 agent.print_response("Share a 2 sentence horror story", stream=True)

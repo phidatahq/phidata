@@ -463,12 +463,17 @@ class Agent(BaseModel):
                     try:
                         self.memory.chats = [AgentChat(**m) for m in session.memory["chats"]]
                     except Exception as e:
-                        logger.warning(f"Failed to load agent chats: {e}")
+                        logger.warning(f"Failed to load chats from memory: {e}")
+                if "messages" in session.memory:
+                    try:
+                        self.memory.messages = [Message(**m) for m in session.memory["messages"]]
+                    except Exception as e:
+                        logger.warning(f"Failed to load messages from memory: {e}")
                 if "summary" in session.memory:
                     try:
                         self.memory.summary = SessionSummary(**session.memory["summary"])
                     except Exception as e:
-                        logger.warning(f"Failed to load session summary: {e}")
+                        logger.warning(f"Failed to load session summary from memory: {e}")
                 if "memories" in session.memory:
                     try:
                         self.memory.memories = [Memory(**m) for m in session.memory["memories"]]
@@ -537,7 +542,7 @@ class Agent(BaseModel):
         if introduction is not None:
             # Add an introduction as the first response from the Agent
             if len(self.memory.chats) == 0:
-                self.memory.add_agent_chat(
+                self.memory.add_chat(
                     AgentChat(
                         response=RunResponse(
                             content=introduction, messages=[Message(role="assistant", content=introduction)]
@@ -1060,6 +1065,10 @@ class Agent(BaseModel):
         # Add the User Messages to the messages list
         messages_for_model.extend(user_messages)
 
+        # Get the number of messages in messages_for_model that form the input for this run
+        # We track these to skip when updating memory
+        num_input_messages = len(messages_for_model)
+
         # Update the run_response messages with the messages list and yield a RunStarted event
         self.run_response.messages = messages_for_model
         if stream_intermediate_steps:
@@ -1138,6 +1147,15 @@ class Agent(BaseModel):
                 event=RunEvent.updating_memory.value,
             )
 
+        # Build a list of messages that belong to this particular run
+        # So we only add messages from this run to the memory
+        run_messages = user_messages + messages_for_model[num_input_messages:]
+        # Add the system message to the memory
+        if system_message is not None:
+            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
+        # Add messages from this particular run to memory (including the user messages)
+        self.memory.add_run_messages(messages=run_messages)
+
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)
         if message is not None:
@@ -1146,7 +1164,6 @@ class Agent(BaseModel):
                 user_message_for_memory = Message(role=self.user_message_role, content=message)
             elif isinstance(message, Message):
                 user_message_for_memory = message
-
             if user_message_for_memory is not None:
                 agent_chat.message = user_message_for_memory
                 # Update the memories with the user message if needed
@@ -1174,7 +1191,7 @@ class Agent(BaseModel):
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentChat to memory
-        self.memory.add_agent_chat(agent_chat)
+        self.memory.add_chat(agent_chat)
 
         # Update the session summary if needed
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
@@ -1187,18 +1204,7 @@ class Agent(BaseModel):
         self.save_run_response_to_file(message=message)
 
         # Log Agent Run
-        run_response_format = "text"
-        if self.response_model is not None:
-            run_response_format = "json"
-        elif self.markdown:
-            run_response_format = "markdown"
-        functions = {}
-        if self.model is not None and self.model.functions is not None:
-            for _f_name, _func in self.model.functions.items():
-                if isinstance(_func, Function):
-                    functions[_f_name] = _func.to_dict()
-
-        run_input: Any = None
+        run_input: Optional[Union[str, List, Dict]] = None
         if message is not None:
             if isinstance(message, str):
                 run_input = message
@@ -1208,21 +1214,7 @@ class Agent(BaseModel):
                 run_input = message
         elif messages is not None:
             run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-
-        if self.monitoring:
-            run_data = {
-                "run_input": run_input,
-                "run_response": self.run_response,
-                "run_response_format": run_response_format,
-                "functions": functions,
-                "metrics": self.model.metrics if self.model else None,
-            }
-        else:
-            run_data = {
-                "functions": functions,
-                "metrics": self.model.metrics if self.model else None,
-            }
-        self.log_agent_run(run_id=self.run_id, run_data=run_data)
+        self.log_agent_run(run_input=run_input)
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
@@ -1445,6 +1437,10 @@ class Agent(BaseModel):
         # Add the User Messages to the messages list
         messages_for_model.extend(user_messages)
 
+        # Get the number of messages in messages_for_model that form the input for this run
+        # We track these to skip when updating memory
+        num_input_messages = len(messages_for_model)
+
         # Update the run_response messages with the messages list and yield a RunStarted event
         self.run_response.messages = messages_for_model
         if stream_intermediate_steps:
@@ -1468,7 +1464,6 @@ class Agent(BaseModel):
                     if model_response_chunk.content is not None and model_response.content is not None:
                         model_response.content += model_response_chunk.content
                         self.run_response.content = model_response_chunk.content
-                        self.run_response.messages = messages_for_model
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     if stream_intermediate_steps:
@@ -1478,6 +1473,7 @@ class Agent(BaseModel):
                             agent_id=self.agent_id,
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
+                            messages=self.run_response.messages,
                             event=RunEvent.tool_call_started.value,
                         )
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
@@ -1493,6 +1489,7 @@ class Agent(BaseModel):
                             agent_id=self.agent_id,
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
+                            messages=self.run_response.messages,
                             event=RunEvent.tool_call_completed.value,
                         )
         else:
@@ -1519,8 +1516,18 @@ class Agent(BaseModel):
                 agent_id=self.agent_id,
                 content="Updating memory",
                 tools=self.run_response.tools,
+                messages=self.run_response.messages,
                 event=RunEvent.updating_memory.value,
             )
+
+        # Build a list of messages that belong to this particular run
+        # So we only add messages from this run to the memory
+        run_messages = user_messages + messages_for_model[num_input_messages:]
+        # Add the system message to the memory
+        if system_message is not None:
+            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
+        # Add messages from this particular run to memory (including the user messages)
+        self.memory.add_run_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)
@@ -1530,7 +1537,6 @@ class Agent(BaseModel):
                 user_message_for_memory = Message(role=self.user_message_role, content=message)
             elif isinstance(message, Message):
                 user_message_for_memory = message
-
             if user_message_for_memory is not None:
                 agent_chat.message = user_message_for_memory
                 # Update the memories with the user message if needed
@@ -1558,7 +1564,7 @@ class Agent(BaseModel):
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentChat to memory
-        self.memory.add_agent_chat(agent_chat)
+        self.memory.add_chat(agent_chat)
 
         # Update the session summary if needed
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
@@ -1571,18 +1577,7 @@ class Agent(BaseModel):
         self.save_run_response_to_file(message=message)
 
         # Log Agent Run
-        run_response_format = "text"
-        if self.response_model is not None:
-            run_response_format = "json"
-        elif self.markdown:
-            run_response_format = "markdown"
-        functions = {}
-        if self.model is not None and self.model.functions is not None:
-            for _f_name, _func in self.model.functions.items():
-                if isinstance(_func, Function):
-                    functions[_f_name] = _func.to_dict()
-
-        run_input: Any = None
+        run_input: Optional[Union[str, List, Dict]] = None
         if message is not None:
             if isinstance(message, str):
                 run_input = message
@@ -1592,21 +1587,7 @@ class Agent(BaseModel):
                 run_input = message
         elif messages is not None:
             run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-
-        if self.monitoring:
-            run_data = {
-                "run_input": run_input,
-                "run_response": self.run_response,
-                "run_response_format": run_response_format,
-                "functions": functions,
-                "metrics": self.model.metrics if self.model else None,
-            }
-        else:
-            run_data = {
-                "functions": functions,
-                "metrics": self.model.metrics if self.model else None,
-            }
-        self.log_agent_run(run_id=self.run_id, run_data=run_data)
+        self.log_agent_run(run_input=run_input)
 
         logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
@@ -1916,7 +1897,7 @@ class Agent(BaseModel):
     ###########################################################################
 
     def log_agent_session(self):
-        if not self.telemetry:
+        if not self.telemetry or self.monitoring:
             return
 
         from phi.api.agent import trigger_agent_session_creation, AgentSessionCreate
@@ -1932,17 +1913,42 @@ class Agent(BaseModel):
         except Exception as e:
             logger.debug(f"Could not create agent monitor: {e}")
 
-    def log_agent_run(self, run_id: str, run_data: Optional[Dict[str, Any]] = None) -> None:
-        if not self.telemetry:
+    def log_agent_run(self, run_input: Optional[Union[str, List, Dict]]) -> None:
+        if not self.telemetry or self.monitoring:
             return
 
         from phi.api.agent import trigger_agent_run_creation, AgentRunCreate
 
         try:
+            run_response_format = "text"
+            if self.response_model is not None:
+                run_response_format = "json"
+            elif self.markdown:
+                run_response_format = "markdown"
+            functions = {}
+            if self.model is not None and self.model.functions is not None:
+                for _f_name, _func in self.model.functions.items():
+                    if isinstance(_func, Function):
+                        functions[_f_name] = _func.to_dict()
+
+            if self.monitoring:
+                run_data = {
+                    "run_input": run_input,
+                    "run_response": self.run_response,
+                    "run_response_format": run_response_format,
+                    "functions": functions,
+                    "metrics": self.model.metrics if self.model else None,
+                }
+            else:
+                run_data = {
+                    "functions": functions,
+                    "metrics": self.model.metrics if self.model else None,
+                }
+
             agent_session: AgentSession = self.agent_session or self.to_agent_session()
             trigger_agent_run_creation(
                 run=AgentRunCreate(
-                    run_id=run_id,
+                    run_id=self.run_id,
                     run_data=run_data,
                     session_id=agent_session.session_id,
                     agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),

@@ -31,6 +31,9 @@ class MemoryRetrieval(str, Enum):
 class AgentMemory(BaseModel):
     # Chats between the user and agent
     chats: List[AgentChat] = []
+    # List of messages sent to the model
+    messages: List[Message] = []
+    update_system_message_on_change: bool = False
 
     # Create and store session summaries
     create_session_summary: bool = False
@@ -81,10 +84,47 @@ class AgentMemory(BaseModel):
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict
 
-    def add_agent_chat(self, agent_chat: AgentChat) -> None:
+    def add_chat(self, agent_chat: AgentChat) -> None:
         """Adds an AgentChat to the chats list."""
         self.chats.append(agent_chat)
         logger.debug("Added AgentChat to AgentMemory")
+
+    def add_system_message(self, message: Message, system_message_role: str = "system") -> None:
+        """Add the system messages to the messages list"""
+        # If this is the first run in the session, add the system message to the messages list
+        if len(self.messages) == 0:
+            if message is not None:
+                self.messages.append(message)
+        # If there are messages in the memory, check if the system message is already in the memory
+        # If it is not, add the system message to the messages list
+        # If it is, update the system message if content has changed and update_system_message_on_change is True
+        else:
+            system_message_index = next((i for i, m in enumerate(self.messages) if m.role == system_message_role), None)
+            # Update the system message in memory if content has changed
+            if system_message_index is not None:
+                if (
+                    self.messages[system_message_index].content != message.content
+                    and self.update_system_message_on_change
+                ):
+                    logger.info("Updating system message in memory with new content")
+                    self.messages[system_message_index] = message
+            else:
+                # Add the system message to the messages list
+                self.messages.insert(0, message)
+
+    def add_run_message(self, message: Message) -> None:
+        """Add a Message to the messages list."""
+        self.messages.append(message)
+        logger.debug("Added Message to AgentMemory")
+
+    def add_run_messages(self, messages: List[Message]) -> None:
+        """Add a list of messages to the messages list."""
+        self.messages.extend(messages)
+        logger.debug(f"Added {len(messages)} Messages to AgentMemory")
+
+    def get_run_messages(self) -> List[Dict[str, Any]]:
+        """Returns the messages list as a list of dictionaries."""
+        return [message.model_dump(exclude_none=True) for message in self.messages]
 
     def get_messages_from_last_n_chats(
         self, last_n: Optional[int] = None, skip_role: Optional[str] = None
@@ -128,7 +168,7 @@ class AgentMemory(BaseModel):
     ) -> List[Tuple[Message, Message]]:
         """Returns a list of tuples of (user message, assistant response)."""
 
-        chats_as_message_pars: List[Tuple[Message, Message]] = []
+        chats_as_message_pairs: List[Tuple[Message, Message]] = []
         for chat in self.chats:
             if chat.response and chat.response.messages:
                 user_messages_from_chat = None
@@ -147,21 +187,19 @@ class AgentMemory(BaseModel):
                         break
 
                 if user_messages_from_chat and assistant_messages_from_chat:
-                    chats_as_message_pars.append((user_messages_from_chat, assistant_messages_from_chat))
-        return chats_as_message_pars
+                    chats_as_message_pairs.append((user_messages_from_chat, assistant_messages_from_chat))
+        return chats_as_message_pairs
 
     def get_tool_calls(self, num_calls: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Returns a list of tool calls."""
+        """Returns a list of tool calls from the messages"""
 
         tool_calls = []
-        for chat in self.chats[::-1]:
-            if chat.response and chat.response.messages:
-                for message in chat.response.messages[::-1]:
-                    if message.tool_calls:
-                        for tool_call in message.tool_calls:
-                            tool_calls.append(tool_call)
-                            if num_calls and len(tool_calls) >= num_calls:
-                                return tool_calls
+        for message in self.messages[::-1]:
+            if message.tool_calls:
+                for tool_call in message.tool_calls:
+                    tool_calls.append(tool_call)
+                    if num_calls and len(tool_calls) >= num_calls:
+                        return tool_calls
         return tool_calls
 
     def load_user_memories(self) -> None:

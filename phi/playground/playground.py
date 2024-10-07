@@ -1,11 +1,13 @@
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from fastapi import FastAPI
 from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
+from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
 from phi.playground.routes import create_playground_routes
 from phi.playground.settings import PlaygroundSettings
+from phi.utils.log import logger
 
 
 class Playground:
@@ -20,6 +22,7 @@ class Playground:
         self.settings: PlaygroundSettings = settings or PlaygroundSettings()
         self.api_app: Optional[FastAPI] = api_app
         self.router: Optional[APIRouter] = router
+        self.endpoints_created: Set[str] = set()
 
     def get_router(self) -> APIRouter:
         return create_playground_routes(self.agents)
@@ -57,3 +60,18 @@ class Playground:
         )
 
         return self.api_app
+
+    def create_endpoint(self, endpoint: str, prefix: str = "v1") -> None:
+        if endpoint in self.endpoints_created:
+            return
+
+        try:
+            create_playground_endpoint(
+                playground=PlaygroundEndpointCreate(endpoint=endpoint, playground_data={"prefix": prefix})
+            )
+        except Exception as e:
+            logger.error(f"Could not create Playground Endpoint: {e}")
+            logger.error("Please try again.")
+            return
+
+        self.endpoints_created.add(endpoint)

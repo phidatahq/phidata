@@ -9,16 +9,20 @@ from phi.utils.log import logger
 def serve_playground_app(
     app: Union[str, FastAPI],
     *,
+    scheme: str = "http",
     host: str = "localhost",
     port: int = 7777,
     reload: bool = False,
+    prefix="/v1",
     **kwargs,
 ):
     import uvicorn
 
     try:
         create_playground_endpoint(
-            playground=PlaygroundEndpointCreate(endpoint=f"http://{host}:{port}"),
+            playground=PlaygroundEndpointCreate(
+                endpoint=f"{scheme}://{host}:{port}", playground_data={"prefix": prefix}
+            ),
         )
     except Exception as e:
         logger.error(f"Could not create Playground Endpoint: {e}")

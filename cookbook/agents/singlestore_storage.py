@@ -26,7 +26,7 @@ db_engine = create_engine(db_url)
 
 # Create an agent with SingleStore storage
 agent = Agent(
-    storage=S2AgentStorage(table_name="agent_sessions", db_engine=db_engine, schema=DATABASE),
+    storage=S2AgentStorage(table_name="agent_runs", db_engine=db_engine, schema=DATABASE),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,
 )

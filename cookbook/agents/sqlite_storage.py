@@ -5,7 +5,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.agent.sqllite import SqlAgentStorage
 
 agent = Agent(
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file="data.db"),
+    storage=SqlAgentStorage(table_name="agent_runs", db_file="data.db"),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,
 )

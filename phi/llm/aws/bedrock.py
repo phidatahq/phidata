@@ -116,14 +116,11 @@ class AwsBedrock(LLM):
         return self.bedrock_runtime_client.converse(**body)
 
     def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        response = self.bedrock_runtime_client.invoke_model_with_response_stream(
-            body=json.dumps(body),
-            modelId=self.model,
-        )
-        for event in response.get("body"):
-            chunk = event.get("chunk")
-            if chunk:
-                yield json.loads(chunk.get("bytes").decode())
+        response = self.bedrock_runtime_client.converse_stream(**body)
+        stream = response.get('stream')
+        if stream:
+            for event in stream:
+                yield event
 
     def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
         raise NotImplementedError("Please use a subclass of AwsBedrock")
@@ -267,6 +264,13 @@ class AwsBedrock(LLM):
             return assistant_message.get_content_string()
         return "Something went wrong, please try again."
 
+    def invoke_stream(self, body: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        response = self.bedrock_runtime_client.converse_stream(**body)
+        stream = response.get('stream')
+        if stream:
+            for event in stream:
+                yield event
+
     def response_stream(self, messages: List[Message]) -> Iterator[str]:
         logger.debug("---------- Bedrock Response Start ----------")
 
@@ -274,52 +278,157 @@ class AwsBedrock(LLM):
         completion_tokens = 0
         response_timer = Timer()
         response_timer.start()
-        for delta in self.invoke_stream(body=self.get_request_body(messages)):
-            completion_tokens += 1
-            # -*- Parse response
-            content = self.parse_response_delta(delta)
-            # -*- Yield completion
-            if content is not None:
-                assistant_message_content += content
-                yield content
+        request_body = self.get_request_body(messages)
+        logger.debug(f"Invoking: {request_body}")
+
+        # Initialize variables
+        message = {}
+        tool_use = {}
+        content = []
+        text = ""
+        tool_ids = []
+        tool_calls = []
+        function_calls_to_run = []
+        stop_reason = None
+
+        response = self.invoke_stream(body=request_body)
+
+        # Process the streaming response
+        for chunk in response:
+            if 'messageStart' in chunk:
+                message['role'] = chunk['messageStart']['role']
+                logger.debug(f"Role: {message['role']}")
+
+            elif 'contentBlockStart' in chunk:
+                tool = chunk['contentBlockStart']['start'].get('toolUse')
+                if tool:
+                    tool_use['toolUseId'] = tool['toolUseId']
+                    tool_use['name'] = tool['name']
+
+            elif 'contentBlockDelta' in chunk:
+                delta = chunk['contentBlockDelta']['delta']
+                if 'toolUse' in delta:
+                    if 'input' not in tool_use:
+                        tool_use['input'] = ''
+                    tool_use['input'] += delta['toolUse']['input']
+                elif 'text' in delta:
+                    text += delta['text']
+                    assistant_message_content += delta['text']
+                    yield delta['text']  # Yield text content as it's received
+
+            elif 'contentBlockStop' in chunk:
+                if 'input' in tool_use:
+                    # Finish collecting tool use input
+                    try:
+                        tool_use['input'] = json.loads(tool_use['input'])
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse tool input as JSON: {e}")
+                        tool_use['input'] = {}
+                    content.append({'toolUse': tool_use})
+                    tool_ids.append(tool_use['toolUseId'])
+                    # Prepare the tool call
+                    tool_call = {
+                        "type": "function",
+                        "function": {
+                            "name": tool_use['name'],
+                            "arguments": json.dumps(tool_use['input']),
+                        }
+                    }
+                    tool_calls.append(tool_call)
+                    tool_use = {}
+                else:
+                    # Finish collecting text content
+                    content.append({'text': text})
+                    text = ''
+
+            elif 'messageStop' in chunk:
+                stop_reason = chunk['messageStop']['stopReason']
+                logger.debug(f"Stop reason: {stop_reason}")
+
+            elif 'metadata' in chunk:
+                metadata = chunk['metadata']
+                if 'usage' in metadata:
+                    completion_tokens = metadata['usage']['outputTokens']
+                    logger.debug(f"Completion tokens: {completion_tokens}")
 
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        # -*- Create assistant message
+        # Create assistant message
         assistant_message = Message(role="assistant")
-        # -*- Add content to assistant message
-        if assistant_message_content != "":
-            assistant_message.content = assistant_message_content
+        assistant_message.content = assistant_message_content
 
-        # -*- Update usage metrics
-        # Add response time to metrics
+        # Update usage metrics
         assistant_message.metrics["time"] = response_timer.elapsed
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
         self.metrics["response_times"].append(response_timer.elapsed)
 
         # Add token usage to metrics
-        prompt_tokens = 0
+        prompt_tokens = 0  # Update as per your application logic
         assistant_message.metrics["prompt_tokens"] = prompt_tokens
-        if "prompt_tokens" not in self.metrics:
-            self.metrics["prompt_tokens"] = prompt_tokens
-        else:
-            self.metrics["prompt_tokens"] += prompt_tokens
-        logger.debug(f"Estimated completion tokens: {completion_tokens}")
+        self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + prompt_tokens
+
         assistant_message.metrics["completion_tokens"] = completion_tokens
-        if "completion_tokens" not in self.metrics:
-            self.metrics["completion_tokens"] = completion_tokens
-        else:
-            self.metrics["completion_tokens"] += completion_tokens
+        self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + completion_tokens
+
         total_tokens = prompt_tokens + completion_tokens
         assistant_message.metrics["total_tokens"] = total_tokens
-        if "total_tokens" not in self.metrics:
-            self.metrics["total_tokens"] = total_tokens
-        else:
-            self.metrics["total_tokens"] += total_tokens
+        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
 
-        # -*- Add assistant message to messages
+        # Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
+
+        # Handle tool calls if any
+        if tool_calls and self.run_tools:
+            logger.debug("Processing tool calls from streamed content.")
+
+            for tool_call in tool_calls:
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    error_message = "Could not find function to call."
+                    messages.append(Message(role="user", content=error_message))
+                    logger.error(error_message)
+                    continue
+                if _function_call.error:
+                    messages.append(Message(role="user", content=_function_call.error))
+                    logger.error(_function_call.error)
+                    continue
+                function_calls_to_run.append(_function_call)
+
+            # Optionally display the tool calls
+            if self.show_tool_calls:
+                if len(function_calls_to_run) == 1:
+                    yield f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+                elif len(function_calls_to_run) > 1:
+                    yield "\nRunning:"
+                    for _f in function_calls_to_run:
+                        yield f"\n - {_f.get_call_str()}"
+                    yield "\n\n"
+
+            # Execute the function calls
+            function_call_results = self.run_function_calls(function_calls_to_run)
+            if function_call_results:
+                fc_responses = []
+                for _fc_message_index, _fc_message in enumerate(function_call_results):
+                    tool_result = {
+                        "toolUseId": tool_ids[_fc_message_index],
+                        "content": [{"json": json.dumps(_fc_message.content)}],
+                    }
+                    tool_result_message = {
+                        "role": "user",
+                        "content": json.dumps([{"toolResult": tool_result}])
+                    }
+                    fc_responses.append(tool_result_message)
+
+                logger.debug(f"Tool call responses: {fc_responses}")
+                # Append the tool results to the messages
+                messages.extend([Message(role="user", content=json.dumps(fc_responses))])
+
+            # Continue the conversation by recursively calling response_stream
+            # Be cautious with recursion to avoid infinite loops
+            for content in self.response_stream(messages=messages):
+                yield content
+
         logger.debug("---------- Bedrock Response End ----------")

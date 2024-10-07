@@ -433,6 +433,6 @@ class AwsBedrock(LLM):
                 # Append the tool results to the messages
                 messages.extend([Message(role="user", content=json.dumps(fc_responses))])
 
-            yield from self.response(messages=messages)
+            yield from self.response_stream(messages=messages)
 
         logger.debug("---------- Bedrock Response End ----------")

@@ -2,13 +2,16 @@ from typing import Optional, Dict, Any, List
 
 from phi.llm.message import Message
 from phi.llm.aws.bedrock import AwsBedrock
+from phi.utils.log import logger
 
+import logging
+logger.setLevel(logging.DEBUG)
 
 class Claude(AwsBedrock):
     name: str = "AwsBedrockAnthropicClaude"
     model: str = "anthropic.claude-3-sonnet-20240229-v1:0"
     # -*- Request parameters
-    max_tokens: int = 8192
+    max_tokens: int = 4096
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None
@@ -45,6 +48,47 @@ class Claude(AwsBedrock):
             _request_params.update(self.request_params)
         return _request_params
 
+    def get_tools(self):
+        """
+        Refactors the tools in a format accepted by the Bedrock API.
+        """
+        if not self.functions:
+            return None
+
+        tools = []
+        for f_name, function in self.functions.items():
+            properties = {}
+            required = []
+            
+            for param_name, param_info in function.parameters.get("properties", {}).items():
+                param_type = param_info.get("type")
+                if isinstance(param_type, list):
+                    param_type = [t for t in param_type if t != "null"][0]
+                
+                properties[param_name] = {
+                    "type": param_type or "string",
+                    "description": param_info.get("description") or ""
+                }
+                
+                if "null" not in (param_info.get("type") if isinstance(param_info.get("type"), list) else [param_info.get("type")]):
+                    required.append(param_name)
+
+            tools.append({
+                "toolSpec": {
+                    "name": f_name,
+                    "description": function.description or "",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": properties,
+                            "required": required
+                        }
+                    }
+                }
+            })
+
+        return {"tools": tools}
+
     def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
         system_prompt = None
         messages_for_api = []
@@ -52,38 +96,87 @@ class Claude(AwsBedrock):
             if m.role == "system":
                 system_prompt = m.content
             else:
-                messages_for_api.append({"role": m.role, "content": m.content})
+                messages_for_api.append({"role": m.role, "content": [{"text": m.content}]})
 
-        # -*- Build request body
         request_body = {
             "messages": messages_for_api,
-            **self.api_kwargs,
+            "modelId": self.model,
         }
+
         if system_prompt:
-            request_body["system"] = system_prompt
+            request_body["system"] = [{"text": system_prompt}]
+
+        # Add inferenceConfig
+        inference_config = {}
+        rename_map = {
+            'max_tokens': 'maxTokens',
+            'top_p': 'topP',
+            'top_k': 'topK',
+            'stop_sequences': 'stopSequences'
+        }
+
+        for k, v in self.api_kwargs.items():
+            if k in rename_map:
+                inference_config[rename_map[k]] = v
+            elif k in ['temperature']:
+                inference_config[k] = v
+
+        if inference_config:
+            request_body["inferenceConfig"] = inference_config
+
+        if self.tools:
+            tools = self.get_tools()
+            request_body["toolConfig"] = tools
+
         return request_body
 
-    def parse_response_message(self, response: Dict[str, Any]) -> Message:
-        if response.get("type") == "message":
-            response_message = Message(role=response.get("role"))
-            content: Optional[str] = ""
-            if response.get("content"):
-                _content = response.get("content")
-                if isinstance(_content, str):
-                    content = _content
-                elif isinstance(_content, dict):
-                    content = _content.get("text", "")
-                elif isinstance(_content, list):
-                    content = "\n".join([c.get("text") for c in _content])
+    def parse_response_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        logger.debug(f"Response: {response}")
+        res = {}
+        if 'output' in response and 'message' in response['output']:
+            message = response['output']['message']
+            role = message.get('role')
+            content = message.get('content', [])
 
-            response_message.content = content
-            return response_message
+            # Extract text content if it's a list of dictionaries
+            if isinstance(content, list) and content and isinstance(content[0], dict):
+                content = [item.get('text', '') for item in content if 'text' in item]
+                content = '\n'.join(content)  # Join multiple text items if present
+        
+            res = {
+                "content": content,
+                "usage": {
+                    "inputTokens": response.get('usage', {}).get('inputTokens'),
+                    "outputTokens": response.get('usage', {}).get('outputTokens'),
+                    "totalTokens": response.get('usage', {}).get('totalTokens'),
+                },
+                "metrics": {
+                    "latencyMs": response.get('metrics', {}).get('latencyMs')
+                },
+                "role": role,
+            }
+            
+        if 'stopReason' in response:
+            stop_reason = response['stopReason']
+            
+        if stop_reason == 'tool_use':
+            tool_requests = response['output']['message']['content']
 
-        return Message(
-            role="assistant",
-            content=response.get("completion"),
-        )
+        res['stop_reason'] = stop_reason if stop_reason else None
+        res['tool_requests'] = tool_requests if stop_reason == 'tool_use' else None
 
+        return res
+    
+    def create_assistant_message(self, parsed_response: Dict[str, Any]) -> Message:
+
+        mesage = Message(
+                    role=parsed_response["role"],
+                    content=parsed_response["content"],
+                    metrics=parsed_response["metrics"],
+            )
+
+        return mesage
+    
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
         if "delta" in response:
             return response.get("delta", {}).get("text")

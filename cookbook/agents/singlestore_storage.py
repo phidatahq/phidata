@@ -6,7 +6,7 @@ from sqlalchemy.engine import create_engine
 
 from phi.agent import Agent
 from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.singlestore import S2AssistantStorage
+from phi.storage.agent.singlestore import S2AgentStorage
 
 # -*- SingleStore Configuration -*-
 USERNAME = getenv("SINGLESTORE_USERNAME")
@@ -26,7 +26,7 @@ db_engine = create_engine(db_url)
 
 # Create an agent with SingleStore storage
 agent = Agent(
-    storage=S2AssistantStorage(table_name="agent_sessions", db_engine=db_engine, schema=DATABASE),
+    storage=S2AgentStorage(table_name="agent_sessions", db_engine=db_engine, schema=DATABASE),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,
 )

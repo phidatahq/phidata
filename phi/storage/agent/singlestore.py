@@ -17,7 +17,7 @@ from phi.storage.agent.base import AgentStorage
 from phi.utils.log import logger
 
 
-class S2AssistantStorage(AgentStorage):
+class S2AgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,

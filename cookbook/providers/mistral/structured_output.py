@@ -1,9 +1,12 @@
 import os
+
 from typing import List
+from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from rich.pretty import pprint
-from phi.assistant import Assistant
-from phi.llm.mistral import MistralChat
+from phi.agent import Agent, RunResponse  # noqa
+from phi.model.mistral import MistralChat
+
+mistral_api_key = os.getenv("MISTRAL_API_KEY")
 
 
 class MovieScript(BaseModel):
@@ -17,13 +20,18 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-movie_assistant = Assistant(
-    llm=MistralChat(
-        model="mistral-large-latest",
-        api_key=os.environ["MISTRAL_API_KEY"],
+json_mode_agent = Agent(
+    model=MistralChat(
+        id="mistral-large-latest",
+        api_key=mistral_api_key,
     ),
-    description="You help people write movie ideas.",
-    output_model=MovieScript,
+    description="You help people write movie scripts.",
+    response_model=MovieScript,
+    # debug_mode=True,
 )
 
-pprint(movie_assistant.run("New York"))
+# Get the response in a variable
+# json_mode_response: RunResponse = json_mode_agent.run("New York")
+# pprint(json_mode_response.content)
+
+json_mode_agent.print_response("New York")

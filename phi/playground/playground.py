@@ -66,6 +66,7 @@ class Playground:
             return
 
         try:
+            logger.info(f"Creating playground endpoint: {endpoint}")
             create_playground_endpoint(
                 playground=PlaygroundEndpointCreate(endpoint=endpoint, playground_data={"prefix": prefix})
             )

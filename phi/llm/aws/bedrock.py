@@ -10,10 +10,6 @@ from phi.utils.tools import (
     get_function_call_for_tool_call,
 )
 
-import logging
-
-logger.setLevel(logging.DEBUG)
-
 try:
     from boto3 import session  # noqa: F401
 except ImportError:

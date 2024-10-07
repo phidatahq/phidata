@@ -196,7 +196,7 @@ class AssistantMemory(BaseModel):
             return True
         return False
 
-    def update_memory(self, input: str, force: bool = False) -> str:
+    def update_memory(self, input: str, force: bool = False) -> Optional[str]:
         """Creates a memory from a message and adds it to the memory db."""
 
         if input is None or not isinstance(input, str):

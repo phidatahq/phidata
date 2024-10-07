@@ -7,15 +7,11 @@ from phi.memory.classifier import MemoryClassifier
 from phi.memory.db import MemoryDb
 from phi.memory.manager import MemoryManager
 from phi.memory.memory import Memory
+from phi.memory.summary import SessionSummary
+from phi.memory.summarizer import MemorySummarizer
 from phi.model.message import Message
 from phi.run.response import RunResponse
 from phi.utils.log import logger
-
-
-class MemoryRetrieval(str, Enum):
-    last_n = "last_n"
-    first_n = "first_n"
-    semantic = "semantic"
 
 
 class AgentChat(BaseModel):
@@ -26,70 +22,64 @@ class AgentChat(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+class MemoryRetrieval(str, Enum):
+    last_n = "last_n"
+    first_n = "first_n"
+    semantic = "semantic"
+
+
 class AgentMemory(BaseModel):
-    # All messages in this session: system, user, tool and assistant messages.
-    messages: List[Message] = []
-    # All chats in this session: (user message, agent run_response) pairs.
+    # Chats between the user and agent
     chats: List[AgentChat] = []
 
-    # Create summary of the conversation
-    summary: Optional[Any] = None
+    # Create and store session summaries
+    create_session_summary: bool = False
+    # Update session summaries after each run
+    update_session_summary_after_run: bool = True
+    # Summary of the session
+    summary: Optional[SessionSummary] = None
+    # Summarizer to generate session summaries
+    summarizer: Optional[MemorySummarizer] = None
 
-    # Create personalized memories for a user
-    # MemoryDb to store the memories
+    # Create and store personalized memories for this user
+    create_user_memories: bool = False
+    # Update memories for the user after each run
+    update_user_memories_after_run: bool = True
+
+    # MemoryDb to store personalized memories
     db: Optional[MemoryDb] = None
-    # User ID for the memory
+    # User ID for the personalized memories
     user_id: Optional[str] = None
     retrieval: MemoryRetrieval = MemoryRetrieval.last_n
     memories: Optional[List[Memory]] = None
     num_memories: Optional[int] = None
     classifier: Optional[MemoryClassifier] = None
     manager: Optional[MemoryManager] = None
-    updating: bool = False
+
+    # True when memory is being updated
+    updating_memory: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def to_dict(self) -> Dict[str, Any]:
         _memory_dict = self.model_dump(
-            exclude_none=True, exclude={"db", "updating", "memories", "classifier", "manager", "retrieval"}
+            exclude_none=True,
+            exclude={
+                "summary",
+                "summarizer",
+                "db",
+                "updating_memory",
+                "memories",
+                "classifier",
+                "manager",
+                "retrieval",
+            },
         )
+        if self.summary:
+            _memory_dict["summary"] = self.summary.to_dict()
         if self.memories:
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict
-
-    def add_system_message(self, message: Message, system_message_role: str = "system") -> None:
-        """Add the system messages to the messages list"""
-        # If this is the first run in the session, add the system message to the messages list
-        if len(self.messages) == 0:
-            if message is not None:
-                self.messages.append(message)
-        # If there are messages in the memory, check if the system message is already in the memory
-        # If it is, update the system message if content has changed
-        # If it is not, add the system message to the messages list
-        else:
-            system_message_index = next((i for i, m in enumerate(self.messages) if m.role == system_message_role), None)
-            # Update the system message in memory if content has changed
-            if system_message_index is not None:
-                if self.messages[system_message_index].content != message.content:
-                    logger.info("Updating system message in memory")
-                    self.messages[system_message_index] = message
-            else:
-                # Add the system message to the messages list
-                self.messages.insert(0, message)
-
-    def add_run_message(self, message: Message) -> None:
-        """Add a Message to the messages list."""
-        self.messages.append(message)
-        logger.debug("Added Message to AgentMemory")
-
-    def add_run_messages(self, messages: List[Message]) -> None:
-        """Add a list of messages to the messages list."""
-        self.messages.extend(messages)
-        logger.debug(f"Added {len(messages)} Messages to AgentMemory")
-
-    def get_run_messages(self) -> List[Dict[str, Any]]:
-        """Returns the messages list as a list of dictionaries."""
-        return [message.model_dump(exclude_none=True) for message in self.messages]
 
     def add_agent_chat(self, agent_chat: AgentChat) -> None:
         """Adds an AgentChat to the chats list."""
@@ -133,38 +123,45 @@ class AgentMemory(BaseModel):
         logger.debug(f"Messages from last {last_n} chats: {len(messages_from_last_n_history)}")
         return messages_from_last_n_history
 
-    def get_chats(self) -> List[Tuple[Message, Message]]:
+    def get_message_pairs(
+        self, user_role: str = "user", assistant_role: str = "assistant"
+    ) -> List[Tuple[Message, Message]]:
         """Returns a list of tuples of (user message, assistant response)."""
 
-        all_chats_as_message_tuples: List[Tuple[Message, Message]] = []
+        chats_as_message_pars: List[Tuple[Message, Message]] = []
         for chat in self.chats:
             if chat.response and chat.response.messages:
-                user_messages_from_response = None
-                assistant_messages_from_response = None
+                user_messages_from_chat = None
+                assistant_messages_from_chat = None
+
+                # Start from the beginning to look for the user message
                 for message in chat.response.messages:
-                    if message.role == "user":
-                        user_messages_from_response = message
-                    if message.role == "assistant":
-                        assistant_messages_from_response = message
-                    if user_messages_from_response and assistant_messages_from_response:
-                        all_chats_as_message_tuples.append(
-                            (user_messages_from_response, assistant_messages_from_response)
-                        )
-                        user_messages_from_response = None
-                        assistant_messages_from_response = None
-        return all_chats_as_message_tuples
+                    if message.role == user_role:
+                        user_messages_from_chat = message
+                        break
+
+                # Start from the end to look for the assistant response
+                for message in chat.response.messages[::-1]:
+                    if message.role == assistant_role:
+                        assistant_messages_from_chat = message
+                        break
+
+                if user_messages_from_chat and assistant_messages_from_chat:
+                    chats_as_message_pars.append((user_messages_from_chat, assistant_messages_from_chat))
+        return chats_as_message_pars
 
     def get_tool_calls(self, num_calls: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Returns a list of tool calls from the run_messages."""
+        """Returns a list of tool calls."""
 
         tool_calls = []
-        for run_message in self.messages[::-1]:
-            if run_message.tool_calls:
-                for tool_call in run_message.tool_calls:
-                    tool_calls.append(tool_call)
-
-        if num_calls:
-            return tool_calls[:num_calls]
+        for chat in self.chats[::-1]:
+            if chat.response and chat.response.messages:
+                for message in chat.response.messages[::-1]:
+                    if message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            tool_calls.append(tool_call)
+                            if num_calls and len(tool_calls) >= num_calls:
+                                return tool_calls
         return tool_calls
 
     def load_user_memories(self) -> None:
@@ -211,7 +208,7 @@ class AgentMemory(BaseModel):
             return True
         return False
 
-    def update_memory(self, input: str, force: bool = False) -> str:
+    def update_memory(self, input: str, force: bool = False) -> Optional[str]:
         """Creates a memory from a message and adds it to the memory db."""
 
         if input is None or not isinstance(input, str):
@@ -221,7 +218,7 @@ class AgentMemory(BaseModel):
             logger.warning("MemoryDb not provided.")
             return "Please provide a db to store memories"
 
-        self.updating = True
+        self.updating_memory = True
 
         # Check if this user message should be added to long term memory
         should_update_memory = force or self.should_update_memory(input=input)
@@ -236,21 +233,25 @@ class AgentMemory(BaseModel):
 
         response = self.manager.run(input)
         self.load_user_memories()
+        self.updating_memory = False
         return response
 
-    def get_memories_for_system_prompt(self) -> Optional[str]:
-        if self.memories is None or len(self.memories) == 0:
-            return None
-        memory_str = "<memory_from_previous_interactions>\n"
-        memory_str += "\n".join([f"- {memory.memory}" for memory in self.memories])
-        memory_str += "\n</memory_from_previous_interactions>"
+    def update_summary(self) -> Optional[SessionSummary]:
+        """Creates a summary of the session"""
 
-        return memory_str
+        self.updating_memory = True
+
+        if self.summarizer is None:
+            self.summarizer = MemorySummarizer()
+
+        self.summary = self.summarizer.run(self.get_message_pairs())
+        self.updating_memory = False
+        return self.summary
 
     def clear(self) -> None:
         """Clears the AgentMemory"""
 
-        self.messages = []
         self.chats = []
+        self.summary = None
         self.memories = None
         logger.debug("Agent Memory cleared")

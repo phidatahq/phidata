@@ -32,7 +32,7 @@ research_agent = Agent(
     agent_id="research-agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
-    description="You are a senior NYT researcher writing an article on a topic.",
+    description="You are a Research Agent writing an article for the New York Times.",
     instructions=[
         "For the provided topic, run 3 different searches.",
         "Read the results carefully and prepare a NYT worthy article.",

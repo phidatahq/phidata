@@ -1404,7 +1404,7 @@ class Assistant(BaseModel):
             str: A string indicating the status of the task.
         """
         try:
-            return self.memory.update_memory(input=task, force=True)
+            return self.memory.update_memory(input=task, force=True) or "Successfully updated memory"
         except Exception as e:
             return f"Failed to update memory: {e}"
 

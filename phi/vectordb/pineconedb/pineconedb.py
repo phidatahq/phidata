@@ -51,6 +51,7 @@ class PineconeDB(VectorDb):
         name: str,
         dimension: int,
         spec: Union[Dict, ServerlessSpec, PodSpec],
+        hybrid_search: bool = False,
         embedder: Optional[Embedder] = None,
         metric: Optional[str] = "cosine",
         additional_headers: Optional[Dict[str, str]] = None,
@@ -61,6 +62,7 @@ class PineconeDB(VectorDb):
         api_key: Optional[str] = None,
         host: Optional[str] = None,
         config: Optional[Config] = None,
+        hybrid_alpha: float = 0.5,
         **kwargs,
     ):
         self._client = None
@@ -78,6 +80,15 @@ class PineconeDB(VectorDb):
         self.metric: Optional[str] = metric
         self.timeout: Optional[int] = timeout
         self.kwargs: Optional[Dict[str, str]] = kwargs
+        self.hybrid_search: bool = hybrid_search
+        self.hybrid_alpha: float = hybrid_alpha
+        if self.hybrid_search:
+            try:    
+                from pinecone_text.sparse import BM25Encoder
+            except ImportError:
+                raise ImportError("The `pinecone_text` package is not installed, please install using `pip install pinecone-text`.")
+
+            self.sparse_encoder = BM25Encoder().default()
 
         # Embedder for embedding the document contents
         _embedder = embedder
@@ -135,6 +146,10 @@ class PineconeDB(VectorDb):
         """Create the index if it does not exist."""
         if not self.exists():
             logger.debug(f"Creating index: {self.name}")
+            
+            if self.hybrid_search:
+                self.metric = "dotproduct"
+            
             self.client.create_index(
                 name=self.name,
                 dimension=self.dimension,
@@ -201,13 +216,15 @@ class PineconeDB(VectorDb):
         for document in documents:
             document.embed(embedder=self.embedder)
             document.meta_data["text"] = document.content
-            vectors.append(
-                {
-                    "id": document.id,
-                    "values": document.embedding,
-                    "metadata": document.meta_data,
-                }
-            )
+            data_to_upsert = {
+                "id": document.id,
+                "values": document.embedding,
+                "metadata": document.meta_data,
+            }
+            if self.hybrid_search:
+                data_to_upsert["sparse_values"] = self.sparse_encoder.encode_documents(document.content)
+            vectors.append(data_to_upsert)
+
         self.index.upsert(
             vectors=vectors,
             namespace=namespace,
@@ -239,6 +256,27 @@ class PineconeDB(VectorDb):
         """
         raise NotImplementedError("Pinecone does not support insert operations. Use upsert instead.")
 
+    def _hybrid_scale(self, dense: List[float], sparse: Dict[str, Any], alpha: float):
+        """Hybrid vector scaling using a convex combination
+        1 is pure semantic search, 0 is pure keyword search
+        alpha * dense + (1 - alpha) * sparse
+
+        Args:
+            dense: Array of floats representing
+            sparse: a dict of `indices` and `values`
+            alpha: float between 0 and 1 where 0 == sparse only
+                and 1 == dense only
+        """
+        if alpha < 0 or alpha > 1:
+            raise ValueError("Alpha must be between 0 and 1")
+        # scale sparse and dense vectors to create hybrid search vecs
+        hsparse = {
+            'indices': sparse['indices'],
+            'values':  [v * (1 - alpha) for v in sparse['values']]
+        }
+        hdense = [v * alpha for v in dense]
+        return hdense, hsparse
+
     def search(
         self,
         query: str,
@@ -261,20 +299,35 @@ class PineconeDB(VectorDb):
             List[Document]: The list of matching documents.
 
         """
-        query_embedding = self.embedder.get_embedding(query)
+        dense_embedding = self.embedder.get_embedding(query)
+        
+        if self.hybrid_search:
+            sparse_embedding = self.sparse_encoder.encode_queries(query)
 
-        if query_embedding is None:
+        if dense_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
 
-        response = self.index.query(
-            vector=query_embedding,
-            top_k=limit,
-            namespace=namespace,
-            filter=filters,
-            include_values=include_values,
-            include_metadata=True,
-        )
+        if self.hybrid_search:
+            hdense, hsparse = self._hybrid_scale(dense_embedding, sparse_embedding, alpha=self.hybrid_alpha)
+            response = self.index.query(
+                vector=hdense,
+                sparse_vector=hsparse,
+                top_k=limit,
+                namespace=namespace,
+                filter=filters,
+                include_values=include_values,
+                include_metadata=True,
+            )
+        else:
+            response = self.index.query(
+                vector=dense_embedding,
+                top_k=limit,
+                namespace=namespace,
+                filter=filters,
+                include_values=include_values,
+                include_metadata=True,
+            )
         return [
             Document(
                 content=(result.metadata.get("text", "") if result.metadata is not None else ""),

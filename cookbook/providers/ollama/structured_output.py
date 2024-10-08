@@ -23,8 +23,8 @@ movie_agent = Agent(
     response_model=MovieScript,
 )
 
-# # Get the response in a variable
-# response: RunResponse = movie_agent.run("New York")
-# pprint(response.content)
+# Get the response in a variable
+# run: RunResponse = movie_agent.run("New York")
+# pprint(run.content)
 
 movie_agent.print_response("New York")

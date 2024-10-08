@@ -31,13 +31,13 @@ pip install -U ollama duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/openai/basic_stream.py
+python cookbook/providers/ollama/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/openai/basic.py
+python cookbook/providers/ollama/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -45,35 +45,35 @@ python cookbook/providers/openai/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/openai/agent_stream.py
+python cookbook/providers/ollama/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/openai/agent.py
+python cookbook/providers/ollama/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/openai/finance_agent.py
+python cookbook/providers/ollama/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/openai/data_analyst.py
+python cookbook/providers/ollama/data_analyst.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/openai/structured_output.py
+python cookbook/providers/ollama/structured_output.py
 ```
 
 ### 7. Run Agent that uses web search
 
 ```shell
-python cookbook/providers/openai/web_search.py
+python cookbook/providers/ollama/web_search.py
 ```

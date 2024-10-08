@@ -47,7 +47,6 @@ agent = Agent(
     tool_calls=True,  # Enable function calls for searching knowledge base and chat history
     use_tools=True,
     show_tool_calls=True,
-    search_knowledge=True,
     add_references_to_prompt=True,  # Use traditional RAG (Retrieval-Augmented Generation)
     debug_mode=True,  # Enable debug mode for additional information
 )

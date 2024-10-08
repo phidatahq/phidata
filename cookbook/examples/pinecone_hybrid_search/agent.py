@@ -37,7 +37,6 @@ def pinecone_agent(user: str = "user"):
         user_id=user,
         knowledge=knowledge_base,
         show_tool_calls=True,
-        search_knowledge=True,
         debug_mode=True,
     )
 

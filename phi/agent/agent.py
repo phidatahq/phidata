@@ -112,8 +112,6 @@ class Agent(BaseModel):
     # -*- Default tools
     # Add a tool that allows the Model to read the chat history.
     read_chat_history: bool = False
-    # Add a tool that allows the Model to search the knowledge base (aka Agentic RAG)
-    search_knowledge: bool = False
     # Add a tool that allows the Model to update the knowledge base.
     update_knowledge: bool = False
     # Add a tool that allows the Model to get the tool call history.
@@ -333,8 +331,7 @@ class Agent(BaseModel):
 
         # Add tools for accessing knowledge
         if self.knowledge is not None:
-            if self.search_knowledge:
-                tools.append(self.search_knowledge_base)
+            tools.append(self.search_knowledge_base)
             if self.update_knowledge:
                 tools.append(self.add_to_knowledge)
 

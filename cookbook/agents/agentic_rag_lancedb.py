@@ -16,8 +16,6 @@ knowledge_base.load(upsert=True)
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
-    # Add a tool to search the knowledge base which enables agentic RAG.
-    search_knowledge=True,
     # Add a tool to read chat history.
     read_chat_history=True,
     show_tool_calls=True,

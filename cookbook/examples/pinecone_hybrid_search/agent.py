@@ -16,7 +16,7 @@ vector_db = PineconeDB(
     metric="cosine",
     spec={"serverless": {"cloud": "aws", "region": "us-east-1"}},
     api_key=api_key,
-    hybrid_search=True,
+    use_hybrid_search=True,
     hybrid_alpha=0.5,
 )
 

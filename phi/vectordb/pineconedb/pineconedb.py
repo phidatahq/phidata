@@ -51,7 +51,6 @@ class PineconeDB(VectorDb):
         name: str,
         dimension: int,
         spec: Union[Dict, ServerlessSpec, PodSpec],
-        hybrid_search: bool = False,
         embedder: Optional[Embedder] = None,
         metric: Optional[str] = "cosine",
         additional_headers: Optional[Dict[str, str]] = None,
@@ -62,6 +61,7 @@ class PineconeDB(VectorDb):
         api_key: Optional[str] = None,
         host: Optional[str] = None,
         config: Optional[Config] = None,
+        use_hybrid_search: bool = False,
         hybrid_alpha: float = 0.5,
         **kwargs,
     ):
@@ -80,9 +80,9 @@ class PineconeDB(VectorDb):
         self.metric: Optional[str] = metric
         self.timeout: Optional[int] = timeout
         self.kwargs: Optional[Dict[str, str]] = kwargs
-        self.hybrid_search: bool = hybrid_search
+        self.use_hybrid_search: bool = use_hybrid_search
         self.hybrid_alpha: float = hybrid_alpha
-        if self.hybrid_search:
+        if self.use_hybrid_search:
             try:
                 from pinecone_text.sparse import BM25Encoder
             except ImportError:
@@ -149,7 +149,7 @@ class PineconeDB(VectorDb):
         if not self.exists():
             logger.debug(f"Creating index: {self.name}")
 
-            if self.hybrid_search:
+            if self.use_hybrid_search:
                 self.metric = "dotproduct"
 
             self.client.create_index(
@@ -223,7 +223,7 @@ class PineconeDB(VectorDb):
                 "values": document.embedding,
                 "metadata": document.meta_data,
             }
-            if self.hybrid_search:
+            if self.use_hybrid_search:
                 data_to_upsert["sparse_values"] = self.sparse_encoder.encode_documents(document.content)
             vectors.append(data_to_upsert)
 
@@ -300,14 +300,14 @@ class PineconeDB(VectorDb):
         """
         dense_embedding = self.embedder.get_embedding(query)
 
-        if self.hybrid_search:
+        if self.use_hybrid_search:
             sparse_embedding = self.sparse_encoder.encode_queries(query)
 
         if dense_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
 
-        if self.hybrid_search:
+        if self.use_hybrid_search:
             hdense, hsparse = self._hybrid_scale(dense_embedding, sparse_embedding, alpha=self.hybrid_alpha)
             response = self.index.query(
                 vector=hdense,

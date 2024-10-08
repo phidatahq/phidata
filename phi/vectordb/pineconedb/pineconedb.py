@@ -83,10 +83,12 @@ class PineconeDB(VectorDb):
         self.hybrid_search: bool = hybrid_search
         self.hybrid_alpha: float = hybrid_alpha
         if self.hybrid_search:
-            try:    
+            try:
                 from pinecone_text.sparse import BM25Encoder
             except ImportError:
-                raise ImportError("The `pinecone_text` package is not installed, please install using `pip install pinecone-text`.")
+                raise ImportError(
+                    "The `pinecone_text` package is not installed, please install using `pip install pinecone-text`."
+                )
 
             self.sparse_encoder = BM25Encoder().default()
 
@@ -146,10 +148,10 @@ class PineconeDB(VectorDb):
         """Create the index if it does not exist."""
         if not self.exists():
             logger.debug(f"Creating index: {self.name}")
-            
+
             if self.hybrid_search:
                 self.metric = "dotproduct"
-            
+
             self.client.create_index(
                 name=self.name,
                 dimension=self.dimension,
@@ -270,10 +272,7 @@ class PineconeDB(VectorDb):
         if alpha < 0 or alpha > 1:
             raise ValueError("Alpha must be between 0 and 1")
         # scale sparse and dense vectors to create hybrid search vecs
-        hsparse = {
-            'indices': sparse['indices'],
-            'values':  [v * (1 - alpha) for v in sparse['values']]
-        }
+        hsparse = {"indices": sparse["indices"], "values": [v * (1 - alpha) for v in sparse["values"]]}
         hdense = [v * alpha for v in dense]
         return hdense, hsparse
 
@@ -300,7 +299,7 @@ class PineconeDB(VectorDb):
 
         """
         dense_embedding = self.embedder.get_embedding(query)
-        
+
         if self.hybrid_search:
             sparse_embedding = self.sparse_encoder.encode_queries(query)
 

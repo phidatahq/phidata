@@ -10,6 +10,7 @@ agent = Agent(
     instructions=["Use tables where possible"],
     show_tool_calls=True,
     markdown=True,
+    # debug_mode=True,
 )
 
 agent.print_response("What is the stock price of NVDA", stream=True)

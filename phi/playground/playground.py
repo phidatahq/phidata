@@ -61,7 +61,7 @@ class Playground:
 
         return self.api_app
 
-    def create_endpoint(self, endpoint: str, prefix: str = "v1") -> None:
+    def create_endpoint(self, endpoint: str, prefix: str = "/v1") -> None:
         if endpoint in self.endpoints_created:
             return
 
@@ -71,7 +71,7 @@ class Playground:
                 playground=PlaygroundEndpointCreate(endpoint=endpoint, playground_data={"prefix": prefix})
             )
         except Exception as e:
-            logger.error(f"Could not create Playground Endpoint: {e}")
+            logger.error(f"Could not create playground endpoint: {e}")
             logger.error("Please try again.")
             return
 

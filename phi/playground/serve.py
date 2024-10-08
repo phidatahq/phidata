@@ -25,7 +25,7 @@ def serve_playground_app(
             ),
         )
     except Exception as e:
-        logger.error(f"Could not create Playground Endpoint: {e}")
+        logger.error(f"Could not create playground endpoint: {e}")
         logger.error("Please try again.")
         return
 

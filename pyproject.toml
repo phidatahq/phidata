@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.5.0a4"
+version = "2.5.0a5"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -41,7 +41,8 @@ k8s = [
     "kubernetes"
 ]
 server = [
-    "fastapi"
+    "fastapi",
+    "uvicorn",
 ]
 all = [
     "mypy",
@@ -52,6 +53,7 @@ all = [
     "boto3",
     "kubernetes",
     "fastapi",
+    "uvicorn",
 ]
 
 [project.scripts]

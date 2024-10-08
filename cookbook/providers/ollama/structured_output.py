@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.google import Gemini
+from phi.model.ollama import Ollama
 
 
 class MovieScript(BaseModel):
@@ -16,13 +16,14 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
+# Agent that uses JSON mode
 movie_agent = Agent(
-    model=Gemini(id="gemini-1.5-flash"),
-    description="You help people write movie scripts.",
+    model=Ollama(id="llama3.2"),
+    description="You write movie scripts.",
     response_model=MovieScript,
 )
 
-# Get the response in a variable
+# # Get the response in a variable
 # response: RunResponse = movie_agent.run("New York")
 # pprint(response.content)
 

@@ -39,6 +39,16 @@ class StreamData:
     time_to_first_token: Optional[float] = None
     response_timer: Timer = field(default_factory=Timer)
 
+    def log_metrics(self):
+        if self.completion_tokens > 0:
+            logger.debug("=== Metrics ===")
+            logger.debug(f"Tokens per second: {self.completion_tokens / self.response_timer.elapsed:.4f} tokens/s")
+            logger.debug(f"Response time: {self.response_timer.elapsed:.4f}s")
+            logger.debug(f"Prompt tokens: {self.response_prompt_tokens}")
+            logger.debug(f"Completion tokens: {(self.response_completion_tokens or self.completion_tokens)}")
+            logger.debug(f"Total tokens: {self.response_total_tokens}")
+            logger.debug("=== Metrics ===")
+
 
 class OpenAIChat(Model):
     """
@@ -701,10 +711,7 @@ class OpenAIChat(Model):
                     stream_data.response_total_tokens = response_usage.total_tokens
 
         stream_data.response_timer.stop()
-        completion_tokens = stream_data.completion_tokens
-        if completion_tokens > 0:
-            logger.debug(f"Time per output token: {stream_data.response_timer.elapsed / completion_tokens:.4f}s")
-            logger.debug(f"Throughput: {completion_tokens / stream_data.response_timer.elapsed:.4f} tokens/s")
+        stream_data.log_metrics()
 
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":
@@ -800,10 +807,7 @@ class OpenAIChat(Model):
                     stream_data.response_tool_calls.extend(response_tool_calls)
 
         stream_data.response_timer.stop()
-        completion_tokens = stream_data.completion_tokens
-        if completion_tokens > 0:
-            logger.debug(f"Time per output token: {stream_data.response_timer.elapsed / completion_tokens:.4f}s")
-            logger.debug(f"Throughput: {completion_tokens / stream_data.response_timer.elapsed:.4f} tokens/s")
+        stream_data.log_metrics()
 
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":

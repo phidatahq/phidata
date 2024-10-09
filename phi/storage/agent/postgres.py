@@ -5,7 +5,7 @@ try:
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.engine.row import Row
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker, scoped_session
+    from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String, BigInteger
@@ -63,7 +63,7 @@ class PgAgentStorage(AgentStorage):
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
         # Database session
-        self.Session: scoped_session[Session] = scoped_session(sessionmaker(bind=self.db_engine))
+        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         # Database table for storage
         self.table: Table = self.get_table()
 
@@ -209,6 +209,7 @@ class PgAgentStorage(AgentStorage):
             )
 
             # Define the upsert if the session_id already exists
+            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
             stmt = stmt.on_conflict_do_update(
                 index_elements=["session_id"],
                 set_=dict(
@@ -218,7 +219,7 @@ class PgAgentStorage(AgentStorage):
                     agent_data=session.agent_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
-                ),
+                ),  # The updated value for each column
             )
 
             try:

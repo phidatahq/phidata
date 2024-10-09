@@ -6,7 +6,7 @@ try:
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker, scoped_session
+    from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, func, select, desc, bindparam
     from sqlalchemy.types import DateTime, String
@@ -97,7 +97,7 @@ class PgVector(VectorDb):
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
         # Database session
-        self.Session: scoped_session[Session] = scoped_session(sessionmaker(bind=self.db_engine))
+        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         # Database table
         self.table: Table = self.get_table()
 

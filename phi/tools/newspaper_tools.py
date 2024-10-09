@@ -6,7 +6,7 @@ except ImportError:
     raise ImportError("`newspaper3k` not installed. Please run `pip install newspaper3k lxml_html_clean`.")
 
 
-class NewspaperToolkit(Toolkit):
+class NewspaperTools(Toolkit):
     def __init__(
         self,
         get_article_text: bool = True,

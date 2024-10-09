@@ -1,35 +1,30 @@
-import os
 import typer
 from typing import Optional
 from rich.prompt import Prompt
 
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pineconedb import PineconeDB
+from phi.vectordb.lancedb import LanceDb
+from phi.vectordb.search import SearchType
 
-api_key = os.getenv("PINECONE_API_KEY")
-index_name = "thai-recipe-hybrid-search"
-
-vector_db = PineconeDB(
-    name=index_name,
-    dimension=1536,
-    metric="cosine",
-    spec={"serverless": {"cloud": "aws", "region": "us-east-1"}},
-    api_key=api_key,
-    use_hybrid_search=True,
-    hybrid_alpha=0.5,
+# LanceDB Vector DB
+vector_db = LanceDb(
+    table_name="recipes",
+    uri="/tmp/lancedb",
+    search_type=SearchType.keyword,
 )
 
+# Knowledge Base
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
 
 # Comment out after first run
-knowledge_base.load(recreate=True, upsert=True)
+knowledge_base.load(recreate=True)
 
 
-def pinecone_agent(user: str = "user"):
+def lancedb_agent(user: str = "user"):
     run_id: Optional[str] = None
 
     agent = Agent(
@@ -37,7 +32,6 @@ def pinecone_agent(user: str = "user"):
         user_id=user,
         knowledge=knowledge_base,
         show_tool_calls=True,
-        search_knowledge=True,
         debug_mode=True,
     )
 
@@ -55,4 +49,4 @@ def pinecone_agent(user: str = "user"):
 
 
 if __name__ == "__main__":
-    typer.run(pinecone_agent)
+    typer.run(lancedb_agent)

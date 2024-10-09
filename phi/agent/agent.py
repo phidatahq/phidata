@@ -113,7 +113,7 @@ class Agent(BaseModel):
     # Add a tool that allows the Model to read the chat history.
     read_chat_history: bool = False
     # Add a tool that allows the Model to search the knowledge base (aka Agentic RAG)
-    search_knowledge: bool = False
+    search_knowledge: bool = True
     # Add a tool that allows the Model to update the knowledge base.
     update_knowledge: bool = False
     # Add a tool that allows the Model to get the tool call history.
@@ -1172,7 +1172,7 @@ class Agent(BaseModel):
         self.memory.add_run_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
-        agent_chat = AgentChat(response=self.run_response)
+        agent_chat = AgentChat(response=self.run_response.model_copy(update={"messages": run_messages}))
         if message is not None:
             user_message_for_memory: Optional[Message] = None
             if isinstance(message, str):
@@ -1555,7 +1555,7 @@ class Agent(BaseModel):
         self.memory.add_run_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
-        agent_chat = AgentChat(response=self.run_response)
+        agent_chat = AgentChat(response=self.run_response.model_copy(update={"messages": run_messages}))
         if message is not None:
             user_message_for_memory: Optional[Message] = None
             if isinstance(message, str):

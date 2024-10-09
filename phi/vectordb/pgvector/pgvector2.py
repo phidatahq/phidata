@@ -301,7 +301,7 @@ class PgVector2(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.table_exists():
             logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
@@ -381,7 +381,7 @@ class PgVector2(VectorDb):
                     )
         logger.debug("==== Optimized Vector DB ====")
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         from sqlalchemy import delete
 
         with self.Session() as sess:

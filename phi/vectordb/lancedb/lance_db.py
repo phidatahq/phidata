@@ -254,7 +254,7 @@ class LanceDb(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.exists():
             logger.debug(f"Deleting collection: {self.table_name}")
             self.connection.drop_table(self.table_name)
@@ -273,7 +273,7 @@ class LanceDb(VectorDb):
     def optimize(self) -> None:
         pass
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         return False
 
     def name_exists(self, name: str) -> bool:

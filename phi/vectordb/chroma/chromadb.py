@@ -220,7 +220,7 @@ class ChromaDb(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         """Delete the collection."""
         if self.exists():
             logger.debug(f"Deleting collection: {self.collection}")
@@ -248,7 +248,7 @@ class ChromaDb(VectorDb):
     def optimize(self) -> None:
         raise NotImplementedError
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         try:
             self.client.delete_collection(name=self.collection)
             return True

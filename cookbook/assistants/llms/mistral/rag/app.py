@@ -137,7 +137,7 @@ def main() -> None:
 
     if mistral_assistant.knowledge_base and mistral_assistant.knowledge_base.vector_db:
         if st.sidebar.button("Clear Knowledge Base"):
-            mistral_assistant.knowledge_base.vector_db.clear()
+            mistral_assistant.knowledge_base.vector_db.delete()
             st.session_state["mistral_rag_knowledge_base_loaded"] = False
             st.sidebar.success("Knowledge base cleared")
 

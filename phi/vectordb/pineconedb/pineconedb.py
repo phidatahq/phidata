@@ -160,7 +160,7 @@ class PineconeDB(VectorDb):
                 timeout=self.timeout,
             )
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         """Delete the index if it exists."""
         if self.exists():
             logger.debug(f"Deleting index: {self.name}")
@@ -345,7 +345,7 @@ class PineconeDB(VectorDb):
         """
         pass
 
-    def clear(self, namespace: Optional[str] = None) -> bool:
+    def delete(self, namespace: Optional[str] = None) -> bool:
         """Clear the index.
 
         Args:

@@ -52,8 +52,8 @@ class WebsiteKnowledgeBase(AgentKnowledge):
             return
 
         if recreate:
-            logger.debug("Deleting collection")
-            self.vector_db.delete()
+            logger.debug("Dropping collection")
+            self.vector_db.drop()
 
         logger.debug("Creating collection")
         self.vector_db.create()

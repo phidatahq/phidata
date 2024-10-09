@@ -290,6 +290,7 @@ class AgentMemory(BaseModel):
         """Clears the AgentMemory"""
 
         self.chats = []
+        self.messages = []
         self.summary = None
         self.memories = None
         logger.debug("Agent Memory cleared")

@@ -162,7 +162,7 @@ def main() -> None:
 
     if chat_assistant.knowledge_base:
         if st.sidebar.button("Clear Knowledge Base"):
-            chat_assistant.knowledge_base.clear()
+            chat_assistant.knowledge_base.delete()
 
     if st.sidebar.button("New Run"):
         restart_assistant()

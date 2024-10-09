@@ -179,7 +179,7 @@ def main() -> None:
 
     if rag_assistant.knowledge_base:
         if st.sidebar.button("Clear Knowledge Base"):
-            rag_assistant.knowledge_base.clear()
+            rag_assistant.knowledge_base.delete()
 
     # Show reload button
     reload_button_sidebar()

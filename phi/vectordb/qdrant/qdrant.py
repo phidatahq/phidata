@@ -221,7 +221,7 @@ class Qdrant(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.exists():
             logger.debug(f"Deleting collection: {self.collection}")
             self.client.delete_collection(self.collection)
@@ -243,5 +243,5 @@ class Qdrant(VectorDb):
     def optimize(self) -> None:
         pass
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         return False

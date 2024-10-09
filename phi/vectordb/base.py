@@ -5,7 +5,7 @@ from phi.document import Document
 
 
 class VectorDb(ABC):
-    """Base class for managing Vector Databases"""
+    """Base class for Vector Databases"""
 
     @abstractmethod
     def create(self) -> None:
@@ -47,7 +47,7 @@ class VectorDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete(self) -> None:
+    def drop(self) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -58,5 +58,5 @@ class VectorDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         raise NotImplementedError

@@ -90,7 +90,7 @@ class Agent(BaseModel):
     # -*- Agent Storage
     storage: Optional[AgentStorage] = None
     # AgentSession from the database: DO NOT SET MANUALLY
-    agent_session: Optional[AgentSession] = None
+    _agent_session: Optional[AgentSession] = None
 
     # -*- Agent Tools
     # A list of tools provided to the Model.
@@ -251,8 +251,13 @@ class Agent(BaseModel):
             # Filter out any updates where the value is None
             fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
 
+        for field_name, field_value in fields_for_new_agent.items():
+            if isinstance(field_value, BaseModel):
+                fields_for_new_agent[field_name] = field_value.dict()
+        logger.info(f"Creating new Agent instance with fields: {fields_for_new_agent}")
+
         # Create a new Agent
-        new_agent = self.__class__.model_validate(fields_for_new_agent)
+        new_agent = self.__class__(**fields_for_new_agent)
         logger.debug(f"Created new Agent instance: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent
 
@@ -525,18 +530,18 @@ class Agent(BaseModel):
         """Load the AgentSession from storage"""
 
         if self.storage is not None and self.session_id is not None:
-            self.agent_session = self.storage.read(session_id=self.session_id)
-            if self.agent_session is not None:
-                self.from_agent_session(session=self.agent_session)
+            self._agent_session = self.storage.read(session_id=self.session_id)
+            if self._agent_session is not None:
+                self.from_agent_session(session=self._agent_session)
         self.load_user_memories()
-        return self.agent_session
+        return self._agent_session
 
     def write_to_storage(self) -> Optional[AgentSession]:
         """Save the AgentSession to storage"""
 
         if self.storage is not None:
-            self.agent_session = self.storage.upsert(session=self.to_agent_session())
-        return self.agent_session
+            self._agent_session = self.storage.upsert(session=self.to_agent_session())
+        return self._agent_session
 
     def add_introduction(self, introduction: str) -> None:
         """Add an introduction to the chat history"""
@@ -561,8 +566,8 @@ class Agent(BaseModel):
         """
 
         # If an agent_session is already loaded, return the session_id from the agent_session
-        if self.agent_session is not None and not force:
-            return self.agent_session.session_id
+        if self._agent_session is not None and not force:
+            return self._agent_session.session_id
 
         # Load an existing session or create a new session
         if self.storage is not None:
@@ -571,16 +576,16 @@ class Agent(BaseModel):
             self.read_from_storage()
 
             # Create a new session if it does not exist
-            if self.agent_session is None:
+            if self._agent_session is None:
                 logger.debug("-*- Creating new AgentSession")
                 if self.introduction is not None:
                     self.add_introduction(self.introduction)
                 # write_to_storage() will create a new AgentSession
-                # and populate self.agent_session with the new session
+                # and populate self._agent_session with the new session
                 self.write_to_storage()
-                if self.agent_session is None:
+                if self._agent_session is None:
                     raise Exception("Failed to create new AgentSession in storage")
-                logger.debug(f"-*- Created AgentSession: {self.agent_session.session_id}")
+                logger.debug(f"-*- Created AgentSession: {self._agent_session.session_id}")
                 self.log_agent_session()
         return self.session_id
 
@@ -1928,7 +1933,7 @@ class Agent(BaseModel):
         from phi.api.agent import create_agent_session, AgentSessionCreate
 
         try:
-            agent_session: AgentSession = self.agent_session or self.to_agent_session()
+            agent_session: AgentSession = self._agent_session or self.to_agent_session()
             create_agent_session(
                 session=AgentSessionCreate(
                     session_id=agent_session.session_id,
@@ -1971,7 +1976,7 @@ class Agent(BaseModel):
                     "metrics": self.model.metrics if self.model else None,
                 }
 
-            agent_session: AgentSession = self.agent_session or self.to_agent_session()
+            agent_session: AgentSession = self._agent_session or self.to_agent_session()
             create_agent_run(
                 run=AgentRunCreate(
                     run_id=self.run_id,

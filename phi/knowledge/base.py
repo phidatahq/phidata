@@ -9,7 +9,7 @@ from phi.utils.log import logger
 
 
 class AssistantKnowledge(BaseModel):
-    """Base class for LLM knowledge base"""
+    """Base class for Assistant knowledge"""
 
     # Reader to read the documents
     reader: Optional[Reader] = None
@@ -20,6 +20,7 @@ class AssistantKnowledge(BaseModel):
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
 
+    driver: str = "knowledge"
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
@@ -66,8 +67,8 @@ class AssistantKnowledge(BaseModel):
             return
 
         if recreate:
-            logger.info("Deleting collection")
-            self.vector_db.delete()
+            logger.info("Dropping collection")
+            self.vector_db.drop()
 
         logger.info("Creating collection")
         self.vector_db.create()
@@ -207,10 +208,10 @@ class AssistantKnowledge(BaseModel):
             return False
         return self.vector_db.exists()
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         """Clear the knowledge base"""
         if self.vector_db is None:
             logger.warning("No vector db available")
             return True
 
-        return self.vector_db.clear()
+        return self.vector_db.delete()

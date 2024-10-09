@@ -112,7 +112,7 @@ def main() -> None:
 
     if research_assistant.knowledge_base:
         if st.sidebar.button("Clear Knowledge Base"):
-            research_assistant.knowledge_base.clear()
+            research_assistant.knowledge_base.delete()
 
     # Get topic for report
     input_topic = st.text_input(

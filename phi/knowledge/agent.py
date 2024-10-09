@@ -74,8 +74,8 @@ class AgentKnowledge(AssistantKnowledge):
             return
 
         if recreate:
-            logger.info("Deleting collection")
-            self.vector_db.delete()
+            logger.info("Dropping collection")
+            self.vector_db.drop()
 
         logger.info("Creating collection")
         self.vector_db.create()
@@ -215,10 +215,10 @@ class AgentKnowledge(AssistantKnowledge):
             return False
         return self.vector_db.exists()
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         """Clear the knowledge base"""
         if self.vector_db is None:
             logger.warning("No vector db available")
             return True
 
-        return self.vector_db.clear()
+        return self.vector_db.delete()

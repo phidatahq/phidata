@@ -96,7 +96,7 @@ def main() -> None:
 
     if assistant.knowledge_base and assistant.knowledge_base.vector_db:
         if st.sidebar.button("Clear Knowledge Base"):
-            assistant.knowledge_base.vector_db.clear()
+            assistant.knowledge_base.vector_db.delete()
             st.session_state["auto_rag_knowledge_base_loaded"] = False
             st.sidebar.success("Knowledge base cleared")
 

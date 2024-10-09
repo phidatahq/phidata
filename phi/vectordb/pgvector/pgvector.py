@@ -592,7 +592,7 @@ class PgVector(VectorDb):
             logger.error(f"Error during hybrid search: {e}")
             return []
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.table_exists():
             try:
                 logger.debug(f"Dropping table '{self.table.fullname}'.")
@@ -779,16 +779,16 @@ class PgVector(VectorDb):
             logger.error(f"Error creating GIN index '{gin_index_name}': {e}")
             raise
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         from sqlalchemy import delete
 
         try:
             with self.Session() as sess:
                 sess.execute(delete(self.table))
                 sess.commit()
-                logger.info(f"Cleared all records from table '{self.table.fullname}'.")
+                logger.info(f"Deleted all records from table '{self.table.fullname}'.")
                 return True
         except Exception as e:
-            logger.error(f"Error clearing table '{self.table.fullname}': {e}")
+            logger.error(f"Error deleting rows from table '{self.table.fullname}': {e}")
             sess.rollback()
             return False

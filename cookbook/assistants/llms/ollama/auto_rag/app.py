@@ -126,7 +126,7 @@ def main() -> None:
 
     if auto_rag_assistant.knowledge_base and auto_rag_assistant.knowledge_base.vector_db:
         if st.sidebar.button("Clear Knowledge Base"):
-            auto_rag_assistant.knowledge_base.vector_db.clear()
+            auto_rag_assistant.knowledge_base.vector_db.delete()
             st.sidebar.success("Knowledge base cleared")
             restart_assistant()
 

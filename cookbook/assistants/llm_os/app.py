@@ -252,7 +252,7 @@ def main() -> None:
 
     if llm_os.knowledge_base and llm_os.knowledge_base.vector_db:
         if st.sidebar.button("Clear Knowledge Base"):
-            llm_os.knowledge_base.vector_db.clear()
+            llm_os.knowledge_base.vector_db.delete()
             st.sidebar.success("Knowledge base cleared")
 
     # Show team member memory

@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 
-from phi.base import PhiBase
+from phi.base.infra import InfraBase
 from phi.utils.log import logger
 
 
-class ResourceBase(PhiBase):
+class ResourceBase(InfraBase):
     # Resource name is required
     name: str
     # Resource type

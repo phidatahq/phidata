@@ -3,13 +3,13 @@ from typing import Optional, Dict, Any, Union, List
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import FieldValidationInfo
 
-from phi.base import PhiBase
+from phi.base.infra import InfraBase
 from phi.app.context import ContainerContext
 from phi.resource.base import ResourceBase
 from phi.utils.log import logger
 
 
-class AppBase(PhiBase):
+class AppBase(InfraBase):
     # -*- App Name (required)
     name: str
 

@@ -335,7 +335,7 @@ class S2VectorDb(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         """
         Delete the table.
         """
@@ -369,7 +369,7 @@ class S2VectorDb(VectorDb):
     def optimize(self) -> None:
         pass
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         """
         Clear all rows from the table.
 

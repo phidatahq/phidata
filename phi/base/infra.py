@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from phi.workspace.settings import WorkspaceSettings
 
 
-class PhiBase(BaseModel):
+class InfraBase(BaseModel):
     name: Optional[str] = None
     group: Optional[str] = None
     version: Optional[str] = None

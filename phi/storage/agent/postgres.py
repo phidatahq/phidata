@@ -1,5 +1,4 @@
 from typing import Optional, Any, List
-from contextlib import contextmanager
 
 try:
     from sqlalchemy.dialects import postgresql
@@ -99,14 +98,6 @@ class PgAgentStorage(AgentStorage):
         else:
             raise ValueError(f"Unsupported schema version: {self.schema_version}")
 
-    @contextmanager
-    def get_session(self):
-        session = self.Session()
-        try:
-            yield session
-        finally:
-            session.close()
-
     def table_exists(self) -> bool:
         """
         Check if the table exists in the database.
@@ -124,9 +115,9 @@ class PgAgentStorage(AgentStorage):
     def create(self) -> None:
         if not self.table_exists():
             if self.schema is not None:
-                with self.get_session() as sess:
+                with self.Session() as sess, sess.begin():
                     logger.debug(f"Creating schema: {self.schema}")
-                    sess.execute(text("CREATE SCHEMA IF NOT EXISTS :schema_name;").bindparams(schema_name=self.schema))
+                    sess.execute(text(f"create schema if not exists {self.schema};"))
             logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
@@ -143,14 +134,14 @@ class PgAgentStorage(AgentStorage):
         return None
 
     def read(self, session_id: str) -> Optional[AgentSession]:
-        with self.get_session() as sess:
+        with self.Session() as sess, sess.begin():
             existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
             return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         session_ids: List[str] = []
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 # get all session_ids for this user
                 stmt = select(self.table)
                 if user_id is not None:
@@ -172,7 +163,7 @@ class PgAgentStorage(AgentStorage):
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         sessions: List[AgentSession] = []
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 # get all sessions for this user
                 stmt = select(self.table)
                 if user_id is not None:
@@ -205,7 +196,7 @@ class PgAgentStorage(AgentStorage):
             logger.error("Invalid session object provided to upsert.")
             return None
 
-        with self.get_session() as sess:
+        with self.Session() as sess, sess.begin():
             # Create an insert statement
             stmt = postgresql.insert(self.table).values(
                 session_id=session.session_id,
@@ -244,7 +235,7 @@ class PgAgentStorage(AgentStorage):
             logger.warning("No session_id provided for deletion.")
             return
 
-        with self.get_session() as sess:
+        with self.Session() as sess, sess.begin():
             try:
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)

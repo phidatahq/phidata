@@ -1,7 +1,6 @@
 from math import sqrt
 from hashlib import md5
 from typing import Optional, List, Union, Dict, Any, cast
-from contextlib import contextmanager
 
 try:
     from sqlalchemy.dialects import postgresql
@@ -129,14 +128,6 @@ class PgVector(VectorDb):
         else:
             raise NotImplementedError(f"Unsupported schema version: {self.schema_version}")
 
-    @contextmanager
-    def get_session(self):
-        session = self.Session()
-        try:
-            yield session
-        finally:
-            session.close()
-
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table '{self.table.fullname}' exists.")
         try:
@@ -148,7 +139,7 @@ class PgVector(VectorDb):
     def create(self) -> None:
         if not self.table_exists():
             try:
-                with self.get_session() as sess:
+                with self.Session() as sess, sess.begin():
                     logger.debug("Creating extension 'vector' if not exists.")
                     sess.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
                     if self.schema is not None:
@@ -162,7 +153,7 @@ class PgVector(VectorDb):
 
     def _record_exists(self, column, value) -> bool:
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 stmt = select(1).where(column == value).limit(1)
                 result = sess.execute(stmt).first()
                 return result is not None
@@ -191,7 +182,7 @@ class PgVector(VectorDb):
         batch_size: int = 100,
     ) -> None:
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 for i in range(0, len(documents), batch_size):
                     batch_docs = documents[i : i + batch_size]
                     try:
@@ -240,7 +231,7 @@ class PgVector(VectorDb):
         batch_size: int = 100,
     ) -> None:
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 for i in range(0, len(documents), batch_size):
                     batch_docs = documents[i : i + batch_size]
                     try:
@@ -357,7 +348,7 @@ class PgVector(VectorDb):
 
             # Execute the query
             try:
-                with self.get_session() as sess:
+                with self.Session() as sess, sess.begin():
                     if self.vector_index is not None:
                         if isinstance(self.vector_index, Ivfflat):
                             sess.execute(text(f"SET LOCAL ivfflat.probes = {self.vector_index.probes}"))
@@ -448,7 +439,7 @@ class PgVector(VectorDb):
 
             # Execute the query
             try:
-                with self.get_session() as sess:
+                with self.Session() as sess, sess.begin():
                     with sess.begin():
                         results = sess.execute(stmt).fetchall()
             except Exception as e:
@@ -569,7 +560,7 @@ class PgVector(VectorDb):
 
             # Execute the query
             try:
-                with self.get_session() as sess:
+                with self.Session() as sess, sess.begin():
                     if self.vector_index is not None:
                         if isinstance(self.vector_index, Ivfflat):
                             sess.execute(text(f"SET LOCAL ivfflat.probes = {self.vector_index.probes}"))
@@ -617,7 +608,7 @@ class PgVector(VectorDb):
 
     def get_count(self) -> int:
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 stmt = select(func.count(self.table.c.name)).select_from(self.table)
                 result = sess.execute(stmt).scalar()
                 return int(result) if result is not None else 0
@@ -647,7 +638,7 @@ class PgVector(VectorDb):
 
     def _drop_index(self, index_name: str) -> None:
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 drop_index_sql = f'DROP INDEX IF EXISTS "{self.schema}"."{index_name}";'
                 sess.execute(text(drop_index_sql))
         except Exception as e:
@@ -688,7 +679,7 @@ class PgVector(VectorDb):
 
         # Proceed to create the vector index
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 # Set configuration parameters
                 if self.vector_index.configuration:
                     logger.debug(f"Setting configuration: {self.vector_index.configuration}")
@@ -771,7 +762,7 @@ class PgVector(VectorDb):
 
         # Proceed to create GIN index
         try:
-            with self.get_session() as sess:
+            with self.Session() as sess, sess.begin():
                 logger.debug(f"Creating GIN index '{gin_index_name}' on table '{self.table.fullname}'.")
                 # Create index
                 create_gin_index_sql = text(

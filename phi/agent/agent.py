@@ -448,8 +448,8 @@ class Agent(BaseModel):
             session_data["session_name"] = self.session_name
         return session_data
 
-    def to_agent_session(self) -> AgentSession:
-        """Create an AgentSession to save to the database"""
+    def get_agent_session(self) -> AgentSession:
+        """Get an AgentSession object, which can be saved to the database"""
 
         return AgentSession(
             session_id=self.session_id,
@@ -569,7 +569,7 @@ class Agent(BaseModel):
         """Save the AgentSession to storage"""
 
         if self.storage is not None:
-            self._agent_session = self.storage.upsert(session=self.to_agent_session())
+            self._agent_session = self.storage.upsert(session=self.get_agent_session())
         return self._agent_session
 
     def add_introduction(self, introduction: str) -> None:
@@ -1962,7 +1962,7 @@ class Agent(BaseModel):
         from phi.api.agent import create_agent_session, AgentSessionCreate
 
         try:
-            agent_session: AgentSession = self._agent_session or self.to_agent_session()
+            agent_session: AgentSession = self._agent_session or self.get_agent_session()
             create_agent_session(
                 session=AgentSessionCreate(
                     session_id=agent_session.session_id,
@@ -2005,7 +2005,7 @@ class Agent(BaseModel):
                     "metrics": self.model.metrics if self.model else None,
                 }
 
-            agent_session: AgentSession = self._agent_session or self.to_agent_session()
+            agent_session: AgentSession = self._agent_session or self.get_agent_session()
             create_agent_run(
                 run=AgentRunCreate(
                     run_id=self.run_id,

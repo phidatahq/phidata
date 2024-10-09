@@ -1098,6 +1098,12 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
+                    # Add tool call to the run_response
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None:
+                        if self.run_response.tools is None:
+                            self.run_response.tools = []
+                        self.run_response.tools.append(tool_call_dict)
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
@@ -1109,11 +1115,15 @@ class Agent(BaseModel):
                             event=RunEvent.tool_call_started.value,
                         )
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
+                    # Update the existing tool call in the run_response
                     tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
+                    if tool_call_dict is not None and self.run_response.tools:
+                        tool_call_id_to_update = tool_call_dict["tool_call_id"]
+                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
+                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
+                        # Update the tool call if it exists
+                        if tool_call_id_to_update in tool_call_index_map:
+                            self.run_response.tools[tool_call_index_map[tool_call_id_to_update]] = tool_call_dict
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
@@ -1471,6 +1481,12 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
+                    # Add tool call to the run_response
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None:
+                        if self.run_response.tools is None:
+                            self.run_response.tools = []
+                        self.run_response.tools.append(tool_call_dict)
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
@@ -1482,11 +1498,15 @@ class Agent(BaseModel):
                             event=RunEvent.tool_call_started.value,
                         )
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
+                    # Update the existing tool call in the run_response
                     tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
+                    if tool_call_dict is not None and self.run_response.tools:
+                        tool_call_id = tool_call_dict["tool_call_id"]
+                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
+                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
+                        # Update the tool call if it exists
+                        if tool_call_id in tool_call_index_map:
+                            self.run_response.tools[tool_call_index_map[tool_call_id]] = tool_call_dict
                     if stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,

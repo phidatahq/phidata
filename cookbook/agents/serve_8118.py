@@ -24,7 +24,7 @@ finance_agent = Agent(
     add_history_to_messages=True,
     description="You are a finance agent",
     add_datetime_to_instructions=True,
-    storage=PgAgentStorage(table_name="finance_agent_sessions", db_url=db_url),
+    storage=PgAgentStorage(table_name="finance_agent_sessions_8118", db_url=db_url),
 )
 
 research_agent = Agent(
@@ -64,7 +64,7 @@ research_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=PgAgentStorage(table_name="research_agent_sessions", db_url=db_url),
+    storage=PgAgentStorage(table_name="research_agent_sessions_8118", db_url=db_url),
 )
 
 app = Playground(agents=[finance_agent, research_agent]).get_app()

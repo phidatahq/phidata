@@ -164,7 +164,16 @@ class Model(BaseModel):
             # -*- Start function call
             _function_call_timer = Timer()
             _function_call_timer.start()
-            yield ModelResponse(content=function_call.get_call_str(), event=ModelResponseEvent.tool_call_started.value)
+            yield ModelResponse(
+                content=function_call.get_call_str(),
+                tool_call={
+                    "role": tool_role,
+                    "tool_call_id": function_call.call_id,
+                    "tool_name": function_call.function.name,
+                    "tool_args": function_call.arguments,
+                },
+                event=ModelResponseEvent.tool_call_started.value,
+            )
 
             # -*- Run function call
             function_call_success = function_call.execute()

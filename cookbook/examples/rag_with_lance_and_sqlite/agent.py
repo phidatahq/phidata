@@ -4,14 +4,14 @@ from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.lancedb import LanceDb
 from phi.embedder.ollama import OllamaEmbedder
 from phi.agent import Agent
-from phi.storage.agent.sqllite import SqlAgentStorage
+from phi.storage.agent.sqlite import SqlAgentStorage
 from phi.llm.ollama import Ollama
 
 # Define the database URL where the vector database will be stored
 db_url = "/tmp/lancedb"
 
 # Configure the language model
-llm = Ollama(model="llama3:8b", temperature=0.0)
+model = Ollama(model="llama3:8b", temperature=0.0)
 
 # Create Ollama embedder
 embedder = OllamaEmbedder(model="nomic-embed-text", dimensions=768)
@@ -41,14 +41,10 @@ storage.create()  # Create the storage if it doesn't exist
 agent = Agent(
     session_id="session_id",  # use any unique identifier to identify the run
     user_id="user",  # user identifier to identify the user
-    llm=llm,
-    knowledge_base=knowledge_base,
+    model=model,
+    knowledge=knowledge_base,
     storage=storage,
-    tool_calls=True,  # Enable function calls for searching knowledge base and chat history
-    use_tools=True,
     show_tool_calls=True,
-    search_knowledge=True,
-    add_references_to_prompt=True,  # Use traditional RAG (Retrieval-Augmented Generation)
     debug_mode=True,  # Enable debug mode for additional information
 )
 

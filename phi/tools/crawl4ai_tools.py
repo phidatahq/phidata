@@ -6,7 +6,7 @@ try:
     from crawl4ai import WebCrawler
 except ImportError:
     raise ImportError(
-        "`crawl4ai` not installed. Please install using `pip install crawl4ai @ git+https://github.com/unclecode/crawl4ai.git`"
+        "`crawl4ai` not installed. Please install using `pip install crawl4ai`"
     )
 
 
@@ -26,7 +26,7 @@ class Crawl4aiTools(Toolkit):
         Crawls a website using crawl4ai's WebCrawler.
 
         :param url: The URL to crawl.
-        :param max_length (Optional): The maximum length of the extracted content.
+        :param max_length: The maximum length of the result.
 
         :return: The results of the crawling.
         """

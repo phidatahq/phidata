@@ -253,6 +253,8 @@ class Agent(BaseModel):
 
         # Create a new Agent
         new_agent = self.__class__.model_validate(fields_for_new_agent)
+        if update.get('session_id') is None:
+            new_agent.model.metrics = {}
         logger.debug(f"Created new Agent instance: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent
 

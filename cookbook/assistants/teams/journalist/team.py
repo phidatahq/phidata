@@ -1,7 +1,7 @@
 from textwrap import dedent
 from phi.assistant import Assistant
 from phi.tools.serpapi_tools import SerpApiTools
-from phi.tools.newspaper_toolkit import NewspaperToolkit
+from phi.tools.newspaper_tools import NewspaperTools
 
 
 searcher = Assistant(
@@ -42,7 +42,7 @@ writer = Assistant(
         "Focus on clarity, coherence, and overall quality.",
         "Never make up facts or plagiarize. Always provide proper attribution.",
     ],
-    tools=[NewspaperToolkit()],
+    tools=[NewspaperTools()],
     add_datetime_to_instructions=True,
     add_chat_history_to_prompt=True,
     num_history_messages=3,

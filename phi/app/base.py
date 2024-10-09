@@ -64,7 +64,7 @@ class AppBase(InfraBase):
     # -*- App specific args. Not to be set by the user.
     # Container Environment that can be set by subclasses
     # which is used as a starting point for building the container_env
-    # Any variables set in container_env will be overriden by values
+    # Any variables set in container_env will be overridden by values
     # in the env_vars dict or env_file
     container_env: Optional[Dict[str, Any]] = None
     # Variable used to cache the container context

@@ -31,8 +31,6 @@ def pdf_agent(new: bool = False, user: str = "user"):
         storage=storage,
         # Show tool calls in the response
         show_tool_calls=True,
-        # Enable the agent to search the knowledge base
-        search_knowledge=True,
         # Enable the agent to read the chat history
         read_chat_history=True,
     )

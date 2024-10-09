@@ -132,7 +132,7 @@ class Claude(Model):
             _request_params.update(self.request_params)
         return _request_params
 
-    def _process_messages(self, messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
+    def _format_messages(self, messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
         """
         Process the list of messages and separate them into API messages and system messages.
 
@@ -223,7 +223,7 @@ class Claude(Model):
         Returns:
             AnthropicMessage: The response from the model.
         """
-        chat_messages, system_message = self._process_messages(messages)
+        chat_messages, system_message = self._format_messages(messages)
         request_kwargs = self._prepare_request_kwargs(system_message)
 
         return self.get_client().messages.create(
@@ -242,7 +242,7 @@ class Claude(Model):
         Returns:
             Any: The streamed response from the model.
         """
-        chat_messages, system_message = self._process_messages(messages)
+        chat_messages, system_message = self._format_messages(messages)
         request_kwargs = self._prepare_request_kwargs(system_message)
 
         return self.get_client().messages.stream(
@@ -338,7 +338,7 @@ class Claude(Model):
 
         # Extract tool calls from the response
         if response.stop_reason == "tool_use":
-            for block in response.content:
+            for block in message_data.response_block:
                 if isinstance(block, ToolUseBlock):
                     tool_use: ToolUseBlock = block
                     tool_name = tool_use.name

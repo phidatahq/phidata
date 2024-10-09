@@ -30,6 +30,7 @@ class LanceDb(VectorDb):
         distance: Distance = Distance.cosine,
         nprobes: Optional[int] = None,
         reranker: Optional[Reranker] = None,
+        use_tantivy: bool = True,
     ):
         # Embedder for embedding the document contents
         if embedder is None:
@@ -75,6 +76,15 @@ class LanceDb(VectorDb):
         self.reranker: Optional[Reranker] = reranker
         self.nprobes: Optional[int] = nprobes
         self.fts_index_exists = False
+        self.use_tantivy = use_tantivy
+
+        if self.use_tantivy:
+            try:
+                import tantivy  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "Please install tantivy-py `pip install tantivy` to use the full text search feature."  # noqa: E501
+                )
 
         logger.debug(f"Initialized LanceDb with table: '{self.table_name}'")
 
@@ -195,20 +205,25 @@ class LanceDb(VectorDb):
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
-
         if not self.fts_index_exists:
-            self.table.create_fts_index("payload", replace=True)
+            self.table.create_fts_index("payload", use_tantivy=self.use_tantivy, replace=True)
             self.fts_index_exists = True
 
-        results = self.table.search(
-            query=(query_embedding, query),
-            vector_column_name=self._vector_col,
-            query_type="hybrid",
-        ).limit(limit)
+        results = (
+            self.table.search(
+                vector_column_name=self._vector_col,
+                query_type="hybrid",
+            )
+            .vector(query_embedding)
+            .text(query)
+            .limit(limit)
+        )
+
         if self.nprobes:
             results.nprobes(self.nprobes)
         if self.reranker:
             results.rerank(reranker=self.reranker)
+
         results = results.to_pandas()
 
         search_results = self._build_search_results(results)
@@ -217,7 +232,7 @@ class LanceDb(VectorDb):
 
     def keyword_search(self, query: str, limit: int = 5) -> List[Document]:
         if not self.fts_index_exists:
-            self.table.create_fts_index("payload", replace=True)
+            self.table.create_fts_index("payload", use_tantivy=self.use_tantivy, replace=True)
             self.fts_index_exists = True
 
         results = (
@@ -228,9 +243,7 @@ class LanceDb(VectorDb):
             .limit(limit)
             .to_pandas()
         )
-
         search_results = self._build_search_results(results)
-
         return search_results
 
     def _build_search_results(self, results) -> List[Document]:  # TODO: typehint pandas?

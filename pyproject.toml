@@ -151,6 +151,7 @@ module = [
   "starlette.*",
   "streamlit.*",
   "tavily.*",
+  "tantivy.*",
   "textract.*",
   "torch.*",
   "timeout_decorator.*",

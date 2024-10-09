@@ -18,7 +18,7 @@ class Model(BaseModel):
     # Provider for this Model. Note: This is not sent to the Model API.
     provider: Optional[str] = None
     # Metrics collected for this Model. Note: This is not sent to the Model API.
-    metrics: Dict[str, Any] = {}
+    metrics: Dict[str, Any] = Field(default_factory=dict)
     response_format: Optional[Any] = None
 
     # A list of tools provided to the Model.
@@ -52,7 +52,7 @@ class Model(BaseModel):
     # Instructions from the model added to the Agent.
     instructions: Optional[List[str]] = None
 
-    # Agent Session ID
+    # Session ID of the calling Agent or Workflow.
     session_id: Optional[str] = None
     # Whether to use the structured outputs from the Model.
     structured_outputs: Optional[bool] = None
@@ -225,3 +225,11 @@ class Model(BaseModel):
 
     def get_instructions_from_model(self) -> Optional[List[str]]:
         return self.instructions
+
+    def clear(self) -> None:
+        """Clears the Model's state."""
+
+        self.metrics = {}
+        self.function_call_stack = None
+        self.session_id = None
+        logger.debug("Model state flushed.")

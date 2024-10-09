@@ -14,7 +14,7 @@ class AgentGetResponse(BaseModel):
     agent_id: str
     name: Optional[str] = None
     model: Optional[AgentModel] = None
-    enable_rag: Optional[bool] = None
+    add_context: Optional[bool] = None
     tools: Optional[List[Dict[str, Any]]] = None
     memory: Optional[Dict[str, Any]] = None
     storage: Optional[Dict[str, Any]] = None

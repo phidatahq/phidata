@@ -43,7 +43,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
                         name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
                         model=agent.model.id if agent.model else None,
                     ),
-                    enable_rag=agent.enable_rag,
+                    add_context=agent.add_context,
                     tools=formatted_tools,
                     memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
                     storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
@@ -76,7 +76,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
                     name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
                     model=agent.model.id if agent.model else None,
                 ),
-                enable_rag=agent.enable_rag,
+                add_context=agent.add_context,
                 tools=formatted_tools,
                 memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
                 storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
@@ -117,7 +117,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
             logger.debug("Creating new session")
 
         # Create a new instance of this agent
-        new_agent_instance = agent.create_new_instance(update={"session_id": body.session_id})
+        new_agent_instance = agent.create_copy(update={"session_id": body.session_id})
         if body.user_id:
             new_agent_instance.user_id = body.user_id
 

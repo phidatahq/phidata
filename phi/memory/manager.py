@@ -108,7 +108,7 @@ class MemoryManager(BaseModel):
         """
         try:
             if self.db:
-                self.db.clear_table()
+                self.db.clear()
             return "Memory cleared successfully"
         except Exception as e:
             logger.warning(f"Error clearing memory in db: {e}")

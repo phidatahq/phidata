@@ -287,10 +287,14 @@ class AgentMemory(BaseModel):
         return self.summary
 
     def clear(self) -> None:
-        """Clears the AgentMemory"""
+        """Clear the AgentMemory"""
 
-        self.chats = []
-        self.messages = []
-        self.summary = None
-        self.memories = None
-        logger.debug("Agent Memory cleared")
+        if "chats" in self.model_fields_set:
+            self.chats = []
+        if "messages" in self.model_fields_set:
+            self.messages = []
+        if "summary" in self.model_fields_set:
+            self.summary = None
+        if "memories" in self.model_fields_set:
+            self.memories = None
+        logger.debug("AgentMemory flushed")

@@ -74,18 +74,18 @@ class Agent(BaseModel):
 
     # -*- Agent Knowledge
     knowledge: Optional[AgentKnowledge] = Field(None, alias="knowledge_base")
-    # Enable RAG by adding references from AgentKnowledge to the user prompt.
-    enable_rag: bool = False
+    # Enable RAG by adding context from AgentKnowledge to the user prompt.
+    add_context: bool = False
     # Function to get context to add to the user_message
-    # This function, if provided, is called when enable_rag is True
+    # This function, if provided, is called when add_context is True
     # Signature:
     # def retriever(agent: Agent, query: str, num_documents: Optional[int], **kwargs) -> Optional[list[dict]]:
     #     ...
     retriever: Optional[Callable[..., Optional[list[dict]]]] = None
-    rag_format: Literal["json", "yaml"] = "json"
-    # If True, add instructions for using the RAG to the system prompt (if knowledge is also provided)
+    context_format: Literal["json", "yaml"] = "json"
+    # If True, add instructions for using the context to the system prompt (if knowledge is also provided)
     # For example: add an instruction to prefer information from the knowledge base over its training data.
-    add_rag_instructions: bool = False
+    add_context_instructions: bool = False
 
     # -*- Agent Storage
     storage: Optional[AgentStorage] = None
@@ -113,6 +113,7 @@ class Agent(BaseModel):
     # Add a tool that allows the Model to read the chat history.
     read_chat_history: bool = False
     # Add a tool that allows the Model to search the knowledge base (aka Agentic RAG)
+    # Added only if knowledge is provided.
     search_knowledge: bool = True
     # Add a tool that allows the Model to update the knowledge base.
     update_knowledge: bool = False
@@ -231,8 +232,8 @@ class Agent(BaseModel):
         """
         return self.response_model is None
 
-    def create_new_instance(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
-        """Create and return a new instance of this Agent, optionally updating fields.
+    def create_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
+        """Create and return a deep copy of this Agent, optionally updating fields.
 
         Args:
             update (Optional[Dict[str, Any]]): Optional dictionary of fields for the new Agent.
@@ -240,21 +241,49 @@ class Agent(BaseModel):
         Returns:
             Agent: A new Agent instance.
         """
-        # Extract the fields set on this Agent
+        from copy import copy, deepcopy
+
+        # Extract the fields to set for the new Agent
         fields_for_new_agent = {}
+
         for field_name in self.model_fields_set:
             field_value = getattr(self, field_name)
             if field_value is not None:
                 fields_for_new_agent[field_name] = field_value
 
+        # For any compound fields, create a deep copy so a new instance is created
+        for field_name, field_value in fields_for_new_agent.items():
+            if isinstance(field_value, (list, dict, set, AgentStorage)):
+                try:
+                    fields_for_new_agent[field_name] = deepcopy(field_value)
+                except Exception as e:
+                    logger.warn(f"Failed to deepcopy field: {field_name} - {e}")
+                    try:
+                        fields_for_new_agent[field_name] = copy(field_value)
+                    except Exception as e:
+                        logger.warn(f"Failed to copy field: {field_name} - {e}")
+                        fields_for_new_agent[field_name] = field_value
+            elif isinstance(field_value, BaseModel):
+                try:
+                    fields_for_new_agent[field_name] = field_value.model_copy(deep=True)
+                except Exception as e:
+                    logger.warn(f"Failed to deepcopy field: {field_name} - {e}")
+                    try:
+                        fields_for_new_agent[field_name] = field_value.model_copy(deep=False)
+                    except Exception as e:
+                        logger.warn(f"Failed to copy field: {field_name} - {e}")
+                        fields_for_new_agent[field_name] = field_value
+        # Flush the Model to remove previous metrics or functions
+        if "model" in fields_for_new_agent and isinstance(fields_for_new_agent["model"], Model):
+            fields_for_new_agent["model"].clear()
+
+        # Flush the AgentMemory to remove previous memories
+        if "memory" in fields_for_new_agent and isinstance(fields_for_new_agent["memory"], AgentMemory):
+            fields_for_new_agent["memory"].clear()
+
         if update is not None and isinstance(update, dict):
             # Filter out any updates where the value is None
             fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
-
-        for field_name, field_value in fields_for_new_agent.items():
-            if isinstance(field_value, BaseModel):
-                fields_for_new_agent[field_name] = field_value.dict()
-        logger.info(f"Creating new Agent instance with fields: {fields_for_new_agent}")
 
         # Create a new Agent
         new_agent = self.__class__(**fields_for_new_agent)
@@ -702,7 +731,7 @@ class Agent(BaseModel):
                 "the tools available to them."
             )
         # 4.2 Add instructions for using the AgentKnowledge
-        if self.add_rag_instructions and self.knowledge is not None:
+        if self.add_context_instructions and self.knowledge is not None:
             instructions.extend(
                 [
                     "Always prefer information from the knowledge base over your own knowledge.",
@@ -843,7 +872,7 @@ class Agent(BaseModel):
         if docs is None or len(docs) == 0:
             return ""
 
-        if self.rag_format == "yaml":
+        if self.context_format == "yaml":
             import yaml
 
             return yaml.dump(docs)
@@ -879,7 +908,7 @@ class Agent(BaseModel):
         2. If the user_prompt_template is provided, build the user_message using the template.
         3. If the message is None, return None.
         4. 4. If use_default_user_message is False or If the message is not a string, return the message as is.
-        5. If enable_rag is False or context is None, return the message as is.
+        5. If add_context is False or context is None, return the message as is.
         6. Build the default user message for the Agent
         """
 
@@ -894,7 +923,7 @@ class Agent(BaseModel):
 
         # Get references from the knowledge base related to the user message
         context = None
-        if self.enable_rag and message and isinstance(message, str):
+        if self.add_context and message and isinstance(message, str):
             retrieval_timer = Timer()
             retrieval_timer.start()
             docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
@@ -920,8 +949,8 @@ class Agent(BaseModel):
         if not self.use_default_user_message or not isinstance(message, str):
             return Message(role=self.user_message_role, content=message, **kwargs)
 
-        # 5. If enable_rag is False or context is None, return the message as is
-        if self.enable_rag is False or context is None:
+        # 5. If add_context is False or context is None, return the message as is
+        if self.add_context is False or context is None:
             return Message(
                 role=self.user_message_role,
                 content=self.add_images_to_message_content(message_content=message, images=images),

@@ -30,7 +30,7 @@ class MemoryDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_table(self) -> None:
+    def drop_table(self) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -38,5 +38,5 @@ class MemoryDb(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def clear_table(self) -> bool:
+    def clear(self) -> bool:
         raise NotImplementedError

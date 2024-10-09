@@ -140,7 +140,7 @@ class PgMemoryDb(MemoryDb):
             stmt = delete(self.table).where(self.table.c.id == id)
             sess.execute(stmt)
 
-    def delete_table(self) -> None:
+    def drop_table(self) -> None:
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
@@ -153,9 +153,42 @@ class PgMemoryDb(MemoryDb):
             logger.error(e)
             return False
 
-    def clear_table(self) -> bool:
+    def clear(self) -> bool:
         with self.Session() as sess:
             with sess.begin():
                 stmt = delete(self.table)
                 sess.execute(stmt)
                 return True
+
+    def __deepcopy__(self, memo):
+        """
+        Create a deep copy of the PgMemoryDb instance, handling unpickleable attributes.
+
+        Args:
+            memo (dict): A dictionary of objects already copied during the current copying pass.
+
+        Returns:
+            PgMemoryDb: A deep-copied instance of PgMemoryDb.
+        """
+        from copy import deepcopy
+
+        # Create a new instance without calling __init__
+        cls = self.__class__
+        copied_obj = cls.__new__(cls)
+        memo[id(self)] = copied_obj
+
+        # Deep copy attributes
+        for k, v in self.__dict__.items():
+            if k in {"metadata", "table"}:
+                continue
+            # Reuse db_engine and Session without copying
+            elif k in {"db_engine", "Session"}:
+                setattr(copied_obj, k, v)
+            else:
+                setattr(copied_obj, k, deepcopy(v, memo))
+
+        # Recreate metadata and table for the copied instance
+        copied_obj.metadata = MetaData(schema=copied_obj.schema)
+        copied_obj.table = copied_obj.get_table()
+
+        return copied_obj

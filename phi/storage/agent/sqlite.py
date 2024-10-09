@@ -252,3 +252,36 @@ class SqlAgentStorage(AgentStorage):
 
     def upgrade_schema(self) -> None:
         pass
+
+    def __deepcopy__(self, memo):
+        """
+        Create a deep copy of the SqlAgentStorage instance, handling unpickleable attributes.
+
+        Args:
+            memo (dict): A dictionary of objects already copied during the current copying pass.
+
+        Returns:
+            SqlAgentStorage: A deep-copied instance of SqlAgentStorage.
+        """
+        from copy import deepcopy
+
+        # Create a new instance without calling __init__
+        cls = self.__class__
+        copied_obj = cls.__new__(cls)
+        memo[id(self)] = copied_obj
+
+        # Deep copy attributes
+        for k, v in self.__dict__.items():
+            if k in {"metadata", "table"}:
+                continue
+            # Reuse db_engine and Session without copying
+            elif k in {"db_engine", "Session"}:
+                setattr(copied_obj, k, v)
+            else:
+                setattr(copied_obj, k, deepcopy(v, memo))
+
+        # Recreate metadata and table for the copied instance
+        copied_obj.metadata = MetaData()
+        copied_obj.table = copied_obj.get_table()
+
+        return copied_obj

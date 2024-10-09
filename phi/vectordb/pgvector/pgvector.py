@@ -1,15 +1,17 @@
 from math import sqrt
 from hashlib import md5
 from typing import Optional, List, Union, Dict, Any, cast
+from contextlib import contextmanager
 
 try:
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.orm import Session, sessionmaker, scoped_session
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, func, select, desc, bindparam
     from sqlalchemy.types import DateTime, String
+    from sqlalchemy.pool import NullPool
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -54,7 +56,7 @@ class PgVector(VectorDb):
             if db_url is None:
                 raise ValueError("Must provide 'db_url' if 'db_engine' is None.")
             try:
-                db_engine = create_engine(db_url)
+                db_engine = create_engine(db_url, poolclass=NullPool)
             except Exception as e:
                 logger.error(f"Failed to create engine from 'db_url': {e}")
                 raise
@@ -96,7 +98,7 @@ class PgVector(VectorDb):
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
         # Database session
-        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
+        self.Session: scoped_session[Session] = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table
         self.table: Table = self.get_table()
 
@@ -127,6 +129,14 @@ class PgVector(VectorDb):
         else:
             raise NotImplementedError(f"Unsupported schema version: {self.schema_version}")
 
+    @contextmanager
+    def get_session(self):
+        session = self.Session()
+        try:
+            yield session
+        finally:
+            session.close()
+
     def table_exists(self) -> bool:
         logger.debug(f"Checking if table '{self.table.fullname}' exists.")
         try:
@@ -138,13 +148,12 @@ class PgVector(VectorDb):
     def create(self) -> None:
         if not self.table_exists():
             try:
-                with self.Session() as sess:
-                    with sess.begin():
-                        logger.debug("Creating extension 'vector' if not exists.")
-                        sess.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-                        if self.schema is not None:
-                            logger.debug(f"Creating schema '{self.schema}' if not exists.")
-                            sess.execute(text(f"create schema if not exists {self.schema};"))
+                with self.get_session() as sess:
+                    logger.debug("Creating extension 'vector' if not exists.")
+                    sess.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                    if self.schema is not None:
+                        logger.debug(f"Creating schema '{self.schema}' if not exists.")
+                        sess.execute(text(f"create schema if not exists {self.schema};"))
                 logger.debug(f"Creating table: {self.table_name}")
                 self.table.create(self.db_engine, checkfirst=True)
             except Exception as e:
@@ -153,7 +162,7 @@ class PgVector(VectorDb):
 
     def _record_exists(self, column, value) -> bool:
         try:
-            with self.Session() as sess:
+            with self.get_session() as sess:
                 stmt = select(1).where(column == value).limit(1)
                 result = sess.execute(stmt).first()
                 return result is not None
@@ -182,7 +191,7 @@ class PgVector(VectorDb):
         batch_size: int = 100,
     ) -> None:
         try:
-            with self.Session() as sess:
+            with self.get_session() as sess:
                 for i in range(0, len(documents), batch_size):
                     batch_docs = documents[i : i + batch_size]
                     try:
@@ -231,7 +240,7 @@ class PgVector(VectorDb):
         batch_size: int = 100,
     ) -> None:
         try:
-            with self.Session() as sess:
+            with self.get_session() as sess:
                 for i in range(0, len(documents), batch_size):
                     batch_docs = documents[i : i + batch_size]
                     try:
@@ -327,7 +336,6 @@ class PgVector(VectorDb):
 
             # Apply filters if provided
             if filters is not None:
-                # Use the contains() method for JSONB columns to check if the filters column contains the specified filters
                 stmt = stmt.where(self.table.c.filters.contains(filters))
 
             # Order the results based on the distance metric
@@ -349,7 +357,7 @@ class PgVector(VectorDb):
 
             # Execute the query
             try:
-                with self.Session() as sess:
+                with self.get_session() as sess:
                     if self.vector_index is not None:
                         if isinstance(self.vector_index, Ivfflat):
                             sess.execute(text(f"SET LOCAL ivfflat.probes = {self.vector_index.probes}"))
@@ -440,7 +448,7 @@ class PgVector(VectorDb):
 
             # Execute the query
             try:
-                with self.Session() as sess:
+                with self.get_session() as sess:
                     with sess.begin():
                         results = sess.execute(stmt).fetchall()
             except Exception as e:
@@ -561,7 +569,7 @@ class PgVector(VectorDb):
 
             # Execute the query
             try:
-                with self.Session() as sess:
+                with self.get_session() as sess:
                     if self.vector_index is not None:
                         if isinstance(self.vector_index, Ivfflat):
                             sess.execute(text(f"SET LOCAL ivfflat.probes = {self.vector_index.probes}"))
@@ -609,11 +617,10 @@ class PgVector(VectorDb):
 
     def get_count(self) -> int:
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    stmt = select(func.count(self.table.c.name)).select_from(self.table)
-                    result = sess.execute(stmt).scalar()
-                    return int(result) if result is not None else 0
+            with self.get_session() as sess:
+                stmt = select(func.count(self.table.c.name)).select_from(self.table)
+                result = sess.execute(stmt).scalar()
+                return int(result) if result is not None else 0
         except Exception as e:
             logger.error(f"Error getting count from table '{self.table.fullname}': {e}")
             return 0
@@ -640,10 +647,9 @@ class PgVector(VectorDb):
 
     def _drop_index(self, index_name: str) -> None:
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    drop_index_sql = f'DROP INDEX IF EXISTS "{self.schema}"."{index_name}";'
-                    sess.execute(text(drop_index_sql))
+            with self.get_session() as sess:
+                drop_index_sql = f'DROP INDEX IF EXISTS "{self.schema}"."{index_name}";'
+                sess.execute(text(drop_index_sql))
         except Exception as e:
             logger.error(f"Error dropping index '{index_name}': {e}")
             raise
@@ -682,21 +688,20 @@ class PgVector(VectorDb):
 
         # Proceed to create the vector index
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    # Set configuration parameters
-                    if self.vector_index.configuration:
-                        logger.debug(f"Setting configuration: {self.vector_index.configuration}")
-                        for key, value in self.vector_index.configuration.items():
-                            sess.execute(text(f"SET {key} = :value;"), {"value": value})
+            with self.get_session() as sess:
+                # Set configuration parameters
+                if self.vector_index.configuration:
+                    logger.debug(f"Setting configuration: {self.vector_index.configuration}")
+                    for key, value in self.vector_index.configuration.items():
+                        sess.execute(text(f"SET {key} = :value;"), {"value": value})
 
-                    if isinstance(self.vector_index, Ivfflat):
-                        self._create_ivfflat_index(sess, table_fullname, index_distance)
-                    elif isinstance(self.vector_index, HNSW):
-                        self._create_hnsw_index(sess, table_fullname, index_distance)
-                    else:
-                        logger.error(f"Unknown index type: {type(self.vector_index)}")
-                        return
+                if isinstance(self.vector_index, Ivfflat):
+                    self._create_ivfflat_index(sess, table_fullname, index_distance)
+                elif isinstance(self.vector_index, HNSW):
+                    self._create_hnsw_index(sess, table_fullname, index_distance)
+                else:
+                    logger.error(f"Unknown index type: {type(self.vector_index)}")
+                    return
         except Exception as e:
             logger.error(f"Error creating vector index '{self.vector_index.name}': {e}")
             raise
@@ -766,15 +771,14 @@ class PgVector(VectorDb):
 
         # Proceed to create GIN index
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    logger.debug(f"Creating GIN index '{gin_index_name}' on table '{self.table.fullname}'.")
-                    # Create index
-                    create_gin_index_sql = text(
-                        f'CREATE INDEX "{gin_index_name}" ON {self.table.fullname} '
-                        f"USING GIN (to_tsvector({self.content_language}, content));"
-                    )
-                    sess.execute(create_gin_index_sql)
+            with self.get_session() as sess:
+                logger.debug(f"Creating GIN index '{gin_index_name}' on table '{self.table.fullname}'.")
+                # Create index
+                create_gin_index_sql = text(
+                    f'CREATE INDEX "{gin_index_name}" ON {self.table.fullname} '
+                    f"USING GIN (to_tsvector({self.content_language}, content));"
+                )
+                sess.execute(create_gin_index_sql)
         except Exception as e:
             logger.error(f"Error creating GIN index '{gin_index_name}': {e}")
             raise
@@ -792,3 +796,36 @@ class PgVector(VectorDb):
             logger.error(f"Error deleting rows from table '{self.table.fullname}': {e}")
             sess.rollback()
             return False
+
+    def __deepcopy__(self, memo):
+        """
+        Create a deep copy of the PgVector instance, handling unpickleable attributes.
+
+        Args:
+            memo (dict): A dictionary of objects already copied during the current copying pass.
+
+        Returns:
+            PgVector: A deep-copied instance of PgVector.
+        """
+        from copy import deepcopy
+
+        # Create a new instance without calling __init__
+        cls = self.__class__
+        copied_obj = cls.__new__(cls)
+        memo[id(self)] = copied_obj
+
+        # Deep copy attributes
+        for k, v in self.__dict__.items():
+            if k in {"metadata", "table"}:
+                continue
+            # Reuse db_engine and Session without copying
+            elif k in {"db_engine", "Session", "embedder"}:
+                setattr(copied_obj, k, v)
+            else:
+                setattr(copied_obj, k, deepcopy(v, memo))
+
+        # Recreate metadata and table for the copied instance
+        copied_obj.metadata = MetaData(schema=copied_obj.schema)
+        copied_obj.table = copied_obj.get_table()
+
+        return copied_obj

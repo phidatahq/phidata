@@ -7,4 +7,4 @@ agent = Agent(
     description="You are a YouTube agent. Obtain the captions of a YouTube video and answer questions.",
     debug_mode=True,
 )
-agent.print_response('Summarize this video https://www.youtube.com/watch?v=Iv9dewmcFbs&t', markdown=True)
+agent.print_response("Summarize this video https://www.youtube.com/watch?v=Iv9dewmcFbs&t", markdown=True)

@@ -4,9 +4,11 @@ from phi.tools.sql import SQLTools
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 agent = Agent(
-    tools=[SQLTools(
-        db_url=db_url,
-    )],
+    tools=[
+        SQLTools(
+            db_url=db_url,
+        )
+    ],
     show_tool_calls=True,
 )
 

@@ -70,4 +70,4 @@ research_agent = Agent(
 app = Playground(agents=[finance_agent, research_agent]).get_app()
 
 if __name__ == "__main__":
-    serve_playground_app("serve:app", port=8118, reload=True)
+    serve_playground_app("serve_8118:app", port=8118, reload=True)

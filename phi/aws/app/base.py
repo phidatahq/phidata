@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 class AwsApp(AppBase):
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/app"
+    workspace_dir_container_path: str = "/app"
 
     # -*- Networking Configuration
     # List of subnets for the app: Type: Union[str, Subnet]

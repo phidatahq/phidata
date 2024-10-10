@@ -297,4 +297,4 @@ class AgentMemory(BaseModel):
             self.summary = None
         if "memories" in self.model_fields_set:
             self.memories = None
-        logger.debug("AgentMemory flushed")
+        logger.debug("AgentMemory cleared")

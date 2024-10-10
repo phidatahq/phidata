@@ -232,4 +232,4 @@ class Model(BaseModel):
         self.metrics = {}
         self.function_call_stack = None
         self.session_id = None
-        logger.debug("Model state flushed.")
+        logger.debug("Model state cleared")

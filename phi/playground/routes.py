@@ -118,7 +118,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         # Create a new instance of this agent
         new_agent_instance = agent.create_copy(update={"session_id": body.session_id})
-        if body.user_id:
+        if body.user_id is not None:
             new_agent_instance.user_id = body.user_id
 
         if body.monitor:

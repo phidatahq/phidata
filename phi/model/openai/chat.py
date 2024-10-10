@@ -135,6 +135,27 @@ class OpenAIChat(Model):
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = True
 
+    def get_client_params(self) -> Dict[str, Any]:
+        _client_params: Dict[str, Any] = {}
+        # Set client parameters if they are provided
+        if self.api_key is not None:
+            _client_params["api_key"] = self.api_key
+        if self.organization is not None:
+            _client_params["organization"] = self.organization
+        if self.base_url is not None:
+            _client_params["base_url"] = self.base_url
+        if self.timeout is not None:
+            _client_params["timeout"] = self.timeout
+        if self.max_retries is not None:
+            _client_params["max_retries"] = self.max_retries
+        if self.default_headers is not None:
+            _client_params["default_headers"] = self.default_headers
+        if self.default_query is not None:
+            _client_params["default_query"] = self.default_query
+        if self.client_params is not None:
+            _client_params.update(self.client_params)
+        return _client_params
+
     def get_client(self) -> OpenAIClient:
         """
         Get or create an OpenAI client.
@@ -145,26 +166,10 @@ class OpenAIChat(Model):
         if self.client:
             return self.client
 
-        _client_params: Dict[str, Any] = {}
-        # Set client parameters if they are provided
-        if self.api_key:
-            _client_params["api_key"] = self.api_key
-        if self.organization:
-            _client_params["organization"] = self.organization
-        if self.base_url:
-            _client_params["base_url"] = self.base_url
-        if self.timeout:
-            _client_params["timeout"] = self.timeout
-        if self.max_retries:
-            _client_params["max_retries"] = self.max_retries
-        if self.default_headers:
-            _client_params["default_headers"] = self.default_headers
-        if self.default_query:
-            _client_params["default_query"] = self.default_query
-        if self.http_client:
+        _client_params: Dict[str, Any] = self.get_client_params()
+
+        if self.http_client is not None:
             _client_params["http_client"] = self.http_client
-        if self.client_params:
-            _client_params.update(self.client_params)
         return OpenAIClient(**_client_params)
 
     def get_async_client(self) -> AsyncOpenAIClient:
@@ -177,22 +182,8 @@ class OpenAIChat(Model):
         if self.async_client:
             return self.async_client
 
-        _client_params: Dict[str, Any] = {}
-        # Set client parameters if they are provided
-        if self.api_key:
-            _client_params["api_key"] = self.api_key
-        if self.organization:
-            _client_params["organization"] = self.organization
-        if self.base_url:
-            _client_params["base_url"] = self.base_url
-        if self.timeout:
-            _client_params["timeout"] = self.timeout
-        if self.max_retries:
-            _client_params["max_retries"] = self.max_retries
-        if self.default_headers:
-            _client_params["default_headers"] = self.default_headers
-        if self.default_query:
-            _client_params["default_query"] = self.default_query
+        _client_params: Dict[str, Any] = self.get_client_params()
+
         if self.http_client:
             _client_params["http_client"] = self.http_client
         else:
@@ -200,8 +191,6 @@ class OpenAIChat(Model):
             _client_params["http_client"] = httpx.AsyncClient(
                 limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
             )
-        if self.client_params:
-            _client_params.update(self.client_params)
         return AsyncOpenAIClient(**_client_params)
 
     @property
@@ -214,43 +203,43 @@ class OpenAIChat(Model):
         """
         _request_params: Dict[str, Any] = {}
         # Set request parameters if they are provided
-        if self.store:
+        if self.store is not None:
             _request_params["store"] = self.store
-        if self.frequency_penalty:
+        if self.frequency_penalty is not None:
             _request_params["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias:
+        if self.logit_bias is not None:
             _request_params["logit_bias"] = self.logit_bias
-        if self.logprobs:
+        if self.logprobs is not None:
             _request_params["logprobs"] = self.logprobs
-        if self.max_tokens:
+        if self.max_tokens is not None:
             _request_params["max_tokens"] = self.max_tokens
-        if self.presence_penalty:
+        if self.presence_penalty is not None:
             _request_params["presence_penalty"] = self.presence_penalty
-        if self.response_format:
+        if self.response_format is not None:
             _request_params["response_format"] = self.response_format
-        if self.seed:
+        if self.seed is not None:
             _request_params["seed"] = self.seed
-        if self.stop:
+        if self.stop is not None:
             _request_params["stop"] = self.stop
-        if self.temperature:
+        if self.temperature is not None:
             _request_params["temperature"] = self.temperature
-        if self.top_logprobs:
+        if self.top_logprobs is not None:
             _request_params["top_logprobs"] = self.top_logprobs
-        if self.user:
+        if self.user is not None:
             _request_params["user"] = self.user
-        if self.top_p:
+        if self.top_p is not None:
             _request_params["top_p"] = self.top_p
-        if self.extra_headers:
+        if self.extra_headers is not None:
             _request_params["extra_headers"] = self.extra_headers
-        if self.extra_query:
+        if self.extra_query is not None:
             _request_params["extra_query"] = self.extra_query
-        if self.tools:
+        if self.tools is not None:
             _request_params["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
                 _request_params["tool_choice"] = "auto"
             else:
                 _request_params["tool_choice"] = self.tool_choice
-        if self.request_params:
+        if self.request_params is not None:
             _request_params.update(self.request_params)
         return _request_params
 
@@ -263,35 +252,35 @@ class OpenAIChat(Model):
         """
         _dict = super().to_dict()
         # Add class-specific attributes to the dictionary
-        if self.frequency_penalty:
+        if self.frequency_penalty is not None:
             _dict["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias:
+        if self.logit_bias is not None:
             _dict["logit_bias"] = self.logit_bias
-        if self.logprobs:
+        if self.logprobs is not None:
             _dict["logprobs"] = self.logprobs
-        if self.max_tokens:
+        if self.max_tokens is not None:
             _dict["max_tokens"] = self.max_tokens
-        if self.presence_penalty:
+        if self.presence_penalty is not None:
             _dict["presence_penalty"] = self.presence_penalty
-        if self.response_format:
+        if self.response_format is not None:
             _dict["response_format"] = self.response_format
-        if self.seed:
+        if self.seed is not None:
             _dict["seed"] = self.seed
-        if self.stop:
+        if self.stop is not None:
             _dict["stop"] = self.stop
-        if self.temperature:
+        if self.temperature is not None:
             _dict["temperature"] = self.temperature
-        if self.top_logprobs:
+        if self.top_logprobs is not None:
             _dict["top_logprobs"] = self.top_logprobs
-        if self.user:
+        if self.user is not None:
             _dict["user"] = self.user
-        if self.top_p:
+        if self.top_p is not None:
             _dict["top_p"] = self.top_p
-        if self.extra_headers:
+        if self.extra_headers is not None:
             _dict["extra_headers"] = self.extra_headers
-        if self.extra_query:
+        if self.extra_query is not None:
             _dict["extra_query"] = self.extra_query
-        if self.tools:
+        if self.tools is not None:
             _dict["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
                 _dict["tool_choice"] = "auto"

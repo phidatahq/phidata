@@ -283,11 +283,9 @@ class Agent(BaseModel):
             fields_for_new_agent["memory"].clear()
 
         if update is not None and isinstance(update, dict):
-            # Filter out any updates where the value is None
-            fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
+            fields_for_new_agent.update(update)
 
         # Create a new Agent
-        logger.debug(f"Creating new Agent with fields: {fields_for_new_agent}")
         new_agent = self.__class__(**fields_for_new_agent)
         logger.debug(f"Created new Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent

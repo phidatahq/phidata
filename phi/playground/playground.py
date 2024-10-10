@@ -5,7 +5,7 @@ from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
 from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
-from phi.playground.routes import create_playground_routes
+from phi.playground.router import get_playground_router
 from phi.playground.settings import PlaygroundSettings
 from phi.utils.log import logger
 
@@ -25,7 +25,7 @@ class Playground:
         self.endpoints_created: Set[str] = set()
 
     def get_router(self) -> APIRouter:
-        return create_playground_routes(self.agents)
+        return get_playground_router(self.agents)
 
     def get_app(self) -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware

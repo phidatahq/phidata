@@ -1,5 +1,5 @@
 import base64
-from typing import List, Optional, Generator, Dict, cast, Union, Any
+from typing import List, Optional, AsyncGenerator, Dict, cast, Union, Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -20,15 +20,15 @@ from phi.playground.schemas import (
 )
 
 
-def create_playground_routes(agents: List[Agent]) -> APIRouter:
-    playground_routes = APIRouter(prefix="/playground", tags=["Playground"])
+def get_playground_router(agents: List[Agent]) -> APIRouter:
+    playground_router = APIRouter(prefix="/playground", tags=["Playground"])
 
-    @playground_routes.get("/status")
-    def playground_status():
+    @playground_router.get("/status")
+    async def playground_status():
         return {"playground": "available"}
 
-    @playground_routes.get("/agent/get", response_model=List[AgentGetResponse])
-    def agent_get():
+    @playground_router.get("/agent/get", response_model=List[AgentGetResponse])
+    async def agent_get():
         agent_list = []
         for agent in agents:
             agent_tools = agent.get_tools()
@@ -55,8 +55,8 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         return agent_list
 
-    @playground_routes.get("/agents/get", response_model=Dict[str, AgentGetResponse])
-    def agents_get():
+    @playground_router.get("/agents/get", response_model=Dict[str, AgentGetResponse])
+    async def agents_get():
         agents_dict: Dict[str, Any] = {}
         for agent in agents:
             agent_tools = agent.get_tools()
@@ -88,15 +88,15 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         return agents_dict
 
-    def chat_response_streamer(
+    async def chat_response_streamer(
         agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
-    ) -> Generator:
-        run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
-        for run_response_chunk in run_response:
+    ) -> AsyncGenerator:
+        run_response = await agent.arun(message, images=images, stream=True, stream_intermediate_steps=True)
+        async for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.model_dump_json()
 
-    def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+    async def process_image(file: UploadFile) -> List[Union[str, Dict]]:
         content = file.file.read()
         encoded = base64.b64encode(content).decode("utf-8")
 
@@ -104,8 +104,8 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         return [encoded, image_info]
 
-    @playground_routes.post("/agent/run")
-    def agent_run(body: AgentRunRequest):
+    @playground_router.post("/agent/run")
+    async def agent_run(body: AgentRunRequest):
         logger.debug(f"AgentRunRequest: {body}")
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
@@ -126,7 +126,7 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         base64_image: Optional[List[Union[str, Dict]]] = None
         if body.image:
-            base64_image = process_image(body.image)
+            base64_image = await process_image(body.image)
 
         if body.stream:
             return StreamingResponse(
@@ -134,11 +134,13 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
                 media_type="text/event-stream",
             )
         else:
-            run_response = cast(RunResponse, new_agent_instance.run(body.message, images=base64_image, stream=False))
+            run_response = cast(
+                RunResponse, await new_agent_instance.arun(body.message, images=base64_image, stream=False)
+            )
             return run_response.model_dump_json()
 
-    @playground_routes.post("/agent/sessions/all")
-    def get_agent_sessions(body: AgentSessionsRequest):
+    @playground_router.post("/agent/sessions/all")
+    async def get_agent_sessions(body: AgentSessionsRequest):
         logger.debug(f"AgentSessionsRequest: {body}")
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
@@ -161,8 +163,8 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
             )
         return agent_sessions
 
-    @playground_routes.post("/agent/sessions/{session_id}")
-    def get_agent_session(session_id: str, body: AgentSessionsRequest):
+    @playground_router.post("/agent/sessions/{session_id}")
+    async def get_agent_session(session_id: str, body: AgentSessionsRequest):
         logger.debug(f"AgentSessionsRequest: {body}")
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
@@ -177,8 +179,8 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         return agent_session
 
-    @playground_routes.post("/agent/session/rename")
-    def agent_rename(body: AgentRenameRequest):
+    @playground_router.post("/agent/session/rename")
+    async def agent_rename(body: AgentRenameRequest):
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
@@ -187,8 +189,8 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
         agent.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
 
-    @playground_routes.post("/agent/session/delete")
-    def agent_session_delete(body: AgentSessionDeleteRequest):
+    @playground_router.post("/agent/session/delete")
+    async def agent_session_delete(body: AgentSessionDeleteRequest):
         agent = get_agent_by_id(agents, body.agent_id)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
@@ -204,4 +206,4 @@ def create_playground_routes(agents: List[Agent]) -> APIRouter:
 
         return JSONResponse(status_code=404, content="Session not found.")
 
-    return playground_routes
+    return playground_router

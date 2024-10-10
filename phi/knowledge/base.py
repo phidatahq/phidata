@@ -29,7 +29,7 @@ class AssistantKnowledge(BaseModel):
         """
         raise NotImplementedError
 
-    def search(self, query: str, num_documents: Optional[int] = None) -> List[Document]:
+    def search(self, query: str, num_documents: Optional[int] = None, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """Returns relevant documents matching the query"""
         try:
             if self.vector_db is None:
@@ -38,7 +38,11 @@ class AssistantKnowledge(BaseModel):
 
             _num_documents = num_documents or self.num_documents
             logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
-            return self.vector_db.search(query=query, limit=_num_documents)
+            try:
+                return self.vector_db.search(query=query, limit=_num_documents, filters=filters)
+            except TypeError:
+                logger.debug("Filters not supported by the vector db")
+                return self.vector_db.search(query=query, limit=_num_documents)
         except Exception as e:
             logger.error(f"Error searching for documents: {e}")
             return []

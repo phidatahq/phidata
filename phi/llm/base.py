@@ -34,6 +34,7 @@ class LLM(BaseModel):
     run_tools: bool = True
     # If True, shows function calls in the response.
     show_tool_calls: Optional[bool] = None
+    tool_calls_in_messages: Optional[int] = None
 
     # -*- Functions available to the LLM to call -*-
     # Functions extracted from the tools.
@@ -145,6 +146,25 @@ class LLM(BaseModel):
                         logger.debug(f"Function {func.name} added to LLM.")
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
+
+    def clean_messages(self, messages: List[Message]) -> List[Message]:
+        if self.tool_calls_in_messages is None:
+            return messages
+
+        clean_messages: List[Message] = []
+        tool_calls_and_results: List[Message] = []
+
+        # Separate system/user messages and tool calls/results
+        for m in messages:
+            if m.role in ["system", "user"]:
+                clean_messages.append(m)
+            else:
+                tool_calls_and_results.append(m)
+
+        # Add the last n pairs of tool calls and results to clean_messages
+        clean_messages.extend(tool_calls_and_results[-self.tool_calls_in_messages * 2 :])
+
+        return clean_messages
 
     def deactivate_function_calls(self) -> None:
         # Deactivate tool calls by setting future tool calls to "none"

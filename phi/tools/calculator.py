@@ -16,25 +16,26 @@ class Calculator(Toolkit):
         factorial: bool = False,
         is_prime: bool = False,
         square_root: bool = False,
+        enable_all: bool = False,
     ):
         super().__init__(name="calculator")
 
         # Register functions in the toolkit
-        if add:
+        if add or enable_all:
             self.register(self.add)
-        if subtract:
+        if subtract or enable_all:
             self.register(self.subtract)
-        if multiply:
+        if multiply or enable_all:
             self.register(self.multiply)
-        if divide:
+        if divide or enable_all:
             self.register(self.divide)
-        if exponentiate:
+        if exponentiate or enable_all:
             self.register(self.exponentiate)
-        if factorial:
+        if factorial or enable_all:
             self.register(self.factorial)
-        if is_prime:
+        if is_prime or enable_all:
             self.register(self.is_prime)
-        if square_root:
+        if square_root or enable_all:
             self.register(self.square_root)
 
     def add(self, a: float, b: float) -> str:

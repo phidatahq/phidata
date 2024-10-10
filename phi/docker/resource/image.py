@@ -24,6 +24,8 @@ class DockerImage(DockerResource):
     # Push the image to the registry. Similar to the docker push command.
     push_image: bool = False
     print_push_output: bool = False
+    # Use buildx for building images
+    use_buildx: bool = True
 
     # Remove intermediate containers.
     # The docker build command defaults to --rm=true,
@@ -106,7 +108,8 @@ class DockerImage(DockerResource):
                 print_info(f"\t  path: {self.path}")
             if self.dockerfile is not None:
                 print_info(f"    dockerfile: {self.dockerfile}")
-            print_info(f"     platforms: {self.platforms}")
+            if self.platforms is not None:
+                print_info(f"     platforms: {self.platforms}")
             logger.debug(f"nocache: {nocache}")
             logger.debug(f"pull: {pull}")
 
@@ -164,7 +167,7 @@ class DockerImage(DockerResource):
             return None
 
     def build_image(self, docker_client: DockerApiClient) -> Optional[Any]:
-        if self.platforms is not None:
+        if self.platforms is not None or self.use_buildx:
             logger.debug("Using buildx for multi-platform build")
             return self.buildx(docker_client=docker_client)
 

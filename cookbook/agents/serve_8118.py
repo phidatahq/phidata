@@ -16,7 +16,7 @@ finance_agent = Agent(
     name="Finance Agent",
     agent_id="finance-agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(enable_all_tools=True)],
+    tools=[YFinanceTools(enable_all=True)],
     instructions=["Use tables where possible"],
     show_tool_calls=True,
     markdown=True,

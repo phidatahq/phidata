@@ -1,6 +1,7 @@
 import time
 import random
-from typing import Set, Dict, List, Tuple
+from os import getenv
+from typing import Set, Dict, List, Tuple, Optional
 from urllib.parse import urljoin, urlparse
 
 from phi.document.base import Document
@@ -168,3 +169,71 @@ class WebsiteReader(Reader):
                     )
                 )
         return documents
+
+
+class ApifyWebsiteReader(Reader):
+    """Reader for Websites using Apify's website-content-crawler actor"""
+
+    api_key: Optional[str] = None
+    timeout: Optional[int] = 60
+
+    def __init__(self, api_key: Optional[str] = None, timeout: Optional[int] = 60):
+        super().__init__()
+        self.api_key = api_key or getenv("MY_APIFY_TOKEN")
+        self.timeout = timeout
+        if not self.api_key:
+            logger.error("No Apify API key provided")
+
+    def read(self, url: str) -> List[Document]:
+        """
+        Reads a website using Apify's website-content-crawler actor and returns a list of documents.
+
+        :param url: The URL of the website to read.
+        :return: A list of documents.
+        """
+
+        try:
+            from apify_client import ApifyClient
+        except ImportError:
+            raise ImportError("`apify_client` not installed. Please install using `pip install apify-client`")
+
+        try:
+            if self.api_key is None:
+                logger.error("No API key provided")
+
+            client = ApifyClient(self.api_key)
+
+            logger.debug(f"Crawling URL: {url}")
+
+            formatted_urls = [{"url": url}]
+            run_input = {"startUrls": formatted_urls}
+            run = client.actor("apify/website-content-crawler").call(run_input=run_input, timeout_secs=self.timeout)
+
+            documents = []
+
+            for item in client.dataset(run["defaultDatasetId"]).iterate_items():  # type: ignore
+                if self.chunk:
+                    documents.extend(
+                        self.chunk_document(
+                            Document(
+                                name=url,
+                                id=str(item.get("url")),
+                                meta_data={"url": str(item.get("url"))},
+                                content=item.get("text"),
+                            )
+                        )
+                    )
+                else:
+                    documents.append(
+                        Document(
+                            name=url,
+                            id=item.get("url"),
+                            meta_data=item.get("metadata"),
+                            content=item.get("text"),
+                        )
+                    )
+
+            return documents
+        except Exception as e:
+            logger.error(f"Failed to read website: {url}: {e}")
+            return []

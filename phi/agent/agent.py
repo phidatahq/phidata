@@ -273,6 +273,7 @@ class Agent(BaseModel):
                     except Exception as e:
                         logger.warn(f"Failed to copy field: {field_name} - {e}")
                         fields_for_new_agent[field_name] = field_value
+
         # Flush the Model to remove previous metrics or functions
         if "model" in fields_for_new_agent and isinstance(fields_for_new_agent["model"], Model):
             fields_for_new_agent["model"].clear()
@@ -286,6 +287,7 @@ class Agent(BaseModel):
             fields_for_new_agent.update({k: v for k, v in update.items() if v is not None})
 
         # Create a new Agent
+        logger.debug(f"Creating new Agent with fields: {fields_for_new_agent}")
         new_agent = self.__class__(**fields_for_new_agent)
         logger.debug(f"Created new Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent

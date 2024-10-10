@@ -5,7 +5,7 @@ from importlib import metadata
 
 from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic_core.core_schema import ValidationInfo
 
 PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
 
@@ -40,7 +40,7 @@ class PhiCliSettings(BaseSettings):
         return v
 
     @field_validator("signin_url", mode="before")
-    def update_signin_url(cls, v, info: FieldValidationInfo):
+    def update_signin_url(cls, v, info: ValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
             return "http://localhost:3000/login"
@@ -50,7 +50,7 @@ class PhiCliSettings(BaseSettings):
             return "https://phidata.app/login"
 
     @field_validator("playground_url", mode="before")
-    def update_playground_url(cls, v, info: FieldValidationInfo):
+    def update_playground_url(cls, v, info: ValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
             return "http://localhost:3000/playground"
@@ -60,7 +60,7 @@ class PhiCliSettings(BaseSettings):
             return "https://phidata.app/playground"
 
     @field_validator("api_url", mode="before")
-    def update_api_url(cls, v, info: FieldValidationInfo):
+    def update_api_url(cls, v, info: ValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
             from os import getenv

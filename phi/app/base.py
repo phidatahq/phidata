@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, Union, List
 
 from pydantic import field_validator, Field
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic_core.core_schema import ValidationInfo
 
 from phi.base.infra import InfraBase
 from phi.app.context import ContainerContext
@@ -74,14 +74,14 @@ class AppBase(InfraBase):
     cached_resources: Optional[List[Any]] = None
 
     @field_validator("container_port", mode="before")
-    def set_container_port(cls, v, info: FieldValidationInfo):
+    def set_container_port(cls, v, info: ValidationInfo):
         port_number = info.data.get("port_number")
         if v is None and port_number is not None:
             v = port_number
         return v
 
     @field_validator("host_port", mode="before")
-    def set_host_port(cls, v, info: FieldValidationInfo):
+    def set_host_port(cls, v, info: ValidationInfo):
         port_number = info.data.get("port_number")
         if v is None and port_number is not None:
             v = port_number

@@ -40,14 +40,13 @@ class StreamData:
     response_timer: Timer = field(default_factory=Timer)
 
     def log_metrics(self):
-        if self.completion_tokens > 0:
-            logger.debug("=== Metrics ===")
-            logger.debug(f"Tokens per second: {self.completion_tokens / self.response_timer.elapsed:.4f} tokens/s")
-            logger.debug(f"Response time: {self.response_timer.elapsed:.4f}s")
-            logger.debug(f"Prompt tokens: {self.response_prompt_tokens}")
-            logger.debug(f"Completion tokens: {(self.response_completion_tokens or self.completion_tokens)}")
-            logger.debug(f"Total tokens: {self.response_total_tokens}")
-            logger.debug("=== Metrics ===")
+        logger.debug("=== Metrics ===")
+        logger.debug(f"Tokens per second: {self.completion_tokens / self.response_timer.elapsed:.4f} tokens/s")
+        logger.debug(f"Response time: {self.response_timer.elapsed:.4f}s")
+        logger.debug(f"Prompt tokens: {self.response_prompt_tokens}")
+        logger.debug(f"Completion tokens: {(self.response_completion_tokens or self.completion_tokens)}")
+        logger.debug(f"Total tokens: {self.response_total_tokens}")
+        logger.debug("=== Metrics ===")
 
 
 class OpenAIChat(Model):

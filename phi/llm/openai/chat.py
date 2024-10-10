@@ -139,11 +139,11 @@ class OpenAIChat(LLM):
             _request_params["presence_penalty"] = self.presence_penalty
         if self.response_format:
             _request_params["response_format"] = self.response_format
-        if self.seed:
+        if self.seed is not None:
             _request_params["seed"] = self.seed
         if self.stop:
             _request_params["stop"] = self.stop
-        if self.temperature:
+        if self.temperature is not None:
             _request_params["temperature"] = self.temperature
         if self.top_logprobs:
             _request_params["top_logprobs"] = self.top_logprobs
@@ -181,11 +181,11 @@ class OpenAIChat(LLM):
             _dict["presence_penalty"] = self.presence_penalty
         if self.response_format:
             _dict["response_format"] = self.response_format
-        if self.seed:
+        if self.seed is not None:
             _dict["seed"] = self.seed
         if self.stop:
             _dict["stop"] = self.stop
-        if self.temperature:
+        if self.temperature is not None:
             _dict["temperature"] = self.temperature
         if self.top_logprobs:
             _dict["top_logprobs"] = self.top_logprobs

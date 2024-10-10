@@ -4,7 +4,7 @@ try:
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.orm import sessionmaker, scoped_session
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select, delete
     from sqlalchemy.types import DateTime, String
@@ -49,7 +49,7 @@ class PgMemoryDb(MemoryDb):
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
-        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
+        self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         self.table: Table = self.get_table()
 
     def get_table(self) -> Table:

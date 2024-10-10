@@ -59,3 +59,51 @@ def create_agent_run(run: AgentRunCreate, monitor: bool = False) -> None:
         except Exception as e:
             logger.debug(f"Could not create Agent run: {e}")
     return
+
+
+async def acreate_agent_session(session: AgentSessionCreate, monitor: bool = False) -> None:
+    if not phi_cli_settings.api_enabled:
+        return
+
+    logger.debug("--**-- Logging Agent Session (Async)")
+    async with api.AuthenticatedAsyncClient() as api_client:
+        try:
+            r: Response = await api_client.post(
+                ApiRoutes.AGENT_SESSION_CREATE if monitor else ApiRoutes.AGENT_TELEMETRY_SESSION_CREATE,
+                json={"session": session.model_dump(exclude_none=True)},
+            )
+            if invalid_response(r):
+                logger.debug(f"Invalid response: {r.status_code}, {r.text}")
+                return
+
+            response_json: Union[Dict, List] = r.json()
+            if response_json is None:
+                return
+
+            logger.debug(f"Response: {response_json}")
+        except Exception as e:
+            logger.debug(f"Could not create Agent session: {e}")
+
+
+async def acreate_agent_run(run: AgentRunCreate, monitor: bool = False) -> None:
+    if not phi_cli_settings.api_enabled:
+        return
+
+    logger.debug("--**-- Logging Agent Run (Async)")
+    async with api.AuthenticatedAsyncClient() as api_client:
+        try:
+            r: Response = await api_client.post(
+                ApiRoutes.AGENT_RUN_CREATE if monitor else ApiRoutes.AGENT_TELEMETRY_RUN_CREATE,
+                json={"run": run.model_dump(exclude_none=True)},
+            )
+            if invalid_response(r):
+                logger.debug(f"Invalid response: {r.status_code}, {r.text}")
+                return
+
+            response_json: Union[Dict, List] = r.json()
+            if response_json is None:
+                return
+
+            logger.debug(f"Response: {response_json}")
+        except Exception as e:
+            logger.debug(f"Could not create Agent run: {e}")

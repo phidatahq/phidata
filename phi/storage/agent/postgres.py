@@ -3,9 +3,9 @@ from typing import Optional, Any, List
 try:
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.engine import create_engine, Engine
-    from sqlalchemy.engine.row import Row
+    from sqlalchemy.engine.result import Row
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.orm import Session, sessionmaker, scoped_session
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String, BigInteger
@@ -29,19 +29,22 @@ class PgAgentStorage(AgentStorage):
         auto_upgrade_schema: bool = False,
     ):
         """
-        This class provides Agent storage using a postgres table.
+        Initialize Agent storage using a PostgreSQL table.
 
-        The following order is used to determine the database connection:
-            1. Use the db_engine if provided
-            2. Use the db_url
+        The database connection is determined in the following order:
+        1. Use the provided db_engine
+        2. Use the provided db_url to create a new engine
 
         Args:
-            table_name: The name of the table to store Agent sessions.
-            schema: The schema to store the table in.
-            db_url: The database URL to connect to.
-            db_engine: The database engine to use.
-            schema_version: The version of the schema.
-            auto_upgrade_schema: If True, automatically upgrade the schema.
+            table_name (str): Name of the table to store Agent sessions.
+            schema (Optional[str], optional): Schema to store the table in. Defaults to "ai".
+            db_url (Optional[str], optional): Database URL for connection. Defaults to None.
+            db_engine (Optional[Engine], optional): SQLAlchemy database engine. Defaults to None.
+            schema_version (int, optional): Version of the schema. Defaults to 1.
+            auto_upgrade_schema (bool, optional): Automatically upgrade schema if True. Defaults to False.
+
+        Raises:
+            ValueError: If neither db_url nor db_engine is provided.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -63,11 +66,17 @@ class PgAgentStorage(AgentStorage):
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
         # Database session
-        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
+        self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
 
     def get_table_v1(self) -> Table:
+        """
+        Define the table schema for version 1.
+
+        Returns:
+            Table: SQLAlchemy Table object representing the schema.
+        """
         return Table(
             self.table_name,
             self.metadata,
@@ -93,6 +102,15 @@ class PgAgentStorage(AgentStorage):
         )
 
     def get_table(self) -> Table:
+        """
+        Get the appropriate table schema based on the schema version.
+
+        Returns:
+            Table: SQLAlchemy Table object for the current schema version.
+
+        Raises:
+            ValueError: If an unsupported schema version is specified.
+        """
         if self.schema_version == 1:
             return self.get_table_v1()
         else:
@@ -113,6 +131,9 @@ class PgAgentStorage(AgentStorage):
             return False
 
     def create(self) -> None:
+        """
+        Create the schema (if specified) and table in the database if they don't exist.
+        """
         if not self.table_exists():
             if self.schema is not None:
                 with self.Session() as sess, sess.begin():
@@ -121,7 +142,17 @@ class PgAgentStorage(AgentStorage):
             logger.debug(f"Creating table: {self.table_name}")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
+    def _read(self, session: Session, session_id: str) -> Optional[Row]:
+        """
+        Read a session from the database.
+
+        Args:
+            session (Session): SQLAlchemy session.
+            session_id (str): ID of the session to read.
+
+        Returns:
+            Optional[Row[Any]]: Row containing session data if found, None otherwise.
+        """
         stmt = select(self.table).where(self.table.c.session_id == session_id)
         try:
             return session.execute(stmt).first()
@@ -134,11 +165,30 @@ class PgAgentStorage(AgentStorage):
         return None
 
     def read(self, session_id: str) -> Optional[AgentSession]:
+        """
+        Read and return an AgentSession from the database.
+
+        Args:
+            session_id (str): ID of the session to read.
+
+        Returns:
+            Optional[AgentSession]: AgentSession object if found, None otherwise.
+        """
         with self.Session() as sess, sess.begin():
             existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
             return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
+        """
+        Retrieve all session IDs, optionally filtered by user_id and/or agent_id.
+
+        Args:
+            user_id (Optional[str], optional): User ID to filter by. Defaults to None.
+            agent_id (Optional[str], optional): Agent ID to filter by. Defaults to None.
+
+        Returns:
+            List[str]: List of session IDs matching the criteria.
+        """
         session_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -161,6 +211,16 @@ class PgAgentStorage(AgentStorage):
         return session_ids
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
+        """
+        Retrieve all sessions, optionally filtered by user_id and/or agent_id.
+
+        Args:
+            user_id (Optional[str], optional): User ID to filter by. Defaults to None.
+            agent_id (Optional[str], optional): Agent ID to filter by. Defaults to None.
+
+        Returns:
+            List[AgentSession]: List of AgentSession objects matching the criteria.
+        """
         sessions: List[AgentSession] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -232,6 +292,15 @@ class PgAgentStorage(AgentStorage):
         return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
+        """
+        Delete a session from the database.
+
+        Args:
+            session_id (Optional[str], optional): ID of the session to delete. Defaults to None.
+
+        Raises:
+            Exception: If an error occurs during deletion.
+        """
         if session_id is None:
             logger.warning("No session_id provided for deletion.")
             return
@@ -251,11 +320,18 @@ class PgAgentStorage(AgentStorage):
                 raise
 
     def drop(self) -> None:
+        """
+        Drop the table from the database if it exists.
+        """
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
 
     def upgrade_schema(self) -> None:
+        """
+        Upgrade the schema to the latest version.
+        This method is currently a placeholder and does not perform any actions.
+        """
         pass
 
     def __deepcopy__(self, memo):

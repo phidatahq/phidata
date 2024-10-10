@@ -187,6 +187,8 @@ class Agent(BaseModel):
     # -*- Agent run details
     # Run ID: do not set manually
     run_id: Optional[str] = None
+    # Input to the Agent run: do not set manually
+    run_input: Optional[Union[str, List, Dict]] = None
     # Response from the Agent run: do not set manually
     run_response: Optional[RunResponse] = None
     # Save the response to a file
@@ -1252,18 +1254,19 @@ class Agent(BaseModel):
         # 7. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
-        # Log Agent Run
-        run_input: Optional[Union[str, List, Dict]] = None
+        # Set the run_input
         if message is not None:
             if isinstance(message, str):
-                run_input = message
+                self.run_input = message
             elif isinstance(message, Message):
-                run_input = message.to_dict()
+                self.run_input = message.to_dict()
             else:
-                run_input = message
+                self.run_input = message
         elif messages is not None:
-            run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-        self.log_agent_run(run_input=run_input)
+            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
+
+        # Log Agent Run
+        self.log_agent_run()
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
@@ -1635,18 +1638,19 @@ class Agent(BaseModel):
         # 7. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
-        # Log Agent Run
-        run_input: Optional[Union[str, List, Dict]] = None
+        # Set the run_input
         if message is not None:
             if isinstance(message, str):
-                run_input = message
+                self.run_input = message
             elif isinstance(message, Message):
-                run_input = message.to_dict()
+                self.run_input = message.to_dict()
             else:
-                run_input = message
+                self.run_input = message
         elif messages is not None:
-            run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-        self.log_agent_run(run_input=run_input)
+            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
+
+        # Log Agent Run
+        await self.alog_agent_run()
 
         logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
         if stream_intermediate_steps:
@@ -1973,40 +1977,87 @@ class Agent(BaseModel):
         except Exception as e:
             logger.debug(f"Could not create agent monitor: {e}")
 
-    def log_agent_run(self, run_input: Optional[Union[str, List, Dict]]) -> None:
+    async def alog_agent_session(self):
+        if not (self.telemetry or self.monitoring):
+            return
+
+        from phi.api.agent import acreate_agent_session, AgentSessionCreate
+
+        try:
+            agent_session: AgentSession = self._agent_session or self.get_agent_session()
+            await acreate_agent_session(
+                session=AgentSessionCreate(
+                    session_id=agent_session.session_id,
+                    agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
+                ),
+                monitor=self.monitoring,
+            )
+        except Exception as e:
+            logger.debug(f"Could not create agent monitor: {e}")
+
+    def _create_run_data(self) -> Dict[str, Any]:
+        """Create and return the run data dictionary."""
+        run_response_format = "text"
+        if self.response_model is not None:
+            run_response_format = "json"
+        elif self.markdown:
+            run_response_format = "markdown"
+
+        functions = {}
+        if self.model is not None and self.model.functions is not None:
+            functions = {
+                f_name: func.to_dict() for f_name, func in self.model.functions.items() if isinstance(func, Function)
+            }
+
+        run_data: Dict[str, Any] = {
+            "functions": functions,
+            "metrics": self.model.metrics if self.model else None,
+        }
+
+        if self.monitoring:
+            run_data.update(
+                {
+                    "run_input": self.run_input,
+                    "run_response": self.run_response,
+                    "run_response_format": run_response_format,
+                }
+            )
+
+        return run_data
+
+    def log_agent_run(self) -> None:
         if not (self.telemetry or self.monitoring):
             return
 
         from phi.api.agent import create_agent_run, AgentRunCreate
 
         try:
-            run_response_format = "text"
-            if self.response_model is not None:
-                run_response_format = "json"
-            elif self.markdown:
-                run_response_format = "markdown"
-            functions = {}
-            if self.model is not None and self.model.functions is not None:
-                for _f_name, _func in self.model.functions.items():
-                    if isinstance(_func, Function):
-                        functions[_f_name] = _func.to_dict()
-
-            if self.monitoring:
-                run_data = {
-                    "run_input": run_input,
-                    "run_response": self.run_response,
-                    "run_response_format": run_response_format,
-                    "functions": functions,
-                    "metrics": self.model.metrics if self.model else None,
-                }
-            else:
-                run_data = {
-                    "functions": functions,
-                    "metrics": self.model.metrics if self.model else None,
-                }
-
+            run_data = self._create_run_data()
             agent_session: AgentSession = self._agent_session or self.get_agent_session()
+
             create_agent_run(
+                run=AgentRunCreate(
+                    run_id=self.run_id,
+                    run_data=run_data,
+                    session_id=agent_session.session_id,
+                    agent_data=agent_session.monitoring_data() if self.monitoring else agent_session.telemetry_data(),
+                ),
+                monitor=self.monitoring,
+            )
+        except Exception as e:
+            logger.debug(f"Could not create agent event: {e}")
+
+    async def alog_agent_run(self) -> None:
+        if not (self.telemetry or self.monitoring):
+            return
+
+        from phi.api.agent import acreate_agent_run, AgentRunCreate
+
+        try:
+            run_data = self._create_run_data()
+            agent_session: AgentSession = self._agent_session or self.get_agent_session()
+
+            await acreate_agent_run(
                 run=AgentRunCreate(
                     run_id=self.run_id,
                     run_data=run_data,

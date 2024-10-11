@@ -1,5 +1,7 @@
+from time import time
 from enum import Enum
 from typing import Optional, Any, Dict
+
 from dataclasses import dataclass
 
 
@@ -19,3 +21,4 @@ class ModelResponse:
     parsed: Optional[Any] = None
     tool_call: Optional[Dict[str, Any]] = None
     event: str = ModelResponseEvent.assistant_response.value
+    created_at: int = int(time())

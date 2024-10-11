@@ -5,7 +5,7 @@ from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
 from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
-from phi.playground.router import get_playground_router
+from phi.playground.router import get_playground_router, get_async_playground_router
 from phi.playground.settings import PlaygroundSettings
 from phi.utils.log import logger
 
@@ -27,7 +27,10 @@ class Playground:
     def get_router(self) -> APIRouter:
         return get_playground_router(self.agents)
 
-    def get_app(self) -> FastAPI:
+    def get_async_router(self) -> APIRouter:
+        return get_async_playground_router(self.agents)
+
+    def get_app(self, use_async: bool = True) -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware
 
         if not self.api_app:
@@ -47,7 +50,10 @@ class Playground:
         if not self.router:
             raise Exception("API Router could not be created.")
 
-        self.router.include_router(self.get_router())
+        if use_async:
+            self.router.include_router(self.get_async_router())
+        else:
+            self.router.include_router(self.get_router())
         self.api_app.include_router(self.router)
 
         self.api_app.add_middleware(

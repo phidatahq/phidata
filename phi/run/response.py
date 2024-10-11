@@ -25,7 +25,6 @@ class RunResponse(BaseModel):
     content_type: str = "str"
     context: Optional[List[MessageContext]] = None
     event: str = RunEvent.run_response.value
-    event_data: Optional[Dict[str, Any]] = None
     messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
     model: Optional[str] = None
@@ -33,6 +32,7 @@ class RunResponse(BaseModel):
     agent_id: Optional[str] = None
     session_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
+    extra_data: Optional[Dict[str, Any]] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

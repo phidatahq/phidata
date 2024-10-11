@@ -14,7 +14,6 @@ def multiply_and_exponentiate():
         ),
         question="What is 10*5 then to the power of 2? do it step by step",
         ideal_answer="2500",
-        save_result_to_file="evals/results/calculator/{eval_id}.json",
     )
     result: Optional[EvalResult] = evaluation.print_result()
 
@@ -29,7 +28,6 @@ def factorial():
         ),
         question="What is 10!?",
         ideal_answer="3628800",
-        save_result_to_file="evals/results/calculator/{eval_id}.json",
     )
     result: Optional[EvalResult] = evaluation.print_result()
 

@@ -1,6 +1,6 @@
 from typing import Optional, List, Any, Tuple
 
-from phi.base.infra import InfraBase
+from phi.infra.base import InfraBase
 
 
 class InfraResources(InfraBase):

@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, Union, List
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import ValidationInfo
 
-from phi.base.infra import InfraBase
+from phi.infra.base import InfraBase
 from phi.app.context import ContainerContext
 from phi.resource.base import ResourceBase
 from phi.utils.log import logger

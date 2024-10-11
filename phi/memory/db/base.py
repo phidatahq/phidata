@@ -8,7 +8,7 @@ class MemoryDb(ABC):
     """Base class for the Memory Database."""
 
     @abstractmethod
-    def create_table(self) -> None:
+    def create(self) -> None:
         raise NotImplementedError
 
     @abstractmethod

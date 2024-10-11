@@ -64,29 +64,32 @@ class PgMemoryDb(MemoryDb):
             extend_existing=True,
         )
 
-    def create_table(self) -> None:
+    def create(self) -> None:
         if not self.table_exists():
-            if self.schema is not None:
+            try:
                 with self.Session() as sess, sess.begin():
-                    logger.debug(f"Creating schema: {self.schema}")
-                    sess.execute(text(f"create schema if not exists {self.schema};"))
-            logger.debug(f"Creating table: {self.table_name}")
-            self.table.create(self.db_engine)
+                    if self.schema is not None:
+                        logger.debug(f"Creating schema: {self.schema}")
+                        sess.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
+                logger.debug(f"Creating table: {self.table_name}")
+                self.table.create(self.db_engine, checkfirst=True)
+            except Exception as e:
+                logger.error(f"Error creating table '{self.table.fullname}': {e}")
+                raise
 
     def memory_exists(self, memory: MemoryRow) -> bool:
         columns = [self.table.c.id]
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = select(*columns).where(self.table.c.id == memory.id)
-                result = sess.execute(stmt).first()
-                return result is not None
+        with self.Session() as sess, sess.begin():
+            stmt = select(*columns).where(self.table.c.id == memory.id)
+            result = sess.execute(stmt).first()
+            return result is not None
 
     def read_memories(
         self, user_id: Optional[str] = None, limit: Optional[int] = None, sort: Optional[str] = None
     ) -> List[MemoryRow]:
         memories: List[MemoryRow] = []
-        with self.Session() as sess, sess.begin():
-            try:
+        try:
+            with self.Session() as sess, sess.begin():
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -102,38 +105,44 @@ class PgMemoryDb(MemoryDb):
                 for row in rows:
                     if row is not None:
                         memories.append(MemoryRow.model_validate(row))
-            except Exception:
-                # Create table if it does not exist
-                self.create_table()
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
         return memories
 
-    def upsert_memory(self, memory: MemoryRow) -> None:
+    def upsert_memory(self, memory: MemoryRow, create_and_retry: bool = True) -> None:
         """Create a new memory if it does not exist, otherwise update the existing memory"""
 
-        with self.Session() as sess, sess.begin():
-            # Create an insert statement
-            stmt = postgresql.insert(self.table).values(
-                id=memory.id,
-                user_id=memory.user_id,
-                memory=memory.memory,
-            )
+        try:
+            with self.Session() as sess, sess.begin():
+                # Create an insert statement
+                stmt = postgresql.insert(self.table).values(
+                    id=memory.id,
+                    user_id=memory.user_id,
+                    memory=memory.memory,
+                )
 
-            # Define the upsert if the memory already exists
-            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["id"],
-                set_=dict(
-                    user_id=stmt.excluded.user_id,
-                    memory=stmt.excluded.memory,
-                ),
-            )
+                # Define the upsert if the memory already exists
+                # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["id"],
+                    set_=dict(
+                        user_id=stmt.excluded.user_id,
+                        memory=stmt.excluded.memory,
+                    ),
+                )
 
-            try:
                 sess.execute(stmt)
-            except Exception:
-                # Create table and try again
-                self.create_table()
-                sess.execute(stmt)
+        except Exception as e:
+            logger.debug(f"Exception upserting into table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+            if create_and_retry:
+                return self.upsert_memory(memory, create_and_retry=False)
+            return None
 
     def delete_memory(self, id: str) -> None:
         with self.Session() as sess, sess.begin():
@@ -154,11 +163,10 @@ class PgMemoryDb(MemoryDb):
             return False
 
     def clear(self) -> bool:
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = delete(self.table)
-                sess.execute(stmt)
-                return True
+        with self.Session() as sess, sess.begin():
+            stmt = delete(self.table)
+            sess.execute(stmt)
+            return True
 
     def __deepcopy__(self, memo):
         """

@@ -5,11 +5,10 @@ try:
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.engine.result import Row
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker, scoped_session
+    from sqlalchemy.orm import sessionmaker, scoped_session
     from sqlalchemy.schema import MetaData, Table, Column, Index
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String, BigInteger
-    from sqlalchemy.pool import NullPool
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -48,7 +47,7 @@ class PgAgentStorage(AgentStorage):
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
-            _engine = create_engine(db_url, poolclass=NullPool)
+            _engine = create_engine(db_url)
 
         if _engine is None:
             raise ValueError("Must provide either db_url or db_engine")
@@ -69,6 +68,7 @@ class PgAgentStorage(AgentStorage):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
+        logger.debug(f"Created PgAgentStorage: '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -139,51 +139,18 @@ class PgAgentStorage(AgentStorage):
 
     def create(self) -> None:
         """
-        Create the schema (if specified) and table in the database if they don't exist.
+        Create the table if it does not exist.
         """
         if not self.table_exists():
             try:
-                # Use a separate connection to avoid issues with ongoing transactions
-                with self.db_engine.connect() as connection:
-                    # Set connection to autocommit mode
-                    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
-
+                with self.Session() as sess, sess.begin():
                     if self.schema is not None:
-                        try:
-                            logger.debug(f"Creating schema: {self.schema}")
-                            connection.execute(text(f"create schema if not exists {self.schema};"))
-                        except Exception as e:
-                            logger.error(f"Error creating schema '{self.schema}': {e}")
-
-                    # Create table
-                    logger.debug(f"Creating table: {self.table_name}")
-                    self.metadata.create_all(bind=connection, tables=[self.table])
+                        logger.debug(f"Creating schema: {self.schema}")
+                        sess.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
+                logger.debug(f"Creating table: {self.table_name}")
+                self.table.create(self.db_engine, checkfirst=True)
             except Exception as e:
-                logger.error(f"Error creating table '{self.table.fullname}': {e}")
-                raise
-
-    def _read(self, session: Session, session_id: str) -> Optional[Row]:
-        """
-        Read a session from the database.
-
-        Args:
-            session (Session): SQLAlchemy session.
-            session_id (str): ID of the session to read.
-
-        Returns:
-            Optional[Row[Any]]: Row containing session data if found, None otherwise.
-        """
-        stmt = select(self.table).where(self.table.c.session_id == session_id)
-        try:
-            return session.execute(stmt).first()
-        except Exception as e:
-            logger.debug(f"Exception reading from table: {e}")
-            logger.debug(f"Table does not exist: {self.table.name}")
-            logger.debug(f"Creating table: {self.table_name}")
-            # Create table if it does not exist
-            self.create()
-            # Retry the select after creating the table
-            return session.execute(stmt).first()
+                logger.error(f"Could not create table: '{self.table.fullname}': {e}")
 
     def read(self, session_id: str) -> Optional[AgentSession]:
         """
@@ -195,9 +162,17 @@ class PgAgentStorage(AgentStorage):
         Returns:
             Optional[AgentSession]: AgentSession object if found, None otherwise.
         """
-        with self.Session() as sess, sess.begin():
-            existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
-            return AgentSession.model_validate(existing_row) if existing_row is not None else None
+        try:
+            with self.Session() as sess:
+                stmt = select(self.table).where(self.table.c.session_id == session_id)
+                existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
+                return AgentSession.model_validate(existing_row) if existing_row is not None else None
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+        return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         """
@@ -229,6 +204,8 @@ class PgAgentStorage(AgentStorage):
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
         return session_ids
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
@@ -261,55 +238,57 @@ class PgAgentStorage(AgentStorage):
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
         return sessions
 
-    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
+    def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
         """
         Create or update an AgentSession in the database.
 
         Args:
             session (AgentSession): The session data to upsert.
-
+            create_and_retry (bool, optional): Retry upsert after creating the table if True. Defaults to True.
         Returns:
             Optional[AgentSession]: The upserted AgentSession, or None if operation failed.
         """
-        if not isinstance(session, AgentSession):
-            logger.error("Invalid session object provided to upsert.")
-            return None
 
-        with self.Session() as sess, sess.begin():
-            # Create an insert statement
-            stmt = postgresql.insert(self.table).values(
-                session_id=session.session_id,
-                agent_id=session.agent_id,
-                user_id=session.user_id,
-                memory=session.memory,
-                agent_data=session.agent_data,
-                user_data=session.user_data,
-                session_data=session.session_data,
-            )
-
-            # Define the upsert if the session_id already exists
-            # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["session_id"],
-                set_=dict(
+        try:
+            with self.Session() as sess, sess.begin():
+                # Create an insert statement
+                stmt = postgresql.insert(self.table).values(
+                    session_id=session.session_id,
                     agent_id=session.agent_id,
                     user_id=session.user_id,
                     memory=session.memory,
                     agent_data=session.agent_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
-                ),  # The updated value for each column
-            )
+                )
 
-            try:
+                # Define the upsert if the session_id already exists
+                # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["session_id"],
+                    set_=dict(
+                        agent_id=session.agent_id,
+                        user_id=session.user_id,
+                        memory=session.memory,
+                        agent_data=session.agent_data,
+                        user_data=session.user_data,
+                        session_data=session.session_data,
+                    ),  # The updated value for each column
+                )
+
                 sess.execute(stmt)
-            except Exception as e:
-                logger.debug(f"Exception upserting into table: {e}")
-                # Create table and try again
-                self.create()
-                sess.execute(stmt)
+        except Exception as e:
+            logger.debug(f"Exception upserting into table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+            if create_and_retry:
+                return self.upsert(session, create_and_retry=False)
+            return None
         return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
@@ -326,8 +305,8 @@ class PgAgentStorage(AgentStorage):
             logger.warning("No session_id provided for deletion.")
             return
 
-        with self.Session() as sess, sess.begin():
-            try:
+        try:
+            with self.Session() as sess, sess.begin():
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
                 result = sess.execute(delete_stmt)
@@ -336,9 +315,8 @@ class PgAgentStorage(AgentStorage):
                     logger.warning(f"No session found with session_id: {session_id}")
                 else:
                     logger.info(f"Successfully deleted session with session_id: {session_id}")
-            except Exception as e:
-                logger.error(f"Error deleting session: {e}")
-                raise
+        except Exception as e:
+            logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
         """

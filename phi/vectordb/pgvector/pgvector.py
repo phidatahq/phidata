@@ -6,11 +6,10 @@ try:
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import Session, sessionmaker, scoped_session
+    from sqlalchemy.orm import sessionmaker, scoped_session, Session
     from sqlalchemy.schema import MetaData, Table, Column, Index
     from sqlalchemy.sql.expression import text, func, select, desc, bindparam
     from sqlalchemy.types import DateTime, String
-    from sqlalchemy.pool import NullPool
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -80,7 +79,7 @@ class PgVector(VectorDb):
             if db_url is None:
                 raise ValueError("Must provide 'db_url' if 'db_engine' is None.")
             try:
-                db_engine = create_engine(db_url, poolclass=NullPool)
+                db_engine = create_engine(db_url)
             except Exception as e:
                 logger.error(f"Failed to create engine from 'db_url': {e}")
                 raise
@@ -125,8 +124,7 @@ class PgVector(VectorDb):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table
         self.table: Table = self.get_table()
-
-        logger.debug(f"Initialized PgVector with table '{self.table_name}' in schema '{self.schema}'.")
+        logger.debug(f"Initialized PgVector with table '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -188,34 +186,17 @@ class PgVector(VectorDb):
 
     def create(self) -> None:
         """
-        Create the table in the database if it doesn't exist.
+        Create the table if it does not exist.
         """
         if not self.table_exists():
-            try:
-                # Use a separate connection to avoid issues with ongoing transactions
-                with self.db_engine.connect() as connection:
-                    # Set connection to autocommit mode
-                    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
-
-                    try:
-                        logger.debug("Creating extension 'vector' if not exists.")
-                        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-                    except Exception as e:
-                        logger.error(f"Error creating extension 'vector': {e}")
-
-                    if self.schema is not None:
-                        try:
-                            logger.debug(f"Creating schema: {self.schema}")
-                            connection.execute(text(f"create schema if not exists {self.schema};"))
-                        except Exception as e:
-                            logger.error(f"Error creating schema '{self.schema}': {e}")
-
-                    # Create table
-                    logger.debug(f"Creating table: {self.table_name}")
-                    self.metadata.create_all(bind=connection, tables=[self.table])
-            except Exception as e:
-                logger.error(f"Error creating table '{self.table.fullname}': {e}")
-                raise
+            with self.Session() as sess, sess.begin():
+                logger.debug("Creating extension: vector")
+                sess.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                if self.schema is not None:
+                    logger.debug(f"Creating schema: {self.schema}")
+                    sess.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
+            logger.debug(f"Creating table: {self.table_name}")
+            self.table.create(self.db_engine)
 
     def _record_exists(self, column, value) -> bool:
         """
@@ -592,8 +573,7 @@ class PgVector(VectorDb):
             # Execute the query
             try:
                 with self.Session() as sess, sess.begin():
-                    with sess.begin():
-                        results = sess.execute(stmt).fetchall()
+                    results = sess.execute(stmt).fetchall()
             except Exception as e:
                 logger.error(f"Error performing keyword search: {e}")
                 logger.error("Table might not exist, creating for future use")

@@ -8,6 +8,8 @@ from phi.model.openai import OpenAIChat
 from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
 from phi.storage.agent.postgres import PgAgentStorage
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.vectordb.pgvector import PgVector, SearchType
 from phi.playground import Playground, serve_playground_app
 
 db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -32,14 +34,17 @@ research_agent = Agent(
     agent_id="research-agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
-    description="You are a Research Agent writing an article for the New York Times.",
+    description=dedent("""\
+    You are a Research Agent that has the special skill of writing New York Times worthy articles.
+    If you can directly respond to the user, do so. If the user asks for a report or provides a topic, follow the instructions below.
+    """),
     instructions=[
         "For the provided topic, run 3 different searches.",
         "Read the results carefully and prepare a NYT worthy article.",
         "Focus on facts and make sure to provide references.",
     ],
     expected_output=dedent("""\
-    An engaging, informative, and well-structured article in markdown format:
+    Your articles should be engaging, informative, well-structured and in markdown format. They should follow the following structure:
 
     ## Engaging Article Title
 
@@ -67,7 +72,27 @@ research_agent = Agent(
     storage=PgAgentStorage(table_name="research_agent_sessions", db_url=db_url),
 )
 
-app = Playground(agents=[finance_agent, research_agent]).get_app()
+recipe_knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    vector_db=PgVector(table_name="thai_recipes", db_url=db_url, search_type=SearchType.hybrid),
+)
+
+recipe_agent = Agent(
+    name="Recipe Agent",
+    agent_id="recipe-agent",
+    model=OpenAIChat(id="gpt-4o"),
+    knowledge=recipe_knowledge_base,
+    # Add a tool to read chat history.
+    read_chat_history=True,
+    show_tool_calls=True,
+    markdown=True,
+    debug_mode=True,
+    storage=PgAgentStorage(table_name="recipe_agent_sessions", db_url=db_url),
+)
+
+app = Playground(agents=[finance_agent, research_agent, recipe_agent]).get_app()
 
 if __name__ == "__main__":
+    # Load the knowledge base: Comment out after first run
+    # recipe_knowledge_base.load(upsert=True)
     serve_playground_app("serve:app", reload=True)

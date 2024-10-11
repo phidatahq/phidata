@@ -495,8 +495,9 @@ class OpenAIChat(Model):
                 elif isinstance(response_usage.prompt_tokens_details, BaseModel):
                     metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
                 assistant_message.metrics["prompt_tokens_details"] = metrics.prompt_tokens_details
-                for k, v in metrics.prompt_tokens_details.items():
-                    self.metrics.get("prompt_tokens_details", {}).get(k, 0) + v
+                if metrics.prompt_tokens_details is not None:
+                    for k, v in metrics.prompt_tokens_details.items():
+                        self.metrics.get("prompt_tokens_details", {}).get(k, 0) + v
             if response_usage.completion_tokens_details is not None:
                 if isinstance(response_usage.completion_tokens_details, dict):
                     metrics.completion_tokens_details = response_usage.completion_tokens_details
@@ -505,8 +506,9 @@ class OpenAIChat(Model):
                         exclude_none=True
                     )
                 assistant_message.metrics["completion_tokens_details"] = metrics.completion_tokens_details
-                for k, v in metrics.completion_tokens_details.items():
-                    self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
+                if metrics.completion_tokens_details is not None:
+                    for k, v in metrics.completion_tokens_details.items():
+                        self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
 
     def _create_assistant_message(
         self,

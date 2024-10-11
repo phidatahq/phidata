@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 
-from phi.base.infra import InfraBase
+from phi.infra.base import InfraBase
 from phi.utils.log import logger
 
 

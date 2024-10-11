@@ -6,7 +6,7 @@ try:
     from sqlalchemy.engine.result import Row
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker, scoped_session
-    from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.schema import MetaData, Table, Column, Index
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String, BigInteger
     from sqlalchemy.pool import NullPool
@@ -77,7 +77,7 @@ class PgAgentStorage(AgentStorage):
         Returns:
             Table: SQLAlchemy Table object representing the schema.
         """
-        return Table(
+        table = Table(
             self.table_name,
             self.metadata,
             # Session UUID: Primary Key
@@ -100,6 +100,13 @@ class PgAgentStorage(AgentStorage):
             Column("updated_at", BigInteger, server_onupdate=text("(extract(epoch from now()))::bigint")),
             extend_existing=True,
         )
+
+        # Add indexes
+        Index(f"idx_{self.table_name}_user_id", table.c.user_id)
+        Index(f"idx_{self.table_name}_agent_id", table.c.agent_id)
+        Index(f"idx_{self.table_name}_session_id", table.c.session_id)
+
+        return table
 
     def get_table(self) -> Table:
         """
@@ -135,12 +142,25 @@ class PgAgentStorage(AgentStorage):
         Create the schema (if specified) and table in the database if they don't exist.
         """
         if not self.table_exists():
-            if self.schema is not None:
-                with self.Session() as sess, sess.begin():
-                    logger.debug(f"Creating schema: {self.schema}")
-                    sess.execute(text(f"create schema if not exists {self.schema};"))
-            logger.debug(f"Creating table: {self.table_name}")
-            self.table.create(self.db_engine)
+            try:
+                # Use a separate connection to avoid issues with ongoing transactions
+                with self.db_engine.connect() as connection:
+                    # Set connection to autocommit mode
+                    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
+
+                    if self.schema is not None:
+                        try:
+                            logger.debug(f"Creating schema: {self.schema}")
+                            connection.execute(text(f"create schema if not exists {self.schema};"))
+                        except Exception as e:
+                            logger.error(f"Error creating schema '{self.schema}': {e}")
+
+                    # Create table
+                    logger.debug(f"Creating table: {self.table_name}")
+                    self.metadata.create_all(bind=connection, tables=[self.table])
+            except Exception as e:
+                logger.error(f"Error creating table '{self.table.fullname}': {e}")
+                raise
 
     def _read(self, session: Session, session_id: str) -> Optional[Row]:
         """
@@ -162,7 +182,8 @@ class PgAgentStorage(AgentStorage):
             logger.debug(f"Creating table: {self.table_name}")
             # Create table if it does not exist
             self.create()
-        return None
+            # Retry the select after creating the table
+            return session.execute(stmt).first()
 
     def read(self, session_id: str) -> Optional[AgentSession]:
         """

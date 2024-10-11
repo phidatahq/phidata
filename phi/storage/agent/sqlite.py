@@ -1,5 +1,4 @@
 import time
-from sqlite3 import OperationalError
 from typing import Optional, Any, List
 
 from phi.agent import AgentSession
@@ -115,7 +114,7 @@ class SqlAgentStorage(AgentStorage):
     def create(self) -> None:
         if not self.table_exists():
             logger.debug(f"Creating table: {self.table.name}")
-            self.table.create(self.db_engine)
+            self.table.create(self.db_engine, checkfirst=True)
 
     def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
         stmt = select(self.table).where(self.table.c.session_id == session_id)
@@ -130,9 +129,17 @@ class SqlAgentStorage(AgentStorage):
         return None
 
     def read(self, session_id: str) -> Optional[AgentSession]:
-        with self.Session() as sess, sess.begin():
-            existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
-            return AgentSession.model_validate(existing_row) if existing_row is not None else None
+        try:
+            with self.Session() as sess:
+                stmt = select(self.table).where(self.table.c.session_id == session_id)
+                existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
+                return AgentSession.model_validate(existing_row) if existing_row is not None else None
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+        return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         session_ids: List[str] = []
@@ -154,6 +161,8 @@ class SqlAgentStorage(AgentStorage):
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
         return session_ids
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
@@ -176,63 +185,58 @@ class SqlAgentStorage(AgentStorage):
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
         return sessions
 
-    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
+    def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
         """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
 
-        with self.Session() as sess, sess.begin():
-            # Create an insert statement
-            stmt = sqlite.insert(self.table).values(
-                session_id=session.session_id,
-                agent_id=session.agent_id,
-                user_id=session.user_id,
-                memory=session.memory,
-                agent_data=session.agent_data,
-                user_data=session.user_data,
-                session_data=session.session_data,
-            )
-
-            # Define the upsert if the session_id already exists
-            # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["session_id"],
-                set_=dict(
+        try:
+            with self.Session() as sess, sess.begin():
+                # Create an insert statement
+                stmt = sqlite.insert(self.table).values(
+                    session_id=session.session_id,
                     agent_id=session.agent_id,
                     user_id=session.user_id,
                     memory=session.memory,
                     agent_data=session.agent_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
-                ),  # The updated value for each column
-            )
+                )
 
-            try:
+                # Define the upsert if the session_id already exists
+                # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["session_id"],
+                    set_=dict(
+                        agent_id=session.agent_id,
+                        user_id=session.user_id,
+                        memory=session.memory,
+                        agent_data=session.agent_data,
+                        user_data=session.user_data,
+                        session_data=session.session_data,
+                    ),  # The updated value for each column
+                )
+
                 sess.execute(stmt)
-                sess.commit()  # Make sure to commit the changes to the database
-                return self.read(session_id=session.session_id)
-            except OperationalError as oe:
-                logger.debug(f"OperationalError occurred: {oe}")
-                self.create()  # This will only create the table if it doesn't exist
-                try:
-                    sess.execute(stmt)
-                    sess.commit()
-                    return self.read(session_id=session.session_id)
-                except Exception as e:
-                    logger.warning(f"Error during upsert: {e}")
-                    sess.rollback()  # Rollback the session in case of any error
-            except Exception as e:
-                logger.warning(f"Error during upsert: {e}")
-                sess.rollback()
-        return None
+        except Exception as e:
+            logger.debug(f"Exception upserting into table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+            if create_and_retry:
+                return self.upsert(session, create_and_retry=False)
+            return None
+        return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
         if session_id is None:
             logger.warning("No session_id provided for deletion.")
             return
 
-        with self.Session() as sess, sess.begin():
-            try:
+        try:
+            with self.Session() as sess, sess.begin():
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
                 result = sess.execute(delete_stmt)
@@ -241,9 +245,8 @@ class SqlAgentStorage(AgentStorage):
                     logger.warning(f"No session found with session_id: {session_id}")
                 else:
                     logger.info(f"Successfully deleted session with session_id: {session_id}")
-            except Exception as e:
-                logger.error(f"Error deleting session: {e}")
-                raise
+        except Exception as e:
+            logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
         if self.table_exists():

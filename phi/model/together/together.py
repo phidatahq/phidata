@@ -3,7 +3,7 @@ from os import getenv
 from typing import Optional, List, Iterator, Dict, Any
 
 from phi.model.message import Message
-from phi.model.openai.chat import StreamData
+from phi.model.openai.chat import StreamData, Metrics
 from phi.model.openai.like import OpenAILike
 from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
@@ -23,8 +23,9 @@ except ImportError:
 
 class Together(OpenAILike):
     """
-    Together model class.
-    Args:
+    A class for interacting with Together models.
+
+    Attributes:
         id (str): The id of the Together model to use. Default is "mistralai/Mixtral-8x7B-Instruct-v0.1".
         name (str): The name of this chat model instance. Default is "Together"
         provider (str): The provider of the model. Default is "Together".
@@ -34,19 +35,10 @@ class Together(OpenAILike):
 
     id: str = "mistralai/Mixtral-8x7B-Instruct-v0.1"
     name: str = "Together"
-    provider: str = "Together"
+    provider: str = "Together " + id
     api_key: Optional[str] = getenv("TOGETHER_API_KEY")
     base_url: str = "https://api.together.xyz/v1"
     monkey_patch: bool = False
-
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log the messages to the console.
-        Args:
-            messages (List[Message]): The list of messages.
-        """
-        for m in messages:
-            m.log()
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         if not self.monkey_patch:
@@ -58,22 +50,24 @@ class Together(OpenAILike):
         self._log_messages(messages)
 
         stream_data: StreamData = StreamData()
+        metrics: Metrics = Metrics()
         assistant_message_content = ""
         response_is_tool_call = False
-        stream_data.completion_tokens = 0
-        stream_data.response_timer.start()
+
+        # -*- Generate response
+        metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
+                metrics.completion_tokens += 1
+                if metrics.completion_tokens == 1:
+                    metrics.time_to_first_token = metrics.response_timer.elapsed
+
                 response_delta: ChoiceDelta = response.choices[0].delta
                 response_content: Optional[str] = response_delta.content
                 response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 
                 if response_content is not None:
                     stream_data.response_content += response_content
-                    stream_data.completion_tokens += 1
-                    if stream_data.completion_tokens == 1:
-                        stream_data.time_to_first_token = stream_data.response_timer.elapsed
-                        logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
                     yield ModelResponse(content=response_content)
 
                 if response_tool_calls is not None:
@@ -84,12 +78,13 @@ class Together(OpenAILike):
             if response.usage:
                 response_usage: Optional[CompletionUsage] = response.usage
                 if response_usage:
-                    stream_data.response_prompt_tokens = response_usage.prompt_tokens
-                    stream_data.response_completion_tokens = response_usage.completion_tokens
-                    stream_data.response_total_tokens = response_usage.total_tokens
-
-        stream_data.response_timer.stop()
-        logger.debug(f"Time to generate response: {stream_data.response_timer.elapsed:.4f}s")
+                    metrics.input_tokens = response_usage.prompt_tokens
+                    metrics.prompt_tokens = response_usage.prompt_tokens
+                    metrics.output_tokens = response_usage.completion_tokens
+                    metrics.completion_tokens = response_usage.completion_tokens
+                    metrics.total_tokens = response_usage.total_tokens
+        metrics.response_timer.stop()
+        logger.debug(f"Time to generate response: {metrics.response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
         assistant_message = Message(
@@ -124,22 +119,23 @@ class Together(OpenAILike):
 
         # -*- Update usage metrics
         # Add response time to metrics
-        assistant_message.metrics["time"] = stream_data.response_timer.elapsed
+        assistant_message.metrics["time"] = metrics.response_timer.elapsed
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
-        self.metrics["response_times"].append(stream_data.response_timer.elapsed)
+        self.metrics["response_times"].append(metrics.response_timer.elapsed)
 
         # Add token usage to metrics
-        logger.debug(f"Estimated completion tokens: {stream_data.completion_tokens}")
-        assistant_message.metrics["completion_tokens"] = stream_data.completion_tokens
+        logger.debug(f"Estimated completion tokens: {metrics.completion_tokens}")
+        assistant_message.metrics["completion_tokens"] = metrics.completion_tokens
         if "completion_tokens" not in self.metrics:
-            self.metrics["completion_tokens"] = stream_data.completion_tokens
+            self.metrics["completion_tokens"] = metrics.completion_tokens
         else:
-            self.metrics["completion_tokens"] += stream_data.completion_tokens
+            self.metrics["completion_tokens"] += metrics.completion_tokens
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
+        metrics.log()
 
         # -*- Parse and run tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:

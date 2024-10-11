@@ -7,7 +7,7 @@ try:
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker, scoped_session
-    from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.schema import MetaData, Table, Column, Index
     from sqlalchemy.sql.expression import text, func, select, desc, bindparam
     from sqlalchemy.types import DateTime, String
     from sqlalchemy.pool import NullPool
@@ -137,7 +137,7 @@ class PgVector(VectorDb):
         """
         if self.dimensions is None:
             raise ValueError("Embedder dimensions are not set.")
-        return Table(
+        table = Table(
             self.table_name,
             self.metadata,
             Column("id", String, primary_key=True),
@@ -152,6 +152,13 @@ class PgVector(VectorDb):
             Column("content_hash", String),
             extend_existing=True,
         )
+
+        # Add indexes
+        Index(f"idx_{self.table_name}_id", table.c.id)
+        Index(f"idx_{self.table_name}_name", table.c.name)
+        Index(f"idx_{self.table_name}_content_hash", table.c.content_hash)
+
+        return table
 
     def get_table(self) -> Table:
         """
@@ -185,14 +192,27 @@ class PgVector(VectorDb):
         """
         if not self.table_exists():
             try:
-                with self.Session() as sess, sess.begin():
-                    logger.debug("Creating extension 'vector' if not exists.")
-                    sess.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                # Use a separate connection to avoid issues with ongoing transactions
+                with self.db_engine.connect() as connection:
+                    # Set connection to autocommit mode
+                    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
+
+                    try:
+                        logger.debug("Creating extension 'vector' if not exists.")
+                        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                    except Exception as e:
+                        logger.error(f"Error creating extension 'vector': {e}")
+
                     if self.schema is not None:
-                        logger.debug(f"Creating schema '{self.schema}' if not exists.")
-                        sess.execute(text(f"create schema if not exists {self.schema};"))
-                logger.debug(f"Creating table: {self.table_name}")
-                self.table.create(self.db_engine, checkfirst=True)
+                        try:
+                            logger.debug(f"Creating schema: {self.schema}")
+                            connection.execute(text(f"create schema if not exists {self.schema};"))
+                        except Exception as e:
+                            logger.error(f"Error creating schema '{self.schema}': {e}")
+
+                    # Create table
+                    logger.debug(f"Creating table: {self.table_name}")
+                    self.metadata.create_all(bind=connection, tables=[self.table])
             except Exception as e:
                 logger.error(f"Error creating table '{self.table.fullname}': {e}")
                 raise

@@ -225,7 +225,7 @@ class Groq(Model):
             Any: The response.
         """
         if self.tools and self.response_format:
-            logger.warn(
+            logger.warning(
                 f"Response format is not supported for Groq when specifying tools. Ignoring response_format: {self.response_format}"
             )
             self.response_format = {"type": "text"}

@@ -1,9 +1,7 @@
 #!/bin/bash
 
 ############################################################################
-#
-# Collection of helper functions to import in other scripts
-#
+# Helper functions to import in other scripts
 ############################################################################
 
 space_to_continue() {
@@ -27,6 +25,6 @@ print_heading() {
   print_horizontal_line
 }
 
-print_info() {
+print_status() {
   echo "-*- $1"
 }

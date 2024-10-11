@@ -1,9 +1,7 @@
 #!/bin/bash
 
 ############################################################################
-#
 # Entrypoint script for the Phidata image
-#
 ############################################################################
 
 INIT_PHI=${INIT_PHI:=True}
@@ -17,17 +15,6 @@ if [[ "$INSTALL_REQUIREMENTS" = true || "$INSTALL_REQUIREMENTS" = True ]]; then
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
   echo "Installing requirements from $REQUIREMENTS_FILE_PATH"
   pip3 install -r $REQUIREMENTS_FILE_PATH
-  echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
-fi
-
-############################################################################
-# Initialize phi
-############################################################################
-
-if [[ "$INIT_PHI" = true || "$INIT_PHI" = True ]]; then
-  echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
-  echo "Initializing phi"
-  phi init
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 fi
 

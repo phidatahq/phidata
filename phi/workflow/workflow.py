@@ -17,11 +17,13 @@ class Workflow(BaseModel):
     session_id: Optional[str] = Field(None, validate_default=True)
     # Session state stored in the database
     session_state: Optional[Dict[str, Any]] = None
+    # Metadata associated with this session
+    session_data: Optional[Dict[str, Any]] = None
 
     # -*- Workflow Storage
     storage: Optional[Any] = None
     # WorkflowSession from the database: DO NOT SET MANUALLY
-    workflow_session: Optional[Any] = None
+    _workflow_session: Optional[Any] = None
 
     # -*- Workflow run details
     # Run ID: do not set manually
@@ -29,9 +31,9 @@ class Workflow(BaseModel):
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
-    # monitoring=True sends Agent information to phidata.com
+    # monitoring=True logs workflow information to phidata.com
     monitoring: bool = getenv("PHI_MONITORING", "false").lower() == "true"
-    # telemetry=True logs minimal Agent telemetry on phidata.com
+    # telemetry=True logs minimal telemetry for analytics
     # This helps us improve the Agent and provide better support
     telemetry: bool = getenv("PHI_TELEMETRY", "true").lower() == "true"
 
@@ -40,13 +42,6 @@ class Workflow(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
-    @field_validator("debug_mode")
-    def set_log_level(cls, v: bool) -> bool:
-        if v:
-            set_log_level_to_debug()
-            logger.debug("Debug logs enabled")
-        return v
-
     @field_validator("workflow_id", mode="before")
     def set_workflow_id(cls, v: Optional[str] = None) -> str:
         return v or str(uuid4())
@@ -54,6 +49,13 @@ class Workflow(BaseModel):
     @field_validator("session_id", mode="before")
     def set_session_id(cls, v: Optional[str] = None) -> str:
         return v or str(uuid4())
+
+    @field_validator("debug_mode")
+    def set_log_level(cls, v: bool) -> bool:
+        if v:
+            set_log_level_to_debug()
+            logger.debug("Debug logs enabled")
+        return v
 
     def run(self, *args: Any, **kwargs: Any):
         logger.error(f"{self.__class__.__name__}.run() method not implemented.")

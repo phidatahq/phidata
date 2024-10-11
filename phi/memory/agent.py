@@ -289,12 +289,14 @@ class AgentMemory(BaseModel):
     def clear(self) -> None:
         """Clear the AgentMemory"""
 
-        if "chats" in self.model_fields_set:
-            self.chats = []
-        if "messages" in self.model_fields_set:
-            self.messages = []
-        if "summary" in self.model_fields_set:
-            self.summary = None
-        if "memories" in self.model_fields_set:
-            self.memories = None
+        self.chats = []
+        self.messages = []
+        self.summary = None
+        self.memories = None
         logger.debug("AgentMemory cleared")
+
+    def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "AgentMemory":
+        new_memory = self.model_copy(deep=True, update=update)
+        # clear the new memory to remove any references to the old memory
+        new_memory.clear()
+        return new_memory

@@ -18,12 +18,17 @@ class RunEvent(str, Enum):
     updating_memory = "UpdatingMemory"
 
 
+class RunResponseExtraData(BaseModel):
+    context: Optional[List[MessageContext]] = None
+    add_messages: Optional[List[Message]] = None
+    history: Optional[List[Message]] = None
+
+
 class RunResponse(BaseModel):
     """Response returned by Agent.run() or Workflow.run() functions"""
 
     content: Optional[Any] = None
     content_type: str = "str"
-    context: Optional[List[MessageContext]] = None
     event: str = RunEvent.run_response.value
     messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
@@ -32,7 +37,7 @@ class RunResponse(BaseModel):
     agent_id: Optional[str] = None
     session_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
-    extra_data: Optional[Dict[str, Any]] = None
+    extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

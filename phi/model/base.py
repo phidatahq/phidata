@@ -242,3 +242,9 @@ class Model(BaseModel):
         self.function_call_stack = None
         self.session_id = None
         logger.debug("Model state cleared")
+
+    def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Model":
+        new_model = self.model_copy(deep=True, update=update)
+        # Clear the new model to remove any references to the old model
+        new_model.clear()
+        return new_model

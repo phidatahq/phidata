@@ -9,22 +9,23 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    cast,
     Dict,
     Iterator,
     List,
     Literal,
     Optional,
+    overload,
+    Tuple,
     Type,
     Union,
-    cast,
-    overload,
 )
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.run.response import RunResponse, RunEvent
+from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
 from phi.model.message import Message, MessageContext
@@ -192,8 +193,6 @@ class Agent(BaseModel):
     run_input: Optional[Union[str, List, Dict]] = None
     # Response from the Agent run: do not set manually
     run_response: Optional[RunResponse] = None
-    # Metrics for the Agent run: do not set manually
-    run_metrics: Optional[Dict[str, Any]] = None
     # Save the response to a file
     save_response_to_file: Optional[str] = None
 
@@ -207,9 +206,9 @@ class Agent(BaseModel):
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
-    # monitoring=True sends Agent information to phidata.com
+    # monitoring=True logs Agent information to phidata.app for monitoring
     monitoring: bool = getenv("PHI_MONITORING", "false").lower() == "true"
-    # telemetry=True logs minimal Agent telemetry on phidata.com
+    # telemetry=True logs minimal telemetry for analytics
     # This helps us improve the Agent and provide better support
     telemetry: bool = getenv("PHI_TELEMETRY", "true").lower() == "true"
 
@@ -246,48 +245,16 @@ class Agent(BaseModel):
         Returns:
             Agent: A new Agent instance.
         """
-        from copy import copy, deepcopy
-
         # Extract the fields to set for the new Agent
         fields_for_new_agent = {}
 
         for field_name in self.model_fields_set:
             field_value = getattr(self, field_name)
             if field_value is not None:
-                fields_for_new_agent[field_name] = field_value
+                fields_for_new_agent[field_name] = self._deep_copy_field(field_name, field_value)
 
-        # For any compound fields, create a deep copy so a new instance is created
-        for field_name, field_value in fields_for_new_agent.items():
-            if isinstance(field_value, (list, dict, set, AgentStorage)):
-                try:
-                    fields_for_new_agent[field_name] = deepcopy(field_value)
-                except Exception as e:
-                    logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
-                    try:
-                        fields_for_new_agent[field_name] = copy(field_value)
-                    except Exception as e:
-                        logger.warning(f"Failed to copy field: {field_name} - {e}")
-                        fields_for_new_agent[field_name] = field_value
-            elif isinstance(field_value, BaseModel):
-                try:
-                    fields_for_new_agent[field_name] = field_value.model_copy(deep=True)
-                except Exception as e:
-                    logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
-                    try:
-                        fields_for_new_agent[field_name] = field_value.model_copy(deep=False)
-                    except Exception as e:
-                        logger.warning(f"Failed to copy field: {field_name} - {e}")
-                        fields_for_new_agent[field_name] = field_value
-
-        # Flush the Model to remove previous metrics or functions
-        if "model" in fields_for_new_agent and isinstance(fields_for_new_agent["model"], Model):
-            fields_for_new_agent["model"].clear()
-
-        # Flush the AgentMemory to remove previous memories
-        if "memory" in fields_for_new_agent and isinstance(fields_for_new_agent["memory"], AgentMemory):
-            fields_for_new_agent["memory"].clear()
-
-        if update is not None and isinstance(update, dict):
+        # Update fields if provided
+        if update:
             fields_for_new_agent.update(update)
 
         # Create a new Agent
@@ -295,12 +262,67 @@ class Agent(BaseModel):
         logger.debug(f"Created new Agent: agent_id: {new_agent.agent_id} | session_id: {new_agent.session_id}")
         return new_agent
 
+    def _deep_copy_field(self, field_name: str, field_value: Any) -> Any:
+        """Helper method to deep copy a field based on its type."""
+        from copy import copy, deepcopy
+
+        # For memory and model, use their deep_copy methods
+        if field_name in ("memory", "model"):
+            return field_value.deep_copy()
+
+        # For compound types, attempt a deep copy
+        if isinstance(field_value, (list, dict, set, AgentStorage)):
+            try:
+                return deepcopy(field_value)
+            except Exception as e:
+                logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
+                try:
+                    return copy(field_value)
+                except Exception as e:
+                    logger.warning(f"Failed to copy field: {field_name} - {e}")
+                    return field_value
+
+        # For pydantic models, attempt a deep copy
+        if isinstance(field_value, BaseModel):
+            try:
+                return field_value.model_copy(deep=True)
+            except Exception as e:
+                logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
+                try:
+                    return field_value.model_copy(deep=False)
+                except Exception as e:
+                    logger.warning(f"Failed to copy field: {field_name} - {e}")
+                    return field_value
+
+        # For other types, return as is
+        return field_value
+
     def has_team(self) -> bool:
         return self.team is not None and len(self.team) > 0
 
     def get_delegation_function(self, agent: "Agent", index: int) -> Function:
         def _delegate_task_to_agent(task_description: str) -> str:
+            # update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
+            if agent.session_data is None:
+                agent.session_data = {}
+            agent.session_data["leader_session_id"] = self.session_id
+            agent.session_data["leader_agent_id"] = self.agent_id
+            agent.session_data["leader_run_id"] = self.run_id
+
             agent_run_response: RunResponse = agent.run(task_description, stream=False)
+            # update the leader agent session_data to include member_session_id, member_agent_id and member_run_id
+            member_data = {
+                "session_id": agent_run_response.session_id,
+                "agent_id": agent_run_response.agent_id,
+            }
+            if self.session_data is None:
+                self.session_data = {"members": [member_data]}
+            else:
+                if "members" not in self.session_data:
+                    self.session_data["members"] = []
+                # check if member_data is already in the list
+                if member_data not in self.session_data["members"]:
+                    self.session_data["members"].append(member_data)
             if agent_run_response.content is None:
                 return "No response from the agent."
             elif isinstance(agent_run_response.content, str):
@@ -990,6 +1012,122 @@ class Agent(BaseModel):
             **kwargs,
         )
 
+    def get_messages_for_run(
+        self,
+        *,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        images: Optional[List[Union[str, Dict]]] = None,
+        messages: Optional[List[Union[Dict, Message]]] = None,
+        **kwargs: Any,
+    ) -> Tuple[Optional[Message], List[Message], List[Message]]:
+        """This function returns:
+            - the system message
+            - a list of user messages
+            - a list of messages to send to the model
+
+        To build the messages sent to the model:
+        1. Add the system message to the messages list
+        2. Add extra messages to the messages list if provided
+        3. Add history to the messages list
+        4. Add the user messages to the messages list
+
+        Returns:
+            Tuple[Message, List[Message], List[Message]]:
+                - Optional[Message]: the system message
+                - List[Message]: user messages
+                - List[Message]: messages to send to the model
+        """
+
+        # List of messages to send to the Model
+        messages_for_model: List[Message] = []
+
+        # Create the run_response object if it doesn't exist
+        if self.run_response is None:
+            self.run_response = RunResponse()
+
+        # 3.1. Add the System Message to the messages list
+        system_message = self.get_system_message()
+        if system_message is not None:
+            messages_for_model.append(system_message)
+
+        # 3.2 Add extra messages to the messages list if provided
+        if self.add_messages is not None:
+            _add_messages: List[Message] = []
+            for _m in self.add_messages:
+                if isinstance(_m, Message):
+                    _add_messages.append(_m)
+                    messages_for_model.append(_m)
+                elif isinstance(_m, dict):
+                    try:
+                        _m_parsed = Message.model_validate(_m)
+                        _add_messages.append(_m_parsed)
+                        messages_for_model.append(_m_parsed)
+                    except Exception as e:
+                        logger.warning(f"Failed to validate message: {e}")
+            if len(_add_messages) > 0:
+                # Add the extra messages to the run_response
+                logger.debug(f"Adding {len(_add_messages)} extra messages")
+                if self.run_response.extra_data is None:
+                    self.run_response.extra_data = RunResponseExtraData(add_messages=_add_messages)
+                else:
+                    if self.run_response.extra_data.add_messages is None:
+                        self.run_response.extra_data.add_messages = _add_messages
+                    else:
+                        self.run_response.extra_data.add_messages.extend(_add_messages)
+
+        # 3.3 Add history to the messages list
+        if self.add_history_to_messages:
+            history: List[Message] = self.memory.get_messages_from_last_n_chats(
+                last_n=self.num_history_responses, skip_role=self.system_message_role
+            )
+            if len(history) > 0:
+                logger.debug(f"Adding {len(history)} messages from history")
+                if self.run_response.extra_data is None:
+                    self.run_response.extra_data = RunResponseExtraData(history=history)
+                else:
+                    if self.run_response.extra_data.history is None:
+                        self.run_response.extra_data.history = history
+                    else:
+                        self.run_response.extra_data.history.extend(history)
+                messages_for_model += history
+
+        # 3.4. Add the User Messages to the messages list
+        user_messages: List[Message] = []
+        # 3.4.1 Build user message from message if provided
+        if message is not None:
+            # If message is provided as a Message, use it directly
+            if isinstance(message, Message):
+                user_messages.append(message)
+            # If message is provided as a str, build the user message
+            elif isinstance(message, str):
+                # Get the user message
+                user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
+                # Add user message to the messages list
+                if user_message is not None:
+                    if user_message.context is not None:
+                        if self.run_response.extra_data is None:
+                            self.run_response.extra_data = RunResponseExtraData()
+                        if self.run_response.extra_data.context is None:
+                            self.run_response.extra_data.context = []
+                        self.run_response.extra_data.context.append(user_message.context)
+                    user_messages.append(user_message)
+        # 3.4.2 Build user messages from messages list if provided
+        elif messages is not None and len(messages) > 0:
+            for _m in messages:
+                if isinstance(_m, Message):
+                    user_messages.append(_m)
+                elif isinstance(_m, dict):
+                    try:
+                        user_messages.append(Message.model_validate(_m))
+                    except Exception as e:
+                        logger.warning(f"Failed to validate message: {e}")
+        # Add the User Messages to the messages list
+        messages_for_model.extend(user_messages)
+        # Update the run_response messages with the messages list
+        self.run_response.messages = messages_for_model
+
+        return system_message, user_messages, messages_for_model
+
     def save_run_response_to_file(self, message: Optional[Union[str, List, Dict, Message]] = None) -> None:
         if self.save_response_to_file is not None and self.run_response is not None:
             message_str = None
@@ -1037,11 +1175,7 @@ class Agent(BaseModel):
         Steps:
         1. Update the Model (set defaults, add tools, etc.)
         2. Read existing session from storage
-        3. Prepare the List of messages to send to the Model
-            3.1 Add the System Message to the messages list
-            3.2 Add extra messages to the messages list if provided
-            3.3 Add history to the messages list
-            3.4 Add the User Messages to the messages list
+        3. Prepare messages for this run
         4. Generate a response from the Model (includes running function calls)
         5. Update Memory
         6. Save session to storage
@@ -1064,85 +1198,16 @@ class Agent(BaseModel):
         # 2. Read existing session from storage
         self.read_from_storage()
 
-        # 3. Prepare the List of messages to send to the Model
-        messages_for_model: List[Message] = []
-
-        # 3.1. Add the System Message to the messages list
-        system_message = self.get_system_message()
-        if system_message is not None:
-            messages_for_model.append(system_message)
-
-        # 3.2 Add extra messages to the messages list if provided
-        if self.add_messages is not None:
-            if self.run_response.extra_data is None:
-                self.run_response.extra_data = {}
-            if "add_messages" not in self.run_response.extra_data:
-                self.run_response.extra_data["add_messages"] = []
-            for _m in self.add_messages:
-                if isinstance(_m, Message):
-                    self.run_response.extra_data["add_messages"].append(_m)
-                    messages_for_model.append(_m)
-                elif isinstance(_m, dict):
-                    try:
-                        _m_parsed = Message.model_validate(_m)
-                        self.run_response.extra_data["add_messages"].append(_m_parsed)
-                        messages_for_model.append(_m_parsed)
-                    except Exception as e:
-                        logger.warning(f"Failed to validate message: {e}")
-
-        # 3.3 Add history to the messages list
-        if self.add_history_to_messages:
-            history = self.memory.get_messages_from_last_n_chats(
-                last_n=self.num_history_responses, skip_role=self.system_message_role
-            )
-            if history is not None:
-                logger.debug(f"Adding {len(history)} messages from history to messages")
-                if self.run_response.extra_data is None:
-                    self.run_response.extra_data = {"history": history}
-                else:
-                    if "history" not in self.run_response.extra_data:
-                        self.run_response.extra_data["history"] = history
-                    else:
-                        self.run_response.extra_data["history"].extend(history)
-                messages_for_model += history
-
-        # 3.4. Add the User Messages to the messages list
-        user_messages: List[Message] = []
-        # 3.4.1 Build user message from message if provided
-        if message is not None:
-            # If message is provided as a Message, use it directly
-            if isinstance(message, Message):
-                user_messages.append(message)
-            # If message is provided as a str, build the user message
-            elif isinstance(message, str):
-                # Get the user message
-                user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
-                # Add user message to the messages list
-                if user_message is not None:
-                    if user_message.context is not None:
-                        if self.run_response.context is None:
-                            self.run_response.context = []
-                        self.run_response.context.append(user_message.context)
-                    user_messages.append(user_message)
-        # 3.4.2 Build user messages from messages list if provided
-        elif messages is not None and len(messages) > 0:
-            for _m in messages:
-                if isinstance(_m, Message):
-                    user_messages.append(_m)
-                elif isinstance(_m, dict):
-                    try:
-                        user_messages.append(Message.model_validate(_m))
-                    except Exception as e:
-                        logger.warning(f"Failed to validate message: {e}")
-        # Add the User Messages to the messages list
-        messages_for_model.extend(user_messages)
+        # 3. Prepare messages for this run
+        system_message, user_messages, messages_for_model = self.get_messages_for_run(
+            message=message, images=images, messages=messages, **kwargs
+        )
 
         # Get the number of messages in messages_for_model that form the input for this run
         # We track these to skip when updating memory
         num_input_messages = len(messages_for_model)
 
-        # Update the run_response messages with the messages list and yield a RunStarted event
-        self.run_response.messages = messages_for_model
+        # Yield a RunStarted event
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
@@ -1150,6 +1215,8 @@ class Agent(BaseModel):
                 agent_id=self.agent_id,
                 content="Run started",
                 messages=self.run_response.messages,
+                model=self.run_response.model,
+                extra_data=self.run_response.extra_data,
                 event=RunEvent.run_started.value,
             )
 
@@ -1180,6 +1247,8 @@ class Agent(BaseModel):
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
                             messages=self.run_response.messages,
+                            model=self.run_response.model,
+                            extra_data=self.run_response.extra_data,
                             event=RunEvent.tool_call_started.value,
                         )
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
@@ -1200,6 +1269,8 @@ class Agent(BaseModel):
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
                             messages=self.run_response.messages,
+                            model=self.run_response.model,
+                            extra_data=self.run_response.extra_data,
                             event=RunEvent.tool_call_completed.value,
                         )
         else:
@@ -1215,7 +1286,10 @@ class Agent(BaseModel):
 
         # Build a list of messages that belong to this particular run
         run_messages = user_messages + messages_for_model[num_input_messages:]
-        # Update the run_response metrics
+        if system_message is not None:
+            run_messages.insert(0, system_message)
+        # Update the run_response
+        self.run_response.messages = run_messages
         self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if stream_agent_response:
@@ -1230,17 +1304,19 @@ class Agent(BaseModel):
                 content="Updating memory",
                 tools=self.run_response.tools,
                 messages=self.run_response.messages,
+                model=self.run_response.model,
+                extra_data=self.run_response.extra_data,
                 event=RunEvent.updating_memory.value,
             )
 
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add messages from this particular run to memory (including the user messages)
+        # Add messages from this particular run to memory
         self.memory.add_run_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
-        agent_chat = AgentChat(response=self.run_response.model_copy(update={"messages": run_messages}))
+        agent_chat = AgentChat(response=self.run_response)
         if message is not None:
             user_message_for_memory: Optional[Message] = None
             if isinstance(message, str):
@@ -1438,11 +1514,7 @@ class Agent(BaseModel):
         Steps:
         1. Update the Model (set defaults, add tools, etc.)
         2. Read existing session from storage
-        3. Prepare the List of messages to send to the Model
-            3.1 Add the System Message to the messages list
-            3.2 Add extra messages to the messages list if provided
-            3.3 Add history to the messages list
-            3.4 Add the User Messages to the messages list
+        3. Prepare messages for this run
         4. Generate a response from the Model (includes running function calls)
         5. Update Memory
         6. Save session to storage
@@ -1465,85 +1537,16 @@ class Agent(BaseModel):
         # 2. Read existing session from storage
         self.read_from_storage()
 
-        # 3. Prepare the List of messages to send to the Model
-        messages_for_model: List[Message] = []
-
-        # 3.1. Add the System Message to the messages list
-        system_message = self.get_system_message()
-        if system_message is not None:
-            messages_for_model.append(system_message)
-
-        # 3.2 Add extra messages to the messages list if provided
-        if self.add_messages is not None:
-            if self.run_response.extra_data is None:
-                self.run_response.extra_data = {}
-            if "add_messages" not in self.run_response.extra_data:
-                self.run_response.extra_data["add_messages"] = []
-            for _m in self.add_messages:
-                if isinstance(_m, Message):
-                    self.run_response.extra_data["add_messages"].append(_m)
-                    messages_for_model.append(_m)
-                elif isinstance(_m, dict):
-                    try:
-                        _m_parsed = Message.model_validate(_m)
-                        self.run_response.extra_data["add_messages"].append(_m_parsed)
-                        messages_for_model.append(_m_parsed)
-                    except Exception as e:
-                        logger.warning(f"Failed to validate message: {e}")
-
-        # 3.3 Add history to the messages list
-        if self.add_history_to_messages:
-            history = self.memory.get_messages_from_last_n_chats(
-                last_n=self.num_history_responses, skip_role=self.system_message_role
-            )
-            if history is not None:
-                logger.debug(f"Adding {len(history)} messages from history to messages")
-                if self.run_response.extra_data is None:
-                    self.run_response.extra_data = {"history": history}
-                else:
-                    if "history" not in self.run_response.extra_data:
-                        self.run_response.extra_data["history"] = history
-                    else:
-                        self.run_response.extra_data["history"].extend(history)
-                messages_for_model += history
-
-        # 3.4. Add the User Messages to the messages list
-        user_messages: List[Message] = []
-        # 3.4.1 Build user message from message if provided
-        if message is not None:
-            # If message is provided as a Message, use it directly
-            if isinstance(message, Message):
-                user_messages.append(message)
-            # If message is provided as a str, build the user message
-            elif isinstance(message, str):
-                # Get the user message
-                user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
-                # Add user message to the messages list
-                if user_message is not None:
-                    if user_message.context is not None:
-                        if self.run_response.context is None:
-                            self.run_response.context = []
-                        self.run_response.context.append(user_message.context)
-                    user_messages.append(user_message)
-        # 3.4.2 Build user messages from messages list if provided
-        elif messages is not None and len(messages) > 0:
-            for _m in messages:
-                if isinstance(_m, Message):
-                    user_messages.append(_m)
-                elif isinstance(_m, dict):
-                    try:
-                        user_messages.append(Message.model_validate(_m))
-                    except Exception as e:
-                        logger.warning(f"Failed to validate message: {e}")
-        # Add the User Messages to the messages list
-        messages_for_model.extend(user_messages)
+        # 3. Prepare messages for this run
+        system_message, user_messages, messages_for_model = self.get_messages_for_run(
+            message=message, images=images, messages=messages, **kwargs
+        )
 
         # Get the number of messages in messages_for_model that form the input for this run
         # We track these to skip when updating memory
         num_input_messages = len(messages_for_model)
 
-        # Update the run_response messages with the messages list and yield a RunStarted event
-        self.run_response.messages = messages_for_model
+        # Yield a RunStarted event
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
@@ -1551,6 +1554,8 @@ class Agent(BaseModel):
                 agent_id=self.agent_id,
                 content="Run started",
                 messages=self.run_response.messages,
+                model=self.run_response.model,
+                extra_data=self.run_response.extra_data,
                 event=RunEvent.run_started.value,
             )
 
@@ -1582,6 +1587,8 @@ class Agent(BaseModel):
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
                             messages=self.run_response.messages,
+                            model=self.run_response.model,
+                            extra_data=self.run_response.extra_data,
                             event=RunEvent.tool_call_started.value,
                         )
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
@@ -1602,6 +1609,8 @@ class Agent(BaseModel):
                             content=model_response_chunk.content,
                             tools=self.run_response.tools,
                             messages=self.run_response.messages,
+                            model=self.run_response.model,
+                            extra_data=self.run_response.extra_data,
                             event=RunEvent.tool_call_completed.value,
                         )
         else:
@@ -1617,7 +1626,10 @@ class Agent(BaseModel):
 
         # Build a list of messages that belong to this particular run
         run_messages = user_messages + messages_for_model[num_input_messages:]
-        # Update the run_response metrics
+        if system_message is not None:
+            run_messages.insert(0, system_message)
+        # Update the run_response
+        self.run_response.messages = run_messages
         self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if stream_agent_response:
@@ -1632,17 +1644,19 @@ class Agent(BaseModel):
                 content="Updating memory",
                 tools=self.run_response.tools,
                 messages=self.run_response.messages,
+                model=self.run_response.model,
+                extra_data=self.run_response.extra_data,
                 event=RunEvent.updating_memory.value,
             )
 
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add messages from this particular run to memory (including the user messages)
+        # Add messages from this particular run to memory
         self.memory.add_run_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
-        agent_chat = AgentChat(response=self.run_response.model_copy(update={"messages": run_messages}))
+        agent_chat = AgentChat(response=self.run_response)
         if message is not None:
             user_message_for_memory: Optional[Message] = None
             if isinstance(message, str):
@@ -1958,9 +1972,11 @@ class Agent(BaseModel):
 
         # Add the context to the run_response
         if self.run_response is not None:
-            if self.run_response.context is None:
-                self.run_response.context = []
-            self.run_response.context.append(context)
+            if self.run_response.extra_data is None:
+                self.run_response.extra_data = RunResponseExtraData()
+            if self.run_response.extra_data.context is None:
+                self.run_response.extra_data.context = []
+            self.run_response.extra_data.context.append(context)
 
         if docs_from_knowledge is None:
             return ""

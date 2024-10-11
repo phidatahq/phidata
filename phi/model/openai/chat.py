@@ -490,14 +490,20 @@ class OpenAIChat(Model):
                 assistant_message.metrics["total_tokens"] = total_tokens
                 self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
             if response_usage.prompt_tokens_details is not None:
-                metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
+                if isinstance(response_usage.prompt_tokens_details, dict):
+                    metrics.prompt_tokens_details = response_usage.prompt_tokens_details
+                elif isinstance(response_usage.prompt_tokens_details, BaseModel):
+                    metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
                 assistant_message.metrics["prompt_tokens_details"] = metrics.prompt_tokens_details
                 for k, v in metrics.prompt_tokens_details.items():
                     self.metrics.get("prompt_tokens_details", {}).get(k, 0) + v
             if response_usage.completion_tokens_details is not None:
-                metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
-                    exclude_none=True
-                )
+                if isinstance(response_usage.completion_tokens_details, dict):
+                    metrics.completion_tokens_details = response_usage.completion_tokens_details
+                elif isinstance(response_usage.completion_tokens_details, BaseModel):
+                    metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
+                        exclude_none=True
+                    )
                 assistant_message.metrics["completion_tokens_details"] = metrics.completion_tokens_details
                 for k, v in metrics.completion_tokens_details.items():
                     self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
@@ -700,6 +706,25 @@ class OpenAIChat(Model):
             for k, v in metrics.completion_tokens_details.items():
                 self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
 
+    def _add_response_usage_to_metrics(self, metrics: Metrics, response_usage: CompletionUsage):
+        metrics.input_tokens = response_usage.prompt_tokens
+        metrics.prompt_tokens = response_usage.prompt_tokens
+        metrics.output_tokens = response_usage.completion_tokens
+        metrics.completion_tokens = response_usage.completion_tokens
+        if response_usage.prompt_tokens_details is not None:
+            if isinstance(response_usage.prompt_tokens_details, dict):
+                metrics.prompt_tokens_details = response_usage.prompt_tokens_details
+            elif isinstance(response_usage.prompt_tokens_details, BaseModel):
+                metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
+        if response_usage.completion_tokens_details is not None:
+            if isinstance(response_usage.completion_tokens_details, dict):
+                metrics.completion_tokens_details = response_usage.completion_tokens_details
+            elif isinstance(response_usage.completion_tokens_details, BaseModel):
+                metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
+                    exclude_none=True
+                )
+        metrics.total_tokens = response_usage.total_tokens
+
     def _handle_stream_tool_calls(
         self,
         assistant_message: Message,
@@ -793,21 +818,7 @@ class OpenAIChat(Model):
                     stream_data.response_tool_calls.extend(response_tool_calls)
 
             if response.usage is not None:
-                response_usage: Optional[CompletionUsage] = response.usage
-                if response_usage:
-                    metrics.input_tokens = response_usage.prompt_tokens
-                    metrics.prompt_tokens = response_usage.prompt_tokens
-                    metrics.output_tokens = response_usage.completion_tokens
-                    metrics.completion_tokens = response_usage.completion_tokens
-                    if response_usage.prompt_tokens_details is not None:
-                        metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(
-                            exclude_none=True
-                        )
-                    if response_usage.completion_tokens_details is not None:
-                        metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
-                            exclude_none=True
-                        )
-                    metrics.total_tokens = response_usage.total_tokens
+                self._add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
         metrics.response_timer.stop()
 
         # -*- Create assistant message
@@ -873,21 +884,7 @@ class OpenAIChat(Model):
                     stream_data.response_tool_calls.extend(response_tool_calls)
 
             if response.usage is not None:
-                response_usage: Optional[CompletionUsage] = response.usage
-                if response_usage:
-                    metrics.input_tokens = response_usage.prompt_tokens
-                    metrics.prompt_tokens = response_usage.prompt_tokens
-                    metrics.output_tokens = response_usage.completion_tokens
-                    metrics.completion_tokens = response_usage.completion_tokens
-                    if response_usage.prompt_tokens_details is not None:
-                        metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(
-                            exclude_none=True
-                        )
-                    if response_usage.completion_tokens_details is not None:
-                        metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
-                            exclude_none=True
-                        )
-                    metrics.total_tokens = response_usage.total_tokens
+                self._add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
         metrics.response_timer.stop()
 
         # -*- Create assistant message

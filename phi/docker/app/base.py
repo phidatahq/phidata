@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class DockerApp(AppBase):
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/app"
+    workspace_dir_container_path: str = "/app"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
 

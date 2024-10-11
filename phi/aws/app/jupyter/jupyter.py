@@ -20,7 +20,7 @@ class Jupyter(AwsApp):
 
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/jupyter"
+    workspace_dir_container_path: str = "/jupyter"
 
     # -*- ECS Configuration
     ecs_task_cpu: str = "1024"

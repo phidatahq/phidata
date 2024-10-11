@@ -28,7 +28,7 @@ class AirflowBase(DockerApp):
 
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/workspace"
+    workspace_dir_container_path: str = "/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
 

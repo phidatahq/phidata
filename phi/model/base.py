@@ -13,11 +13,11 @@ from phi.utils.timer import Timer
 class Model(BaseModel):
     # ID of the model to use.
     id: str = Field(..., alias="model")
-    # Name for this Model. Note: This is not sent to the Model API.
+    # Name for this Model. This is not sent to the Model API.
     name: Optional[str] = None
-    # Provider for this Model. Note: This is not sent to the Model API.
+    # Provider for this Model. This is not sent to the Model API.
     provider: Optional[str] = None
-    # Metrics collected for this Model. Note: This is not sent to the Model API.
+    # Metrics collected for this Model. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)
     response_format: Optional[Any] = None
 
@@ -54,10 +54,12 @@ class Model(BaseModel):
 
     # Session ID of the calling Agent or Workflow.
     session_id: Optional[str] = None
-    # Whether to use the structured outputs from the Model.
+    # Whether to use the structured outputs with this Model.
     structured_outputs: Optional[bool] = None
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = False
+    # Whether to add images to the message content.
+    add_images_to_message_content: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -95,6 +97,13 @@ class Model(BaseModel):
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         raise NotImplementedError
+
+    def _log_messages(self, messages: List[Message]) -> None:
+        """
+        Log messages for debugging.
+        """
+        for m in messages:
+            m.log()
 
     def get_tools_for_api(self) -> Optional[List[Dict[str, Any]]]:
         if self.tools is None:

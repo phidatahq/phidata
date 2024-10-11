@@ -26,7 +26,7 @@ finance_agent = Agent(
     add_history_to_messages=True,
     description="You are a finance agent",
     add_datetime_to_instructions=True,
-    storage=PgAgentStorage(table_name="finance_agent_sessions", db_url=db_url),
+    storage=PgAgentStorage(table_name="finance_agent", db_url=db_url),
 )
 
 research_agent = Agent(
@@ -69,7 +69,7 @@ research_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=PgAgentStorage(table_name="research_agent_sessions", db_url=db_url),
+    storage=PgAgentStorage(table_name="research_agent", db_url=db_url),
 )
 
 recipe_knowledge_base = PDFUrlKnowledgeBase(
@@ -78,16 +78,18 @@ recipe_knowledge_base = PDFUrlKnowledgeBase(
 )
 
 recipe_agent = Agent(
-    name="Recipe Agent",
-    agent_id="recipe-agent",
+    name="Thai Recipes Agent",
+    agent_id="thai-recipes-agent",
     model=OpenAIChat(id="gpt-4o"),
     knowledge=recipe_knowledge_base,
+    description="You are an expert at Thai Recipes and have a knowledge base full of special Thai recipes.",
+    instructions=["Search your knowledge base for thai recipes if needed."],
     # Add a tool to read chat history.
     read_chat_history=True,
     show_tool_calls=True,
     markdown=True,
     debug_mode=True,
-    storage=PgAgentStorage(table_name="recipe_agent_sessions", db_url=db_url),
+    storage=PgAgentStorage(table_name="thai_recipe_agent", db_url=db_url),
 )
 
 app = Playground(agents=[finance_agent, research_agent, recipe_agent]).get_app()

@@ -237,7 +237,7 @@ class Agent(BaseModel):
         """
         return self.response_model is None
 
-    def create_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
+    def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
         """Create and return a deep copy of this Agent, optionally updating fields.
 
         Args:
@@ -262,21 +262,21 @@ class Agent(BaseModel):
                 try:
                     fields_for_new_agent[field_name] = deepcopy(field_value)
                 except Exception as e:
-                    logger.warn(f"Failed to deepcopy field: {field_name} - {e}")
+                    logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
                     try:
                         fields_for_new_agent[field_name] = copy(field_value)
                     except Exception as e:
-                        logger.warn(f"Failed to copy field: {field_name} - {e}")
+                        logger.warning(f"Failed to copy field: {field_name} - {e}")
                         fields_for_new_agent[field_name] = field_value
             elif isinstance(field_value, BaseModel):
                 try:
                     fields_for_new_agent[field_name] = field_value.model_copy(deep=True)
                 except Exception as e:
-                    logger.warn(f"Failed to deepcopy field: {field_name} - {e}")
+                    logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
                     try:
                         fields_for_new_agent[field_name] = field_value.model_copy(deep=False)
                     except Exception as e:
-                        logger.warn(f"Failed to copy field: {field_name} - {e}")
+                        logger.warning(f"Failed to copy field: {field_name} - {e}")
                         fields_for_new_agent[field_name] = field_value
 
         # Flush the Model to remove previous metrics or functions

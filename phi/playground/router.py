@@ -304,7 +304,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
             logger.debug("Creating new session")
 
         # Create a new instance of this agent
-        new_agent_instance = agent.create_copy(update={"session_id": body.session_id})
+        new_agent_instance = agent.deep_copy(update={"session_id": body.session_id})
         if body.user_id is not None:
             new_agent_instance.user_id = body.user_id
 

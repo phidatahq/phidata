@@ -1,3 +1,5 @@
+import time
+from datetime import datetime
 from typing import Optional, Any, List
 
 try:
@@ -6,6 +8,7 @@ try:
     from sqlalchemy.engine.result import Row
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import sessionmaker, scoped_session
+    from sqlalchemy.sql import func
     from sqlalchemy.schema import MetaData, Table, Column, Index
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String, BigInteger
@@ -277,6 +280,7 @@ class PgAgentStorage(AgentStorage):
                         agent_data=session.agent_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
+                        updated_at=func.extract('epoch', func.now()).cast(BigInteger)
                     ),  # The updated value for each column
                 )
 

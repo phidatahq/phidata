@@ -2353,7 +2353,6 @@ class Agent(BaseModel):
             reasoning_steps: List[ReasoningStep] = []
             with Live() as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
-                live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
                 render = False
@@ -2365,7 +2364,7 @@ class Agent(BaseModel):
                             reasoning_steps = resp.extra_data.reasoning
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
-                    panels = []
+                    panels = [status]
 
                     if message and show_message:
                         render = True
@@ -2404,6 +2403,10 @@ class Agent(BaseModel):
                     if render:
                         live_log.update(Group(*panels))
                 response_timer.stop()
+
+                # Final update to remove the "Thinking..." status
+                panels = [p for p in panels if not isinstance(p, Status)]
+                live_log.update(Group(*panels))
         else:
             response_timer = Timer()
             response_timer.start()

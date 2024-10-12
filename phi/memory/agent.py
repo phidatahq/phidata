@@ -293,7 +293,6 @@ class AgentMemory(BaseModel):
         self.messages = []
         self.summary = None
         self.memories = None
-        logger.debug("AgentMemory cleared")
 
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "AgentMemory":
         new_memory = self.model_copy(deep=True, update=update)

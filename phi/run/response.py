@@ -15,6 +15,9 @@ class RunEvent(str, Enum):
     run_completed = "RunCompleted"
     tool_call_started = "ToolCallStarted"
     tool_call_completed = "ToolCallCompleted"
+    reasoning_started = "ReasoningStarted"
+    reasoning_step = "ReasoningStep"
+    reasoning_completed = "ReasoningCompleted"
     updating_memory = "UpdatingMemory"
 
 
@@ -22,6 +25,7 @@ class RunResponseExtraData(BaseModel):
     context: Optional[List[MessageContext]] = None
     add_messages: Optional[List[Message]] = None
     history: Optional[List[Message]] = None
+    reasoning: Optional[List[Any]] = None
 
 
 class RunResponse(BaseModel):

@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import json
 from os import getenv
 from uuid import uuid4
 from pathlib import Path
 from textwrap import dedent
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import (
     Any,
     AsyncIterator,
@@ -25,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
+from phi.agent.reasoning import ReasoningStep, NextAction, Reasoning
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
@@ -111,6 +114,10 @@ class Agent(BaseModel):
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
+    # -*- Agent Reasoning
+    # If True, the agent will reason about the task before responding.
+    reasoning: Optional[Union[bool, Reasoning]] = None
+
     # -*- Default tools
     # Add a tool that allows the Model to read the chat history.
     read_chat_history: bool = False
@@ -185,14 +192,6 @@ class Agent(BaseModel):
     parse_response: bool = True
     # Use the structured_outputs from the Model if available
     structured_outputs: bool = False
-
-    # -*- Agent run details
-    # Run ID: do not set manually
-    run_id: Optional[str] = None
-    # Input to the Agent run: do not set manually
-    run_input: Optional[Union[str, List, Dict]] = None
-    # Response from the Agent run: do not set manually
-    run_response: Optional[RunResponse] = None
     # Save the response to a file
     save_response_to_file: Optional[str] = None
 
@@ -212,15 +211,28 @@ class Agent(BaseModel):
     # This helps us improve the Agent and provide better support
     telemetry: bool = getenv("PHI_TELEMETRY", "true").lower() == "true"
 
+    # DO NOT SET THE FOLLOWING FIELDS MANUALLY
+    # -*- Agent run details
+    # Run ID: do not set manually
+    run_id: Optional[str] = None
+    # Input to the Agent run: do not set manually
+    run_input: Optional[Union[str, List, Dict]] = None
+    # Response from the Agent run: do not set manually
+    run_response: Optional[RunResponse] = None
+
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @field_validator("agent_id", mode="before")
     def set_agent_id(cls, v: Optional[str] = None) -> str:
-        return v or str(uuid4())
+        agent_id = v or str(uuid4())
+        logger.debug(f"*********** Agent ID: {agent_id} ***********")
+        return agent_id
 
     @field_validator("session_id", mode="before")
     def set_session_id(cls, v: Optional[str] = None) -> str:
-        return v or str(uuid4())
+        session_id = v or str(uuid4())
+        logger.debug(f"*********** Session ID: {session_id} ***********")
+        return session_id
 
     @field_validator("debug_mode", mode="before")
     def set_log_level(cls, v: bool) -> bool:
@@ -1150,6 +1162,150 @@ class Agent(BaseModel):
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 
+    def get_reasoning_agent(self, model: Optional[Model] = None) -> Agent:
+        return Agent(
+            model=model,
+            description="You are a meticulous and thoughtful reasoning agent tasked with solving complex problems using comprehensive, step-by-step solutions.",
+            instructions=[
+                "Carefully analyze the given input and develop a detailed, logical plan to address it.",
+                "Work through the problem step by step and provide:\n"
+                "  a. Title: Provide a clear, concise title that encapsulates the step's main focus or objective.\n"
+                "  b. Action: Specify the action that you will take. Talk in first person like I will ...\n"
+                "  c. Result: Execute the action by running a tool call or providing an answer. Summarize the outcome of executing the action.\n"
+                "  d. Reasoning: Explain the logic behind this step, including:\n"
+                "     - Detailed explanation of why this action is necessary\n"
+                "     - Key considerations and potential challenges\n"
+                "     - How it builds upon previous steps (if applicable)\n"
+                "     - Any assumptions made and their justifications\n"
+                "     Talk in first person.\n"
+                "  e. Next Action: Determine if further analysis is needed, if we should validate the provided result, or if the result is the final answer.\n"
+                "     - 'continue' if more steps are needed\n"
+                "     - 'validate' if the result of the action should be validated\n"
+                "     - 'final_answer' if the result of the action is a final answer",
+                "  f. Provide a confidence score (0.0 to 1.0) for each step, reflecting how certain you are about the action and its outcome.",
+                "Here's how you should handle the 'next_action' of the previous step:\n"
+                "  - If 'next_action' is 'continue', proceed to the next step in your analysis.\n"
+                "  - If 'next_action' is 'validate', validate the result of the action.\n"
+                "  - If 'next_action' is 'final_answer', provide the final answer and stop reasoning.",
+                "Ensure your analysis is:\n"
+                "  - Complete: Make sure you have validated the result of the action\n"
+                "  - Comprehensive: Consider multiple angles and potential outcomes\n"
+                "  - Logical: Each step should follow coherently from the previous ones\n"
+                "  - Tailored: Address the specific nuances and requirements of the given task\n"
+                "  - Actionable: Provide clear, implementable steps or solutions\n"
+                "  - Insightful: Offer unique perspectives or innovative approaches when appropriate\n",
+                "Use as many steps as needed to fully solve the problem.",
+                "Use as many tools as needed to fully solve the problem.",
+            ],
+            response_model=ReasoningStep,
+            structured_outputs=self.structured_outputs,
+        )
+
+    def reason(
+        self,
+        system_message: Optional[Message],
+        user_messages: List[Message],
+        messages_for_model: List[Message],
+        stream_intermediate_steps: bool = False,
+    ) -> Iterator[RunResponse]:
+        # Create the run_response object if it doesn't exist
+        if self.run_response is None:
+            self.run_response = RunResponse()
+
+        yield RunResponse(
+            run_id=self.run_id,
+            session_id=self.session_id,
+            agent_id=self.agent_id,
+            content="Reasoning started",
+            event=RunEvent.reasoning_started.value,
+        )
+
+        reasoning: Reasoning
+        if self.reasoning is not None and isinstance(self.reasoning, Reasoning):
+            reasoning = self.reasoning
+        else:
+            reasoning = Reasoning()
+
+        if reasoning.model is None and self.model is not None:
+            reasoning.model = self.model.deep_copy()
+        if reasoning.agent is None:
+            reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
+
+        logger.debug(f"Reasoning Agent: {reasoning.agent.agent_id} | {reasoning.agent.session_id}")
+        logger.debug("==== Starting Reasoning ====")
+
+        step_count = 0
+        while next_action := NextAction.CONTINUE:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            if step_count > reasoning.max_steps:
+                logger.warning(f"Reached maximum number of steps ({reasoning.max_steps})")
+                break
+            try:
+                reasoning_agent_response: RunResponse = reasoning.agent.run(messages=user_messages)  # type: ignore
+                reasoning_step: Optional[ReasoningStep] = reasoning_agent_response.content
+                if reasoning_step is not None:
+                    yield RunResponse(
+                        run_id=self.run_id,
+                        session_id=self.session_id,
+                        agent_id=self.agent_id,
+                        content=reasoning_step,
+                        content_type=reasoning_step.__class__.__name__,
+                        event=RunEvent.reasoning_step.value,
+                    )
+                    reasoning.steps.append(reasoning_step)
+
+                    # -*- Add reasoning steps to the run_response
+                    if self.run_response.extra_data is None:
+                        self.run_response.extra_data = RunResponseExtraData(reasoning=reasoning.steps)
+                    else:
+                        if self.run_response.extra_data.reasoning is None:
+                            self.run_response.extra_data.reasoning = reasoning.steps
+                        else:
+                            self.run_response.extra_data.reasoning.append(reasoning_step)
+
+                    next_action = (
+                        reasoning_step.next_action
+                        if reasoning_step.next_action is not None
+                        else NextAction.FINAL_ANSWER
+                    )
+                    if isinstance(next_action, str):
+                        try:
+                            next_action = NextAction(next_action)
+                        except ValueError:
+                            logger.warning(f"Reasoning error. Invalid next action: {next_action}")
+                            break
+                    if next_action is NextAction.FINAL_ANSWER:
+                        break
+                else:
+                    logger.warning("Reasoning error. Reasoning response is empty, stopping...")
+                    break
+            except Exception as e:
+                logger.error(f"Reasoning error: {e}")
+                break
+
+        logger.debug(f"Total Reasoning steps: {len(reasoning.steps)}")
+        logger.debug("==== Reasoning finished====")
+
+        # -*- Update the messages_for_model to include the reasoning
+        assistant_reasoning_message = Message(
+            role="assistant",
+            content="I worked through the problem independently and have included my reasoning steps below. You may "
+            "validate these steps or use them as additional context to help you solve the problem.",
+        )
+        messages_for_model.append(assistant_reasoning_message)
+        for step_count, _rs in enumerate(reasoning.steps, start=1):
+            step_content = f"Step {step_count}:\n{_rs.model_dump_json(indent=2)}"
+            messages_for_model.append(Message(role="assistant", content=step_content))
+
+        yield RunResponse(
+            run_id=self.run_id,
+            session_id=self.session_id,
+            agent_id=self.agent_id,
+            content="Reasoning completed",
+            event=RunEvent.reasoning_completed.value,
+        )
+
     def _aggregate_metrics_from_run_messages(self, messages: List[Message]) -> Dict[str, Any]:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
 
@@ -1202,6 +1358,21 @@ class Agent(BaseModel):
         system_message, user_messages, messages_for_model = self.get_messages_for_run(
             message=message, images=images, messages=messages, **kwargs
         )
+
+        # Reason about the task if reasoning is enabled
+        if self.reasoning:
+            reason_generator = self.reason(
+                system_message=system_message,
+                user_messages=user_messages,
+                messages_for_model=messages_for_model,
+                stream_intermediate_steps=stream_intermediate_steps,
+            )
+
+            if stream_agent_response:
+                yield from reason_generator
+            else:
+                # Consume the generator without yielding
+                deque(reason_generator, maxlen=0)
 
         # Get the number of messages in messages_for_model that form the input for this run
         # We track these to skip when updating memory
@@ -2147,6 +2318,7 @@ class Agent(BaseModel):
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
+        show_reasoning: bool = True,
         **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
@@ -2157,6 +2329,9 @@ class Agent(BaseModel):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
         from rich.json import JSON
+        from rich.panel import Panel
+        from rich.text import Text
+        from rich.console import Group
 
         if markdown:
             self.markdown = True
@@ -2168,14 +2343,18 @@ class Agent(BaseModel):
 
         if stream:
             _response_content: str = ""
+            reasoning_steps: List[ReasoningStep] = []
             with Live() as live_log:
-                status = Status("Working...", spinner="dots")
+                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
                 for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
-                        _response_content += resp.content
+                        if resp.event == RunEvent.run_response:
+                            _response_content += resp.content
+                        if resp.extra_data is not None and resp.extra_data.reasoning is not None:
+                            reasoning_steps = resp.extra_data.reasoning
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
                     table = Table(box=ROUNDED, border_style="blue", show_header=False)
@@ -2183,8 +2362,23 @@ class Agent(BaseModel):
                         table.show_header = True
                         table.add_column("Message")
                         table.add_column(get_text_from_message(message))
+                    if len(reasoning_steps) > 0 and show_reasoning:
+                        reasoning_panels: List[Panel] = []
+                        for step in reasoning_steps:
+                            step_content = Text.assemble(
+                                (f"{step.title}\n", "bold"),
+                                (step.action or "", "dim"),
+                            )
+                            panel = Panel(
+                                step_content, title=f"Reasoning step {len(reasoning_panels) + 1}", border_style="green"
+                            )
+                            reasoning_panels.append(panel)
+
+                        reasoning_group = Group(*reasoning_panels)
+                        table.add_row("", reasoning_group)
                     table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
-                    live_log.update(table)
+                    if len(reasoning_steps) > 0 or len(_response_content) > 1:
+                        live_log.update(table)
                 response_timer.stop()
         else:
             response_timer = Timer()
@@ -2192,7 +2386,7 @@ class Agent(BaseModel):
             with Progress(
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
-                progress.add_task("Working...")
+                progress.add_task("Thinking...")
                 run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
 
             response_timer.stop()
@@ -2231,6 +2425,7 @@ class Agent(BaseModel):
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
+        show_reasoning: bool = True,
         **kwargs: Any,
     ) -> None:
         from phi.cli.console import console
@@ -2253,11 +2448,11 @@ class Agent(BaseModel):
         if stream:
             _response_content = ""
             with Live() as live_log:
-                status = Status("Working...", spinner="dots")
+                status = Status("Thinking...", spinner="dots")
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore #TODO: Review this
+                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         _response_content += resp.content
                     response_content = Markdown(_response_content) if self.markdown else _response_content
@@ -2276,8 +2471,8 @@ class Agent(BaseModel):
             with Progress(
                 SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
             ) as progress:
-                progress.add_task("Working...")
-                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore #TODO: Review this
+                progress.add_task("Thinking...")
+                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
 
             response_timer.stop()
             response_content = ""

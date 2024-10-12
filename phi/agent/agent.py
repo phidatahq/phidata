@@ -2310,6 +2310,14 @@ class Agent(BaseModel):
     # Print Response
     ###########################################################################
 
+    def create_panel(self, content, title, border_style="blue"):
+        from rich.box import HEAVY
+        from rich.panel import Panel
+
+        return Panel(
+            content, title=title, title_align="left", border_style=border_style, box=HEAVY, expand=True, padding=(1, 1)
+        )
+
     def print_response(
         self,
         message: Optional[Union[List, Dict, str]] = None,
@@ -2329,7 +2337,6 @@ class Agent(BaseModel):
         from rich.box import ROUNDED
         from rich.markdown import Markdown
         from rich.json import JSON
-        from rich.panel import Panel
         from rich.text import Text
         from rich.console import Group
 
@@ -2349,6 +2356,7 @@ class Agent(BaseModel):
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
+                render = False
                 for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
@@ -2357,28 +2365,44 @@ class Agent(BaseModel):
                             reasoning_steps = resp.extra_data.reasoning
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
-                    table = Table(box=ROUNDED, border_style="blue", show_header=False)
+                    panels = []
+
                     if message and show_message:
-                        table.show_header = True
-                        table.add_column("Message")
-                        table.add_column(get_text_from_message(message))
+                        render = True
+                        # Convert message to a panel
+                        message_content = get_text_from_message(message)
+                        message_panel = self.create_panel(
+                            content=Text(message_content, style="green"),
+                            title="Message",
+                            border_style="cyan",
+                        )
+                        panels.append(message_panel)
+
                     if len(reasoning_steps) > 0 and show_reasoning:
-                        reasoning_panels: List[Panel] = []
-                        for step in reasoning_steps:
+                        render = True
+                        # Create panels for reasoning steps
+                        for i, step in enumerate(reasoning_steps, 1):
                             step_content = Text.assemble(
                                 (f"{step.title}\n", "bold"),
                                 (step.action or "", "dim"),
                             )
-                            panel = Panel(
-                                step_content, title=f"Reasoning step {len(reasoning_panels) + 1}", border_style="green"
+                            reasoning_panel = self.create_panel(
+                                content=step_content, title=f"Reasoning step {i}", border_style="green"
                             )
-                            reasoning_panels.append(panel)
+                            panels.append(reasoning_panel)
 
-                        reasoning_group = Group(*reasoning_panels)
-                        table.add_row("", reasoning_group)
-                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
-                    if len(reasoning_steps) > 0 or len(_response_content) > 1:
-                        live_log.update(table)
+                    if len(_response_content) > 0:
+                        render = True
+                        # Create panel for response
+                        response_panel = self.create_panel(
+                            content=response_content,
+                            title=f"Response ({response_timer.elapsed:.1f}s)",
+                            border_style="blue",
+                        )
+                        panels.append(response_panel)
+
+                    if render:
+                        live_log.update(Group(*panels))
                 response_timer.stop()
         else:
             response_timer = Timer()

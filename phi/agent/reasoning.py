@@ -33,8 +33,11 @@ class ReasoningStep(BaseModel):
     confidence: Optional[float] = Field(None, description="Confidence score for this step (0.0 to 1.0)")
 
 
+class ReasoningSteps(BaseModel):
+    reasoning_steps: List[ReasoningStep] = Field(..., description="A list of reasoning steps")
+
+
 class Reasoning(BaseModel):
     model: Optional[Model] = None
     agent: Optional[Agent] = None
-    steps: List[ReasoningStep] = Field(default_factory=list)
     max_steps: int = 10

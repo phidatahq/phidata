@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.agent.reasoning import ReasoningStep, NextAction, Reasoning
+from phi.agent.reasoning import ReasoningStep, ReasoningSteps, Reasoning, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
@@ -1165,10 +1165,10 @@ class Agent(BaseModel):
     def get_reasoning_agent(self, model: Optional[Model] = None) -> Agent:
         return Agent(
             model=model,
-            description="You are a meticulous and thoughtful reasoning agent tasked with solving complex problems using comprehensive, step-by-step solutions.",
+            description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
             instructions=[
-                "Carefully analyze the given input and develop a detailed, logical plan to address it.",
-                "Work through the problem step by step and provide:\n"
+                "Carefully analyze the given input and first develop a logical plan to address it.",
+                "Work through the plan one step at a time and provide:\n"
                 "  a. Title: Provide a clear, concise title that encapsulates the step's main focus or objective.\n"
                 "  b. Action: Specify the action that you will take. Talk in first person like I will ...\n"
                 "  c. Result: Execute the action by running a tool call or providing an answer. Summarize the outcome of executing the action.\n"
@@ -1194,23 +1194,24 @@ class Agent(BaseModel):
                 "  - Tailored: Address the specific nuances and requirements of the given task\n"
                 "  - Actionable: Provide clear, implementable steps or solutions\n"
                 "  - Insightful: Offer unique perspectives or innovative approaches when appropriate\n",
-                "Use as many steps as needed to fully solve the problem.",
-                "Use as many tools as needed to fully solve the problem.",
+                "Only execute one step at a time.",
+                "Use as many tools as you needed.",
+                "If you have all the information you need, provide a final answer.",
             ],
             tools=self.tools,
-            response_model=ReasoningStep,
+            response_model=ReasoningSteps,
             structured_outputs=self.structured_outputs,
         )
 
-    def _update_run_response_with_reasoning(self, reasoning_step: ReasoningStep):
+    def _update_run_response_with_reasoning(self, reasoning_steps: List[ReasoningStep]):
         self.run_response = cast(RunResponse, self.run_response)
         if self.run_response.extra_data is None:
-            self.run_response.extra_data = RunResponseExtraData(reasoning=[reasoning_step])
+            self.run_response.extra_data = RunResponseExtraData(reasoning=reasoning_steps)
         else:
             if self.run_response.extra_data.reasoning is None:
-                self.run_response.extra_data.reasoning = [reasoning_step]
+                self.run_response.extra_data.reasoning = reasoning_steps
             else:
-                self.run_response.extra_data.reasoning.append(reasoning_step)
+                self.run_response.extra_data.reasoning.extend(reasoning_steps)
 
     def _get_next_action(self, reasoning_step: ReasoningStep) -> NextAction:
         next_action = reasoning_step.next_action or NextAction.FINAL_ANSWER
@@ -1222,19 +1223,14 @@ class Agent(BaseModel):
                 return NextAction.FINAL_ANSWER
         return next_action
 
-    def _update_messages_with_reasoning(self, reasoning_steps: List[ReasoningStep], messages_for_model: List[Message]):
+    def _update_messages_with_reasoning(self, reasoning_messages: List[Message], messages_for_model: List[Message]):
         assistant_reasoning_message = Message(
             role="assistant",
-            content="I have alreayd through this problem in-depth and am including my step by step research."
-            "You may use this information as additional context to help you respond."
-            "If I ran a tool, you don't need to run it again.",
-            # content="I worked through the problem independently and have included my reasoning steps below. You may "
-            # "validate these steps or use them as additional context to help you solve the problem.",
+            content="I have worked through this problem in-depth and will include my step by step research below. "
+            "Next, I will provide my final answer from my reasoning.",
         )
         messages_for_model.append(assistant_reasoning_message)
-        for step_count, _rs in enumerate(reasoning_steps, start=1):
-            step_content = f"Step {step_count}:\n{_rs.model_dump_json(indent=2)}"
-            messages_for_model.append(Message(role="assistant", content=step_content))
+        messages_for_model.extend(reasoning_messages)
 
     def reason(
         self,
@@ -1258,6 +1254,8 @@ class Agent(BaseModel):
 
         # -*- Initialize reasoning
         reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
+        reasoning_messages: List[Message] = []
+        final_reasoning_steps: List[ReasoningStep] = []
         if reasoning.model is None and self.model is not None:
             reasoning_model_id = self.model.id
             reasoning.model = self.model.__class__(id=reasoning_model_id)
@@ -1275,37 +1273,48 @@ class Agent(BaseModel):
             try:
                 # -*- Run the reasoning agent
                 reasoning_agent_response: RunResponse = reasoning.agent.run(messages=user_messages)  # type: ignore
-                reasoning_step: Optional[ReasoningStep] = reasoning_agent_response.content
-                if reasoning_step is None:
+                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
                     logger.warning("Reasoning error. Reasoning response is empty, stopping...")
                     break
 
-                # -*- Yield the reasoning step event
-                yield RunResponse(
-                    run_id=self.run_id,
-                    session_id=self.session_id,
-                    agent_id=self.agent_id,
-                    content=reasoning_step,
-                    content_type=reasoning_step.__class__.__name__,
-                    event=RunEvent.reasoning_step.value,
+                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps  # type: ignore
+                final_reasoning_steps.extend(reasoning_steps)
+                # -*- Yield reasoning steps
+                for reasoning_step in reasoning_steps:
+                    yield RunResponse(
+                        run_id=self.run_id,
+                        session_id=self.session_id,
+                        agent_id=self.agent_id,
+                        content=reasoning_step,
+                        content_type=reasoning_step.__class__.__name__,
+                        event=RunEvent.reasoning_step.value,
+                    )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                    len(reasoning_agent_response.messages),
                 )
-                reasoning.steps.append(reasoning_step)
+                # Extract reasoning messages starting from the message after the first assistant message
+                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
 
                 # -*- Add reasoning step to the run_response
-                self._update_run_response_with_reasoning(reasoning_step=reasoning_step)
+                self._update_run_response_with_reasoning(reasoning_steps=reasoning_steps)
 
-                next_action = self._get_next_action(reasoning_step)
+                next_action = self._get_next_action(reasoning_steps[-1])
                 if next_action == NextAction.FINAL_ANSWER:
                     break
             except Exception as e:
                 logger.error(f"Reasoning error: {e}")
                 break
 
-        logger.debug(f"Total Reasoning steps: {len(reasoning.steps)}")
+        logger.debug(f"Total Reasoning steps: {len(reasoning_steps)}")
         logger.debug("==== Reasoning finished====")
 
-        # -*- Update the messages_for_model to include the reasoning
-        self._update_messages_with_reasoning(reasoning_steps=reasoning.steps, messages_for_model=messages_for_model)
+        # -*- Update the messages_for_model to include reasoning messages
+        self._update_messages_with_reasoning(
+            reasoning_messages=reasoning_messages, messages_for_model=messages_for_model
+        )
 
         # -*- Yield the final reasoning completed event
         yield RunResponse(
@@ -1338,6 +1347,8 @@ class Agent(BaseModel):
 
         # -*- Initialize reasoning
         reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
+        reasoning_messages: List[Message] = []
+        final_reasoning_steps: List[ReasoningStep] = []
         if reasoning.model is None and self.model is not None:
             reasoning.model = self.model.deep_copy()
         if reasoning.agent is None:
@@ -1354,37 +1365,48 @@ class Agent(BaseModel):
             try:
                 # -*- Run the reasoning agent
                 reasoning_agent_response: RunResponse = await reasoning.agent.arun(messages=user_messages)  # type: ignore
-                reasoning_step: Optional[ReasoningStep] = reasoning_agent_response.content
-                if reasoning_step is None:
+                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
                     logger.warning("Reasoning error. Reasoning response is empty, stopping...")
                     break
 
-                # -*- Yield the reasoning step event
-                yield RunResponse(
-                    run_id=self.run_id,
-                    session_id=self.session_id,
-                    agent_id=self.agent_id,
-                    content=reasoning_step,
-                    content_type=reasoning_step.__class__.__name__,
-                    event=RunEvent.reasoning_step.value,
+                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps  # type: ignore
+                final_reasoning_steps.extend(reasoning_steps)
+                # -*- Yield reasoning steps
+                for reasoning_step in reasoning_steps:
+                    yield RunResponse(
+                        run_id=self.run_id,
+                        session_id=self.session_id,
+                        agent_id=self.agent_id,
+                        content=reasoning_step,
+                        content_type=reasoning_step.__class__.__name__,
+                        event=RunEvent.reasoning_step.value,
+                    )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                    len(reasoning_agent_response.messages),
                 )
-                reasoning.steps.append(reasoning_step)
+                # Extract reasoning messages starting from the message after the first assistant message
+                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
 
                 # -*- Add reasoning step to the run_response
-                self._update_run_response_with_reasoning(reasoning_step=reasoning_step)
+                self._update_run_response_with_reasoning(reasoning_steps=reasoning_steps)
 
-                next_action = self._get_next_action(reasoning_step)
+                next_action = self._get_next_action(reasoning_steps[-1])
                 if next_action == NextAction.FINAL_ANSWER:
                     break
             except Exception as e:
                 logger.error(f"Reasoning error: {e}")
                 break
 
-        logger.debug(f"Total Reasoning steps: {len(reasoning.steps)}")
+        logger.debug(f"Total Reasoning steps: {len(reasoning_steps)}")
         logger.debug("==== Reasoning finished====")
 
-        # -*- Update the messages_for_model to include the reasoning
-        self._update_messages_with_reasoning(reasoning_steps=reasoning.steps, messages_for_model=messages_for_model)
+        # -*- Update the messages_for_model to include reasoning messages
+        self._update_messages_with_reasoning(
+            reasoning_messages=reasoning_messages, messages_for_model=messages_for_model
+        )
 
         # -*- Yield the final reasoning completed event
         yield RunResponse(

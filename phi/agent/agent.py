@@ -1308,7 +1308,7 @@ class Agent(BaseModel):
                 logger.error(f"Reasoning error: {e}")
                 break
 
-        logger.debug(f"Total Reasoning steps: {len(reasoning_steps)}")
+        logger.debug(f"Total Reasoning steps: {len(final_reasoning_steps)}")
         logger.debug("==== Reasoning finished====")
 
         # -*- Update the messages_for_model to include reasoning messages
@@ -1400,7 +1400,7 @@ class Agent(BaseModel):
                 logger.error(f"Reasoning error: {e}")
                 break
 
-        logger.debug(f"Total Reasoning steps: {len(reasoning_steps)}")
+        logger.debug(f"Total Reasoning steps: {len(final_reasoning_steps)}")
         logger.debug("==== Reasoning finished====")
 
         # -*- Update the messages_for_model to include reasoning messages

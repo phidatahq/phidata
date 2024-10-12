@@ -1168,9 +1168,9 @@ class Agent(BaseModel):
             description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
             instructions=[
                 "Carefully analyze the given input and first develop a logical plan to address it.",
-                "Work through the plan one step at a time and provide:\n"
-                "  a. Title: Provide a clear, concise title that encapsulates the step's main focus or objective.\n"
-                "  b. Action: Specify the action that you will take. Talk in first person like I will ...\n"
+                "Work through the plan step by step, executing any tools as needed. Then provide for each step:\n"
+                "  a. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
+                "  b. Action: The action that you will take. Talk in first person like I will ...\n"
                 "  c. Result: Execute the action by running a tool call or providing an answer. Summarize the outcome of executing the action.\n"
                 "  d. Reasoning: Explain the logic behind this step, including:\n"
                 "     - Detailed explanation of why this action is necessary\n"
@@ -1182,20 +1182,18 @@ class Agent(BaseModel):
                 "     - 'continue' if more steps are needed\n"
                 "     - 'validate' if the result of the action should be validated\n"
                 "     - 'final_answer' if the result of the action is a final answer",
-                "  f. Provide a confidence score (0.0 to 1.0) for each step, reflecting how certain you are about the action and its outcome.",
-                "Here's how you should handle the 'next_action' of the previous step:\n"
+                "  f. Confidence score (0.0 to 1.0) for each step: reflecting how certain you are about the action and its outcome.",
+                "Here's how you should handle the 'next_action':\n"
                 "  - If 'next_action' is 'continue', proceed to the next step in your analysis.\n"
                 "  - If 'next_action' is 'validate', validate the result of the action.\n"
                 "  - If 'next_action' is 'final_answer', provide the final answer and stop reasoning.",
                 "Ensure your analysis is:\n"
-                "  - Complete: Make sure you have validated the result of the action\n"
+                "  - Complete: Make sure you have validated the result of the action and run all necessary tools\n"
                 "  - Comprehensive: Consider multiple angles and potential outcomes\n"
                 "  - Logical: Each step should follow coherently from the previous ones\n"
-                "  - Tailored: Address the specific nuances and requirements of the given task\n"
                 "  - Actionable: Provide clear, implementable steps or solutions\n"
                 "  - Insightful: Offer unique perspectives or innovative approaches when appropriate\n",
-                "Only execute one step at a time.",
-                "Use as many tools as you needed.",
+                "Remember to run any tools you need to run to solve the problem.",
                 "If you have all the information you need, provide a final answer.",
             ],
             tools=self.tools,
@@ -1224,13 +1222,19 @@ class Agent(BaseModel):
         return next_action
 
     def _update_messages_with_reasoning(self, reasoning_messages: List[Message], messages_for_model: List[Message]):
-        assistant_reasoning_message = Message(
-            role="assistant",
-            content="I have worked through this problem in-depth and will include my step by step research below. "
-            "Next, I will provide my final answer from my reasoning.",
+        messages_for_model.append(
+            Message(
+                role="assistant",
+                content="I have worked through this problem in-depth, running all necessary tools and have included my raw, step by step research. ",
+            )
         )
-        messages_for_model.append(assistant_reasoning_message)
         messages_for_model.extend(reasoning_messages)
+        messages_for_model.append(
+            Message(
+                role="assistant",
+                content="Now I will summarize my reasoning and provide a final answer. I will skip any tool calls already executed and steps that are not relevant to the final answer.",
+            )
+        )
 
     def reason(
         self,
@@ -1738,14 +1742,15 @@ class Agent(BaseModel):
                     structured_output = None
                     try:
                         structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError:
+                    except ValidationError as exc:
+                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):
                             run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
                             except ValidationError as exc:
-                                logger.warning(f"Failed to validate response: {exc}")
+                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
 
                     # -*- Update Agent response
                     if structured_output is not None:
@@ -2070,14 +2075,15 @@ class Agent(BaseModel):
                     structured_output = None
                     try:
                         structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError:
+                    except ValidationError as exc:
+                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):
                             run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
                             except ValidationError as exc:
-                                logger.warning(f"Failed to validate response: {exc}")
+                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
 
                     # -*- Update Agent response
                     if structured_output is not None:

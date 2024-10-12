@@ -1197,6 +1197,7 @@ class Agent(BaseModel):
                 "If you have all the information you need, provide a final answer.",
             ],
             tools=self.tools,
+            show_tool_calls=False,
             response_model=ReasoningSteps,
             structured_outputs=self.structured_outputs,
         )
@@ -1262,7 +1263,7 @@ class Agent(BaseModel):
         final_reasoning_steps: List[ReasoningStep] = []
         if reasoning.model is None and self.model is not None:
             reasoning_model_id = self.model.id
-            reasoning.model = self.model.__class__(id=reasoning_model_id)
+            reasoning.model = self.model.__class__(id=reasoning_model_id, show_tool_calls=False)
         if reasoning.agent is None:
             reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
 

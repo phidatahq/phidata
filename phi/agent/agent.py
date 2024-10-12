@@ -1225,8 +1225,11 @@ class Agent(BaseModel):
     def _update_messages_with_reasoning(self, reasoning_steps: List[ReasoningStep], messages_for_model: List[Message]):
         assistant_reasoning_message = Message(
             role="assistant",
-            content="I worked through the problem independently and have included my reasoning steps below. You may "
-            "validate these steps or use them as additional context to help you solve the problem.",
+            content="I have alreayd through this problem in-depth and am including my step by step research."
+            "You may use this information as additional context to help you respond."
+            "If I ran a tool, you don't need to run it again.",
+            # content="I worked through the problem independently and have included my reasoning steps below. You may "
+            # "validate these steps or use them as additional context to help you solve the problem.",
         )
         messages_for_model.append(assistant_reasoning_message)
         for step_count, _rs in enumerate(reasoning_steps, start=1):

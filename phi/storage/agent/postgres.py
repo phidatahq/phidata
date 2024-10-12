@@ -1,5 +1,3 @@
-import time
-from datetime import datetime
 from typing import Optional, Any, List
 
 try:
@@ -280,7 +278,7 @@ class PgAgentStorage(AgentStorage):
                         agent_data=session.agent_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
-                        updated_at=func.extract('epoch', func.now()).cast(BigInteger)
+                        updated_at=func.extract("epoch", func.now()).cast(BigInteger),
                     ),  # The updated value for each column
                 )
 

@@ -1201,6 +1201,37 @@ class Agent(BaseModel):
             structured_outputs=self.structured_outputs,
         )
 
+    def _update_run_response_with_reasoning(self, reasoning_step: ReasoningStep):
+        self.run_response = cast(RunResponse, self.run_response)
+        if self.run_response.extra_data is None:
+            self.run_response.extra_data = RunResponseExtraData(reasoning=[reasoning_step])
+        else:
+            if self.run_response.extra_data.reasoning is None:
+                self.run_response.extra_data.reasoning = [reasoning_step]
+            else:
+                self.run_response.extra_data.reasoning.append(reasoning_step)
+
+    def _get_next_action(self, reasoning_step: ReasoningStep) -> NextAction:
+        next_action = reasoning_step.next_action or NextAction.FINAL_ANSWER
+        if isinstance(next_action, str):
+            try:
+                return NextAction(next_action)
+            except ValueError:
+                logger.warning(f"Reasoning error. Invalid next action: {next_action}")
+                return NextAction.FINAL_ANSWER
+        return next_action
+
+    def _update_messages_with_reasoning(self, reasoning_steps: List[ReasoningStep], messages_for_model: List[Message]):
+        assistant_reasoning_message = Message(
+            role="assistant",
+            content="I worked through the problem independently and have included my reasoning steps below. You may "
+            "validate these steps or use them as additional context to help you solve the problem.",
+        )
+        messages_for_model.append(assistant_reasoning_message)
+        for step_count, _rs in enumerate(reasoning_steps, start=1):
+            step_content = f"Step {step_count}:\n{_rs.model_dump_json(indent=2)}"
+            messages_for_model.append(Message(role="assistant", content=step_content))
+
     def reason(
         self,
         system_message: Optional[Message],
@@ -1212,6 +1243,7 @@ class Agent(BaseModel):
         if self.run_response is None:
             self.run_response = RunResponse()
 
+        # -*- Yield the reasoning started event
         yield RunResponse(
             run_id=self.run_id,
             session_id=self.session_id,
@@ -1220,12 +1252,8 @@ class Agent(BaseModel):
             event=RunEvent.reasoning_started.value,
         )
 
-        reasoning: Reasoning
-        if self.reasoning is not None and isinstance(self.reasoning, Reasoning):
-            reasoning = self.reasoning
-        else:
-            reasoning = Reasoning()
-
+        # -*- Initialize reasoning
+        reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
         if reasoning.model is None and self.model is not None:
             reasoning.model = self.model.deep_copy()
         if reasoning.agent is None:
@@ -1235,50 +1263,34 @@ class Agent(BaseModel):
         logger.debug("==== Starting Reasoning ====")
 
         step_count = 0
-        while next_action := NextAction.CONTINUE:
+        next_action = NextAction.CONTINUE
+        while next_action == NextAction.CONTINUE and step_count < reasoning.max_steps:
             step_count += 1
             logger.debug(f"==== Step {step_count} ====")
-            if step_count > reasoning.max_steps:
-                logger.warning(f"Reached maximum number of steps ({reasoning.max_steps})")
-                break
             try:
+                # -*- Run the reasoning agent
                 reasoning_agent_response: RunResponse = reasoning.agent.run(messages=user_messages)  # type: ignore
                 reasoning_step: Optional[ReasoningStep] = reasoning_agent_response.content
-                if reasoning_step is not None:
-                    yield RunResponse(
-                        run_id=self.run_id,
-                        session_id=self.session_id,
-                        agent_id=self.agent_id,
-                        content=reasoning_step,
-                        content_type=reasoning_step.__class__.__name__,
-                        event=RunEvent.reasoning_step.value,
-                    )
-                    reasoning.steps.append(reasoning_step)
-
-                    # -*- Add reasoning steps to the run_response
-                    if self.run_response.extra_data is None:
-                        self.run_response.extra_data = RunResponseExtraData(reasoning=reasoning.steps)
-                    else:
-                        if self.run_response.extra_data.reasoning is None:
-                            self.run_response.extra_data.reasoning = reasoning.steps
-                        else:
-                            self.run_response.extra_data.reasoning.append(reasoning_step)
-
-                    next_action = (
-                        reasoning_step.next_action
-                        if reasoning_step.next_action is not None
-                        else NextAction.FINAL_ANSWER
-                    )
-                    if isinstance(next_action, str):
-                        try:
-                            next_action = NextAction(next_action)
-                        except ValueError:
-                            logger.warning(f"Reasoning error. Invalid next action: {next_action}")
-                            break
-                    if next_action is NextAction.FINAL_ANSWER:
-                        break
-                else:
+                if reasoning_step is None:
                     logger.warning("Reasoning error. Reasoning response is empty, stopping...")
+                    break
+
+                # -*- Yield the reasoning step event
+                yield RunResponse(
+                    run_id=self.run_id,
+                    session_id=self.session_id,
+                    agent_id=self.agent_id,
+                    content=reasoning_step,
+                    content_type=reasoning_step.__class__.__name__,
+                    event=RunEvent.reasoning_step.value,
+                )
+                reasoning.steps.append(reasoning_step)
+
+                # -*- Add reasoning step to the run_response
+                self._update_run_response_with_reasoning(reasoning_step=reasoning_step)
+
+                next_action = self._get_next_action(reasoning_step)
+                if next_action == NextAction.FINAL_ANSWER:
                     break
             except Exception as e:
                 logger.error(f"Reasoning error: {e}")
@@ -1288,16 +1300,88 @@ class Agent(BaseModel):
         logger.debug("==== Reasoning finished====")
 
         # -*- Update the messages_for_model to include the reasoning
-        assistant_reasoning_message = Message(
-            role="assistant",
-            content="I worked through the problem independently and have included my reasoning steps below. You may "
-            "validate these steps or use them as additional context to help you solve the problem.",
-        )
-        messages_for_model.append(assistant_reasoning_message)
-        for step_count, _rs in enumerate(reasoning.steps, start=1):
-            step_content = f"Step {step_count}:\n{_rs.model_dump_json(indent=2)}"
-            messages_for_model.append(Message(role="assistant", content=step_content))
+        self._update_messages_with_reasoning(reasoning_steps=reasoning.steps, messages_for_model=messages_for_model)
 
+        # -*- Yield the final reasoning completed event
+        yield RunResponse(
+            run_id=self.run_id,
+            session_id=self.session_id,
+            agent_id=self.agent_id,
+            content="Reasoning completed",
+            event=RunEvent.reasoning_completed.value,
+        )
+
+    async def areason(
+        self,
+        system_message: Optional[Message],
+        user_messages: List[Message],
+        messages_for_model: List[Message],
+        stream_intermediate_steps: bool = False,
+    ) -> AsyncIterator[RunResponse]:
+        # Create the run_response object if it doesn't exist
+        if self.run_response is None:
+            self.run_response = RunResponse()
+
+        # -*- Yield the reasoning started event
+        yield RunResponse(
+            run_id=self.run_id,
+            session_id=self.session_id,
+            agent_id=self.agent_id,
+            content="Reasoning started",
+            event=RunEvent.reasoning_started.value,
+        )
+
+        # -*- Initialize reasoning
+        reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
+        if reasoning.model is None and self.model is not None:
+            reasoning.model = self.model.deep_copy()
+        if reasoning.agent is None:
+            reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
+
+        logger.debug(f"Reasoning Agent: {reasoning.agent.agent_id} | {reasoning.agent.session_id}")
+        logger.debug("==== Starting Reasoning ====")
+
+        step_count = 0
+        next_action = NextAction.CONTINUE
+        while next_action == NextAction.CONTINUE and step_count < reasoning.max_steps:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            try:
+                # -*- Run the reasoning agent
+                reasoning_agent_response: RunResponse = await reasoning.agent.arun(messages=user_messages)  # type: ignore
+                reasoning_step: Optional[ReasoningStep] = reasoning_agent_response.content
+                if reasoning_step is None:
+                    logger.warning("Reasoning error. Reasoning response is empty, stopping...")
+                    break
+
+                # -*- Yield the reasoning step event
+                yield RunResponse(
+                    run_id=self.run_id,
+                    session_id=self.session_id,
+                    agent_id=self.agent_id,
+                    content=reasoning_step,
+                    content_type=reasoning_step.__class__.__name__,
+                    event=RunEvent.reasoning_step.value,
+                )
+                reasoning.steps.append(reasoning_step)
+
+                # -*- Add reasoning step to the run_response
+                self._update_run_response_with_reasoning(reasoning_step=reasoning_step)
+
+                next_action = self._get_next_action(reasoning_step)
+                if next_action == NextAction.FINAL_ANSWER:
+                    break
+            except Exception as e:
+                logger.error(f"Reasoning error: {e}")
+                break
+
+        logger.debug(f"Total Reasoning steps: {len(reasoning.steps)}")
+        logger.debug("==== Reasoning finished====")
+
+        # -*- Update the messages_for_model to include the reasoning
+        self._update_messages_with_reasoning(reasoning_steps=reasoning.steps, messages_for_model=messages_for_model)
+
+        # -*- Yield the final reasoning completed event
         yield RunResponse(
             run_id=self.run_id,
             session_id=self.session_id,
@@ -1332,10 +1416,12 @@ class Agent(BaseModel):
         1. Update the Model (set defaults, add tools, etc.)
         2. Read existing session from storage
         3. Prepare messages for this run
-        4. Generate a response from the Model (includes running function calls)
-        5. Update Memory
-        6. Save session to storage
-        7. Save output to file if save_output_to_file is set
+        4. Reason about the task if reasoning is enabled
+        5. Generate a response from the Model (includes running function calls)
+        6. Update Memory
+        7. Save session to storage
+        8. Save output to file if save_output_to_file is set
+        9. Set the run_input
         """
         # Check if streaming is enabled
         stream_agent_response = stream and self.streamable
@@ -1359,7 +1445,7 @@ class Agent(BaseModel):
             message=message, images=images, messages=messages, **kwargs
         )
 
-        # Reason about the task if reasoning is enabled
+        # 4. Reason about the task if reasoning is enabled
         if self.reasoning:
             reason_generator = self.reason(
                 system_message=system_message,
@@ -1391,7 +1477,7 @@ class Agent(BaseModel):
                 event=RunEvent.run_started.value,
             )
 
-        # 4. Generate a response from the Model (includes running function calls)
+        # 5. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if stream_agent_response:
@@ -1466,7 +1552,7 @@ class Agent(BaseModel):
         if stream_agent_response:
             self.run_response.content = model_response.content
 
-        # 5. Update Memory
+        # 6. Update Memory
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
@@ -1527,13 +1613,13 @@ class Agent(BaseModel):
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             self.memory.update_summary()
 
-        # 6. Save session to storage
+        # 7. Save session to storage
         self.write_to_storage()
 
-        # 7. Save output to file if save_response_to_file is set
+        # 8. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
-        # Set the run_input
+        # 9. Set the run_input
         if message is not None:
             if isinstance(message, str):
                 self.run_input = message
@@ -1686,10 +1772,11 @@ class Agent(BaseModel):
         1. Update the Model (set defaults, add tools, etc.)
         2. Read existing session from storage
         3. Prepare messages for this run
-        4. Generate a response from the Model (includes running function calls)
-        5. Update Memory
-        6. Save session to storage
-        7. Save output to file if save_output_to_file is set
+        4. Reason about the task if reasoning is enabled
+        5. Generate a response from the Model (includes running function calls)
+        6. Update Memory
+        7. Save session to storage
+        8. Save output to file if save_output_to_file is set
         """
         # Check if streaming is enabled
         stream_agent_response = stream and self.streamable
@@ -1713,6 +1800,23 @@ class Agent(BaseModel):
             message=message, images=images, messages=messages, **kwargs
         )
 
+        # 4. Reason about the task if reasoning is enabled
+        if self.reasoning:
+            areason_generator = self.areason(
+                system_message=system_message,
+                user_messages=user_messages,
+                messages_for_model=messages_for_model,
+                stream_intermediate_steps=stream_intermediate_steps,
+            )
+
+            if stream_agent_response:
+                async for item in areason_generator:
+                    yield item
+            else:
+                # Consume the generator without yielding
+                async for _ in areason_generator:
+                    pass
+
         # Get the number of messages in messages_for_model that form the input for this run
         # We track these to skip when updating memory
         num_input_messages = len(messages_for_model)
@@ -1730,7 +1834,7 @@ class Agent(BaseModel):
                 event=RunEvent.run_started.value,
             )
 
-        # 4. Generate a response from the Model (includes running function calls)
+        # 5. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if stream and self.streamable:
@@ -1806,7 +1910,7 @@ class Agent(BaseModel):
         if stream_agent_response:
             self.run_response.content = model_response.content
 
-        # 5. Update Memory
+        # 6. Update Memory
         if stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
@@ -1867,13 +1971,13 @@ class Agent(BaseModel):
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             self.memory.update_summary()
 
-        # 6. Save session to storage
+        # 7. Save session to storage
         self.write_to_storage()
 
-        # 7. Save output to file if save_response_to_file is set
+        # 8. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
-        # Set the run_input
+        # 9. Set the run_input
         if message is not None:
             if isinstance(message, str):
                 self.run_input = message
@@ -2329,12 +2433,8 @@ class Agent(BaseModel):
         show_reasoning: bool = True,
         **kwargs: Any,
     ) -> None:
-        from phi.cli.console import console
         from rich.live import Live
-        from rich.table import Table
         from rich.status import Status
-        from rich.progress import Progress, SpinnerColumn, TextColumn
-        from rich.box import ROUNDED
         from rich.markdown import Markdown
         from rich.json import JSON
         from rich.text import Text
@@ -2408,41 +2508,75 @@ class Agent(BaseModel):
                 panels = [p for p in panels if not isinstance(p, Status)]
                 live_log.update(Group(*panels))
         else:
-            response_timer = Timer()
-            response_timer.start()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-            ) as progress:
-                progress.add_task("Thinking...")
+            with Live() as live_log:
+                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                response_timer = Timer()
+                response_timer.start()
+                live_log.update(status)
+
                 run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
+                response_timer.stop()
 
-            response_timer.stop()
-            response_content = ""
-            if isinstance(run_response, RunResponse):
-                if isinstance(run_response.content, str):
-                    response_content = (
-                        Markdown(run_response.content)
-                        if self.markdown
-                        else run_response.get_content_as_string(indent=4)
+                panels = []
+
+                if message and show_message:
+                    # Convert message to a panel
+                    message_content = get_text_from_message(message)
+                    message_panel = self.create_panel(
+                        content=Text(message_content, style="green"),
+                        title="Message",
+                        border_style="cyan",
                     )
-                elif self.response_model is not None and isinstance(run_response.content, BaseModel):
-                    try:
-                        response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
-                    except Exception as e:
-                        logger.warning(f"Failed to convert response to Markdown: {e}")
-                else:
-                    try:
-                        response_content = JSON(json.dumps(run_response.content), indent=4)
-                    except Exception as e:
-                        logger.warning(f"Failed to convert response to string: {e}")
+                    panels.append(message_panel)
 
-            table = Table(box=ROUNDED, border_style="blue", show_header=False)
-            if message and show_message:
-                table.show_header = True
-                table.add_column("Message")
-                table.add_column(get_text_from_message(message))
-            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
-            console.print(table)
+                reasoning_steps = []
+                if (
+                    isinstance(run_response, RunResponse)
+                    and run_response.extra_data is not None
+                    and run_response.extra_data.reasoning is not None
+                ):
+                    reasoning_steps = run_response.extra_data.reasoning
+
+                if len(reasoning_steps) > 0 and show_reasoning:
+                    # Create panels for reasoning steps
+                    for i, step in enumerate(reasoning_steps, 1):
+                        step_content = Text.assemble(
+                            (f"{step.title}\n", "bold"),
+                            (step.action or "", "dim"),
+                        )
+                        reasoning_panel = self.create_panel(
+                            content=step_content, title=f"Reasoning step {i}", border_style="green"
+                        )
+                        panels.append(reasoning_panel)
+
+                response_content = ""
+                if isinstance(run_response, RunResponse):
+                    if isinstance(run_response.content, str):
+                        response_content = (
+                            Markdown(run_response.content)
+                            if self.markdown
+                            else run_response.get_content_as_string(indent=4)
+                        )
+                    elif self.response_model is not None and isinstance(run_response.content, BaseModel):
+                        try:
+                            response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                        except Exception as e:
+                            logger.warning(f"Failed to convert response to JSON: {e}")
+                    else:
+                        try:
+                            response_content = JSON(json.dumps(run_response.content), indent=4)
+                        except Exception as e:
+                            logger.warning(f"Failed to convert response to JSON: {e}")
+
+                # Create panel for response
+                response_panel = self.create_panel(
+                    content=response_content,
+                    title=f"Response ({response_timer.elapsed:.1f}s)",
+                    border_style="blue",
+                )
+                panels.append(response_panel)
+
+                live_log.update(Group(*panels))
 
     async def aprint_response(
         self,
@@ -2455,14 +2589,12 @@ class Agent(BaseModel):
         show_reasoning: bool = True,
         **kwargs: Any,
     ) -> None:
-        from phi.cli.console import console
         from rich.live import Live
-        from rich.table import Table
         from rich.status import Status
-        from rich.progress import Progress, SpinnerColumn, TextColumn
-        from rich.box import ROUNDED
         from rich.markdown import Markdown
         from rich.json import JSON
+        from rich.text import Text
+        from rich.console import Group
 
         if markdown:
             self.markdown = True
@@ -2473,61 +2605,134 @@ class Agent(BaseModel):
             stream = False
 
         if stream:
-            _response_content = ""
+            _response_content: str = ""
+            reasoning_steps: List[ReasoningStep] = []
             with Live() as live_log:
-                status = Status("Thinking...", spinner="dots")
-                live_log.update(status)
+                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 response_timer = Timer()
                 response_timer.start()
-                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):  # type: ignore
+                render = False
+                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
-                        _response_content += resp.content
+                        if resp.event == RunEvent.run_response:
+                            _response_content += resp.content
+                        if resp.extra_data is not None and resp.extra_data.reasoning is not None:
+                            reasoning_steps = resp.extra_data.reasoning
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
-                    table = Table(box=ROUNDED, border_style="blue", show_header=False)
+                    panels = [status]
+
                     if message and show_message:
-                        table.show_header = True
-                        table.add_column("Message")
-                        table.add_column(get_text_from_message(message))
-                    table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
-                    live_log.update(table)
+                        render = True
+                        # Convert message to a panel
+                        message_content = get_text_from_message(message)
+                        message_panel = self.create_panel(
+                            content=Text(message_content, style="green"),
+                            title="Message",
+                            border_style="cyan",
+                        )
+                        panels.append(message_panel)
+
+                    if len(reasoning_steps) > 0 and show_reasoning:
+                        render = True
+                        # Create panels for reasoning steps
+                        for i, step in enumerate(reasoning_steps, 1):
+                            step_content = Text.assemble(
+                                (f"{step.title}\n", "bold"),
+                                (step.action or "", "dim"),
+                            )
+                            reasoning_panel = self.create_panel(
+                                content=step_content, title=f"Reasoning step {i}", border_style="green"
+                            )
+                            panels.append(reasoning_panel)
+
+                    if len(_response_content) > 0:
+                        render = True
+                        # Create panel for response
+                        response_panel = self.create_panel(
+                            content=response_content,
+                            title=f"Response ({response_timer.elapsed:.1f}s)",
+                            border_style="blue",
+                        )
+                        panels.append(response_panel)
+
+                    if render:
+                        live_log.update(Group(*panels))
                 response_timer.stop()
+
+                # Final update to remove the "Thinking..." status
+                panels = [p for p in panels if not isinstance(p, Status)]
+                live_log.update(Group(*panels))
         else:
-            response_timer = Timer()
-            response_timer.start()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True
-            ) as progress:
-                progress.add_task("Thinking...")
-                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)  # type: ignore
+            with Live() as live_log:
+                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                response_timer = Timer()
+                response_timer.start()
+                live_log.update(status)
 
-            response_timer.stop()
-            response_content = ""
-            if isinstance(run_response, RunResponse):
-                if isinstance(run_response.content, str):
-                    response_content = (
-                        Markdown(run_response.content)
-                        if self.markdown
-                        else run_response.get_content_as_string(indent=4)
+                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)
+                response_timer.stop()
+
+                panels = []
+
+                if message and show_message:
+                    # Convert message to a panel
+                    message_content = get_text_from_message(message)
+                    message_panel = self.create_panel(
+                        content=Text(message_content, style="green"),
+                        title="Message",
+                        border_style="cyan",
                     )
-                elif self.response_model is not None and isinstance(run_response.content, BaseModel):
-                    try:
-                        response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
-                    except Exception as e:
-                        logger.warning(f"Failed to convert response to Markdown: {e}")
-                else:
-                    try:
-                        response_content = JSON(json.dumps(run_response.content), indent=4)
-                    except Exception as e:
-                        logger.warning(f"Failed to convert response to string: {e}")
+                    panels.append(message_panel)
 
-            table = Table(box=ROUNDED, border_style="blue", show_header=False)
-            if message and show_message:
-                table.show_header = True
-                table.add_column("Message")
-                table.add_column(get_text_from_message(message))
-            table.add_row(f"Response\n({response_timer.elapsed:.1f}s)", response_content)  # type: ignore
-            console.print(table)
+                reasoning_steps = []
+                if (
+                    isinstance(run_response, RunResponse)
+                    and run_response.extra_data is not None
+                    and run_response.extra_data.reasoning is not None
+                ):
+                    reasoning_steps = run_response.extra_data.reasoning
+
+                if len(reasoning_steps) > 0 and show_reasoning:
+                    # Create panels for reasoning steps
+                    for i, step in enumerate(reasoning_steps, 1):
+                        step_content = Text.assemble(
+                            (f"{step.title}\n", "bold"),
+                            (step.action or "", "dim"),
+                        )
+                        reasoning_panel = self.create_panel(
+                            content=step_content, title=f"Reasoning step {i}", border_style="green"
+                        )
+                        panels.append(reasoning_panel)
+
+                response_content = ""
+                if isinstance(run_response, RunResponse):
+                    if isinstance(run_response.content, str):
+                        response_content = (
+                            Markdown(run_response.content)
+                            if self.markdown
+                            else run_response.get_content_as_string(indent=4)
+                        )
+                    elif self.response_model is not None and isinstance(run_response.content, BaseModel):
+                        try:
+                            response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                        except Exception as e:
+                            logger.warning(f"Failed to convert response to JSON: {e}")
+                    else:
+                        try:
+                            response_content = JSON(json.dumps(run_response.content), indent=4)
+                        except Exception as e:
+                            logger.warning(f"Failed to convert response to JSON: {e}")
+
+                # Create panel for response
+                response_panel = self.create_panel(
+                    content=response_content,
+                    title=f"Response ({response_timer.elapsed:.1f}s)",
+                    border_style="blue",
+                )
+                panels.append(response_panel)
+
+                live_log.update(Group(*panels))
 
     def cli_app(
         self,

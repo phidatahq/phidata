@@ -1263,9 +1263,12 @@ class Agent(BaseModel):
         final_reasoning_steps: List[ReasoningStep] = []
         if reasoning.model is None and self.model is not None:
             reasoning_model_id = self.model.id
-            reasoning.model = self.model.__class__(id=reasoning_model_id, show_tool_calls=False)
+            reasoning.model = self.model.__class__(id=reasoning_model_id)
         if reasoning.agent is None:
             reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
+
+        reasoning.agent.show_tool_calls = False
+        reasoning.model.show_tool_calls = False  # type: ignore
 
         logger.debug(f"Reasoning Agent: {reasoning.agent.agent_id} | {reasoning.agent.session_id}")
         logger.debug("==== Starting Reasoning ====")
@@ -1355,9 +1358,13 @@ class Agent(BaseModel):
         reasoning_messages: List[Message] = []
         final_reasoning_steps: List[ReasoningStep] = []
         if reasoning.model is None and self.model is not None:
-            reasoning.model = self.model.deep_copy()
+            reasoning_model_id = self.model.id
+            reasoning.model = self.model.__class__(id=reasoning_model_id)
         if reasoning.agent is None:
             reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
+
+        reasoning.agent.show_tool_calls = False
+        reasoning.model.show_tool_calls = False  # type: ignore
 
         logger.debug(f"Reasoning Agent: {reasoning.agent.agent_id} | {reasoning.agent.session_id}")
         logger.debug("==== Starting Reasoning ====")

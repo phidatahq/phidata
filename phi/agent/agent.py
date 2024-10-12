@@ -1197,6 +1197,7 @@ class Agent(BaseModel):
                 "Use as many steps as needed to fully solve the problem.",
                 "Use as many tools as needed to fully solve the problem.",
             ],
+            tools=self.tools,
             response_model=ReasoningStep,
             structured_outputs=self.structured_outputs,
         )
@@ -1255,7 +1256,8 @@ class Agent(BaseModel):
         # -*- Initialize reasoning
         reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
         if reasoning.model is None and self.model is not None:
-            reasoning.model = self.model.deep_copy()
+            reasoning_model_id = self.model.id
+            reasoning.model = self.model.__class__(id=reasoning_model_id)
         if reasoning.agent is None:
             reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
 

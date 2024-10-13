@@ -1,22 +1,43 @@
+"""Please install dependencies using:
+pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata
+"""
+
 from phi.agent import Agent
 from phi.tools.hackernews import HackerNews
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.newspaper4k import Newspaper4k
 
 
-story_researcher = Agent(
-    name="HackerNews Story Researcher",
-    role="Researches hackernews stories and users.",
+hn_researcher = Agent(
+    name="HackerNews Researcher",
+    role="Gets top stories from hackernews.",
     tools=[HackerNews()],
 )
-user_researcher = Agent(
-    name="HackerNews User Researcher",
+
+web_searcher = Agent(
+    name="Web Searcher",
+    role="Searches the web for information on a topic",
+    tools=[DuckDuckGo()],
+    add_datetime_to_instructions=True,
+)
+
+article_reader = Agent(
+    name="Article Reader",
     role="Reads articles from URLs.",
-    tools=[HackerNews()],
+    tools=[Newspaper4k()],
 )
 
-hn_leader = Agent(
+hn_team = Agent(
     name="Hackernews Team",
-    team=[story_researcher, user_researcher],
+    team=[hn_researcher, web_searcher, article_reader],
+    instructions=[
+        "First, search hackernews for what the user is asking about.",
+        "Next, ask the article reader to read the links for the stories to get more information.",
+        "Important: you must provide the article reader with the links to read.",
+        "Then, ask the web searcher to search for each story to get more information.",
+        "Finally, provide a thoughtful and engaging summary.",
+    ],
+    show_tool_calls=True,
     markdown=True,
-    debug_mode=True,
 )
-hn_leader.print_response("Write a report about the users with the top 2 stories on hackernews", stream=True)
+hn_team.print_response("Write an article about the top 2 stories on hackernews", stream=True)

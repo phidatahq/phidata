@@ -622,5 +622,5 @@ class Claude(Model):
             return tool_call_prompt
         return None
 
-    def get_system_prompt_from_model(self) -> Optional[str]:
+    def get_system_message_from_model(self) -> Optional[str]:
         return self.get_tool_call_prompt()

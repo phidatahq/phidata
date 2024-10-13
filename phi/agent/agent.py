@@ -321,7 +321,9 @@ class Agent(BaseModel):
         return self.team is not None and len(self.team) > 0
 
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
-        def _transfer_task_to_agent(task_description: str, expected_output: str) -> str:
+        def _transfer_task_to_agent(
+            task_description: str, expected_output: str, extra_data: Optional[str] = None
+        ) -> str:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
             if member_agent.session_data is None:
                 member_agent.session_data = {}
@@ -330,7 +332,7 @@ class Agent(BaseModel):
             member_agent.session_data["leader_run_id"] = self.run_id
 
             # -*- Run the agent
-            member_agent_messages = f"Your task is: {task_description}\nThe expected output is: {expected_output}"
+            member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}\n\nAdditional information: {extra_data}"
             member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
             # update the leader agent session_data to include member_session_id, member_agent_id
             member_agent_info = {
@@ -372,6 +374,7 @@ class Agent(BaseModel):
         Args:
             task_description (str): A clear and concise description of the task the agent should achieve.
             expected_output (str): The expected output from the agent.
+            extra_data (Optional[str]): Extra information to pass to the agent.
         Returns:
             str: The result of the delegated task.
         """)
@@ -379,7 +382,7 @@ class Agent(BaseModel):
 
     def get_transfer_prompt(self) -> str:
         if self.team and len(self.team) > 0:
-            transfer_prompt = "## Agents in team:"
+            transfer_prompt = "## Agents in your team:"
             transfer_prompt += "\nYou can transfer tasks to the following agents:"
             for agent_index, agent in enumerate(self.team):
                 transfer_prompt += f"\nAgent {agent_index + 1}:\n"
@@ -836,14 +839,15 @@ class Agent(BaseModel):
         if self.task is not None:
             system_message_lines.append(f"Your task is: {self.task}\n")
         # 5.3 Then add the prompt specifically from the Model
-        system_prompt_from_model = self.model.get_system_prompt_from_model()
-        if system_prompt_from_model is not None:
-            system_message_lines.append(system_prompt_from_model)
+        system_message_from_model = self.model.get_system_message_from_model()
+        if system_message_from_model is not None:
+            system_message_lines.append(system_message_from_model)
         # 5.4 Then add instructions to the system prompt
         if len(instructions) > 0:
             system_message_lines.append("## Instructions\n")
             for instruction in instructions:
                 system_message_lines.append(f"- {instruction}")
+            system_message_lines.append("")
         # 5.5 The add the expected output to the system prompt
         if self.expected_output is not None:
             system_message_lines.append(f"The expected output is: {self.expected_output}\n")

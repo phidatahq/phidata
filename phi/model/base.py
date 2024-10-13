@@ -229,7 +229,7 @@ class Model(BaseModel):
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
 
-    def get_system_prompt_from_model(self) -> Optional[str]:
+    def get_system_message_from_model(self) -> Optional[str]:
         return self.system_prompt
 
     def get_instructions_from_model(self) -> Optional[List[str]]:

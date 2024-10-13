@@ -4,7 +4,12 @@ from phi.cli.console import console
 
 regular_agent = Agent(model=OpenAIChat(id="gpt-4o"), markdown=True)
 reasoning_agent = Agent(
-    model=OpenAIChat(id="gpt-4o-2024-08-06"), reasoning=True, markdown=True, structured_outputs=True
+    model=OpenAIChat(id="gpt-4o-2024-08-06"),
+    reasoning=True,
+    markdown=True,
+    structured_outputs=True,
+    reasoning_min_steps=3,
+    debug_mode=True,
 )
 
 task = "How many 'r' are in the word 'supercalifragilisticexpialidocious'?"

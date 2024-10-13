@@ -9,7 +9,6 @@ reasoning_agent = Agent(
     markdown=True,
     structured_outputs=True,
     reasoning_min_steps=3,
-    debug_mode=True,
 )
 
 task = "How many 'r' are in the word 'supercalifragilisticexpialidocious'?"

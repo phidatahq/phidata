@@ -1171,35 +1171,37 @@ class Agent(BaseModel):
             model=model,
             description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
             instructions=[
-                "First, carefully analyze the given input and develop a logical plan to address it.",
-                "Work through the plan step by step, executing any tools as needed. Then provide for each step:\n"
+                "First - Analyze the Input: Carefully examine the given input and develop a logical plan to address it.",
+                "Step-by-Step Plan: Work through your plan, executing any tools as needed. For each step, provide:\n"
                 "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
-                "  2. Action: The action that you will take. Talk in first person like I will ...\n"
-                "  3. Result: Execute the action by running a tool call or providing an answer. Summarize the outcome of executing the action.\n"
-                "  4. Reasoning: Explain the logic behind this step, including:\n"
-                "     - Detailed explanation of why this action is necessary\n"
-                "     - Key considerations and potential challenges\n"
-                "     - How it builds upon previous steps (if applicable)\n"
-                "     - Any assumptions made and their justifications\n"
-                "     Talk in first person.\n"
-                "  5. Next Action: Determine if further analysis is needed, if we should validate the provided result, or if the result is the final answer.\n"
-                "     - 'continue' if more steps are needed\n"
-                "     - 'validate' if the result of the action should be validated\n"
-                "     - 'final_answer' if the result of the action is a final answer"
-                "  6. Confidence score (0.0 to 1.0) for each step: reflecting how certain you are about the action and its outcome.",
-                "Here's how you should handle the 'next_action':\n"
-                "  - If 'next_action' is 'continue', proceed to the next step in your analysis.\n"
-                "  - If 'next_action' is 'validate', validate the result of the action.\n"
-                "  - If 'next_action' is 'final_answer', provide the final answer and stop reasoning.",
+                "  2. Action: Describe the action you will take in the first person (e.g., 'I will...').\n"
+                "  3. Result: Execute the action by running any necessary tools or providing an answer. Summarize the outcome.\n"
+                "  4. Reasoning: Explain the logic behind this step in the first person, including:\n"
+                "     - Necessity: Why this action is necessary.\n"
+                "     - Considerations: Key considerations and potential challenges.\n"
+                "     - Progression: How it builds upon previous steps (if applicable).\n"
+                "     - Assumptions: Any assumptions made and their justifications.\n"
+                "  5. Next Action: Decide on the next step:\n"
+                "     - continue: If more steps are needed to reach an answer.\n"
+                "     - validate: If you have reached an answer and should validate the result.\n"
+                "     - final_answer: If the answer is validated and is the final answer.\n"
+                "     Note: you must always validate the answer before providing the final answer.\n"
+                "  6. Confidence score: A score from 0.0 to 1.0 reflecting your certainty about the action and its outcome.",
+                "Handling Next Actions:\n"
+                "  - If next_action is continue, proceed to the next step in your analysis.\n"
+                "  - If next_action is validate, validate the result of the action and provide the final answer.\n"
+                "  - If next_action is final_answer, stop reasoning.",
                 "Ensure your analysis is:\n"
-                "  - Complete: Make sure you have validated the result of the action and run all necessary tools\n"
-                "  - Comprehensive: Consider multiple angles and potential outcomes\n"
-                "  - Logical: Each step should follow coherently from the previous ones\n"
-                "  - Actionable: Provide clear, implementable steps or solutions\n"
-                "  - Insightful: Offer unique perspectives or innovative approaches when appropriate",
-                "Remember to run any tools you need to run to solve the problem.",
-                f"Take atleast {self.reasoning_min_steps} steps to solve the problem.",
-                "If you have all the information you need, provide a final answer.",
+                "  - Complete: Validate results and run all necessary tools.\n"
+                "  - Comprehensive: Consider multiple angles and potential outcomes.\n"
+                "  - Logical: Ensure each step coherently follows from the previous one.\n"
+                "  - Actionable: Provide clear, implementable steps or solutions.\n"
+                "  - Insightful: Offer unique perspectives or innovative approaches when appropriate.",
+                "Additional Guidelines:\n"
+                "  - Remember to run any tools you need to solve the problem.\n"
+                f"  - Take at least {self.reasoning_min_steps} steps to solve the problem.\n"
+                "  - If you have all the information you need, provide the final answer.\n"
+                "  - Remember to run any tools you need to run to solve the problem.",
             ],
             tools=self.tools,
             show_tool_calls=False,

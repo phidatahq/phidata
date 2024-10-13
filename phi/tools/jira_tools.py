@@ -1,11 +1,11 @@
 import json
-from typing import Optional, List, Dict
+from typing import Optional, cast
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
 try:
-    from jira import JIRA
+    from jira import JIRA, Issue
 except ImportError:
     raise ImportError("`jira` not installed. Please install using `pip install jira`")
 
@@ -26,7 +26,7 @@ class JiraTools(Toolkit):
         self.token = token
 
         # Initialize JIRA client
-        if self.token:
+        if self.token and self.username:
             auth = (self.username, self.token)
         elif self.username and self.password:
             auth = (self.username, self.password)
@@ -34,7 +34,7 @@ class JiraTools(Toolkit):
             auth = None
 
         if auth:
-            self.jira = JIRA(server=self.server_url, basic_auth=auth)
+            self.jira = JIRA(server=self.server_url, basic_auth=cast(tuple[str, str], auth))
         else:
             self.jira = JIRA(server=self.server_url)
 
@@ -45,15 +45,16 @@ class JiraTools(Toolkit):
         self.register(self.add_comment)
         # You can register more methods here
 
-    def get_issue(self, issue_key: str) -> Dict[str, str]:
+    def get_issue(self, issue_key: str) -> str:
         """
         Retrieves issue details from Jira.
 
         :param issue_key: The key of the issue to retrieve.
-        :return: A dictionary containing issue details.
+        :return: A JSON string containing issue details.
         """
         try:
             issue = self.jira.issue(issue_key)
+            issue = cast(Issue, issue)
             issue_details = {
                 "key": issue.key,
                 "project": issue.fields.project.key,
@@ -68,7 +69,7 @@ class JiraTools(Toolkit):
             logger.error(f"Error retrieving issue {issue_key}: {e}")
             return json.dumps({"error": str(e)})
 
-    def create_issue(self, project_key: str, summary: str, description: str, issuetype: str = "Task") -> Dict[str, str]:
+    def create_issue(self, project_key: str, summary: str, description: str, issuetype: str = "Task") -> str:
         """
         Creates a new issue in Jira.
 
@@ -76,7 +77,7 @@ class JiraTools(Toolkit):
         :param summary: The summary of the issue.
         :param description: The description of the issue.
         :param issuetype: The type of issue to create.
-        :return: A dictionary with the new issue's key and URL.
+        :return: A JSON string with the new issue's key and URL.
         """
         try:
             issue_dict = {
@@ -93,18 +94,19 @@ class JiraTools(Toolkit):
             logger.error(f"Error creating issue in project {project_key}: {e}")
             return json.dumps({"error": str(e)})
 
-    def search_issues(self, jql_str: str, max_results: int = 50) -> List[Dict[str, str]]:
+    def search_issues(self, jql_str: str, max_results: int = 50) -> str:
         """
         Searches for issues using a JQL query.
 
         :param jql_str: The JQL query string.
         :param max_results: Maximum number of results to return.
-        :return: A list of dictionaries containing issue details.
+        :return: A JSON string containing a list of dictionaries with issue details.
         """
         try:
             issues = self.jira.search_issues(jql_str, maxResults=max_results)
             results = []
             for issue in issues:
+                issue = cast(Issue, issue)
                 issue_details = {
                     "key": issue.key,
                     "summary": issue.fields.summary,
@@ -118,13 +120,13 @@ class JiraTools(Toolkit):
             logger.error(f"Error searching issues with JQL '{jql_str}': {e}")
             return json.dumps([{"error": str(e)}])
 
-    def add_comment(self, issue_key: str, comment: str) -> Dict[str, str]:
+    def add_comment(self, issue_key: str, comment: str) -> str:
         """
         Adds a comment to an issue.
 
         :param issue_key: The key of the issue.
         :param comment: The comment text.
-        :return: A dictionary indicating success or containing an error message.
+        :return: A JSON string indicating success or containing an error message.
         """
         try:
             self.jira.add_comment(issue_key, comment)

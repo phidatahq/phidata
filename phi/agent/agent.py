@@ -669,7 +669,7 @@ class Agent(BaseModel):
 
         This is added to the system prompt when the response_model is set and structured_outputs is False.
         """
-        json_output_prompt = "\nProvide your output as a JSON containing the following fields:"
+        json_output_prompt = "Provide your output as a JSON containing the following fields:"
         if self.response_model is not None:
             if isinstance(self.response_model, str):
                 json_output_prompt += "\n<json_fields>"
@@ -829,14 +829,14 @@ class Agent(BaseModel):
             system_message_lines.append(self.description)
         # 5.2 Then add the Agent task if provided
         if self.task is not None:
-            system_message_lines.append(f"Your task is: {self.task}")
+            system_message_lines.append(f"\nYour task is: {self.task}")
         # 5.3 Then add the prompt specifically from the Model
         system_prompt_from_model = self.model.get_system_prompt_from_model()
         if system_prompt_from_model is not None:
             system_message_lines.append(system_prompt_from_model)
         # 5.4 Then add instructions to the system prompt
         if len(instructions) > 0:
-            system_message_lines.append("## Instructions")
+            system_message_lines.append("\n## Instructions")
             for instruction in instructions:
                 system_message_lines.append(f"- {instruction}")
         # 5.5 The add the expected output to the system prompt
@@ -1176,20 +1176,20 @@ class Agent(BaseModel):
             instructions=[
                 "Carefully analyze the given input and first develop a logical plan to address it.",
                 "Work through the plan step by step, executing any tools as needed. Then provide for each step:\n"
-                "  a. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
-                "  b. Action: The action that you will take. Talk in first person like I will ...\n"
-                "  c. Result: Execute the action by running a tool call or providing an answer. Summarize the outcome of executing the action.\n"
-                "  d. Reasoning: Explain the logic behind this step, including:\n"
+                "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
+                "  2. Action: The action that you will take. Talk in first person like I will ...\n"
+                "  3. Result: Execute the action by running a tool call or providing an answer. Summarize the outcome of executing the action.\n"
+                "  4. Reasoning: Explain the logic behind this step, including:\n"
                 "     - Detailed explanation of why this action is necessary\n"
                 "     - Key considerations and potential challenges\n"
                 "     - How it builds upon previous steps (if applicable)\n"
                 "     - Any assumptions made and their justifications\n"
                 "     Talk in first person.\n"
-                "  e. Next Action: Determine if further analysis is needed, if we should validate the provided result, or if the result is the final answer.\n"
+                "  5. Next Action: Determine if further analysis is needed, if we should validate the provided result, or if the result is the final answer.\n"
                 "     - 'continue' if more steps are needed\n"
                 "     - 'validate' if the result of the action should be validated\n"
-                "     - 'final_answer' if the result of the action is a final answer",
-                "  f. Confidence score (0.0 to 1.0) for each step: reflecting how certain you are about the action and its outcome.",
+                "     - 'final_answer' if the result of the action is a final answer"
+                "  6. Confidence score (0.0 to 1.0) for each step: reflecting how certain you are about the action and its outcome.",
                 "Here's how you should handle the 'next_action':\n"
                 "  - If 'next_action' is 'continue', proceed to the next step in your analysis.\n"
                 "  - If 'next_action' is 'validate', validate the result of the action.\n"
@@ -1199,7 +1199,7 @@ class Agent(BaseModel):
                 "  - Comprehensive: Consider multiple angles and potential outcomes\n"
                 "  - Logical: Each step should follow coherently from the previous ones\n"
                 "  - Actionable: Provide clear, implementable steps or solutions\n"
-                "  - Insightful: Offer unique perspectives or innovative approaches when appropriate\n",
+                "  - Insightful: Offer unique perspectives or innovative approaches when appropriate",
                 "Remember to run any tools you need to run to solve the problem.",
                 "If you have all the information you need, provide a final answer.",
             ],
@@ -2479,6 +2479,7 @@ class Agent(BaseModel):
         markdown: bool = False,
         show_message: bool = True,
         show_reasoning: bool = True,
+        show_full_reasoning: bool = False,
         **kwargs: Any,
     ) -> None:
         from rich.live import Live
@@ -2533,6 +2534,20 @@ class Agent(BaseModel):
                                 (f"{step.title}\n", "bold"),
                                 (step.action or "", "dim"),
                             )
+                            if show_full_reasoning:
+                                step_content.append("\n")
+                                if step.result:
+                                    step_content.append(
+                                        Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
+                                    )
+                                if step.reasoning:
+                                    step_content.append(
+                                        Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
+                                    )
+                                if step.confidence is not None:
+                                    step_content.append(
+                                        Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
+                                    )
                             reasoning_panel = self.create_panel(
                                 content=step_content, title=f"Reasoning step {i}", border_style="green"
                             )
@@ -2635,6 +2650,7 @@ class Agent(BaseModel):
         markdown: bool = False,
         show_message: bool = True,
         show_reasoning: bool = True,
+        show_full_reasoning: bool = False,
         **kwargs: Any,
     ) -> None:
         from rich.live import Live
@@ -2681,7 +2697,7 @@ class Agent(BaseModel):
                         )
                         panels.append(message_panel)
 
-                    if len(reasoning_steps) > 0 and show_reasoning:
+                    if len(reasoning_steps) > 0 and (show_reasoning or show_full_reasoning):
                         render = True
                         # Create panels for reasoning steps
                         for i, step in enumerate(reasoning_steps, 1):
@@ -2689,6 +2705,20 @@ class Agent(BaseModel):
                                 (f"{step.title}\n", "bold"),
                                 (step.action or "", "dim"),
                             )
+                            if show_full_reasoning:
+                                step_content.append("\n")
+                                if step.result:
+                                    step_content.append(
+                                        Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
+                                    )
+                                if step.reasoning:
+                                    step_content.append(
+                                        Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
+                                    )
+                                if step.confidence is not None:
+                                    step_content.append(
+                                        Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
+                                    )
                             reasoning_panel = self.create_panel(
                                 content=step_content, title=f"Reasoning step {i}", border_style="green"
                             )

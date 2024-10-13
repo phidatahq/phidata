@@ -93,7 +93,7 @@ class Message(BaseModel):
         if self.name:
             _logger(f"Name: {self.name}")
         if self.tool_call_id:
-            _logger(f"Call Id: {self.tool_call_id}")
+            _logger(f"Tool call Id: {self.tool_call_id}")
         if self.content:
             if isinstance(self.content, str) or isinstance(self.content, list):
                 _logger(self.content)

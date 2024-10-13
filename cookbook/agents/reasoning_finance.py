@@ -11,7 +11,7 @@ finance_agent = Agent(
     show_tool_calls=True,
     markdown=True,
     reasoning=True,
-    # debug_mode=True,
+    debug_mode=True,
 )
 
 

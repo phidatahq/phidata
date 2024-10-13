@@ -1,4 +1,4 @@
-"""Run `pip install openai lancedb` to install dependencies."""
+"""Run `pip install openai lancedb tantivy` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

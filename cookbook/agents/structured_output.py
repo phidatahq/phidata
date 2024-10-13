@@ -42,9 +42,8 @@ structured_output_agent = Agent(
     structured_outputs=True,
 )
 
+
 # Helper functions to display the output
-
-
 def display_header(
     message: str,
     style: str = "bold cyan",

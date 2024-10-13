@@ -12,4 +12,4 @@ task = "How many 'r' are in the word 'supercalifragilisticexpialidocious'?"
 console.rule("[bold green]Regular Agent[/bold green]")
 regular_agent.print_response(task, stream=True)
 console.rule("[bold yellow]Reasoning Agent[/bold yellow]")
-reasoning_agent.print_response(task, stream=True)
+reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

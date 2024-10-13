@@ -18,6 +18,7 @@ from typing import (
     Literal,
     Optional,
     overload,
+    Sequence,
     Tuple,
     Type,
     Union,
@@ -27,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.agent.reasoning import ReasoningStep, ReasoningSteps, Reasoning, NextAction
+from phi.agent.reasoning import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model
@@ -115,8 +116,12 @@ class Agent(BaseModel):
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
     # -*- Agent Reasoning
-    # If True, the agent will reason about the task before responding.
-    reasoning: Optional[Union[bool, Reasoning]] = None
+    # Enable reasoning by working through the problem step by step.
+    reasoning: bool = False
+    reasoning_model: Optional[Model] = None
+    reasoning_agent: Optional[Agent] = None
+    reasoning_min_steps: int = 1
+    reasoning_max_steps: int = 10
 
     # -*- Default tools
     # Add a tool that allows the Model to read the chat history.
@@ -218,7 +223,7 @@ class Agent(BaseModel):
     # Input to the Agent run: do not set manually
     run_input: Optional[Union[str, List, Dict]] = None
     # Response from the Agent run: do not set manually
-    run_response: Optional[RunResponse] = None
+    run_response: RunResponse = Field(default_factory=RunResponse)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -922,7 +927,7 @@ class Agent(BaseModel):
         return json.dumps(docs, indent=2)
 
     def add_images_to_message_content(
-        self, message_content: Union[List, Dict, str], images: Optional[List[Union[str, Dict]]] = None
+        self, message_content: Union[List, Dict, str], images: Optional[Sequence[Union[str, Dict]]] = None
     ) -> Union[List, Dict, str]:
         # If images are provided, add them to the user message text
         if images is not None and len(images) > 0 and self.model and self.model.add_images_to_message_content:
@@ -941,7 +946,7 @@ class Agent(BaseModel):
     def get_user_message(
         self,
         message: Optional[Union[str, List, Dict, Message]],
-        images: Optional[List[Union[str, Dict]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
         **kwargs: Any,
     ) -> Optional[Message]:
         """Return the user message for the Agent.
@@ -1031,8 +1036,8 @@ class Agent(BaseModel):
         self,
         *,
         message: Optional[Union[str, List, Dict, Message]] = None,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Tuple[Optional[Message], List[Message], List[Message]]:
         """This function returns:
@@ -1055,10 +1060,6 @@ class Agent(BaseModel):
 
         # List of messages to send to the Model
         messages_for_model: List[Message] = []
-
-        # Create the run_response object if it doesn't exist
-        if self.run_response is None:
-            self.run_response = RunResponse()
 
         # 3.1. Add the System Message to the messages list
         system_message = self.get_system_message()
@@ -1170,7 +1171,7 @@ class Agent(BaseModel):
             model=model,
             description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
             instructions=[
-                "Carefully analyze the given input and first develop a logical plan to address it.",
+                "First, carefully analyze the given input and develop a logical plan to address it.",
                 "Work through the plan step by step, executing any tools as needed. Then provide for each step:\n"
                 "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
                 "  2. Action: The action that you will take. Talk in first person like I will ...\n"
@@ -1197,6 +1198,7 @@ class Agent(BaseModel):
                 "  - Actionable: Provide clear, implementable steps or solutions\n"
                 "  - Insightful: Offer unique perspectives or innovative approaches when appropriate",
                 "Remember to run any tools you need to run to solve the problem.",
+                f"Take atleast {self.reasoning_min_steps} steps to solve the problem.",
                 "If you have all the information you need, provide a final answer.",
             ],
             tools=self.tools,
@@ -1205,15 +1207,25 @@ class Agent(BaseModel):
             structured_outputs=self.structured_outputs,
         )
 
-    def _update_run_response_with_reasoning(self, reasoning_steps: List[ReasoningStep]):
-        self.run_response = cast(RunResponse, self.run_response)
+    def _update_run_response_with_reasoning(
+        self, reasoning_steps: List[ReasoningStep], reasoning_agent_messages: List[Message]
+    ):
         if self.run_response.extra_data is None:
-            self.run_response.extra_data = RunResponseExtraData(reasoning=reasoning_steps)
+            self.run_response.extra_data = RunResponseExtraData()
+
+        extra_data = self.run_response.extra_data
+
+        # Update reasoning_steps
+        if extra_data.reasoning_steps is None:
+            extra_data.reasoning_steps = reasoning_steps
         else:
-            if self.run_response.extra_data.reasoning is None:
-                self.run_response.extra_data.reasoning = reasoning_steps
-            else:
-                self.run_response.extra_data.reasoning.extend(reasoning_steps)
+            extra_data.reasoning_steps.extend(reasoning_steps)
+
+        # Update reasoning_messages
+        if extra_data.reasoning_messages is None:
+            extra_data.reasoning_messages = reasoning_agent_messages
+        else:
+            extra_data.reasoning_messages.extend(reasoning_agent_messages)
 
     def _get_next_action(self, reasoning_step: ReasoningStep) -> NextAction:
         next_action = reasoning_step.next_action or NextAction.FINAL_ANSWER
@@ -1247,38 +1259,40 @@ class Agent(BaseModel):
         messages_for_model: List[Message],
         stream_intermediate_steps: bool = False,
     ) -> Iterator[RunResponse]:
-        # Create the run_response object if it doesn't exist
-        if self.run_response is None:
-            self.run_response = RunResponse()
-
         # -*- Yield the reasoning started event
-        yield RunResponse(
-            run_id=self.run_id,
-            session_id=self.session_id,
-            agent_id=self.agent_id,
-            content="Reasoning started",
-            event=RunEvent.reasoning_started.value,
-        )
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content="Reasoning started",
+                event=RunEvent.reasoning_started.value,
+            )
 
         # -*- Initialize reasoning
-        reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
         reasoning_messages: List[Message] = []
-        final_reasoning_steps: List[ReasoningStep] = []
-        if reasoning.model is None and self.model is not None:
-            reasoning_model_id = self.model.id
-            reasoning.model = self.model.__class__(id=reasoning_model_id)
-        if reasoning.agent is None:
-            reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
+        all_reasoning_steps: List[ReasoningStep] = []
+        reasoning_model: Optional[Model] = self.reasoning_model
+        reasoning_agent: Optional[Agent] = self.reasoning_agent
+        if reasoning_model is None and self.model is not None:
+            reasoning_model = self.model.__class__(id=self.model.id)
+        if reasoning_agent is None:
+            reasoning_agent = self.get_reasoning_agent(model=reasoning_model)
 
-        reasoning.agent.show_tool_calls = False
-        reasoning.model.show_tool_calls = False  # type: ignore
+        if reasoning_model is None or reasoning_agent is None:
+            logger.warning("Reasoning error. Reasoning model or agent is None, continuing regular session...")
+            return
 
-        logger.debug(f"Reasoning Agent: {reasoning.agent.agent_id} | {reasoning.agent.session_id}")
+        # Ensure the reasoning model and agent do not show tool calls
+        reasoning_model.show_tool_calls = False
+        reasoning_agent.show_tool_calls = False
+
+        logger.debug(f"Reasoning Agent: {reasoning_agent.agent_id} | {reasoning_agent.session_id}")
         logger.debug("==== Starting Reasoning ====")
 
-        step_count = 0
+        step_count = 1
         next_action = NextAction.CONTINUE
-        while next_action == NextAction.CONTINUE and step_count < reasoning.max_steps:
+        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
             step_count += 1
             logger.debug(f"==== Step {step_count} ====")
             try:
@@ -1286,23 +1300,28 @@ class Agent(BaseModel):
                 messages_for_reasoning_agent = (
                     [system_message] + user_messages if system_message is not None else user_messages
                 )
-                reasoning_agent_response: RunResponse = reasoning.agent.run(messages=messages_for_reasoning_agent)  # type: ignore
+                reasoning_agent_response: RunResponse = reasoning_agent.run(messages=messages_for_reasoning_agent)
                 if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
-                    logger.warning("Reasoning error. Reasoning response is empty, stopping...")
+                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
                     break
 
-                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps  # type: ignore
-                final_reasoning_steps.extend(reasoning_steps)
+                if reasoning_agent_response.content.reasoning_steps is None:
+                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                    break
+
+                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                all_reasoning_steps.extend(reasoning_steps)
                 # -*- Yield reasoning steps
-                for reasoning_step in reasoning_steps:
-                    yield RunResponse(
-                        run_id=self.run_id,
-                        session_id=self.session_id,
-                        agent_id=self.agent_id,
-                        content=reasoning_step,
-                        content_type=reasoning_step.__class__.__name__,
-                        event=RunEvent.reasoning_step.value,
-                    )
+                if stream_intermediate_steps:
+                    for reasoning_step in reasoning_steps:
+                        yield RunResponse(
+                            run_id=self.run_id,
+                            session_id=self.session_id,
+                            agent_id=self.agent_id,
+                            content=reasoning_step,
+                            content_type=reasoning_step.__class__.__name__,
+                            event=RunEvent.reasoning_step.value,
+                        )
 
                 # Find the index of the first assistant message
                 first_assistant_index = next(
@@ -1313,7 +1332,9 @@ class Agent(BaseModel):
                 reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
 
                 # -*- Add reasoning step to the run_response
-                self._update_run_response_with_reasoning(reasoning_steps=reasoning_steps)
+                self._update_run_response_with_reasoning(
+                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                )
 
                 next_action = self._get_next_action(reasoning_steps[-1])
                 if next_action == NextAction.FINAL_ANSWER:
@@ -1322,7 +1343,7 @@ class Agent(BaseModel):
                 logger.error(f"Reasoning error: {e}")
                 break
 
-        logger.debug(f"Total Reasoning steps: {len(final_reasoning_steps)}")
+        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
         logger.debug("==== Reasoning finished====")
 
         # -*- Update the messages_for_model to include reasoning messages
@@ -1331,13 +1352,15 @@ class Agent(BaseModel):
         )
 
         # -*- Yield the final reasoning completed event
-        yield RunResponse(
-            run_id=self.run_id,
-            session_id=self.session_id,
-            agent_id=self.agent_id,
-            content="Reasoning completed",
-            event=RunEvent.reasoning_completed.value,
-        )
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content=json.dumps(all_reasoning_steps, indent=2),
+                content_type="List[ReasoningStep]",
+                event=RunEvent.reasoning_completed.value,
+            )
 
     async def areason(
         self,
@@ -1346,59 +1369,71 @@ class Agent(BaseModel):
         messages_for_model: List[Message],
         stream_intermediate_steps: bool = False,
     ) -> AsyncIterator[RunResponse]:
-        # Create the run_response object if it doesn't exist
-        if self.run_response is None:
-            self.run_response = RunResponse()
-
         # -*- Yield the reasoning started event
-        yield RunResponse(
-            run_id=self.run_id,
-            session_id=self.session_id,
-            agent_id=self.agent_id,
-            content="Reasoning started",
-            event=RunEvent.reasoning_started.value,
-        )
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content="Reasoning started",
+                event=RunEvent.reasoning_started.value,
+            )
 
         # -*- Initialize reasoning
-        reasoning = self.reasoning if isinstance(self.reasoning, Reasoning) else Reasoning()
         reasoning_messages: List[Message] = []
-        final_reasoning_steps: List[ReasoningStep] = []
-        if reasoning.model is None and self.model is not None:
-            reasoning_model_id = self.model.id
-            reasoning.model = self.model.__class__(id=reasoning_model_id)
-        if reasoning.agent is None:
-            reasoning.agent = self.get_reasoning_agent(model=reasoning.model)
+        all_reasoning_steps: List[ReasoningStep] = []
+        reasoning_model: Optional[Model] = self.reasoning_model
+        reasoning_agent: Optional[Agent] = self.reasoning_agent
+        if reasoning_model is None and self.model is not None:
+            reasoning_model = self.model.__class__(id=self.model.id)
+        if reasoning_agent is None:
+            reasoning_agent = self.get_reasoning_agent(model=reasoning_model)
 
-        reasoning.agent.show_tool_calls = False
-        reasoning.model.show_tool_calls = False  # type: ignore
+        if reasoning_model is None or reasoning_agent is None:
+            logger.warning("Reasoning error. Reasoning model or agent is None, continuing regular session...")
+            return
 
-        logger.debug(f"Reasoning Agent: {reasoning.agent.agent_id} | {reasoning.agent.session_id}")
+        # Ensure the reasoning model and agent do not show tool calls
+        reasoning_model.show_tool_calls = False
+        reasoning_agent.show_tool_calls = False
+
+        logger.debug(f"Reasoning Agent: {reasoning_agent.agent_id} | {reasoning_agent.session_id}")
         logger.debug("==== Starting Reasoning ====")
 
         step_count = 0
         next_action = NextAction.CONTINUE
-        while next_action == NextAction.CONTINUE and step_count < reasoning.max_steps:
+        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
             step_count += 1
             logger.debug(f"==== Step {step_count} ====")
             try:
                 # -*- Run the reasoning agent
-                reasoning_agent_response: RunResponse = await reasoning.agent.arun(messages=user_messages)  # type: ignore
+                messages_for_reasoning_agent = (
+                    [system_message] + user_messages if system_message is not None else user_messages
+                )
+                reasoning_agent_response: RunResponse = await reasoning_agent.arun(
+                    messages=messages_for_reasoning_agent
+                )
                 if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
-                    logger.warning("Reasoning error. Reasoning response is empty, stopping...")
+                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                    break
+
+                if reasoning_agent_response.content.reasoning_steps is None:
+                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
                     break
 
                 reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps  # type: ignore
-                final_reasoning_steps.extend(reasoning_steps)
+                all_reasoning_steps.extend(reasoning_steps)
                 # -*- Yield reasoning steps
-                for reasoning_step in reasoning_steps:
-                    yield RunResponse(
-                        run_id=self.run_id,
-                        session_id=self.session_id,
-                        agent_id=self.agent_id,
-                        content=reasoning_step,
-                        content_type=reasoning_step.__class__.__name__,
-                        event=RunEvent.reasoning_step.value,
-                    )
+                if stream_intermediate_steps:
+                    for reasoning_step in reasoning_steps:
+                        yield RunResponse(
+                            run_id=self.run_id,
+                            session_id=self.session_id,
+                            agent_id=self.agent_id,
+                            content=reasoning_step,
+                            content_type=reasoning_step.__class__.__name__,
+                            event=RunEvent.reasoning_step.value,
+                        )
 
                 # Find the index of the first assistant message
                 first_assistant_index = next(
@@ -1409,7 +1444,9 @@ class Agent(BaseModel):
                 reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
 
                 # -*- Add reasoning step to the run_response
-                self._update_run_response_with_reasoning(reasoning_steps=reasoning_steps)
+                self._update_run_response_with_reasoning(
+                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                )
 
                 next_action = self._get_next_action(reasoning_steps[-1])
                 if next_action == NextAction.FINAL_ANSWER:
@@ -1418,7 +1455,7 @@ class Agent(BaseModel):
                 logger.error(f"Reasoning error: {e}")
                 break
 
-        logger.debug(f"Total Reasoning steps: {len(final_reasoning_steps)}")
+        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
         logger.debug("==== Reasoning finished====")
 
         # -*- Update the messages_for_model to include reasoning messages
@@ -1427,13 +1464,15 @@ class Agent(BaseModel):
         )
 
         # -*- Yield the final reasoning completed event
-        yield RunResponse(
-            run_id=self.run_id,
-            session_id=self.session_id,
-            agent_id=self.agent_id,
-            content="Reasoning completed",
-            event=RunEvent.reasoning_completed.value,
-        )
+        if stream_intermediate_steps:
+            yield RunResponse(
+                run_id=self.run_id,
+                session_id=self.session_id,
+                agent_id=self.agent_id,
+                content=json.dumps(all_reasoning_steps, indent=2),
+                content_type="List[ReasoningStep]",
+                event=RunEvent.reasoning_completed.value,
+            )
 
     def _aggregate_metrics_from_run_messages(self, messages: List[Message]) -> Dict[str, Any]:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
@@ -1450,8 +1489,8 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Iterator[RunResponse]:
@@ -1700,8 +1739,8 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: Literal[False] = False,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> RunResponse: ...
 
@@ -1711,8 +1750,8 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: Literal[True] = True,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Iterator[RunResponse]: ...
@@ -1722,8 +1761,8 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = False,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Union[RunResponse, Iterator[RunResponse]]:
@@ -1807,8 +1846,8 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = False,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> AsyncIterator[RunResponse]:
@@ -2057,8 +2096,8 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str]] = None,
         *,
         stream: bool = False,
-        images: Optional[List[Union[str, Dict]]] = None,
-        messages: Optional[List[Union[Dict, Message]]] = None,
+        images: Optional[Sequence[Union[str, Dict]]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
     ) -> Any:
@@ -2508,8 +2547,8 @@ class Agent(BaseModel):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
-                        if resp.extra_data is not None and resp.extra_data.reasoning is not None:
-                            reasoning_steps = resp.extra_data.reasoning
+                        if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
+                            reasoning_steps = resp.extra_data.reasoning_steps
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
@@ -2595,9 +2634,9 @@ class Agent(BaseModel):
                 if (
                     isinstance(run_response, RunResponse)
                     and run_response.extra_data is not None
-                    and run_response.extra_data.reasoning is not None
+                    and run_response.extra_data.reasoning_steps is not None
                 ):
-                    reasoning_steps = run_response.extra_data.reasoning
+                    reasoning_steps = run_response.extra_data.reasoning_steps
 
                 if len(reasoning_steps) > 0 and show_reasoning:
                     # Create panels for reasoning steps
@@ -2679,8 +2718,8 @@ class Agent(BaseModel):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
-                        if resp.extra_data is not None and resp.extra_data.reasoning is not None:
-                            reasoning_steps = resp.extra_data.reasoning
+                        if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
+                            reasoning_steps = resp.extra_data.reasoning_steps
                     response_content = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
@@ -2766,9 +2805,9 @@ class Agent(BaseModel):
                 if (
                     isinstance(run_response, RunResponse)
                     and run_response.extra_data is not None
-                    and run_response.extra_data.reasoning is not None
+                    and run_response.extra_data.reasoning_steps is not None
                 ):
-                    reasoning_steps = run_response.extra_data.reasoning
+                    reasoning_steps = run_response.extra_data.reasoning_steps
 
                 if len(reasoning_steps) > 0 and show_reasoning:
                     # Create panels for reasoning steps

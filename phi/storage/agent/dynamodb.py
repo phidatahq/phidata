@@ -3,7 +3,7 @@ from decimal import Decimal
 import time
 from botocore.exceptions import ClientError
 import boto3
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Key
 
 from phi.agent.session import AgentSession
 from phi.storage.agent.base import AgentStorage
@@ -108,9 +108,7 @@ class DynamoDbAgentStorage(AgentStorage):
                 self.table.wait_until_exists()
                 logger.debug(f"Table '{self.table_name}' created successfully.")
             else:
-                logger.error(
-                    f"Unable to create table '{self.table_name}': {e.response['Error']['Message']}"
-                )
+                logger.error(f"Unable to create table '{self.table_name}': {e.response['Error']['Message']}")
         except Exception as e:
             logger.error(f"Exception during table creation: {e}")
 
@@ -135,9 +133,7 @@ class DynamoDbAgentStorage(AgentStorage):
             logger.error(f"Error reading session_id '{session_id}': {e}")
         return None
 
-    def get_all_session_ids(
-        self, user_id: Optional[str] = None, agent_id: Optional[str] = None
-    ) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         """
         Retrieve all session IDs, optionally filtered by user_id and/or agent_id.
 
@@ -177,9 +173,7 @@ class DynamoDbAgentStorage(AgentStorage):
             logger.error(f"Error retrieving session IDs: {e}")
         return session_ids
 
-    def get_all_sessions(
-        self, user_id: Optional[str] = None, agent_id: Optional[str] = None
-    ) -> List[AgentSession]:
+    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         """
         Retrieve all sessions, optionally filtered by user_id and/or agent_id.
 
@@ -300,6 +294,7 @@ class DynamoDbAgentStorage(AgentStorage):
         Returns:
             Dict[str, Any]: The serialized item.
         """
+
         def serialize_value(value):
             if isinstance(value, float):
                 return Decimal(str(value))
@@ -322,6 +317,7 @@ class DynamoDbAgentStorage(AgentStorage):
         Returns:
             Dict[str, Any]: The deserialized item.
         """
+
         def deserialize_value(value):
             if isinstance(value, Decimal):
                 if value % 1 == 0:

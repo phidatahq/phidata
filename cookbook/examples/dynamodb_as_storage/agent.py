@@ -5,6 +5,7 @@ from phi.storage.agent.dynamodb import DynamoDbAgentStorage
 
 storage = DynamoDbAgentStorage(table_name="dynamo_agent", region_name="us-east-1")
 
+
 def dynamodb_agent(new: bool = False, user: str = "user"):
     session_id: Optional[str] = None
 
@@ -17,7 +18,6 @@ def dynamodb_agent(new: bool = False, user: str = "user"):
         session_id=session_id,
         user_id=user,
         storage=storage,
-
         show_tool_calls=True,
         # Enable the agent to read the chat history
         read_chat_history=True,

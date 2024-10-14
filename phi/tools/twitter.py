@@ -36,7 +36,6 @@ class TwitterToolkit(Toolkit):
         self.register(self.reply_to_tweet)
         self.register(self.send_dm)
         self.register(self.get_user_info)
-        self.register(self.get_trending_hashtags)
         self.register(self.get_home_timeline)
 
     def create_tweet(self, text: str) -> str:
@@ -190,19 +189,6 @@ class TwitterToolkit(Toolkit):
             logger.error(f"Error fetching user info: {e}")
             return json.dumps({"error": str(e)})
 
-    def get_trending_hashtags(self, woeid: int = 1) -> str:
-        logger.debug(f"Fetching trending hashtags for WOEID {woeid}")
-        try:
-            trends = self.api.get_place_trends(woeid)
-            hashtags = [trend["name"] for trend in trends[0]["trends"] if trend["name"].startswith("#")]
-            result = {
-                "trending_hashtags": hashtags[:10]  # Get top 10 trending hashtags
-            }
-            return json.dumps(result, indent=2)
-        except tweepy.TweepyException as e:
-            logger.error(f"Error fetching trending hashtags: {e}")
-            return json.dumps({"error": str(e)})
-
     def get_home_timeline(self, max_results: int = 10) -> str:
         """
         Retrieve the authenticated user's home timeline.
@@ -226,10 +212,11 @@ class TwitterToolkit(Toolkit):
                     {
                         "id": tweet.id,
                         "text": tweet.text,
-                        "created_at": tweet.created_at.isoformat(),
+                        "created_at": tweet.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                         "author_id": tweet.author_id,
                     }
                 )
+            logger.info(f"Successfully fetched {len(timeline)} tweets")
             result = {"home_timeline": timeline}
             return json.dumps(result, indent=2)
         except tweepy.TweepyException as e:

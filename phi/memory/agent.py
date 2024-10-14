@@ -112,17 +112,17 @@ class AgentMemory(BaseModel):
                 # Add the system message to the messages list
                 self.messages.insert(0, message)
 
-    def add_run_message(self, message: Message) -> None:
+    def add_message(self, message: Message) -> None:
         """Add a Message to the messages list."""
         self.messages.append(message)
         logger.debug("Added Message to AgentMemory")
 
-    def add_run_messages(self, messages: List[Message]) -> None:
+    def add_messages(self, messages: List[Message]) -> None:
         """Add a list of messages to the messages list."""
         self.messages.extend(messages)
         logger.debug(f"Added {len(messages)} Messages to AgentMemory")
 
-    def get_run_messages(self) -> List[Dict[str, Any]]:
+    def get_messages(self) -> List[Dict[str, Any]]:
         """Returns the messages list as a list of dictionaries."""
         return [message.model_dump(exclude_none=True) for message in self.messages]
 

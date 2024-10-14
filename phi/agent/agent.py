@@ -672,6 +672,14 @@ class Agent(BaseModel):
                 self.log_agent_session()
         return self.session_id
 
+    def create_session(self) -> Optional[str]:
+        """Create a new session and return the session_id
+
+        If a session already exists, return the session_id from the existing session.
+        """
+
+        return self.load_session()
+
     def get_json_output_prompt(self) -> str:
         """Return the JSON output prompt for the Agent.
 
@@ -781,10 +789,10 @@ class Agent(BaseModel):
         # 4.1 Add instructions for transferring tasks to team members
         if self.has_team():
             instructions.append(
-                "You are the leader of a team of AI Agents. You can either respond directly or "
-                "transfer tasks to other Agents in your team depending on the tools available to them. "
-                "If you transfer tasks, make sure to include a clear description of the task and the expected output. "
-                "You must always validate the output of the other Agents before responding to the user, "
+                "You are the leader of a team of AI Agents.\n"
+                "  - You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.\n"
+                "  - If you transfer tasks, make sure to include a clear description of the task and the expected output. \n"
+                "  - You must always validate the output of the other Agents before responding to the user, "
                 "you can re-assign tasks to other Agents if you are not satisfied with the result."
             )
         # 4.2 Add instructions for using the AgentKnowledge
@@ -844,7 +852,9 @@ class Agent(BaseModel):
             system_message_lines.append(system_message_from_model)
         # 5.4 Then add instructions to the system prompt
         if len(instructions) > 0:
-            system_message_lines.extend(["## Instructions", *instructions, ""])
+            system_message_lines.append("## Instructions\n")
+            system_message_lines.extend([f"- {instruction}" for instruction in instructions])
+            system_message_lines.append("")
         # 5.5 The add the expected output to the system prompt
         if self.expected_output is not None:
             system_message_lines.append(f"The expected output is: {self.expected_output}\n")
@@ -1656,7 +1666,7 @@ class Agent(BaseModel):
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
         # Add messages from this particular run to memory
-        self.memory.add_run_messages(messages=run_messages)
+        self.memory.add_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)
@@ -2015,7 +2025,7 @@ class Agent(BaseModel):
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
         # Add messages from this particular run to memory
-        self.memory.add_run_messages(messages=run_messages)
+        self.memory.add_messages(messages=run_messages)
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)

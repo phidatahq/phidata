@@ -112,25 +112,30 @@ class DynamoDbAgentStorage(AgentStorage):
         except Exception as e:
             logger.error(f"Exception during table creation: {e}")
 
-    def read(self, session_id: str) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """
         Read and return an AgentSession from the database.
 
         Args:
             session_id (str): ID of the session to read.
+            user_id (Optional[str]): User ID to filter by. Defaults to None.
 
         Returns:
             Optional[AgentSession]: AgentSession object if found, None otherwise.
         """
         try:
-            response = self.table.get_item(Key={"session_id": session_id})
+            key = {"session_id": session_id}
+            if user_id is not None:
+                key["user_id"] = user_id
+
+            response = self.table.get_item(Key=key)
             item = response.get("Item", None)
             if item is not None:
                 # Convert Decimal to int or float
                 item = self._deserialize_item(item)
                 return AgentSession.model_validate(item)
         except Exception as e:
-            logger.error(f"Error reading session_id '{session_id}': {e}")
+            logger.error(f"Error reading session_id '{session_id}' with user_id '{user_id}': {e}")
         return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:

@@ -118,8 +118,10 @@ class S2AgentStorage(AgentStorage):
             logger.info(f"\nCreating table: {self.table_name}\n")
             self.table.create(self.db_engine)
 
-    def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
+    def _read(self, session: Session, session_id: str, user_id: Optional[str] = None) -> Optional[Row[Any]]:
         stmt = select(self.table).where(self.table.c.session_id == session_id)
+        if user_id is not None:
+            stmt = stmt.where(self.table.c.user_id == user_id)
         try:
             return session.execute(stmt).first()
         except Exception as e:
@@ -129,9 +131,9 @@ class S2AgentStorage(AgentStorage):
             self.create()
         return None
 
-    def read(self, session_id: str) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         with self.Session.begin() as sess:
-            existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id)
+            existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id, user_id=user_id)
             return AgentSession.model_validate(existing_row) if existing_row is not None else None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:

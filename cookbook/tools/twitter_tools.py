@@ -17,7 +17,7 @@ twitter_toolkit = TwitterToolkit(bearer_token, consumer_key, consumer_secret, ac
 # Create an agent with the twitter toolkit
 agent = Agent(
     instructions=[
-        "Use your tools to interact with Twitter as the authorized user @pritisinghhhh",
+        "Use your tools to interact with Twitter as the authorized user @phidatahq",
         "When asked to create a tweet, generate appropriate content based on the request",
         "Do not actually post tweets unless explicitly instructed to do so",
         "Provide informative responses about the user's timeline and tweets",

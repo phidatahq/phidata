@@ -5,7 +5,7 @@ import json
 try:
     import tweepy
 except ImportError:
-    raise ImportError("`yfinance` not installed. Please install using `pip install yfinance`.")
+    raise ImportError("`tweepy` not installed. Please install using `pip install tweepy`.")
 
 
 class TwitterToolkit(Toolkit):

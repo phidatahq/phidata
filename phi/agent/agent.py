@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.agent.reasoning import ReasoningStep, ReasoningSteps, NextAction
+from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
 from phi.model import Model

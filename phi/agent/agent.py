@@ -1362,8 +1362,8 @@ class Agent(BaseModel):
                 run_id=self.run_id,
                 session_id=self.session_id,
                 agent_id=self.agent_id,
-                content=json.dumps(all_reasoning_steps, indent=2),
-                content_type="List[ReasoningStep]",
+                content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
+                content_type=ReasoningSteps.__class__.__name__,
                 event=RunEvent.reasoning_completed.value,
             )
 
@@ -1474,8 +1474,8 @@ class Agent(BaseModel):
                 run_id=self.run_id,
                 session_id=self.session_id,
                 agent_id=self.agent_id,
-                content=json.dumps(all_reasoning_steps, indent=2),
-                content_type="List[ReasoningStep]",
+                content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
+                content_type=ReasoningSteps.__class__.__name__,
                 event=RunEvent.reasoning_completed.value,
             )
 

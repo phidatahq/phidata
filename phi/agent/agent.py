@@ -844,10 +844,7 @@ class Agent(BaseModel):
             system_message_lines.append(system_message_from_model)
         # 5.4 Then add instructions to the system prompt
         if len(instructions) > 0:
-            system_message_lines.append("## Instructions\n")
-            for instruction in instructions:
-                system_message_lines.append(f"- {instruction}")
-            system_message_lines.append("")
+            system_message_lines.extend(["## Instructions", *instructions, ""])
         # 5.5 The add the expected output to the system prompt
         if self.expected_output is not None:
             system_message_lines.append(f"The expected output is: {self.expected_output}\n")

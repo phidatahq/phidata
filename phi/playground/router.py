@@ -360,7 +360,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
         if agent.storage is None:
             return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
 
-        agent_session: Optional[AgentSession] = agent.storage.read(session_id)
+        agent_session: Optional[AgentSession] = agent.storage.read(session_id, body.user_id)
         if agent_session is None:
             return JSONResponse(status_code=404, content="Session not found.")
 

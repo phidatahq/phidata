@@ -152,12 +152,13 @@ class PgAgentStorage(AgentStorage):
             except Exception as e:
                 logger.error(f"Could not create table: '{self.table.fullname}': {e}")
 
-    def read(self, session_id: str) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """
         Read and return an AgentSession from the database.
 
         Args:
             session_id (str): ID of the session to read.
+            user_id (Optional[str]): User ID to filter by. Defaults to None.
 
         Returns:
             Optional[AgentSession]: AgentSession object if found, None otherwise.
@@ -165,6 +166,8 @@ class PgAgentStorage(AgentStorage):
         try:
             with self.Session() as sess:
                 stmt = select(self.table).where(self.table.c.session_id == session_id)
+                if user_id:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
                 existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
                 return AgentSession.model_validate(existing_row) if existing_row is not None else None
         except Exception as e:

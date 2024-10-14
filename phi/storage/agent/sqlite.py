@@ -128,10 +128,12 @@ class SqlAgentStorage(AgentStorage):
             self.create()
         return None
 
-    def read(self, session_id: str) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         try:
             with self.Session() as sess:
                 stmt = select(self.table).where(self.table.c.session_id == session_id)
+                if user_id:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
                 existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
                 return AgentSession.model_validate(existing_row) if existing_row is not None else None
         except Exception as e:

@@ -10,7 +10,7 @@ class AgentStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, session_id: str) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str]) -> Optional[AgentSession]:
         raise NotImplementedError
 
     @abstractmethod

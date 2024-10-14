@@ -1,4 +1,5 @@
 import time
+import os
 from typing import Optional, Any, List
 
 from phi.agent import AgentSession
@@ -48,7 +49,11 @@ class SqlAgentStorage(AgentStorage):
         if _engine is None and db_url is not None:
             _engine = create_engine(db_url)
         elif _engine is None and db_file is not None:
-            _engine = create_engine(f"sqlite:///{db_file}")
+            # Use an absolute path for the database file
+            db_path = os.path.abspath(db_file)
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            _engine = create_engine(f"sqlite:///{db_path}")
         else:
             _engine = create_engine("sqlite://")
 
@@ -216,6 +221,7 @@ class SqlAgentStorage(AgentStorage):
                         agent_data=session.agent_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
+                        updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )
 

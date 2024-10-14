@@ -5,7 +5,7 @@ from phi.vectordb.lancedb import LanceDb
 from phi.embedder.ollama import OllamaEmbedder
 from phi.agent import Agent
 from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.llm.ollama import Ollama
+from phi.model.ollama import Ollama
 
 # Define the database URL where the vector database will be stored
 db_url = "/tmp/lancedb"

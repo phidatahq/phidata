@@ -183,7 +183,7 @@ class DuckDbAgent(Agent):
 
         # First add the Agent description
         system_message = self.description or "You are a Data Engineering expert designed to perform tasks using DuckDb."
-        system_message += "\n"
+        system_message += "\n\n"
 
         # Then add the prompt specifically from the Mode
         if self.model is not None:
@@ -206,11 +206,11 @@ class DuckDbAgent(Agent):
 
         # Then add user provided additional context to the system message
         if self.additional_context is not None:
-            system_message += "\n" + self.additional_context
+            system_message += self.additional_context + "\n"
 
         system_message += dedent(
             """
-            ## ALWAYS FOLLOW THESE RULES:
+            ## ALWAYS follow these rules:
               - Even if you know the answer, you MUST get the answer from the database or the `knowledge_base`.
               - Always show the SQL queries you use to get the answer.
               - Make sure your query accounts for duplicate records.

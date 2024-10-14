@@ -10,7 +10,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(table_name="recipes", db_url=db_url, search_type=SearchType.hybrid),
 )
-# Load the knowledge base: Comment out after first run
+# Load the knowledge base: Comment after first run
 knowledge_base.load(upsert=True)
 
 storage = PgAgentStorage(table_name="pdf_agent", db_url=db_url)
@@ -33,6 +33,12 @@ def pdf_agent(new: bool = False, user: str = "user"):
         show_tool_calls=True,
         # Enable the agent to read the chat history
         read_chat_history=True,
+        # We can also automatically add the chat history to the messages sent to the model
+        # But giving the model the chat history is not always useful, so we give it a tool instead
+        # to only use when needed.
+        # add_history_to_messages=True,
+        # Number of historical responses to add to the messages.
+        # num_history_responses=3,
     )
     if session_id is None:
         session_id = agent.session_id

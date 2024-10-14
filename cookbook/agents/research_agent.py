@@ -11,8 +11,8 @@ agent = Agent(
     tools=[DuckDuckGo(), Newspaper4k()],
     description="You are a senior NYT researcher writing an article on a topic.",
     instructions=[
-        "For a given topic, search for the top 3 links.",
-        "Then read each URL and extract the article text, if a URL isn't available, ignore and let it be.",
+        "For a given topic, search for the top 5 links.",
+        "Then read each URL and extract the article text, if a URL isn't available, ignore it.",
         "Analyse and prepare an NYT worthy article based on the information.",
     ],
     markdown=True,
@@ -21,14 +21,14 @@ agent = Agent(
     # debug_mode=True,
 )
 
-# agent.print_response("Simulation theory", stream=True)
+agent.print_response("Simulation theory", stream=True)
 
 # Run agent and return the response as a stream
-response_stream: Iterator[RunResponse] = agent.run("Simulation theory", stream=True)
+# response_stream: Iterator[RunResponse] = agent.run("Simulation theory", stream=True)
 # Print the response stream in markdown format
-pprint_run_response(response_stream, markdown=True, show_time=True)
+# pprint_run_response(response_stream, markdown=True, show_time=True)
 
 # Run agent and return the response as a variable
-response: RunResponse = agent.run("Simulation theory")
+# response: RunResponse = agent.run("Simulation theory")
 # Print the response in markdown format
-pprint_run_response(response, markdown=True)
+# pprint_run_response(response, markdown=True)

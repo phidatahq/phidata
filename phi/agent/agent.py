@@ -1016,9 +1016,8 @@ class Agent(BaseModel):
         # 6.1 Add context to user message
         if context and context.docs and len(context.docs) > 0:
             user_prompt += "\nUse the following information from the knowledge base if it helps:\n"
-            user_prompt += "<knowledge>\n"
+            user_prompt += "## Context  \n"
             user_prompt += self.convert_documents_to_string(context.docs) + "\n"
-            user_prompt += "</knowledge>\n"
 
         # 6.2 Add the message again at the end of the user message
         if context:

@@ -14,3 +14,7 @@ memory: AgentMemory = agent.memory
 # -*- Print Chats
 print("============ Chats ============")
 pprint(memory.chats)
+
+# -*- Print messages
+print("============ Messages ============")
+pprint(memory.messages)

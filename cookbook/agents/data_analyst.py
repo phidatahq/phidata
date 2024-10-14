@@ -24,6 +24,6 @@ data_analyst = DuckDbAgent(
 data_analyst.print_response(
     "Show me a histogram of ratings. "
     "Choose an appropriate bucket size but share how you chose it. "
-    "Show me the result as an ascii diagram",
+    "Show me the result as a pretty ascii diagram",
     stream=True,
 )

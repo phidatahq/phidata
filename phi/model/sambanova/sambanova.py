@@ -5,6 +5,17 @@ from phi.model.openai.like import OpenAILike
 
 
 class Sambanova(OpenAILike):
+    """
+    A class for interacting with Sambanova models.
+
+    Attributes:
+        id (str): The id of the Sambanova model to use. Default is "Meta-Llama-3.1-8B-Instruct".
+        name (str): The name of this chat model instance. Default is "Sambanova"
+        provider (str): The provider of the model. Default is "Sambanova".
+        api_key (str): The api key to authorize request to Sambanova.
+        base_url (str): The base url to which the requests are sent.
+    """
+
     id: str = "Meta-Llama-3.1-8B-Instruct"
     name: str = "Sambanova"
     provider: str = "Sambanova"

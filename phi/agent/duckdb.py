@@ -104,7 +104,7 @@ class DuckDbAgent(Agent):
 
         # Add instructions from the Model
         if self.model is not None:
-            _model_instructions = self.model.get_instructions_from_model()
+            _model_instructions = self.model.get_instructions_for_model()
             if _model_instructions is not None:
                 instructions += _model_instructions
 
@@ -170,10 +170,6 @@ class DuckDbAgent(Agent):
         if self.markdown and self.response_model is None:
             instructions.append("Use markdown to format your answers.")
 
-        # Add extra instructions provided by the user
-        if self.extra_instructions is not None:
-            instructions.extend(self.extra_instructions)
-
         return instructions
 
     def get_system_message(self) -> Optional[Message]:
@@ -187,7 +183,7 @@ class DuckDbAgent(Agent):
 
         # Then add the prompt specifically from the Mode
         if self.model is not None:
-            system_message_from_model = self.model.get_system_message_from_model()
+            system_message_from_model = self.model.get_system_message_for_model()
             if system_message_from_model is not None:
                 system_message += system_message_from_model
 

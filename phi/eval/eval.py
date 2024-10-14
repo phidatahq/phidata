@@ -30,8 +30,8 @@ class Eval(BaseModel):
     # Question to evaluate
     question: str
     answer: Optional[str] = None
-    # Ideal Answer for the question
-    ideal_answer: str
+    # Expected Answer for the question
+    expected_answer: str
     # Result of the evaluation
     result: Optional[EvalResult] = None
 
@@ -76,50 +76,50 @@ class Eval(BaseModel):
 
         accuracy_guidelines = ""
         if self.accuracy_guidelines is not None and len(self.accuracy_guidelines) > 0:
-            accuracy_guidelines = "\nThe AI Agent's answer must follow these guidelines:\n"
+            accuracy_guidelines = "\n## Guidelines for the AI Agent's answer:\n"
             accuracy_guidelines += "\n- ".join(self.accuracy_guidelines)
+            accuracy_guidelines += "\n"
 
         accuracy_context = ""
         if self.accuracy_context is not None and len(self.accuracy_context) > 0:
-            accuracy_context = (
-                f"\nHere is additional context about how to evaluate the answer:\n{self.accuracy_context}"
-            )
+            accuracy_context = "## Additional Context:\n"
+            accuracy_context += self.accuracy_context
+            accuracy_context += "\n"
 
         return Agent(
             model=OpenAIChat(id="gpt-4o-mini"),
             description=f"""\
-You are an evaluator tasked with comparing an AI Agent's answer to an ideal answer for a given question.
-You will assess the accuracy of the Agent's answer and provide a score on a scale of 1 to 10, where 10 means the answers match exactly.
+You are an expert evaluator tasked with assessing the accuracy of an AI Agent's answer compared to an expected answer for a given question.
+Your task is to provide a detailed analysis and assign a score on a scale of 1 to 10, where 10 indicates a perfect match to the expected answer.
 
-Here is the question:
-<question>
+## Question:
 {self.question}
-</question>
 
-Here is the ideal answer:
-<ideal_answer>
-{self.ideal_answer}
-</ideal_answer>
+## Expected Answer:
+{self.expected_answer}
 
-Compare the Agent's answer to the ideal answer. Consider the following aspects:
-- Accuracy of information
-- Completeness of the answer
-- Relevance to the question
-- Use of similar key concepts or ideas
-- Overall structure and presentation
+## Evaluation Criteria:
+1. Accuracy of information
+2. Completeness of the answer
+3. Relevance to the question
+4. Use of key concepts and ideas
+5. Overall structure and clarity of presentation
 {accuracy_guidelines}{accuracy_context}
+## Instructions:
+1. Carefully compare the AI Agent's answer to the expected answer.
+2. Provide a detailed analysis, highlighting:
+   - Specific similarities and differences
+   - Key points included or missed
+   - Any inaccuracies or misconceptions
+3. Explicitly reference the evaluation criteria and any provided guidelines in your reasoning.
+4. Assign a score from 1 to 10 (use only whole numbers) based on the following scale:
+   1-2: Completely incorrect or irrelevant
+   3-4: Major inaccuracies or missing crucial information
+   5-6: Partially correct, but with significant omissions or errors
+   7-8: Mostly accurate and complete, with minor issues
+   9-10: Highly accurate and complete, matching the expected answer closely
 
-Provide your reasoning for the comparison, highlighting similarities and differences between the two answers.
-Make sure to follow the guidelines and be as objective as possible in your evaluation. Mention the guidelines you followed in your reasoning.
-Be specific about what the Agent's answer includes or lacks compared to the ideal answer.
-
-Based on your comparison, assign a score from 1 to 10, where:
-1 = The answers are completely different or the Agent's answer is entirely incorrect
-5 = The Agent's answer captures some key points but misses others or contains some inaccuracies
-10 = The Agent's answer matches the ideal answer exactly in content and presentation
-
-Only use whole numbers for the score (no decimals).
-""",
+Your evaluation should be objective, thorough, and well-reasoned. Provide specific examples from both answers to support your assessment.""",
             response_model=AccuracyResult,
         )
 
@@ -151,7 +151,7 @@ Only use whole numbers for the score (no decimals).
 
         logger.debug("************************ Evaluating ************************")
         logger.debug(f"Question: {self.question}")
-        logger.debug(f"Ideal Answer: {self.ideal_answer}")
+        logger.debug(f"Expected Answer: {self.expected_answer}")
         logger.debug(f"Answer: {answer_to_evaluate}")
         logger.debug("************************************************************")
 
@@ -200,7 +200,6 @@ Only use whole numbers for the score (no decimals).
         if result is None:
             return None
 
-        console.print("\n", style="")  # This adds one blank line
         table = Table(
             box=ROUNDED,
             border_style="blue",
@@ -211,7 +210,7 @@ Only use whole numbers for the score (no decimals).
         )
         table.add_row("Question", self.question)
         table.add_row("Answer", self.answer)
-        table.add_row("Ideal Answer", self.ideal_answer)
+        table.add_row("Expected Answer", self.expected_answer)
         table.add_row("Accuracy Score", f"{str(result.accuracy_score)}/10")
         table.add_row("Accuracy Reason", result.accuracy_reason)
         table.add_row("Time Taken", f"{response_timer.elapsed:.1f}s")

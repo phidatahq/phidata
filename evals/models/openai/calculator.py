@@ -13,7 +13,7 @@ def multiply_and_exponentiate():
             tools=[Calculator(add=True, multiply=True, exponentiate=True)],
         ),
         question="What is 10*5 then to the power of 2? do it step by step",
-        ideal_answer="2500",
+        expected_answer="2500",
     )
     result: Optional[EvalResult] = evaluation.print_result()
 
@@ -27,7 +27,7 @@ def factorial():
             tools=[Calculator(factorial=True)],
         ),
         question="What is 10!?",
-        ideal_answer="3628800",
+        expected_answer="3628800",
     )
     result: Optional[EvalResult] = evaluation.print_result()
 

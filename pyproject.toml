@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.4.39"
+version = "2.4.42"
 description = "Memory, knowledge and tools for LLMs."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -100,9 +100,11 @@ module = [
   "botocore.*",
   "bs4.*",
   "chromadb.*",
+  "clip.*",
   "cohere.*",
   "crawl4ai.*",
   "docker.*",
+  "docx.*",
   "duckdb.*",
   "duckduckgo_search.*",
   "exa_py.*",
@@ -126,6 +128,7 @@ module = [
   "pandas.*",
   "pgvector.*",
   "pinecone.*",
+  "PIL.*",
   "psycopg.*",
   "psycopg2.*",
   "pyarrow.*",
@@ -143,6 +146,7 @@ module = [
   "streamlit.*",
   "tavily.*",
   "textract.*",
+  "torch.*",
   "timeout_decorator.*",
   "vertexai.*",
   "voyageai.*",

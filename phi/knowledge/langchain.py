@@ -17,7 +17,7 @@ class LangChainKnowledgeBase(AssistantKnowledge):
         """Returns relevant documents matching the query"""
 
         try:
-            from langchain_core.vectorstores import VectorStoreRetriever
+            from langchain_core.retrievers import BaseRetriever
             from langchain_core.documents import Document as LangChainDocument
         except ImportError:
             raise ImportError(
@@ -34,8 +34,8 @@ class LangChainKnowledgeBase(AssistantKnowledge):
             logger.error("No retriever provided")
             return []
 
-        if not isinstance(self.retriever, VectorStoreRetriever):
-            raise ValueError(f"Retriever is not of type VectorStoreRetriever: {self.retriever}")
+        if not isinstance(self.retriever, BaseRetriever):
+            raise ValueError(f"Retriever is not of type BaseRetriever: {self.retriever}")
 
         _num_documents = num_documents or self.num_documents
         logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")

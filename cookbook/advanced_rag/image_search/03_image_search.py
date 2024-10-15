@@ -1,6 +1,6 @@
-import torch
-import clip
-from pinecone import Pinecone
+import torch  # type: ignore
+import clip  # type: ignore
+from pinecone import Pinecone  # type: ignore
 import os
 import json
 

@@ -5,9 +5,7 @@ from typing import List, Tuple, Dict, Any
 import torch
 from PIL import Image
 from pinecone import Pinecone, ServerlessSpec, Index
-
-# Type ignore for third-party libraries without type stubs
-import clip  # type: ignore
+import clip
 
 # Load the CLIP model
 device = "cuda" if torch.cuda.is_available() else "cpu"

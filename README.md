@@ -2,6 +2,19 @@
   phidata
 </h1>
 
+<div align = "center">
+  
+[![Stars](https://img.shields.io/github/stars/phidatahq/phidata?style=for-the-badge&logo=github&color=ffd700&logoColor=white&labelColor=4a4a4a)](https://github.com/phidatahq/phidata/stargazers)
+[![Forks](https://img.shields.io/github/forks/phidatahq/phidata?style=for-the-badge&logo=github&color=4CAF50&logoColor=white&labelColor=2a632a)](https://github.com/phidatahq/phidata/network/members)
+[![Watchers](https://img.shields.io/github/watchers/phidatahq/phidata?style=for-the-badge&logo=github&color=2196F3&logoColor=white&labelColor=0d47a1)](https://github.com/phidatahq/phidata/watchers)
+[![Python](https://img.shields.io/badge/Built%20with-Python-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=23236e)](https://www.python.org/)
+[![PyPI version](https://img.shields.io/pypi/v/phidata?style=for-the-badge&logo=pypi&logoColor=white&color=3776AB&labelColor=23236e)](https://pypi.org/project/phidata/)
+[![Jupyter](https://img.shields.io/badge/Jupyter-Notebook-F37626?style=for-the-badge&logo=jupyter&logoColor=white&labelColor=7f3913)](https://jupyter.org/)
+[![Downloads](https://img.shields.io/pypi/dm/phidata?style=for-the-badge&logo=python&logoColor=white&color=FF6F00&labelColor=9c4100)](https://pypi.org/project/phidata/)
+
+
+</div>
+
 <h3 align="center">
 Build AI Assistants with memory, knowledge and tools
 </h3>
@@ -10,10 +23,10 @@ Build AI Assistants with memory, knowledge and tools
 
 ## What is phidata?
 
-**Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory, contextual knowledge and the ability to take actions using function calling.
+**Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory, contextual knowledge, and the ability to take actions using function calling.
 
 Use phidata to turn any LLM into an AI Assistant that can:
-- **Search the web** using DuckDuckGo, Google etc.
+- **Search the web** using DuckDuckGo, Google, etc.
 - **Analyze data** using SQL, DuckDb, etc.
 - **Conduct research** and generate reports.
 - **Answer questions** from PDFs, APIs, etc.
@@ -24,10 +37,10 @@ Use phidata to turn any LLM into an AI Assistant that can:
 
 ## Why phidata?
 
-**Problem:** We need to turn general-purpose LLMs into specialized assistants for our use-case.
+**Problem:** We need to turn general-purpose LLMs into specialized assistants for our use cases.
 
 **Solution:** Extend LLMs with memory, knowledge and tools:
-- **Memory:** Stores **chat history** in a database and enables LLMs to have long-term conversations.
+- **Memory:** Stores **chat history** in a database, and enables LLMs to have long-term conversations.
 - **Knowledge:** Stores information in a vector database and provides LLMs with **business context**.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
 
@@ -408,11 +421,15 @@ We've helped many companies build AI products, the general workflow is:
 2. **Connect your product** to the Assistant via an API.
 3. **Monitor and Improve** your AI product.
 
-We also provide dedicated support and development, [book a call](https://cal.com/phidata/intro) to get started.
+We also provide dedicated support and development. [Book a call](https://cal.com/phidata/intro) to get started.
 
 ## Contributions
 
 We're an open-source project and welcome contributions, please read the [contributing guide](https://github.com/phidatahq/phidata/blob/main/CONTRIBUTING.md) for more information.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=phidatahq/phidata&type=Date)](https://star-history.com/#phidatahq/phidata&Date)
 
 ## Request a feature
 
@@ -423,3 +440,4 @@ We're an open-source project and welcome contributions, please read the [contrib
 
 Our roadmap is available <a href="https://github.com/orgs/phidatahq/projects/2/views/1" target="_blank" rel="noopener noreferrer">here</a>.
 If you have a feature request, please open an issue/discussion.
+

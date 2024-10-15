@@ -201,7 +201,7 @@ pip install lancedb tantivy pypdf sqlalchemy pgvector 'psycopg[binary]'
 python rag_agent.py
 ```
 
-## Agent Playground
+## Agent UI
 
 Phidata gives you a UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 

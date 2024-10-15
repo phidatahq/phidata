@@ -43,6 +43,7 @@ aienv*
 scratch
 junk
 tmp
+agents.db
 data.db
 
 .ipynb_checkpoints

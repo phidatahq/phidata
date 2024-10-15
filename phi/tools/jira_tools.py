@@ -1,3 +1,4 @@
+import os
 import json
 from typing import Optional, cast
 
@@ -13,17 +14,20 @@ except ImportError:
 class JiraTools(Toolkit):
     def __init__(
         self,
-        server_url: str,
+        server_url: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
         token: Optional[str] = None,
     ):
         super().__init__(name="jira_tools")
 
-        self.server_url = server_url
-        self.username = username
-        self.password = password
-        self.token = token
+        self.server_url = server_url or os.getenv("JIRA_SERVER_URL")
+        self.username = username or os.getenv("JIRA_USERNAME")
+        self.password = password or os.getenv("JIRA_PASSWORD")
+        self.token = token or os.getenv("JIRA_TOKEN")
+
+        if not self.server_url:
+            raise ValueError("JIRA server URL not provided.")
 
         # Initialize JIRA client
         if self.token and self.username:

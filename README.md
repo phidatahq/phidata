@@ -26,7 +26,7 @@ Build AI Agents with memory, knowledge, tools and reasoning
 pip install -U phidata
 ```
 
-## Usage
+## Agents
 
 ### Web Search Agent
 

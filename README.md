@@ -253,7 +253,7 @@ phi auth
 Install dependencies and run the Agent Playground:
 
 ```
-pip install 'fastapi[standard]'
+pip install 'fastapi[standard]' sqlalchemy
 
 python playground.py
 ```

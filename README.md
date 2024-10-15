@@ -28,6 +28,8 @@ pip install -U phidata
 
 ## Usage
 
+### Web Search Agent
+
 Let's start by building a simple agent that can search the web, create a file `web_search.py`
 
 ```python
@@ -55,6 +57,8 @@ export OPENAI_API_KEY=sk-xxxx
 
 python web_search.py
 ```
+
+### Finance Agent
 
 Lets create another agent that can query financial data, create a file `finance_agent.py`
 
@@ -84,7 +88,9 @@ pip install yfinance
 python finance_agent.py
 ```
 
-Now lets create a team of agents, create a file `agent_team.py`
+### Agent Team
+
+Now lets create a team of agents using the agents we created above, create a file `agent_team.py`
 
 ```python
 from phi.agent import Agent

@@ -24,20 +24,12 @@ from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.ai_app: "ai-app",
-    WorkspaceStarterTemplate.ai_api: "ai-api",
-    WorkspaceStarterTemplate.django_app: "django-app",
-    WorkspaceStarterTemplate.streamlit_app: "streamlit-app",
-    WorkspaceStarterTemplate.llm_os: "llm-os",
-    WorkspaceStarterTemplate.agentic_rag: "agentic-rag",
+    WorkspaceStarterTemplate.agent_app: "agent-app",
+    WorkspaceStarterTemplate.agent_api: "agent-api",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.ai_app: "https://github.com/phidatahq/ai-app.git",
-    WorkspaceStarterTemplate.ai_api: "https://github.com/phidatahq/ai-api.git",
-    WorkspaceStarterTemplate.django_app: "https://github.com/phidatahq/django-app.git",
-    WorkspaceStarterTemplate.streamlit_app: "https://github.com/phidatahq/streamlit-app.git",
-    WorkspaceStarterTemplate.llm_os: "https://github.com/phidatahq/llm-os.git",
-    WorkspaceStarterTemplate.agentic_rag: "https://github.com/phidatahq/personalized-agentic-rag.git",
+    WorkspaceStarterTemplate.agent_app: "https://github.com/phidatahq/agent-app.git",
+    WorkspaceStarterTemplate.agent_api: "https://github.com/phidatahq/agent-api.git",
 }
 
 

@@ -2350,7 +2350,7 @@ class Agent(BaseModel):
             self.run_response.extra_data.context.append(context)
 
         if docs_from_knowledge is None:
-            return ""
+            return "No documents found"
         return self.convert_documents_to_string(docs_from_knowledge)
 
     def add_to_knowledge(self, query: str, result: str) -> str:

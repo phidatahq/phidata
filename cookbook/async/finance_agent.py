@@ -14,5 +14,5 @@ agent = Agent(
     markdown=True,
 )
 
-# agent.print_response("Share the NVDA stock price and analyst recommendations", stream=True)
-asyncio.run(agent.async_print_response("Summarize fundamentals for TSLA", stream=True))
+# asyncio.run(agent.aprint_response("Share the NVDA stock price and analyst recommendations", stream=True))
+asyncio.run(agent.aprint_response("Summarize fundamentals for TSLA", stream=True))

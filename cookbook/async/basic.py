@@ -8,4 +8,4 @@ agent = Agent(
     instructions=["Recipes should be under 5 ingredients"],
 )
 # -*- Print a response to the cli
-asyncio.run(agent.async_print_response("Share a breakfast recipe.", markdown=True))
+asyncio.run(agent.aprint_response("Share a breakfast recipe.", markdown=True))

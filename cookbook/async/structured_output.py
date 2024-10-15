@@ -39,5 +39,5 @@ structured_output_agent = Agent(
 # structured_output_response: RunResponse = structured_output_agent.arun("New York")
 # pprint(structured_output_response.content)
 
-asyncio.run(json_mode_agent.async_print_response("New York"))
-asyncio.run(structured_output_agent.async_print_response("New York"))
+asyncio.run(json_mode_agent.aprint_response("New York"))
+asyncio.run(structured_output_agent.aprint_response("New York"))

@@ -31,4 +31,4 @@ def get_top_hackernews_stories(num_stories: int = 10) -> str:
 
 
 agent = Agent(tools=[get_top_hackernews_stories], show_tool_calls=True)
-asyncio.run(agent.async_print_response("Summarize the top stories on hackernews?", markdown=True))
+asyncio.run(agent.aprint_response("Summarize the top stories on hackernews?", markdown=True))

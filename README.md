@@ -10,10 +10,10 @@ Build AI Assistants with memory, knowledge and tools
 
 ## What is phidata?
 
-**Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory, contextual knowledge and the ability to take actions using function calling.
+**Phidata is a framework for building Autonomous Assistants** (aka Agents) that have long-term memory, contextual knowledge, and the ability to take actions using function calling.
 
 Use phidata to turn any LLM into an AI Assistant that can:
-- **Search the web** using DuckDuckGo, Google etc.
+- **Search the web** using DuckDuckGo, Google, etc.
 - **Analyze data** using SQL, DuckDb, etc.
 - **Conduct research** and generate reports.
 - **Answer questions** from PDFs, APIs, etc.
@@ -24,10 +24,10 @@ Use phidata to turn any LLM into an AI Assistant that can:
 
 ## Why phidata?
 
-**Problem:** We need to turn general-purpose LLMs into specialized assistants for our use-case.
+**Problem:** We need to turn general-purpose LLMs into specialized assistants for our use cases.
 
 **Solution:** Extend LLMs with memory, knowledge and tools:
-- **Memory:** Stores **chat history** in a database and enables LLMs to have long-term conversations.
+- **Memory:** Stores **chat history** in a database, and enables LLMs to have long-term conversations.
 - **Knowledge:** Stores information in a vector database and provides LLMs with **business context**.
 - **Tools:** Enable LLMs to **take actions** like pulling data from an API, sending emails or querying a database.
 
@@ -408,7 +408,7 @@ We've helped many companies build AI products, the general workflow is:
 2. **Connect your product** to the Assistant via an API.
 3. **Monitor and Improve** your AI product.
 
-We also provide dedicated support and development, [book a call](https://cal.com/phidata/intro) to get started.
+We also provide dedicated support and development. [Book a call](https://cal.com/phidata/intro) to get started.
 
 ## Contributions
 

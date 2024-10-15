@@ -4,14 +4,14 @@ from pathlib import Path
 from pydantic import model_validator
 from textwrap import dedent
 
-from phi.assistant import Assistant
+from phi.agent import Agent, Message
 from phi.file import File
 from phi.tools.python import PythonTools
 from phi.utils.log import logger
 
 
-class PythonAssistant(Assistant):
-    name: str = "PythonAssistant"
+class PythonAgent(Agent):
+    name: str = "PythonAgent"
 
     files: Optional[List[File]] = None
     file_information: Optional[str] = None
@@ -36,8 +36,8 @@ class PythonAssistant(Assistant):
     _python_tools: Optional[PythonTools] = None
 
     @model_validator(mode="after")
-    def add_assistant_tools(self) -> "PythonAssistant":
-        """Add Assistant Tools if needed"""
+    def add_agent_tools(self) -> "PythonAgent":
+        """Add Agent Tools if needed"""
 
         add_python_tools = False
 
@@ -84,10 +84,10 @@ class PythonAssistant(Assistant):
         _instructions = []
 
         # Add instructions specifically from the LLM
-        if self.llm is not None:
-            _llm_instructions = self.llm.get_instructions_from_llm()
-            if _llm_instructions is not None:
-                _instructions += _llm_instructions
+        if self.model is not None:
+            _model_instructions = self.model.get_instructions_for_model()
+            if _model_instructions is not None:
+                _instructions += _model_instructions
 
         _instructions += [
             "Determine if you can answer the question directly or if you need to run python code to accomplish the task.",
@@ -99,7 +99,7 @@ class PythonAssistant(Assistant):
                 "If you need access to data, check the `files` below to see if you have the data you need.",
             ]
 
-        if self.use_tools and self.knowledge_base is not None:
+        if self.tools and self.knowledge is not None:
             _instructions += [
                 "You have access to tools to search the `knowledge_base` for information.",
             ]
@@ -147,50 +147,50 @@ class PythonAssistant(Assistant):
         _instructions += ["Continue till you have accomplished the task."]
 
         # Add instructions for using markdown
-        if self.markdown and self.output_model is None:
+        if self.markdown and self.response_model is None:
             _instructions.append("Use markdown to format your answers.")
 
         # Add extra instructions provided by the user
-        if self.extra_instructions is not None:
-            _instructions.extend(self.extra_instructions)
+        if self.additional_context is not None:
+            _instructions.extend(self.additional_context)
 
         return _instructions
 
-    def get_system_prompt(self, **kwargs) -> Optional[str]:
-        """Return the system prompt for the python assistant"""
+    def get_system_message(self, **kwargs) -> Optional[str]:
+        """Return the system prompt for the python agent"""
 
-        logger.debug("Building the system prompt for the PythonAssistant.")
+        logger.debug("Building the system prompt for the PythonAgent.")
         # -*- Build the default system prompt
-        # First add the Assistant description
-        _system_prompt = (
+        # First add the Agent description
+        system_message = (
             self.description or "You are an expert in Python and can accomplish any task that is asked of you."
         )
-        _system_prompt += "\n"
+        system_message += "\n"
 
         # Then add the prompt specifically from the LLM
-        if self.llm is not None:
-            _system_prompt_from_llm = self.llm.get_system_prompt_from_llm()
-            if _system_prompt_from_llm is not None:
-                _system_prompt += _system_prompt_from_llm
+        if self.model is not None:
+            system_message_from_model = self.model.get_system_message_for_model()
+            if system_message_from_model is not None:
+                system_message += system_message_from_model
 
         # Then add instructions to the system prompt
-        _instructions = self.instructions or self.get_default_instructions()
-        if len(_instructions) > 0:
-            _system_prompt += dedent(
-                """\
-            YOU MUST FOLLOW THESE INSTRUCTIONS CAREFULLY.
-            <instructions>
-            """
-            )
-            for i, instruction in enumerate(_instructions):
-                _system_prompt += f"{i + 1}. {instruction}\n"
-            _system_prompt += "</instructions>\n"
+        instructions = self.instructions
+        # Add default instructions
+        if instructions is None:
+            instructions = []
+
+        instructions += self.get_default_instructions()
+        if len(instructions) > 0:
+            system_message += "## Instructions\n"
+            for instruction in instructions:
+                system_message += f"- {instruction}\n"
+            system_message += "\n"
 
         # Then add user provided additional information to the system prompt
-        if self.add_to_system_prompt is not None:
-            _system_prompt += "\n" + self.add_to_system_prompt
+        if self.additional_context is not None:
+            system_message += self.additional_context + "\n"
 
-        _system_prompt += dedent(
+        system_message += dedent(
             """
             ALWAYS FOLLOW THESE RULES:
             <rules>
@@ -204,16 +204,16 @@ class PythonAssistant(Assistant):
         )
 
         if self.files is not None:
-            _system_prompt += dedent(
+            system_message += dedent(
                 """
             The following `files` are available for you to use:
             <files>
             """
             )
-            _system_prompt += self.get_file_metadata()
-            _system_prompt += "\n</files>\n"
+            system_message += self.get_file_metadata()
+            system_message += "\n</files>\n"
         elif self.file_information is not None:
-            _system_prompt += dedent(
+            system_message += dedent(
                 f"""
             The following `files` are available for you to use:
             <files>
@@ -223,7 +223,7 @@ class PythonAssistant(Assistant):
             )
 
         if self.followups:
-            _system_prompt += dedent(
+            system_message += dedent(
                 """
             After finishing your task, ask the user relevant followup questions like:
             1. Would you like to see the code? If the user says yes, show the code. Get it using the `get_tool_call_history(num_calls=3)` function.
@@ -233,5 +233,5 @@ class PythonAssistant(Assistant):
             """
             )
 
-        _system_prompt += "\nREMEMBER, NEVER RUN CODE TO DELETE DATA OR ABUSE THE LOCAL SYSTEM."
-        return _system_prompt
+        system_message += "\nREMEMBER, NEVER RUN CODE TO DELETE DATA OR ABUSE THE LOCAL SYSTEM."
+        return Message(role=self.system_message_role, content=system_message.strip())

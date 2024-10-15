@@ -219,7 +219,12 @@ python playground.py
 ```
 
 - Open your link provided or navigate to `http://phidata.app/playground`
-- Select your endpoint, agent and chat with them!
+- Select your endpoint, agent and chat with your agents!
+
+<video
+  src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
+  style="border-radius: 8px;"
+/>
 
 ## Monitoring Agents
 
@@ -244,6 +249,8 @@ python agent_monitor.py
 ```
 
 View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
+
+![Agent Session](https://github.com/user-attachments/assets/45f3e460-9538-4b1f-96ba-bd46af3c89a8)
 
 ## More information
 

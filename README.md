@@ -20,70 +20,63 @@ Build AI Agents with memory, knowledge, tools and reasoning
 - **Run those agents as a software application (with a database, vectordb and api).**
 - **Monitor, evaluate and optimize your agentic system.**
 
-## Quickstart
-
-Let's start by building some agents.
-
-### Installation
-
-Create a python virtual environment
-
-```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
-```
-
-Install phidata
+## Install
 
 ```shell
 pip install -U phidata
 ```
 
-### Agent that can search the web
+## Usage
 
-Create a file `web_search.py`
+Let's start by building a simple agent that can search the web, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.duckduckgo import DuckDuckGo
 
-agent = Agent(model=OpenAIChat(id="gpt-4o"), tools=[DuckDuckGo()], show_tool_calls=True, markdown=True)
-agent.print_response("Whats happening in France?", stream=True)
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+    show_tool_calls=True,
+)
+web_agent.print_response("Whats happening in France?", stream=True)
 ```
 
-Install libraries, export your `OPENAI_API_KEY` and run the `Agent`
+Install libraries, export your `OPENAI_API_KEY` and run the Agent:
 
 ```shell
-pip install openai duckduckgo-search
+pip install phidata openai duckduckgo-search
 
 export OPENAI_API_KEY=sk-xxxx
 
 python web_search.py
 ```
 
-### Agent that can query financial data
-
-Create a file `finance_agent.py`
+Lets create another agent that can query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 
-agent = Agent(
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Use tables where possible"],
-    show_tool_calls=True,
+    instructions=["Always use tables to display data"],
     markdown=True,
+    show_tool_calls=True,
 )
 
-agent.print_response("What is the stock price of NVDA", stream=True)
-agent.print_response("Write a comparison between NVDA and AMD, use all tools available.")
+finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
 ```
 
-Install libraries and run the `Agent`
+Install libraries and run the Agent:
 
 ```shell
 pip install yfinance
@@ -91,11 +84,53 @@ pip install yfinance
 python finance_agent.py
 ```
 
-### Agent that can reason
+Now lets create a team of agents, create a file `agent_team.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.yfinance import YFinanceTools
+
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+    show_tool_calls=True,
+)
+
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    instructions=["Always use tables to display data"],
+    markdown=True,
+    show_tool_calls=True,
+)
+
+agent_team = Agent(
+    team=[web_agent, finance_agent],
+    show_tool_calls=True,
+    markdown=True,
+)
+
+agent_team.print_response("Research the web for NVDA and share analyst recommendations", stream=True)
+```
+
+Run the Agent team:
+
+```shell
+python agent_team.py
+```
+
+## Reasoning Agents
 
 Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasonining agent a simple task that gpt-4o fails at.
 
-Create a file `basic_reasoning.py`
+Create a file `reasoning_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -118,10 +153,10 @@ console.rule("[bold yellow]Reasoning Agent[/bold yellow]")
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
 ```
 
-Run the `Agent`
+Run the Reasoning Agent:
 
 ```shell
-python basic_reasoning.py
+python reasoning_agent.py
 ```
 
 ## More information
@@ -222,7 +257,7 @@ python data_analyst.py
 
 </details>
 
-### Agent that can generate pydantic models
+### Agent that can generate structured outputs
 
 <details>
 

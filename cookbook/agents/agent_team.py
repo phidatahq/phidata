@@ -1,8 +1,16 @@
-"""Run `pip install yfinance` to install dependencies."""
-
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
+from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
+
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+    show_tool_calls=True,
+)
 
 finance_agent = Agent(
     name="Finance Agent",
@@ -14,4 +22,10 @@ finance_agent = Agent(
     show_tool_calls=True,
 )
 
-finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
+agent_team = Agent(
+    team=[web_agent, finance_agent],
+    show_tool_calls=True,
+    markdown=True,
+)
+
+agent_team.print_response("Reaserch the web for NVDA and share analyst recommendations", stream=True)

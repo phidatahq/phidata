@@ -830,7 +830,10 @@ class Agent(BaseModel):
             system_message_lines.append(f"{self.description}\n")
         # 5.2 Then add the Agent task if provided
         if self.task is not None:
-            system_message_lines.append(f"**Your task is:** {self.task}\n")
+            system_message_lines.append(f"Your task is: {self.task}\n")
+        # 5.3 Then add the Agent role
+        if self.role is not None:
+            system_message_lines.append(f"Your role is: {self.role}\n")
         # 5.3 Then add instructions for transferring tasks to team members
         if self.has_team():
             system_message_lines.extend(
@@ -840,6 +843,7 @@ class Agent(BaseModel):
                     "  - If you transfer tasks, make sure to include a clear description of the task and the expected output.",
                     "  - You must always validate the output of the other Agents before responding to the user, "
                     "you can re-assign the task if you are not satisfied with the result.",
+                    "",
                 ]
             )
         # 5.4 Then add instructions for the Agent
@@ -864,7 +868,7 @@ class Agent(BaseModel):
             system_message_lines.extend(f"{self.additional_context}\n")
         # 5.9 Then add information about the team members
         if self.has_team():
-            system_message_lines.extend(f"{self.get_transfer_prompt()}\n")
+            system_message_lines.append(f"{self.get_transfer_prompt()}\n")
         # 5.10 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:

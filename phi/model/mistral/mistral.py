@@ -407,11 +407,7 @@ class MistralChat(Model):
         """
         assistant_message.metrics["time"] = stream_data.response_timer.elapsed
         if stream_data.time_to_first_token is not None:
-            assistant_message.metrics["time_to_first_token"] = f"{stream_data.time_to_first_token:.4f}s"
-        if stream_data.completion_tokens > 0:
-            assistant_message.metrics["time_per_output_token"] = (
-                f"{stream_data.response_timer.elapsed / stream_data.completion_tokens:.4f}s"
-            )
+            assistant_message.metrics["time_to_first_token"] = stream_data.time_to_first_token
 
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
@@ -419,13 +415,7 @@ class MistralChat(Model):
         if stream_data.time_to_first_token is not None:
             if "time_to_first_token" not in self.metrics:
                 self.metrics["time_to_first_token"] = []
-            self.metrics["time_to_first_token"].append(f"{stream_data.time_to_first_token:.4f}s")
-        if stream_data.completion_tokens > 0:
-            if "tokens_per_second" not in self.metrics:
-                self.metrics["tokens_per_second"] = []
-            self.metrics["tokens_per_second"].append(
-                f"{stream_data.completion_tokens / stream_data.response_timer.elapsed:.4f}"
-            )
+            self.metrics["time_to_first_token"].append(stream_data.time_to_first_token)
 
         assistant_message.metrics["prompt_tokens"] = stream_data.response_prompt_tokens
         assistant_message.metrics["input_tokens"] = stream_data.response_prompt_tokens

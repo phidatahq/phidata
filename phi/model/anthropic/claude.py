@@ -291,15 +291,13 @@ class Claude(Model):
             if stream_usage:
                 if stream_usage.time_to_first_token is not None:
                     assistant_message.metrics["time_to_first_token"] = stream_usage.time_to_first_token
-                    self.metrics.setdefault("time_to_first_token", []).append(
-                        f"{stream_usage.time_to_first_token:.4f}s"
-                    )
+                    self.metrics.setdefault("time_to_first_token", []).append(stream_usage.time_to_first_token)
                 if stream_usage.tokens_per_second is not None:
                     assistant_message.metrics["tokens_per_second"] = stream_usage.tokens_per_second
-                    self.metrics.setdefault("tokens_per_second", []).append(f"{stream_usage.tokens_per_second:.4f}")
+                    self.metrics.setdefault("tokens_per_second", []).append(stream_usage.tokens_per_second)
                 if stream_usage.time_per_token is not None:
                     assistant_message.metrics["time_per_token"] = stream_usage.time_per_token
-                    self.metrics.setdefault("time_per_token", []).append(f"{stream_usage.time_per_token:.4f}s")
+                    self.metrics.setdefault("time_per_token", []).append(stream_usage.time_per_token)
 
     def _create_assistant_message(
         self, response: AnthropicMessage, response_timer: Timer
@@ -362,7 +360,7 @@ class Claude(Model):
 
         # Update usage metrics
         assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(f"{response_timer.elapsed:.4f}s")
+        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
         self._update_usage_metrics(assistant_message, message_data.response_usage)
 
         return assistant_message, message_data.response_content, message_data.tool_ids
@@ -605,7 +603,7 @@ class Claude(Model):
 
         # Update usage metrics
         assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(f"{response_timer.elapsed:.4f}s")
+        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
         self._update_usage_metrics(assistant_message, message_data.response_usage, stream_usage=stream_usage_data)
 
         messages.append(assistant_message)

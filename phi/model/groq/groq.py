@@ -416,11 +416,7 @@ class Groq(Model):
         """
         assistant_message.metrics["time"] = stream_data.response_timer.elapsed
         if stream_data.time_to_first_token is not None:
-            assistant_message.metrics["time_to_first_token"] = f"{stream_data.time_to_first_token:.4f}s"
-        if stream_data.completion_tokens > 0:
-            assistant_message.metrics["time_per_output_token"] = (
-                f"{stream_data.response_timer.elapsed / stream_data.completion_tokens:.4f}s"
-            )
+            assistant_message.metrics["time_to_first_token"] = stream_data.time_to_first_token
 
         if "response_times" not in self.metrics:
             self.metrics["response_times"] = []
@@ -428,7 +424,7 @@ class Groq(Model):
         if stream_data.time_to_first_token is not None:
             if "time_to_first_token" not in self.metrics:
                 self.metrics["time_to_first_token"] = []
-            self.metrics["time_to_first_token"].append(f"{stream_data.time_to_first_token:.4f}s")
+            self.metrics["time_to_first_token"].append(stream_data.time_to_first_token)
         if stream_data.completion_tokens > 0:
             if "tokens_per_second" not in self.metrics:
                 self.metrics["tokens_per_second"] = []

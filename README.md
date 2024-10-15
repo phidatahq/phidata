@@ -309,6 +309,8 @@ agent = Agent(markdown=True, debug_mode=True)
 agent.print_response("Share a 2 sentence horror story")
 ```
 
+![debugging](https://github.com/user-attachments/assets/c933c787-4a28-4bff-a664-93b29360d9ea)
+
 ## More information
 
 - Read the docs at <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs.phidata.com</a>

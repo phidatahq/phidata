@@ -1,7 +1,9 @@
+from os import getenv
 from typing import Optional, Dict
 
 from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
 
+from phi.constants import PHI_API_KEY_ENV_VAR
 from phi.cli.settings import phi_cli_settings
 from phi.cli.credentials import read_auth_token
 from phi.utils.log import logger
@@ -32,6 +34,9 @@ class Api:
             token = self.auth_token
             if token is not None:
                 self._authenticated_headers[phi_cli_settings.auth_token_header] = token
+            phi_api_key = getenv(PHI_API_KEY_ENV_VAR)
+            if phi_api_key is not None:
+                self._authenticated_headers["Authorization"] = f"Bearer {phi_api_key}"
         return self._authenticated_headers
 
     def Client(self) -> HttpxClient:

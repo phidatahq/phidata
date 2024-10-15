@@ -2,8 +2,8 @@ from typing import List, Any, Optional, cast
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.llm.base import LLM
-from phi.llm.message import Message
+from phi.model.base import Model
+from phi.model.message import Message
 from phi.memory.memory import Memory
 from phi.memory.db import MemoryDb
 from phi.memory.row import MemoryRow
@@ -11,7 +11,7 @@ from phi.utils.log import logger
 
 
 class MemoryManager(BaseModel):
-    llm: Optional[LLM] = None
+    model: Optional[Model] = None
     user_id: Optional[str] = None
 
     # Provide the system prompt for the manager as a string
@@ -24,22 +24,23 @@ class MemoryManager(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def update_llm(self) -> None:
-        if self.llm is None:
+    def update_model(self) -> None:
+        if self.model is None:
             try:
-                from phi.llm.openai import OpenAIChat
+                from phi.model.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
-                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
+                    "phidata uses `openai` as the default model provider. "
+                    "Please provide a `model` or install `openai`."
                 )
                 exit(1)
+            self.model = OpenAIChat()
 
-            self.llm = OpenAIChat()
-        self.llm.add_tool(self.add_memory)
-        self.llm.add_tool(self.update_memory)
-        self.llm.add_tool(self.delete_memory)
-        self.llm.add_tool(self.clear_memory)
+        self.model.add_tool(self.add_memory)
+        self.model.add_tool(self.update_memory)
+        self.model.add_tool(self.delete_memory)
+        self.model.add_tool(self.clear_memory)
 
     def get_existing_memories(self) -> Optional[List[MemoryRow]]:
         if self.db is None:
@@ -107,18 +108,14 @@ class MemoryManager(BaseModel):
         """
         try:
             if self.db:
-                self.db.clear_table()
+                self.db.clear()
             return "Memory cleared successfully"
         except Exception as e:
             logger.warning(f"Error clearing memory in db: {e}")
             return f"Error clearing memory: {e}"
 
-    def get_system_prompt(self) -> Optional[str]:
-        # If the system_prompt is provided, use it
-        if self.system_prompt is not None:
-            return self.system_prompt
-
-        # -*- Build a default system prompt for classification
+    def get_system_message(self) -> Message:
+        # -*- Return a system message for the memory manager
         system_prompt_lines = [
             "Your task is to generate a concise memory for the user's message. "
             "Create a memory that captures the key information provided by the user, as if you were storing it for future reference. "
@@ -140,35 +137,30 @@ class MemoryManager(BaseModel):
                     + "\n</existing_memories>",
                 ]
             )
-        return "\n".join(system_prompt_lines)
+        return Message(role="system", content="\n".join(system_prompt_lines))
 
     def run(
         self,
         message: Optional[str] = None,
         **kwargs: Any,
-    ) -> str:
+    ) -> Optional[str]:
         logger.debug("*********** MemoryManager Start ***********")
 
-        # Update the LLM (set defaults, add logit etc.)
-        self.update_llm()
+        # Update the Model (set defaults, add logit etc.)
+        self.update_model()
 
-        # -*- Prepare the List of messages sent to the LLM
-        llm_messages: List[Message] = []
-
-        # Create the system prompt message
-        system_prompt_message = Message(role="system", content=self.get_system_prompt())
-        llm_messages.append(system_prompt_message)
-
-        # Create the user prompt message
+        # Prepare the List of messages to send to the Model
+        messages_for_model: List[Message] = [self.get_system_message()]
+        # Add the user prompt message
         user_prompt_message = Message(role="user", content=message, **kwargs) if message else None
         if user_prompt_message is not None:
-            llm_messages += [user_prompt_message]
+            messages_for_model += [user_prompt_message]
 
         # Set input message added with the memory
         self.input_message = message
 
-        # -*- Generate a response from the llm (includes running function calls)
-        self.llm = cast(LLM, self.llm)
-        response = self.llm.response(messages=llm_messages)
+        # Generate a response from the Model (includes running function calls)
+        self.model = cast(Model, self.model)
+        response = self.model.response(messages=messages_for_model)
         logger.debug("*********** MemoryManager End ***********")
-        return response
+        return response.content

@@ -958,11 +958,13 @@ class Assistant(BaseModel):
             llm_response_type = "json"
         elif self.markdown:
             llm_response_type = "markdown"
+
         functions = {}
         if self.llm is not None and self.llm.functions is not None:
             for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
+
         event_data = {
             "run_type": "assistant",
             "user_message": message,
@@ -1404,7 +1406,7 @@ class Assistant(BaseModel):
             str: A string indicating the status of the task.
         """
         try:
-            return self.memory.update_memory(input=task, force=True)
+            return self.memory.update_memory(input=task, force=True) or "Successfully updated memory"
         except Exception as e:
             return f"Failed to update memory: {e}"
 

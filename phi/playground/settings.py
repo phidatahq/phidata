@@ -39,7 +39,14 @@ class PlaygroundSettings(BaseSettings):
 
         # Add phidata domains to cors origin list
         valid_cors.extend(
-            ["http://localhost", "http://localhost:3000", "https://phidata.app", "https://www.phidata.app"]
+            [
+                "http://localhost",
+                "http://localhost:3000",
+                "https://phidata.app",
+                "https://www.phidata.app",
+                "https://stgphi.com",
+                "https://www.stgphi.com",
+            ]
         )
 
         return valid_cors

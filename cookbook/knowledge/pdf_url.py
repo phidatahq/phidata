@@ -1,4 +1,4 @@
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
@@ -10,5 +10,5 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 
-assistant = Assistant(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
-assistant.print_response("How to make Thai curry?", markdown=True)
+agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
+agent.print_response("How to make Thai curry?", markdown=True)

@@ -20,26 +20,27 @@ class YFinanceTools(Toolkit):
         company_news: bool = False,
         technical_indicators: bool = False,
         historical_prices: bool = False,
+        enable_all: bool = False,
     ):
         super().__init__(name="yfinance_tools")
 
-        if stock_price:
+        if stock_price or enable_all:
             self.register(self.get_current_stock_price)
-        if company_info:
+        if company_info or enable_all:
             self.register(self.get_company_info)
-        if stock_fundamentals:
+        if stock_fundamentals or enable_all:
             self.register(self.get_stock_fundamentals)
-        if income_statements:
+        if income_statements or enable_all:
             self.register(self.get_income_statements)
-        if key_financial_ratios:
+        if key_financial_ratios or enable_all:
             self.register(self.get_key_financial_ratios)
-        if analyst_recommendations:
+        if analyst_recommendations or enable_all:
             self.register(self.get_analyst_recommendations)
-        if company_news:
+        if company_news or enable_all:
             self.register(self.get_company_news)
-        if technical_indicators:
+        if technical_indicators or enable_all:
             self.register(self.get_technical_indicators)
-        if historical_prices:
+        if historical_prices or enable_all:
             self.register(self.get_historical_stock_prices)
 
     def get_current_stock_price(self, symbol: str) -> str:

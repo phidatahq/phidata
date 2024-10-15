@@ -7,7 +7,7 @@ from pathlib import Path
 from shutil import rmtree
 
 import httpx
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.knowledge.llamaindex import LlamaIndexKnowledgeBase
 from llama_index.core import (
     SimpleDirectoryReader,
@@ -49,8 +49,8 @@ retriever = VectorIndexRetriever(index)
 # Create a knowledge base from the vector store
 knowledge_base = LlamaIndexKnowledgeBase(retriever=retriever)
 
-# Create an assistant with the knowledge base
-assistant = Assistant(knowledge_base=knowledge_base, search_knowledge=True, debug_mode=True, show_tool_calls=True)
+# Create an agent with the knowledge base
+agent = Agent(knowledge_base=knowledge_base, search_knowledge=True, debug_mode=True, show_tool_calls=True)
 
-# Use the assistant to ask a question and print a response.
-assistant.print_response("Explain what this text means: low end eats the high end", markdown=True)
+# Use the agent to ask a question and print a response.
+agent.print_response("Explain what this text means: low end eats the high end", markdown=True)

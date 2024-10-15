@@ -165,12 +165,13 @@ class S2VectorDb(VectorDb):
             result = sess.execute(stmt).first()
             return result is not None
 
-    def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 10) -> None:
         """
         Insert documents into the table.
 
         Args:
             documents (List[Document]): List of documents to insert.
+            filters (Optional[Dict[str, Any]]): Optional filters for the insert.
             batch_size (int): Number of documents to insert in each batch.
         """
         with self.Session.begin() as sess:
@@ -203,12 +204,13 @@ class S2VectorDb(VectorDb):
             sess.commit()
             logger.debug(f"Committed {counter} documents")
 
-    def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 20) -> None:
         """
         Upsert (insert or update) documents in the table.
 
         Args:
             documents (List[Document]): List of documents to upsert.
+            filters (Optional[Dict[str, Any]]): Optional filters for the upsert.
             batch_size (int): Number of documents to upsert in each batch.
         """
         with self.Session.begin() as sess:
@@ -333,7 +335,7 @@ class S2VectorDb(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         """
         Delete the table.
         """
@@ -367,7 +369,7 @@ class S2VectorDb(VectorDb):
     def optimize(self) -> None:
         pass
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         """
         Clear all rows from the table.
 

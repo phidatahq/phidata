@@ -97,6 +97,7 @@ class PostgresTools(Toolkit):
         including min, max, avg, std and approx_unique.
 
         :param table: Table to summarize
+        :param table_schema: Schema of the table
         :return: Summary of the table
         """
         stmt = f"""WITH column_stats AS (

@@ -1,6 +1,8 @@
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.tools.resend_tools import ResendTools
 
-assistant = Assistant(tools=[ResendTools(from_email="<enter_from_email>")], debug_mode=True)
+from_email = "<enter_from_email>"
+to_email = "<enter_to_email>"
 
-assistant.print_response("send email to <enter_to_email> greeting them with hello world")
+agent = Agent(tools=[ResendTools(from_email=from_email)], show_tool_calls=True)
+agent.print_response(f"Send an email to {to_email} greeting them with hello world")

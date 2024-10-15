@@ -25,7 +25,7 @@ class SupersetBase(DockerApp):
 
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/workspace"
+    workspace_dir_container_path: str = "/workspace"
     # Mount the workspace directory from host machine to the container
     mount_workspace: bool = False
 
@@ -144,7 +144,6 @@ class SupersetBase(DockerApp):
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
-            WORKSPACE_HASH_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
         )
@@ -174,8 +173,7 @@ class SupersetBase(DockerApp):
             if container_context.workspace_schema is not None:
                 if container_context.workspace_schema.id_workspace is not None:
                     container_env[WORKSPACE_ID_ENV_VAR] = str(container_context.workspace_schema.id_workspace) or ""
-                if container_context.workspace_schema.ws_hash is not None:
-                    container_env[WORKSPACE_HASH_ENV_VAR] = container_context.workspace_schema.ws_hash
+
         except Exception:
             pass
 

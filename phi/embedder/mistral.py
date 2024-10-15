@@ -4,7 +4,7 @@ from phi.embedder.base import Embedder
 from phi.utils.log import logger
 
 try:
-    from mistralai.client import MistralClient
+    from mistralai import Mistral
     from mistralai.models.embeddings import EmbeddingResponse
 except ImportError:
     raise ImportError("`openai` not installed")
@@ -22,10 +22,10 @@ class MistralEmbedder(Embedder):
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the MistralClient manually
-    mistral_client: Optional[MistralClient] = None
+    mistral_client: Optional[Mistral] = None
 
     @property
-    def client(self) -> MistralClient:
+    def client(self) -> Mistral:
         if self.mistral_client:
             return self.mistral_client
 
@@ -40,7 +40,7 @@ class MistralEmbedder(Embedder):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return MistralClient(**_client_params)
+        return Mistral(**_client_params)
 
     def _response(self, text: str) -> EmbeddingResponse:
         _request_params: Dict[str, Any] = {
@@ -49,7 +49,7 @@ class MistralEmbedder(Embedder):
         }
         if self.request_params:
             _request_params.update(self.request_params)
-        return self.client.embeddings(**_request_params)
+        return self.client.embeddings.create(**_request_params)
 
     def get_embedding(self, text: str) -> List[float]:
         response: EmbeddingResponse = self._response(text=text)

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class Memory(BaseModel):
-    """Model for LLM memories"""
+    """Model for Agent Memories"""
 
     memory: str
     id: Optional[str] = None

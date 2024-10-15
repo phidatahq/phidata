@@ -5,10 +5,26 @@ from phi.llm.aws.bedrock import AwsBedrock
 
 
 class Claude(AwsBedrock):
+    """
+    AWS Bedrock Claude model.
+
+    Args:
+        model (str): The model to use.
+        max_tokens (int): The maximum number of tokens to generate.
+        temperature (Optional[float]): The temperature to use.
+        top_p (Optional[float]): The top p to use.
+        top_k (Optional[int]): The top k to use.
+        stop_sequences (Optional[List[str]]): The stop sequences to use.
+        anthropic_version (str): The anthropic version to use.
+        request_params (Optional[Dict[str, Any]]): The request parameters to use.
+        client_params (Optional[Dict[str, Any]]): The client parameters to use.
+
+    """
+
     name: str = "AwsBedrockAnthropicClaude"
     model: str = "anthropic.claude-3-sonnet-20240229-v1:0"
     # -*- Request parameters
-    max_tokens: int = 8192
+    max_tokens: int = 4096
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None
@@ -45,46 +61,161 @@ class Claude(AwsBedrock):
             _request_params.update(self.request_params)
         return _request_params
 
+    def get_tools(self) -> Optional[Dict[str, Any]]:
+        """
+        Refactors the tools in a format accepted by the Bedrock API.
+        """
+        if not self.functions:
+            return None
+
+        tools = []
+        for f_name, function in self.functions.items():
+            properties = {}
+            required = []
+
+            for param_name, param_info in function.parameters.get("properties", {}).items():
+                param_type = param_info.get("type")
+                if isinstance(param_type, list):
+                    param_type = [t for t in param_type if t != "null"][0]
+
+                properties[param_name] = {
+                    "type": param_type or "string",
+                    "description": param_info.get("description") or "",
+                }
+
+                if "null" not in (
+                    param_info.get("type") if isinstance(param_info.get("type"), list) else [param_info.get("type")]
+                ):
+                    required.append(param_name)
+
+            tools.append(
+                {
+                    "toolSpec": {
+                        "name": f_name,
+                        "description": function.description or "",
+                        "inputSchema": {"json": {"type": "object", "properties": properties, "required": required}},
+                    }
+                }
+            )
+
+        return {"tools": tools}
+
     def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
+        """
+        Get the request body for the Bedrock API.
+
+        Args:
+            messages (List[Message]): The messages to include in the request.
+
+        Returns:
+            Dict[str, Any]: The request body for the Bedrock API.
+        """
         system_prompt = None
         messages_for_api = []
         for m in messages:
             if m.role == "system":
                 system_prompt = m.content
             else:
-                messages_for_api.append({"role": m.role, "content": m.content})
+                messages_for_api.append({"role": m.role, "content": [{"text": m.content}]})
 
-        # -*- Build request body
         request_body = {
             "messages": messages_for_api,
-            **self.api_kwargs,
+            "modelId": self.model,
         }
+
         if system_prompt:
-            request_body["system"] = system_prompt
+            request_body["system"] = [{"text": system_prompt}]
+
+        # Add inferenceConfig
+        inference_config: Dict[str, Any] = {}
+        rename_map = {"max_tokens": "maxTokens", "top_p": "topP", "top_k": "topK", "stop_sequences": "stopSequences"}
+
+        for k, v in self.api_kwargs.items():
+            if k in rename_map:
+                inference_config[rename_map[k]] = v
+            elif k in ["temperature"]:
+                inference_config[k] = v
+
+        if inference_config:
+            request_body["inferenceConfig"] = inference_config  # type: ignore
+
+        if self.tools:
+            tools = self.get_tools()
+            request_body["toolConfig"] = tools  # type: ignore
+
         return request_body
 
-    def parse_response_message(self, response: Dict[str, Any]) -> Message:
-        if response.get("type") == "message":
-            response_message = Message(role=response.get("role"))
-            content: Optional[str] = ""
-            if response.get("content"):
-                _content = response.get("content")
-                if isinstance(_content, str):
-                    content = _content
-                elif isinstance(_content, dict):
-                    content = _content.get("text", "")
-                elif isinstance(_content, list):
-                    content = "\n".join([c.get("text") for c in _content])
+    def parse_response_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parse the response from the Bedrock API.
 
-            response_message.content = content
-            return response_message
+        Args:
+            response (Dict[str, Any]): The response from the Bedrock API.
 
-        return Message(
-            role="assistant",
-            content=response.get("completion"),
+        Returns:
+            Dict[str, Any]: The parsed response.
+        """
+        res = {}
+        if "output" in response and "message" in response["output"]:
+            message = response["output"]["message"]
+            role = message.get("role")
+            content = message.get("content", [])
+
+            # Extract text content if it's a list of dictionaries
+            if isinstance(content, list) and content and isinstance(content[0], dict):
+                content = [item.get("text", "") for item in content if "text" in item]
+                content = "\n".join(content)  # Join multiple text items if present
+
+            res = {
+                "content": content,
+                "usage": {
+                    "inputTokens": response.get("usage", {}).get("inputTokens"),
+                    "outputTokens": response.get("usage", {}).get("outputTokens"),
+                    "totalTokens": response.get("usage", {}).get("totalTokens"),
+                },
+                "metrics": {"latencyMs": response.get("metrics", {}).get("latencyMs")},
+                "role": role,
+            }
+
+        if "stopReason" in response:
+            stop_reason = response["stopReason"]
+
+        if stop_reason == "tool_use":
+            tool_requests = response["output"]["message"]["content"]
+
+        res["stop_reason"] = stop_reason if stop_reason else None
+        res["tool_requests"] = tool_requests if stop_reason == "tool_use" else None
+
+        return res
+
+    def create_assistant_message(self, parsed_response: Dict[str, Any]) -> Message:
+        """
+        Create an assistant message from the parsed response.
+
+        Args:
+            parsed_response (Dict[str, Any]): The parsed response from the Bedrock API.
+
+        Returns:
+            Message: The assistant message.
+        """
+        mesage = Message(
+            role=parsed_response["role"],
+            content=parsed_response["content"],
+            metrics=parsed_response["metrics"],
         )
 
+        return mesage
+
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
+        """
+        Parse the response delta from the Bedrock API.
+
+        Args:
+            response (Dict[str, Any]): The response from the Bedrock API.
+
+        Returns:
+            Optional[str]: The response delta.
+        """
         if "delta" in response:
             return response.get("delta", {}).get("text")
         return response.get("completion")

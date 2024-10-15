@@ -1,9 +1,13 @@
+from typing import List, Optional, Set
+
 from fastapi import FastAPI
-from typing import List, Optional
 from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
+from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
+from phi.playground.router import get_playground_router, get_async_playground_router
 from phi.playground.settings import PlaygroundSettings
+from phi.utils.log import logger
 
 
 class Playground:
@@ -12,31 +16,23 @@ class Playground:
         agents: List[Agent],
         settings: Optional[PlaygroundSettings] = None,
         api_app: Optional[FastAPI] = None,
-        api_router: Optional[APIRouter] = None,
+        router: Optional[APIRouter] = None,
     ):
         self.agents: List[Agent] = agents
         self.settings: PlaygroundSettings = settings or PlaygroundSettings()
         self.api_app: Optional[FastAPI] = api_app
-        self.api_router: Optional[APIRouter] = api_router
+        self.router: Optional[APIRouter] = router
+        self.endpoints_created: Set[str] = set()
 
-    def get_api_router(self):
-        agent_router = APIRouter(prefix="/agent", tags=["Agent"])
+    def get_router(self) -> APIRouter:
+        return get_playground_router(self.agents)
 
-        @agent_router.get("/health")
-        def agent_run_health():
-            return {"status": "success", "path": "/agent/health"}
+    def get_async_router(self) -> APIRouter:
+        return get_async_playground_router(self.agents)
 
-        return agent_router
-
-    def get_api_app(self) -> FastAPI:
-        """Create a FastAPI App for the Playground
-
-        Returns:
-            FastAPI: FastAPI App
-        """
+    def get_app(self, use_async: bool = True) -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware
 
-        # Create a FastAPI App if not provided
         if not self.api_app:
             self.api_app = FastAPI(
                 title=self.settings.title,
@@ -48,17 +44,18 @@ class Playground:
         if not self.api_app:
             raise Exception("API App could not be created.")
 
-        # Create an API Router if not provided
-        if not self.api_router:
-            self.api_router = APIRouter(prefix="/v1")
+        if not self.router:
+            self.router = APIRouter(prefix="/v1")
 
-        if not self.api_router:
+        if not self.router:
             raise Exception("API Router could not be created.")
 
-        self.api_router.include_router(self.get_api_router())
-        self.api_app.include_router(self.api_router)
+        if use_async:
+            self.router.include_router(self.get_async_router())
+        else:
+            self.router.include_router(self.get_router())
+        self.api_app.include_router(self.router)
 
-        # Add Middlewares
         self.api_app.add_middleware(
             CORSMiddleware,
             allow_origins=self.settings.cors_origin_list,
@@ -70,22 +67,18 @@ class Playground:
 
         return self.api_app
 
-    def serve(
-        self,
-        app: Optional[str] = None,
-        *,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        reload: bool = False,
-        **kwargs,
-    ):
-        import uvicorn
+    def create_endpoint(self, endpoint: str, prefix: str = "/v1") -> None:
+        if endpoint in self.endpoints_created:
+            return
 
-        _app = app or self.api_app
-        if _app is None:
-            _app = self.get_api_app()
+        try:
+            logger.info(f"Creating playground endpoint: {endpoint}")
+            create_playground_endpoint(
+                playground=PlaygroundEndpointCreate(endpoint=endpoint, playground_data={"prefix": prefix})
+            )
+        except Exception as e:
+            logger.error(f"Could not create playground endpoint: {e}")
+            logger.error("Please try again.")
+            return
 
-        _host = host or "0.0.0.0"
-        _port = port or 8000
-
-        uvicorn.run(app=_app, host=_host, port=_port, reload=reload, **kwargs)
+        self.endpoints_created.add(endpoint)

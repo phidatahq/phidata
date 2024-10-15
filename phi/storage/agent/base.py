@@ -10,19 +10,23 @@ class AgentStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, session_id: str) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_session_ids(self, user_id: Optional[str] = None) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_sessions(self, user_id: Optional[str] = None) -> List[AgentSession]:
+    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         raise NotImplementedError
 
     @abstractmethod
     def upsert(self, session: AgentSession) -> Optional[AgentSession]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_session(self, session_id: Optional[str] = None):
         raise NotImplementedError
 
     @abstractmethod

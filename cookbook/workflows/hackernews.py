@@ -1,83 +1,72 @@
 import json
 import httpx
+from typing import Iterator
 
-from phi.assistant import Assistant
-from phi.workflow import Workflow, Task
+from phi.agent import Agent, RunResponse
+from phi.workflow import Workflow
+from phi.tools.newspaper4k import Newspaper4k
+from phi.utils.pprint import pprint_run_response
 from phi.utils.log import logger
 
 
-def get_top_hackernews_stories(num_stories: int = 10) -> str:
-    """Use this function to get top stories from Hacker News.
+class HackerNewsReporter(Workflow):
+    def get_top_hackernews_stories(self, num_stories: int = 10) -> str:
+        """Use this function to get top stories from Hacker News.
 
-    Args:
-        num_stories (int): Number of stories to return. Defaults to 10.
+        Args:
+            num_stories (int): Number of stories to return. Defaults to 10.
 
-    Returns:
-        str: JSON string of top stories.
-    """
+        Returns:
+            str: JSON string of top stories.
+        """
 
-    # Fetch top story IDs
-    logger.info(f"Getting top {num_stories} stories from Hacker News")
-    response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
-    story_ids = response.json()
+        # Fetch top story IDs
+        response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
+        story_ids = response.json()
 
-    # Fetch story details
-    stories = []
-    for story_id in story_ids[:num_stories]:
-        story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
-        story = story_response.json()
-        story["username"] = story["by"]
-        stories.append(story)
-    return json.dumps(stories)
+        # Fetch story details
+        stories = []
+        for story_id in story_ids[:num_stories]:
+            story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
+            story = story_response.json()
+            story["username"] = story["by"]
+            stories.append(story)
+        return json.dumps(stories)
+
+    def run(self, num_stories: int = 5) -> Iterator[RunResponse]:
+        hn_agent = Agent(
+            tools=[self.get_top_hackernews_stories],
+            description=f"Get the top {num_stories} stories from hackernews. "
+            f"Share all possible information, including url, score, title and summary if available.",
+            show_tool_calls=True,
+        )
+        writer = Agent(
+            tools=[Newspaper4k()],
+            description=f"Write an engaging report on the top {num_stories} stories from hackernews.",
+            instructions=[
+                "You will be provided with top stories and their links.",
+                "Carefully read each article and think about the contents",
+                "Then generate a final New York Times worthy article",
+                "Break the article into sections and provide key takeaways at the end.",
+                "Make sure the title is catchy and engaging.",
+                "Share score, title, url and summary of every article.",
+                "Give the section relevant titles and provide details/facts/processes in each section."
+                "Ignore articles that you cannot read or understand.",
+                "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
+            ],
+        )
+
+        logger.info(f"Getting top {num_stories} stories from HackerNews.")
+        top_stories: RunResponse = hn_agent.run()
+        if top_stories is None or not top_stories.content:
+            yield RunResponse(run_id=self.run_id, content="Sorry, could not get the top stories.")
+            return
+
+        logger.info("Reading each story and writing a report.")
+        yield from writer.run(top_stories.content, stream=True)
 
 
-def get_user_details(username: str) -> str:
-    """Use this function to get the details of a Hacker News user using their username.
-
-    Args:
-        username (str): Username of the user to get details for.
-
-    Returns:
-        str: JSON string of the user details.
-    """
-
-    try:
-        logger.info(f"Getting details for user: {username}")
-        user = httpx.get(f"https://hacker-news.firebaseio.com/v0/user/{username}.json").json()
-        user_details = {
-            "id": user.get("user_id"),
-            "karma": user.get("karma"),
-            "about": user.get("about"),
-            "total_items_submitted": len(user.get("submitted", [])),
-        }
-        return json.dumps(user_details)
-    except Exception as e:
-        logger.exception(e)
-        return f"Error getting user details: {e}"
-
-
-hn_top_stories = Assistant(
-    name="HackerNews Top Stories",
-    tools=[get_top_hackernews_stories],
-    show_tool_calls=True,
-)
-hn_user_researcher = Assistant(
-    name="HackerNews User Researcher",
-    tools=[get_user_details],
-    show_tool_calls=True,
-)
-article_writer = Assistant(
-    name="Article Writer",
-    save_output_to_file="wip/hackernews_article_{run_id}.txt",
-)
-
-hn_workflow = Workflow(
-    name="HackerNews Workflow",
-    tasks=[
-        Task(description="Get top hackernews stories", assistant=hn_top_stories, show_output=False),
-        Task(description="Get information about hackernews users", assistant=hn_user_researcher, show_output=False),
-        Task(description="Write an engaging article", assistant=article_writer),
-    ],
-    # debug_mode=True,
-)
-hn_workflow.print_response("Write a report about the users with the top 2 stories on hackernews", markdown=True)
+# Run workflow
+report: Iterator[RunResponse] = HackerNewsReporter(debug_mode=False).run(num_stories=5)
+# Print the report
+pprint_run_response(report, markdown=True, show_time=True)

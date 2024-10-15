@@ -20,15 +20,24 @@ Build AI Agents with memory, knowledge, tools and reasoning
 - **Run those agents as a software application (with a database, vectordb and api).**
 - **Monitor, evaluate and optimize your agentic system.**
 
+## Quickstart
+
 Let's start by building some agents.
 
-## Installation
+### Installation
+
+Create a python virtual environment
+
+```shell
+python3 -m venv ~/.venvs/aienv
+source ~/.venvs/aienv/bin/activate
+```
+
+Install phidata
 
 ```shell
 pip install -U phidata
 ```
-
-## Quickstart
 
 ### Agent that can search the web
 

@@ -270,6 +270,8 @@ python playground.py
 
 The Agent Playground includes a few demo agents that you can test with. If you have recommendations for other demo agents, please let us know in our [community forum](https://community.phidata.com/).
 
+![demo_agents](https://github.com/user-attachments/assets/329aa15d-83aa-4c6c-88f0-2b0eda257198)
+
 ## Monitoring & Debugging
 
 ### Monitoring

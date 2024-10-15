@@ -156,7 +156,7 @@ class PythonAgent(Agent):
 
         return _instructions
 
-    def get_system_message(self, **kwargs) -> Optional[str]:
+    def get_system_message(self, **kwargs) -> Optional[Message]:
         """Return the system prompt for the python agent"""
 
         logger.debug("Building the system prompt for the PythonAgent.")

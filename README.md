@@ -182,7 +182,8 @@ web_agent = Agent(
     role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
-    storage=SqlAgentStorage(table_name="web_agent"),
+    storage=SqlAgentStorage(table_name="web_agent", db_file="agents.db"),
+    add_history_to_messages=True,
     markdown=True,
 )
 
@@ -192,7 +193,8 @@ finance_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     instructions=["Always use tables to display data"],
-    storage=SqlAgentStorage(table_name="finance_agent"),
+    storage=SqlAgentStorage(table_name="finance_agent", db_file="agents.db"),
+    add_history_to_messages=True,
     markdown=True,
 )
 

@@ -266,11 +266,17 @@ python playground.py
   style="border-radius: 8px;"
 />
 
-## Monitoring Agents
+## Demo Agents
 
-Phidata comes with monitoring built in. You can manually set `monitoring=True` on any agent or set `PHI_MONITORING=true` in your environment.
+The Agent Playground includes a few demo agents that you can test with. If you have recommendations for other demo agents, please let us know in our [community forum](https://community.phidata.com/).
 
-> Note: Monitoring requires `phi auth` to be run first.
+## Monitoring & Debugging
+
+### Monitoring
+
+Phidata comes with built-in monitoring. You can set `monitoring=True` on any agent to track sessions or set `PHI_MONITORING=true` in your environment.
+
+> Note: Run `phi auth` first to authenticate your local account.
 
 ```python
 from phi.agent import Agent
@@ -291,6 +297,17 @@ python agent_monitor.py
 View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
 
 ![Agent Session](https://github.com/user-attachments/assets/45f3e460-9538-4b1f-96ba-bd46af3c89a8)
+
+### Debugging
+
+Phidata also includes a built-in debugger that will show debug logs in the terminal. You can set `debug_mode=True` on any agent to track sessions or set `PHI_DEBUG=true` in your environment.
+
+```python
+from phi.agent import Agent
+
+agent = Agent(markdown=True, debug_mode=True)
+agent.print_response("Share a 2 sentence horror story")
+```
 
 ## More information
 

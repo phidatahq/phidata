@@ -1,4 +1,4 @@
-## Pgvector Assistant
+## Pgvector Agent
 
 ### 1. Create a virtual environment
 
@@ -13,7 +13,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U pinecone-client pypdf openai phidata
 ```
 
-### 3. Run Pinecone Assistant
+### 3. Run Pinecone Agent
 
 ```shell
 python cookbook/integrations/pinecone/agent.py

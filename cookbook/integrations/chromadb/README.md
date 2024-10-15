@@ -1,4 +1,4 @@
-# Chromadb Assistant
+# Chromadb Agent
 
 ### 1. Create a virtual environment
 
@@ -13,7 +13,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U chromadb pypdf openai phidata
 ```
 
-### 3. Run Assistant
+### 3. Run Agent
 
 ```shell
 python cookbook/integrations/chromadb/agent.py

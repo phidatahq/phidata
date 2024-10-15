@@ -6,7 +6,8 @@
 Build AI Agents with memory, knowledge, tools and reasoning
 </h3>
 
-![image](https://github.com/phidatahq/phidata/assets/22579644/295187f6-ac9d-41e0-abdb-38e3291ad1d1)
+![agent](https://github.com/user-attachments/assets/0ac09de1-89c5-48c0-baa8-f4ab8c6bacd9)
+
 
 ## What is phidata?
 

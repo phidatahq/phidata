@@ -1,23 +1,50 @@
+import os
+import json
+from typing import Optional, List
+
 from phi.tools import Toolkit
 from phi.utils.log import logger
-from github import Github, Auth, GithubException
-from typing import Optional, List
-import json
+
+try:
+    from github import Github, GithubException, Auth
+except ImportError:
+    raise ImportError("`PyGithub` not installed. Please install using `pip install PyGithub`")
 
 
-class GithubToolkit(Toolkit):
-    def __init__(self, access_token: str, base_url: Optional[str] = None):
+class GithubTools(Toolkit):
+    def __init__(
+        self,
+        access_token: Optional[str] = None,
+        base_url: Optional[str] = None,
+        search_repositories: bool = True,
+        list_repositories: bool = True,
+        get_repository: bool = True,
+        list_pull_requests: bool = True,
+        get_pull_request: bool = True,
+        get_pull_request_changes: bool = True,
+        create_issue: bool = True,
+    ):
         super().__init__(name="github")
-        self.access_token = access_token
+
+        self.access_token = access_token or os.getenv("GITHUB_ACCESS_TOKEN")
         self.base_url = base_url
+
         self.g = self.authenticate()
-        self.register(self.search_repositories)
-        self.register(self.list_repositories)
-        self.register(self.get_repository)
-        self.register(self.list_pull_requests)
-        self.register(self.get_pull_request)
-        self.register(self.get_pull_request_changes)
-        self.register(self.create_issue)
+
+        if search_repositories:
+            self.register(self.search_repositories)
+        if list_repositories:
+            self.register(self.list_repositories)
+        if get_repository:
+            self.register(self.get_repository)
+        if list_pull_requests:
+            self.register(self.list_pull_requests)
+        if get_pull_request:
+            self.register(self.get_pull_request)
+        if get_pull_request_changes:
+            self.register(self.get_pull_request_changes)
+        if create_issue:
+            self.register(self.create_issue)
 
     def authenticate(self):
         """Authenticate with GitHub using the provided access token."""

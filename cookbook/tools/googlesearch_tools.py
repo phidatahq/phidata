@@ -1,7 +1,7 @@
 from phi.agent import Agent
 from phi.tools.googlesearch import GoogleSearch
 
-news_agent = Agent(
+agent = Agent(
     tools=[GoogleSearch()],
     description="You are a news agent that helps users find the latest news.",
     instructions=[
@@ -10,7 +10,5 @@ news_agent = Agent(
         "Search in English and in French.",
     ],
     show_tool_calls=True,
-    debug_mode=True,
 )
-
-news_agent.print_response("Mistral IA", markdown=True)
+agent.print_response("Mistral AI", markdown=True)

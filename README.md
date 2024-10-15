@@ -270,6 +270,8 @@ python playground.py
 
 The Agent Playground includes a few demo agents that you can test with. If you have recommendations for other demo agents, please let us know in our [community forum](https://community.phidata.com/).
 
+![demo_agents](https://github.com/user-attachments/assets/329aa15d-83aa-4c6c-88f0-2b0eda257198)
+
 ## Monitoring & Debugging
 
 ### Monitoring
@@ -308,6 +310,8 @@ from phi.agent import Agent
 agent = Agent(markdown=True, debug_mode=True)
 agent.print_response("Share a 2 sentence horror story")
 ```
+
+![debugging](https://github.com/user-attachments/assets/c933c787-4a28-4bff-a664-93b29360d9ea)
 
 ## More information
 

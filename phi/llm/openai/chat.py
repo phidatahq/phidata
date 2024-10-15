@@ -30,8 +30,9 @@ except ImportError:
 
 
 class OpenAIChat(LLM):
-    name: str = "OpenAIChat"
     model: str = "gpt-4o"
+    name: str = "OpenAIChat"
+    provider: str = "OpenAI"
     # -*- Request parameters
     store: Optional[bool] = None
     frequency_penalty: Optional[float] = None
@@ -257,11 +258,11 @@ class OpenAIChat(LLM):
                 self.function_call_stack = []
 
             # -*- Check function call limit
-            if len(self.function_call_stack) > self.function_call_limit:
+            if self.tool_call_limit and len(self.function_call_stack) > self.tool_call_limit:
                 self.tool_choice = "none"
                 return Message(
                     role="function",
-                    content=f"Function call limit ({self.function_call_limit}) exceeded.",
+                    content=f"Function call limit ({self.tool_call_limit}) exceeded.",
                 ), _function_call
 
             # -*- Run function call

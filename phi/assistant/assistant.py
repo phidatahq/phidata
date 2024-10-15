@@ -321,12 +321,12 @@ class Assistant(BaseModel):
         if self.llm.tool_choice is None and self.tool_choice is not None:
             self.llm.tool_choice = self.tool_choice
 
-        # Set tool_call_limit if it is less than the llm tool_call_limit
-        if self.tool_call_limit is not None and self.tool_call_limit < self.llm.function_call_limit:
-            self.llm.function_call_limit = self.tool_call_limit
+        # Set tool_call_limit if set on the assistant
+        if self.tool_call_limit is not None:
+            self.llm.tool_call_limit = self.tool_call_limit
 
         if self.run_id is not None:
-            self.llm.run_id = self.run_id
+            self.llm.session_id = self.run_id
 
     def load_memory(self) -> None:
         if self.memory is not None:
@@ -958,11 +958,13 @@ class Assistant(BaseModel):
             llm_response_type = "json"
         elif self.markdown:
             llm_response_type = "markdown"
+
         functions = {}
         if self.llm is not None and self.llm.functions is not None:
             for _f_name, _func in self.llm.functions.items():
                 if isinstance(_func, Function):
                     functions[_f_name] = _func.to_dict()
+
         event_data = {
             "run_type": "assistant",
             "user_message": message,
@@ -1404,7 +1406,7 @@ class Assistant(BaseModel):
             str: A string indicating the status of the task.
         """
         try:
-            return self.memory.update_memory(input=task, force=True)
+            return self.memory.update_memory(input=task, force=True) or "Successfully updated memory"
         except Exception as e:
             return f"Failed to update memory: {e}"
 

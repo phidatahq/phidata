@@ -1,4 +1,4 @@
-# Pgvector Assistant
+# Pgvector Agent
 
 > Fork and clone the repository if needed.
 
@@ -39,8 +39,8 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 4. Run PgVector Assistant
+### 4. Run PgVector Agent
 
 ```shell
-python cookbook/integrations/pgvector/assistant.py
+python cookbook/integrations/pgvector/agent.py
 ```

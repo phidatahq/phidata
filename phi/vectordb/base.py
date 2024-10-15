@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from phi.document import Document
 
 
 class VectorDb(ABC):
-    """Base class for managing Vector Databases"""
+    """Base class for Vector Databases"""
 
     @abstractmethod
     def create(self) -> None:
@@ -19,43 +19,44 @@ class VectorDb(ABC):
     def name_exists(self, name: str) -> bool:
         raise NotImplementedError
 
+    def id_exists(self, id: str) -> bool:
+        raise NotImplementedError
+
     @abstractmethod
-    def insert(self, documents: List[Document]) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         raise NotImplementedError
 
     def upsert_available(self) -> bool:
         return False
 
     @abstractmethod
-    def upsert(self, documents: List[Document]) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def search(self, query: str, limit: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         raise NotImplementedError
 
-    # optional methods to avoid breaking changes
     def vector_search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
-    def fulltext_search(self, query: str, limit: int = 5) -> List[Document]:
+    def keyword_search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
     def hybrid_search(self, query: str, limit: int = 5) -> List[Document]:
         raise NotImplementedError
 
     @abstractmethod
-    def delete(self) -> None:
+    def drop(self) -> None:
         raise NotImplementedError
 
     @abstractmethod
     def exists(self) -> bool:
         raise NotImplementedError
 
-    @abstractmethod
     def optimize(self) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         raise NotImplementedError

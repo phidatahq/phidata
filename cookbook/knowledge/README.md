@@ -1,6 +1,6 @@
-# Assistant Knowledge
+# Agent Knowledge
 
-**Knowledge Base:** is information that the Assistant can search to improve its responses. This directory contains a series of cookbooks that demonstrate how to build a knowledge base for the Assistant.
+**Knowledge Base:** is information that the Agent can search to improve its responses. This directory contains a series of cookbooks that demonstrate how to build a knowledge base for the Agent.
 
 > Note: Fork and clone this repository if needed
 

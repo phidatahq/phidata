@@ -1,4 +1,4 @@
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.tools.email import EmailTools
 
 receiver_email = "<receiver_email>"
@@ -6,7 +6,7 @@ sender_email = "<sender_email>"
 sender_name = "<sender_name>"
 sender_passkey = "<sender_passkey>"
 
-assistant = Assistant(
+agent = Agent(
     tools=[
         EmailTools(
             receiver_email=receiver_email,
@@ -16,5 +16,4 @@ assistant = Assistant(
         )
     ]
 )
-
-assistant.print_response("send an email to <receiver_email>")
+agent.print_response("send an email to <receiver_email>")

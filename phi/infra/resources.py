@@ -1,11 +1,9 @@
 from typing import Optional, List, Any, Tuple
 
-from phi.base import PhiBase
-
-# from phi.workspace.settings import WorkspaceSettings
+from phi.infra.base import InfraBase
 
 
-class InfraResources(PhiBase):
+class InfraResources(InfraBase):
     apps: Optional[List[Any]] = None
     resources: Optional[List[Any]] = None
 

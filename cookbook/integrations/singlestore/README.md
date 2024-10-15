@@ -1,4 +1,4 @@
-## SingleStore Assistant
+## SingleStore Agent
 
 1. Create a virtual environment
 
@@ -34,8 +34,8 @@ export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
 export OPENAI_API_KEY="sk-..."
 ```
 
-4. Run Assistant
+4. Run Agent
 
 ```shell
-python cookbook/integrations/singlestore/assistant.py
+python cookbook/integrations/singlestore/agent.py
 ```

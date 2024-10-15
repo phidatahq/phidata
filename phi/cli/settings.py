@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 from importlib import metadata
 
 from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic_core.core_schema import ValidationInfo
 
 PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
 
@@ -23,6 +25,7 @@ class PhiCliSettings(BaseSettings):
     api_enabled: bool = True
     api_url: str = Field("https://api.phidata.com", validate_default=True)
     signin_url: str = Field("https://phidata.app/login", validate_default=True)
+    playground_url: str = Field("https://phidata.app/playground", validate_default=True)
 
     model_config = SettingsConfigDict(env_prefix="PHI_")
 
@@ -37,7 +40,7 @@ class PhiCliSettings(BaseSettings):
         return v
 
     @field_validator("signin_url", mode="before")
-    def update_signin_url(cls, v, info: FieldValidationInfo):
+    def update_signin_url(cls, v, info: ValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
             return "http://localhost:3000/login"
@@ -46,8 +49,18 @@ class PhiCliSettings(BaseSettings):
         else:
             return "https://phidata.app/login"
 
+    @field_validator("playground_url", mode="before")
+    def update_playground_url(cls, v, info: ValidationInfo):
+        api_runtime = info.data["api_runtime"]
+        if api_runtime == "dev":
+            return "http://localhost:3000/playground"
+        elif api_runtime == "stg":
+            return "https://stgphi.com/playground"
+        else:
+            return "https://phidata.app/playground"
+
     @field_validator("api_url", mode="before")
-    def update_api_url(cls, v, info: FieldValidationInfo):
+    def update_api_url(cls, v, info: ValidationInfo):
         api_runtime = info.data["api_runtime"]
         if api_runtime == "dev":
             from os import getenv

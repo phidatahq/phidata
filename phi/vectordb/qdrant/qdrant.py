@@ -1,5 +1,5 @@
 from hashlib import md5
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 try:
     from qdrant_client import QdrantClient  # noqa: F401
@@ -138,7 +138,15 @@ class Qdrant(VectorDb):
             return len(scroll_result[0]) > 0
         return False
 
-    def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 10) -> None:
+        """
+        Insert documents into the database.
+
+        Args:
+            documents (List[Document]): List of documents to insert
+            filters (Optional[Dict[str, Any]]): Filters to apply while inserting documents
+            batch_size (int): Batch size for inserting documents
+        """
         logger.debug(f"Inserting {len(documents)} documents")
         points = []
         for document in documents:
@@ -162,17 +170,26 @@ class Qdrant(VectorDb):
             self.client.upsert(collection_name=self.collection, wait=False, points=points)
         logger.debug(f"Upsert {len(points)} documents")
 
-    def upsert(self, documents: List[Document]) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """
         Upsert documents into the database.
 
         Args:
             documents (List[Document]): List of documents to upsert
+            filters (Optional[Dict[str, Any]]): Filters to apply while upserting
         """
         logger.debug("Redirecting the request to insert")
         self.insert(documents)
 
-    def search(self, query: str, limit: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Search for documents in the database.
+
+        Args:
+            query (str): Query to search for
+            limit (int): Number of search results to return
+            filters (Optional[Dict[str, Any]]): Filters to apply while searching
+        """
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -204,7 +221,7 @@ class Qdrant(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.exists():
             logger.debug(f"Deleting collection: {self.collection}")
             self.client.delete_collection(self.collection)
@@ -226,5 +243,5 @@ class Qdrant(VectorDb):
     def optimize(self) -> None:
         pass
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         return False

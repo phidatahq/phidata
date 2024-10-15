@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "2.4.42"
-description = "Memory, knowledge and tools for LLMs."
+version = "2.5.0a15"
+description = "Build AI Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [
@@ -40,6 +40,10 @@ k8s = [
     "docker",
     "kubernetes"
 ]
+server = [
+    "fastapi",
+    "uvicorn",
+]
 all = [
     "mypy",
     "pytest",
@@ -47,7 +51,9 @@ all = [
     "types-pyyaml",
     "docker",
     "boto3",
-    "kubernetes"
+    "kubernetes",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.scripts]
@@ -84,7 +90,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/examples/*", "phi/assistant/openai/*"]
+exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/assistants/examples/*", "phi/assistant/openai/*"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -97,6 +103,7 @@ module = [
   "bs4.*",
   "chromadb.*",
   "clip.*",
+  "clip.*",
   "cohere.*",
   "crawl4ai.*",
   "docker.*",
@@ -104,15 +111,18 @@ module = [
   "duckdb.*",
   "duckduckgo_search.*",
   "exa_py.*",
+  "fastapi.*",
   "firecrawl.*",
+  "github.*",
   "google.*",
   "googlesearch.*",
   "groq.*",
   "huggingface_hub.*",
+  "jira.*",
   "kubernetes.*",
   "lancedb.*",
-  "langchain.*",
   "langchain_core.*",
+  "langchain.*",
   "llama_index.*",
   "mistralai.*",
   "nest_asyncio.*",
@@ -123,8 +133,9 @@ module = [
   "openbb.*",
   "pandas.*",
   "pgvector.*",
-  "pinecone.*",
   "PIL.*",
+  "pinecone_text.*",
+  "pinecone.*",
   "psycopg.*",
   "psycopg2.*",
   "pyarrow.*",
@@ -133,17 +144,20 @@ module = [
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
   "requests.*",
+  "sentence_transformers.*",
   "serpapi.*",
   "setuptools.*",
-  "sentence_transformers.*",
   "simplejson.*",
   "spider.*",
   "sqlalchemy.*",
+  "starlette.*",
   "streamlit.*",
+  "tantivy.*",
   "tavily.*",
   "textract.*",
-  "torch.*",
   "timeout_decorator.*",
+  "torch.*",
+  "uvicorn.*",
   "vertexai.*",
   "voyageai.*",
   "wikipedia.*",

@@ -31,7 +31,7 @@ main() {
   if [[ UPGRADE_ALL -eq 1 ]];
   then
     print_heading "Upgrading all dependencies to latest version"
-    CUSTOM_COMPILE_COMMAND="./scripts/upgrade.sh" \
+    CUSTOM_COMPILE_COMMAND="./scripts/upgrade.sh all" \
       pip-compile --upgrade --no-annotate --pip-args "--no-cache-dir" \
       -o ${ROOT_DIR}/requirements.txt \
       ${ROOT_DIR}/pyproject.toml

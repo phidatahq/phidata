@@ -1,14 +1,14 @@
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Dict, Any
 
 from pydantic import model_validator
 
 from phi.document import Document
 from phi.document.reader.website import WebsiteReader
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 from phi.utils.log import logger
 
 
-class WebsiteKnowledgeBase(AssistantKnowledge):
+class WebsiteKnowledgeBase(AgentKnowledge):
     urls: List[str] = []
     reader: Optional[WebsiteReader] = None
 
@@ -16,11 +16,11 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
     max_depth: int = 3
     max_links: int = 10
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def set_reader(self) -> "WebsiteKnowledgeBase":
         if self.reader is None:
             self.reader = WebsiteReader(max_depth=self.max_depth, max_links=self.max_links)
-        return self  # type: ignore
+        return self
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
@@ -34,7 +34,13 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
             for _url in self.urls:
                 yield self.reader.read(url=_url)
 
-    def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
+    def load(
+        self,
+        recreate: bool = False,
+        upsert: bool = True,
+        skip_existing: bool = True,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Load the website contents to the vector db"""
 
         if self.vector_db is None:
@@ -46,8 +52,8 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
             return
 
         if recreate:
-            logger.debug("Deleting collection")
-            self.vector_db.delete()
+            logger.debug("Dropping collection")
+            self.vector_db.drop()
 
         logger.debug("Creating collection")
         self.vector_db.create()
@@ -71,9 +77,9 @@ class WebsiteKnowledgeBase(AssistantKnowledge):
             if not recreate:
                 document_list = [document for document in document_list if not self.vector_db.doc_exists(document)]
             if upsert and self.vector_db.upsert_available():
-                self.vector_db.upsert(documents=document_list)
+                self.vector_db.upsert(documents=document_list, filters=filters)
             else:
-                self.vector_db.insert(documents=document_list)
+                self.vector_db.insert(documents=document_list, filters=filters)
             num_documents += len(document_list)
             logger.info(f"Loaded {num_documents} documents to knowledge base")
 

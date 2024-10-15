@@ -8,7 +8,7 @@ The function takes a query and returns a list of references from the knowledge b
 import json
 from typing import List, Optional
 
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.document import Document
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
@@ -33,11 +33,11 @@ def custom_references_function(query: str, **kwargs) -> Optional[str]:
     return json.dumps([doc.to_dict() for doc in relevant_docs], indent=2)
 
 
-assistant = Assistant(
+agent = Agent(
     knowledge_base=knowledge_base,
     # Generate references using a custom function.
     references_function=custom_references_function,
     # Adds references to the prompt.
     add_references_to_prompt=True,
 )
-assistant.print_response("How to make Thai curry?", markdown=True)
+agent.print_response("How to make Thai curry?", markdown=True)

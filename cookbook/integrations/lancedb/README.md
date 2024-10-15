@@ -1,4 +1,4 @@
-# Lancedb Assistant
+# Lancedb Agent
 
 ### 1. Create a virtual environment
 ```shell
@@ -11,7 +11,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U lancedb pypdf pandas openai phidata
 ```
 
-### 3. Run Assistant
+### 3. Run Agent
 ```shell
-python cookbook/integrations/lancedb/assistant.py
+python cookbook/integrations/lancedb/agent.py
 ```

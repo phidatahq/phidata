@@ -3,7 +3,7 @@ import typer
 from typing import Optional
 from rich.prompt import Prompt
 
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.vectordb.pineconedb import PineconeDB
 from phi.knowledge.website import WebsiteKnowledgeBase
 
@@ -31,20 +31,20 @@ knowledge_base = WebsiteKnowledgeBase(
 # Comment out after first run
 knowledge_base.load(recreate=False, upsert=True)
 
-# Create an assistant with the knowledge base
-assistant = Assistant(
+# Create an agent with the knowledge base
+agent = Agent(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
 
-# Ask the assistant about the knowledge base
-assistant.print_response("How does phidata work?")
+# Ask the agent about the knowledge base
+agent.print_response("How does phidata work?")
 
 
-def pinecone_assistant(user: str = "user"):
+def pinecone_agent(user: str = "user"):
     run_id: Optional[str] = None
 
-    assistant = Assistant(
+    agent = Agent(
         run_id=run_id,
         user_id=user,
         knowledge_base=knowledge_base,
@@ -57,7 +57,7 @@ def pinecone_assistant(user: str = "user"):
     )
 
     if run_id is None:
-        run_id = assistant.run_id
+        run_id = agent.run_id
         print(f"Started Run: {run_id}\n")
     else:
         print(f"Continuing Run: {run_id}\n")
@@ -66,8 +66,8 @@ def pinecone_assistant(user: str = "user"):
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
             break
-        assistant.print_response(message)
+        agent.print_response(message)
 
 
 if __name__ == "__main__":
-    typer.run(pinecone_assistant)
+    typer.run(pinecone_agent)

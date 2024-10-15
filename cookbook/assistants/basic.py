@@ -2,7 +2,7 @@ from phi.assistant import Assistant
 from phi.llm.openai import OpenAIChat
 
 assistant = Assistant(
-    llm=OpenAIChat(model="gpt-4o", store=True),
+    llm=OpenAIChat(model="gpt-4o"),
     description="You help people with their health and fitness goals.",
     instructions=["Recipes should be under 5 ingredients"],
 )

@@ -14,6 +14,8 @@ class LLM(BaseModel):
     model: str
     # Name for this LLM. Note: This is not sent to the LLM API.
     name: Optional[str] = None
+    # Provider of this LLM. Note: This is not sent to the LLM API.
+    provider: Optional[str] = None
     # Metrics collected for this LLM. Note: This is not sent to the LLM API.
     metrics: Dict[str, Any] = {}
     response_format: Optional[Any] = None
@@ -34,21 +36,21 @@ class LLM(BaseModel):
     run_tools: bool = True
     # If True, shows function calls in the response.
     show_tool_calls: Optional[bool] = None
+    # Maximum number of tool calls allowed.
+    tool_call_limit: Optional[int] = None
 
     # -*- Functions available to the LLM to call -*-
     # Functions extracted from the tools.
     # Note: These are not sent to the LLM API and are only used for execution + deduplication.
     functions: Optional[Dict[str, Function]] = None
-    # Maximum number of function calls allowed across all iterations.
-    function_call_limit: int = 10
     # Function call stack.
     function_call_stack: Optional[List[FunctionCall]] = None
 
     system_prompt: Optional[str] = None
     instructions: Optional[List[str]] = None
 
-    # State from the run
-    run_id: Optional[str] = None
+    # State from the Agent
+    session_id: Optional[str] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -90,7 +92,7 @@ class LLM(BaseModel):
         _dict = self.model_dump(include={"name", "model", "metrics"})
         if self.functions:
             _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
-            _dict["function_call_limit"] = self.function_call_limit
+            _dict["tool_call_limit"] = self.tool_call_limit
         return _dict
 
     def get_tools_for_api(self) -> Optional[List[Dict[str, Any]]]:
@@ -184,7 +186,7 @@ class LLM(BaseModel):
             self.function_call_stack.append(function_call)
 
             # -*- Check function call limit
-            if len(self.function_call_stack) >= self.function_call_limit:
+            if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
 

@@ -1,5 +1,5 @@
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.tools.tavily import TavilyTools
 
-assistant = Assistant(tools=[TavilyTools()], show_tool_calls=True)
-assistant.print_response("Search tavily for 'language models'", markdown=True)
+agent = Agent(tools=[TavilyTools()], show_tool_calls=True)
+agent.print_response("Search tavily for 'language models'", markdown=True)

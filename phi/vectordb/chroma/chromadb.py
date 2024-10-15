@@ -1,5 +1,5 @@
 from hashlib import md5
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 try:
     from chromadb import Client as ChromaDbClient
@@ -112,10 +112,12 @@ class ChromaDb(VectorDb):
                 logger.error(f"Document with given name does not exist: {e}")
         return False
 
-    def insert(self, documents: List[Document]) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """Insert documents into the collection.
+
         Args:
             documents (List[Document]): List of documents to insert
+            filters (Optional[Dict[str, Any]]): Filters to apply while inserting documents
         """
         logger.debug(f"Inserting {len(documents)} documents")
         ids: List = []
@@ -137,10 +139,12 @@ class ChromaDb(VectorDb):
         else:
             logger.error("Collection does not exist")
 
-    def upsert(self, documents: List[Document]) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """Upsert documents into the collection.
+
         Args:
             documents (List[Document]): List of documents to upsert
+            filters (Optional[Dict[str, Any]]): Filters to apply while upserting
         """
         logger.debug(f"Upserting {len(documents)} documents")
         ids: List = []
@@ -163,11 +167,13 @@ class ChromaDb(VectorDb):
         else:
             logger.error("Collection does not exist")
 
-    def search(self, query: str, limit: int = 5) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """Search the collection for a query.
+
         Args:
             query (str): Query to search for.
             limit (int): Number of results to return.
+            filters (Optional[Dict[str, Any]]): Filters to apply while searching.
         Returns:
             List[Document]: List of search results.
         """
@@ -214,7 +220,7 @@ class ChromaDb(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         """Delete the collection."""
         if self.exists():
             logger.debug(f"Deleting collection: {self.collection}")
@@ -242,7 +248,7 @@ class ChromaDb(VectorDb):
     def optimize(self) -> None:
         raise NotImplementedError
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         try:
             self.client.delete_collection(name=self.collection)
             return True

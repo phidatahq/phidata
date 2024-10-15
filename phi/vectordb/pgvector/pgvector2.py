@@ -150,7 +150,7 @@ class PgVector2(VectorDb):
                 result = sess.execute(stmt).first()
                 return result is not None
 
-    def insert(self, documents: List[Document], batch_size: int = 10) -> None:
+    def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 10) -> None:
         with self.Session() as sess:
             counter = 0
             for document in documents:
@@ -185,12 +185,13 @@ class PgVector2(VectorDb):
     def upsert_available(self) -> bool:
         return True
 
-    def upsert(self, documents: List[Document], batch_size: int = 20) -> None:
+    def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, batch_size: int = 20) -> None:
         """
         Upsert documents into the database.
 
         Args:
             documents (List[Document]): List of documents to upsert
+            filters (Optional[Dict[str, Any]]): Filters to apply while upserting documents
             batch_size (int): Batch size for upserting documents
         """
         with self.Session() as sess:
@@ -300,7 +301,7 @@ class PgVector2(VectorDb):
 
         return search_results
 
-    def delete(self) -> None:
+    def drop(self) -> None:
         if self.table_exists():
             logger.debug(f"Deleting table: {self.collection}")
             self.table.drop(self.db_engine)
@@ -380,7 +381,7 @@ class PgVector2(VectorDb):
                     )
         logger.debug("==== Optimized Vector DB ====")
 
-    def clear(self) -> bool:
+    def delete(self) -> bool:
         from sqlalchemy import delete
 
         with self.Session() as sess:
@@ -388,3 +389,36 @@ class PgVector2(VectorDb):
                 stmt = delete(self.table)
                 sess.execute(stmt)
                 return True
+
+    def __deepcopy__(self, memo):
+        """
+        Create a deep copy of the PgVector instance, handling unpickleable attributes.
+
+        Args:
+            memo (dict): A dictionary of objects already copied during the current copying pass.
+
+        Returns:
+            PgVector: A deep-copied instance of PgVector.
+        """
+        from copy import deepcopy
+
+        # Create a new instance without calling __init__
+        cls = self.__class__
+        copied_obj = cls.__new__(cls)
+        memo[id(self)] = copied_obj
+
+        # Deep copy attributes
+        for k, v in self.__dict__.items():
+            if k in {"metadata", "table"}:
+                continue
+            # Reuse db_engine and Session without copying
+            elif k in {"db_engine", "Session", "embedder"}:
+                setattr(copied_obj, k, v)
+            else:
+                setattr(copied_obj, k, deepcopy(v, memo))
+
+        # Recreate metadata and table for the copied instance
+        copied_obj.metadata = MetaData(schema=copied_obj.schema)
+        copied_obj.table = copied_obj.get_table()
+
+        return copied_obj

@@ -14,7 +14,7 @@ def user_ping() -> bool:
     if not phi_cli_settings.api_enabled:
         return False
 
-    logger.debug("--o-o-- Ping user api")
+    logger.debug("--**-- Ping user api")
     with api.Client() as api_client:
         try:
             r: Response = api_client.get(ApiRoutes.USER_HEALTH)
@@ -28,14 +28,14 @@ def user_ping() -> bool:
     return False
 
 
-def authenticate_and_get_user(tmp_auth_token: str, existing_user: Optional[UserSchema] = None) -> Optional[UserSchema]:
+def authenticate_and_get_user(auth_token: str, existing_user: Optional[UserSchema] = None) -> Optional[UserSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    from phi.cli.credentials import save_auth_token, read_auth_token
+    from phi.cli.credentials import read_auth_token
 
-    logger.debug("--o-o-- Getting user")
-    auth_header = {phi_cli_settings.auth_token_header: tmp_auth_token}
+    logger.debug("--**-- Getting user")
+    auth_header = {phi_cli_settings.auth_token_header: auth_token}
     anon_user = None
     if existing_user is not None:
         if existing_user.email == "anon":
@@ -51,19 +51,11 @@ def authenticate_and_get_user(tmp_auth_token: str, existing_user: Optional[UserS
             if invalid_response(r):
                 return None
 
-            new_auth_token = r.headers.get(phi_cli_settings.auth_token_header)
-            if new_auth_token is None:
-                logger.error("Could not authenticate user")
-                return None
-
             user_data = r.json()
             if not isinstance(user_data, dict):
                 return None
 
-            current_user: UserSchema = UserSchema.model_validate(user_data)
-            if current_user is not None:
-                save_auth_token(new_auth_token)
-                return current_user
+            return UserSchema.model_validate(user_data)
         except Exception as e:
             logger.debug(f"Could not authenticate user: {e}")
     return None
@@ -75,7 +67,7 @@ def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSchema]:
 
     from phi.cli.credentials import save_auth_token
 
-    logger.debug("--o-o-- Signing in user")
+    logger.debug("--**-- Signing in user")
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(ApiRoutes.USER_SIGN_IN, json=sign_in_data.model_dump())
@@ -104,7 +96,7 @@ def user_is_authenticated() -> bool:
     if not phi_cli_settings.api_enabled:
         return False
 
-    logger.debug("--o-o-- Checking if user is authenticated")
+    logger.debug("--**-- Checking if user is authenticated")
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if phi_config is None:
         return False
@@ -137,11 +129,11 @@ def create_anon_user() -> Optional[UserSchema]:
 
     from phi.cli.credentials import save_auth_token
 
-    logger.debug("--o-o-- Creating anon user")
+    logger.debug("--**-- Creating anon user")
     with api.Client() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.USER_CREATE, json={"user": {"email": "anon", "username": "anon", "is_bot": True}}
+                ApiRoutes.USER_CREATE_ANON, json={"user": {"email": "anon", "username": "anon", "is_machine": True}}
             )
             if invalid_response(r):
                 return None

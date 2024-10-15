@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 
 from pydantic import Field, field_validator
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic_core.core_schema import ValidationInfo
 
 from phi.app.base import AppBase  # noqa: F401
 from phi.app.context import ContainerContext
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 class AwsApp(AppBase):
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
-    workspace_dir_container_path: str = "/usr/local/app"
+    workspace_dir_container_path: str = "/app"
 
     # -*- Networking Configuration
     # List of subnets for the app: Type: Union[str, Subnet]
@@ -111,7 +111,7 @@ class AwsApp(AppBase):
     nginx_container_port: int = 80
 
     @field_validator("create_listeners", mode="before")
-    def update_create_listeners(cls, create_listeners, info: FieldValidationInfo):
+    def update_create_listeners(cls, create_listeners, info: ValidationInfo):
         if create_listeners:
             return create_listeners
 
@@ -119,7 +119,7 @@ class AwsApp(AppBase):
         return info.data.get("create_load_balancer", None)
 
     @field_validator("create_target_group", mode="before")
-    def update_create_target_group(cls, create_target_group, info: FieldValidationInfo):
+    def update_create_target_group(cls, create_target_group, info: ValidationInfo):
         if create_target_group:
             return create_target_group
 
@@ -182,7 +182,6 @@ class AwsApp(AppBase):
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
-            WORKSPACE_HASH_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
         )
@@ -207,8 +206,6 @@ class AwsApp(AppBase):
             if container_context.workspace_schema is not None:
                 if container_context.workspace_schema.id_workspace is not None:
                     container_env[WORKSPACE_ID_ENV_VAR] = str(container_context.workspace_schema.id_workspace) or ""
-                if container_context.workspace_schema.ws_hash is not None:
-                    container_env[WORKSPACE_HASH_ENV_VAR] = container_context.workspace_schema.ws_hash
         except Exception:
             pass
 

@@ -1,5 +1,5 @@
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.tools.duckduckgo import DuckDuckGo
 
-assistant = Assistant(tools=[DuckDuckGo()], show_tool_calls=True)
-assistant.print_response("Whats happening in France?", markdown=True)
+agent = Agent(tools=[DuckDuckGo()], show_tool_calls=True)
+agent.print_response("Whats happening in France?", markdown=True)

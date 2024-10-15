@@ -2,10 +2,10 @@ from typing import Iterator, List
 
 from phi.document import Document
 from phi.document.reader.arxiv import ArxivReader
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 
 
-class ArxivKnowledgeBase(AssistantKnowledge):
+class ArxivKnowledgeBase(AgentKnowledge):
     queries: List[str] = []
     reader: ArxivReader = ArxivReader()
 

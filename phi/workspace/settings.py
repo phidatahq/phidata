@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional, List, Dict
 
@@ -61,15 +63,10 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Dev Apps
     #
-    dev_airflow_enabled: bool = False
     dev_api_enabled: bool = False
     dev_app_enabled: bool = False
     dev_db_enabled: bool = False
-    dev_jupyter_enabled: bool = False
     dev_redis_enabled: bool = False
-    dev_superset_enabled: bool = False
-    dev_traefik_enabled: bool = False
-    dev_qdrant_enabled: bool = False
     #
     # -*- Staging settings
     #
@@ -85,15 +82,10 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Staging Apps
     #
-    stg_airflow_enabled: bool = False
     stg_api_enabled: bool = False
     stg_app_enabled: bool = False
     stg_db_enabled: bool = False
-    stg_jupyter_enabled: bool = False
     stg_redis_enabled: bool = False
-    stg_superset_enabled: bool = False
-    stg_traefik_enabled: bool = False
-    stg_whoami_enabled: bool = False
     #
     # -*- Production settings
     #
@@ -109,15 +101,10 @@ class WorkspaceSettings(BaseSettings):
     #
     # -*- Production Apps
     #
-    prd_airflow_enabled: bool = False
     prd_api_enabled: bool = False
     prd_app_enabled: bool = False
     prd_db_enabled: bool = False
-    prd_jupyter_enabled: bool = False
     prd_redis_enabled: bool = False
-    prd_superset_enabled: bool = False
-    prd_traefik_enabled: bool = False
-    prd_whoami_enabled: bool = False
     #
     # -*- AWS settings
     #
@@ -174,7 +161,7 @@ class WorkspaceSettings(BaseSettings):
         if dev_env is None:
             raise ValueError("dev_env invalid")
 
-        return f"{ws_name}-{dev_env}"
+        return f"{dev_env}-{ws_name}"
 
     @field_validator("dev_tags", mode="before")
     def set_dev_tags(cls, dev_tags, info: ValidationInfo):
@@ -207,7 +194,7 @@ class WorkspaceSettings(BaseSettings):
         if stg_env is None:
             raise ValueError("stg_env invalid")
 
-        return f"{ws_name}-{stg_env}"
+        return f"{stg_env}-{ws_name}"
 
     @field_validator("stg_tags", mode="before")
     def set_stg_tags(cls, stg_tags, info: ValidationInfo):
@@ -240,7 +227,7 @@ class WorkspaceSettings(BaseSettings):
         if prd_env is None:
             raise ValueError("prd_env invalid")
 
-        return f"{ws_name}-{prd_env}"
+        return f"{prd_env}-{ws_name}"
 
     @field_validator("prd_tags", mode="before")
     def set_prd_tags(cls, prd_tags, info: ValidationInfo):

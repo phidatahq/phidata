@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.knowledge.json import JSONKnowledgeBase
 from phi.vectordb.pgvector import PgVector2
 
@@ -19,10 +19,10 @@ knowledge_base = JSONKnowledgeBase(
 knowledge_base.load(recreate=False)
 
 # Initialize the Assistant with the knowledge_base
-assistant = Assistant(
+agent = Agent(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
 
-# Use the assistant
-assistant.print_response("Ask me about something from the knowledge base", markdown=True)
+# Use the agent
+agent.print_response("Ask me about something from the knowledge base", markdown=True)

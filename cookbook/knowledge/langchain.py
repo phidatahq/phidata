@@ -1,5 +1,5 @@
 # Import necessary modules
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.knowledge.langchain import LangChainKnowledgeBase
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.document_loaders import TextLoader
@@ -32,8 +32,8 @@ retriever = db.as_retriever()
 # Create a knowledge base from the vector store
 knowledge_base = LangChainKnowledgeBase(retriever=retriever)
 
-# Create an assistant with the knowledge base
-assistant = Assistant(knowledge_base=knowledge_base, add_references_to_prompt=True)
+# Create an agent with the knowledge base
+agent = Agent(knowledge_base=knowledge_base, add_references_to_prompt=True)
 
-# Use the assistant to ask a question and print a response.
-assistant.print_response("What did the president say about technology?", markdown=True)
+# Use the agent to ask a question and print a response.
+agent.print_response("What did the president say about technology?", markdown=True)

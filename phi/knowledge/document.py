@@ -1,10 +1,10 @@
 from typing import List, Iterator
 
 from phi.document import Document
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 
 
-class DocumentKnowledgeBase(AssistantKnowledge):
+class DocumentKnowledgeBase(AgentKnowledge):
     documents: List[Document]
 
     @property

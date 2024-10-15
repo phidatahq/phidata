@@ -11,71 +11,16 @@ from phi.api.schemas.workspace import (
     WorkspaceUpdate,
     WorkspaceDelete,
     WorkspaceEvent,
-    UpdatePrimaryWorkspace,
 )
 from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
-
-
-def get_primary_workspace(user: UserSchema) -> Optional[WorkspaceSchema]:
-    if not phi_cli_settings.api_enabled:
-        return None
-
-    logger.debug("--o-o-- Get primary workspace")
-    with api.AuthenticatedClient() as api_client:
-        try:
-            r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_READ_PRIMARY, json=user.model_dump(include={"id_user", "email"})
-            )
-            if invalid_response(r):
-                return None
-
-            response_json: Union[Dict, List] = r.json()
-            if response_json is None:
-                return None
-
-            primary_workspace: WorkspaceSchema = WorkspaceSchema.model_validate(response_json)
-            if primary_workspace is not None:
-                return primary_workspace
-        except Exception as e:
-            logger.debug(f"Could not get primary workspace: {e}")
-    return None
-
-
-def get_available_workspaces(user: UserSchema) -> Optional[List[WorkspaceSchema]]:
-    if not phi_cli_settings.api_enabled:
-        return None
-
-    logger.debug("--o-o-- Get available workspaces")
-    with api.AuthenticatedClient() as api_client:
-        try:
-            r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_READ_AVAILABLE, json=user.model_dump(include={"id_user", "email"})
-            )
-            if invalid_response(r):
-                return None
-
-            response_json: Union[Dict, List] = r.json()
-            if response_json is None:
-                return None
-
-            available_workspaces: List[WorkspaceSchema] = []
-            for workspace in response_json:
-                if not isinstance(workspace, dict):
-                    logger.debug(f"Not a dict: {workspace}")
-                    continue
-                available_workspaces.append(WorkspaceSchema.model_validate(workspace))
-            return available_workspaces
-        except Exception as e:
-            logger.debug(f"Could not get available workspaces: {e}")
-    return None
 
 
 def create_workspace_for_user(user: UserSchema, workspace: WorkspaceCreate) -> Optional[WorkspaceSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Create workspace")
+    logger.debug("--**-- Create workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -104,7 +49,7 @@ def update_workspace_for_user(user: UserSchema, workspace: WorkspaceUpdate) -> O
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Update workspace")
+    logger.debug("--**-- Update workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -129,40 +74,11 @@ def update_workspace_for_user(user: UserSchema, workspace: WorkspaceUpdate) -> O
     return None
 
 
-def update_primary_workspace_for_user(user: UserSchema, workspace: UpdatePrimaryWorkspace) -> Optional[WorkspaceSchema]:
-    if not phi_cli_settings.api_enabled:
-        return None
-
-    logger.debug(f"--o-o-- Update primary workspace to: {workspace.ws_name}")
-    with api.AuthenticatedClient() as api_client:
-        try:
-            r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_UPDATE_PRIMARY,
-                json={
-                    "user": user.model_dump(include={"id_user", "email"}),
-                    "workspace": workspace.model_dump(exclude_none=True),
-                },
-            )
-            if invalid_response(r):
-                return None
-
-            response_json: Union[Dict, List] = r.json()
-            if response_json is None:
-                return None
-
-            updated_workspace: WorkspaceSchema = WorkspaceSchema.model_validate(response_json)
-            if updated_workspace is not None:
-                return updated_workspace
-        except Exception as e:
-            logger.debug(f"Could not update primary workspace: {e}")
-    return None
-
-
 def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceDelete) -> Optional[WorkspaceSchema]:
     if not phi_cli_settings.api_enabled:
         return None
 
-    logger.debug("--o-o-- Delete workspace")
+    logger.debug("--**-- Delete workspace")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
@@ -191,7 +107,7 @@ def log_workspace_event(user: UserSchema, workspace_event: WorkspaceEvent) -> bo
     if not phi_cli_settings.api_enabled:
         return False
 
-    logger.debug("--o-o-- Log workspace event")
+    logger.debug("--**-- Log workspace event")
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(

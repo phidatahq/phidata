@@ -1,1 +1,1 @@
-from phi.vectordb.lancedb.lancedb import LanceDb
+from phi.vectordb.lancedb.lance_db import LanceDb, SearchType

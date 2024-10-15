@@ -1,11 +1,11 @@
-from typing import List, Optional, Callable, Any
+from typing import List, Optional, Callable, Any, Dict
 
 from phi.document import Document
-from phi.knowledge.base import AssistantKnowledge
+from phi.knowledge.agent import AgentKnowledge
 from phi.utils.log import logger
 
 
-class LangChainKnowledgeBase(AssistantKnowledge):
+class LangChainKnowledgeBase(AgentKnowledge):
     loader: Optional[Callable] = None
 
     vectorstore: Optional[Any] = None
@@ -13,7 +13,9 @@ class LangChainKnowledgeBase(AssistantKnowledge):
 
     retriever: Optional[Any] = None
 
-    def search(self, query: str, num_documents: Optional[int] = None) -> List[Document]:
+    def search(
+        self, query: str, num_documents: Optional[int] = None, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         """Returns relevant documents matching the query"""
 
         try:
@@ -28,6 +30,8 @@ class LangChainKnowledgeBase(AssistantKnowledge):
             logger.debug("Creating retriever")
             if self.search_kwargs is None:
                 self.search_kwargs = {"k": self.num_documents}
+            if filters is not None:
+                self.search_kwargs.update(filters)
             self.retriever = self.vectorstore.as_retriever(search_kwargs=self.search_kwargs)
 
         if self.retriever is None:
@@ -50,7 +54,13 @@ class LangChainKnowledgeBase(AssistantKnowledge):
             )
         return documents
 
-    def load(self, recreate: bool = False, upsert: bool = True, skip_existing: bool = True) -> None:
+    def load(
+        self,
+        recreate: bool = False,
+        upsert: bool = True,
+        skip_existing: bool = True,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if self.loader is None:
             logger.error("No loader provided for LangChainKnowledgeBase")
             return

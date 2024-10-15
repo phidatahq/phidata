@@ -1,15 +1,17 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
+from phi.storage.agent.sqlite import SqlAgentStorage
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
+from phi.playground import Playground, serve_playground_app
 
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
+    storage=SqlAgentStorage(table_name="web_agent"),
     markdown=True,
-    show_tool_calls=True,
 )
 
 finance_agent = Agent(
@@ -18,14 +20,11 @@ finance_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     instructions=["Always use tables to display data"],
-    markdown=True,
-    show_tool_calls=True,
-)
-
-agent_team = Agent(
-    team=[web_agent, finance_agent],
-    show_tool_calls=True,
+    storage=SqlAgentStorage(table_name="finance_agent"),
     markdown=True,
 )
 
-agent_team.print_response("Research the web for NVDA and share analyst recommendations", stream=True)
+app = Playground(agents=[finance_agent, web_agent]).get_app()
+
+if __name__ == "__main__":
+    serve_playground_app("agent_playground:app", reload=True)

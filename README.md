@@ -88,9 +88,9 @@ pip install yfinance
 python finance_agent.py
 ```
 
-### Agent Team
+## Team of Agents
 
-Now lets create a team of agents using the agents we created above, create a file `agent_team.py`
+Now lets create a team of agents using the agents above, create a file `agent_team.py`
 
 ```python
 from phi.agent import Agent
@@ -164,6 +164,86 @@ Run the Reasoning Agent:
 ```shell
 python reasoning_agent.py
 ```
+
+## Agent Playground
+
+Phidata includes a playground for testing and iterating on agents. Create a file `agent_playground.py`
+
+> Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.storage.agent.sqlite import SqlAgentStorage
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.yfinance import YFinanceTools
+from phi.playground import Playground, serve_playground_app
+
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    storage=SqlAgentStorage(table_name="web_agent"),
+    markdown=True,
+)
+
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    instructions=["Always use tables to display data"],
+    storage=SqlAgentStorage(table_name="finance_agent"),
+    markdown=True,
+)
+
+app = Playground(agents=[finance_agent, web_agent]).get_app()
+
+if __name__ == "__main__":
+    serve_playground_app("serve:app", reload=True)
+```
+
+- Authenticate with phidata:
+
+```
+phi auth
+```
+
+- Install dependencies and run the Agent Playground:
+
+```
+pip install 'fastapi[standard]'
+
+python agent_playground.py
+```
+
+- Open your link provided or navigate to `http://phidata.app/playground`
+- Select your endpoint, agent and chat with them!
+
+## Monitoring Agents
+
+Phidata comes with monitoring built in. You can manually set `monitoring=True` on an agent or set `PHI_MONITORING=true` in your environment.
+
+> Note: Monitoring requires `phi auth` to be run first.
+
+```python
+from phi.agent import Agent
+
+agent = Agent(markdown=True, monitoring=True)
+agent.print_response("Share a 2 sentence horror story")
+```
+
+- Run the agent and monitor the results on `phidata.app`
+
+```shell
+# You can also set the environment variable
+# export PHI_MONITORING=true
+
+python agent_monitor.py
+```
+
+View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
 
 ## More information
 

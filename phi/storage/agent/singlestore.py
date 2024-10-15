@@ -85,17 +85,9 @@ class S2AgentStorage(AgentStorage):
             # Session Metadata
             Column("session_data", mysql.JSON),
             # The Unix timestamp of when this session was created.
-            Column(
-                "created_at",
-                mysql.BIGINT,
-                nullable=False,
-            ),
+            Column("created_at", mysql.BIGINT),
             # The Unix timestamp of when this session was last updated.
-            Column(
-                "updated_at",
-                mysql.BIGINT,
-                nullable=False,
-            ),
+            Column("updated_at", mysql.BIGINT),
             extend_existing=True,
         )
 
@@ -190,7 +182,7 @@ class S2AgentStorage(AgentStorage):
                 INSERT INTO {self.schema}.{self.table_name}
                 (session_id, agent_id, user_id, memory, agent_data, user_data, session_data, created_at, updated_at)
                 VALUES
-                (:session_id, :agent_id, :user_id, :memory, :agent_data, :user_data, :session_data, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+                (:session_id, :agent_id, :user_id, :memory, :agent_data, :user_data, :session_data, UNIX_TIMESTAMP(), NULL)
                 ON DUPLICATE KEY UPDATE
                     agent_id = VALUES(agent_id),
                     user_id = VALUES(user_id),

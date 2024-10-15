@@ -111,7 +111,7 @@ def main() -> None:
                         "ID": result.id,
                         "Title": result.title,
                         "Authors": ", ".join(result.authors) if result.authors else "No authors available",
-                        "Summary": result.summary[:200] + "..." if len(result.summary) > 200 else result.summary
+                        "Summary": result.summary[:200] + "..." if len(result.summary) > 200 else result.summary,
                     }
                     paper_summaries.append(summary)
 
@@ -155,7 +155,9 @@ def main() -> None:
                     final_report += delta  # type: ignore
                     final_report_container.markdown(final_report)
         else:
-            st.error("Report generation cancelled due to search failure. Please try again or select another search option.")
+            st.error(
+                "Report generation cancelled due to search failure. Please try again or select another search option."
+            )
 
     st.sidebar.markdown("---")
     if st.sidebar.button("Restart"):

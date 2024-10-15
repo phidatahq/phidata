@@ -35,6 +35,7 @@ from phi.model import Model
 from phi.model.message import Message, MessageContext
 from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentChat, SessionSummary  # noqa: F401
+from phi.prompt.template import PromptTemplate
 from phi.storage.agent import AgentStorage
 from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
@@ -142,6 +143,8 @@ class Agent(BaseModel):
     # -*- System Prompt Settings
     # System prompt: provide the system prompt as a string
     system_prompt: Optional[str] = None
+    # System prompt template: provide the system prompt as a PromptTemplate
+    system_prompt_template: Optional[PromptTemplate] = None
     # If True, build a default system message using agent settings and use that
     use_default_system_message: bool = True
     # Role for the system message
@@ -178,6 +181,8 @@ class Agent(BaseModel):
     # User prompt: provide the user prompt as a string
     # Note: this will ignore the message sent to the run function
     user_prompt: Optional[Union[List, Dict, str]] = None
+    # User prompt template: provide the user prompt as a PromptTemplate
+    user_prompt_template: Optional[PromptTemplate] = None
     # If True, build a default user prompt using references and chat history
     use_default_user_message: bool = True
     # Role for the user message
@@ -742,8 +747,9 @@ class Agent(BaseModel):
         """Return the system message for the Agent.
 
         1. If the system_prompt is provided, use that.
-        2. If use_default_system_message is False, return None.
-        3. Build and return the default system message for the Agent.
+        2. If the system_prompt_template is provided, build the system_message using the template.
+        3. If use_default_system_message is False, return None.
+        4. Build and return the default system message for the Agent.
         """
 
         # 1. If the system_prompt is provided, use that.
@@ -756,7 +762,17 @@ class Agent(BaseModel):
             else:
                 return Message(role=self.system_message_role, content=self.system_prompt)
 
-        # 2. If use_default_system_message is False, return None.
+        # 2. If the system_prompt_template is provided, build the system_message using the template.
+        if self.system_prompt_template is not None:
+            system_prompt_kwargs = {"agent": self}
+            system_prompt_from_template = self.system_prompt_template.get_prompt(**system_prompt_kwargs)
+            # If the response_model is provided and structured_outputs is False, add the JSON output prompt.
+            if self.response_model is not None and self.structured_outputs is False:
+                system_prompt_from_template += f"\n{self.get_json_output_prompt()}"
+            else:
+                return Message(role=self.system_message_role, content=system_prompt_from_template)
+
+        # 3. If use_default_system_message is False, return None.
         if not self.use_default_system_message:
             return None
 
@@ -945,10 +961,11 @@ class Agent(BaseModel):
         """Return the user message for the Agent.
 
         1. If the user_prompt is provided, use that.
-        2. If the message is None, return None.
-        3. 4. If use_default_user_message is False or If the message is not a string, return the message as is.
-        4. If add_context is False or context is None, return the message as is.
-        5. Build the default user message for the Agent
+        2. If the user_prompt_template is provided, build the user_message using the template.
+        3. If the message is None, return None.
+        4. 4. If use_default_user_message is False or If the message is not a string, return the message as is.
+        5. If add_context is False or context is None, return the message as is.
+        6. Build the default user message for the Agent
         """
 
         # 1. If the user_prompt is provided, use that.
@@ -971,15 +988,25 @@ class Agent(BaseModel):
             retrieval_timer.stop()
             logger.debug(f"Time to get context: {retrieval_timer.elapsed:.4f}s")
 
-        # 2. If the message is None, return None
+        # 2. If the user_prompt_template is provided, build the user_message using the template.
+        if self.user_prompt_template is not None:
+            user_prompt_kwargs = {"agent": self, "message": message, "context": context}
+            user_prompt_from_template = self.user_prompt_template.get_prompt(**user_prompt_kwargs)
+            return Message(
+                role=self.user_message_role,
+                content=self.add_images_to_message_content(message_content=user_prompt_from_template, images=images),
+                **kwargs,
+            )
+
+        # 3. If the message is None, return None
         if message is None:
             return None
 
-        # 3. If use_default_user_message is False or If the message is not a string, return the message as is.
+        # 4. If use_default_user_message is False or If the message is not a string, return the message as is.
         if not self.use_default_user_message or not isinstance(message, str):
             return Message(role=self.user_message_role, content=message, **kwargs)
 
-        # 4. If add_context is False or context is None, return the message as is
+        # 5. If add_context is False or context is None, return the message as is
         if self.add_context is False or context is None:
             return Message(
                 role=self.user_message_role,
@@ -987,22 +1014,22 @@ class Agent(BaseModel):
                 **kwargs,
             )
 
-        # 5. Build the default user message for the Agent
+        # 6. Build the default user message for the Agent
         user_prompt = "Respond to the following message from a user:\n"
         user_prompt += f"USER: {message}\n"
 
-        # 5.1 Add context to user message
+        # 6.1 Add context to user message
         if context and context.docs and len(context.docs) > 0:
             user_prompt += "\nUse the following information from the knowledge base if it helps:\n"
             user_prompt += "## Context  \n"
             user_prompt += self.convert_documents_to_string(context.docs) + "\n"
 
-        # 5.2 Add the message again at the end of the user message
+        # 6.2 Add the message again at the end of the user message
         if context:
             user_prompt += "\nRemember, your task is to respond to the following message:"
             user_prompt += f"\nUSER: {message}"
 
-        # 5.3 Add the assistant pre-fill at the end of the user prompt
+        # 6.3 Add the assistant pre-fill at the end of the user prompt
         user_prompt += "\n\nASSISTANT: "
 
         # Return the user message

@@ -12,9 +12,9 @@ Build AI Agents with memory, knowledge, tools and reasoning
 
 **Phidata is a framework for building agentic systems**, use phidata to:
 
-- **Build powerful AI Agents with memory, knowledge, tools and reasoning.** Phidata will manage the agent's state, memory and knowledge in a database.
-- **Run those agents as a software application (with a database, vectordb and api).** Phidata will manage your infrastructure, both local and cloud (BYOC).
-- **Monitor, evaluate and optimize your agentic system.** Phidata will log your sessions and monitor key metrics to help you understand and improve your system.
+- **Build powerful AI Agents with memory, knowledge, tools and reasoning.**
+- **Run those agents as a software application (with a database, vectordb and api).**
+- **Monitor, evaluate and optimize your agentic system.**
 
 Let's start by building some agents.
 

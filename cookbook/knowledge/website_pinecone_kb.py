@@ -32,7 +32,7 @@ knowledge_base = WebsiteKnowledgeBase(
 knowledge_base.load(recreate=False, upsert=True)
 
 # Create an agent with the knowledge base
-agent = Assistant(
+agent = Agent(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )

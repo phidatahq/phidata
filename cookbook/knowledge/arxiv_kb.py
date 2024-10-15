@@ -9,7 +9,7 @@ knowledge_base = ArxivKnowledgeBase(
     queries=["Generative AI", "Machine Learning"],
     # Table name: ai.arxiv_documents
     vector_db=PgVector(
-        collection="arxiv_documents",
+        table_name="arxiv_documents",
         db_url=db_url,
     ),
 )

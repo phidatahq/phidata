@@ -17,7 +17,8 @@ data_analyst = DuckDbAgent(
                     "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
                 }
             ]
-        }
+        },
+        indent=2,
     ),
 )
 

@@ -38,8 +38,8 @@ class MemorySummarizer(BaseModel):
         # -*- Return a system message for summarization
         system_prompt = dedent("""\
         Analyze the following conversation between a user and an assistant, and extract the following details:
-            - Summary (str): Provide a concise summary of the session, focusing on important information that would be helpful for future interactions.
-            - Topics (Optional[List[str]]): List the topics discussed in the session.
+          - Summary (str): Provide a concise summary of the session, focusing on important information that would be helpful for future interactions.
+          - Topics (Optional[List[str]]): List the topics discussed in the session.
         Please ignore any frivolous information.
 
         Conversation:

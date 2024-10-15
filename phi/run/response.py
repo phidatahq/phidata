@@ -42,6 +42,7 @@ class RunResponse(BaseModel):
     run_id: Optional[str] = None
     agent_id: Optional[str] = None
     session_id: Optional[str] = None
+    workflow_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))

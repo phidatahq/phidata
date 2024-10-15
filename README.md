@@ -16,7 +16,7 @@ Build AI Agents with memory, knowledge, tools and reasoning
 
 **Phidata is a framework for building agentic systems**, use phidata to:
 
-- **Build powerful AI Agents with memory, knowledge, tools and reasoning.**
+- **Build powerful Agents with memory, knowledge, tools and reasoning.**
 - **Run those agents as a software application (with a database, vectordb and api).**
 - **Monitor, evaluate and optimize your agentic system.**
 
@@ -76,7 +76,6 @@ finance_agent = Agent(
     markdown=True,
     show_tool_calls=True,
 )
-
 finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
 ```
 
@@ -122,7 +121,6 @@ agent_team = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-
 agent_team.print_response("Research the web for NVDA and share analyst recommendations", stream=True)
 ```
 
@@ -163,9 +161,49 @@ Run the Reasoning Agent:
 python reasoning_agent.py
 ```
 
+## RAG Agent
+
+Instead of always inserting the "context" into the prompt, the RAG Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task.
+
+This saves tokens and improves response quality. Create a file `rag_agent.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.vectordb.lancedb import LanceDb, SearchType
+
+db_uri = "tmp/lancedb"
+# Create a knowledge base from a PDF
+knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    # Use LanceDB as the vector database
+    vector_db=LanceDb(table_name="recipes", uri=db_uri, search_type=SearchType.vector),
+)
+# Load the knowledge base: Comment out after first run
+knowledge_base.load(upsert=True)
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    # Add the knowledge base to the agent
+    knowledge=knowledge_base,
+    show_tool_calls=True,
+    markdown=True,
+)
+agent.print_response("How do I make chicken and galangal in coconut milk soup")
+```
+
+Install libraries and run the Agent:
+
+```shell
+pip install lancedb tantivy pypdf sqlalchemy pgvector 'psycopg[binary]'
+
+python rag_agent.py
+```
+
 ## Agent Playground
 
-Phidata includes a playground for testing and iterating on agents. Create a file `playground.py`
+Phidata gives you a UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 
 > Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
 

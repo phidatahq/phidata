@@ -165,7 +165,7 @@ python reasoning_agent.py
 
 ## Agent Playground
 
-Phidata includes a playground for testing and iterating on agents. Create a file `agent_playground.py`
+Phidata includes a playground for testing and iterating on agents. Create a file `playground.py`
 
 > Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
 
@@ -199,7 +199,7 @@ finance_agent = Agent(
 app = Playground(agents=[finance_agent, web_agent]).get_app()
 
 if __name__ == "__main__":
-    serve_playground_app("serve:app", reload=True)
+    serve_playground_app("playground:app", reload=True)
 ```
 
 Authenticate with phidata:
@@ -213,7 +213,7 @@ Install dependencies and run the Agent Playground:
 ```
 pip install 'fastapi[standard]'
 
-python agent_playground.py
+python playground.py
 ```
 
 - Open your link provided or navigate to `http://phidata.app/playground`

@@ -205,6 +205,8 @@ python rag_agent.py
 
 Phidata gives you a UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 
+![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
+
 > Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
 
 ```python

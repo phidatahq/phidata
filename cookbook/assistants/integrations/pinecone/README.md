@@ -10,7 +10,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -U pinecone-client pypdf openai phidata
+pip install -U pinecone pypdf openai phidata
 ```
 
 ### 3. Run Pinecone Assistant

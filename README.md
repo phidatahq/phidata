@@ -202,13 +202,13 @@ if __name__ == "__main__":
     serve_playground_app("serve:app", reload=True)
 ```
 
-- Authenticate with phidata:
+Authenticate with phidata:
 
 ```
 phi auth
 ```
 
-- Install dependencies and run the Agent Playground:
+Install dependencies and run the Agent Playground:
 
 ```
 pip install 'fastapi[standard]'
@@ -221,7 +221,7 @@ python agent_playground.py
 
 ## Monitoring Agents
 
-Phidata comes with monitoring built in. You can manually set `monitoring=True` on an agent or set `PHI_MONITORING=true` in your environment.
+Phidata comes with monitoring built in. You can manually set `monitoring=True` on any agent or set `PHI_MONITORING=true` in your environment.
 
 > Note: Monitoring requires `phi auth` to be run first.
 
@@ -232,7 +232,7 @@ agent = Agent(markdown=True, monitoring=True)
 agent.print_response("Share a 2 sentence horror story")
 ```
 
-- Run the agent and monitor the results on `phidata.app`
+Run the agent and monitor the results on [phidata.app/sessions](https://www.phidata.app/sessions)
 
 ```shell
 # You can also set the environment variable

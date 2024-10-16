@@ -862,10 +862,10 @@ class Agent(BaseModel):
             system_message_lines.append(system_message_from_model)
         # 5.7 The add the expected output
         if self.expected_output is not None:
-            system_message_lines.extend(f"## Expected output{self.expected_output}\n")
+            system_message_lines.append(f"## Expected output\n{self.expected_output}\n")
         # 5.8 Then add additional context
         if self.additional_context is not None:
-            system_message_lines.extend(f"{self.additional_context}\n")
+            system_message_lines.append(f"{self.additional_context}\n")
         # 5.9 Then add information about the team members
         if self.has_team():
             system_message_lines.append(f"{self.get_transfer_prompt()}\n")

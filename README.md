@@ -16,65 +16,70 @@ Build AI Agents with memory, knowledge, tools and reasoning
 
 **Phidata is a framework for building agentic systems**, use phidata to:
 
-- **Build powerful AI Agents with memory, knowledge, tools and reasoning.**
+- **Build powerful Agents with memory, knowledge, tools and reasoning.**
 - **Run those agents as a software application (with a database, vectordb and api).**
 - **Monitor, evaluate and optimize your agentic system.**
 
-Let's start by building some agents.
-
-## Installation
+## Install
 
 ```shell
 pip install -U phidata
 ```
 
-## Quickstart
+## Agents
 
-### Agent that can search the web
+### Web Search Agent
 
-Create a file `web_search.py`
+Let's start by building a simple agent that can search the web, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.duckduckgo import DuckDuckGo
 
-agent = Agent(model=OpenAIChat(id="gpt-4o"), tools=[DuckDuckGo()], show_tool_calls=True, markdown=True)
-agent.print_response("Whats happening in France?", stream=True)
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+    show_tool_calls=True,
+)
+web_agent.print_response("Whats happening in France?", stream=True)
 ```
 
-Install libraries, export your `OPENAI_API_KEY` and run the `Agent`
+Install libraries, export your `OPENAI_API_KEY` and run the Agent:
 
 ```shell
-pip install openai duckduckgo-search
+pip install phidata openai duckduckgo-search
 
 export OPENAI_API_KEY=sk-xxxx
 
 python web_search.py
 ```
 
-### Agent that can query financial data
+### Finance Agent
 
-Create a file `finance_agent.py`
+Lets create another agent that can query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 
-agent = Agent(
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Use tables where possible"],
-    show_tool_calls=True,
+    instructions=["Always use tables to display data"],
     markdown=True,
+    show_tool_calls=True,
 )
-
-agent.print_response("What is the stock price of NVDA", stream=True)
-agent.print_response("Write a comparison between NVDA and AMD, use all tools available.")
+finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
 ```
 
-Install libraries and run the `Agent`
+Install libraries and run the Agent:
 
 ```shell
 pip install yfinance
@@ -82,11 +87,52 @@ pip install yfinance
 python finance_agent.py
 ```
 
-### Agent that can reason
+## Team of Agents
 
-Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasonining agent a simple task that gpt-4o fails at.
+Now lets create a team of agents using the agents above, create a file `agent_team.py`
 
-Create a file `basic_reasoning.py`
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.yfinance import YFinanceTools
+
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+    show_tool_calls=True,
+)
+
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    instructions=["Always use tables to display data"],
+    markdown=True,
+    show_tool_calls=True,
+)
+
+agent_team = Agent(
+    team=[web_agent, finance_agent],
+    show_tool_calls=True,
+    markdown=True,
+)
+agent_team.print_response("Research the web for NVDA and share analyst recommendations", stream=True)
+```
+
+Run the Agent team:
+
+```shell
+python agent_team.py
+```
+
+## Reasoning Agents
+
+Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasonining agent a simple task that gpt-4o fails at. Create a file `reasoning_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -109,11 +155,163 @@ console.rule("[bold yellow]Reasoning Agent[/bold yellow]")
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
 ```
 
-Run the `Agent`
+Run the Reasoning Agent:
 
 ```shell
-python basic_reasoning.py
+python reasoning_agent.py
 ```
+
+## RAG Agent
+
+Instead of always inserting the "context" into the prompt, the RAG Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task.
+
+This saves tokens and improves response quality. Create a file `rag_agent.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.vectordb.lancedb import LanceDb, SearchType
+
+db_uri = "tmp/lancedb"
+# Create a knowledge base from a PDF
+knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    # Use LanceDB as the vector database
+    vector_db=LanceDb(table_name="recipes", uri=db_uri, search_type=SearchType.vector),
+)
+# Load the knowledge base: Comment out after first run
+knowledge_base.load(upsert=True)
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    # Add the knowledge base to the agent
+    knowledge=knowledge_base,
+    show_tool_calls=True,
+    markdown=True,
+)
+agent.print_response("How do I make chicken and galangal in coconut milk soup")
+```
+
+Install libraries and run the Agent:
+
+```shell
+pip install lancedb tantivy pypdf sqlalchemy pgvector 'psycopg[binary]'
+
+python rag_agent.py
+```
+
+## Agent UI
+
+Phidata gives you a UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+
+![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
+
+> Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.storage.agent.sqlite import SqlAgentStorage
+from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.yfinance import YFinanceTools
+from phi.playground import Playground, serve_playground_app
+
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    storage=SqlAgentStorage(table_name="web_agent", db_file="agents.db"),
+    add_history_to_messages=True,
+    markdown=True,
+)
+
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    instructions=["Always use tables to display data"],
+    storage=SqlAgentStorage(table_name="finance_agent", db_file="agents.db"),
+    add_history_to_messages=True,
+    markdown=True,
+)
+
+app = Playground(agents=[finance_agent, web_agent]).get_app()
+
+if __name__ == "__main__":
+    serve_playground_app("playground:app", reload=True)
+```
+
+Authenticate with phidata:
+
+```
+phi auth
+```
+
+Install dependencies and run the Agent Playground:
+
+```
+pip install 'fastapi[standard]' sqlalchemy
+
+python playground.py
+```
+
+- Open your link provided or navigate to `http://phidata.app/playground`
+- Select your endpoint, agent and chat with your agents!
+
+<video
+  src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
+  style="border-radius: 8px;"
+/>
+
+## Demo Agents
+
+The Agent Playground includes a few demo agents that you can test with. If you have recommendations for other demo agents, please let us know in our [community forum](https://community.phidata.com/).
+
+![demo_agents](https://github.com/user-attachments/assets/329aa15d-83aa-4c6c-88f0-2b0eda257198)
+
+## Monitoring & Debugging
+
+### Monitoring
+
+Phidata comes with built-in monitoring. You can set `monitoring=True` on any agent to track sessions or set `PHI_MONITORING=true` in your environment.
+
+> Note: Run `phi auth` first to authenticate your local account.
+
+```python
+from phi.agent import Agent
+
+agent = Agent(markdown=True, monitoring=True)
+agent.print_response("Share a 2 sentence horror story")
+```
+
+Run the agent and monitor the results on [phidata.app/sessions](https://www.phidata.app/sessions)
+
+```shell
+# You can also set the environment variable
+# export PHI_MONITORING=true
+
+python agent_monitor.py
+```
+
+View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
+
+![Agent Session](https://github.com/user-attachments/assets/45f3e460-9538-4b1f-96ba-bd46af3c89a8)
+
+### Debugging
+
+Phidata also includes a built-in debugger that will show debug logs in the terminal. You can set `debug_mode=True` on any agent to track sessions or set `PHI_DEBUG=true` in your environment.
+
+```python
+from phi.agent import Agent
+
+agent = Agent(markdown=True, debug_mode=True)
+agent.print_response("Share a 2 sentence horror story")
+```
+
+![debugging](https://github.com/user-attachments/assets/c933c787-4a28-4bff-a664-93b29360d9ea)
 
 ## More information
 
@@ -213,7 +411,7 @@ python data_analyst.py
 
 </details>
 
-### Agent that can generate pydantic models
+### Agent that can generate structured outputs
 
 <details>
 

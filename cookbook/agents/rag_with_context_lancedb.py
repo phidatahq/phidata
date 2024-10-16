@@ -24,5 +24,5 @@ agent = Agent(
 )
 
 agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
-response = agent.run_response
+response: RunResponse = agent.run_response
 pprint(response.extra_data.context)

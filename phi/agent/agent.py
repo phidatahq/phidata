@@ -1183,8 +1183,8 @@ class Agent(BaseModel):
             model=model,
             description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
             instructions=[
-                "First - Analyze the Input: Carefully examine the given input and develop a logical plan to address it.",
-                "Step-by-Step Plan: Work through your plan, executing any tools as needed. For each step, provide:\n"
+                "First - Analyze the task: carefully examine the task and develop multiple step-by-step plans to solve it.",
+                "Then work through each plans step-by-step, executing any tools as needed. For each step, provide:\n"
                 "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
                 "  2. Action: Describe the action you will take in the first person (e.g., 'I will...').\n"
                 "  3. Result: Execute the action by running any necessary tools or providing an answer. Summarize the outcome.\n"
@@ -1203,6 +1203,11 @@ class Agent(BaseModel):
                 "  - If next_action is continue, proceed to the next step in your analysis.\n"
                 "  - If next_action is validate, validate the result of the action and provide the final answer.\n"
                 "  - If next_action is final_answer, stop reasoning.",
+                "Remember - If next_action is validate, you must validate your result\n"
+                "  - Ensure your result solves the original task.\n"
+                "  - Validate your result using any necessary tools or methods.\n"
+                "  - If there is another method to solve the task, use that to validate the result.\n"
+                "  - If the result is incorrect, correct it and provide the final answer.",
                 "Ensure your analysis is:\n"
                 "  - Complete: Validate results and run all necessary tools.\n"
                 "  - Comprehensive: Consider multiple angles and potential outcomes.\n"

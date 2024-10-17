@@ -24,12 +24,12 @@ from phi.workspace.enums import WorkspaceStarterTemplate
 from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.agent_app: "agent-app",
-    WorkspaceStarterTemplate.agent_api: "agent-api",
+    WorkspaceStarterTemplate.agent_app_ecs: "agent-app-ecs",
+    WorkspaceStarterTemplate.agent_api_ecs: "agent-api-ecs",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.agent_app: "https://github.com/phidatahq/agent-app.git",
-    WorkspaceStarterTemplate.agent_api: "https://github.com/phidatahq/agent-api.git",
+    WorkspaceStarterTemplate.agent_app_ecs: "https://github.com/phidatahq/agent-app-ecs.git",
+    WorkspaceStarterTemplate.agent_api_ecs: "https://github.com/phidatahq/agent-api-ecs.git",
 }
 
 
@@ -68,7 +68,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
-    ws_template = WorkspaceStarterTemplate.agent_app
+    ws_template = WorkspaceStarterTemplate.agent_app_ecs
     templates = list(WorkspaceStarterTemplate.__members__.values())
 
     if repo_to_clone is None:
@@ -76,7 +76,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         if template is None:
             # Get starter template from the user if template is not provided
             # Display available starter templates and ask user to select one
-            print_info("Select starter template or press Enter for default (agent-app)")
+            print_info("Select starter template or press Enter for default (agent-app-ecs)")
             for template_id, template_name in enumerate(templates, start=1):
                 print_info("  [b][{}][/b] {}".format(template_id, WorkspaceStarterTemplate(template_name).value))
 
@@ -104,7 +104,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             default_ws_name = url.split("/")[-1].split(".")[0]
         else:
             # Get default_ws_name from template
-            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "agent-app")
+            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "agent-app-ecs")
         logger.debug(f"Asking for ws name with default: {default_ws_name}")
         # Ask user for workspace name if not provided
         ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name, console=console)

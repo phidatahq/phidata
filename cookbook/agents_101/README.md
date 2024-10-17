@@ -27,12 +27,6 @@ pip install -U openai duckduckgo-search duckdb yfinance lancedb tantivy pypdf sq
 python cookbook/agents_101/web_search.py
 ```
 
-### 5. Web Reader Agent
-
-```shell
-python cookbook/agents_101/web_reader.py
-```
-
 ### 5. Finance Agent
 
 ```shell
@@ -45,7 +39,7 @@ python cookbook/agents_101/finance_agent.py
 python cookbook/agents_101/rag_agent.py
 ```
 
-### 7. Playground
+### 7. Test in Agent UI
 
 Authenticate with phidata.app
 
@@ -53,8 +47,8 @@ Authenticate with phidata.app
 phi auth
 ```
 
-Run the playground
+Run the Agent UI
 
 ```shell
-python cookbook/agents_101/playground.py
+python cookbook/agents_101/agent_ui.py
 ```

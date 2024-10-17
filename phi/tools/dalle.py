@@ -14,7 +14,7 @@ class DalleTools(Toolkit):
     def __init__(
         self,
         model: str = "dall-e-3",
-        size: str = "1024x1024",
+        size: str = "1280x720",
         quality: str = "standard",
         n: int = 1,
         api_key: Optional[str] = None,

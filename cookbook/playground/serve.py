@@ -11,6 +11,7 @@ from phi.storage.agent.postgres import PgAgentStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector, SearchType
 from phi.playground import Playground, serve_playground_app
+from phi.tools.dalle import DalleTools
 
 db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -27,6 +28,15 @@ finance_agent = Agent(
     description="You are a finance agent",
     add_datetime_to_instructions=True,
     storage=PgAgentStorage(table_name="finance_agent", db_url=db_url),
+)
+
+dalle_agent = Agent(
+    name="Dalle Agent",
+    agent_id="dalle-agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DalleTools()],
+    markdown=True,
+    debug_mode=True,
 )
 
 research_agent = Agent(
@@ -92,7 +102,7 @@ recipe_agent = Agent(
     storage=PgAgentStorage(table_name="thai_recipe_agent", db_url=db_url),
 )
 
-app = Playground(agents=[finance_agent, research_agent, recipe_agent]).get_app()
+app = Playground(agents=[finance_agent, research_agent, recipe_agent, dalle_agent]).get_app()
 
 if __name__ == "__main__":
     # Load the knowledge base: Comment out after first run

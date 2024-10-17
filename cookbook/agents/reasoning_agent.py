@@ -8,10 +8,9 @@ reasoning_agent = Agent(
     reasoning=True,
     markdown=True,
     structured_outputs=True,
-    reasoning_min_steps=3,
 )
 
-task = "How many 'r' are in the word 'supercalifragilisticexpialidocious'?"
+task = "How many 'r' are in the word 'strawberry'?"
 
 console.rule("[bold green]Regular Agent[/bold green]")
 regular_agent.print_response(task, stream=True)

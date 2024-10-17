@@ -862,10 +862,10 @@ class Agent(BaseModel):
             system_message_lines.append(system_message_from_model)
         # 5.7 The add the expected output
         if self.expected_output is not None:
-            system_message_lines.extend(f"## Expected output{self.expected_output}\n")
+            system_message_lines.append(f"## Expected output\n{self.expected_output}\n")
         # 5.8 Then add additional context
         if self.additional_context is not None:
-            system_message_lines.extend(f"{self.additional_context}\n")
+            system_message_lines.append(f"{self.additional_context}\n")
         # 5.9 Then add information about the team members
         if self.has_team():
             system_message_lines.append(f"{self.get_transfer_prompt()}\n")
@@ -1183,8 +1183,8 @@ class Agent(BaseModel):
             model=model,
             description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
             instructions=[
-                "First - Analyze the Input: Carefully examine the given input and develop a logical plan to address it.",
-                "Step-by-Step Plan: Work through your plan, executing any tools as needed. For each step, provide:\n"
+                "First - Analyze the task: carefully examine the task and develop multiple step-by-step plans to solve it.",
+                "Then work through each plans step-by-step, executing any tools as needed. For each step, provide:\n"
                 "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
                 "  2. Action: Describe the action you will take in the first person (e.g., 'I will...').\n"
                 "  3. Result: Execute the action by running any necessary tools or providing an answer. Summarize the outcome.\n"
@@ -1203,6 +1203,11 @@ class Agent(BaseModel):
                 "  - If next_action is continue, proceed to the next step in your analysis.\n"
                 "  - If next_action is validate, validate the result of the action and provide the final answer.\n"
                 "  - If next_action is final_answer, stop reasoning.",
+                "Remember - If next_action is validate, you must validate your result\n"
+                "  - Ensure your result solves the original task.\n"
+                "  - Validate your result using any necessary tools or methods.\n"
+                "  - If there is another method to solve the task, use that to validate the result.\n"
+                "  - If the result is incorrect, correct it and provide the final answer.",
                 "Ensure your analysis is:\n"
                 "  - Complete: Validate results and run all necessary tools.\n"
                 "  - Comprehensive: Consider multiple angles and potential outcomes.\n"
@@ -2563,7 +2568,7 @@ class Agent(BaseModel):
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
-                    response_content = Markdown(_response_content) if self.markdown else _response_content
+                    response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
 
@@ -2609,7 +2614,7 @@ class Agent(BaseModel):
                         render = True
                         # Create panel for response
                         response_panel = self.create_panel(
-                            content=response_content,
+                            content=response_content_stream,
                             title=f"Response ({response_timer.elapsed:.1f}s)",
                             border_style="blue",
                         )
@@ -2664,28 +2669,30 @@ class Agent(BaseModel):
                         )
                         panels.append(reasoning_panel)
 
-                response_content = ""
+                response_content_batch: Union[str, JSON, Markdown] = ""
                 if isinstance(run_response, RunResponse):
                     if isinstance(run_response.content, str):
-                        response_content = (
+                        response_content_batch = (
                             Markdown(run_response.content)
                             if self.markdown
                             else run_response.get_content_as_string(indent=4)
                         )
                     elif self.response_model is not None and isinstance(run_response.content, BaseModel):
                         try:
-                            response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                            response_content_batch = JSON(
+                                run_response.content.model_dump_json(exclude_none=True), indent=2
+                            )
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
                     else:
                         try:
-                            response_content = JSON(json.dumps(run_response.content), indent=4)
+                            response_content_batch = JSON(json.dumps(run_response.content), indent=4)
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
 
                 # Create panel for response
                 response_panel = self.create_panel(
-                    content=response_content,
+                    content=response_content_batch,
                     title=f"Response ({response_timer.elapsed:.1f}s)",
                     border_style="blue",
                 )
@@ -2734,7 +2741,7 @@ class Agent(BaseModel):
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
-                    response_content = Markdown(_response_content) if self.markdown else _response_content
+                    response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
 
@@ -2780,7 +2787,7 @@ class Agent(BaseModel):
                         render = True
                         # Create panel for response
                         response_panel = self.create_panel(
-                            content=response_content,
+                            content=response_content_stream,
                             title=f"Response ({response_timer.elapsed:.1f}s)",
                             border_style="blue",
                         )
@@ -2835,28 +2842,30 @@ class Agent(BaseModel):
                         )
                         panels.append(reasoning_panel)
 
-                response_content = ""
+                response_content_batch: Union[str, JSON, Markdown] = ""
                 if isinstance(run_response, RunResponse):
                     if isinstance(run_response.content, str):
-                        response_content = (
+                        response_content_batch = (
                             Markdown(run_response.content)
                             if self.markdown
                             else run_response.get_content_as_string(indent=4)
                         )
                     elif self.response_model is not None and isinstance(run_response.content, BaseModel):
                         try:
-                            response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                            response_content_batch = JSON(
+                                run_response.content.model_dump_json(exclude_none=True), indent=2
+                            )
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
                     else:
                         try:
-                            response_content = JSON(json.dumps(run_response.content), indent=4)
+                            response_content_batch = JSON(json.dumps(run_response.content), indent=4)
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
 
                 # Create panel for response
                 response_panel = self.create_panel(
-                    content=response_content,
+                    content=response_content_batch,
                     title=f"Response ({response_timer.elapsed:.1f}s)",
                     border_style="blue",
                 )

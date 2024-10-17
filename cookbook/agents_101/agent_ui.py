@@ -33,7 +33,6 @@ agent_team = Agent(
     team=[web_agent, finance_agent],
     storage=SqlAgentStorage(table_name="agent_team_sessions", db_file="tmp/agents.db"),
     markdown=True,
-    debug_mode=True,
 )
 
 app = Playground(agents=[finance_agent, web_agent, agent_team]).get_app()

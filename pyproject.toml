@@ -163,5 +163,6 @@ module = [
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",
+  "unifyai.*",
 ]
 ignore_missing_imports = true

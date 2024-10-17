@@ -3,7 +3,6 @@ from phi.model.openai import OpenAIChat
 from phi.tools.dalle import DalleTools
 
 agent = Agent(
-    # system_prompt="Only return the image URL in your response given by DALL-E.",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DalleTools()],
     markdown=True,

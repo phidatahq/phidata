@@ -1,0 +1,64 @@
+[project]
+name = "agent-app"
+version = "0.1.0"
+requires-python = ">=3.9"
+readme = "README.md"
+authors = [{ name = "Phidata Team", email = "hello@phidata.com" }]
+
+dependencies = [
+  "alembic",
+  "beautifulsoup4",
+  "duckduckgo-search",
+  "fastapi[standard]",
+  "mypy",
+  "nest_asyncio",
+  "openai",
+  "pgvector",
+  "phidata[aws]==2.5.3",
+  "pillow",
+  "psycopg[binary]",
+  "pypdf",
+  "pytest",
+  "python-docx",
+  "ruff",
+  "sqlalchemy",
+  "streamlit==1.39.0",
+  "tiktoken",
+  "typer",
+  "types-beautifulsoup4",
+  "types-Pillow",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+
+# Change this value to use a different directory for the phidata workspace.
+# [tool.phidata]
+# workspace = "workspace"
+
+[tool.ruff]
+line-length = 110
+exclude = ["aienv*", ".venv*"]
+[tool.ruff.lint.per-file-ignores]
+# Ignore `F401` (import violations) in all `__init__.py` files
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+check_untyped_defs = true
+no_implicit_optional = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]
+exclude = ["aienv*", ".venv*"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "setuptools.*", "nest_asyncio.*"]
+ignore_missing_imports = true
+
+[tool.uv.pip]
+no-annotate = true
+
+[tool.pytest.ini_options]
+log_cli = true

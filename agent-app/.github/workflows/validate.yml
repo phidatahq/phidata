@@ -1,0 +1,50 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+    branches:
+      - "main"
+
+env:
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "requirements**.txt"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv pip sync requirements.txt
+
+      - name: Format with ruff
+        run: uv run ruff format .
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Type-check with mypy
+        run: uv run mypy .
+
+      # - name: Run tests
+      #   run: uv run pytest tests

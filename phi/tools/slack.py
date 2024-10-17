@@ -1,5 +1,4 @@
 import json
-from typing import Optional, Dict, Any
 
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -19,11 +18,11 @@ class SlackTools(Toolkit):
     def send_message(self, channel: str, text: str) -> str:
         """
         Send a message to a Slack channel.
-        
+
         Args:
             channel (str): The channel ID or name to send the message to.
             text (str): The text of the message to send.
-        
+
         Returns:
             str: A JSON string containing the response from the Slack API.
         """
@@ -37,7 +36,7 @@ class SlackTools(Toolkit):
     def list_channels(self) -> str:
         """
         List all channels in the Slack workspace.
-        
+
         Returns:
             str: A JSON string containing the list of channels.
         """
@@ -52,11 +51,11 @@ class SlackTools(Toolkit):
     def get_channel_history(self, channel: str, limit: int = 100) -> str:
         """
         Get the message history of a Slack channel.
-        
+
         Args:
             channel (str): The channel ID to fetch history from.
             limit (int): The maximum number of messages to fetch. Defaults to 100.
-        
+
         Returns:
             str: A JSON string containing the channel's message history.
         """

@@ -19,5 +19,3 @@ agent.print_response("List all channels in our Slack workspace", markdown=True)
 
 # Example 3: Get the message history of a specific channel
 agent.print_response("Get the last 10 messages from the channel #random_junk", markdown=True)
-
-

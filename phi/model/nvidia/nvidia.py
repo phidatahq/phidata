@@ -19,4 +19,3 @@ class Nvidia(OpenAILike):
     provider: str = "Nvidia " + id
     api_key: Optional[str] = getenv("NVIDIA_API_KEY")
     base_url: str = "https://integrate.api.nvidia.com/v1"
-    monkey_patch: bool = False

@@ -2568,7 +2568,7 @@ class Agent(BaseModel):
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
-                    response_content = Markdown(_response_content) if self.markdown else _response_content
+                    response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
 
@@ -2614,7 +2614,7 @@ class Agent(BaseModel):
                         render = True
                         # Create panel for response
                         response_panel = self.create_panel(
-                            content=response_content,
+                            content=response_content_stream,
                             title=f"Response ({response_timer.elapsed:.1f}s)",
                             border_style="blue",
                         )
@@ -2669,28 +2669,30 @@ class Agent(BaseModel):
                         )
                         panels.append(reasoning_panel)
 
-                response_content = ""
+                response_content_batch: Union[str, JSON, Markdown] = ""
                 if isinstance(run_response, RunResponse):
                     if isinstance(run_response.content, str):
-                        response_content = (
+                        response_content_batch = (
                             Markdown(run_response.content)
                             if self.markdown
                             else run_response.get_content_as_string(indent=4)
                         )
                     elif self.response_model is not None and isinstance(run_response.content, BaseModel):
                         try:
-                            response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                            response_content_batch = JSON(
+                                run_response.content.model_dump_json(exclude_none=True), indent=2
+                            )
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
                     else:
                         try:
-                            response_content = JSON(json.dumps(run_response.content), indent=4)
+                            response_content_batch = JSON(json.dumps(run_response.content), indent=4)
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
 
                 # Create panel for response
                 response_panel = self.create_panel(
-                    content=response_content,
+                    content=response_content_batch,
                     title=f"Response ({response_timer.elapsed:.1f}s)",
                     border_style="blue",
                 )
@@ -2739,7 +2741,7 @@ class Agent(BaseModel):
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
-                    response_content = Markdown(_response_content) if self.markdown else _response_content
+                    response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
 
@@ -2785,7 +2787,7 @@ class Agent(BaseModel):
                         render = True
                         # Create panel for response
                         response_panel = self.create_panel(
-                            content=response_content,
+                            content=response_content_stream,
                             title=f"Response ({response_timer.elapsed:.1f}s)",
                             border_style="blue",
                         )
@@ -2840,28 +2842,30 @@ class Agent(BaseModel):
                         )
                         panels.append(reasoning_panel)
 
-                response_content = ""
+                response_content_batch: Union[str, JSON, Markdown] = ""
                 if isinstance(run_response, RunResponse):
                     if isinstance(run_response.content, str):
-                        response_content = (
+                        response_content_batch = (
                             Markdown(run_response.content)
                             if self.markdown
                             else run_response.get_content_as_string(indent=4)
                         )
                     elif self.response_model is not None and isinstance(run_response.content, BaseModel):
                         try:
-                            response_content = JSON(run_response.content.model_dump_json(exclude_none=True), indent=2)
+                            response_content_batch = JSON(
+                                run_response.content.model_dump_json(exclude_none=True), indent=2
+                            )
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
                     else:
                         try:
-                            response_content = JSON(json.dumps(run_response.content), indent=4)
+                            response_content_batch = JSON(json.dumps(run_response.content), indent=4)
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
 
                 # Create panel for response
                 response_panel = self.create_panel(
-                    content=response_content,
+                    content=response_content_batch,
                     title=f"Response ({response_timer.elapsed:.1f}s)",
                     border_style="blue",
                 )

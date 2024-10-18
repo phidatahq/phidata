@@ -4,7 +4,6 @@ from textwrap import dedent
 from datetime import datetime
 
 from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.model.openai import OpenAIChat
 from phi.playground import Playground, serve_playground_app
 from phi.storage.agent.sqlite import SqlAgentStorage
@@ -12,9 +11,7 @@ from phi.tools.dalle import Dalle
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
-from phi.vectordb.lancedb import LanceDb, SearchType
 
-lance_db_uri = "tmp/lancedb"
 db_session_storage_file: str = "agents.db"
 
 web_agent = Agent(
@@ -100,27 +97,7 @@ research_agent = Agent(
     markdown=True,
 )
 
-recipes_knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=LanceDb(table_name="thai_recipes", uri=lance_db_uri, search_type=SearchType.vector),
-)
-
-recipe_agent = Agent(
-    name="Thai Recipes Agent",
-    agent_id="thai-recipes-agent",
-    model=OpenAIChat(id="gpt-4o"),
-    description="You are an expert at Thai Recipes and have a knowledge base full of special Thai recipes.",
-    instructions=["Always search your knowledge base first for the recipe."],
-    knowledge=recipes_knowledge_base,
-    storage=SqlAgentStorage(table_name="thai_recipe_agent", db_file=db_session_storage_file),
-    add_history_to_messages=True,
-    add_datetime_to_instructions=True,
-    markdown=True,
-)
-
-app = Playground(agents=[web_agent, finance_agent, image_agent, research_agent, recipe_agent]).get_app()
+app = Playground(agents=[web_agent, finance_agent, image_agent, research_agent]).get_app()
 
 if __name__ == "__main__":
-    # Load the knowledge base: Comment out after first run
-    recipes_knowledge_base.load(upsert=True)
     serve_playground_app("demo:app", reload=True)

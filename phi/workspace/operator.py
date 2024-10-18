@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Dict, List
 
 
+from rich.prompt import Prompt
 from phi.api.workspace import log_workspace_event
 from phi.api.schemas.workspace import (
     WorkspaceSchema,
@@ -9,6 +10,7 @@ from phi.api.schemas.workspace import (
     WorkspaceUpdate,
     WorkspaceEvent,
 )
+from phi.api.schemas.team import TeamSchema, TeamIdentifier
 from phi.cli.config import PhiCliConfig
 from phi.cli.console import (
     console,
@@ -21,15 +23,16 @@ from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
 from phi.workspace.config import WorkspaceConfig
 from phi.workspace.enums import WorkspaceStarterTemplate
+from phi.utils.common import str_to_int
 from phi.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.agent_app_ecs: "agent-app-ecs",
-    WorkspaceStarterTemplate.agent_api_ecs: "agent-api-ecs",
+    WorkspaceStarterTemplate.agent_app: "agent-app",
+    WorkspaceStarterTemplate.agent_api: "agent-api",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.agent_app_ecs: "https://github.com/phidatahq/agent-app-ecs.git",
-    WorkspaceStarterTemplate.agent_api_ecs: "https://github.com/phidatahq/agent-api-ecs.git",
+    WorkspaceStarterTemplate.agent_app: "https://github.com/phidatahq/agent-app.git",
+    WorkspaceStarterTemplate.agent_api: "https://github.com/phidatahq/agent-api.git",
 }
 
 
@@ -41,10 +44,8 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     """
     import git
     from shutil import copytree
-    from rich.prompt import Prompt
 
     from phi.cli.operator import initialize_phi
-    from phi.utils.common import str_to_int
     from phi.utils.filesystem import rmdir_recursive
     from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.git import GitCloneProgress
@@ -68,7 +69,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
-    ws_template = WorkspaceStarterTemplate.agent_app_ecs
+    ws_template = WorkspaceStarterTemplate.agent_app
     templates = list(WorkspaceStarterTemplate.__members__.values())
 
     if repo_to_clone is None:
@@ -76,7 +77,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         if template is None:
             # Get starter template from the user if template is not provided
             # Display available starter templates and ask user to select one
-            print_info("Select starter template or press Enter for default (agent-app-ecs)")
+            print_info("Select starter template or press Enter for default (agent-app)")
             for template_id, template_name in enumerate(templates, start=1):
                 print_info("  [b][{}][/b] {}".format(template_id, WorkspaceStarterTemplate(template_name).value))
 
@@ -104,7 +105,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             default_ws_name = url.split("/")[-1].split(".")[0]
         else:
             # Get default_ws_name from template
-            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "agent-app-ecs")
+            default_ws_name = TEMPLATE_TO_NAME_MAP.get(ws_template, "agent-app")
         logger.debug(f"Asking for ws name with default: {default_ws_name}")
         # Ask user for workspace name if not provided
         ws_dir_name = Prompt.ask("Workspace Name", default=default_ws_name, console=console)
@@ -121,9 +122,6 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     if ws_root_path.exists():
         logger.error(f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace")
         return False
-
-    # TODO: check if user is part of any teams and ask user to select a team
-    # If its an anon user then skip the api call to get teams
 
     print_info(f"Creating {str(ws_root_path)}")
     logger.debug("Cloning: {}".format(repo_to_clone))
@@ -149,7 +147,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
             logger.info("Please delete the .git folder manually")
             pass
 
-    phi_config.add_new_ws_to_config(ws_root_path=ws_root_path, team=None)
+    phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
 
     try:
         # workspace_dir_path is the path to the ws_root/workspace dir
@@ -173,11 +171,11 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
     """Setup a phi workspace at `ws_root_path`.
 
-    1. Validate pre-requisites
+    1. Pre-requisites
     1.1 Check ws_root_path is available
     1.2 Check PhiCliConfig is available
-    1.3 Validate WorkspaceConfig is available
-    1.4 Load workspace and set as active
+    1.3 Check if WorkspaceConfig is available or `workspace` dir exists in ws_root_path
+    1.4 Get the workspace dir name
     1.5 Check if remote origin is available
     1.6 Create anon user if not available
 
@@ -186,14 +184,16 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
     2.1 Create WorkspaceSchema for a NEWLY CREATED WORKSPACE
     2.2 Update WorkspaceSchema if git_url is updated
     """
+    from rich.live import Live
+    from rich.status import Status
     from phi.cli.operator import initialize_phi
     from phi.utils.git import get_remote_origin_for_dir
     from phi.workspace.helpers import get_workspace_dir_path
 
-    print_heading("Running workspace setup\n")
+    print_heading("Setting up workspace\n")
 
     ######################################################
-    ## 1. Validate Pre-requisites
+    ## 1. Pre-requisites
     ######################################################
     ######################################################
     # 1.1 Check ws_root_path is available
@@ -221,7 +221,7 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
             raise Exception("Failed to initialize phi")
 
     ######################################################
-    # 1.3 Validate WorkspaceConfig is available
+    # 1.3 Check if WorkspaceConfig is available or `workspace` dir exists in ws_root_path
     ######################################################
     logger.debug(f"Checking for a workspace at {ws_root_path}")
     ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(ws_root_path)
@@ -231,32 +231,18 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
         # - OR the user ran `phi init -r` which erases existing records of workspaces
         logger.debug(f"Could not find an existing workspace at: {ws_root_path}")
 
+        # Check if the workspace dir exists
         workspace_dir_path = get_workspace_dir_path(ws_root_path)
         if workspace_dir_path is None:
-            logger.error(f"Could not find a workspace directory in: {ws_root_path}")
+            logger.error(f"Could not find a `workspace` directory in: {ws_root_path}")
             return False
-
-        # In this case, the local workspace directory exists but PhiCliConfig does not have a record
-        print_info(f"Adding {str(ws_root_path.stem)} as a workspace")
-        phi_config.add_new_ws_to_config(ws_root_path=ws_root_path, team=team)
-        ws_config = phi_config.get_ws_config_by_path(ws_root_path)
     else:
         logger.debug(f"Found workspace at {ws_root_path}")
 
-    # If the ws_config is still None it means the workspace is corrupt
-    if ws_config is None:
-        logger.error(f"Could not find workspace at: {str(ws_root_path)}")
-        logger.error("Please try again")
-        return False
-
     ######################################################
-    # 1.4 Set workspace as active
+    # 1.4 Get the workspace dir name
     ######################################################
-    # Get the workspace dir name
-    ws_dir_name = ws_config.ws_root_path.stem
-    # Set the workspace as active if it is not already
-    if phi_config.active_ws_dir is None or phi_config.active_ws_dir != ws_dir_name:
-        phi_config.set_active_ws_dir(ws_config.ws_root_path)
+    ws_dir_name = ws_root_path.stem
 
     ######################################################
     # 1.5 Check if remote origin is available
@@ -265,7 +251,7 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
     logger.debug("Git origin: {}".format(git_remote_origin_url))
 
     ######################################################
-    # 1.6 Create anon user if not logged in
+    # 1.6 Create anon user if the user is not logged in
     ######################################################
     if phi_config.user is None:
         from phi.api.user import create_anon_user
@@ -279,12 +265,13 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
     ## 2. Create or Update WorkspaceSchema
     ######################################################
     # If a ws_schema exists for this workspace, this workspace is synced with the api
-    ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema
+    ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema if ws_config is not None else None
     if phi_config.user is not None:
         ######################################################
         # 2.1 Create WorkspaceSchema for NEW WORKSPACE
         ######################################################
         if ws_schema is None or ws_schema.id_workspace is None:
+            from phi.api.team import get_teams_for_user
             from phi.api.workspace import create_workspace_for_user
             from phi.workspace.helpers import generate_workspace_name
 
@@ -296,24 +283,56 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
             logger.debug(f"workspace_name: {new_workspace_name}")
             logger.debug(f"git_url: {git_remote_origin_url}")
 
-            ws_schema = create_workspace_for_user(
-                user=phi_config.user,
-                workspace=WorkspaceCreate(
-                    ws_name=new_workspace_name,
-                    git_url=git_remote_origin_url,
-                ),
-                # team=team,
-            )
-            if ws_schema is not None:
-                ws_config = phi_config.update_ws_config(ws_root_path=ws_root_path, ws_schema=ws_schema, team=team)
-            else:
-                logger.debug("Failed to sync workspace with api. Please setup again")
+            logger.debug(f"Getting teams for user: {phi_config.user.email}")
+            teams: Optional[List[TeamSchema]] = None
+            selected_team: Optional[TeamSchema] = None
+            team_identifier: Optional[TeamIdentifier] = None
+            with Live(transient=True) as live_log:
+                status = Status(
+                    "Checking for available teams...", spinner="aesthetic", speed=2.0, refresh_per_second=10
+                )
+                live_log.update(status)
+                teams = get_teams_for_user(phi_config.user)
+            if teams is not None and len(teams) > 0:
+                logger.debug(f"The user has {len(teams)} available teams. Checking if they want to use one of them")
+                print_info("Which account would you like to create this workspace in?")
+                print_info("  [b][1][/b] Personal (default)")
+                for team_idx, team_schema in enumerate(teams, start=2):
+                    print_info("  [b][{}][/b] {}".format(team_idx, team_schema.name))
+
+                account_choices = ["1"] + [str(idx) for idx, _ in enumerate(teams, start=2)]
+                account_inp_raw = Prompt.ask("Account Number", choices=account_choices, default="1", show_choices=False)
+                account_inp = str_to_int(account_inp_raw)
+
+                if account_inp is not None:
+                    if account_inp == 1:
+                        print_info("Creating workspace in your personal account")
+                    else:
+                        selected_team = teams[account_inp - 2]
+                        print_info(f"Creating workspace in {selected_team.name}")
+                        team_identifier = TeamIdentifier(id_team=selected_team.id_team, team_url=selected_team.url)
+
+                ws_schema = create_workspace_for_user(
+                    user=phi_config.user,
+                    workspace=WorkspaceCreate(
+                        ws_name=new_workspace_name,
+                        git_url=git_remote_origin_url,
+                    ),
+                    team=team_identifier,
+                )
+                if ws_schema is not None:
+                    logger.debug(f"Workspace created: {ws_schema.ws_name}")
+                    if selected_team is not None:
+                        logger.debug(f"Selected team: {selected_team.name}")
+                    ws_config = phi_config.update_ws_config(
+                        ws_root_path=ws_root_path, ws_schema=ws_schema, ws_team=selected_team, set_as_active=True
+                    )
 
         ######################################################
         # 2.2 Update WorkspaceSchema if git_url is updated
         ######################################################
         if git_remote_origin_url is not None and ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
-            from phi.api.workspace import update_workspace_for_user
+            from phi.api.workspace import update_workspace_for_user, update_workspace_for_team
 
             logger.debug("Updating git_url for existing workspace")
             logger.debug(f"ws_dir_name: {ws_dir_name}")
@@ -321,17 +340,27 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
             logger.debug(f"Existing git_url: {ws_schema.git_url}")
             logger.debug(f"New git_url: {git_remote_origin_url}")
 
-            updated_workspace_schema = update_workspace_for_user(
-                user=phi_config.user,
-                workspace=WorkspaceUpdate(
-                    id_workspace=ws_schema.id_workspace,
-                    git_url=git_remote_origin_url,
-                ),
-            )
+            if ws_config is not None and ws_config.ws_team is not None:
+                updated_workspace_schema = update_workspace_for_team(
+                    user=phi_config.user,
+                    workspace=WorkspaceUpdate(
+                        id_workspace=ws_schema.id_workspace,
+                        git_url=git_remote_origin_url,
+                    ),
+                    team=TeamIdentifier(id_team=ws_config.ws_team.id_team, team_url=ws_config.ws_team.url),
+                )
+            else:
+                updated_workspace_schema = update_workspace_for_user(
+                    user=phi_config.user,
+                    workspace=WorkspaceUpdate(
+                        id_workspace=ws_schema.id_workspace,
+                        git_url=git_remote_origin_url,
+                    ),
+                )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
                 ws_config = phi_config.update_ws_config(
-                    ws_root_path=ws_root_path, ws_schema=updated_workspace_schema, team=team
+                    ws_root_path=ws_root_path, ws_schema=updated_workspace_schema, set_as_active=True
                 )
             else:
                 logger.debug("Failed to sync workspace with api. Please setup again")

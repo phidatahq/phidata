@@ -11,7 +11,9 @@ except ImportError:
 
 
 class SlackTools(Toolkit):
-    def __init__(self, token: str, send_message: bool = True, list_channels: bool = True, get_channel_history: bool = True):
+    def __init__(
+        self, token: str, send_message: bool = True, list_channels: bool = True, get_channel_history: bool = True
+    ):
         super().__init__(name="slack")
         self.client = WebClient(token=token)
         if send_message:

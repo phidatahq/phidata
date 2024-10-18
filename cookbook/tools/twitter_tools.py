@@ -1,18 +1,15 @@
 from phi.agent import Agent
-from phi.tools.twitter import TwitterToolkit
+from phi.tools.twitter import TwitterTools
 
-# Replace the values with your actual twitter access token
-consumer_key = ""
-consumer_secret = ""
-
-
-bearer_token = ""
-access_token = ""
-access_token_secret = ""
-
+# Export the following environment variables or provide them as arguments to the TwitterTools constructor
+# - TWITTER_CONSUMER_KEY
+# - TWITTER_CONSUMER_SECRET
+# - TWITTER_ACCESS_TOKEN
+# - TWITTER_ACCESS_TOKEN_SECRET
+# - TWITTER_BEARER_TOKEN
 
 # Initialize the Twitter toolkit
-twitter_toolkit = TwitterToolkit(bearer_token, consumer_key, consumer_secret, access_token, access_token_secret)
+twitter_tools = TwitterTools()
 
 # Create an agent with the twitter toolkit
 agent = Agent(
@@ -23,37 +20,24 @@ agent = Agent(
         "Provide informative responses about the user's timeline and tweets",
         "Respect Twitter's usage policies and rate limits",
     ],
-    tools=[twitter_toolkit],
-    debug_mode=True,
+    tools=[twitter_tools],
     show_tool_calls=True,
 )
-
-
-# # Example usage: Retrieve information about a specific user.
 agent.print_response("Can you retrieve information about this user https://x.com/phidatahq ", markdown=True)
 
-
 # # Example usage: Reply To a Tweet
-
-agent.print_response(
-    "Can you reply to this post as a general message as to how great this project is:https://x.com/phidatahq/status/1836101177500479547",
-    markdown=True,
-)
-
-
+# agent.print_response(
+#     "Can you reply to this post as a general message as to how great this project is:https://x.com/phidatahq/status/1836101177500479547",
+#     markdown=True,
+# )
 # # Example usage: Get your details
-agent.print_response("Can you return my twitter profile?", markdown=True)
-
+# agent.print_response("Can you return my twitter profile?", markdown=True)
 # # Example usage: Send a direct message
-
-agent.print_response(
-    "Can a send direct message to the user: https://x.com/phidatahq assking you want learn more about them and a link to their community?",
-    markdown=True,
-)
-
-
+# agent.print_response(
+#     "Can a send direct message to the user: https://x.com/phidatahq assking you want learn more about them and a link to their community?",
+#     markdown=True,
+# )
 # # Example usage: Create a new tweet
-agent.print_response("Create & post a tweet about the importance of AI ethics", markdown=True)
-
-# Example usage: Get home timeline
-agent.print_response("Get my timeline", markdown=True)
+# agent.print_response("Create & post a tweet about the importance of AI ethics", markdown=True)
+# # Example usage: Get home timeline
+# agent.print_response("Get my timeline", markdown=True)

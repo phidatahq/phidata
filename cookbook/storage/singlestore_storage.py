@@ -8,7 +8,7 @@ from phi.agent import Agent
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.agent.singlestore import S2AgentStorage
 
-# -*- SingleStore Configuration -*-
+# Configure SingleStore DB connection
 USERNAME = getenv("SINGLESTORE_USERNAME")
 PASSWORD = getenv("SINGLESTORE_PASSWORD")
 HOST = getenv("SINGLESTORE_HOST")
@@ -16,17 +16,17 @@ PORT = getenv("SINGLESTORE_PORT")
 DATABASE = getenv("SINGLESTORE_DATABASE")
 SSL_CERT = getenv("SINGLESTORE_SSL_CERT", None)
 
-# -*- SingleStore DB URL
+# SingleStore DB URL
 db_url = f"mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}?charset=utf8mb4"
 if SSL_CERT:
     db_url += f"&ssl_ca={SSL_CERT}&ssl_verify_cert=true"
 
-# -*- SingleStore DB Engine
+# Create a DB engine
 db_engine = create_engine(db_url)
 
 # Create an agent with SingleStore storage
 agent = Agent(
-    storage=S2AgentStorage(table_name="agent_runs", db_engine=db_engine, schema=DATABASE),
+    storage=S2AgentStorage(table_name="agent_sessions", db_engine=db_engine, schema=DATABASE),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,
 )

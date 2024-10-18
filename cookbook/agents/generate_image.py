@@ -1,10 +1,10 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from phi.tools.dalle import DalleTools
+from phi.tools.dalle import Dalle
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DalleTools()],
+    tools=[Dalle()],
     markdown=True,
     debug_mode=True,
     instructions=[

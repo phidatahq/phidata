@@ -1,4 +1,4 @@
-"""Run `pip install yfinance exa_py` to install dependencies."""
+"""Run `pip install openai yfinance exa_py` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -11,8 +11,8 @@ from phi.storage.agent.postgres import PgAgentStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector, SearchType
 from phi.playground import Playground, serve_playground_app
-from phi.tools.video_gen import VideoGenTools
-from phi.tools.dalle import DalleTools
+from phi.tools.models_labs import ModelsLabs
+from phi.tools.dalle import Dalle
 
 db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -20,7 +20,7 @@ video_gen_agent = Agent(
     name="Video Gen Agent",
     agent_id="video-gen-agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[VideoGenTools()],
+    tools=[ModelsLabs()],
     markdown=True,
     debug_mode=True,
     show_tool_calls=True,
@@ -56,7 +56,7 @@ dalle_agent = Agent(
     name="Dalle Agent",
     agent_id="dalle-agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DalleTools()],
+    tools=[Dalle()],
     markdown=True,
     debug_mode=True,
 )
@@ -129,4 +129,4 @@ app = Playground(agents=[finance_agent, research_agent, recipe_agent, dalle_agen
 if __name__ == "__main__":
     # Load the knowledge base: Comment out after first run
     # recipe_knowledge_base.load(upsert=True)
-    serve_playground_app("serve:app", reload=True)
+    serve_playground_app("test:app", reload=True)

@@ -1,12 +1,12 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from phi.tools.video_gen import VideoGenTools
+from phi.tools.models_labs import ModelsLabs
 
 agent = Agent(
     name="Video Generation Agent",
     agent_id="video-generation-agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[VideoGenTools()],
+    tools=[ModelsLabs()],
     markdown=True,
     debug_mode=True,
     show_tool_calls=True,

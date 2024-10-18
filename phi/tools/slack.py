@@ -1,19 +1,25 @@
 import json
 
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger
 
+try:
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+except ImportError:
+    logger.error("Slack tools require the `slack_sdk` package. Run `pip install slack-sdk` to install it.")
+
 
 class SlackTools(Toolkit):
-    def __init__(self, token: str):
+    def __init__(self, token: str, send_message: bool = True, list_channels: bool = True, get_channel_history: bool = True):
         super().__init__(name="slack")
         self.client = WebClient(token=token)
-        self.register(self.send_message)
-        self.register(self.list_channels)
-        self.register(self.get_channel_history)
+        if send_message:
+            self.register(self.send_message)
+        if list_channels:
+            self.register(self.list_channels)
+        if get_channel_history:
+            self.register(self.get_channel_history)
 
     def send_message(self, channel: str, text: str) -> str:
         """

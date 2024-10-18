@@ -59,6 +59,8 @@ dalle_agent = Agent(
     tools=[Dalle()],
     markdown=True,
     debug_mode=True,
+    show_tool_calls=True,
+    storage=PgAgentStorage(table_name="dalle_agent", db_url=db_url),
 )
 
 research_agent = Agent(

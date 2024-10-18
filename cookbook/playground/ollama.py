@@ -4,7 +4,7 @@ from textwrap import dedent
 from datetime import datetime
 
 from phi.agent import Agent
-from phi.model.openai import OpenAIChat
+from phi.model.ollama import Ollama
 from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
 from phi.storage.agent.postgres import PgAgentStorage
@@ -15,7 +15,7 @@ db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 finance_agent = Agent(
     name="Finance Agent",
     agent_id="finance-agent",
-    model=OpenAIChat(id="gpt-4o"),
+    model=Ollama(),
     tools=[YFinanceTools(enable_all=True)],
     instructions=["Use tables where possible"],
     show_tool_calls=True,
@@ -24,13 +24,13 @@ finance_agent = Agent(
     add_history_to_messages=True,
     description="You are a finance agent",
     add_datetime_to_instructions=True,
-    storage=PgAgentStorage(table_name="finance_agent_sessions_8118", db_url=db_url),
+    storage=PgAgentStorage(table_name="finance_agent_sessions_ollama", db_url=db_url),
 )
 
 research_agent = Agent(
     name="Research Agent",
     agent_id="research-agent",
-    model=OpenAIChat(id="gpt-4o"),
+    model=Ollama(),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
     description="You are a Research Agent writing an article for the New York Times.",
     instructions=[
@@ -64,10 +64,10 @@ research_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=PgAgentStorage(table_name="research_agent_sessions_8118", db_url=db_url),
+    storage=PgAgentStorage(table_name="research_agent_sessions_ollama", db_url=db_url),
 )
 
 app = Playground(agents=[finance_agent, research_agent]).get_app()
 
 if __name__ == "__main__":
-    serve_playground_app("serve_8118:app", port=8118, reload=True)
+    serve_playground_app("ollama:app", port=8118, reload=True)

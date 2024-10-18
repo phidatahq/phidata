@@ -1,6 +1,6 @@
 import asyncio
 from phi.agent import Agent
-from phi.llm.openai import OpenAIChat
+from phi.model.openai import OpenAIChat
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

@@ -1,4 +1,4 @@
-"""Run `pip install yfinance exa_py` to install dependencies."""
+"""Run `pip install openai yfinance exa_py` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -11,8 +11,31 @@ from phi.storage.agent.postgres import PgAgentStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector, SearchType
 from phi.playground import Playground, serve_playground_app
+from phi.tools.models_labs import ModelsLabs
+from phi.tools.dalle import Dalle
 
 db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+
+video_gen_agent = Agent(
+    name="Video Gen Agent",
+    agent_id="video-gen-agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[ModelsLabs()],
+    markdown=True,
+    debug_mode=True,
+    show_tool_calls=True,
+    instructions=[
+        "You are an agent designed to generate videos using the VideoGen API.",
+        "When asked to generate a video, use the generate_video function from the VideoGenTools.",
+        "Only pass the 'prompt' parameter to the generate_video function unless specifically asked for other parameters.",
+        "The VideoGen API returns an status and eta value, also display it in your response.",
+        "After generating the video, return only the video URL from the API response.",
+        "The VideoGen API returns an status and eta value, also display it in your response.",
+        "Don't show fetch video, use the url in future_links in your response. Its GIF and use it in markdown format.",
+    ],
+    system_message="Do not modify any default parameters of the generate_video function unless explicitly specified in the user's request.",
+    storage=PgAgentStorage(table_name="video_gen_agent", db_url=db_url),
+)
 
 finance_agent = Agent(
     name="Finance Agent",
@@ -27,6 +50,15 @@ finance_agent = Agent(
     description="You are a finance agent",
     add_datetime_to_instructions=True,
     storage=PgAgentStorage(table_name="finance_agent", db_url=db_url),
+)
+
+dalle_agent = Agent(
+    name="Dalle Agent",
+    agent_id="dalle-agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[Dalle()],
+    markdown=True,
+    debug_mode=True,
 )
 
 research_agent = Agent(
@@ -92,9 +124,9 @@ recipe_agent = Agent(
     storage=PgAgentStorage(table_name="thai_recipe_agent", db_url=db_url),
 )
 
-app = Playground(agents=[finance_agent, research_agent, recipe_agent]).get_app()
+app = Playground(agents=[finance_agent, research_agent, recipe_agent, dalle_agent, video_gen_agent]).get_app()
 
 if __name__ == "__main__":
     # Load the knowledge base: Comment out after first run
     # recipe_knowledge_base.load(upsert=True)
-    serve_playground_app("serve:app", reload=True)
+    serve_playground_app("test:app", reload=True)

@@ -9,28 +9,36 @@ from phi.api.schemas.workspace import (
     WorkspaceSchema,
     WorkspaceCreate,
     WorkspaceUpdate,
-    WorkspaceDelete,
     WorkspaceEvent,
 )
+from phi.api.schemas.team import TeamIdentifier
 from phi.cli.settings import phi_cli_settings
 from phi.utils.log import logger
 
 
-def create_workspace_for_user(user: UserSchema, workspace: WorkspaceCreate) -> Optional[WorkspaceSchema]:
-    if not phi_cli_settings.api_enabled:
-        return None
-
-    logger.debug("--**-- Create workspace")
+def create_workspace_for_user(
+    user: UserSchema, workspace: WorkspaceCreate, team: Optional[TeamIdentifier] = None
+) -> Optional[WorkspaceSchema]:
+    logger.debug("--**-- Creating workspace")
     with api.AuthenticatedClient() as api_client:
         try:
+            payload = {
+                "user": user.model_dump(include={"id_user", "email"}),
+                "workspace": workspace.model_dump(exclude_none=True),
+            }
+            if team is not None:
+                payload["team"] = team.model_dump(exclude_none=True)
+
             r: Response = api_client.post(
                 ApiRoutes.WORKSPACE_CREATE,
-                json={
-                    "user": user.model_dump(include={"id_user", "email"}),
-                    "workspace": workspace.model_dump(exclude_none=True),
-                },
+                json=payload,
             )
             if invalid_response(r):
+                try:
+                    error_msg = r.json().get("detail", "Could not create workspace")
+                except Exception:
+                    error_msg = f"Could not create workspace: {r.text}"
+                logger.error(error_msg)
                 return None
 
             response_json: Union[Dict, List] = r.json()
@@ -46,20 +54,24 @@ def create_workspace_for_user(user: UserSchema, workspace: WorkspaceCreate) -> O
 
 
 def update_workspace_for_user(user: UserSchema, workspace: WorkspaceUpdate) -> Optional[WorkspaceSchema]:
-    if not phi_cli_settings.api_enabled:
-        return None
-
-    logger.debug("--**-- Update workspace")
+    logger.debug("--**-- Updating workspace for user")
     with api.AuthenticatedClient() as api_client:
         try:
+            payload = {
+                "user": user.model_dump(include={"id_user", "email"}),
+                "workspace": workspace.model_dump(exclude_none=True),
+            }
+
             r: Response = api_client.post(
                 ApiRoutes.WORKSPACE_UPDATE,
-                json={
-                    "user": user.model_dump(include={"id_user", "email"}),
-                    "workspace": workspace.model_dump(exclude_none=True),
-                },
+                json=payload,
             )
             if invalid_response(r):
+                try:
+                    error_msg = r.json().get("detail", "Could not update workspace")
+                except Exception:
+                    error_msg = f"Could not update workspace: {r.text}"
+                logger.error(error_msg)
                 return None
 
             response_json: Union[Dict, List] = r.json()
@@ -74,21 +86,27 @@ def update_workspace_for_user(user: UserSchema, workspace: WorkspaceUpdate) -> O
     return None
 
 
-def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceDelete) -> Optional[WorkspaceSchema]:
-    if not phi_cli_settings.api_enabled:
-        return None
-
-    logger.debug("--**-- Delete workspace")
+def update_workspace_for_team(
+    user: UserSchema, workspace: WorkspaceUpdate, team: TeamIdentifier
+) -> Optional[WorkspaceSchema]:
+    logger.debug("--**-- Updating workspace for team")
     with api.AuthenticatedClient() as api_client:
         try:
+            payload = {
+                "user": user.model_dump(include={"id_user", "email"}),
+                "team_workspace": workspace.model_dump(exclude_none=True).update({"id_team": team.id_team}),
+            }
+
             r: Response = api_client.post(
-                ApiRoutes.WORKSPACE_DELETE,
-                json={
-                    "user": user.model_dump(include={"id_user", "email"}),
-                    "workspace": workspace.model_dump(exclude_none=True),
-                },
+                ApiRoutes.WORKSPACE_UPDATE,
+                json=payload,
             )
             if invalid_response(r):
+                try:
+                    error_msg = r.json().get("detail", "Could not update workspace")
+                except Exception:
+                    error_msg = f"Could not update workspace: {r.text}"
+                logger.error(error_msg)
                 return None
 
             response_json: Union[Dict, List] = r.json()
@@ -99,7 +117,7 @@ def delete_workspace_for_user(user: UserSchema, workspace: WorkspaceDelete) -> O
             if updated_workspace is not None:
                 return updated_workspace
         except Exception as e:
-            logger.debug(f"Could not delete workspace: {e}")
+            logger.debug(f"Could not update workspace: {e}")
     return None
 
 

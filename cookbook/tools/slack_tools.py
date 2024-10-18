@@ -7,6 +7,8 @@ from phi.tools.slack import SlackTools
 
 
 slack_token = os.getenv("SLACK_TOKEN")
+if not slack_token:
+    raise ValueError("SLACK_TOKEN not set")
 slack_tools = SlackTools(token=slack_token)
 
 agent = Agent(tools=[slack_tools], show_tool_calls=True)

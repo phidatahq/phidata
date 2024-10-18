@@ -50,11 +50,11 @@ class DalleTools(Toolkit):
             response = client.images.generate(
                 model=self.model,
                 prompt=prompt,
-                size=self.size,
-                quality=self.quality,
+                size=self.size,  # type: ignore
+                quality=self.quality,  # type: ignore
                 n=self.n,
             )
-            return response.data[0].url
+            return response.data[0].url or "Error: No image URL returned"
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

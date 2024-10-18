@@ -66,6 +66,7 @@ class VideoGenTools(Toolkit):
             return parsed_result
         except requests.RequestException as e:
             logger.error("Failed to generate video: %s", e)
-            return "Error: %s" % e
+            return f"Error: {e}"
         except json.JSONDecodeError as e:
             logger.error("Failed to parse response: %s", e)
+            return f"Error: {e}"

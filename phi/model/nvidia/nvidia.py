@@ -2,6 +2,7 @@ from os import getenv
 from typing import Optional
 from phi.model.openai.like import OpenAILike
 
+
 class Nvidia(OpenAILike):
     """
     A class for interacting with Nvidia models.

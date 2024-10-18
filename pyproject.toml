@@ -148,6 +148,7 @@ module = [
   "serpapi.*",
   "setuptools.*",
   "simplejson.*",
+  "slack_sdk.*",
   "spider.*",
   "sqlalchemy.*",
   "starlette.*",

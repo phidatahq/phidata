@@ -1,6 +1,5 @@
 """Run `pip install openai boto3` to install dependencies."""
 
-import os
 from phi.agent import Agent
 from phi.tools.aws_lambda import AWSLambdaTool
 

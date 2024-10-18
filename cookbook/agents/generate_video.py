@@ -3,9 +3,9 @@ from phi.model.openai import OpenAIChat
 from phi.tools.video_gen import VideoGenTools
 
 agent = Agent(
-    name="Open Sora Agent",
-    agent_id="open-sora-agent",
-    model=OpenAIChat(id="gpt-4"),
+    name="Video Generation Agent",
+    agent_id="video-generation-agent",
+    model=OpenAIChat(id="gpt-4o"),
     tools=[VideoGenTools()],
     markdown=True,
     debug_mode=True,

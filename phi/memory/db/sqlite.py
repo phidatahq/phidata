@@ -23,7 +23,7 @@ class SqliteMemoryDb(MemoryDb):
         """
         self.table_name: str = table_name
         self.db_path: str = db_path
-        self.engine = create_engine(f'sqlite:///{self.db_path}')
+        self.engine = create_engine(f"sqlite:///{self.db_path}")
         self.inspector = inspect(self.engine)
         self.metadata = MetaData()
         self.Session = scoped_session(sessionmaker(bind=self.engine))
@@ -34,11 +34,13 @@ class SqliteMemoryDb(MemoryDb):
         return Table(
             self.table_name,
             self.metadata,
-            Column('id', String, primary_key=True),
-            Column('user_id', String),
-            Column('memory', String),
-            Column('created_at', DateTime, server_default=text('CURRENT_TIMESTAMP')),
-            Column('updated_at', DateTime, server_default=text('CURRENT_TIMESTAMP'), onupdate=text('CURRENT_TIMESTAMP')),
+            Column("id", String, primary_key=True),
+            Column("user_id", String),
+            Column("memory", String),
+            Column("created_at", DateTime, server_default=text("CURRENT_TIMESTAMP")),
+            Column(
+                "updated_at", DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
+            ),
             extend_existing=True,
         )
 
@@ -66,12 +68,12 @@ class SqliteMemoryDb(MemoryDb):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                
+
                 if sort == "asc":
                     stmt = stmt.order_by(self.table.c.created_at.asc())
                 else:
                     stmt = stmt.order_by(self.table.c.created_at.desc())
-                
+
                 if limit is not None:
                     stmt = stmt.limit(limit)
 
@@ -90,22 +92,18 @@ class SqliteMemoryDb(MemoryDb):
             with self.Session() as session:
                 # Check if the memory already exists
                 existing = session.execute(select(self.table).where(self.table.c.id == memory.id)).first()
-                
+
                 if existing:
                     # Update existing memory
-                    stmt = self.table.update().where(self.table.c.id == memory.id).values(
-                        user_id=memory.user_id,
-                        memory=str(memory.memory),
-                        updated_at=text('CURRENT_TIMESTAMP')
+                    stmt = (
+                        self.table.update()
+                        .where(self.table.c.id == memory.id)
+                        .values(user_id=memory.user_id, memory=str(memory.memory), updated_at=text("CURRENT_TIMESTAMP"))
                     )
                 else:
                     # Insert new memory
-                    stmt = self.table.insert().values(
-                        id=memory.id,
-                        user_id=memory.user_id,
-                        memory=str(memory.memory)
-                    )
-                
+                    stmt = self.table.insert().values(id=memory.id, user_id=memory.user_id, memory=str(memory.memory))
+
                 session.execute(stmt)
                 session.commit()
         except SQLAlchemyError as e:

@@ -2559,6 +2559,7 @@ class Agent(BaseModel):
             reasoning_steps: List[ReasoningStep] = []
             with Live() as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
                 render = False
@@ -2630,9 +2631,9 @@ class Agent(BaseModel):
         else:
             with Live() as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                live_log.update(status)
 
                 run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
                 response_timer.stop()
@@ -2732,6 +2733,7 @@ class Agent(BaseModel):
             reasoning_steps: List[ReasoningStep] = []
             with Live() as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
                 render = False
@@ -2803,9 +2805,9 @@ class Agent(BaseModel):
         else:
             with Live() as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
-                live_log.update(status)
 
                 run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)
                 response_timer.stop()

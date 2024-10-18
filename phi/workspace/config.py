@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
 from phi.infra.type import InfraType
 from phi.infra.resources import InfraResources
+from phi.api.schemas.team import TeamSchema
 from phi.api.schemas.workspace import WorkspaceSchema
 from phi.workspace.settings import WorkspaceSettings
 from phi.utils.py_io import get_python_objects_from_module
@@ -111,7 +112,9 @@ class WorkspaceConfig(BaseModel):
     # WorkspaceSchema: This field indicates that the workspace is synced with the api
     ws_schema: Optional[WorkspaceSchema] = None
     # The Team name for the workspace
-    ws_team: Optional[str] = None
+    ws_team: Optional[TeamSchema] = None
+    # The API key for the workspace
+    ws_api_key: Optional[str] = None
 
     # Path to the "workspace" directory inside the workspace root
     _workspace_dir_path: Optional[Path] = None
@@ -121,25 +124,7 @@ class WorkspaceConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def to_dict(self) -> dict:
-        dict_data: Dict[str, Any] = {"ws_root_path": str(self.ws_root_path)}
-        if self.ws_schema is not None:
-            dict_data["ws_schema"] = self.ws_schema.model_dump()
-
-        return dict_data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Optional["WorkspaceConfig"]:
-        _ws_root_path = data.get("ws_root_path")
-        if _ws_root_path is None:
-            logger.warning("WorkspaceConfig.ws_root_path is None")
-            return None
-        _ws_config = cls(ws_root_path=Path(_ws_root_path))
-
-        _ws_schema = data.get("ws_schema")
-        if _ws_schema is not None:
-            _ws_config.ws_schema = WorkspaceSchema(**_ws_schema)
-
-        return _ws_config
+        return self.model_dump(include={"ws_root_path", "ws_schema", "ws_team", "ws_api_key"})
 
     @property
     def workspace_dir_path(self) -> Optional[Path]:

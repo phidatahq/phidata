@@ -5,7 +5,8 @@ from typing import Dict, List, Optional
 from phi.cli.console import print_heading, print_info
 from phi.cli.settings import phi_cli_settings
 from phi.api.schemas.user import UserSchema
-from phi.api.schemas.workspace import WorkspaceSchema, WorkspaceDelete
+from phi.api.schemas.team import TeamSchema
+from phi.api.schemas.workspace import WorkspaceSchema
 from phi.utils.log import logger
 from phi.utils.json_io import read_json_file, write_json_file
 from phi.workspace.config import WorkspaceConfig
@@ -81,7 +82,11 @@ class PhiCliConfig:
         return list(self.ws_config_map.values())
 
     def _add_or_update_ws_config(
-        self, ws_root_path: Path, ws_schema: Optional[WorkspaceSchema] = None, team: Optional[str] = None
+        self,
+        ws_root_path: Path,
+        ws_schema: Optional[WorkspaceSchema] = None,
+        ws_team: Optional[TeamSchema] = None,
+        ws_api_key: Optional[str] = None,
     ) -> Optional[WorkspaceConfig]:
         """The main function to create, update or refresh a WorkspaceConfig.
 
@@ -101,7 +106,8 @@ class PhiCliConfig:
             new_workspace_config = WorkspaceConfig(
                 ws_root_path=ws_root_path,
                 ws_schema=ws_schema,
-                ws_team=team,
+                ws_team=ws_team,
+                ws_api_key=ws_api_key,
             )
             self.ws_config_map[ws_root_str] = new_workspace_config
             logger.debug(f"Workspace created at: {ws_root_str}")
@@ -124,9 +130,15 @@ class PhiCliConfig:
             existing_ws_config.ws_schema = ws_schema
 
         # Update the ws_team if it's not None and different from the existing one
-        if team is not None and existing_ws_config.ws_team != team:
-            existing_ws_config.ws_team = team
-        logger.debug(f"Workspace updated: {ws_root_str}")
+        if ws_team is not None and existing_ws_config.ws_team != ws_team:
+            existing_ws_config.ws_team = ws_team
+
+        # Update the ws_api_key if it's not None and different from the existing one
+        if ws_api_key is not None and existing_ws_config.ws_api_key != ws_api_key:
+            existing_ws_config.ws_api_key = ws_api_key
+
+        # Swap the existing ws_config with the updated one
+        self.ws_config_map[ws_root_str] = existing_ws_config
 
         # Return the updated_ws_config
         return existing_ws_config
@@ -135,10 +147,12 @@ class PhiCliConfig:
     # END
     ######################################################
 
-    def add_new_ws_to_config(self, ws_root_path: Path, team: Optional[str] = None) -> Optional[WorkspaceConfig]:
+    def add_new_ws_to_config(
+        self, ws_root_path: Path, ws_team: Optional[TeamSchema] = None
+    ) -> Optional[WorkspaceConfig]:
         """Adds a newly created workspace to the PhiCliConfig"""
 
-        ws_config = self._add_or_update_ws_config(ws_root_path=ws_root_path, team=team)
+        ws_config = self._add_or_update_ws_config(ws_root_path=ws_root_path, ws_team=ws_team)
         self.save_config()
         return ws_config
 
@@ -146,14 +160,14 @@ class PhiCliConfig:
         self,
         ws_root_path: Path,
         ws_schema: Optional[WorkspaceSchema] = None,
+        ws_team: Optional[TeamSchema] = None,
         set_as_active: bool = False,
-        team: Optional[str] = None,
     ) -> Optional[WorkspaceConfig]:
         """Updates WorkspaceConfig and returns True if successful"""
         ws_config = self._add_or_update_ws_config(
             ws_root_path=ws_root_path,
             ws_schema=ws_schema,
-            team=team,
+            ws_team=ws_team,
         )
         if set_as_active:
             self._active_ws_dir = str(ws_root_path)
@@ -164,8 +178,7 @@ class PhiCliConfig:
         """Handles Deleting a workspace from the PhiCliConfig and api"""
 
         ws_root_str = str(ws_root_path)
-        print_heading(f"Deleting record for workspace at: {ws_root_str}")
-        print_info("-*- Note: this does not delete any files on disk, please delete them manually")
+        print_heading(f"Deleting record for workspace: {ws_root_str}")
 
         ws_config: Optional[WorkspaceConfig] = self.ws_config_map.pop(ws_root_str, None)
         if ws_config is None:
@@ -176,20 +189,11 @@ class PhiCliConfig:
         if self._active_ws_dir is not None and self._active_ws_dir == ws_root_str:
             print_info(f"Removing {ws_root_str} as the active workspace")
             self._active_ws_dir = None
-
-        if self.user is not None and ws_config.ws_schema is not None:
-            print_info("Deleting workspace from the server")
-
-            from phi.api.workspace import delete_workspace_for_user
-
-            delete_workspace_for_user(
-                user=self.user,
-                workspace=WorkspaceDelete(
-                    id_workspace=ws_config.ws_schema.id_workspace, ws_name=ws_config.ws_schema.ws_name
-                ),
-            )
         self.save_config()
+        print_info("Workspace record deleted")
+        print_info("Note: this does not delete any data locally or from phidata.app, please delete them manually\n")
 
+    ######################################################
     ######################################################
     ## Get Workspace Data
     ######################################################
@@ -243,7 +247,7 @@ class PhiCliConfig:
 
             # Add all the workspaces
             for k, v in config_data.get("ws_config_map", {}).items():
-                _ws_config = WorkspaceConfig.from_dict(v)
+                _ws_config = WorkspaceConfig.model_validate(v)
                 if _ws_config is not None:
                     new_config.ws_config_map[k] = _ws_config
             return new_config
@@ -270,7 +274,9 @@ class PhiCliConfig:
             print_heading("Available workspaces:\n")
             c = 1
             for k, v in self.ws_config_map.items():
-                print_info(f"  {c}. {k}")
+                print_info(f"  {c}. Path: {k}")
                 if v.ws_schema and v.ws_schema.ws_name:
                     print_info(f"     Name: {v.ws_schema.ws_name}")
+                if v.ws_team and v.ws_team.name:
+                    print_info(f"     Team: {v.ws_team.name}")
                 c += 1

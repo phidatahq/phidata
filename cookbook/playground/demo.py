@@ -1,4 +1,4 @@
-"""Run `pip install openai sqlalchemy pypdf duckduckgo-search yfinance exa_py lancedb tantivy` to install dependencies."""
+"""Run `pip install openai exa_py duckduckgo-search yfinance lancedb tantivy pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -11,6 +11,7 @@ from phi.tools.dalle import Dalle
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
+from phi.tools.youtube_tools import YouTubeTools
 
 db_session_storage_file: str = "agents.db"
 
@@ -97,7 +98,27 @@ research_agent = Agent(
     markdown=True,
 )
 
-app = Playground(agents=[web_agent, finance_agent, image_agent, research_agent]).get_app()
+youtube_agent = Agent(
+    name="YouTube Agent",
+    agent_id="youtube-agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YouTubeTools()],
+    description="You are a YouTube agent that has the special skill of understanding YouTube videos and answering questions about them.",
+    instructions=[
+        "Using a video URL, get the video data using the `get_youtube_video_data` tool and captions using the `get_youtube_video_data` tool.",
+        "Using the data and captions, answer the user's question in an engaging and thoughtful manner. Focus on the most important details.",
+        "If you cannot find the answer in the video, say so and ask the user to provide more details.",
+        "Keep your answers concise and engaging.",
+    ],
+    add_history_to_messages=True,
+    num_history_responses=5,
+    show_tool_calls=True,
+    add_datetime_to_instructions=True,
+    storage=SqlAgentStorage(table_name="youtube_agent", db_file=db_session_storage_file),
+    markdown=True,
+)
+
+app = Playground(agents=[web_agent, finance_agent, youtube_agent, research_agent, image_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("demo:app", reload=True)

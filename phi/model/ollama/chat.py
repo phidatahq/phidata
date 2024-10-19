@@ -69,9 +69,9 @@ class Ollama(Model):
         client (OllamaClient): A pre-configured instance of the Ollama client. Default is None.
     """
 
-    id: str = "llama3.2"
+    id: str = "llama3.1"
     name: str = "Ollama"
-    provider: str = "Ollama " + id
+    provider: Optional[str] = None
 
     # Request parameters
     format: Optional[str] = None

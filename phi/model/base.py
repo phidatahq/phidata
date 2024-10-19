@@ -1,6 +1,6 @@
 from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
 from phi.model.message import Message
 from phi.model.response import ModelResponse, ModelResponseEvent
@@ -16,7 +16,7 @@ class Model(BaseModel):
     # Name for this Model. This is not sent to the Model API.
     name: Optional[str] = None
     # Provider for this Model. This is not sent to the Model API.
-    provider: Optional[str] = None
+    provider: Optional[str] = Field(None, validate_default=True)
     # Metrics collected for this Model. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)
     response_format: Optional[Any] = None
@@ -62,6 +62,12 @@ class Model(BaseModel):
     add_images_to_message_content: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
+
+    @field_validator("provider", mode="before")
+    def set_provider(cls, v: Optional[str], info: ValidationInfo) -> str:
+        model_name = info.data.get("name")
+        model_id = info.data.get("id")
+        return v or f"{model_name} ({model_id})"
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:

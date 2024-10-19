@@ -13,7 +13,7 @@ from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.youtube_tools import YouTubeTools
 
-agent_storage_file: str = "agents.db"
+agent_storage_file: str = "tmp/agents.db"
 
 web_agent = Agent(
     name="Web Agent",

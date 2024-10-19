@@ -61,5 +61,5 @@ phi auth
 ### Connect Ollama agents to the Agent UI
 
 ```shell
-python cookbook/playground/ollama.py
+python cookbook/playground/ollama_agents.py
 ```

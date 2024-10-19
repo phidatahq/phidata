@@ -11,14 +11,13 @@ from phi.tools.youtube_tools import YouTubeTools
 local_agent_storage_file: str = "tmp/local_agents.db"
 common_instructions = [
     "If the user about you or your skills, tell them your name and role.",
-    "IMPORTANT: ONLY RUN TOOLS WHEN NECESSARY. If you can answer the user directly, do so.",
 ]
 
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     agent_id="web-agent",
-    model=Ollama(id="llama3.2"),
+    model=Ollama(id="llama3.1:8b"),
     tools=[DuckDuckGo()],
     instructions=[
         "If you need to search the web, break down the users request into 2-3 different searches and always include sources."
@@ -37,7 +36,7 @@ finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
     agent_id="finance-agent",
-    model=Ollama(id="llama3.2"),
+    model=Ollama(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
     instructions=["Always use tables to display data"] + common_instructions,
@@ -54,7 +53,7 @@ youtube_agent = Agent(
     name="YouTube Agent",
     role="Understand YouTube videos and answer questions",
     agent_id="youtube-agent",
-    model=Ollama(id="llama3.2"),
+    model=Ollama(id="llama3.1:8b"),
     tools=[YouTubeTools()],
     description="You are a YouTube agent that has the special skill of understanding YouTube videos and answering questions about them.",
     instructions=[

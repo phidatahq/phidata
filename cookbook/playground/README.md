@@ -38,10 +38,10 @@ python cookbook/playground/demo.py
 
 ## Fully local Ollama Agents
 
-### Pull llama3.2
+### Pull llama3.1:8b
 
 ```shell
-ollama pull llama3.2
+ollama pull llama3.1:8b
 ```
 
 ### Install libraries

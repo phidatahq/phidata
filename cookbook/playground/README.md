@@ -38,18 +38,16 @@ python cookbook/playground/demo.py
 
 ## Fully local Ollama Agents
 
-### Export your API keys
-
-(only if you want to use the Exa research agent)
+### Pull llama3.2
 
 ```shell
-export EXA_API_KEY=***
+ollama pull llama3.2
 ```
 
 ### Install libraries
 
 ```shell
-pip install -U ollama exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
+pip install -U ollama duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
 ```
 
 ### Authenticate with phidata.app

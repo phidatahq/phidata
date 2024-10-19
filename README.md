@@ -487,3 +487,9 @@ We're an open-source project and welcome contributions, please read the [contrib
 
 - If you have a feature request, please open an issue or make a pull request.
 - If you have ideas on how we can improve, please create a discussion.
+
+## Telemetry
+
+Phidata logs which model an agent used so we can prioritize features for the most popular models.
+
+You can disable this by setting `PHI_TELEMETRY=false` in your environment.

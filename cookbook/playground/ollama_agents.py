@@ -25,6 +25,7 @@ web_agent = Agent(
     ]
     + common_instructions,
     storage=SqlAgentStorage(table_name="web_agent", db_file=local_agent_storage_file),
+    show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=2,
     add_name_to_instructions=True,

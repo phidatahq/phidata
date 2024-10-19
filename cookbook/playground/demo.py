@@ -1,4 +1,4 @@
-"""Run `pip install openai exa_py duckduckgo-search yfinance lancedb tantivy pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api` to install dependencies."""
+"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -13,7 +13,7 @@ from phi.tools.exa import ExaTools
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.youtube_tools import YouTubeTools
 
-db_session_storage_file: str = "agents.db"
+agent_storage_file: str = "agents.db"
 
 web_agent = Agent(
     name="Web Agent",
@@ -22,7 +22,7 @@ web_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
     instructions=["Break down the users request into 2-3 different searches.", "Always include sources"],
-    storage=SqlAgentStorage(table_name="web_agent", db_file=db_session_storage_file),
+    storage=SqlAgentStorage(table_name="web_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     num_history_responses=5,
     add_datetime_to_instructions=True,
@@ -36,7 +36,7 @@ finance_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     instructions=["Always use tables to display data"],
-    storage=SqlAgentStorage(table_name="finance_agent", db_file=db_session_storage_file),
+    storage=SqlAgentStorage(table_name="finance_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     num_history_responses=5,
     add_datetime_to_instructions=True,
@@ -49,7 +49,7 @@ image_agent = Agent(
     agent_id="image-agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[Dalle(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
-    storage=SqlAgentStorage(table_name="image_agent", db_file=db_session_storage_file),
+    storage=SqlAgentStorage(table_name="image_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
     markdown=True,
@@ -92,7 +92,7 @@ research_agent = Agent(
     - [Reference 1](link)
     - [Reference 2](link)
     """),
-    storage=SqlAgentStorage(table_name="research_agent", db_file=db_session_storage_file),
+    storage=SqlAgentStorage(table_name="research_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
     markdown=True,
@@ -114,7 +114,7 @@ youtube_agent = Agent(
     num_history_responses=5,
     show_tool_calls=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="youtube_agent", db_file=db_session_storage_file),
+    storage=SqlAgentStorage(table_name="youtube_agent", db_file=agent_storage_file),
     markdown=True,
 )
 

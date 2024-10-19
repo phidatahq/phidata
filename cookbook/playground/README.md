@@ -2,34 +2,64 @@
 
 > Note: Fork and clone this repository if needed
 
-### 1. Create and activate a virtual environment
+### Create and activate a virtual environment
 
 ```shell
 python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Export your API keys
+## OpenAI Agents
+
+### Export your API keys
 
 ```shell
 export OPENAI_API_KEY=***
 export EXA_API_KEY=***
 ```
 
-### 3. Install libraries
+### Install libraries
 
 ```shell
-pip install -U openai exa_py duckduckgo-search yfinance lancedb tantivy pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
+pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
 ```
 
-### 4. Authenticate with phidata.app
+### Authenticate with phidata.app
 
 ```
 phi auth
 ```
 
-### 5. Run the Agent UI
+### Connect OpenAI Agents to the Agent UI
 
 ```shell
 python cookbook/playground/demo.py
+```
+
+## Fully local Ollama Agents
+
+### Export your API keys
+
+(only if you want to use the Exa research agent)
+
+```shell
+export EXA_API_KEY=***
+```
+
+### Install libraries
+
+```shell
+pip install -U ollama exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
+```
+
+### Authenticate with phidata.app
+
+```
+phi auth
+```
+
+### Connect Ollama agents to the Agent UI
+
+```shell
+python cookbook/playground/ollama.py
 ```

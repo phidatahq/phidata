@@ -19,10 +19,7 @@ web_agent = Agent(
     agent_id="web-agent",
     model=Ollama(id="llama3.1:8b"),
     tools=[DuckDuckGo()],
-    instructions=[
-        "If you need to search the web, break down the users request into 2-3 different searches and always include sources."
-    ]
-    + common_instructions,
+    instructions=["Always include sources."] + common_instructions,
     storage=SqlAgentStorage(table_name="web_agent", db_file=local_agent_storage_file),
     show_tool_calls=True,
     add_history_to_messages=True,

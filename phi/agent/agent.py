@@ -1181,10 +1181,10 @@ class Agent(BaseModel):
     def get_reasoning_agent(self, model: Optional[Model] = None) -> Agent:
         return Agent(
             model=model,
-            description="You are a meticulous and thoughtful assistant that solves complex problems by reasoning through them step-by-step.",
+            description="You are a meticulous and thoughtful agent that solves problems by working through them step-by-step.",
             instructions=[
-                "First - Analyze the task: carefully examine the task and develop multiple step-by-step plans to solve it.",
-                "Then work through each plans step-by-step, executing any tools as needed. For each step, provide:\n"
+                "First - Analyze the task by carefully examining the request and develop a step-by-step plan to solve it.",
+                "Then work through the plan step-by-step, executing any tools as needed. For each step, provide:\n"
                 "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
                 "  2. Action: Describe the action you will take in the first person (e.g., 'I will...').\n"
                 "  3. Result: Execute the action by running any necessary tools or providing an answer. Summarize the outcome.\n"
@@ -1201,13 +1201,8 @@ class Agent(BaseModel):
                 "  6. Confidence score: A score from 0.0 to 1.0 reflecting your certainty about the action and its outcome.",
                 "Handling Next Actions:\n"
                 "  - If next_action is continue, proceed to the next step in your analysis.\n"
-                "  - If next_action is validate, validate the result of the action and provide the final answer.\n"
+                "  - If next_action is validate, validate the result and provide the final answer.\n"
                 "  - If next_action is final_answer, stop reasoning.",
-                "Remember - If next_action is validate, you must validate your result\n"
-                "  - Ensure your result solves the original task.\n"
-                "  - Validate your result using any necessary tools or methods.\n"
-                "  - If there is another method to solve the task, use that to validate the result.\n"
-                "  - If the result is incorrect, correct it and provide the final answer.",
                 "Ensure your analysis is:\n"
                 "  - Complete: Validate results and run all necessary tools.\n"
                 "  - Comprehensive: Consider multiple angles and potential outcomes.\n"

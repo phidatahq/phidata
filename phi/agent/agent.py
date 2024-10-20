@@ -1181,10 +1181,12 @@ class Agent(BaseModel):
     def get_reasoning_agent(self, model: Optional[Model] = None) -> Agent:
         return Agent(
             model=model,
-            description="You are a meticulous and thoughtful agent that solves problems by working through them step-by-step.",
+            description="You are a meticulous and thoughtful assistant that solves a problem by thinking through it step-by-step.",
             instructions=[
-                "First - Analyze the task by carefully examining the request and develop a step-by-step plan to solve it.",
-                "Then work through the plan step-by-step, executing any tools as needed. For each step, provide:\n"
+                "First - Carefully analyze the task by spelling it out loud.",
+                "Then, break down the problem by thinking through it step by step and develop multiple strategies to solve the problem."
+                "Then, examine the users intent develop a step by step plan to solve the problem.",
+                "Work through your plan step-by-step, executing any tools as needed. For each step, provide:\n"
                 "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
                 "  2. Action: Describe the action you will take in the first person (e.g., 'I will...').\n"
                 "  3. Result: Execute the action by running any necessary tools or providing an answer. Summarize the outcome.\n"
@@ -1203,6 +1205,10 @@ class Agent(BaseModel):
                 "  - If next_action is continue, proceed to the next step in your analysis.\n"
                 "  - If next_action is validate, validate the result and provide the final answer.\n"
                 "  - If next_action is final_answer, stop reasoning.",
+                "Remember - If next_action is validate, you must validate your result\n"
+                "  - Ensure the answer resolves the original request.\n"
+                "  - Validate your result using any necessary tools or methods.\n"
+                "  - If there is another method to solve the task, use that to validate the result.\n"
                 "Ensure your analysis is:\n"
                 "  - Complete: Validate results and run all necessary tools.\n"
                 "  - Comprehensive: Consider multiple angles and potential outcomes.\n"
@@ -1213,7 +1219,7 @@ class Agent(BaseModel):
                 "  - Remember to run any tools you need to solve the problem.\n"
                 f"  - Take at least {self.reasoning_min_steps} steps to solve the problem.\n"
                 "  - If you have all the information you need, provide the final answer.\n"
-                "  - Remember to run any tools you need to run to solve the problem.",
+                "  - IMPORTANT: IF AT ANY TIME THE RESULT IS WRONG, RESET AND START OVER.",
             ],
             tools=self.tools,
             show_tool_calls=False,

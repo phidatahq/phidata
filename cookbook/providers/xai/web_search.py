@@ -1,4 +1,4 @@
-"""Run `pip install duckduckgo-search` to install dependencies."""
+"""Build a Web Search Agent using xAI."""
 
 from phi.agent import Agent
 from phi.model.xai import xAI

@@ -1,4 +1,4 @@
-"""Run `pip install yfinance` to install dependencies."""
+"""Build a Finance Agent using xAI."""
 
 from phi.agent import Agent
 from phi.model.xai import xAI

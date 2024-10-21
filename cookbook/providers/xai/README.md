@@ -1,4 +1,4 @@
-# xAI Cookbook
+# xAI Agents
 
 > Note: Fork and clone this repository if needed
 
@@ -27,14 +27,16 @@ pip install -U openai duckduckgo-search duckdb yfinance phidata
 python cookbook/providers/xai/finance_agent.py
 ```
 
-### 5. Run Data Analyst Agent
+### 5. Run Data Analyst
 
 ```shell
 python cookbook/providers/xai/data_analyst.py
 ```
 
-### 6. Run Agent that uses web search
+### 6. Run Web Search Agent
 
 ```shell
 python cookbook/providers/xai/web_search.py
 ```
+
+### 7. Summarize youtube videos using xAI

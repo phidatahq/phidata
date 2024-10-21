@@ -9,7 +9,7 @@ agent = Agent(
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],
     show_tool_calls=True,
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
-    instructions=["Use tables to display data where possible."],
+    instructions=["Use tables to display data."],
     markdown=True,
 )
 

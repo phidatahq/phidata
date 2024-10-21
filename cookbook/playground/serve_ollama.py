@@ -15,7 +15,7 @@ db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 finance_agent = Agent(
     name="Finance Agent",
     agent_id="finance-agent",
-    model=Ollama(id="llama3.1:70b"),
+    model=Ollama(),
     tools=[YFinanceTools(enable_all=True)],
     instructions=["Use tables where possible"],
     show_tool_calls=True,
@@ -30,7 +30,7 @@ finance_agent = Agent(
 research_agent = Agent(
     name="Research Agent",
     agent_id="research-agent",
-    model=Ollama(id="llama3.1:70b"),
+    model=Ollama(),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
     description="You are a Research Agent writing an article for the New York Times.",
     instructions=[

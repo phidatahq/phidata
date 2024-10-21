@@ -21,24 +21,10 @@ export XAI_API_KEY=***
 pip install -U openai duckduckgo-search duckdb yfinance phidata
 ```
 
-### 4. Run Agents
-
-- Streaming on
+### 4. Run Finance Agent
 
 ```shell
-python cookbook/providers/xai/agent_stream.py
-```
-
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/providers/xai/agent.py
-```
-
-- Yahoo Finance with streaming on
-
-```shell
-python cookbook/providers/xai/agent_stream.py
+python cookbook/providers/xai/finance_agent.py
 ```
 
 ### 5. Run Data Analyst Agent
@@ -47,13 +33,7 @@ python cookbook/providers/xai/agent_stream.py
 python cookbook/providers/xai/data_analyst.py
 ```
 
-### 6. Run Agent that returns structured output
-
-```shell
-python cookbook/providers/xai/structured_output.py
-```
-
-### 7. Run Agent that uses web search
+### 6. Run Agent that uses web search
 
 ```shell
 python cookbook/providers/xai/web_search.py

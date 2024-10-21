@@ -14,6 +14,7 @@ class xAI(OpenAILike):
         api_key (Optional[str]): The API key for the xAI API.
         base_url (Optional[str]): The base URL for the xAI API.
     """
+
     id: str = "grok-beta"
     name: str = "xAI"
     provider: str = "xAI"

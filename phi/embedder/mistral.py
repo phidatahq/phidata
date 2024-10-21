@@ -1,4 +1,4 @@
-import os
+from os import getenv
 from typing import Optional, Dict, List, Tuple, Any
 
 from phi.embedder.base import Embedder
@@ -17,7 +17,7 @@ class MistralEmbedder(Embedder):
     # -*- Request parameters
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
-    api_key: Optional[str] = os.getenv("MISTRAL_API_KEY")
+    api_key: Optional[str] = getenv("MISTRAL_API_KEY")
     endpoint: Optional[str] = None
     max_retries: Optional[int] = None
     timeout: Optional[int] = None

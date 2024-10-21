@@ -77,7 +77,7 @@ youtube_agent = Agent(
     markdown=True,
 )
 
-app = Playground(agents=[youtube_agent, finance_agent, web_agent]).get_app()
+app = Playground(agents=[finance_agent, youtube_agent, web_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("grok_agents:app", reload=True)

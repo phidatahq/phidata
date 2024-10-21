@@ -50,14 +50,22 @@ ollama pull llama3.1:8b
 pip install -U ollama duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
 ```
 
-### Authenticate with phidata.app
-
-```
-phi auth
-```
-
 ### Connect Ollama agents to the Agent UI
 
 ```shell
 python cookbook/playground/ollama_agents.py
+```
+
+## Grok Agents
+
+### Install libraries
+
+```shell
+pip install -U openai duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
+```
+
+### Connect Grok agents to the Agent UI
+
+```shell
+python cookbook/playground/grok_agents.py
 ```

@@ -132,7 +132,7 @@ python agent_team.py
 
 ## Reasoning Agents
 
-Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasonining agent a simple task that gpt-4o fails at. Create a file `reasoning_agent.py`
+Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasoning agent a simple task that gpt-4o fails at. Create a file `reasoning_agent.py`
 
 ```python
 from phi.agent import Agent

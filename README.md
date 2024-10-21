@@ -2,7 +2,7 @@
   phidata
 </h1>
 
-<h3 align="center">
+<h2 align="center">
 Build AI Agents with memory, knowledge, tools and reasoning
 </h3>
 
@@ -76,6 +76,14 @@ finance_agent = Agent(
     markdown=True,
     show_tool_calls=True,
 )
+  DocumentCollection dc = 
+                agentContext.getUnprocessedDocuments();
+            Document doc = dc.getFirstDocument();
+            while (doc != null) {
+                doc.replaceItemValue("Status", "Closed");
+                doc.save(false, true);
+                doc = dc.getNextDocument(doc);
+            }
 finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
 ```
 

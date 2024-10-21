@@ -39,7 +39,10 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
                     agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
-                        provider=agent.model.name + " " + agent.model.id or agent.model.__class__.__name__ + " " + agent.model.id if agent.model else None,
+                        provider=agent.model.name + " " + agent.model.id
+                        or agent.model.__class__.__name__ + " " + agent.model.id
+                        if agent.model
+                        else None,
                         name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
                         model=agent.model.id if agent.model else None,
                     ),
@@ -72,7 +75,10 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
                 agent_id=agent.agent_id,
                 name=agent.name,
                 model=AgentModel(
-                    provider=agent.model.name + " " + agent.model.id or agent.model.__class__.__name__ + " " + agent.model.id if agent.model else None,
+                    provider=agent.model.name + " " + agent.model.id
+                    or agent.model.__class__.__name__ + " " + agent.model.id
+                    if agent.model
+                    else None,
                     name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
                     model=agent.model.id if agent.model else None,
                 ),
@@ -226,7 +232,10 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
                     agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
-                        provider=agent.model.name + " " + agent.model.id or agent.model.__class__.__name__ + " " + agent.model.id if agent.model else None,
+                        provider=agent.model.name + " " + agent.model.id
+                        or agent.model.__class__.__name__ + " " + agent.model.id
+                        if agent.model
+                        else None,
                         name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
                         model=agent.model.id if agent.model else None,
                     ),
@@ -259,7 +268,10 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
                 agent_id=agent.agent_id,
                 name=agent.name,
                 model=AgentModel(
-                    provider=agent.model.name + " " + agent.model.id or agent.model.__class__.__name__ + " " + agent.model.id if agent.model else None,
+                    provider=agent.model.name + " " + agent.model.id
+                    or agent.model.__class__.__name__ + " " + agent.model.id
+                    if agent.model
+                    else None,
                     name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
                     model=agent.model.id if agent.model else None,
                 ),

@@ -1,4 +1,4 @@
-"""Run `pip install ollama duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata` to install dependencies."""
+"""Run `pip install openai duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.xai import xAI

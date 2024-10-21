@@ -1,4 +1,5 @@
 from typing import Optional, List
+
 from sqlalchemy import create_engine, MetaData, Table, Column, String, DateTime, text, select, delete, inspect
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import SQLAlchemyError

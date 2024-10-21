@@ -33,18 +33,25 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
         for agent in agents:
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
+            name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
+            model = agent.model.id if agent.model else None
+            if model and name:
+                provider = model + " " + name
+            elif name:
+                provider = name
+            elif model:
+                provider = model
+            else:
+                provider = ""
 
             agent_list.append(
                 AgentGetResponse(
                     agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
-                        provider=agent.model.name + " " + agent.model.id
-                        or agent.model.__class__.__name__ + " " + agent.model.id
-                        if agent.model
-                        else None,
-                        name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
-                        model=agent.model.id if agent.model else None,
+                        provider=provider,
+                        name=name,
+                        model=model,
                     ),
                     add_context=agent.add_context,
                     tools=formatted_tools,
@@ -71,16 +78,24 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
             if agent_id in agents_dict:
                 logger.warning(f"Duplicate agent_id found: {agent_id}. The agent will be overwritten.")
 
+            name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
+            model = agent.model.id if agent.model else None
+            if model and name:
+                provider = model + " " + name
+            elif name:
+                provider = name
+            elif model:
+                provider = model
+            else:
+                provider = ""
+
             agent_response = AgentGetResponse(
                 agent_id=agent.agent_id,
                 name=agent.name,
                 model=AgentModel(
-                    provider=agent.model.name + " " + agent.model.id
-                    or agent.model.__class__.__name__ + " " + agent.model.id
-                    if agent.model
-                    else None,
-                    name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
-                    model=agent.model.id if agent.model else None,
+                    provider=provider,
+                    name=name,
+                    model=model,
                 ),
                 add_context=agent.add_context,
                 tools=formatted_tools,
@@ -229,17 +244,25 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
 
+            name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
+            model = agent.model.id if agent.model else None
+            if model and name:
+                provider = model + " " + name
+            elif name:
+                provider = name
+            elif model:
+                provider = model
+            else:
+                provider = ""
+
             agent_list.append(
                 AgentGetResponse(
                     agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
-                        provider=agent.model.name + " " + agent.model.id
-                        or agent.model.__class__.__name__ + " " + agent.model.id
-                        if agent.model
-                        else None,
-                        name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
-                        model=agent.model.id if agent.model else None,
+                        provider=provider,
+                        name=name,
+                        model=model,
                     ),
                     add_context=agent.add_context,
                     tools=formatted_tools,
@@ -266,16 +289,24 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
             if agent_id in agents_dict:
                 logger.warning(f"Duplicate agent_id found: {agent_id}. The agent will be overwritten.")
 
+            name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
+            model = agent.model.id if agent.model else None
+            if model and name:
+                provider = model + " " + name
+            elif name:
+                provider = name
+            elif model:
+                provider = model
+            else:
+                provider = ""
+
             agent_response = AgentGetResponse(
                 agent_id=agent.agent_id,
                 name=agent.name,
                 model=AgentModel(
-                    provider=agent.model.name + " " + agent.model.id
-                    or agent.model.__class__.__name__ + " " + agent.model.id
-                    if agent.model
-                    else None,
-                    name=agent.model.name or agent.model.__class__.__name__ if agent.model else None,
-                    model=agent.model.id if agent.model else None,
+                    provider=provider,
+                    name=name,
+                    model=model,
                 ),
                 add_context=agent.add_context,
                 tools=formatted_tools,

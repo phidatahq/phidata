@@ -1,4 +1,7 @@
-"""Run `pip install openai duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata` to install dependencies."""
+"""Usage:
+1. Install libraries: `pip install openai duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata`
+2. Run the script: `python cookbook/playground/grok_agents.py`
+"""
 
 from phi.agent import Agent
 from phi.model.xai import xAI

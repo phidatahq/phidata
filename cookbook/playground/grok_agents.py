@@ -22,7 +22,11 @@ web_agent = Agent(
     agent_id="web-agent",
     model=xAI(id="grok-beta"),
     tools=[DuckDuckGo()],
-    instructions=["Always include sources."] + common_instructions,
+    instructions=[
+        "Use the `duckduckgo_search` or `duckduckgo_news` tools to search the web for information.",
+        "Always include sources you used to generate the answer.",
+    ]
+    + common_instructions,
     storage=SqlAgentStorage(table_name="web_agent", db_file=xai_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
@@ -30,7 +34,6 @@ web_agent = Agent(
     add_name_to_instructions=True,
     add_datetime_to_instructions=True,
     markdown=True,
-    debug_mode=True,
 )
 
 finance_agent = Agent(
@@ -42,6 +45,7 @@ finance_agent = Agent(
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
     instructions=["Always use tables to display data"] + common_instructions,
     storage=SqlAgentStorage(table_name="finance_agent", db_file=xai_agent_storage),
+    show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,
     add_name_to_instructions=True,
@@ -64,16 +68,16 @@ youtube_agent = Agent(
         "Keep your answers concise and engaging.",
     ]
     + common_instructions,
+    storage=SqlAgentStorage(table_name="youtube_agent", db_file=xai_agent_storage),
+    show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,
-    show_tool_calls=True,
     add_name_to_instructions=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="youtube_agent", db_file=xai_agent_storage),
     markdown=True,
 )
 
-app = Playground(agents=[web_agent, finance_agent, youtube_agent]).get_app()
+app = Playground(agents=[youtube_agent, finance_agent, web_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("grok_agents:app", reload=True)

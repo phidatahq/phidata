@@ -35,7 +35,7 @@ def create_workspace_for_user(
             )
             if invalid_response(r):
                 try:
-                    error_msg = r.json().get("detail", "Could not create workspace")
+                    error_msg = r.json().get("detail", "Permission denied")
                 except Exception:
                     error_msg = f"Could not create workspace: {r.text}"
                 logger.error(error_msg)

@@ -47,6 +47,7 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
         # )
         # logger.debug("Data: {}".format(decoded_post_data))
         # logger.info("type: {}".format(type(post_data)))
+        phi_cli_settings.tmp_token_path.parent.mkdir(parents=True, exist_ok=True)
         phi_cli_settings.tmp_token_path.touch(exist_ok=True)
         phi_cli_settings.tmp_token_path.write_text(decoded_post_data)
         # TODO: Add checks before shutting down the server

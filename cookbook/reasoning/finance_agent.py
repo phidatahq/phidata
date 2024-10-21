@@ -10,5 +10,4 @@ reasoning_agent = Agent(
     markdown=True,
     reasoning=True,
 )
-
 reasoning_agent.print_response("Write a report comparing NVDA to TSLA", stream=True, show_full_reasoning=True)

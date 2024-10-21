@@ -1,13 +1,17 @@
+import time
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
-import time
-from botocore.exceptions import ClientError
-import boto3
-from boto3.dynamodb.conditions import Key
 
 from phi.agent.session import AgentSession
 from phi.storage.agent.base import AgentStorage
 from phi.utils.log import logger
+
+try:
+    import boto3
+    from boto3.dynamodb.conditions import Key
+    from botocore.exceptions import ClientError
+except ImportError:
+    raise ImportError("`boto3` not installed. Please install using `pip install boto3`.")
 
 
 class DynamoDbAgentStorage(AgentStorage):

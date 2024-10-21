@@ -312,21 +312,21 @@ def setup_workspace(ws_root_path: Path, team: Optional[str] = None) -> bool:
                         print_info(f"Creating workspace in {selected_team.name}")
                         team_identifier = TeamIdentifier(id_team=selected_team.id_team, team_url=selected_team.url)
 
-                ws_schema = create_workspace_for_user(
-                    user=phi_config.user,
-                    workspace=WorkspaceCreate(
-                        ws_name=new_workspace_name,
-                        git_url=git_remote_origin_url,
-                    ),
-                    team=team_identifier,
+            ws_schema = create_workspace_for_user(
+                user=phi_config.user,
+                workspace=WorkspaceCreate(
+                    ws_name=new_workspace_name,
+                    git_url=git_remote_origin_url,
+                ),
+                team=team_identifier,
+            )
+            if ws_schema is not None:
+                logger.debug(f"Workspace created: {ws_schema.ws_name}")
+                if selected_team is not None:
+                    logger.debug(f"Selected team: {selected_team.name}")
+                ws_config = phi_config.update_ws_config(
+                    ws_root_path=ws_root_path, ws_schema=ws_schema, ws_team=selected_team, set_as_active=True
                 )
-                if ws_schema is not None:
-                    logger.debug(f"Workspace created: {ws_schema.ws_name}")
-                    if selected_team is not None:
-                        logger.debug(f"Selected team: {selected_team.name}")
-                    ws_config = phi_config.update_ws_config(
-                        ws_root_path=ws_root_path, ws_schema=ws_schema, ws_team=selected_team, set_as_active=True
-                    )
 
         ######################################################
         # 2.2 Update WorkspaceSchema if git_url is updated

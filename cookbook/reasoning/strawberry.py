@@ -16,7 +16,7 @@ async def main():
     console.rule("[bold green]Regular Agent[/bold green]")
     await regular_agent.aprint_response(task, stream=True)
     console.rule("[bold yellow]Reasoning Agent[/bold yellow]")
-    await reasoning_agent.aprint_response(task, stream=True)
+    await reasoning_agent.aprint_response(task, stream=True, show_full_reasoning=True)
 
 
 asyncio.run(main())

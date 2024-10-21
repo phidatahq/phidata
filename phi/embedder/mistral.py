@@ -1,3 +1,4 @@
+from os import getenv
 from typing import Optional, Dict, List, Tuple, Any
 
 from phi.embedder.base import Embedder
@@ -5,7 +6,7 @@ from phi.utils.log import logger
 
 try:
     from mistralai import Mistral
-    from mistralai.models.embeddings import EmbeddingResponse
+    from mistralai.models.embeddingresponse import EmbeddingResponse
 except ImportError:
     raise ImportError("`openai` not installed")
 
@@ -16,7 +17,7 @@ class MistralEmbedder(Embedder):
     # -*- Request parameters
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
-    api_key: Optional[str] = None
+    api_key: Optional[str] = getenv("MISTRAL_API_KEY")
     endpoint: Optional[str] = None
     max_retries: Optional[int] = None
     timeout: Optional[int] = None
@@ -44,7 +45,7 @@ class MistralEmbedder(Embedder):
 
     def _response(self, text: str) -> EmbeddingResponse:
         _request_params: Dict[str, Any] = {
-            "input": text,
+            "inputs": text,
             "model": self.model,
         }
         if self.request_params:

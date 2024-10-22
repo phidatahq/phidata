@@ -3,7 +3,7 @@
 </h1>
 
 <h3 align="center">
-Build Agents with memory, knowledge, tools and reasoning.
+Build Agents with memory, knowledge, tools and reasoning
 </h3>
 
 <img

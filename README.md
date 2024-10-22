@@ -136,24 +136,24 @@ python agent_team.py
 
 Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasoning agent a simple task that gpt-4o fails at. Create a file `reasoning_agent.py`
 
+> [!WARNING]
+> Reasoning is an experimental feature and will break ~20% of the time. It is not a replacement for o1.
+> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations accordingly.
+> 
+> It will not be able to count ‘r’s in ‘strawberry’ but will count them in ‘supercalifragilisticexpialidocious’.
+
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from phi.cli.console import console
 
-regular_agent = Agent(model=OpenAIChat(id="gpt-4o"), markdown=True)
-reasoning_agent = Agent(
-    model=OpenAIChat(id="gpt-4o-2024-08-06"),
-    reasoning=True,
-    markdown=True,
-    structured_outputs=True,
+task = (
+    "Three missionaries and three cannibals need to cross a river. "
+    "They have a boat that can carry up to two people at a time. "
+    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
+    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
 )
 
-task = "How many 'r' are in the word 'supercalifragilisticexpialidocious'?"
-
-console.rule("[bold green]Regular Agent[/bold green]")
-regular_agent.print_response(task, stream=True)
-console.rule("[bold yellow]Reasoning Agent[/bold yellow]")
+reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
 ```
 

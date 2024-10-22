@@ -48,29 +48,26 @@ agent = Agent(
 console = Console()
 
 
-def format_messages(messages) -> str:
-    return json.dumps([m.model_dump(include={"role", "content"}) for m in messages], indent=4)
-
-
-def format_memories(memories) -> str:
-    return json.dumps([m.model_dump(include={"memory", "input"}) for m in memories], indent=4)
-
-
-def format_summary(summary) -> str:
-    return json.dumps(summary.model_dump(), indent=4)
-
-
 def render_panel(title: str, content: str) -> Panel:
     return Panel(JSON(content, indent=4), title=title, expand=True)
 
 
 def print_agent_memory(agent):
-    # -*- Print messages
-    console.print(render_panel("Messages", format_messages(agent.memory.messages)))
+    # -*- Print history
+    console.print(
+        render_panel(
+            "Chat History",
+            json.dumps([m.model_dump(include={"role", "content"}) for m in agent.memory.messages], indent=4),
+        )
+    )
     # -*- Print memories
-    console.print(render_panel("Memories", format_memories(agent.memory.memories)))
+    console.print(
+        render_panel(
+            "Memories", json.dumps([m.model_dump(include={"memory", "input"}) for m in agent.memory.memories], indent=4)
+        )
+    )
     # -*- Print summary
-    console.print(render_panel("Summary", format_summary(agent.memory.summary)))
+    console.print(render_panel("Summary", json.dumps(agent.memory.summary.model_dump(), indent=4)))
 
 
 # -*- Share personal information

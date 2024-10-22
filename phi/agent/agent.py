@@ -1675,8 +1675,8 @@ class Agent(BaseModel):
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add messages from this particular run to memory
-        self.memory.add_messages(messages=run_messages)
+        # Add the user messages and model response messages to memory
+        self.memory.add_messages(messages=(user_messages + messages_for_model[num_input_messages:]))
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)
@@ -2034,8 +2034,8 @@ class Agent(BaseModel):
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add messages from this particular run to memory
-        self.memory.add_messages(messages=run_messages)
+        # Add the user messages and model response messages to memory
+        self.memory.add_messages(messages=(user_messages + messages_for_model[num_input_messages:]))
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)

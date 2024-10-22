@@ -21,7 +21,7 @@ export EXA_API_KEY=***
 ### Install libraries
 
 ```shell
-pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api
+pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata
 ```
 
 ### Authenticate with phidata.app

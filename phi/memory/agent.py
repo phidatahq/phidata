@@ -164,9 +164,12 @@ class AgentMemory(BaseModel):
         return messages_from_last_n_history
 
     def get_message_pairs(
-        self, user_role: str = "user", assistant_role: str = "assistant"
+        self, user_role: str = "user", assistant_role: Optional[List[str]] = None
     ) -> List[Tuple[Message, Message]]:
         """Returns a list of tuples of (user message, assistant response)."""
+
+        if assistant_role is None:
+            assistant_role = ["assistant", "model", "CHATBOT"]
 
         chats_as_message_pairs: List[Tuple[Message, Message]] = []
         for chat in self.chats:
@@ -182,7 +185,7 @@ class AgentMemory(BaseModel):
 
                 # Start from the end to look for the assistant response
                 for message in chat.response.messages[::-1]:
-                    if message.role == assistant_role:
+                    if message.role in assistant_role:
                         assistant_messages_from_chat = message
                         break
 

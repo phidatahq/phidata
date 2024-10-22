@@ -48,6 +48,7 @@ class PgMemoryDb(MemoryDb):
         self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
+        self.inspector = inspect(self.db_engine)
         self.metadata: MetaData = MetaData(schema=self.schema)
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         self.table: Table = self.get_table()

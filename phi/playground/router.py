@@ -1,5 +1,5 @@
 import base64
-from typing import List, Optional, AsyncGenerator, Dict, cast, Union, Any, Generator
+from typing import List, Optional, AsyncGenerator, Dict, cast, Union, Generator
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -33,14 +33,17 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
         for agent in agents:
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
+
             name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
-            model = agent.model.id if agent.model else None
-            if model and name:
-                provider = model + " " + name
-            elif name:
-                provider = name
-            elif model:
-                provider = model
+            provider = agent.model.provider or agent.model.__class__.__name__ if agent.model else None
+            model_id = agent.model.id if agent.model else None
+
+            if provider and model_id:
+                provider = f"{provider} {model_id}"
+            elif name and model_id:
+                provider = f"{name} {model_id}"
+            elif model_id:
+                provider = model_id
             else:
                 provider = ""
 
@@ -49,9 +52,9 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
                     agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
-                        provider=provider,
                         name=name,
-                        model=model,
+                        model=model_id,
+                        provider=provider,
                     ),
                     add_context=agent.add_context,
                     tools=formatted_tools,
@@ -64,50 +67,6 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
             )
 
         return agent_list
-
-    @playground_router.get("/agents/get", response_model=Dict[str, AgentGetResponse])
-    def agents_get():
-        agents_dict: Dict[str, Any] = {}
-        for agent in agents:
-            agent_tools = agent.get_tools()
-            formatted_tools = format_tools(agent_tools)
-            agent_id = agent.agent_id
-            if agent_id is None:
-                logger.warning(f"Agent ID not found for agent: {agent.name}. The agent will be skipped.")
-                continue
-            if agent_id in agents_dict:
-                logger.warning(f"Duplicate agent_id found: {agent_id}. The agent will be overwritten.")
-
-            name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
-            model = agent.model.id if agent.model else None
-            if model and name:
-                provider = model + " " + name
-            elif name:
-                provider = name
-            elif model:
-                provider = model
-            else:
-                provider = ""
-
-            agent_response = AgentGetResponse(
-                agent_id=agent.agent_id,
-                name=agent.name,
-                model=AgentModel(
-                    provider=provider,
-                    name=name,
-                    model=model,
-                ),
-                add_context=agent.add_context,
-                tools=formatted_tools,
-                memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
-                storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
-                knowledge={"name": agent.knowledge.__class__.__name__} if agent.knowledge else None,
-                description=agent.description,
-                instructions=agent.instructions,
-            )
-            agents_dict[agent_id] = agent_response
-
-        return agents_dict
 
     def chat_response_streamer(
         agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
@@ -245,13 +204,15 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
             formatted_tools = format_tools(agent_tools)
 
             name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
-            model = agent.model.id if agent.model else None
-            if model and name:
-                provider = model + " " + name
-            elif name:
-                provider = name
-            elif model:
-                provider = model
+            provider = agent.model.provider or agent.model.__class__.__name__ if agent.model else None
+            model_id = agent.model.id if agent.model else None
+
+            if provider and model_id:
+                provider = f"{provider} {model_id}"
+            elif name and model_id:
+                provider = f"{name} {model_id}"
+            elif model_id:
+                provider = model_id
             else:
                 provider = ""
 
@@ -260,9 +221,9 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
                     agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
-                        provider=provider,
                         name=name,
-                        model=model,
+                        model=model_id,
+                        provider=provider,
                     ),
                     add_context=agent.add_context,
                     tools=formatted_tools,
@@ -275,50 +236,6 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
             )
 
         return agent_list
-
-    @playground_router.get("/agents/get", response_model=Dict[str, AgentGetResponse])
-    async def agents_get():
-        agents_dict: Dict[str, Any] = {}
-        for agent in agents:
-            agent_tools = agent.get_tools()
-            formatted_tools = format_tools(agent_tools)
-            agent_id = agent.agent_id
-            if agent_id is None:
-                logger.warning(f"Agent ID not found for agent: {agent.name}. The agent will be skipped.")
-                continue
-            if agent_id in agents_dict:
-                logger.warning(f"Duplicate agent_id found: {agent_id}. The agent will be overwritten.")
-
-            name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
-            model = agent.model.id if agent.model else None
-            if model and name:
-                provider = model + " " + name
-            elif name:
-                provider = name
-            elif model:
-                provider = model
-            else:
-                provider = ""
-
-            agent_response = AgentGetResponse(
-                agent_id=agent.agent_id,
-                name=agent.name,
-                model=AgentModel(
-                    provider=provider,
-                    name=name,
-                    model=model,
-                ),
-                add_context=agent.add_context,
-                tools=formatted_tools,
-                memory={"name": agent.memory.db.__class__.__name__} if agent.memory and agent.memory.db else None,
-                storage={"name": agent.storage.__class__.__name__} if agent.storage else None,
-                knowledge={"name": agent.knowledge.__class__.__name__} if agent.knowledge else None,
-                description=agent.description,
-                instructions=agent.instructions,
-            )
-            agents_dict[agent_id] = agent_response
-
-        return agents_dict
 
     async def chat_response_streamer(
         agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None

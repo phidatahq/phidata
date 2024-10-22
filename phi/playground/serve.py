@@ -1,4 +1,5 @@
 from typing import Union
+from urllib.parse import quote
 
 from fastapi import FastAPI
 from rich import box
@@ -34,9 +35,11 @@ def serve_playground_app(
         return
 
     logger.info(f"Starting playground on {scheme}://{host}:{port}")
+    # Encode the full endpoint (host:port)
+    encoded_endpoint = quote(f"{host}:{port}")
 
     # Create a panel with the playground URL
-    url = f"{phi_cli_settings.playground_url}?endpoint={host}&port={port}"
+    url = f"{phi_cli_settings.playground_url}?endpoint={encoded_endpoint}"
     panel = Panel(
         f"[bold green]URL:[/bold green] [link={url}]{url}[/link]",
         title="Agent Playground",

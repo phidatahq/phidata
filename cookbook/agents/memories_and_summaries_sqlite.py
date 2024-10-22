@@ -5,7 +5,11 @@ Steps:
 2. Run: `python cookbook/agents/memories_and_summaries_sqlite.py` to run the agent
 """
 
-from rich.pretty import pprint
+import json
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.json import JSON
 
 from phi.agent import Agent, AgentMemory
 from phi.model.openai import OpenAIChat
@@ -41,26 +45,51 @@ agent = Agent(
     # debug_mode=True,
 )
 
+console = Console()
+
+
+def format_messages(messages) -> str:
+    return json.dumps([m.model_dump(include={"role", "content"}) for m in messages], indent=4)
+
+
+def format_memories(memories) -> str:
+    return json.dumps([m.model_dump() for m in memories], indent=4)
+
+
+def format_summary(summary) -> str:
+    return json.dumps(summary.model_dump(), indent=4)
+
+
+def render_panel(title: str, content: str) -> Panel:
+    return Panel(JSON(content, indent=4), title=title, expand=True)
+
+
 # -*- Share personal information
 agent.print_response("My name is john billings?", stream=True)
+# -*- Print messages
+console.print(render_panel("Messages", format_messages(agent.memory.messages)))
 # -*- Print memories
-pprint(agent.memory.memories)
+console.print(render_panel("Memories", format_memories(agent.memory.memories)))
 # -*- Print summary
-pprint(agent.memory.summary)
+console.print(render_panel("Summary", format_summary(agent.memory.summary)))
 
 # -*- Share personal information
 agent.print_response("I live in nyc?", stream=True)
+# -*- Print messages
+console.print(render_panel("Messages", format_messages(agent.memory.messages)))
 # -*- Print memories
-pprint(agent.memory.memories)
+console.print(render_panel("Memories", format_memories(agent.memory.memories)))
 # -*- Print summary
-pprint(agent.memory.summary)
+console.print(render_panel("Summary", format_summary(agent.memory.summary)))
 
 # -*- Share personal information
 agent.print_response("I'm going to a concert tomorrow?", stream=True)
+# -*- Print messages
+console.print(render_panel("Messages", format_messages(agent.memory.messages)))
 # -*- Print memories
-pprint(agent.memory.memories)
+console.print(render_panel("Memories", format_memories(agent.memory.memories)))
 # -*- Print summary
-pprint(agent.memory.summary)
+console.print(render_panel("Summary", format_summary(agent.memory.summary)))
 
 # Ask about the conversation
 agent.print_response("What have we been talking about, do you know my name?", stream=True)

@@ -1,8 +1,6 @@
 import time
-import os
+from pathlib import Path
 from typing import Optional, Any, List
-
-from phi.agent import AgentSession
 
 try:
     from sqlalchemy.dialects import sqlite
@@ -14,8 +12,9 @@ try:
     from sqlalchemy.sql.expression import select
     from sqlalchemy.types import String
 except ImportError:
-    raise ImportError("`sqlalchemy` not installed")
+    raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
+from phi.agent import AgentSession
 from phi.storage.agent.base import AgentStorage
 from phi.utils.log import logger
 
@@ -49,10 +48,10 @@ class SqlAgentStorage(AgentStorage):
         if _engine is None and db_url is not None:
             _engine = create_engine(db_url)
         elif _engine is None and db_file is not None:
-            # Use an absolute path for the database file
-            db_path = os.path.abspath(db_file)
+            # Use the db_file to create the engine
+            db_path = Path(db_file).resolve()
             # Ensure the directory exists
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
             _engine = create_engine(f"sqlite:///{db_path}")
         else:
             _engine = create_engine("sqlite://")

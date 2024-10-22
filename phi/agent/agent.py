@@ -873,7 +873,7 @@ class Agent(BaseModel):
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
-                    "You have access to memory from previous interactions with the user that you can use:"
+                    "You have access to memories from previous interactions with the user that you can use:"
                 )
                 system_message_lines.append("### Memories from previous interactions")
                 system_message_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
@@ -884,10 +884,12 @@ class Agent(BaseModel):
                 system_message_lines.append("If you need to update the long-term memory, use the `update_memory` tool.")
             else:
                 system_message_lines.append(
-                    "You also have access to memory from previous interactions with the user but the user has no memories yet."
+                    "You have the capability to retain memories from previous interactions with the user, "
+                    "but have not had any interactions with the user yet."
                 )
                 system_message_lines.append(
-                    "If the user asks about memories, you can let them know that you dont have any memory about the yet, but can add new memories using the `update_memory` tool."
+                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user yet because you have not had any interactions with them yet, "
+                    "but can add new memories using the `update_memory` tool."
                 )
             system_message_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"

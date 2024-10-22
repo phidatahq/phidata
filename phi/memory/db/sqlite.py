@@ -1,8 +1,24 @@
+from pathlib import Path
 from typing import Optional, List
 
-from sqlalchemy import create_engine, MetaData, Table, Column, String, DateTime, text, select, delete, inspect
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.exc import SQLAlchemyError
+try:
+    from sqlalchemy import (
+        create_engine,
+        MetaData,
+        Table,
+        Column,
+        String,
+        DateTime,
+        text,
+        select,
+        delete,
+        inspect,
+        Engine,
+    )
+    from sqlalchemy.orm import sessionmaker, scoped_session
+    from sqlalchemy.exc import SQLAlchemyError
+except ImportError:
+    raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
 from phi.memory.db import MemoryDb
 from phi.memory.row import MemoryRow
@@ -13,23 +29,51 @@ class SqliteMemoryDb(MemoryDb):
     def __init__(
         self,
         table_name: str = "memory",
-        db_path: str = "memory.db",
+        db_url: Optional[str] = None,
+        db_file: Optional[str] = None,
+        db_engine: Optional[Engine] = None,
     ):
         """
-        This class provides a memory store backed by a SQLite table using SQLAlchemy.
+        This class provides a memory store backed by a SQLite table.
+
+        The following order is used to determine the database connection:
+            1. Use the db_engine if provided
+            2. Use the db_url
+            3. Use the db_file
+            4. Create a new in-memory database
 
         Args:
-            table_name (str): The name of the table to store memory rows.
-            db_path (str): The path to the SQLite database file. Defaults to ':memory:' for in-memory database.
+            table_name: The name of the table to store Agent sessions.
+            db_url: The database URL to connect to.
+            db_file: The database file to connect to.
+            db_engine: The database engine to use.
         """
+        _engine: Optional[Engine] = db_engine
+        if _engine is None and db_url is not None:
+            _engine = create_engine(db_url)
+        elif _engine is None and db_file is not None:
+            # Use the db_file to create the engine
+            db_path = Path(db_file).resolve()
+            # Ensure the directory exists
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            _engine = create_engine(f"sqlite:///{db_path}")
+        else:
+            _engine = create_engine("sqlite://")
+
+        if _engine is None:
+            raise ValueError("Must provide either db_url, db_file or db_engine")
+
+        # Database attributes
         self.table_name: str = table_name
-        self.db_path: str = db_path
-        self.engine = create_engine(f"sqlite:///{self.db_path}")
-        self.inspector = inspect(self.engine)
-        self.metadata = MetaData()
-        self.Session = scoped_session(sessionmaker(bind=self.engine))
-        self.table = self.get_table()
-        self.create()
+        self.db_url: Optional[str] = db_url
+        self.db_engine: Engine = _engine
+        self.metadata: MetaData = MetaData()
+        self.inspector = inspect(self.db_engine)
+
+        # Database session
+        self.Session = scoped_session(sessionmaker(bind=self.db_engine))
+        # Database table for memories
+        self.table: Table = self.get_table()
 
     def get_table(self) -> Table:
         return Table(
@@ -49,8 +93,8 @@ class SqliteMemoryDb(MemoryDb):
         if not self.table_exists():
             try:
                 logger.debug(f"Creating table: {self.table_name}")
-                self.metadata.create_all(self.engine)
-            except SQLAlchemyError as e:
+                self.table.create(self.db_engine, checkfirst=True)
+            except Exception as e:
                 logger.error(f"Error creating table '{self.table_name}': {e}")
                 raise
 
@@ -103,7 +147,7 @@ class SqliteMemoryDb(MemoryDb):
                     )
                 else:
                     # Insert new memory
-                    stmt = self.table.insert().values(id=memory.id, user_id=memory.user_id, memory=str(memory.memory))
+                    stmt = self.table.insert().values(id=memory.id, user_id=memory.user_id, memory=str(memory.memory))  # type: ignore
 
                 session.execute(stmt)
                 session.commit()
@@ -127,10 +171,15 @@ class SqliteMemoryDb(MemoryDb):
     def drop_table(self) -> None:
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
-            self.table.drop(self.engine)
+            self.table.drop(self.db_engine)
 
     def table_exists(self) -> bool:
-        return self.inspector.has_table(self.table_name)
+        logger.debug(f"Checking if table exists: {self.table.name}")
+        try:
+            return self.inspector.has_table(self.table.name)
+        except Exception as e:
+            logger.error(e)
+            return False
 
     def clear(self) -> bool:
         with self.Session() as session:

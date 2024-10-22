@@ -3,7 +3,7 @@
 </h1>
 
 <h3 align="center">
-Build Agents with memory, knowledge and tools.
+Build Agents with memory, knowledge, tools and reasoning.
 </h3>
 
 <img
@@ -16,7 +16,7 @@ Build Agents with memory, knowledge and tools.
 
 **Phidata is a framework for building agentic systems**, use phidata to:
 
-- **Build intelligent Agents with memory, knowledge and tools.** [example](#web-search-agent)
+- **Build intelligent Agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
 - **Build teams of Agents that can work together.** [example](#team-of-agents)
 - **Chat with those Agents using a beautiful Agent UI.** [example](#agent-ui)
 - **Monitor, evaluate and optimize those Agents.** [example](#monitoring)

@@ -1,9 +1,8 @@
 """
 This recipe shows how to use personalized memories and summaries in an agent.
 Steps:
-1. Run: `./cookbook/run_pgvector.sh` to start a postgres and pgvector instance
-2. Run: `pip install openai sqlalchemy` to install dependencies
-3. Run: `python cookbook/agents/memories_and_summaries_sqlite.py` to run the agent
+1. Run: `pip install openai sqlalchemy phidata` to install dependencies
+2. Run: `python cookbook/agents/memories_and_summaries_sqlite.py` to run the agent
 """
 
 from rich.pretty import pprint

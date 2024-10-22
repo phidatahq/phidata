@@ -189,57 +189,58 @@ class Gemini(Model):
         Args:
             tool: The tool to add. Can be a Tool, Toolkit, Callable, dict, or Function.
         """
-        # Initialize function declarations if necessary
         if self.function_declarations is None:
             self.function_declarations = []
 
-        # Initialize functions if necessary
-        if self.functions is None:
-            self.functions = {}
+        # If the tool is a Tool or Dict, log a warning.
+        if isinstance(tool, Tool) or isinstance(tool, Dict):
+            logger.warning("Tool of type 'Tool' or 'dict' is not yet supported by Gemini.")
 
-        if isinstance(tool, Toolkit):
-            # Add all functions from the toolkit
-            self.functions.update(tool.functions)
-            for func in tool.functions.values():
-                function_declaration = FunctionDeclaration(
-                    name=func.name,
-                    description=func.description,
-                    parameters=self._format_functions(func.parameters),
-                )
-                self.function_declarations.append(function_declaration)
-            logger.debug(f"Functions from toolkit '{tool.name}' added to LLM.")
+        # If the tool is a Callable or Toolkit, add its functions to the Model
+        elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
+            if self.functions is None:
+                self.functions = {}
 
-        elif isinstance(tool, Function):
-            # Add the single Function instance
-            self.functions[tool.name] = tool
-            function_declaration = FunctionDeclaration(
-                name=tool.name,
-                description=tool.description,
-                parameters=self._format_functions(tool.parameters),
-            )
-            self.function_declarations.append(function_declaration)
-            logger.debug(f"Function '{tool.name}' added to LLM.")
+            if isinstance(tool, Toolkit):
+                # For each function in the toolkit
+                for name, func in tool.functions.items():
+                    # If the function does not exist in self.functions, add to self.tools
+                    if name not in self.functions:
+                        self.functions[name] = func
+                        function_declaration = FunctionDeclaration(
+                            name=func.name,
+                            description=func.description,
+                            parameters=self._format_functions(func.parameters),
+                        )
+                        self.function_declarations.append(function_declaration)
+                        logger.debug(f"Function {name} from {tool.name} added to model.")
 
-        elif callable(tool):
-            # Convert the callable to a Function instance and add it
-            func = Function.from_callable(tool)
-            self.functions[func.name] = func
-            function_declaration = FunctionDeclaration(
-                name=func.name,
-                description=func.description,
-                parameters=self._format_functions(func.parameters),
-            )
-            self.function_declarations.append(function_declaration)
-            logger.debug(f"Function '{func.name}' added to LLM.")
+            elif isinstance(tool, Function):
+                if tool.name not in self.functions:
+                    self.functions[tool.name] = tool
+                    function_declaration = FunctionDeclaration(
+                        name=tool.name,
+                        description=tool.description,
+                        parameters=self._format_functions(tool.parameters),
+                    )
+                    self.function_declarations.append(function_declaration)
+                    logger.debug(f"Function {tool.name} added to model.")
 
-        elif isinstance(tool, Tool):
-            logger.warning(f"Tool of type '{type(tool).__name__}' is not yet supported by Gemini.")
-
-        elif isinstance(tool, dict):
-            logger.warning("Tool of type 'dict' is not yet supported by Gemini.")
-
-        else:
-            logger.warning(f"Unsupported tool type: {type(tool).__name__}")
+            elif callable(tool):
+                try:
+                    function_name = tool.__name__
+                    if function_name not in self.functions:
+                        func = Function.from_callable(tool)
+                        self.functions[func.name] = func
+                        function_declaration = FunctionDeclaration(
+                            name=func.name,
+                            description=func.description,
+                            parameters=self._format_functions(func.parameters),
+                        )
+                        self.function_declarations.append(function_declaration)
+                        logger.debug(f"Function '{func.name}' added to model.")
+                except Exception as e:
+                    logger.warning(f"Could not add function {tool}: {e}")
 
     def invoke(self, messages: List[Message]):
         """
@@ -477,8 +478,6 @@ class Gemini(Model):
         response: GenerateContentResponse = self.invoke(messages=messages)
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
-        logger.debug(f"Gemini response type: {type(response)}")
-        logger.debug(f"Gemini response: {response}")
 
         # Create assistant message
         assistant_message = self._create_assistant_message(response=response, response_timer=response_timer)

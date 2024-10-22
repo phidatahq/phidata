@@ -2049,7 +2049,7 @@ class Agent(BaseModel):
                 agent_chat.message = user_message_for_memory
                 # Update the memories with the user message if needed
                 if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                    self.memory.update_memory(input=user_message_for_memory.get_content_string())
+                    await self.memory.aupdate_memory(input=user_message_for_memory.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 _um = None
@@ -2068,7 +2068,7 @@ class Agent(BaseModel):
                         agent_chat.messages = []
                     agent_chat.messages.append(_um)
                     if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                        self.memory.update_memory(input=_um.get_content_string())
+                        await self.memory.aupdate_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentChat to memory
@@ -2076,7 +2076,7 @@ class Agent(BaseModel):
 
         # Update the session summary if needed
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
-            self.memory.update_summary()
+            await self.memory.aupdate_summary()
 
         # 7. Save session to storage
         self.write_to_storage()

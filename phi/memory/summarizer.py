@@ -110,7 +110,62 @@ class MemorySummarizer(BaseModel):
         # Generate a response from the Model (includes running function calls)
         self.model = cast(Model, self.model)
         response = self.model.response(messages=messages_for_model)
-        logger.debug("*********** MemoryClassifier End ***********")
+        logger.debug("*********** MemorySummarizer End ***********")
+
+        # If the model natively supports structured outputs, the parsed value is already in the structured format
+        if self.use_structured_outputs and response.parsed is not None and isinstance(response.parsed, SessionSummary):
+            return response.parsed
+
+        # Otherwise convert the response to the structured format
+        if isinstance(response.content, str):
+            try:
+                session_summary = None
+                try:
+                    session_summary = SessionSummary.model_validate_json(response.content)
+                except ValidationError:
+                    # Check if response starts with ```json
+                    if response.content.startswith("```json"):
+                        response.content = response.content.replace("```json\n", "").replace("\n```", "")
+                        try:
+                            session_summary = SessionSummary.model_validate_json(response.content)
+                        except ValidationError as exc:
+                            logger.warning(f"Failed to validate session_summary response: {exc}")
+                return session_summary
+            except Exception as e:
+                logger.warning(f"Failed to convert response to session_summary: {e}")
+        return None
+
+    async def arun(
+        self,
+        message_pairs: List[Tuple[Message, Message]],
+        **kwargs: Any,
+    ) -> Optional[SessionSummary]:
+        logger.debug("*********** Async MemorySummarizer Start ***********")
+
+        if message_pairs is None or len(message_pairs) == 0:
+            logger.info("No message pairs provided for summarization.")
+            return None
+
+        # Update the Model (set defaults, add logit etc.)
+        self.update_model()
+
+        # Convert the message pairs to a list of dictionaries
+        messages_for_summarization: List[Dict[str, str]] = []
+        for message_pair in message_pairs:
+            user_message, assistant_message = message_pair
+            messages_for_summarization.append(
+                {
+                    user_message.role: user_message.get_content_string(),
+                    assistant_message.role: assistant_message.get_content_string(),
+                }
+            )
+
+        # Prepare the List of messages to send to the Model
+        messages_for_model: List[Message] = [self.get_system_message(messages_for_summarization)]
+        # Generate a response from the Model (includes running function calls)
+        self.model = cast(Model, self.model)
+        response = await self.model.aresponse(messages=messages_for_model)
+        logger.debug("*********** Async MemorySummarizer End ***********")
 
         # If the model natively supports structured outputs, the parsed value is already in the structured format
         if self.use_structured_outputs and response.parsed is not None and isinstance(response.parsed, SessionSummary):

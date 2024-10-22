@@ -3,7 +3,7 @@
 </h1>
 
 <h3 align="center">
-Build AI Agents with memory, knowledge, tools and reasoning
+Build Agents with memory, knowledge and tools.
 </h3>
 
 <img
@@ -16,9 +16,11 @@ Build AI Agents with memory, knowledge, tools and reasoning
 
 **Phidata is a framework for building agentic systems**, use phidata to:
 
-- **Build intelligent Agents with memory, knowledge, tools and reasoning.**
-- **Run those agents as a software application (with a database, vectordb and api).**
-- **Monitor, evaluate and optimize your agentic system.**
+- **Build intelligent Agents with memory, knowledge and tools.** [example](#web-search-agent)
+- **Build teams of Agents that can work together.** [example](#team-of-agents)
+- **Chat with those Agents using a beautiful Agent UI.** [example](#agent-ui)
+- **Monitor, evaluate and optimize those Agents.** [example](#monitoring)
+- **Run those Agents as a software application (with a database, vectordb and api).**
 
 ## Install
 
@@ -493,7 +495,6 @@ We're an open-source project and welcome contributions, please read the [contrib
 Phidata logs which model an agent used so we can prioritize features for the most popular models.
 
 You can disable this by setting `PHI_TELEMETRY=false` in your environment.
-
 
 <p align="right">
   <a href="#top">⬆️ Back to Top</a>

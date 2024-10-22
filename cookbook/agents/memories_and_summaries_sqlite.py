@@ -41,7 +41,7 @@ agent = Agent(
     # Store agent sessions in a database
     storage=SqlAgentStorage(table_name="agent_sessions", db_file=agent_storage_file),
     description="You are a helpful assistant that always responds in a polite, upbeat and positive manner.",
-    # Show debug logs so you can see the memory being created
+    # Show debug logs to see the memory being created
     # debug_mode=True,
 )
 
@@ -53,7 +53,7 @@ def format_messages(messages) -> str:
 
 
 def format_memories(memories) -> str:
-    return json.dumps([m.model_dump() for m in memories], indent=4)
+    return json.dumps([m.model_dump(include={"memory", "input"}) for m in memories], indent=4)
 
 
 def format_summary(summary) -> str:
@@ -64,32 +64,29 @@ def render_panel(title: str, content: str) -> Panel:
     return Panel(JSON(content, indent=4), title=title, expand=True)
 
 
+def print_agent_memory(agent):
+    # -*- Print messages
+    console.print(render_panel("Messages", format_messages(agent.memory.messages)))
+    # -*- Print memories
+    console.print(render_panel("Memories", format_memories(agent.memory.memories)))
+    # -*- Print summary
+    console.print(render_panel("Summary", format_summary(agent.memory.summary)))
+
+
 # -*- Share personal information
 agent.print_response("My name is john billings?", stream=True)
-# -*- Print messages
-console.print(render_panel("Messages", format_messages(agent.memory.messages)))
-# -*- Print memories
-console.print(render_panel("Memories", format_memories(agent.memory.memories)))
-# -*- Print summary
-console.print(render_panel("Summary", format_summary(agent.memory.summary)))
+# -*- Print agent memory
+print_agent_memory(agent)
 
 # -*- Share personal information
 agent.print_response("I live in nyc?", stream=True)
-# -*- Print messages
-console.print(render_panel("Messages", format_messages(agent.memory.messages)))
-# -*- Print memories
-console.print(render_panel("Memories", format_memories(agent.memory.memories)))
-# -*- Print summary
-console.print(render_panel("Summary", format_summary(agent.memory.summary)))
+# -*- Print agent memory
+print_agent_memory(agent)
 
 # -*- Share personal information
 agent.print_response("I'm going to a concert tomorrow?", stream=True)
-# -*- Print messages
-console.print(render_panel("Messages", format_messages(agent.memory.messages)))
-# -*- Print memories
-console.print(render_panel("Memories", format_memories(agent.memory.memories)))
-# -*- Print summary
-console.print(render_panel("Summary", format_summary(agent.memory.summary)))
+# -*- Print agent memory
+print_agent_memory(agent)
 
 # Ask about the conversation
 agent.print_response("What have we been talking about, do you know my name?", stream=True)

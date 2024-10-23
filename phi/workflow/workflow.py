@@ -264,32 +264,44 @@ class Workflow(BaseModel):
 
         # Handle both Iterator[RunResponse] and RunResponse
         if isinstance(result, (GeneratorType, collections.abc.Iterator)):
+            # Initialize the run_response content
             self.run_response.content = ""
 
-            # If the result is an iterator, update each RunResponse and yield from it
             def result_generator():
                 for item in result:
                     if isinstance(item, RunResponse):
+                        # Update the run_id, session_id and workflow_id of the RunResponse
                         item.run_id = self.run_id
                         item.session_id = self.session_id
                         item.workflow_id = self.workflow_id
+
+                        # Update the run_response with the content from the result
                         if item.content is not None and isinstance(item.content, str):
                             self.run_response.content += item.content
                     else:
                         logger.warning(f"Workflow.run() should only yield RunResponse objects, got: {type(item)}")
                     yield item
-                logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
+
+                # Add the run to the memory
                 self.memory.add_run(WorkflowRun(input=self.run_input, response=self.run_response))
+                # Write this run to the database
                 self.write_to_storage()
+                logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
 
             return result_generator()
         elif isinstance(result, RunResponse):
-            # If the result is a single RunResponse, update the RunResponse and write to storage
+            # Update the result with the run_id, session_id and workflow_id of the workflow run
             result.run_id = self.run_id
             result.session_id = self.session_id
             result.workflow_id = self.workflow_id
-            self.run_response = result
+
+            # Update the run_response with the content from the result
+            if result.content is not None and isinstance(result.content, str):
+                self.run_response.content = result.content
+
+            # Add the run to the memory
             self.memory.add_run(WorkflowRun(input=self.run_input, response=self.run_response))
+            # Write this run to the database
             self.write_to_storage()
             logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
             return result

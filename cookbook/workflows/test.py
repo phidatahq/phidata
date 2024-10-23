@@ -1,3 +1,5 @@
+from typing import Iterator  # noqa
+
 from phi.agent import Agent, RunResponse
 from phi.workflow import Workflow
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
@@ -10,11 +12,6 @@ class GenerateNewsReport(Workflow):
         name="Agent",
         description="Write a 2 sentence report on the topic.",
     )
-
-    # def run(self, topic: str) -> Union[RunResponse, Iterator[RunResponse]]:
-    #     logger.info(f"Researching articles on: {topic}")
-    #     self.session_state["topic"] = topic
-    #     return self.agent.run(topic)
 
     def run(self, topic: str) -> RunResponse:
         logger.info(f"Researching articles on: {topic}")

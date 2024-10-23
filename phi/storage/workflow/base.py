@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from phi.agent.session import AgentSession
+from phi.workflow import WorkflowSession
 
 
 class WorkflowStorage(ABC):
@@ -10,19 +10,21 @@ class WorkflowStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
+    def get_all_sessions(
+        self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
+    ) -> List[WorkflowSession]:
         raise NotImplementedError
 
     @abstractmethod
-    def upsert(self, session: AgentSession) -> Optional[AgentSession]:
+    def upsert(self, session: WorkflowSession) -> Optional[WorkflowSession]:
         raise NotImplementedError
 
     @abstractmethod

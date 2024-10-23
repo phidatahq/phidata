@@ -30,7 +30,7 @@ class SqlAgentStorage(AgentStorage):
         auto_upgrade_schema: bool = False,
     ):
         """
-        This class provides assistant storage using a sqlite database.
+        This class provides agent storage using a sqlite database.
 
         The following order is used to determine the database connection:
             1. Use the db_engine if provided

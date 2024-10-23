@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
 from phi.run.response import RunResponse
 from phi.workflow.session import WorkflowSession
+from phi.storage.workflow.sqlite import WorkflowStorage
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.merge_dict import merge_dictionaries
 
@@ -36,7 +37,7 @@ class Workflow(BaseModel):
     session_state: Optional[Dict[str, Any]] = None
 
     # -*- Workflow Storage
-    storage: Optional[Any] = None
+    storage: Optional[WorkflowStorage] = None
     # WorkflowSession from the database: DO NOT SET MANUALLY
     _workflow_session: Optional[WorkflowSession] = None
 
@@ -190,15 +191,52 @@ class Workflow(BaseModel):
             self._workflow_session = self.storage.upsert(session=self.get_workflow_session())
         return self._workflow_session
 
+    def load_session(self, force: bool = False) -> Optional[str]:
+        """Load an existing session from the database and return the session_id.
+        If a session does not exist, create a new session.
+
+        - If a session exists in the database, load the session.
+        - If a session does not exist in the database, create a new session.
+        """
+
+        # If a workflow_session is already loaded, return the session_id from the workflow_session
+        # if session_id matches the session_id from the workflow_session
+        if self._workflow_session is not None and not force:
+            if self.session_id is not None and self._workflow_session.session_id == self.session_id:
+                return self._workflow_session.session_id
+
+        # Load an existing session or create a new session
+        if self.storage is not None:
+            # Load existing session if session_id is provided
+            logger.debug(f"Reading WorkflowSession: {self.session_id}")
+            self.read_from_storage()
+
+            # Create a new session if it does not exist
+            if self._workflow_session is None:
+                logger.debug("-*- Creating new WorkflowSession")
+                # write_to_storage() will create a new WorkflowSession
+                # and populate self._workflow_session with the new session
+                self.write_to_storage()
+                if self._workflow_session is None:
+                    raise Exception("Failed to create new WorkflowSession in storage")
+                logger.debug(f"-*- Created WorkflowSession: {self._workflow_session.session_id}")
+                self.log_workflow_session()
+        return self.session_id
+
     def run(self, *args: Any, **kwargs: Any):
         logger.error(f"{self.__class__.__name__}.run() method not implemented.")
         return
 
     def run_workflow(self, *args: Any, **kwargs: Any):
         self.run_id = str(uuid4())
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, workflow_id=self.workflow_id)
+        self.read_from_storage()
 
-        logger.debug(f"*********** Running Workflow: {self.run_id} ***********")
+        logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
         result = self._subclass_run(*args, **kwargs)
+
+        self.write_to_storage()
+        logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
         return result
 
     def __init__(self, **data):

@@ -14,12 +14,12 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
-from phi.agent import AgentSession
-from phi.storage.agent.base import AgentStorage
+from phi.workflow import WorkflowSession
+from phi.storage.workflow.base import WorkflowStorage
 from phi.utils.log import logger
 
 
-class SqlAgentStorage(AgentStorage):
+class SqlWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         table_name: str,
@@ -30,7 +30,7 @@ class SqlAgentStorage(AgentStorage):
         auto_upgrade_schema: bool = False,
     ):
         """
-        This class provides assistant storage using a sqlite database.
+        This class provides workflow storage using a sqlite database.
 
         The following order is used to determine the database connection:
             1. Use the db_engine if provided
@@ -39,7 +39,7 @@ class SqlAgentStorage(AgentStorage):
             4. Create a new in-memory database
 
         Args:
-            table_name: The name of the table to store Agent sessions.
+            table_name: The name of the table to store Workflow sessions.
             db_url: The database URL to connect to.
             db_file: The database file to connect to.
             db_engine: The database engine to use.
@@ -81,18 +81,18 @@ class SqlAgentStorage(AgentStorage):
             self.metadata,
             # Session UUID: Primary Key
             Column("session_id", String, primary_key=True),
-            # ID of the agent that this session is associated with
-            Column("agent_id", String),
-            # ID of the user interacting with this agent
+            # ID of the workflow that this session is associated with
+            Column("workflow_id", String),
+            # ID of the user interacting with this workflow
             Column("user_id", String),
-            # Agent Memory
-            Column("memory", sqlite.JSON),
-            # Agent Metadata
-            Column("agent_data", sqlite.JSON),
+            # Workflow Metadata
+            Column("workflow_data", sqlite.JSON),
             # User Metadata
             Column("user_data", sqlite.JSON),
             # Session Metadata
             Column("session_data", sqlite.JSON),
+            # Session state stored in the database
+            Column("session_state", sqlite.JSON),
             # The Unix timestamp of when this session was created.
             Column("created_at", sqlite.INTEGER, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
@@ -132,14 +132,14 @@ class SqlAgentStorage(AgentStorage):
             self.create()
         return None
 
-    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
         try:
             with self.Session() as sess:
                 stmt = select(self.table).where(self.table.c.session_id == session_id)
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
-                return AgentSession.model_validate(existing_row) if existing_row is not None else None
+                return WorkflowSession.model_validate(existing_row) if existing_row is not None else None
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -147,7 +147,7 @@ class SqlAgentStorage(AgentStorage):
             self.create()
         return None
 
-    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
         session_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
@@ -155,8 +155,8 @@ class SqlAgentStorage(AgentStorage):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                if agent_id is not None:
-                    stmt = stmt.where(self.table.c.agent_id == agent_id)
+                if workflow_id is not None:
+                    stmt = stmt.where(self.table.c.workflow_id == workflow_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -171,23 +171,25 @@ class SqlAgentStorage(AgentStorage):
             self.create()
         return session_ids
 
-    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
-        sessions: List[AgentSession] = []
+    def get_all_sessions(
+        self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
+    ) -> List[WorkflowSession]:
+        sessions: List[WorkflowSession] = []
         try:
             with self.Session() as sess, sess.begin():
                 # get all sessions for this user
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                if agent_id is not None:
-                    stmt = stmt.where(self.table.c.agent_id == agent_id)
+                if workflow_id is not None:
+                    stmt = stmt.where(self.table.c.workflow_id == workflow_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.session_id is not None:
-                        sessions.append(AgentSession.model_validate(row))
+                        sessions.append(WorkflowSession.model_validate(row))
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -195,20 +197,20 @@ class SqlAgentStorage(AgentStorage):
             self.create()
         return sessions
 
-    def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
-        """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
+    def upsert(self, session: WorkflowSession, create_and_retry: bool = True) -> Optional[WorkflowSession]:
+        """Create a new WorkflowSession if it does not exist, otherwise update the existing WorkflowSession."""
 
         try:
             with self.Session() as sess, sess.begin():
                 # Create an insert statement
                 stmt = sqlite.insert(self.table).values(
                     session_id=session.session_id,
-                    agent_id=session.agent_id,
+                    workflow_id=session.workflow_id,
                     user_id=session.user_id,
-                    memory=session.memory,
-                    agent_data=session.agent_data,
+                    workflow_data=session.workflow_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
+                    session_state=session.session_state,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -216,12 +218,12 @@ class SqlAgentStorage(AgentStorage):
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["session_id"],
                     set_=dict(
-                        agent_id=session.agent_id,
+                        workflow_id=session.workflow_id,
                         user_id=session.user_id,
-                        memory=session.memory,
-                        agent_data=session.agent_data,
+                        workflow_data=session.workflow_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
+                        session_state=session.session_state,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )
@@ -265,13 +267,13 @@ class SqlAgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the SqlAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SqlWorkflowStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            SqlAgentStorage: A deep-copied instance of SqlAgentStorage.
+            SqlWorkflowStorage: A deep-copied instance of SqlWorkflowStorage.
         """
         from copy import deepcopy
 

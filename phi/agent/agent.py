@@ -680,6 +680,17 @@ class Agent(BaseModel):
 
         return self.load_session()
 
+    def new_session(self) -> None:
+        """Create a new session"""
+
+        self._agent_session = None
+        if self.model is not None:
+            self.model.clear()
+        if self.memory is not None:
+            self.memory.clear()
+        self.session_id = str(uuid4())
+        self.load_session(force=True)
+
     def get_json_output_prompt(self) -> str:
         """Return the JSON output prompt for the Agent.
 

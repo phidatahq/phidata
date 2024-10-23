@@ -11,6 +11,7 @@ from phi.agent import Agent, RunResponse
 from phi.workflow import Workflow
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.newspaper4k import Newspaper4k
+from phi.storage.workflow.sqlite import SqlWorkflowStorage
 from phi.utils.pprint import pprint_run_response
 from phi.utils.log import logger
 
@@ -25,7 +26,7 @@ class NewsArticles(BaseModel):
     articles: list[NewsArticle]
 
 
-class NewsReporter(Workflow):
+class GenerateNewsReport(Workflow):
     researcher: Agent = Agent(
         name="Researcher",
         tools=[DuckDuckGo()],
@@ -89,7 +90,13 @@ class NewsReporter(Workflow):
         yield from self.writer.run(research.content.model_dump_json(indent=2), stream=True)
 
 
-# Run workflow
-report: Iterator[RunResponse] = NewsReporter(debug_mode=False).run(topic="IBM Hashicorp Acquisition")
-# Print the response
+generate_news_report = GenerateNewsReport(
+    debug_mode=False,
+    storage=SqlWorkflowStorage(
+        table_name="generate_news_report_workflows",
+        db_file="tmp/generate_news_report.db",
+    ),
+)
+
+report: Iterator[RunResponse] = generate_news_report.run(topic="IBM Hashicorp Acquisition")
 pprint_run_response(report, markdown=True, show_time=True)

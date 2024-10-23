@@ -1,6 +1,4 @@
-from typing import List, Dict, Any
-
-from phi.tools.toolkit import Toolkit
+from phi.tools import Toolkit
 
 try:
     import boto3
@@ -15,41 +13,20 @@ class AWSLambdaTool(Toolkit):
     def __init__(self, region_name: str = "us-east-1"):
         super().__init__()
         self.client = boto3.client("lambda", region_name=region_name)
+        self.register(self.list_functions)
+        self.register(self.invoke_function)
 
-    def get_tools(self) -> List[Dict[str, Any]]:
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_functions",
-                    "description": "List all Lambda functions in the AWS account",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "invoke_function",
-                    "description": "Invoke a Lambda function",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"function_name": {"type": "string"}, "payload": {"type": "string"}},
-                        "required": ["function_name"],
-                    },
-                },
-            },
-        ]
-
-    def list_functions(self) -> Dict[str, Any]:
+    def list_functions(self) -> str:
         try:
             response = self.client.list_functions()
-            return {"functions": [func["FunctionName"] for func in response["Functions"]]}
+            functions = [func["FunctionName"] for func in response["Functions"]]
+            return f"Available Lambda functions: {', '.join(functions)}"
         except Exception as e:
-            return {"error": str(e)}
+            return f"Error listing functions: {str(e)}"
 
-    def invoke_function(self, function_name: str, payload: str = "{}") -> Dict[str, Any]:
+    def invoke_function(self, function_name: str, payload: str = "{}") -> str:
         try:
             response = self.client.invoke(FunctionName=function_name, Payload=payload)
-            return {"status_code": response["StatusCode"], "payload": response["Payload"].read().decode("utf-8")}
+            return f"Function invoked successfully. Status code: {response['StatusCode']}, Payload: {response['Payload'].read().decode('utf-8')}"
         except Exception as e:
-            return {"error": str(e)}
+            return f"Error invoking function: {str(e)}"

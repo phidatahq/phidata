@@ -3,14 +3,11 @@
 from phi.agent import Agent
 from phi.tools.aws_lambda import AWSLambdaTool
 
-# Initialize the AWSLambdaTool
-aws_lambda_tool = AWSLambdaTool(region_name="us-east-1")
 
 # Create an Agent with the AWSLambdaTool
 agent = Agent(
+    tools=[AWSLambdaTool(region_name="us-east-1")],
     name="AWS Lambda Agent",
-    role="Interact with AWS Lambda functions",
-    tools=[aws_lambda_tool],
     show_tool_calls=True,
 )
 

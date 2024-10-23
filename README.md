@@ -292,7 +292,8 @@ The Agent Playground includes a few demo agents that you can test with. If you h
 
 Phidata comes with built-in monitoring. You can set `monitoring=True` on any agent to track sessions or set `PHI_MONITORING=true` in your environment.
 
-> Note: Run `phi auth` first to authenticate your local account.
+> [!NOTE]
+> Run `phi auth` to authenticate your local account or export the `PHI_API_KEY`
 
 ```python
 from phi.agent import Agent
@@ -307,7 +308,7 @@ Run the agent and monitor the results on [phidata.app/sessions](https://www.phid
 # You can also set the environment variable
 # export PHI_MONITORING=true
 
-python agent_monitor.py
+python monitoring.py
 ```
 
 View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
@@ -365,11 +366,9 @@ python_agent = PythonAgent(
 python_agent.print_response("What is the average rating of movies?")
 ```
 
-- Install pandas and run the `python_agent.py`
+- Run the `python_agent.py`
 
 ```shell
-pip install pandas
-
 python python_agent.py
 ```
 
@@ -506,6 +505,6 @@ Phidata logs which model an agent used so we can prioritize features for the mos
 
 You can disable this by setting `PHI_TELEMETRY=false` in your environment.
 
-<p align="right">
+<p align="left">
   <a href="#top">⬆️ Back to Top</a>
 </p>

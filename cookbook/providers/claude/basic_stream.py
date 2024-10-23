@@ -2,7 +2,7 @@ from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.anthropic import Claude
 
-agent = Agent(model=Claude(id="claude-3-5-sonnet-20240620"), markdown=True)
+agent = Agent(model=Claude(id="claude-3-5-sonnet-20241022"), markdown=True)
 
 # Get the response in a variable
 # run_response: Iterator[RunResponse] = agent.run("Share a 2 sentence horror story", stream=True)

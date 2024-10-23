@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=Claude(id="claude-3-5-sonnet-20240620"),
+    model=Claude(id="claude-3-5-sonnet-20241022"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

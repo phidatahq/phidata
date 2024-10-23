@@ -5,7 +5,7 @@ from phi.model.anthropic import Claude
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Claude(id="claude-3-5-sonnet-20240620"),
+    model=Claude(id="claude-3-5-sonnet-20241022"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],
     show_tool_calls=True,
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",

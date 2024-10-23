@@ -574,36 +574,36 @@ class Agent(BaseModel):
         if session.agent_data is not None:
             # If agent_data is set in the agent, merge it with the database agent_data.
             # The agent's agent_data takes precedence
-            if self.agent_data is not None and session.agent_data is not None:
+            if self.agent_data is not None:
                 # Updates agent_session.agent_data with self.agent_data
                 merge_dictionaries(session.agent_data, self.agent_data)
                 self.agent_data = session.agent_data
             # If agent_data is not set in the agent, use the database agent_data
-            if self.agent_data is None and session.agent_data is not None:
+            if self.agent_data is None:
                 self.agent_data = session.agent_data
 
         # Read session_data from the database
         if session.session_data is not None:
             # If session_data is set in the agent, merge it with the database session_data.
             # The agent's session_data takes precedence
-            if self.session_data is not None and session.session_data is not None:
+            if self.session_data is not None:
                 # Updates agent_session.session_data with self.session_data
                 merge_dictionaries(session.session_data, self.session_data)
                 self.session_data = session.session_data
             # If session_data is not set in the agent, use the database session_data
-            if self.session_data is None and session.session_data is not None:
+            if self.session_data is None:
                 self.session_data = session.session_data
 
         # Read user_data from the database
         if session.user_data is not None:
             # If user_data is set in the agent, merge it with the database user_data.
             # The agent user_data takes precedence
-            if self.user_data is not None and session.user_data is not None:
+            if self.user_data is not None:
                 # Updates agent_session.user_data with self.user_data
                 merge_dictionaries(session.user_data, self.user_data)
                 self.user_data = session.user_data
             # If user_data is not set in the agent, use the database user_data
-            if self.user_data is None and session.user_data is not None:
+            if self.user_data is None:
                 self.user_data = session.user_data
         logger.debug(f"-*- AgentSession loaded: {session.session_id}")
 

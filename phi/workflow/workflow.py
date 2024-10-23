@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 from phi.run.response import RunResponse
 from phi.workflow.session import WorkflowSession
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
+from phi.utils.merge_dict import merge_dictionaries
 
 
 class Workflow(BaseModel):
@@ -37,7 +38,7 @@ class Workflow(BaseModel):
     # -*- Workflow Storage
     storage: Optional[Any] = None
     # WorkflowSession from the database: DO NOT SET MANUALLY
-    _workflow_session: Optional[Any] = None
+    _workflow_session: Optional[WorkflowSession] = None
 
     # debug_mode=True enables debug logs
     debug_mode: bool = Field(False, validate_default=True)
@@ -102,6 +103,7 @@ class Workflow(BaseModel):
             workflow_data=self.get_workflow_data(),
             user_data=self.user_data,
             session_data=self.get_session_data(),
+            session_state=self.session_state,
         )
 
     def from_workflow_session(self, session: WorkflowSession):
@@ -127,38 +129,66 @@ class Workflow(BaseModel):
         if session.workflow_data is not None:
             # If workflow_data is set in the workflow, merge it with the database workflow_data.
             # The workflow's workflow_data takes precedence
-            if self.workflow_data is not None and session.workflow_data is not None:
+            if self.workflow_data is not None:
                 # Updates workflow_session.workflow_data with self.workflow_data
                 merge_dictionaries(session.workflow_data, self.workflow_data)
                 self.workflow_data = session.workflow_data
             # If workflow_data is not set in the workflow, use the database workflow_data
-            if self.workflow_data is None and session.workflow_data is not None:
+            if self.workflow_data is None:
                 self.workflow_data = session.workflow_data
 
         # Read session_data from the database
         if session.session_data is not None:
             # If session_data is set in the workflow, merge it with the database session_data.
             # The workflow's session_data takes precedence
-            if self.session_data is not None and session.session_data is not None:
+            if self.session_data is not None:
                 # Updates workflow_session.session_data with self.session_data
                 merge_dictionaries(session.session_data, self.session_data)
                 self.session_data = session.session_data
             # If session_data is not set in the workflow, use the database session_data
-            if self.session_data is None and session.session_data is not None:
+            if self.session_data is None:
                 self.session_data = session.session_data
 
         # Read user_data from the database
         if session.user_data is not None:
             # If user_data is set in the workflow, merge it with the database user_data.
-            # The agent user_data takes precedence
-            if self.user_data is not None and session.user_data is not None:
-                # Updates agent_session.user_data with self.user_data
+            # The workflow's user_data takes precedence
+            if self.user_data is not None:
+                # Updates workflow_session.user_data with self.user_data
                 merge_dictionaries(session.user_data, self.user_data)
                 self.user_data = session.user_data
-            # If user_data is not set in the agent, use the database user_data
-            if self.user_data is None and session.user_data is not None:
+            # If user_data is not set in the workflow, use the database user_data
+            if self.user_data is None:
                 self.user_data = session.user_data
-        logger.debug(f"-*- AgentSession loaded: {session.session_id}")
+
+        # Read session_state from the database
+        if session.session_state is not None:
+            # If session_state is set in the workflow, merge it with the database session_state.
+            # The workflow's session_state takes precedence
+            if self.session_state is not None:
+                # Updates workflow_session.session_state with self.session_state
+                merge_dictionaries(session.session_state, self.session_state)
+                self.session_state = session.session_state
+            # If session_state is not set in the workflow, use the database session_state
+            if self.session_state is None:
+                self.session_state = session.session_state
+        logger.debug(f"-*- WorkflowSession loaded: {session.session_id}")
+
+    def read_from_storage(self) -> Optional[WorkflowSession]:
+        """Load the WorkflowSession from storage"""
+
+        if self.storage is not None and self.session_id is not None:
+            self._workflow_session = self.storage.read(session_id=self.session_id)
+            if self._workflow_session is not None:
+                self.from_workflow_session(session=self._workflow_session)
+        return self._workflow_session
+
+    def write_to_storage(self) -> Optional[WorkflowSession]:
+        """Save the WorkflowSession to storage"""
+
+        if self.storage is not None:
+            self._workflow_session = self.storage.upsert(session=self.get_workflow_session())
+        return self._workflow_session
 
     def run(self, *args: Any, **kwargs: Any):
         logger.error(f"{self.__class__.__name__}.run() method not implemented.")

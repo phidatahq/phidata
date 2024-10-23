@@ -217,11 +217,12 @@ python rag_agent.py
 
 ## Agent UI
 
-Phidata gives you a UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+Phidata provides a beautiful Agent UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+
+> [!NOTE]
+> Phidata does not store any data, all agent data is stored locally in a sqlite database.
 
 ![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
-
-> Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
 
 ```python
 from phi.agent import Agent
@@ -233,9 +234,9 @@ from phi.playground import Playground, serve_playground_app
 
 web_agent = Agent(
     name="Web Agent",
-    role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
+    instructions=["Always include sources"],
     storage=SqlAgentStorage(table_name="web_agent", db_file="agents.db"),
     add_history_to_messages=True,
     markdown=True,
@@ -243,10 +244,9 @@ web_agent = Agent(
 
 finance_agent = Agent(
     name="Finance Agent",
-    role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Always use tables to display data"],
+    instructions=["Use tables to display data"],
     storage=SqlAgentStorage(table_name="finance_agent", db_file="agents.db"),
     add_history_to_messages=True,
     markdown=True,
@@ -264,6 +264,9 @@ Authenticate with phidata:
 phi auth
 ```
 
+> [!NOTE]
+> If `phi auth` fails, you can set the `PHI_API_KEY` environment variable by copying it from [phidata.app](https://www.phidata.app)
+
 Install dependencies and run the Agent Playground:
 
 ```
@@ -272,8 +275,8 @@ pip install 'fastapi[standard]' sqlalchemy
 python playground.py
 ```
 
-- Open your link provided or navigate to `http://phidata.app/playground`
-- Select your endpoint, agent and chat with your agents!
+- Open the link provided or navigate to `http://phidata.app/playground`
+- Select the `localhost:7777` endpoint and start chatting with your agents!
 
 <video
   src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"

@@ -5,6 +5,7 @@ from typing import Any, Optional, Callable, Dict
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
 from phi.run.response import RunResponse
+from phi.workflow.session import WorkflowSession
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 
 
@@ -103,90 +104,52 @@ class Workflow(BaseModel):
             session_data=self.get_session_data(),
         )
 
-    def from_agent_session(self, session: AgentSession):
-        """Load the existing Agent from an AgentSession (from the database)"""
+    def from_workflow_session(self, session: WorkflowSession):
+        """Load the existing Workflow from a WorkflowSession (from the database)"""
 
-        # Get the session_id, agent_id and user_id from the AgentSession
+        # Get the session_id, workflow_id and user_id from the WorkflowSession
         if self.session_id is None and session.session_id is not None:
             self.session_id = session.session_id
-        if self.agent_id is None and session.agent_id is not None:
-            self.agent_id = session.agent_id
+        if self.workflow_id is None and session.workflow_id is not None:
+            self.workflow_id = session.workflow_id
         if self.user_id is None and session.user_id is not None:
             self.user_id = session.user_id
 
-        # Get the name from AgentSession and update the current name if not set
-        if self.name is None and session.agent_data is not None and "name" in session.agent_data:
-            self.name = session.agent_data.get("name")
+        # Get the name from WorkflowSession and update the current name if not set
+        if self.name is None and session.workflow_data is not None and "name" in session.workflow_data:
+            self.name = session.workflow_data.get("name")
 
-        # Get the session_data from AgentSession and update the current Agent if not set
+        # Get the session_data from WorkflowSession and update the current Workflow if not set
         if self.session_name is None and session.session_data is not None and "session_name" in session.session_data:
             self.session_name = session.session_data.get("session_name")
 
-        # Update model data from the AgentSession
-        if session.agent_data is not None and "model" in session.agent_data:
-            model_data = session.agent_data.get("model")
-            # Update model metrics from the AgentSession
-            if model_data is not None and isinstance(model_data, dict):
-                model_metrics_from_db = model_data.get("metrics")
-                if model_metrics_from_db is not None and isinstance(model_metrics_from_db, dict) and self.model:
-                    try:
-                        self.model.metrics = model_metrics_from_db
-                    except Exception as e:
-                        logger.warning(f"Failed to load model from AgentSession: {e}")
-
-        # Update memory from the AgentSession
-        if session.memory is not None:
-            try:
-                if "chats" in session.memory:
-                    try:
-                        self.memory.chats = [AgentChat(**m) for m in session.memory["chats"]]
-                    except Exception as e:
-                        logger.warning(f"Failed to load chats from memory: {e}")
-                if "messages" in session.memory:
-                    try:
-                        self.memory.messages = [Message(**m) for m in session.memory["messages"]]
-                    except Exception as e:
-                        logger.warning(f"Failed to load messages from memory: {e}")
-                if "summary" in session.memory:
-                    try:
-                        self.memory.summary = SessionSummary(**session.memory["summary"])
-                    except Exception as e:
-                        logger.warning(f"Failed to load session summary from memory: {e}")
-                if "memories" in session.memory:
-                    try:
-                        self.memory.memories = [Memory(**m) for m in session.memory["memories"]]
-                    except Exception as e:
-                        logger.warning(f"Failed to load user memories: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to load Agent memory: {e}")
-
-        # Read agent_data from the database
-        if session.agent_data is not None:
-            # If agent_data is set in the agent, merge it with the database agent_data.
-            # The agent's agent_data takes precedence
-            if self.agent_data is not None and session.agent_data is not None:
-                # Updates agent_session.agent_data with self.agent_data
-                merge_dictionaries(session.agent_data, self.agent_data)
-                self.agent_data = session.agent_data
-            # If agent_data is not set in the agent, use the database agent_data
-            if self.agent_data is None and session.agent_data is not None:
-                self.agent_data = session.agent_data
+        # Read workflow_data from the database
+        if session.workflow_data is not None:
+            # If workflow_data is set in the workflow, merge it with the database workflow_data.
+            # The workflow's workflow_data takes precedence
+            if self.workflow_data is not None and session.workflow_data is not None:
+                # Updates workflow_session.workflow_data with self.workflow_data
+                merge_dictionaries(session.workflow_data, self.workflow_data)
+                self.workflow_data = session.workflow_data
+            # If workflow_data is not set in the workflow, use the database workflow_data
+            if self.workflow_data is None and session.workflow_data is not None:
+                self.workflow_data = session.workflow_data
 
         # Read session_data from the database
         if session.session_data is not None:
-            # If session_data is set in the agent, merge it with the database session_data.
-            # The agent's session_data takes precedence
+            # If session_data is set in the workflow, merge it with the database session_data.
+            # The workflow's session_data takes precedence
             if self.session_data is not None and session.session_data is not None:
-                # Updates agent_session.session_data with self.session_data
+                # Updates workflow_session.session_data with self.session_data
                 merge_dictionaries(session.session_data, self.session_data)
                 self.session_data = session.session_data
-            # If session_data is not set in the agent, use the database session_data
+            # If session_data is not set in the workflow, use the database session_data
             if self.session_data is None and session.session_data is not None:
                 self.session_data = session.session_data
 
         # Read user_data from the database
         if session.user_data is not None:
-            # If user_data is set in the agent, merge it with the database user_data.
+            # If user_data is set in the workflow, merge it with the database user_data.
             # The agent user_data takes precedence
             if self.user_data is not None and session.user_data is not None:
                 # Updates agent_session.user_data with self.user_data

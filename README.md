@@ -3,7 +3,7 @@
 </h1>
 
 <h3 align="center">
-Build AI Agents with memory, knowledge, tools and reasoning
+Build Agents with memory, knowledge, tools and reasoning
 </h3>
 
 <img
@@ -16,9 +16,11 @@ Build AI Agents with memory, knowledge, tools and reasoning
 
 **Phidata is a framework for building agentic systems**, use phidata to:
 
-- **Build intelligent Agents with memory, knowledge, tools and reasoning.**
-- **Run those agents as a software application (with a database, vectordb and api).**
-- **Monitor, evaluate and optimize your agentic system.**
+- **Build intelligent Agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
+- **Build teams of Agents that can work together.** [example](#team-of-agents)
+- **Chat with your Agents using a beautiful Agent UI.** [example](#agent-ui)
+- **Monitor, evaluate and optimize your Agents.** [example](#monitoring)
+- **Run your Agents as a software application (with a database, vectordb and api).**
 
 ## Install
 
@@ -39,11 +41,11 @@ from phi.tools.duckduckgo import DuckDuckGo
 
 web_agent = Agent(
     name="Web Agent",
-    role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
-    markdown=True,
+    instructions=["Always include sources"],
     show_tool_calls=True,
+    markdown=True,
 )
 web_agent.print_response("Whats happening in France?", stream=True)
 ```
@@ -69,14 +71,13 @@ from phi.tools.yfinance import YFinanceTools
 
 finance_agent = Agent(
     name="Finance Agent",
-    role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Always use tables to display data"],
-    markdown=True,
+    instructions=["Use tables to display data"],
     show_tool_calls=True,
+    markdown=True,
 )
-finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
+finance_agent.print_response("Summarize analyst recommendations for NVDA", stream=True)
 ```
 
 Install libraries and run the Agent:
@@ -102,26 +103,29 @@ web_agent = Agent(
     role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
-    markdown=True,
+    instructions=["Always include sources"],
     show_tool_calls=True,
+    markdown=True,
 )
 
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Always use tables to display data"],
-    markdown=True,
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
+    instructions=["Use tables to display data"],
     show_tool_calls=True,
+    markdown=True,
 )
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
+    instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
 )
-agent_team.print_response("Research the web for NVDA and share analyst recommendations", stream=True)
+
+agent_team.print_response("Summarize analyst recommendations and share the latest news for NVDA", stream=True)
 ```
 
 Run the Agent team:
@@ -132,26 +136,20 @@ python agent_team.py
 
 ## Reasoning Agents
 
-Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Let's give the reasoning agent a simple task that gpt-4o fails at. Create a file `reasoning_agent.py`
+Reasoning is an experimental feature that helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
 
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from phi.cli.console import console
 
-regular_agent = Agent(model=OpenAIChat(id="gpt-4o"), markdown=True)
-reasoning_agent = Agent(
-    model=OpenAIChat(id="gpt-4o-2024-08-06"),
-    reasoning=True,
-    markdown=True,
-    structured_outputs=True,
+task = (
+    "Three missionaries and three cannibals need to cross a river. "
+    "They have a boat that can carry up to two people at a time. "
+    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
+    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
 )
 
-task = "How many 'r' are in the word 'supercalifragilisticexpialidocious'?"
-
-console.rule("[bold green]Regular Agent[/bold green]")
-regular_agent.print_response(task, stream=True)
-console.rule("[bold yellow]Reasoning Agent[/bold yellow]")
+reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
 ```
 
@@ -160,6 +158,14 @@ Run the Reasoning Agent:
 ```shell
 python reasoning_agent.py
 ```
+
+> [!WARNING]
+> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
+>
+> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
+
+> [!TIP]
+> If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
 
 ## RAG Agent
 
@@ -170,18 +176,23 @@ This saves tokens and improves response quality. Create a file `rag_agent.py`
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
+from phi.embedder.openai import OpenAIEmbedder
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.lancedb import LanceDb, SearchType
 
-db_uri = "tmp/lancedb"
 # Create a knowledge base from a PDF
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     # Use LanceDB as the vector database
-    vector_db=LanceDb(table_name="recipes", uri=db_uri, search_type=SearchType.vector),
+    vector_db=LanceDb(
+        table_name="recipes",
+        uri="tmp/lancedb",
+        search_type=SearchType.vector,
+        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+    ),
 )
-# Load the knowledge base: Comment out after first run
-knowledge_base.load(upsert=True)
+# Comment out after first run as the knowledge base is loaded
+knowledge_base.load()
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
@@ -190,24 +201,25 @@ agent = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-agent.print_response("How do I make chicken and galangal in coconut milk soup")
+agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
 ```
 
 Install libraries and run the Agent:
 
 ```shell
-pip install lancedb tantivy pypdf sqlalchemy pgvector 'psycopg[binary]'
+pip install lancedb tantivy pypdf sqlalchemy
 
 python rag_agent.py
 ```
 
 ## Agent UI
 
-Phidata gives you a UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 
 ![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
 
-> Note: Phidata does not store any data, all agent data is stored locally in a sqlite database.
+> [!NOTE]
+> Phidata does not store any data, all agent data is stored locally in a sqlite database.
 
 ```python
 from phi.agent import Agent
@@ -219,9 +231,9 @@ from phi.playground import Playground, serve_playground_app
 
 web_agent = Agent(
     name="Web Agent",
-    role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
+    instructions=["Always include sources"],
     storage=SqlAgentStorage(table_name="web_agent", db_file="agents.db"),
     add_history_to_messages=True,
     markdown=True,
@@ -229,10 +241,9 @@ web_agent = Agent(
 
 finance_agent = Agent(
     name="Finance Agent",
-    role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Always use tables to display data"],
+    instructions=["Use tables to display data"],
     storage=SqlAgentStorage(table_name="finance_agent", db_file="agents.db"),
     add_history_to_messages=True,
     markdown=True,
@@ -250,6 +261,9 @@ Authenticate with phidata:
 phi auth
 ```
 
+> [!NOTE]
+> If `phi auth` fails, you can set the `PHI_API_KEY` environment variable by copying it from [phidata.app](https://www.phidata.app)
+
 Install dependencies and run the Agent Playground:
 
 ```
@@ -258,8 +272,8 @@ pip install 'fastapi[standard]' sqlalchemy
 python playground.py
 ```
 
-- Open your link provided or navigate to `http://phidata.app/playground`
-- Select your endpoint, agent and chat with your agents!
+- Open the link provided or navigate to `http://phidata.app/playground`
+- Select the `localhost:7777` endpoint and start chatting with your agents!
 
 <video
   src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
@@ -278,7 +292,8 @@ The Agent Playground includes a few demo agents that you can test with. If you h
 
 Phidata comes with built-in monitoring. You can set `monitoring=True` on any agent to track sessions or set `PHI_MONITORING=true` in your environment.
 
-> Note: Run `phi auth` first to authenticate your local account.
+> [!NOTE]
+> Run `phi auth` to authenticate your local account or export the `PHI_API_KEY`
 
 ```python
 from phi.agent import Agent
@@ -293,7 +308,7 @@ Run the agent and monitor the results on [phidata.app/sessions](https://www.phid
 # You can also set the environment variable
 # export PHI_MONITORING=true
 
-python agent_monitor.py
+python monitoring.py
 ```
 
 View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
@@ -351,11 +366,9 @@ python_agent = PythonAgent(
 python_agent.print_response("What is the average rating of movies?")
 ```
 
-- Install pandas and run the `python_agent.py`
+- Run the `python_agent.py`
 
 ```shell
-pip install pandas
-
 python python_agent.py
 ```
 
@@ -417,18 +430,17 @@ python data_analyst.py
 
 <summary>Show code</summary>
 
-One of our favorite LLM features is generating structured data (i.e. a pydantic model) from text. Use this feature to extract features, generate movie scripts, produce fake data etc.
+One of our favorite LLM features is generating structured data (i.e. a pydantic model) from text. Use this feature to extract features, generate data etc.
 
-Let's create a Movie Agent to write a `MovieScript` for us.
-
-- Create a file `movie_agent.py`
+Let's create a Movie Agent to write a `MovieScript` for us, create a file `structured_output.py`
 
 ```python
 from typing import List
+from pydantic import BaseModel, Field
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from pydantic import BaseModel, Field
 
+# Define a Pydantic model to enforce the structure of the output
 class MovieScript(BaseModel):
     setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
     ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
@@ -443,7 +455,6 @@ json_mode_agent = Agent(
     description="You write movie scripts.",
     response_model=MovieScript,
 )
-
 # Agent that uses structured outputs
 structured_output_agent = Agent(
     model=OpenAIChat(id="gpt-4o-2024-08-06"),
@@ -456,10 +467,10 @@ json_mode_agent.print_response("New York")
 structured_output_agent.print_response("New York")
 ```
 
-- Run the `movie_agent.py` file
+- Run the `structured_output.py` file
 
 ```shell
-python movie_agent.py
+python structured_output.py
 ```
 
 - The output is an object of the `MovieScript` class, here's how it looks:
@@ -494,7 +505,6 @@ Phidata logs which model an agent used so we can prioritize features for the mos
 
 You can disable this by setting `PHI_TELEMETRY=false` in your environment.
 
-
-<p align="right">
+<p align="left">
   <a href="#top">⬆️ Back to Top</a>
 </p>

@@ -6,10 +6,10 @@ from phi.tools.duckduckgo import DuckDuckGo
 
 web_agent = Agent(
     name="Web Agent",
-    role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
-    markdown=True,
+    instructions=["Always include sources"],
     show_tool_calls=True,
+    markdown=True,
 )
 web_agent.print_response("Whats happening in France?", stream=True)

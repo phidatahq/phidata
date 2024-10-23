@@ -1,8 +1,8 @@
 """
-This recipe shows how to use personalized memories and summaries in an agent.
+This recipe shows how an agent stores personalized memories and summaries in a sqlite database.
 Steps:
 1. Run: `pip install openai sqlalchemy phidata` to install dependencies
-2. Run: `python cookbook/agents/memories_and_summaries_sqlite.py` to run the agent
+2. Run: `python cookbook/memory/02_agent_with_memories_and_summaries.py` to run the agent
 """
 
 import json
@@ -16,9 +16,6 @@ from phi.model.openai import OpenAIChat
 from phi.memory.db.sqlite import SqliteMemoryDb
 from phi.storage.agent.sqlite import SqlAgentStorage
 
-agent_memory_file: str = "tmp/agent_memory.db"
-agent_storage_file: str = "tmp/agent_storage.db"
-
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # The memories are personalized for this user
@@ -27,7 +24,7 @@ agent = Agent(
     memory=AgentMemory(
         db=SqliteMemoryDb(
             table_name="agent_memory",
-            db_file=agent_memory_file,
+            db_file="tmp/agent_memory.db",
         ),
         # Create and store personalized memories for this user
         create_user_memories=True,
@@ -38,11 +35,14 @@ agent = Agent(
         # Update session summaries after each run
         update_session_summary_after_run=True,
     ),
-    # Store agent sessions in a database
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file=agent_storage_file),
+    # Store agent sessions in a database, that persists between runs
+    storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
+    # add_history_to_messages=true adds the chat history to the messages sent to the Model.
+    add_history_to_messages=True,
+    # Number of historical responses to add to the messages.
+    num_history_responses=3,
+    # Description creates a system prompt for the agent
     description="You are a helpful assistant that always responds in a polite, upbeat and positive manner.",
-    # Show debug logs to see the memory being created
-    # debug_mode=True,
 )
 
 console = Console()
@@ -56,27 +56,27 @@ def print_agent_memory(agent):
     # -*- Print history
     console.print(
         render_panel(
-            "Chat History",
+            f"Chat History for session_id: {agent.session_id}",
             json.dumps([m.model_dump(include={"role", "content"}) for m in agent.memory.messages], indent=4),
         )
     )
     # -*- Print memories
     console.print(
         render_panel(
-            "Memories", json.dumps([m.model_dump(include={"memory", "input"}) for m in agent.memory.memories], indent=4)
+            f"Memories for user_id: {agent.user_id}",
+            json.dumps([m.model_dump(include={"memory", "input"}) for m in agent.memory.memories], indent=4),
         )
     )
     # -*- Print summary
-    console.print(render_panel("Summary", json.dumps(agent.memory.summary.model_dump(), indent=4)))
+    console.print(
+        render_panel(
+            f"Summary for session_id: {agent.session_id}", json.dumps(agent.memory.summary.model_dump(), indent=4)
+        )
+    )
 
 
 # -*- Share personal information
-agent.print_response("My name is john billings?", stream=True)
-# -*- Print agent memory
-print_agent_memory(agent)
-
-# -*- Share personal information
-agent.print_response("I live in nyc?", stream=True)
+agent.print_response("My name is john billings and I live in nyc.", stream=True)
 # -*- Print agent memory
 print_agent_memory(agent)
 

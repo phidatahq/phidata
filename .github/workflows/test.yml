@@ -37,9 +37,9 @@ jobs:
       - name: Ruff check
         run: |
           ruff check .
-#      - name: Mypy
-#        run: |
-#          mypy .
+      - name: Mypy
+        run: |
+          mypy .
 #      - name: Test
 #        run: |
 #          pytest

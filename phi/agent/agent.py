@@ -647,8 +647,10 @@ class Agent(BaseModel):
         """
 
         # If an agent_session is already loaded, return the session_id from the agent_session
+        # if session_id matches the session_id from the agent_session
         if self._agent_session is not None and not force:
-            return self._agent_session.session_id
+            if self.session_id is not None and self._agent_session.session_id == self.session_id:
+                return self._agent_session.session_id
 
         # Load an existing session or create a new session
         if self.storage is not None:

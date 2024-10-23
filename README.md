@@ -138,13 +138,6 @@ python agent_team.py
 
 Reasoning is an experimental feature that helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
 
-> [!WARNING]
-> Reasoning is an experimental feature and will break ~20% of the time. It is not a replacement for o1.
->
-> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for the first version.
->
-> For example: It will not be able to count ‘r’s in ‘strawberry’ but will count them in ‘supercalifragilisticexpialidocious’.
-
 ```python
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
@@ -166,8 +159,12 @@ Run the Reasoning Agent:
 python reasoning_agent.py
 ```
 
+> [!WARNING]
+> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
+>
+> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’ but will count them in ‘supercalifragilisticexpialidocious’.
+
 > [!TIP]
-> The `show_full_reasoning` flag is useful to see the agent's thought process.
 > If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
 
 ## RAG Agent
@@ -217,12 +214,12 @@ python rag_agent.py
 
 ## Agent UI
 
-Phidata provides a beautiful Agent UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+
+![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
 
 > [!NOTE]
 > Phidata does not store any data, all agent data is stored locally in a sqlite database.
-
-![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
 
 ```python
 from phi.agent import Agent

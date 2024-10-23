@@ -162,7 +162,7 @@ python reasoning_agent.py
 > [!WARNING]
 > Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
 >
-> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’ but will count them in ‘supercalifragilisticexpialidocious’.
+> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
 
 > [!TIP]
 > If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.

@@ -1,12 +1,12 @@
 from os import getenv
 from uuid import uuid4
-from typing import Any, Optional, Callable, Dict
+from typing import Any, Optional, Callable, Dict, Iterable
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
 from phi.run.response import RunResponse
 from phi.workflow.session import WorkflowSession
-from phi.storage.workflow.sqlite import WorkflowStorage
+from phi.storage.workflow import WorkflowStorage
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.merge_dict import merge_dictionaries
 
@@ -53,8 +53,6 @@ class Workflow(BaseModel):
     # -*- Workflow run details
     # Run ID: do not set manually
     run_id: Optional[str] = None
-    # Response from the Workflow run: do not set manually
-    run_response: RunResponse = Field(default_factory=RunResponse)
 
     # The run function provided by the subclass
     _subclass_run: Callable = PrivateAttr()
@@ -229,15 +227,31 @@ class Workflow(BaseModel):
 
     def run_workflow(self, *args: Any, **kwargs: Any):
         self.run_id = str(uuid4())
-        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, workflow_id=self.workflow_id)
         self.read_from_storage()
 
         logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
         result = self._subclass_run(*args, **kwargs)
 
-        self.write_to_storage()
-        logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
-        return result
+        # Handle both Iterator[RunResponse] and RunResponse
+        if isinstance(result, Iterable) and not isinstance(result, (str, bytes)):
+            # It's an iterator, add the workflow_id to each RunResponse and yield from it
+            def result_generator():
+                for item in result:
+                    if isinstance(item, RunResponse):
+                        item.workflow_id = self.workflow_id
+                    else:
+                        logger.warning(f"Workflow.run() should only yield RunResponse objects, got: {type(item)}")
+                    yield item
+                logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
+                self.write_to_storage()
+            return result_generator()
+        else:
+            # It's a single RunResponse, update the workflow_id and write to storage
+            if isinstance(result, RunResponse):
+                result.workflow_id = self.workflow_id
+            self.write_to_storage()
+            logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
+            return result
 
     def __init__(self, **data):
         super().__init__(**data)

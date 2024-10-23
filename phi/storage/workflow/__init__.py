@@ -1,1 +1,1 @@
-from phi.storage.agent.base import AgentStorage
+from phi.storage.workflow.base import WorkflowStorage

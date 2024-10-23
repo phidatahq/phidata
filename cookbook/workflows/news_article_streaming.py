@@ -27,74 +27,100 @@ class NewsArticles(BaseModel):
 
 
 class GenerateNewsReport(Workflow):
-    researcher: Agent = Agent(
-        name="Researcher",
-        tools=[DuckDuckGo()],
-        description="Given a topic, search for 5 articles and return the 3 most relevant articles.",
-        response_model=NewsArticles,
+    agent: Agent = Agent(
+        name="Agent",
+        # tools=[DuckDuckGo()],
+        description="Repeat the user's message back to them.",
     )
 
-    writer: Agent = Agent(
-        name="Writer",
-        tools=[Newspaper4k()],
-        description="You are a Senior NYT Editor and your task is to write a NYT cover story due tomorrow.",
-        instructions=[
-            "You will be provided with news articles and their links.",
-            "Carefully read each article and think about the contents",
-            "Then generate a final New York Times worthy article in the <article_format> provided below.",
-            "Break the article into sections and provide key takeaways at the end.",
-            "Make sure the title is catchy and engaging.",
-            "Give the section relevant titles and provide details/facts/processes in each section."
-            "Ignore articles that you cannot read or understand.",
-            "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
-        ],
-        expected_output=dedent("""\
-        An engaging, informative, and well-structured article in the following format:
-        <article_format>
-        ## Engaging Article Title
+    # researcher: Agent = Agent(
+    #     name="Researcher",
+    #     tools=[DuckDuckGo()],
+    #     description="Given a topic, search for 5 articles and return the 3 most relevant articles.",
+    #     response_model=NewsArticles,
+    # )
 
-        ### Overview
-        {give a brief introduction of the article and why the user should read this report}
-        {make this section engaging and create a hook for the reader}
+    # writer: Agent = Agent(
+    #     name="Writer",
+    #     tools=[Newspaper4k()],
+    #     description="You are a Senior NYT Editor and your task is to write a NYT cover story due tomorrow.",
+    #     instructions=[
+    #         "You will be provided with news articles and their links.",
+    #         "Carefully read each article and think about the contents",
+    #         "Then generate a final New York Times worthy article in the <article_format> provided below.",
+    #         "Break the article into sections and provide key takeaways at the end.",
+    #         "Make sure the title is catchy and engaging.",
+    #         "Give the section relevant titles and provide details/facts/processes in each section."
+    #         "Ignore articles that you cannot read or understand.",
+    #         "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
+    #     ],
+    #     expected_output=dedent("""\
+    #     An engaging, informative, and well-structured article in the following format:
+    #     <article_format>
+    #     ## Engaging Article Title
 
-        ### Section 1
-        {break the article into sections}
-        {provide details/facts/processes in this section}
+    #     ### Overview
+    #     {give a brief introduction of the article and why the user should read this report}
+    #     {make this section engaging and create a hook for the reader}
 
-        ... more sections as necessary...
+    #     ### Section 1
+    #     {break the article into sections}
+    #     {provide details/facts/processes in this section}
 
-        ### Takeaways
-        {provide key takeaways from the article}
+    #     ... more sections as necessary...
 
-        ### References
-        - [Title](url)
-        - [Title](url)
-        - [Title](url)
-        </article_format>
-        """),
-    )
+    #     ### Takeaways
+    #     {provide key takeaways from the article}
 
-    def run(self, topic: str) -> Iterator[RunResponse]:
+    #     ### References
+    #     - [Title](url)
+    #     - [Title](url)
+    #     - [Title](url)
+    #     </article_format>
+    #     """),
+    # )
+
+    # def run(self, topic: str) -> Iterator[RunResponse]:
+    #     logger.info(f"Researching articles on: {topic}")
+    #     research: RunResponse = self.agent.run(topic)
+    #     logger.info(f"Research: {research}")
+    #     # research: RunResponse = self.researcher.run(topic)
+    #     # if research and research.content and isinstance(research.content, NewsArticles) and research.content.articles:
+    #     #     logger.info(f"Researcher identified {len(research.content.articles)} articles.")
+    #     # else:
+    #     #     yield RunResponse(
+    #     #         run_id=self.run_id,
+    #     #         content=f"Sorry could not find any articles on the topic: {topic}",
+    #     #     )
+    #     #     return
+
+    #     logger.info("Reading each article and writing a report.")
+    #     yield research
+    #     # yield from self.writer.run(research.content.model_dump_json(indent=2), stream=True)
+
+    def run(self, topic: str) -> RunResponse:
         logger.info(f"Researching articles on: {topic}")
-        research: RunResponse = self.researcher.run(topic)
-        if research and research.content and isinstance(research.content, NewsArticles) and research.content.articles:
-            logger.info(f"Researcher identified {len(research.content.articles)} articles.")
-        else:
-            yield RunResponse(
-                run_id=self.run_id,
-                content=f"Sorry could not find any articles on the topic: {topic}",
-            )
-            return
+        research: RunResponse = self.agent.run(topic)
+        logger.info(f"Research: {research}")
+        # research: RunResponse = self.researcher.run(topic)
+        # if research and research.content and isinstance(research.content, NewsArticles) and research.content.articles:
+        #     logger.info(f"Researcher identified {len(research.content.articles)} articles.")
+        # else:
+        #     yield RunResponse(
+        #         run_id=self.run_id,
+        #         content=f"Sorry could not find any articles on the topic: {topic}",
+        #     )
+        #     return
 
         logger.info("Reading each article and writing a report.")
-        yield from self.writer.run(research.content.model_dump_json(indent=2), stream=True)
+        return research
+        # yield from self.writer.run(research.content.model_dump_json(indent=2), stream=True)
 
 
 generate_news_report = GenerateNewsReport(
-    debug_mode=False,
     storage=SqlWorkflowStorage(
         table_name="generate_news_report_workflows",
-        db_file="tmp/generate_news_report.db",
+        db_file="tmp/workflows.db",
     ),
 )
 

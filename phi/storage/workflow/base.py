@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from phi.workflow import WorkflowSession
+from phi.workflow.session import WorkflowSession
 
 
 class WorkflowStorage(ABC):
@@ -18,9 +18,7 @@ class WorkflowStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_sessions(
-        self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
-    ) -> List[WorkflowSession]:
+    def get_all_sessions(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[WorkflowSession]:
         raise NotImplementedError
 
     @abstractmethod

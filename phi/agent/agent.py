@@ -574,7 +574,7 @@ class Agent(BaseModel):
                     except Exception as e:
                         logger.warning(f"Failed to load user memories: {e}")
             except Exception as e:
-                logger.warning(f"Failed to load Agent memory: {e}")
+                logger.warning(f"Failed to load AgentMemory: {e}")
 
         # Read agent_data from the database
         if session.agent_data is not None:

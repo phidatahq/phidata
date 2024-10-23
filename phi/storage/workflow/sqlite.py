@@ -85,6 +85,8 @@ class SqlWorkflowStorage(WorkflowStorage):
             Column("workflow_id", String),
             # ID of the user interacting with this workflow
             Column("user_id", String),
+            # Workflow Memory
+            Column("memory", sqlite.JSON),
             # Workflow Metadata
             Column("workflow_data", sqlite.JSON),
             # User Metadata
@@ -207,6 +209,7 @@ class SqlWorkflowStorage(WorkflowStorage):
                     session_id=session.session_id,
                     workflow_id=session.workflow_id,
                     user_id=session.user_id,
+                    memory=session.memory,
                     workflow_data=session.workflow_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
@@ -220,6 +223,7 @@ class SqlWorkflowStorage(WorkflowStorage):
                     set_=dict(
                         workflow_id=session.workflow_id,
                         user_id=session.user_id,
+                        memory=session.memory,
                         workflow_data=session.workflow_data,
                         user_data=session.user_data,
                         session_data=session.session_data,

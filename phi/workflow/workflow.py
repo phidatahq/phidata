@@ -8,10 +8,11 @@ from typing import Any, Optional, Callable, Dict
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
 from phi.run.response import RunResponse
-from phi.workflow.session import WorkflowSession
+from phi.memory.workflow import WorkflowMemory, WorkflowRun
 from phi.storage.workflow import WorkflowStorage
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.merge_dict import merge_dictionaries
+from phi.workflow.session import WorkflowSession
 
 
 class Workflow(BaseModel):
@@ -38,6 +39,9 @@ class Workflow(BaseModel):
     session_data: Optional[Dict[str, Any]] = None
     # Session state stored in the database
     session_state: Dict[str, Any] = Field(default_factory=dict)
+
+    # -*- Workflow Memory
+    memory: WorkflowMemory = WorkflowMemory()
 
     # -*- Workflow Storage
     storage: Optional[WorkflowStorage] = None
@@ -106,6 +110,7 @@ class Workflow(BaseModel):
             session_id=self.session_id,
             workflow_id=self.workflow_id,
             user_id=self.user_id,
+            memory=self.memory.to_dict(),
             workflow_data=self.get_workflow_data(),
             user_data=self.user_data,
             session_data=self.get_session_data(),
@@ -142,6 +147,14 @@ class Workflow(BaseModel):
             # If workflow_data is not set in the workflow, use the database workflow_data
             if self.workflow_data is None:
                 self.workflow_data = session.workflow_data
+
+        # Read memory from the database
+        if session.memory is not None:
+            try:
+                if "runs" in session.memory:
+                    self.memory.runs = [WorkflowRun(**m) for m in session.memory["runs"]]
+            except Exception as e:
+                logger.warning(f"Failed to load WorkflowMemory: {e}")
 
         # Read session_data from the database
         if session.session_data is not None:
@@ -266,6 +279,7 @@ class Workflow(BaseModel):
                         logger.warning(f"Workflow.run() should only yield RunResponse objects, got: {type(item)}")
                     yield item
                 logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
+                self.memory.add_run(WorkflowRun(input=self.run_input, response=self.run_response))
                 self.write_to_storage()
 
             return result_generator()
@@ -275,6 +289,7 @@ class Workflow(BaseModel):
             result.session_id = self.session_id
             result.workflow_id = self.workflow_id
             self.run_response = result
+            self.memory.add_run(WorkflowRun(input=self.run_input, response=self.run_response))
             self.write_to_storage()
             logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
             return result

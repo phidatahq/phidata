@@ -11,6 +11,8 @@ class WorkflowSession(BaseModel):
     workflow_id: Optional[str] = None
     # ID of the user interacting with this workflow
     user_id: Optional[str] = None
+    # Workflow Memory
+    memory: Optional[Dict[str, Any]] = None
     # Workflow Metadata
     workflow_data: Optional[Dict[str, Any]] = None
     # User Metadata

@@ -18,7 +18,9 @@ class WorkflowStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_sessions(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[WorkflowSession]:
+    def get_all_sessions(
+        self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
+    ) -> List[WorkflowSession]:
         raise NotImplementedError
 
     @abstractmethod

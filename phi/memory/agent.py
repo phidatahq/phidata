@@ -14,7 +14,7 @@ from phi.run.response import RunResponse
 from phi.utils.log import logger
 
 
-class AgentChat(BaseModel):
+class AgentRun(BaseModel):
     message: Optional[Message] = None
     messages: Optional[List[Message]] = None
     response: Optional[RunResponse] = None
@@ -29,8 +29,8 @@ class MemoryRetrieval(str, Enum):
 
 
 class AgentMemory(BaseModel):
-    # Chats between the user and agent
-    chats: List[AgentChat] = []
+    # Runs between the user and agent
+    runs: List[AgentRun] = []
     # List of messages sent to the model
     messages: List[Message] = []
     update_system_message_on_change: bool = False
@@ -84,10 +84,10 @@ class AgentMemory(BaseModel):
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict
 
-    def add_chat(self, agent_chat: AgentChat) -> None:
-        """Adds an AgentChat to the chats list."""
-        self.chats.append(agent_chat)
-        logger.debug("Added AgentChat to AgentMemory")
+    def add_run(self, agent_run: AgentRun) -> None:
+        """Adds an AgentRun to the runs list."""
+        self.runs.append(agent_run)
+        logger.debug("Added AgentRun to AgentMemory")
 
     def add_system_message(self, message: Message, system_message_role: str = "system") -> None:
         """Add the system messages to the messages list"""
@@ -126,41 +126,41 @@ class AgentMemory(BaseModel):
         """Returns the messages list as a list of dictionaries."""
         return [message.model_dump(exclude_none=True) for message in self.messages]
 
-    def get_messages_from_last_n_chats(
+    def get_messages_from_last_n_runs(
         self, last_n: Optional[int] = None, skip_role: Optional[str] = None
     ) -> List[Message]:
-        """Returns the messages from the last_n chats
+        """Returns the messages from the last_n runs
 
         Args:
-            last_n: The number of chats to return from the end of the conversation.
+            last_n: The number of runs to return from the end of the conversation.
             skip_role: Skip messages with this role.
 
         Returns:
-            A list of Messages in the last_n chats.
+            A list of Messages in the last_n runs.
         """
         if last_n is None:
-            logger.debug("Getting messages from all previous chats")
+            logger.debug("Getting messages from all previous runs")
             messages_from_all_history = []
-            for prev_chat in self.chats:
-                if prev_chat.response and prev_chat.response.messages:
+            for prev_run in self.runs:
+                if prev_run.response and prev_run.response.messages:
                     if skip_role:
-                        prev_chat_messages = [m for m in prev_chat.response.messages if m.role != skip_role]
+                        prev_run_messages = [m for m in prev_run.response.messages if m.role != skip_role]
                     else:
-                        prev_chat_messages = prev_chat.response.messages
-                    messages_from_all_history.extend(prev_chat_messages)
-            logger.debug(f"Messages from previous chats: {len(messages_from_all_history)}")
+                        prev_run_messages = prev_run.response.messages
+                    messages_from_all_history.extend(prev_run_messages)
+            logger.debug(f"Messages from previous runs: {len(messages_from_all_history)}")
             return messages_from_all_history
 
-        logger.debug(f"Getting messages from last {last_n} chats")
+        logger.debug(f"Getting messages from last {last_n} runs")
         messages_from_last_n_history = []
-        for prev_chat in self.chats[-last_n:]:
-            if prev_chat.response and prev_chat.response.messages:
+        for prev_run in self.runs[-last_n:]:
+            if prev_run.response and prev_run.response.messages:
                 if skip_role:
-                    prev_chat_messages = [m for m in prev_chat.response.messages if m.role != skip_role]
+                    prev_run_messages = [m for m in prev_run.response.messages if m.role != skip_role]
                 else:
-                    prev_chat_messages = prev_chat.response.messages
-                messages_from_last_n_history.extend(prev_chat_messages)
-        logger.debug(f"Messages from last {last_n} chats: {len(messages_from_last_n_history)}")
+                    prev_run_messages = prev_run.response.messages
+                messages_from_last_n_history.extend(prev_run_messages)
+        logger.debug(f"Messages from last {last_n} runs: {len(messages_from_last_n_history)}")
         return messages_from_last_n_history
 
     def get_message_pairs(
@@ -171,27 +171,27 @@ class AgentMemory(BaseModel):
         if assistant_role is None:
             assistant_role = ["assistant", "model", "CHATBOT"]
 
-        chats_as_message_pairs: List[Tuple[Message, Message]] = []
-        for chat in self.chats:
-            if chat.response and chat.response.messages:
-                user_messages_from_chat = None
-                assistant_messages_from_chat = None
+        runs_as_message_pairs: List[Tuple[Message, Message]] = []
+        for run in self.runs:
+            if run.response and run.response.messages:
+                user_messages_from_run = None
+                assistant_messages_from_run = None
 
                 # Start from the beginning to look for the user message
-                for message in chat.response.messages:
+                for message in run.response.messages:
                     if message.role == user_role:
-                        user_messages_from_chat = message
+                        user_messages_from_run = message
                         break
 
                 # Start from the end to look for the assistant response
-                for message in chat.response.messages[::-1]:
+                for message in run.response.messages[::-1]:
                     if message.role in assistant_role:
-                        assistant_messages_from_chat = message
+                        assistant_messages_from_run = message
                         break
 
-                if user_messages_from_chat and assistant_messages_from_chat:
-                    chats_as_message_pairs.append((user_messages_from_chat, assistant_messages_from_chat))
-        return chats_as_message_pairs
+                if user_messages_from_run and assistant_messages_from_run:
+                    runs_as_message_pairs.append((user_messages_from_run, assistant_messages_from_run))
+        return runs_as_message_pairs
 
     def get_tool_calls(self, num_calls: Optional[int] = None) -> List[Dict[str, Any]]:
         """Returns a list of tool calls from the messages"""
@@ -344,7 +344,7 @@ class AgentMemory(BaseModel):
     def clear(self) -> None:
         """Clear the AgentMemory"""
 
-        self.chats = []
+        self.runs = []
         self.messages = []
         self.summary = None
         self.memories = None

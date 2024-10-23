@@ -1,6 +1,9 @@
+import collections.abc
+
 from os import getenv
 from uuid import uuid4
-from typing import Any, Optional, Callable, Dict, Iterable
+from types import GeneratorType
+from typing import Any, Optional, Callable, Dict
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
@@ -34,7 +37,7 @@ class Workflow(BaseModel):
     # Metadata associated with this session
     session_data: Optional[Dict[str, Any]] = None
     # Session state stored in the database
-    session_state: Optional[Dict[str, Any]] = None
+    session_state: Dict[str, Any] = Field(default_factory=dict)
 
     # -*- Workflow Storage
     storage: Optional[WorkflowStorage] = None
@@ -53,6 +56,10 @@ class Workflow(BaseModel):
     # -*- Workflow run details
     # Run ID: do not set manually
     run_id: Optional[str] = None
+    # Input to the Workflow run: do not set manually
+    run_input: Optional[Dict[str, Any]] = None
+    # Response from the Workflow run: do not set manually
+    run_response: RunResponse = Field(default_factory=RunResponse)
 
     # The run function provided by the subclass
     _subclass_run: Callable = PrivateAttr()
@@ -174,8 +181,11 @@ class Workflow(BaseModel):
         logger.debug(f"-*- WorkflowSession loaded: {session.session_id}")
 
     def read_from_storage(self) -> Optional[WorkflowSession]:
-        """Load the WorkflowSession from storage"""
+        """Load the WorkflowSession from storage.
 
+        Returns:
+            Optional[WorkflowSession]: The loaded WorkflowSession or None if not found.
+        """
         if self.storage is not None and self.session_id is not None:
             self._workflow_session = self.storage.read(session_id=self.session_id)
             if self._workflow_session is not None:
@@ -183,8 +193,11 @@ class Workflow(BaseModel):
         return self._workflow_session
 
     def write_to_storage(self) -> Optional[WorkflowSession]:
-        """Save the WorkflowSession to storage"""
+        """Save the WorkflowSession to storage
 
+        Returns:
+            Optional[WorkflowSession]: The saved WorkflowSession or None if not saved.
+        """
         if self.storage is not None:
             self._workflow_session = self.storage.upsert(session=self.get_workflow_session())
         return self._workflow_session
@@ -227,31 +240,47 @@ class Workflow(BaseModel):
 
     def run_workflow(self, *args: Any, **kwargs: Any):
         self.run_id = str(uuid4())
+        self.run_input = {"args": args, "kwargs": kwargs}
+        logger.debug(f"Run Input: {self.run_input}")
+
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, workflow_id=self.workflow_id)
         self.read_from_storage()
 
         logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
         result = self._subclass_run(*args, **kwargs)
 
         # Handle both Iterator[RunResponse] and RunResponse
-        if isinstance(result, Iterable) and not isinstance(result, (str, bytes)):
-            # It's an iterator, add the workflow_id to each RunResponse and yield from it
+        if isinstance(result, (GeneratorType, collections.abc.Iterator)):
+            self.run_response.content = ""
+
+            # If the result is an iterator, update each RunResponse and yield from it
             def result_generator():
                 for item in result:
                     if isinstance(item, RunResponse):
+                        item.run_id = self.run_id
+                        item.session_id = self.session_id
                         item.workflow_id = self.workflow_id
+                        if item.content is not None and isinstance(item.content, str):
+                            self.run_response.content += item.content
                     else:
                         logger.warning(f"Workflow.run() should only yield RunResponse objects, got: {type(item)}")
                     yield item
                 logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
                 self.write_to_storage()
+
             return result_generator()
-        else:
-            # It's a single RunResponse, update the workflow_id and write to storage
-            if isinstance(result, RunResponse):
-                result.workflow_id = self.workflow_id
+        elif isinstance(result, RunResponse):
+            # If the result is a single RunResponse, update the RunResponse and write to storage
+            result.run_id = self.run_id
+            result.session_id = self.session_id
+            result.workflow_id = self.workflow_id
+            self.run_response = result
             self.write_to_storage()
             logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
             return result
+        else:
+            logger.warning(f"Workflow.run() should only return RunResponse objects, got: {type(result)}")
+            return None
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -264,3 +293,6 @@ class Workflow(BaseModel):
         else:
             # This will log an error when called
             self._subclass_run = self.run
+
+    def log_workflow_session(self):
+        logger.debug(f"*********** WorkflowSession logged: {self.session_id} ***********")

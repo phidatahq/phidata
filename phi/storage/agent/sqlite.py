@@ -237,7 +237,7 @@ class SqlAgentStorage(AgentStorage):
 
         Args:
             session (AgentSession): The session data to upsert.
-            create_and_retry (bool, optional): Retry upsert after creating the table if True. Defaults to True.
+            create_and_retry (bool): Retry upsert if table does not exist.
 
         Returns:
             Optional[AgentSession]: The upserted AgentSession, or None if operation failed.
@@ -273,10 +273,10 @@ class SqlAgentStorage(AgentStorage):
                 sess.execute(stmt)
         except Exception as e:
             logger.debug(f"Exception upserting into table: {e}")
-            logger.debug(f"Table does not exist: {self.table.name}")
-            logger.debug("Creating table for future transactions")
-            self.create()
-            if create_and_retry:
+            if create_and_retry and not self.table_exists():
+                logger.debug(f"Table does not exist: {self.table.name}")
+                logger.debug("Creating table and retrying upsert")
+                self.create()
                 return self.upsert(session, create_and_retry=False)
             return None
         return self.read(session_id=session.session_id)

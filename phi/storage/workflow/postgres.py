@@ -248,7 +248,8 @@ class PgWorkflowStorage(WorkflowStorage):
 
         Args:
             session (WorkflowSession): The WorkflowSession object to upsert.
-            create_and_retry (bool): Whether to create the table if it doesn't exist.
+            create_and_retry (bool): Retry upsert if table does not exist.
+
         Returns:
             Optional[WorkflowSession]: The upserted WorkflowSession object.
         """
@@ -285,10 +286,10 @@ class PgWorkflowStorage(WorkflowStorage):
                 sess.execute(stmt)
         except Exception as e:
             logger.debug(f"Exception upserting into table: {e}")
-            logger.debug(f"Table does not exist: {self.table.name}")
-            logger.debug("Creating table for future transactions")
-            self.create()
-            if create_and_retry:
+            if create_and_retry and not self.table_exists():
+                logger.debug(f"Table does not exist: {self.table.name}")
+                logger.debug("Creating table and retrying upsert")
+                self.create()
                 return self.upsert(session, create_and_retry=False)
             return None
         return self.read(session_id=session.session_id)

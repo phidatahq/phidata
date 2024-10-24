@@ -74,9 +74,10 @@ These scripts will perform code formatting with `ruff`, static type checks with 
 1. Setup your local environment by following the [Development setup](#development-setup).
 2. Create a new directory under `phi/tools` for the new Tool.
 3. Create a Class for your Tool that inherits the `Toolkit` Class from `phi/tools/toolkit/.py`.
-   - Your Class will be `phi/tools/<your_tool>.py`.
-   - Make sure to register all your functions in the Tool class via a flag.
+   - Your Class will be in `phi/tools/<your_tool>.py`.
+   - Make sure to register all functions in your class via a flag.
    - Checkout the [`phi/tools/youtube_tools.py`](https://github.com/phidatahq/phidata/blob/main/phi/tools/youtube_tools.py) file for an example.
+   - If your tool requires an API key, checkout the [`phi/tools/serpapi_tools.py`](https://github.com/phidatahq/phidata/blob/main/phi/tools/serpapi_tools.py) as well.
 4. Add a recipe for using your Tool under `cookbook/tools/<your_tool>`.
    - Checkout [`phidata/cookbook/tools/youtube_tools`](https://github.com/phidatahq/phidata/blob/main/cookbook/tools/youtube_tools.py) for an example.
 5. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.

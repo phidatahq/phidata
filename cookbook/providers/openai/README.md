@@ -61,14 +61,32 @@ python cookbook/providers/openai/finance_agent.py
 python cookbook/providers/openai/data_analyst.py
 ```
 
+- Web Search
+
+```shell
+python cookbook/providers/openai/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/openai/structured_output.py
 ```
 
-### 7. Run Agent that uses web search
+### 7. Run Agent uses memory
 
 ```shell
-python cookbook/providers/openai/web_search.py
+python cookbook/providers/openai/memory.py
+```
+
+### 8. Run Agent that uses storage
+
+```shell
+python cookbook/providers/openai/storage.py
+```
+
+### 9. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/openai/knowledge.py
 ```

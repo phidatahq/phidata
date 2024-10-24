@@ -69,6 +69,19 @@ These scripts will perform code formatting with `ruff`, static type checks with 
 6. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.
 7. Submit a pull request.
 
+## Adding a new Tool.
+
+1. Setup your local environment by following the [Development setup](#development-setup).
+2. Create a new directory under `phi/tools` for the new Tool.
+3. Create a Class for your Tool that inherits the `Toolkit` Class from `phi/tools/toolkit/.py`.
+   - Your Class will be `phi/tools/<your_tool>.py`.
+   - Make sure to register all your functions in the Tool class via a flag.
+   - Checkout the [`phi/tools/youtube_tools.py`](https://github.com/phidatahq/phidata/blob/main/phi/tools/youtube_tools.py) file for an example.
+4. Add a recipe for using your Tool under `cookbook/tools/<your_tool>`.
+   - Checkout [`phidata/cookbook/tools/youtube_tools`](https://github.com/phidatahq/phidata/blob/main/cookbook/tools/youtube_tools.py) for an example.
+5. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.
+6. Submit a pull request.
+
 Message us on [Discord](https://discord.gg/4MtYHHrgA8) or post on [Discourse](https://community.phidata.com/) if you have any questions or need help with credits.
 
 ## 📚 Resources

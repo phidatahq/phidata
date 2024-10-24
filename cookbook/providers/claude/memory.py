@@ -27,24 +27,12 @@ agent = Agent(
 
 # -*- Share personal information
 agent.print_response("My name is john billings?", stream=True)
-# -*- Print memories
-pprint(agent.memory.memories)
-# -*- Print summary
-pprint(agent.memory.summary)
 
 # -*- Share personal information
 agent.print_response("I live in nyc?", stream=True)
-# -*- Print memories
-pprint(agent.memory.memories)
-# -*- Print summary
-pprint(agent.memory.summary)
 
 # -*- Share personal information
 agent.print_response("I'm going to a concert tomorrow?", stream=True)
-# -*- Print memories
-pprint(agent.memory.memories)
-# -*- Print summary
-pprint(agent.memory.summary)
 
 # Ask about the conversation
 agent.print_response("What have we been talking about, do you know my name?", stream=True)

@@ -1,17 +1,16 @@
-from typing import Optional, Any, List
+import time
+from typing import Optional, List
 
 try:
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.engine import create_engine, Engine
-    from sqlalchemy.engine.result import Row
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import sessionmaker, scoped_session
-    from sqlalchemy.sql import func
     from sqlalchemy.schema import MetaData, Table, Column, Index
     from sqlalchemy.sql.expression import text, select
     from sqlalchemy.types import String, BigInteger
 except ImportError:
-    raise ImportError("`sqlalchemy` not installed")
+    raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
 from phi.agent.session import AgentSession
 from phi.storage.agent.base import AgentStorage
@@ -29,19 +28,20 @@ class PgAgentStorage(AgentStorage):
         auto_upgrade_schema: bool = False,
     ):
         """
-        Initialize Agent storage using a PostgreSQL table.
+        This class provides agent storage using a PostgreSQL table.
 
-        The database connection is determined in the following order:
-        1. Use the provided db_engine
-        2. Use the provided db_url to create a new engine
+        The following order is used to determine the database connection:
+            1. Use the db_engine if provided
+            2. Use the db_url
+            3. Raise an error if neither is provided
 
         Args:
             table_name (str): Name of the table to store Agent sessions.
-            schema (Optional[str], optional): Schema to store the table in. Defaults to "ai".
-            db_url (Optional[str], optional): Database URL for connection. Defaults to None.
-            db_engine (Optional[Engine], optional): SQLAlchemy database engine. Defaults to None.
-            schema_version (int, optional): Version of the schema. Defaults to 1.
-            auto_upgrade_schema (bool, optional): Automatically upgrade schema if True. Defaults to False.
+            schema (Optional[str]): The schema to use for the table. Defaults to "ai".
+            db_url (Optional[str]): The database URL to connect to.
+            db_engine (Optional[Engine]): The SQLAlchemy database engine to use.
+            schema_version (int): Version of the schema. Defaults to 1.
+            auto_upgrade_schema (bool): Whether to automatically upgrade the schema.
 
         Raises:
             ValueError: If neither db_url nor db_engine is provided.
@@ -59,6 +59,7 @@ class PgAgentStorage(AgentStorage):
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
+        self.inspector = inspect(self.db_engine)
 
         # Table schema version
         self.schema_version: int = schema_version
@@ -103,15 +104,15 @@ class PgAgentStorage(AgentStorage):
         )
 
         # Add indexes
-        Index(f"idx_{self.table_name}_user_id", table.c.user_id)
-        Index(f"idx_{self.table_name}_agent_id", table.c.agent_id)
         Index(f"idx_{self.table_name}_session_id", table.c.session_id)
+        Index(f"idx_{self.table_name}_agent_id", table.c.agent_id)
+        Index(f"idx_{self.table_name}_user_id", table.c.user_id)
 
         return table
 
     def get_table(self) -> Table:
         """
-        Get the appropriate table schema based on the schema version.
+        Get the table schema based on the schema version.
 
         Returns:
             Table: SQLAlchemy Table object for the current schema version.
@@ -133,9 +134,9 @@ class PgAgentStorage(AgentStorage):
         """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name, schema=self.schema)
+            return self.inspector.has_table(self.table.name, schema=self.schema)
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Error checking if table exists: {e}")
             return False
 
     def create(self) -> None:
@@ -155,7 +156,7 @@ class PgAgentStorage(AgentStorage):
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """
-        Read and return an AgentSession from the database.
+        Read an AgentSession from the database.
 
         Args:
             session_id (str): ID of the session to read.
@@ -169,8 +170,8 @@ class PgAgentStorage(AgentStorage):
                 stmt = select(self.table).where(self.table.c.session_id == session_id)
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
-                return AgentSession.model_validate(existing_row) if existing_row is not None else None
+                result = sess.execute(stmt).fetchone()
+                return AgentSession.model_validate(result) if result is not None else None
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -180,20 +181,19 @@ class PgAgentStorage(AgentStorage):
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         """
-        Retrieve all session IDs, optionally filtered by user_id and/or agent_id.
+        Get all session IDs, optionally filtered by user_id and/or agent_id.
 
         Args:
-            user_id (Optional[str], optional): User ID to filter by. Defaults to None.
-            agent_id (Optional[str], optional): Agent ID to filter by. Defaults to None.
+            user_id (Optional[str]): The ID of the user to filter by.
+            agent_id (Optional[str]): The ID of the agent to filter by.
 
         Returns:
             List[str]: List of session IDs matching the criteria.
         """
-        session_ids: List[str] = []
         try:
             with self.Session() as sess, sess.begin():
-                # get all session_ids for this user
-                stmt = select(self.table)
+                # get all session_ids
+                stmt = select(self.table.c.session_id)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if agent_id is not None:
@@ -202,31 +202,28 @@ class PgAgentStorage(AgentStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row is not None and row.session_id is not None:
-                        session_ids.append(row.session_id)
+                return [row[0] for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
             logger.debug("Creating table for future transactions")
             self.create()
-        return session_ids
+        return []
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         """
-        Retrieve all sessions, optionally filtered by user_id and/or agent_id.
+        Get all sessions, optionally filtered by user_id and/or agent_id.
 
         Args:
-            user_id (Optional[str], optional): User ID to filter by. Defaults to None.
-            agent_id (Optional[str], optional): Agent ID to filter by. Defaults to None.
+            user_id (Optional[str]): The ID of the user to filter by.
+            agent_id (Optional[str]): The ID of the agent to filter by.
 
         Returns:
             List[AgentSession]: List of AgentSession objects matching the criteria.
         """
-        sessions: List[AgentSession] = []
         try:
             with self.Session() as sess, sess.begin():
-                # get all sessions for this user
+                # get all sessions
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -236,27 +233,25 @@ class PgAgentStorage(AgentStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row.session_id is not None:
-                        sessions.append(AgentSession.model_validate(row))
+                return [AgentSession.model_validate(row) for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
             logger.debug("Creating table for future transactions")
             self.create()
-        return sessions
+        return []
 
     def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
         """
-        Create or update an AgentSession in the database.
+        Insert or update an AgentSession in the database.
 
         Args:
             session (AgentSession): The session data to upsert.
             create_and_retry (bool, optional): Retry upsert after creating the table if True. Defaults to True.
+
         Returns:
             Optional[AgentSession]: The upserted AgentSession, or None if operation failed.
         """
-
         try:
             with self.Session() as sess, sess.begin():
                 # Create an insert statement
@@ -281,7 +276,7 @@ class PgAgentStorage(AgentStorage):
                         agent_data=session.agent_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
-                        updated_at=func.extract("epoch", func.now()).cast(BigInteger),
+                        updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )
 
@@ -315,11 +310,10 @@ class PgAgentStorage(AgentStorage):
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
                 result = sess.execute(delete_stmt)
-
                 if result.rowcount == 0:
-                    logger.warning(f"No session found with session_id: {session_id}")
+                    logger.debug(f"No session found with session_id: {session_id}")
                 else:
-                    logger.info(f"Successfully deleted session with session_id: {session_id}")
+                    logger.debug(f"Successfully deleted session with session_id: {session_id}")
         except Exception as e:
             logger.error(f"Error deleting session: {e}")
 

@@ -120,7 +120,7 @@ class Workflow(BaseModel):
     def from_workflow_session(self, session: WorkflowSession):
         """Load the existing Workflow from a WorkflowSession (from the database)"""
 
-        # Get the session_id, workflow_id and user_id from the WorkflowSession
+        # Get the session_id, workflow_id and user_id from the database
         if self.session_id is None and session.session_id is not None:
             self.session_id = session.session_id
         if self.workflow_id is None and session.workflow_id is not None:
@@ -128,25 +128,45 @@ class Workflow(BaseModel):
         if self.user_id is None and session.user_id is not None:
             self.user_id = session.user_id
 
-        # Get the name from WorkflowSession and update the current name if not set
-        if self.name is None and session.workflow_data is not None and "name" in session.workflow_data:
-            self.name = session.workflow_data.get("name")
-
-        # Get the session_data from WorkflowSession and update the current Workflow if not set
-        if self.session_name is None and session.session_data is not None and "session_name" in session.session_data:
-            self.session_name = session.session_data.get("session_name")
-
         # Read workflow_data from the database
         if session.workflow_data is not None:
-            # If workflow_data is set in the workflow, merge it with the database workflow_data.
-            # The workflow's workflow_data takes precedence
+            # Get the name from database and update the current name if not set
+            if self.name is None and "name" in session.workflow_data:
+                self.name = session.workflow_data.get("name")
+
+            # If workflow_data is set in the workflow, update the database workflow_data with the workflow's workflow_data
             if self.workflow_data is not None:
-                # Updates workflow_session.workflow_data with self.workflow_data
+                # Updates workflow_session.workflow_data in place
                 merge_dictionaries(session.workflow_data, self.workflow_data)
-                self.workflow_data = session.workflow_data
-            # If workflow_data is not set in the workflow, use the database workflow_data
-            if self.workflow_data is None:
-                self.workflow_data = session.workflow_data
+            self.workflow_data = session.workflow_data
+
+        # Read user_data from the database
+        if session.user_data is not None:
+            # If user_data is set in the workflow, update the database user_data with the workflow's user_data
+            if self.user_data is not None:
+                # Updates workflow_session.user_data in place
+                merge_dictionaries(session.user_data, self.user_data)
+            self.user_data = session.user_data
+
+        # Read session_data from the database
+        if session.session_data is not None:
+            # Get the session_name from database and update the current session_name if not set
+            if self.session_name is None and "session_name" in session.session_data:
+                self.session_name = session.session_data.get("session_name")
+
+            # If session_data is set in the workflow, update the database session_data with the workflow's session_data
+            if self.session_data is not None:
+                # Updates workflow_session.session_data in place
+                merge_dictionaries(session.session_data, self.session_data)
+            self.session_data = session.session_data
+
+        # Read session_state from the database
+        if session.session_state is not None:
+            # The workflow's session_state takes precedence
+            if self.session_state is not None:
+                # Updates workflow_session.session_state in place
+                merge_dictionaries(session.session_state, self.session_state)
+            self.session_state = session.session_state
 
         # Read memory from the database
         if session.memory is not None:
@@ -155,42 +175,6 @@ class Workflow(BaseModel):
                     self.memory.runs = [WorkflowRun(**m) for m in session.memory["runs"]]
             except Exception as e:
                 logger.warning(f"Failed to load WorkflowMemory: {e}")
-
-        # Read session_data from the database
-        if session.session_data is not None:
-            # If session_data is set in the workflow, merge it with the database session_data.
-            # The workflow's session_data takes precedence
-            if self.session_data is not None:
-                # Updates workflow_session.session_data with self.session_data
-                merge_dictionaries(session.session_data, self.session_data)
-                self.session_data = session.session_data
-            # If session_data is not set in the workflow, use the database session_data
-            if self.session_data is None:
-                self.session_data = session.session_data
-
-        # Read user_data from the database
-        if session.user_data is not None:
-            # If user_data is set in the workflow, merge it with the database user_data.
-            # The workflow's user_data takes precedence
-            if self.user_data is not None:
-                # Updates workflow_session.user_data with self.user_data
-                merge_dictionaries(session.user_data, self.user_data)
-                self.user_data = session.user_data
-            # If user_data is not set in the workflow, use the database user_data
-            if self.user_data is None:
-                self.user_data = session.user_data
-
-        # Read session_state from the database
-        if session.session_state is not None:
-            # If session_state is set in the workflow, merge it with the database session_state.
-            # The workflow's session_state takes precedence
-            if self.session_state is not None:
-                # Updates workflow_session.session_state with self.session_state
-                merge_dictionaries(session.session_state, self.session_state)
-                self.session_state = session.session_state
-            # If session_state is not set in the workflow, use the database session_state
-            if self.session_state is None:
-                self.session_state = session.session_state
         logger.debug(f"-*- WorkflowSession loaded: {session.session_id}")
 
     def read_from_storage(self) -> Optional[WorkflowSession]:
@@ -254,8 +238,6 @@ class Workflow(BaseModel):
     def run_workflow(self, *args: Any, **kwargs: Any):
         self.run_id = str(uuid4())
         self.run_input = {"args": args, "kwargs": kwargs}
-        logger.debug(f"Run Input: {self.run_input}")
-
         self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, workflow_id=self.workflow_id)
         self.read_from_storage()
 

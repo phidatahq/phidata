@@ -1,18 +1,17 @@
 import time
 from pathlib import Path
-from typing import Optional, Any, List
+from typing import Optional, List
 
 try:
     from sqlalchemy.dialects import sqlite
     from sqlalchemy.engine import create_engine, Engine
-    from sqlalchemy.engine.row import Row
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import select
     from sqlalchemy.types import String
 except ImportError:
-    raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
+    raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
 from phi.workflow import WorkflowSession
 from phi.storage.workflow.base import WorkflowStorage
@@ -42,7 +41,7 @@ class SqlWorkflowStorage(WorkflowStorage):
             table_name: The name of the table to store Workflow sessions.
             db_url: The database URL to connect to.
             db_file: The database file to connect to.
-            db_engine: The database engine to use.
+            db_engine: The SQLAlchemy database engine to use.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -64,6 +63,7 @@ class SqlWorkflowStorage(WorkflowStorage):
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData()
+        self.inspector = inspect(self.db_engine)
 
         # Table schema version
         self.schema_version: int = schema_version
@@ -76,6 +76,12 @@ class SqlWorkflowStorage(WorkflowStorage):
         self.table: Table = self.get_table()
 
     def get_table_v1(self) -> Table:
+        """
+        Define the table schema for version 1.
+
+        Returns:
+            Table: SQLAlchemy Table object representing the schema.
+        """
         return Table(
             self.table_name,
             self.metadata,
@@ -104,44 +110,60 @@ class SqlWorkflowStorage(WorkflowStorage):
         )
 
     def get_table(self) -> Table:
+        """
+        Get the table schema based on the schema version.
+
+        Returns:
+            Table: SQLAlchemy Table object for the current schema version.
+
+        Raises:
+            ValueError: If an unsupported schema version is specified.
+        """
         if self.schema_version == 1:
             return self.get_table_v1()
         else:
             raise ValueError(f"Unsupported schema version: {self.schema_version}")
 
     def table_exists(self) -> bool:
+        """
+        Check if the table exists in the database.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name)
+            return self.inspector.has_table(self.table.name)
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Error checking if table exists: {e}")
             return False
 
     def create(self) -> None:
+        """
+        Create the table if it doesn't exist.
+        """
         if not self.table_exists():
             logger.debug(f"Creating table: {self.table.name}")
             self.table.create(self.db_engine, checkfirst=True)
 
-    def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
-        stmt = select(self.table).where(self.table.c.session_id == session_id)
-        try:
-            return session.execute(stmt).first()
-        except Exception as e:
-            logger.debug(f"Exception reading from table: {e}")
-            logger.debug(f"Table does not exist: {self.table.name}")
-            logger.debug(f"Creating table: {self.table_name}")
-            # Create table if it does not exist
-            self.create()
-        return None
-
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
+        """
+        Read a WorkflowSession from the database.
+
+        Args:
+            session_id (str): The ID of the session to read.
+            user_id (Optional[str]): The ID of the user associated with the session.
+
+        Returns:
+            Optional[WorkflowSession]: The WorkflowSession object if found, None otherwise.
+        """
         try:
             with self.Session() as sess:
                 stmt = select(self.table).where(self.table.c.session_id == session_id)
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
-                return WorkflowSession.model_validate(existing_row) if existing_row is not None else None
+                result = sess.execute(stmt).fetchone()
+                return WorkflowSession.model_validate(result) if result is not None else None
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -150,11 +172,20 @@ class SqlWorkflowStorage(WorkflowStorage):
         return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
-        session_ids: List[str] = []
+        """
+        Get all session IDs, optionally filtered by user_id and/or workflow_id.
+
+        Args:
+            user_id (Optional[str]): The ID of the user to filter by.
+            workflow_id (Optional[str]): The ID of the workflow to filter by.
+
+        Returns:
+            List[str]: List of session IDs matching the criteria.
+        """
         try:
             with self.Session() as sess, sess.begin():
-                # get all session_ids for this user
-                stmt = select(self.table)
+                # get all session_ids
+                stmt = select(self.table.c.session_id)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if workflow_id is not None:
@@ -163,23 +194,30 @@ class SqlWorkflowStorage(WorkflowStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row is not None and row.session_id is not None:
-                        session_ids.append(row.session_id)
+                return [row[0] for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
             logger.debug("Creating table for future transactions")
             self.create()
-        return session_ids
+        return []
 
     def get_all_sessions(
         self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
     ) -> List[WorkflowSession]:
-        sessions: List[WorkflowSession] = []
+        """
+        Get all sessions, optionally filtered by user_id and/or workflow_id.
+
+        Args:
+            user_id (Optional[str]): The ID of the user to filter by.
+            workflow_id (Optional[str]): The ID of the workflow to filter by.
+
+        Returns:
+            List[WorkflowSession]: List of AgentSession objects matching the criteria.
+        """
         try:
             with self.Session() as sess, sess.begin():
-                # get all sessions for this user
+                # get all sessions
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -189,19 +227,24 @@ class SqlWorkflowStorage(WorkflowStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row.session_id is not None:
-                        sessions.append(WorkflowSession.model_validate(row))
+                return [WorkflowSession.model_validate(row) for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
             logger.debug("Creating table for future transactions")
             self.create()
-        return sessions
+        return []
 
     def upsert(self, session: WorkflowSession, create_and_retry: bool = True) -> Optional[WorkflowSession]:
-        """Create a new WorkflowSession if it does not exist, otherwise update the existing WorkflowSession."""
+        """
+        Insert or update a WorkflowSession in the database.
 
+        Args:
+            session (WorkflowSession): The WorkflowSession object to upsert.
+            create_and_retry (bool): Whether to create the table if it doesn't exist.
+        Returns:
+            Optional[WorkflowSession]: The upserted WorkflowSession object.
+        """
         try:
             with self.Session() as sess, sess.begin():
                 # Create an insert statement
@@ -244,6 +287,15 @@ class SqlWorkflowStorage(WorkflowStorage):
         return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
+        """
+        Delete a workflow session from the database.
+
+        Args:
+            session_id (Optional[str]): The ID of the session to delete.
+
+        Raises:
+            ValueError: If session_id is not provided.
+        """
         if session_id is None:
             logger.warning("No session_id provided for deletion.")
             return
@@ -253,20 +305,26 @@ class SqlWorkflowStorage(WorkflowStorage):
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
                 result = sess.execute(delete_stmt)
-
                 if result.rowcount == 0:
-                    logger.warning(f"No session found with session_id: {session_id}")
+                    logger.debug(f"No session found with session_id: {session_id}")
                 else:
-                    logger.info(f"Successfully deleted session with session_id: {session_id}")
+                    logger.debug(f"Successfully deleted session with session_id: {session_id}")
         except Exception as e:
             logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
+        """
+        Drop the table from the database if it exists.
+        """
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
 
     def upgrade_schema(self) -> None:
+        """
+        Upgrade the schema of the workflow storage table.
+        This method is currently a placeholder and does not perform any actions.
+        """
         pass
 
     def __deepcopy__(self, memo):

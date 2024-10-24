@@ -254,6 +254,11 @@ class Agent(BaseModel):
         """
         return self.response_model is None
 
+    @property
+    def identifier(self) -> Optional[str]:
+        """Get the identifier for the agent"""
+        return self.name or self.agent_id
+
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
         """Create and return a deep copy of this Agent, optionally updating fields.
 
@@ -516,7 +521,7 @@ class Agent(BaseModel):
     def from_agent_session(self, session: AgentSession):
         """Load the existing Agent from an AgentSession (from the database)"""
 
-        # Get the session_id, agent_id and user_id from the AgentSession
+        # Get the session_id, agent_id and user_id from the database
         if self.session_id is None and session.session_id is not None:
             self.session_id = session.session_id
         if self.agent_id is None and session.agent_id is not None:
@@ -524,25 +529,49 @@ class Agent(BaseModel):
         if self.user_id is None and session.user_id is not None:
             self.user_id = session.user_id
 
-        # Get the name from AgentSession and update the current name if not set
-        if self.name is None and session.agent_data is not None and "name" in session.agent_data:
-            self.name = session.agent_data.get("name")
+        # Read agent_data from the database
+        if session.agent_data is not None:
+            # Get agent name from database and update the current name if not set
+            if self.name is None and "name" in session.agent_data:
+                self.name = session.agent_data.get("name")
 
-        # Get the session_data from AgentSession and update the current Agent if not set
-        if self.session_name is None and session.session_data is not None and "session_name" in session.session_data:
-            self.session_name = session.session_data.get("session_name")
+            # Update model data from the database
+            if "model" in session.agent_data:
+                model_data = session.agent_data.get("model")
+                # Update model metrics from the database
+                if model_data is not None and isinstance(model_data, dict):
+                    model_metrics_from_db = model_data.get("metrics")
+                    if model_metrics_from_db is not None and isinstance(model_metrics_from_db, dict) and self.model:
+                        try:
+                            self.model.metrics = model_metrics_from_db
+                        except Exception as e:
+                            logger.warning(f"Failed to load model from AgentSession: {e}")
 
-        # Update model data from the AgentSession
-        if session.agent_data is not None and "model" in session.agent_data:
-            model_data = session.agent_data.get("model")
-            # Update model metrics from the AgentSession
-            if model_data is not None and isinstance(model_data, dict):
-                model_metrics_from_db = model_data.get("metrics")
-                if model_metrics_from_db is not None and isinstance(model_metrics_from_db, dict) and self.model:
-                    try:
-                        self.model.metrics = model_metrics_from_db
-                    except Exception as e:
-                        logger.warning(f"Failed to load model from AgentSession: {e}")
+            # If agent_data is set in the agent, update the database agent_data with the agent's agent_data
+            if self.agent_data is not None:
+                # Updates agent_session.agent_data in place
+                merge_dictionaries(session.agent_data, self.agent_data)
+            self.agent_data = session.agent_data
+
+        # Read user_data from the database
+        if session.user_data is not None:
+            # If user_data is set in the agent, update the database user_data with the agent's user_data
+            if self.user_data is not None:
+                # Updates agent_session.user_data in place
+                merge_dictionaries(session.user_data, self.user_data)
+            self.user_data = session.user_data
+
+        # Read session_data from the database
+        if session.session_data is not None:
+            # Get the session_name from database and update the current session_name if not set
+            if self.session_name is None and "session_name" in session.session_data:
+                self.session_name = session.session_data.get("session_name")
+
+            # If session_data is set in the agent, update the database session_data with the agent's session_data
+            if self.session_data is not None:
+                # Updates agent_session.session_data in place
+                merge_dictionaries(session.session_data, self.session_data)
+            self.session_data = session.session_data
 
         # Update memory from the AgentSession
         if session.memory is not None:
@@ -575,46 +604,14 @@ class Agent(BaseModel):
                         logger.warning(f"Failed to load user memories: {e}")
             except Exception as e:
                 logger.warning(f"Failed to load AgentMemory: {e}")
-
-        # Read agent_data from the database
-        if session.agent_data is not None:
-            # If agent_data is set in the agent, merge it with the database agent_data.
-            # The agent's agent_data takes precedence
-            if self.agent_data is not None:
-                # Updates agent_session.agent_data with self.agent_data
-                merge_dictionaries(session.agent_data, self.agent_data)
-                self.agent_data = session.agent_data
-            # If agent_data is not set in the agent, use the database agent_data
-            if self.agent_data is None:
-                self.agent_data = session.agent_data
-
-        # Read session_data from the database
-        if session.session_data is not None:
-            # If session_data is set in the agent, merge it with the database session_data.
-            # The agent's session_data takes precedence
-            if self.session_data is not None:
-                # Updates agent_session.session_data with self.session_data
-                merge_dictionaries(session.session_data, self.session_data)
-                self.session_data = session.session_data
-            # If session_data is not set in the agent, use the database session_data
-            if self.session_data is None:
-                self.session_data = session.session_data
-
-        # Read user_data from the database
-        if session.user_data is not None:
-            # If user_data is set in the agent, merge it with the database user_data.
-            # The agent user_data takes precedence
-            if self.user_data is not None:
-                # Updates agent_session.user_data with self.user_data
-                merge_dictionaries(session.user_data, self.user_data)
-                self.user_data = session.user_data
-            # If user_data is not set in the agent, use the database user_data
-            if self.user_data is None:
-                self.user_data = session.user_data
         logger.debug(f"-*- AgentSession loaded: {session.session_id}")
 
     def read_from_storage(self) -> Optional[AgentSession]:
-        """Load the AgentSession from storage"""
+        """Load the AgentSession from storage
+
+        Returns:
+            Optional[AgentSession]: The loaded AgentSession or None if not found.
+        """
 
         if self.storage is not None and self.session_id is not None:
             self._agent_session = self.storage.read(session_id=self.session_id)
@@ -624,7 +621,11 @@ class Agent(BaseModel):
         return self._agent_session
 
     def write_to_storage(self) -> Optional[AgentSession]:
-        """Save the AgentSession to storage"""
+        """Save the AgentSession to storage
+
+        Returns:
+            Optional[AgentSession]: The saved AgentSession or None if not saved.
+        """
 
         if self.storage is not None:
             self._agent_session = self.storage.upsert(session=self.get_agent_session())

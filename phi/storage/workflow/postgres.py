@@ -1,12 +1,11 @@
 import time
-from typing import Optional, Any, List
-from datetime import datetime
+from typing import Optional, List
 
 try:
-    from sqlalchemy import create_engine, Engine, MetaData, Table, Column, String, JSON, inspect
+    from sqlalchemy import create_engine, Engine, MetaData, Table, Column, String, BigInteger, inspect, Index
     from sqlalchemy.dialects import postgresql
-    from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.sql.expression import select
+    from sqlalchemy.orm import sessionmaker, scoped_session
+    from sqlalchemy.sql.expression import select, text
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
@@ -15,7 +14,7 @@ from phi.storage.workflow.base import WorkflowStorage
 from phi.utils.log import logger
 
 
-class PostgresWorkflowStorage(WorkflowStorage):
+class PgWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         table_name: str,
@@ -37,8 +36,8 @@ class PostgresWorkflowStorage(WorkflowStorage):
             table_name (str): The name of the table to store Workflow sessions.
             schema (Optional[str]): The schema to use for the table. Defaults to "ai".
             db_url (Optional[str]): The database URL to connect to.
-            db_engine (Optional[Engine]): The database engine to use.
-            schema_version (int): The version of the schema to use.
+            db_engine (Optional[Engine]): The SQLAlchemy database engine to use.
+            schema_version (int): Version of the schema. Defaults to 1.
             auto_upgrade_schema (bool): Whether to automatically upgrade the schema.
 
         Raises:
@@ -55,8 +54,9 @@ class PostgresWorkflowStorage(WorkflowStorage):
         self.table_name: str = table_name
         self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
-        self.engine: Engine = _engine
+        self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData(schema=self.schema)
+        self.inspector = inspect(self.db_engine)
 
         # Table schema version
         self.schema_version: int = schema_version
@@ -64,32 +64,19 @@ class PostgresWorkflowStorage(WorkflowStorage):
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
         # Database session
-        self.SessionLocal: sessionmaker[Session] = sessionmaker(bind=self.engine)
+        self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
-        
-        # Ensure the table exists
-        self.create()
-        
-        logger.debug(f"Created PostgresWorkflowStorage: '{self.schema}.{self.table_name}'")
+        logger.debug(f"Created PgWorkflowStorage: '{self.schema}.{self.table_name}'")
 
-    def get_table(self) -> Table:
+    def get_table_v1(self) -> Table:
         """
-        Get the database table for workflow storage.
+        Define the table schema for version 1.
 
         Returns:
-            Table: The SQLAlchemy Table object representing the workflow storage table.
+            Table: SQLAlchemy Table object representing the schema.
         """
-        return self._create_table()
-
-    def _create_table(self) -> Table:
-        """
-        Create the database table for workflow storage.
-
-        Returns:
-            Table: The SQLAlchemy Table object representing the created workflow storage table.
-        """
-        return Table(
+        table = Table(
             self.table_name,
             self.metadata,
             # Session UUID: Primary Key
@@ -99,34 +86,76 @@ class PostgresWorkflowStorage(WorkflowStorage):
             # ID of the user interacting with this workflow
             Column("user_id", String),
             # Workflow Memory
-            Column("memory", JSON),
+            Column("memory", postgresql.JSONB),
             # Workflow Metadata
-            Column("workflow_data", JSON),
+            Column("workflow_data", postgresql.JSONB),
             # User Metadata
-            Column("user_data", JSON),
+            Column("user_data", postgresql.JSONB),
             # Session Metadata
-            Column("session_data", JSON),
+            Column("session_data", postgresql.JSONB),
             # Session state stored in the database
-            Column("session_state", JSON),
+            Column("session_state", postgresql.JSONB),
             # The Unix timestamp of when this session was created.
-            Column("created_at", postgresql.INTEGER, default=lambda: int(time.time())),
+            Column("created_at", BigInteger, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
-            Column("updated_at", postgresql.INTEGER, onupdate=lambda: int(time.time())),
+            Column("updated_at", BigInteger, onupdate=lambda: int(time.time())),
+            extend_existing=True,
         )
+
+        # Add indexes
+        Index(f"idx_{self.table_name}_session_id", table.c.session_id)
+        Index(f"idx_{self.table_name}_workflow_id", table.c.workflow_id)
+        Index(f"idx_{self.table_name}_user_id", table.c.user_id)
+
+        return table
+
+    def get_table(self) -> Table:
+        """
+        Get the table schema based on the schema version.
+
+        Returns:
+            Table: SQLAlchemy Table object for the current schema version.
+
+        Raises:
+            ValueError: If an unsupported schema version is specified.
+        """
+        if self.schema_version == 1:
+            return self.get_table_v1()
+        else:
+            raise ValueError(f"Unsupported schema version: {self.schema_version}")
+
+    def table_exists(self) -> bool:
+        """
+        Check if the table exists in the database.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
+        logger.debug(f"Checking if table exists: {self.table.name}")
+        try:
+            return self.inspector.has_table(self.table.name, schema=self.schema)
+        except Exception as e:
+            logger.error(f"Error checking if table exists: {e}")
+            return False
 
     def create(self) -> None:
         """
-        Create the workflow storage table if it doesn't exist.
+        Create the table if it doesn't exist.
         """
         if not self.table_exists():
-            logger.info(f"Creating table '{self.schema}.{self.table_name}'")
-            self.metadata.create_all(self.engine)
-        else:
-            logger.debug(f"Table '{self.schema}.{self.table_name}' already exists")
+            try:
+                with self.Session() as sess, sess.begin():
+                    if self.schema is not None:
+                        logger.debug(f"Creating schema: {self.schema}")
+                        sess.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
+                logger.debug(f"Creating table: {self.table_name}")
+                self.table.create(self.db_engine, checkfirst=True)
+            except Exception as e:
+                logger.error(f"Could not create table: '{self.table.fullname}': {e}")
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
         """
-        Read a workflow session from the database.
+        Read a WorkflowSession from the database.
 
         Args:
             session_id (str): The ID of the session to read.
@@ -135,13 +164,18 @@ class PostgresWorkflowStorage(WorkflowStorage):
         Returns:
             Optional[WorkflowSession]: The WorkflowSession object if found, None otherwise.
         """
-        with self.SessionLocal() as db_session:
-            stmt = select(self.table).where(self.table.c.session_id == session_id)
-            if user_id:
-                stmt = stmt.where(self.table.c.user_id == user_id)
-            result = db_session.execute(stmt).fetchone()
-            if result:
-                return WorkflowSession(**result['session_state'])
+        try:
+            with self.Session() as sess:
+                stmt = select(self.table).where(self.table.c.session_id == session_id)
+                if user_id:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
+                result = sess.execute(stmt).fetchone()
+                return WorkflowSession.model_validate(result) if result is not None else None
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
         return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
@@ -153,79 +187,111 @@ class PostgresWorkflowStorage(WorkflowStorage):
             workflow_id (Optional[str]): The ID of the workflow to filter by.
 
         Returns:
-            List[str]: A list of session IDs.
+            List[str]: List of session IDs matching the criteria.
         """
-        with self.SessionLocal() as db_session:
-            stmt = select(self.table.c.session_id)
-            if user_id:
-                stmt = stmt.where(self.table.c.user_id == user_id)
-            if workflow_id:
-                stmt = stmt.where(self.table.c.workflow_id == workflow_id)
-            results = db_session.execute(stmt).fetchall()
-            return [row[0] for row in results]
+        try:
+            with self.Session() as sess, sess.begin():
+                # get all session_ids
+                stmt = select(self.table.c.session_id)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
+                if workflow_id is not None:
+                    stmt = stmt.where(self.table.c.workflow_id == workflow_id)
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                return [row[0] for row in rows] if rows is not None else []
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+        return []
 
     def get_all_sessions(
         self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
     ) -> List[WorkflowSession]:
         """
-        Get all workflow sessions, optionally filtered by user_id and/or workflow_id.
+        Get all sessions, optionally filtered by user_id and/or workflow_id.
 
         Args:
             user_id (Optional[str]): The ID of the user to filter by.
             workflow_id (Optional[str]): The ID of the workflow to filter by.
 
         Returns:
-            List[WorkflowSession]: A list of WorkflowSession objects.
+            List[WorkflowSession]: List of AgentSession objects matching the criteria.
         """
-        with self.SessionLocal() as db_session:
-            stmt = select(self.table)
-            if user_id:
-                stmt = stmt.where(self.table.c.user_id == user_id)
-            if workflow_id:
-                stmt = stmt.where(self.table.c.workflow_id == workflow_id)
-            results = db_session.execute(stmt).fetchall()
-            return [WorkflowSession(**row['session_state']) for row in results]
+        try:
+            with self.Session() as sess, sess.begin():
+                # get all sessions
+                stmt = select(self.table)
+                if user_id is not None:
+                    stmt = stmt.where(self.table.c.user_id == user_id)
+                if workflow_id is not None:
+                    stmt = stmt.where(self.table.c.workflow_id == workflow_id)
+                # order by created_at desc
+                stmt = stmt.order_by(self.table.c.created_at.desc())
+                # execute query
+                rows = sess.execute(stmt).fetchall()
+                return [WorkflowSession.model_validate(row) for row in rows] if rows is not None else []
+        except Exception as e:
+            logger.debug(f"Exception reading from table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+        return []
 
-    def upsert(self, session: WorkflowSession) -> Optional[WorkflowSession]:
+    def upsert(self, session: WorkflowSession, create_and_retry: bool = True) -> Optional[WorkflowSession]:
         """
-        Insert or update a workflow session in the database.
+        Insert or update a WorkflowSession in the database.
 
         Args:
             session (WorkflowSession): The WorkflowSession object to upsert.
-
+            create_and_retry (bool): Whether to create the table if it doesn't exist.
         Returns:
             Optional[WorkflowSession]: The upserted WorkflowSession object.
         """
-        with self.SessionLocal() as db_session:
-            now = int(time.time())
-            stmt = postgresql.insert(self.table).values(
-                session_id=session.session_id,
-                workflow_id=session.workflow_id,
-                user_id=session.user_id,
-                memory=session.memory,
-                workflow_data=session.workflow_data,
-                user_data=session.user_data,
-                session_data=session.session_data,
-                session_state=session.model_dump(),
-                created_at=now,
-                updated_at=now,
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=['session_id'],
-                set_={
-                    'workflow_id': stmt.excluded.workflow_id,
-                    'user_id': stmt.excluded.user_id,
-                    'memory': stmt.excluded.memory,
-                    'workflow_data': stmt.excluded.workflow_data,
-                    'user_data': stmt.excluded.user_data,
-                    'session_data': stmt.excluded.session_data,
-                    'session_state': stmt.excluded.session_state,
-                    'updated_at': stmt.excluded.updated_at,
-                }
-            )
-            db_session.execute(stmt)
-            db_session.commit()
-            return session
+        try:
+            with self.Session() as sess, sess.begin():
+                # Create an insert statement
+                stmt = postgresql.insert(self.table).values(
+                    session_id=session.session_id,
+                    workflow_id=session.workflow_id,
+                    user_id=session.user_id,
+                    memory=session.memory,
+                    workflow_data=session.workflow_data,
+                    user_data=session.user_data,
+                    session_data=session.session_data,
+                    session_state=session.session_state,
+                )
+
+                # Define the upsert if the session_id already exists
+                # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["session_id"],
+                    set_=dict(
+                        workflow_id=session.workflow_id,
+                        user_id=session.user_id,
+                        memory=session.memory,
+                        workflow_data=session.workflow_data,
+                        user_data=session.user_data,
+                        session_data=session.session_data,
+                        session_state=session.session_state,
+                        updated_at=int(time.time()),
+                    ),  # The updated value for each column
+                )
+
+                sess.execute(stmt)
+        except Exception as e:
+            logger.debug(f"Exception upserting into table: {e}")
+            logger.debug(f"Table does not exist: {self.table.name}")
+            logger.debug("Creating table for future transactions")
+            self.create()
+            if create_and_retry:
+                return self.upsert(session, create_and_retry=False)
+            return None
+        return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
         """
@@ -238,34 +304,28 @@ class PostgresWorkflowStorage(WorkflowStorage):
             ValueError: If session_id is not provided.
         """
         if session_id is None:
-            raise ValueError("session_id must be provided")
-        with self.SessionLocal() as db_session:
-            stmt = self.table.delete().where(self.table.c.session_id == session_id)
-            db_session.execute(stmt)
-            db_session.commit()
+            logger.warning("No session_id provided for deletion.")
+            return
 
-    def table_exists(self) -> bool:
-        """
-        Check if the workflow storage table exists in the database.
-
-        Returns:
-            bool: True if the table exists, False otherwise.
-        """
         try:
-            inspector = inspect(self.engine)
-            return inspector.has_table(self.table_name, schema=self.schema)
+            with self.Session() as sess, sess.begin():
+                # Delete the session with the given session_id
+                delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
+                result = sess.execute(delete_stmt)
+                if result.rowcount == 0:
+                    logger.debug(f"No session found with session_id: {session_id}")
+                else:
+                    logger.debug(f"Successfully deleted session with session_id: {session_id}")
         except Exception as e:
-            logger.error(f"Error checking if table exists: {e}")
-            return False
+            logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
         """
-        Drop the workflow storage table from the database.
+        Drop the table from the database if it exists.
         """
         if self.table_exists():
-            self.metadata.drop_all(self.engine)
-        else:
-            logger.debug(f"Table {self.table_name} does not exist, nothing to drop.")
+            logger.debug(f"Deleting table: {self.table_name}")
+            self.table.drop(self.db_engine)
 
     def upgrade_schema(self) -> None:
         """
@@ -276,10 +336,7 @@ class PostgresWorkflowStorage(WorkflowStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PostgresWorkflowStorage instance, handling unpickleable attributes.
-
-        This method is used to create a deep copy of the PostgresWorkflowStorage object,
-        which is necessary when the object needs to be serialized or copied.
+        Create a deep copy of the PgWorkflowStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
@@ -298,14 +355,14 @@ class PostgresWorkflowStorage(WorkflowStorage):
         for k, v in self.__dict__.items():
             if k in {"metadata", "table"}:
                 continue
-            # Reuse engine and SessionLocal without copying
-            elif k in {"engine", "SessionLocal"}:
+            # Reuse db_engine and Session without copying
+            elif k in {"db_engine", "Session"}:
                 setattr(copied_obj, k, v)
             else:
                 setattr(copied_obj, k, deepcopy(v, memo))
 
         # Recreate metadata and table for the copied instance
         copied_obj.metadata = MetaData(schema=copied_obj.schema)
-        copied_obj.table = copied_obj._create_table()
+        copied_obj.table = copied_obj.get_table()
 
         return copied_obj

@@ -18,7 +18,7 @@ class GenerateNewsReport(Workflow):
         self.session_state["topic"] = topic
         return self.agent.run(topic)
 
-    # def run(self, topic: str) -> Iterator[RunResponse]:
+    # def run_stream(self, topic: str) -> Iterator[RunResponse]:
     #     logger.info(f"Researching articles on: {topic}")
     #     self.session_state["topic"] = topic
     #     yield from self.agent.run(topic, stream=True)

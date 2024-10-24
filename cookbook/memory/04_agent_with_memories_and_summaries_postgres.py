@@ -22,7 +22,7 @@ agent = Agent(
     ),
     # Store agent sessions in a database
     storage=PgAgentStorage(table_name="personalized_agent_sessions", db_url=db_url),
-    # Show debug logs so you can see the memory being created
+    # Show debug logs so, you can see the memory being created
     # debug_mode=True,
 )
 

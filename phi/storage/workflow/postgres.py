@@ -34,12 +34,15 @@ class PostgresWorkflowStorage(WorkflowStorage):
             3. Raise an error if neither is provided
 
         Args:
-            table_name: The name of the table to store Workflow sessions.
-            schema: The schema to use for the table. Defaults to "ai".
-            db_url: The database URL to connect to.
-            db_engine: The database engine to use.
-            schema_version: The version of the schema to use.
-            auto_upgrade_schema: Whether to automatically upgrade the schema.
+            table_name (str): The name of the table to store Workflow sessions.
+            schema (Optional[str]): The schema to use for the table. Defaults to "ai".
+            db_url (Optional[str]): The database URL to connect to.
+            db_engine (Optional[Engine]): The database engine to use.
+            schema_version (int): The version of the schema to use.
+            auto_upgrade_schema (bool): Whether to automatically upgrade the schema.
+
+        Raises:
+            ValueError: If neither db_url nor db_engine is provided.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -71,9 +74,21 @@ class PostgresWorkflowStorage(WorkflowStorage):
         logger.debug(f"Created PostgresWorkflowStorage: '{self.schema}.{self.table_name}'")
 
     def get_table(self) -> Table:
+        """
+        Get the database table for workflow storage.
+
+        Returns:
+            Table: The SQLAlchemy Table object representing the workflow storage table.
+        """
         return self._create_table()
 
     def _create_table(self) -> Table:
+        """
+        Create the database table for workflow storage.
+
+        Returns:
+            Table: The SQLAlchemy Table object representing the created workflow storage table.
+        """
         return Table(
             self.table_name,
             self.metadata,
@@ -100,6 +115,9 @@ class PostgresWorkflowStorage(WorkflowStorage):
         )
 
     def create(self) -> None:
+        """
+        Create the workflow storage table if it doesn't exist.
+        """
         if not self.table_exists():
             logger.info(f"Creating table '{self.schema}.{self.table_name}'")
             self.metadata.create_all(self.engine)
@@ -107,6 +125,16 @@ class PostgresWorkflowStorage(WorkflowStorage):
             logger.debug(f"Table '{self.schema}.{self.table_name}' already exists")
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
+        """
+        Read a workflow session from the database.
+
+        Args:
+            session_id (str): The ID of the session to read.
+            user_id (Optional[str]): The ID of the user associated with the session.
+
+        Returns:
+            Optional[WorkflowSession]: The WorkflowSession object if found, None otherwise.
+        """
         with self.SessionLocal() as db_session:
             stmt = select(self.table).where(self.table.c.session_id == session_id)
             if user_id:
@@ -117,6 +145,16 @@ class PostgresWorkflowStorage(WorkflowStorage):
         return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
+        """
+        Get all session IDs, optionally filtered by user_id and/or workflow_id.
+
+        Args:
+            user_id (Optional[str]): The ID of the user to filter by.
+            workflow_id (Optional[str]): The ID of the workflow to filter by.
+
+        Returns:
+            List[str]: A list of session IDs.
+        """
         with self.SessionLocal() as db_session:
             stmt = select(self.table.c.session_id)
             if user_id:
@@ -129,6 +167,16 @@ class PostgresWorkflowStorage(WorkflowStorage):
     def get_all_sessions(
         self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
     ) -> List[WorkflowSession]:
+        """
+        Get all workflow sessions, optionally filtered by user_id and/or workflow_id.
+
+        Args:
+            user_id (Optional[str]): The ID of the user to filter by.
+            workflow_id (Optional[str]): The ID of the workflow to filter by.
+
+        Returns:
+            List[WorkflowSession]: A list of WorkflowSession objects.
+        """
         with self.SessionLocal() as db_session:
             stmt = select(self.table)
             if user_id:
@@ -139,6 +187,15 @@ class PostgresWorkflowStorage(WorkflowStorage):
             return [WorkflowSession(**row['session_state']) for row in results]
 
     def upsert(self, session: WorkflowSession) -> Optional[WorkflowSession]:
+        """
+        Insert or update a workflow session in the database.
+
+        Args:
+            session (WorkflowSession): The WorkflowSession object to upsert.
+
+        Returns:
+            Optional[WorkflowSession]: The upserted WorkflowSession object.
+        """
         with self.SessionLocal() as db_session:
             now = int(time.time())
             stmt = postgresql.insert(self.table).values(
@@ -171,6 +228,15 @@ class PostgresWorkflowStorage(WorkflowStorage):
             return session
 
     def delete_session(self, session_id: Optional[str] = None):
+        """
+        Delete a workflow session from the database.
+
+        Args:
+            session_id (Optional[str]): The ID of the session to delete.
+
+        Raises:
+            ValueError: If session_id is not provided.
+        """
         if session_id is None:
             raise ValueError("session_id must be provided")
         with self.SessionLocal() as db_session:
@@ -179,6 +245,12 @@ class PostgresWorkflowStorage(WorkflowStorage):
             db_session.commit()
 
     def table_exists(self) -> bool:
+        """
+        Check if the workflow storage table exists in the database.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         try:
             inspector = inspect(self.engine)
             return inspector.has_table(self.table_name, schema=self.schema)
@@ -187,17 +259,27 @@ class PostgresWorkflowStorage(WorkflowStorage):
             return False
 
     def drop(self) -> None:
+        """
+        Drop the workflow storage table from the database.
+        """
         if self.table_exists():
             self.metadata.drop_all(self.engine)
         else:
             logger.debug(f"Table {self.table_name} does not exist, nothing to drop.")
 
     def upgrade_schema(self) -> None:
+        """
+        Upgrade the schema of the workflow storage table.
+        This method is currently a placeholder and does not perform any actions.
+        """
         pass
 
     def __deepcopy__(self, memo):
         """
         Create a deep copy of the PostgresWorkflowStorage instance, handling unpickleable attributes.
+
+        This method is used to create a deep copy of the PostgresWorkflowStorage object,
+        which is necessary when the object needs to be serialized or copied.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.

@@ -9,20 +9,19 @@ Steps:
 from rich.pretty import pprint
 
 from phi.agent import Agent, AgentMemory
-from phi.model.anthropic import Claude
+from phi.model.azure import AzureOpenAIChat
 from phi.memory.db.postgres import PgMemoryDb
 from phi.storage.agent.postgres import PgAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 agent = Agent(
-    model=Claude(id="claude-3-5-sonnet-20241022"),
+    model=AzureOpenAIChat(id="gpt-4o"),
     # Store the memories and summary in a database
-    memory=AgentMemory(
-        db=PgMemoryDb(table_name="agent_memory", db_url=db_url), create_user_memories=True, create_session_summary=True
-    ),
+    memory=AgentMemory(db=PgMemoryDb(table_name="agent_memory", db_url=db_url)),
+    add_history_to_messages=True,
     # Store agent sessions in a database
     storage=PgAgentStorage(table_name="personalized_agent_sessions", db_url=db_url),
-    # Show debug logs so you can see the memory being created
+    # Show debug logs so, you can see the memory being created
     # debug_mode=True,
 )
 

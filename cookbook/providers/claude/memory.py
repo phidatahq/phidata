@@ -6,8 +6,6 @@ Steps:
 3. Run: `python cookbook/agents/personalized_memories_and_summaries.py` to run the agent
 """
 
-from rich.pretty import pprint
-
 from phi.agent import Agent, AgentMemory
 from phi.model.anthropic import Claude
 from phi.memory.db.postgres import PgMemoryDb

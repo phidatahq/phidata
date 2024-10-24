@@ -1,217 +1,143 @@
 from typing import List, Optional, Iterator, Dict, Any
-
 from pydantic import BaseModel, ConfigDict
-
 from phi.document import Document
 from phi.document.reader.base import Reader
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
-
 class AssistantKnowledge(BaseModel):
-    """Base class for Assistant knowledge"""
+    """Base class for managing an Assistant's knowledge base."""
 
-    # Reader to read the documents
-    reader: Optional[Reader] = None
-    # Vector db to store the knowledge base
-    vector_db: Optional[VectorDb] = None
-    # Number of relevant documents to return on search
-    num_documents: int = 2
-    # Number of documents to optimize the vector db on
-    optimize_on: Optional[int] = 1000
+    reader: Optional[Reader] = None  # Reader to read the documents
+    vector_db: Optional[VectorDb] = None  # Vector database to store the knowledge base
+    num_documents: int = 2  # Number of relevant documents to return on search
+    optimize_on: Optional[int] = 1000  # Number of documents to optimize the vector db on
 
     driver: str = "knowledge"
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
-        """Iterator that yields lists of documents in the knowledge base
-        Each object yielded by the iterator is a list of documents.
+        """Iterator that yields lists of documents in the knowledge base."""
+        raise NotImplementedError("Subclasses must implement document_lists.")
+
+    def search(self, query: str, num_documents: Optional[int] = None, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """Search for relevant documents matching a query.
+
+        Args:
+            query (str): The search query.
+            num_documents (Optional[int]): Number of documents to return. Defaults to the class attribute.
+            filters (Optional[Dict[str, Any]]): Filters to apply to the search.
+
+        Returns:
+            List[Document]: A list of relevant documents.
         """
-        raise NotImplementedError
+        if self.vector_db is None:
+            logger.warning("No vector db provided.")
+            return []
 
-    def search(
-        self, query: str, num_documents: Optional[int] = None, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
-        """Returns relevant documents matching a query"""
+        num_documents = num_documents or self.num_documents
+        logger.debug(f"Searching for {_num_documents} relevant documents for query: '{query}'")
+        
         try:
-            if self.vector_db is None:
-                logger.warning("No vector db provided")
-                return []
-
-            _num_documents = num_documents or self.num_documents
-            logger.debug(f"Getting {_num_documents} relevant documents for query: {query}")
-            return self.vector_db.search(query=query, limit=_num_documents, filters=filters)
+            return self.vector_db.search(query=query, limit=num_documents, filters=filters)
         except Exception as e:
             logger.error(f"Error searching for documents: {e}")
             return []
 
-    def load(
-        self,
-        recreate: bool = False,
-        upsert: bool = False,
-        skip_existing: bool = True,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Load the knowledge base to the vector db
+    def load(self, recreate: bool = False, upsert: bool = False, skip_existing: bool = True, filters: Optional[Dict[str, Any]] = None) -> None:
+        """Load the knowledge base into the vector db.
 
         Args:
-            recreate (bool): If True, recreates the collection in the vector db. Defaults to False.
-            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
-            skip_existing (bool): If True, skips documents which already exist in the vector db when inserting. Defaults to True.
-            filters (Optional[Dict[str, Any]]): Filters to add to each row that can be used to limit results during querying. Defaults to None.
+            recreate (bool): If True, recreate the collection in the vector db.
+            upsert (bool): If True, upsert documents to the vector db.
+            skip_existing (bool): If True, skip documents that already exist in the vector db.
+            filters (Optional[Dict[str, Any]]): Filters to apply when loading documents.
         """
-
         if self.vector_db is None:
-            logger.warning("No vector db provided")
+            logger.warning("No vector db provided.")
             return
 
         if recreate:
-            logger.info("Dropping collection")
+            logger.info("Dropping existing collection.")
             self.vector_db.drop()
 
-        logger.info("Creating collection")
+        logger.info("Creating new collection.")
         self.vector_db.create()
 
-        logger.info("Loading knowledge base")
-        num_documents = 0
+        logger.info("Loading knowledge base.")
+        total_documents_loaded = 0
         for document_list in self.document_lists:
-            documents_to_load = document_list
-            # Upsert documents if upsert is True and vector db supports upsert
-            if upsert and self.vector_db.upsert_available():
-                self.vector_db.upsert(documents=documents_to_load, filters=filters)
-            # Insert documents
-            else:
-                # Filter out documents which already exist in the vector db
-                if skip_existing:
-                    documents_to_load = [
-                        document for document in document_list if not self.vector_db.doc_exists(document)
-                    ]
+            documents_to_load = self._prepare_documents_to_load(document_list, upsert, skip_existing, filters)
+            if documents_to_load:
                 self.vector_db.insert(documents=documents_to_load, filters=filters)
-            num_documents += len(documents_to_load)
-            logger.info(f"Added {len(documents_to_load)} documents to knowledge base")
+                total_documents_loaded += len(documents_to_load)
+                logger.info(f"Added {len(documents_to_load)} documents to knowledge base.")
 
-    def load_documents(
-        self,
-        documents: List[Document],
-        upsert: bool = False,
-        skip_existing: bool = True,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Load documents to the knowledge base
+        logger.info(f"Total documents loaded: {total_documents_loaded}")
+
+    def _prepare_documents_to_load(self, document_list: List[Document], upsert: bool, skip_existing: bool, filters: Optional[Dict[str, Any]]) -> List[Document]:
+        """Prepare documents for loading, filtering out existing ones if required.
 
         Args:
-            documents (List[Document]): List of documents to load
-            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
-            skip_existing (bool): If True, skips documents which already exist in the vector db when inserting. Defaults to True.
-            filters (Optional[Dict[str, Any]]): Filters to add to each row that can be used to limit results during querying. Defaults to None.
+            document_list (List[Document]): List of documents to load.
+            upsert (bool): If True, upserts documents if they exist.
+            skip_existing (bool): If True, skips documents that already exist.
+            filters (Optional[Dict[str, Any]]): Filters to apply when loading documents.
+
+        Returns:
+            List[Document]: List of documents ready for loading.
         """
-
-        logger.info("Loading knowledge base")
-        if self.vector_db is None:
-            logger.warning("No vector db provided")
-            return
-
-        logger.debug("Creating collection")
-        self.vector_db.create()
-
-        # Upsert documents if upsert is True
         if upsert and self.vector_db.upsert_available():
-            self.vector_db.upsert(documents=documents, filters=filters)
-            logger.info(f"Loaded {len(documents)} documents to knowledge base")
+            self.vector_db.upsert(documents=document_list, filters=filters)
+            return []
+
+        if skip_existing:
+            return [doc for doc in document_list if not self.vector_db.doc_exists(doc)]
+        return document_list
+
+    def load_documents(self, documents: List[Document], upsert: bool = False, skip_existing: bool = True, filters: Optional[Dict[str, Any]] = None) -> None:
+        """Load a list of documents into the knowledge base.
+
+        Args:
+            documents (List[Document]): List of documents to load.
+            upsert (bool): If True, upserts documents if they exist.
+            skip_existing (bool): If True, skips documents that already exist.
+            filters (Optional[Dict[str, Any]]): Filters to apply when loading documents.
+        """
+        if self.vector_db is None:
+            logger.warning("No vector db provided.")
             return
 
-        # Filter out documents which already exist in the vector db
-        documents_to_load = (
-            [document for document in documents if not self.vector_db.doc_exists(document)]
-            if skip_existing
-            else documents
-        )
+        logger.info("Loading documents into knowledge base.")
+        self.vector_db.create()  # Create collection if it doesn't exist
 
-        # Insert documents
-        if len(documents_to_load) > 0:
+        documents_to_load = self._prepare_documents_to_load(documents, upsert, skip_existing, filters)
+        if documents_to_load:
             self.vector_db.insert(documents=documents_to_load, filters=filters)
-            logger.info(f"Loaded {len(documents_to_load)} documents to knowledge base")
+            logger.info(f"Loaded {len(documents_to_load)} documents into knowledge base.")
         else:
-            logger.info("No new documents to load")
-
-    def load_document(
-        self,
-        document: Document,
-        upsert: bool = False,
-        skip_existing: bool = True,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Load a document to the knowledge base
-
-        Args:
-            document (Document): Document to load
-            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
-            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
-            filters (Optional[Dict[str, Any]]): Filters to add to each row that can be used to limit results during querying. Defaults to None.
-        """
-        self.load_documents(documents=[document], upsert=upsert, skip_existing=skip_existing, filters=filters)
-
-    def load_dict(
-        self,
-        document: Dict[str, Any],
-        upsert: bool = False,
-        skip_existing: bool = True,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Load a dictionary representation of a document to the knowledge base
-
-        Args:
-            document (Dict[str, Any]): Dictionary representation of a document
-            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
-            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
-            filters (Optional[Dict[str, Any]]): Filters to add to each row that can be used to limit results during querying. Defaults to None.
-        """
-        self.load_documents(
-            documents=[Document.from_dict(document)], upsert=upsert, skip_existing=skip_existing, filters=filters
-        )
-
-    def load_json(
-        self, document: str, upsert: bool = False, skip_existing: bool = True, filters: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Load a json representation of a document to the knowledge base
-
-        Args:
-            document (str): Json representation of a document
-            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
-            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
-            filters (Optional[Dict[str, Any]]): Filters to add to each row that can be used to limit results during querying. Defaults to None.
-        """
-        self.load_documents(
-            documents=[Document.from_json(document)], upsert=upsert, skip_existing=skip_existing, filters=filters
-        )
-
-    def load_text(
-        self, text: str, upsert: bool = False, skip_existing: bool = True, filters: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Load a text to the knowledge base
-
-        Args:
-            text (str): Text to load to the knowledge base
-            upsert (bool): If True, upserts documents to the vector db. Defaults to False.
-            skip_existing (bool): If True, skips documents which already exist in the vector db. Defaults to True.
-            filters (Optional[Dict[str, Any]]): Filters to add to each row that can be used to limit results during querying. Defaults to None.
-        """
-        self.load_documents(
-            documents=[Document(content=text)], upsert=upsert, skip_existing=skip_existing, filters=filters
-        )
+            logger.info("No new documents to load.")
 
     def exists(self) -> bool:
-        """Returns True if the knowledge base exists"""
+        """Check if the knowledge base exists.
+
+        Returns:
+            bool: True if the knowledge base exists, False otherwise.
+        """
         if self.vector_db is None:
-            logger.warning("No vector db provided")
+            logger.warning("No vector db provided.")
             return False
         return self.vector_db.exists()
 
     def delete(self) -> bool:
-        """Clear the knowledge base"""
+        """Clear the knowledge base.
+
+        Returns:
+            bool: True if the deletion was successful, False otherwise.
+        """
         if self.vector_db is None:
-            logger.warning("No vector db available")
+            logger.warning("No vector db available.")
             return True
 
         return self.vector_db.delete()

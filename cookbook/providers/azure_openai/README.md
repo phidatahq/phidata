@@ -1,4 +1,4 @@
-# Azure OpenAI Chat function calling
+# Azure OpenAI Chat Cookbook
 
 > Note: Fork and clone this repository if needed
 
@@ -9,13 +9,15 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Save the following environment variables in a .env file (see .env-template). Python-dotenv will load them into memory on run time.
+### 2. Export environment variables
 
 ```shell
-AZURE_OPENAI_MODEL_NAME="gpt-4o"
-AZURE_OPENAI_API_KEY=""
-AZURE_OPENAI_ENDPOINT="https://example.openai.azure.com/"
-AZURE_OPENAI_DEPLOYMENT="gpt-4o"
+export AZURE_OPENAI_MODEL_NAME="gpt-4o"
+export AZURE_OPENAI_API_KEY=***
+export AZURE_OPENAI_ENDPOINT="https://example.openai.azure.com/"
+export AZURE_OPENAI_DEPLOYMENT=***
+export AZURE_OPENAI_API_VERSION="2024-02-01"
+export AWS_DEFAULT_REGION=us-east-1
 ```
 
 ### 3. Install libraries
@@ -64,14 +66,32 @@ python cookbook/providers/azure_openai/finance_agent.py
 python cookbook/providers/azure_openai/data_analyst.py
 ```
 
+- Web Search
+
+```shell
+python cookbook/providers/azure_openai/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/azure_openai/structured_output.py
 ```
 
-### 7. Run Agent that uses web search
+### 7. Run Agent uses memory
 
 ```shell
-python cookbook/providers/azure_openai/web_search.py
+python cookbook/providers/azure_openai/memory.py
+```
+
+### 8. Run Agent that uses storage
+
+```shell
+python cookbook/providers/azure_openai/storage.py
+```
+
+### 9. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/azure_openai/knowledge.py
 ```

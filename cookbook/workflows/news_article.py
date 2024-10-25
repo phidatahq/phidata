@@ -98,7 +98,7 @@ class GenerateNewsReport(Workflow):
                 logger.info(f"Researcher identified {len(researcher_response.content.articles)} articles.")
                 articles = researcher_response.content
                 # Add the articles to the session state
-                self.session_state["articles"] = articles
+                self.session_state["articles"] = articles.model_dump()
 
         # If no articles were found, return a message
         if articles is None or len(articles.articles) == 0:

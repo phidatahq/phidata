@@ -20,6 +20,7 @@ Usage:
 
 
 agent = Agent(
+    name="Twilio Agent",
     instructions=[
         """You can help users by:
         - Sending SMS messages

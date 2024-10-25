@@ -106,6 +106,8 @@ module = [
   "clip.*",
   "cohere.*",
   "crawl4ai.*",
+  "discord.*",
+  "discord.ext.*",
   "docker.*",
   "docx.*",
   "duckdb.*",
@@ -164,7 +166,5 @@ module = [
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",
-  "discord.*",
-  "discord.ext.*",
 ]
 ignore_missing_imports = true

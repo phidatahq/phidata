@@ -1,5 +1,6 @@
 from phi.agent import Agent
 from phi.tools.twilio import TwilioTools
+from phi.model.openai import OpenAIChat
 
 """
 Example showing how to use the Twilio Tools with Phi.
@@ -17,7 +18,6 @@ Usage:
 - Or provide them when creating the TwilioTools instance
 """
 
-twilio_tools = TwilioTools()
 
 agent = Agent(
     instructions=[
@@ -29,8 +29,10 @@ agent = Agent(
         
         Always confirm before sending messages or making calls."""
     ],
-    tools=[twilio_tools],
+    model=OpenAIChat(id="gpt-4o-mini"),
+    tools=[TwilioTools()],
     show_tool_calls=True,
+    markdown=True,
 )
 
 agent.print_response("Can you send an SMS saying 'Your package has arrived' to +1234567890?")

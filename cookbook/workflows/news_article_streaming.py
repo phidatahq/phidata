@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from phi.agent import Agent, RunResponse
 from phi.workflow import Workflow
+from phi.storage.workflow.sqlite import SqlWorkflowStorage
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.newspaper4k import Newspaper4k
 from phi.utils.pprint import pprint_run_response
@@ -25,7 +26,7 @@ class NewsArticles(BaseModel):
     articles: list[NewsArticle]
 
 
-class NewsReporter(Workflow):
+class GenerateNewsReport(Workflow):
     researcher: Agent = Agent(
         name="Researcher",
         tools=[DuckDuckGo()],
@@ -75,21 +76,56 @@ class NewsReporter(Workflow):
 
     def run(self, topic: str) -> Iterator[RunResponse]:
         logger.info(f"Researching articles on: {topic}")
-        research: RunResponse = self.researcher.run(topic)
-        if research and research.content and isinstance(research.content, NewsArticles) and research.content.articles:
-            logger.info(f"Researcher identified {len(research.content.articles)} articles.")
-        else:
+
+        # Add the topic to the session state
+        self.session_state["topic"] = topic
+
+        # Get the cached articles from the session state
+        articles: Optional[NewsArticles] = None
+        try:
+            if "articles" in self.session_state:
+                articles = NewsArticles.model_validate(self.session_state["articles"])
+                logger.info(f"Found {len(articles.articles)} articles in session state.")
+        except Exception as e:
+            logger.warning(f"Could not read articles from session state: {e}")
+
+        # If no cached articles, get the latest articles
+        if articles is None:
+            researcher_response: RunResponse = self.researcher.run(topic)
+            if (
+                researcher_response
+                and researcher_response.content
+                and isinstance(researcher_response.content, NewsArticles)
+            ):
+                logger.info(f"Researcher identified {len(researcher_response.content.articles)} articles.")
+                articles = researcher_response.content
+                # Add the articles to the session state
+                self.session_state["articles"] = articles.model_dump()
+
+        # If no articles were found, return a message
+        if articles is None or len(articles.articles) == 0:
             yield RunResponse(
                 run_id=self.run_id,
                 content=f"Sorry could not find any articles on the topic: {topic}",
             )
             return
 
+        # Read each article and write a report
         logger.info("Reading each article and writing a report.")
-        yield from self.writer.run(research.content.model_dump_json(indent=2), stream=True)
+        yield from self.writer.run(articles.model_dump_json(indent=2), stream=True)
 
+
+# Create the workflow
+generate_news_report = GenerateNewsReport(
+    session_id="generate-report-ibm-hashicorp-acquisition",
+    storage=SqlWorkflowStorage(
+        table_name="generate_news_report_workflows",
+        db_file="tmp/workflows.db",
+    ),
+)
 
 # Run workflow
-report: Iterator[RunResponse] = NewsReporter(debug_mode=False).run(topic="IBM Hashicorp Acquisition")
+report: Iterator[RunResponse] = generate_news_report.run(topic="IBM Hashicorp Acquisition")
+
 # Print the response
-pprint_run_response(report, markdown=True, show_time=True)
+pprint_run_response(report, markdown=True)

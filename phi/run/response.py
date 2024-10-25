@@ -29,6 +29,8 @@ class RunResponseExtraData(BaseModel):
     reasoning_steps: Optional[List[ReasoningStep]] = None
     reasoning_messages: Optional[List[Message]] = None
 
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
 
 class RunResponse(BaseModel):
     """Response returned by Agent.run() or Workflow.run() functions"""

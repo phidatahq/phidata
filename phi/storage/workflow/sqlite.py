@@ -1,64 +1,68 @@
 import time
+from pathlib import Path
 from typing import Optional, List
 
 try:
-    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.dialects import sqlite
     from sqlalchemy.engine import create_engine, Engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import sessionmaker, scoped_session
-    from sqlalchemy.schema import MetaData, Table, Column, Index
-    from sqlalchemy.sql.expression import text, select
-    from sqlalchemy.types import String, BigInteger
+    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.sql.expression import select
+    from sqlalchemy.types import String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
-from phi.agent.session import AgentSession
-from phi.storage.agent.base import AgentStorage
+from phi.workflow import WorkflowSession
+from phi.storage.workflow.base import WorkflowStorage
 from phi.utils.log import logger
 
 
-class PgAgentStorage(AgentStorage):
+class SqlWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         table_name: str,
-        schema: Optional[str] = "ai",
         db_url: Optional[str] = None,
+        db_file: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         schema_version: int = 1,
         auto_upgrade_schema: bool = False,
     ):
         """
-        This class provides agent storage using a PostgreSQL table.
+        This class provides workflow storage using a sqlite database.
 
         The following order is used to determine the database connection:
             1. Use the db_engine if provided
             2. Use the db_url
-            3. Raise an error if neither is provided
+            3. Use the db_file
+            4. Create a new in-memory database
 
         Args:
-            table_name (str): Name of the table to store Agent sessions.
-            schema (Optional[str]): The schema to use for the table. Defaults to "ai".
-            db_url (Optional[str]): The database URL to connect to.
-            db_engine (Optional[Engine]): The SQLAlchemy database engine to use.
-            schema_version (int): Version of the schema. Defaults to 1.
-            auto_upgrade_schema (bool): Whether to automatically upgrade the schema.
-
-        Raises:
-            ValueError: If neither db_url nor db_engine is provided.
+            table_name: The name of the table to store Workflow sessions.
+            db_url: The database URL to connect to.
+            db_file: The database file to connect to.
+            db_engine: The SQLAlchemy database engine to use.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
             _engine = create_engine(db_url)
+        elif _engine is None and db_file is not None:
+            # Use the db_file to create the engine
+            db_path = Path(db_file).resolve()
+            # Ensure the directory exists
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            _engine = create_engine(f"sqlite:///{db_path}")
+        else:
+            _engine = create_engine("sqlite://")
 
         if _engine is None:
-            raise ValueError("Must provide either db_url or db_engine")
+            raise ValueError("Must provide either db_url, db_file or db_engine")
 
         # Database attributes
         self.table_name: str = table_name
-        self.schema: Optional[str] = schema
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
-        self.metadata: MetaData = MetaData(schema=self.schema)
+        self.metadata: MetaData = MetaData()
         self.inspector = inspect(self.db_engine)
 
         # Table schema version
@@ -67,10 +71,9 @@ class PgAgentStorage(AgentStorage):
         self.auto_upgrade_schema: bool = auto_upgrade_schema
 
         # Database session
-        self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
+        self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         # Database table for storage
         self.table: Table = self.get_table()
-        logger.debug(f"Created PgAgentStorage: '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -79,36 +82,32 @@ class PgAgentStorage(AgentStorage):
         Returns:
             Table: SQLAlchemy Table object representing the schema.
         """
-        table = Table(
+        return Table(
             self.table_name,
             self.metadata,
             # Session UUID: Primary Key
             Column("session_id", String, primary_key=True),
-            # ID of the agent that this session is associated with
-            Column("agent_id", String),
-            # ID of the user interacting with this agent
+            # ID of the workflow that this session is associated with
+            Column("workflow_id", String),
+            # ID of the user interacting with this workflow
             Column("user_id", String),
-            # Agent Memory
-            Column("memory", postgresql.JSONB),
-            # Agent Metadata
-            Column("agent_data", postgresql.JSONB),
+            # Workflow Memory
+            Column("memory", sqlite.JSON),
+            # Workflow Metadata
+            Column("workflow_data", sqlite.JSON),
             # User Metadata
-            Column("user_data", postgresql.JSONB),
+            Column("user_data", sqlite.JSON),
             # Session Metadata
-            Column("session_data", postgresql.JSONB),
+            Column("session_data", sqlite.JSON),
+            # Session state stored in the database
+            Column("session_state", sqlite.JSON),
             # The Unix timestamp of when this session was created.
-            Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
+            Column("created_at", sqlite.INTEGER, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
-            Column("updated_at", BigInteger, server_onupdate=text("(extract(epoch from now()))::bigint")),
+            Column("updated_at", sqlite.INTEGER, onupdate=lambda: int(time.time())),
             extend_existing=True,
+            sqlite_autoincrement=True,
         )
-
-        # Add indexes
-        Index(f"idx_{self.table_name}_session_id", table.c.session_id)
-        Index(f"idx_{self.table_name}_agent_id", table.c.agent_id)
-        Index(f"idx_{self.table_name}_user_id", table.c.user_id)
-
-        return table
 
     def get_table(self) -> Table:
         """
@@ -134,36 +133,29 @@ class PgAgentStorage(AgentStorage):
         """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return self.inspector.has_table(self.table.name, schema=self.schema)
+            return self.inspector.has_table(self.table.name)
         except Exception as e:
             logger.error(f"Error checking if table exists: {e}")
             return False
 
     def create(self) -> None:
         """
-        Create the table if it does not exist.
+        Create the table if it doesn't exist.
         """
         if not self.table_exists():
-            try:
-                with self.Session() as sess, sess.begin():
-                    if self.schema is not None:
-                        logger.debug(f"Creating schema: {self.schema}")
-                        sess.execute(text(f"CREATE SCHEMA IF NOT EXISTS {self.schema};"))
-                logger.debug(f"Creating table: {self.table_name}")
-                self.table.create(self.db_engine, checkfirst=True)
-            except Exception as e:
-                logger.error(f"Could not create table: '{self.table.fullname}': {e}")
+            logger.debug(f"Creating table: {self.table.name}")
+            self.table.create(self.db_engine, checkfirst=True)
 
-    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
+    def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
         """
-        Read an AgentSession from the database.
+        Read a WorkflowSession from the database.
 
         Args:
-            session_id (str): ID of the session to read.
-            user_id (Optional[str]): User ID to filter by. Defaults to None.
+            session_id (str): The ID of the session to read.
+            user_id (Optional[str]): The ID of the user associated with the session.
 
         Returns:
-            Optional[AgentSession]: AgentSession object if found, None otherwise.
+            Optional[WorkflowSession]: The WorkflowSession object if found, None otherwise.
         """
         try:
             with self.Session() as sess:
@@ -171,7 +163,7 @@ class PgAgentStorage(AgentStorage):
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 result = sess.execute(stmt).fetchone()
-                return AgentSession.model_validate(result) if result is not None else None
+                return WorkflowSession.model_validate(result) if result is not None else None
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -179,13 +171,13 @@ class PgAgentStorage(AgentStorage):
             self.create()
         return None
 
-    def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
+    def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
         """
-        Get all session IDs, optionally filtered by user_id and/or agent_id.
+        Get all session IDs, optionally filtered by user_id and/or workflow_id.
 
         Args:
             user_id (Optional[str]): The ID of the user to filter by.
-            agent_id (Optional[str]): The ID of the agent to filter by.
+            workflow_id (Optional[str]): The ID of the workflow to filter by.
 
         Returns:
             List[str]: List of session IDs matching the criteria.
@@ -196,8 +188,8 @@ class PgAgentStorage(AgentStorage):
                 stmt = select(self.table.c.session_id)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                if agent_id is not None:
-                    stmt = stmt.where(self.table.c.agent_id == agent_id)
+                if workflow_id is not None:
+                    stmt = stmt.where(self.table.c.workflow_id == workflow_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
@@ -210,16 +202,18 @@ class PgAgentStorage(AgentStorage):
             self.create()
         return []
 
-    def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
+    def get_all_sessions(
+        self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
+    ) -> List[WorkflowSession]:
         """
-        Get all sessions, optionally filtered by user_id and/or agent_id.
+        Get all sessions, optionally filtered by user_id and/or workflow_id.
 
         Args:
             user_id (Optional[str]): The ID of the user to filter by.
-            agent_id (Optional[str]): The ID of the agent to filter by.
+            workflow_id (Optional[str]): The ID of the workflow to filter by.
 
         Returns:
-            List[AgentSession]: List of AgentSession objects matching the criteria.
+            List[WorkflowSession]: List of AgentSession objects matching the criteria.
         """
         try:
             with self.Session() as sess, sess.begin():
@@ -227,13 +221,13 @@ class PgAgentStorage(AgentStorage):
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                if agent_id is not None:
-                    stmt = stmt.where(self.table.c.agent_id == agent_id)
+                if workflow_id is not None:
+                    stmt = stmt.where(self.table.c.workflow_id == workflow_id)
                 # order by created_at desc
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                return [AgentSession.model_validate(row) for row in rows] if rows is not None else []
+                return [WorkflowSession.model_validate(row) for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -241,41 +235,43 @@ class PgAgentStorage(AgentStorage):
             self.create()
         return []
 
-    def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
+    def upsert(self, session: WorkflowSession, create_and_retry: bool = True) -> Optional[WorkflowSession]:
         """
-        Insert or update an AgentSession in the database.
+        Insert or update a WorkflowSession in the database.
 
         Args:
-            session (AgentSession): The session data to upsert.
+            session (WorkflowSession): The WorkflowSession object to upsert.
             create_and_retry (bool): Retry upsert if table does not exist.
 
         Returns:
-            Optional[AgentSession]: The upserted AgentSession, or None if operation failed.
+            Optional[WorkflowSession]: The upserted WorkflowSession object.
         """
         try:
             with self.Session() as sess, sess.begin():
                 # Create an insert statement
-                stmt = postgresql.insert(self.table).values(
+                stmt = sqlite.insert(self.table).values(
                     session_id=session.session_id,
-                    agent_id=session.agent_id,
+                    workflow_id=session.workflow_id,
                     user_id=session.user_id,
                     memory=session.memory,
-                    agent_data=session.agent_data,
+                    workflow_data=session.workflow_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
+                    session_state=session.session_state,
                 )
 
                 # Define the upsert if the session_id already exists
-                # See: https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#postgresql-insert-on-conflict
+                # See: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["session_id"],
                     set_=dict(
-                        agent_id=session.agent_id,
+                        workflow_id=session.workflow_id,
                         user_id=session.user_id,
                         memory=session.memory,
-                        agent_data=session.agent_data,
+                        workflow_data=session.workflow_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
+                        session_state=session.session_state,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )
@@ -293,13 +289,13 @@ class PgAgentStorage(AgentStorage):
 
     def delete_session(self, session_id: Optional[str] = None):
         """
-        Delete a session from the database.
+        Delete a workflow session from the database.
 
         Args:
-            session_id (Optional[str], optional): ID of the session to delete. Defaults to None.
+            session_id (Optional[str]): The ID of the session to delete.
 
         Raises:
-            Exception: If an error occurs during deletion.
+            ValueError: If session_id is not provided.
         """
         if session_id is None:
             logger.warning("No session_id provided for deletion.")
@@ -327,20 +323,20 @@ class PgAgentStorage(AgentStorage):
 
     def upgrade_schema(self) -> None:
         """
-        Upgrade the schema to the latest version.
+        Upgrade the schema of the workflow storage table.
         This method is currently a placeholder and does not perform any actions.
         """
         pass
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PgAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SqlWorkflowStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            PgAgentStorage: A deep-copied instance of PgAgentStorage.
+            SqlWorkflowStorage: A deep-copied instance of SqlWorkflowStorage.
         """
         from copy import deepcopy
 
@@ -360,7 +356,7 @@ class PgAgentStorage(AgentStorage):
                 setattr(copied_obj, k, deepcopy(v, memo))
 
         # Recreate metadata and table for the copied instance
-        copied_obj.metadata = MetaData(schema=copied_obj.schema)
+        copied_obj.metadata = MetaData()
         copied_obj.table = copied_obj.get_table()
 
         return copied_obj

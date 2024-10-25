@@ -6,8 +6,9 @@ try:
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import sessionmaker, scoped_session
     from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.sql import func
     from sqlalchemy.sql.expression import text, select, delete
-    from sqlalchemy.types import DateTime, String
+    from sqlalchemy.types import String, BigInteger
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
@@ -60,8 +61,8 @@ class PgMemoryDb(MemoryDb):
             Column("id", String, primary_key=True),
             Column("user_id", String),
             Column("memory", postgresql.JSONB, server_default=text("'{}'::jsonb")),
-            Column("created_at", DateTime(timezone=True), server_default=text("now()")),
-            Column("updated_at", DateTime(timezone=True), onupdate=text("now()")),
+            Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
+            Column("updated_at", BigInteger, server_onupdate=text("(extract(epoch from now()))::bigint")),
             extend_existing=True,
         )
 
@@ -132,6 +133,7 @@ class PgMemoryDb(MemoryDb):
                     set_=dict(
                         user_id=stmt.excluded.user_id,
                         memory=stmt.excluded.memory,
+                        updated_at=func.extract("epoch", func.now()).cast(BigInteger),
                     ),
                 )
 

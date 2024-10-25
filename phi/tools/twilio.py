@@ -8,7 +8,6 @@ from phi.utils.log import logger
 try:
     from twilio.rest import Client
     from twilio.base.exceptions import TwilioRestException
-    from twilio.twiml.voice_response import VoiceResponse
 except ImportError:
     raise ImportError("`twilio` not installed. Please install it using `pip install twilio`.")
 
@@ -46,7 +45,7 @@ class TwilioTools(Toolkit):
         self.auth_token = auth_token or getenv("TWILIO_AUTH_TOKEN")
         self.api_key = api_key or getenv("TWILIO_API_KEY")
         self.api_secret = api_secret or getenv("TWILIO_API_SECRET")
-        
+
         # Optional region and edge
         self.region = region or getenv("TWILIO_REGION")
         self.edge = edge or getenv("TWILIO_EDGE")
@@ -54,12 +53,10 @@ class TwilioTools(Toolkit):
         # Validate required credentials
         if not self.account_sid:
             logger.error("TWILIO_ACCOUNT_SID not set. Please set the TWILIO_ACCOUNT_SID environment variable.")
-            raise ValueError("Twilio Account SID is required")
 
         # Initialize client based on provided authentication method
         if self.api_key and self.api_secret:
             # Method 2: API Key + Secret
-            logger.info("Initializing Twilio client with API Key authentication")
             self.client = Client(
                 self.api_key,
                 self.api_secret,
@@ -69,7 +66,6 @@ class TwilioTools(Toolkit):
             )
         elif self.auth_token:
             # Method 1: Auth Token
-            logger.info("Initializing Twilio client with Auth Token authentication")
             self.client = Client(
                 self.account_sid,
                 self.auth_token,
@@ -81,10 +77,6 @@ class TwilioTools(Toolkit):
                 "Neither (auth_token) nor (api_key and api_secret) provided. "
                 "Please set either TWILIO_AUTH_TOKEN or both TWILIO_API_KEY and TWILIO_API_SECRET environment variables."
             )
-            raise ValueError("No valid authentication method provided")
-
-
-        logger.info("Twilio client initialized")
 
         if debug:
             import logging
@@ -93,10 +85,8 @@ class TwilioTools(Toolkit):
             self.client.http_client.logger.setLevel(logging.INFO)
 
         self.register(self.send_sms)
-        self.register(self.make_call)
         self.register(self.get_call_details)
         self.register(self.list_messages)
-        self.register(self.generate_twiml)
 
     @staticmethod
     def validate_phone_number(phone: str) -> bool:
@@ -129,33 +119,6 @@ class TwilioTools(Toolkit):
         except TwilioRestException as e:
             logger.error(f"Failed to send SMS to {to}: {e}")
             return f"Error sending message: {str(e)}"
-
-    def make_call(self, to: str, from_: str, url: str) -> str:
-        """
-        Initiate a phone call using Twilio.
-
-        Args:
-            to: Recipient phone number (E.164 format)
-            from_: Caller phone number (must be a Twilio number)
-            url: TwiML URL for call handling
-
-        Returns:
-            str: Call SID if successful, error message if failed
-        """
-        try:
-            if not self.validate_phone_number(to):
-                return "Error: 'to' number must be in E.164 format (e.g., +1234567890)"
-            if not self.validate_phone_number(from_):
-                return "Error: 'from_' number must be in E.164 format (e.g., +1234567890)"
-            if not url or len(url.strip()) == 0:
-                return "Error: TwiML URL cannot be empty"
-
-            call = self.client.calls.create(to=to, from_=from_, url=url)
-            logger.info(f"Call initiated. SID: {call.sid}, to: {to}")
-            return f"Call initiated successfully. SID: {call.sid}"
-        except TwilioRestException as e:
-            logger.error(f"Failed to make call to {to}: {e}")
-            return f"Error making call: {str(e)}"
 
     def get_call_details(self, call_sid: str) -> Dict[str, Any]:
         """
@@ -212,22 +175,3 @@ class TwilioTools(Toolkit):
         except TwilioRestException as e:
             logger.error(f"Failed to list messages: {e}")
             return [{"error": str(e)}]
-
-    def generate_twiml(self, message: str) -> str:
-        """
-        Generate TwiML for voice responses.
-
-        Args:
-            message: Message to be spoken
-
-        Returns:
-            str: TwiML XML string
-        """
-        try:
-            response = VoiceResponse()
-            response.say(message)
-            logger.info("Generated TwiML response")
-            return str(response)
-        except Exception as e:
-            logger.error(f"Failed to generate TwiML: {e}")
-            return f"Error generating TwiML: {str(e)}"

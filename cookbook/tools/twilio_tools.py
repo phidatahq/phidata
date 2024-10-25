@@ -24,13 +24,12 @@ agent = Agent(
     instructions=[
         """You can help users by:
         - Sending SMS messages
-        - Making phone calls
         - Checking message history
-        - Generating TwiML responses using twilio_tools
+        - getting call details
         
-        Always confirm before sending messages or making calls."""
+        Always confirm before sending messages."""
     ],
-    model=OpenAIChat(id="gpt-4o-mini"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[TwilioTools()],
     show_tool_calls=True,
     markdown=True,

@@ -1,7 +1,8 @@
 """Discord integration tools."""
 
 import json
-from typing import Union
+from os import getenv
+from typing import Union, Optional
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -17,7 +18,7 @@ MessageableChannel = Union[discord.TextChannel, discord.Thread, discord.DMChanne
 class DiscordTools(Toolkit):
     def __init__(
         self,
-        bot_token: str,
+        bot_token: Optional[str] = None,
         enable_messaging: bool = True,
         enable_history: bool = True,
         enable_channel_management: bool = True,
@@ -25,14 +26,17 @@ class DiscordTools(Toolkit):
         """Initialize Discord tools.
 
         Args:
-            bot_token: Discord bot token for authentication
+            bot_token: Discord bot token for authentication. If not provided, will try to get from DISCORD_BOT_TOKEN env var
             enable_messaging: Whether to enable message sending functionality
             enable_history: Whether to enable message history retrieval
             enable_channel_management: Whether to enable channel management
         """
         super().__init__(name="discord_tools")
 
-        self.bot_token = bot_token
+        self.bot_token = bot_token or getenv("DISCORD_BOT_TOKEN")
+        if not self.bot_token:
+            logger.error("DISCORD_BOT_TOKEN not set. Please set the DISCORD_BOT_TOKEN environment variable.")
+
         intents = discord.Intents.default()
         intents.message_content = True
         self.bot = commands.Bot(command_prefix="!", intents=intents)

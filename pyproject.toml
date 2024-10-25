@@ -106,8 +106,6 @@ module = [
   "clip.*",
   "cohere.*",
   "crawl4ai.*",
-  "discord.*",
-  "discord.ext.*",
   "docker.*",
   "docx.*",
   "duckdb.*",

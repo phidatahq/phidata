@@ -2,9 +2,6 @@
 
 import json
 from typing import Union
-import discord
-from discord.ext import commands
-
 from phi.tools import Toolkit
 from phi.utils.log import logger
 

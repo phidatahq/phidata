@@ -108,7 +108,7 @@ class GenerateNewsReport(Workflow):
             use_cached_report (bool, optional): Whether to return a previously generated report on the same topic. Defaults to False.
 
         Returns:
-            Iterator[RunResponse]: An iterator of RunResponse objects containing the generated report or status information.
+            Iterator[RunResponse]: An stream of objects containing the generated report or status information.
 
         Workflow Steps:
         1. Check for a cached report if use_cached_report is True.
@@ -177,8 +177,12 @@ class GenerateNewsReport(Workflow):
 
         # 2.1: Get cached scraped_articles from the session state if use_scrape_cache is True
         scraped_articles: Dict[str, ScrapedArticle] = {}
-        if use_scrape_cache and "scraped_articles" in self.session_state:
-            for scraped_article in self.session_state["scraped_articles"]:
+        if (
+            use_scrape_cache
+            and "scraped_articles" in self.session_state
+            and isinstance(self.session_state["scraped_articles"], dict)
+        ):
+            for url, scraped_article in self.session_state["scraped_articles"].items():
                 try:
                     validated_scraped_article = ScrapedArticle.model_validate(scraped_article)
                     scraped_articles[validated_scraped_article.url] = validated_scraped_article
@@ -198,11 +202,11 @@ class GenerateNewsReport(Workflow):
                 and article_scraper_response.content
                 and isinstance(article_scraper_response.content, ScrapedArticle)
             ):
-                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content
+                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content.model_dump()
                 logger.info(f"Scraped article: {article_scraper_response.content.url}")
 
         # 2.3: Save the scraped_articles in the session state
-        self.session_state["scraped_articles"] = {k: v.model_dump() for k, v in scraped_articles.items()}
+        self.session_state["scraped_articles"] = {k: v for k, v in scraped_articles.items()}
 
         ####################################################
         # Step 3: Write a report
@@ -212,19 +216,20 @@ class GenerateNewsReport(Workflow):
         logger.info("Generating final report")
         writer_input = {
             "topic": topic,
-            "articles": {k: v.model_dump() for k, v in scraped_articles.items()},
+            "articles": [v.model_dump() for v in scraped_articles.values()],
         }
-        final_report = ""
-        for report_chunk in self.writer.run(json.dumps(writer_input, indent=4), stream=True):
-            yield report_chunk
-            if report_chunk.content:
-                final_report += report_chunk.content
+        writer_response_stream: Iterator[RunResponse] = self.writer.run(json.dumps(writer_input, indent=4), stream=True)
 
-        # 3.2: Save the writer_response in the session state
-        if final_report:
-            if "reports" not in self.session_state:
-                self.session_state["reports"] = []
-            self.session_state["reports"].append({"topic": topic, "report": final_report})
+        # 3.2: Yield and save the writer_response in the session state
+        writer_response = ""
+        for writer_response_chunk in writer_response_stream:
+            if writer_response_chunk.content is not None:
+                writer_response += writer_response_chunk.content
+                yield writer_response_chunk
+
+        if "reports" not in self.session_state:
+            self.session_state["reports"] = []
+        self.session_state["reports"].append({"topic": topic, "report": writer_response})
 
 
 # Create the workflow
@@ -238,7 +243,7 @@ generate_news_report = GenerateNewsReport(
 
 # Run workflow
 report_stream: Iterator[RunResponse] = generate_news_report.run(
-    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=True
+    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=False
 )
 
 # Print the response

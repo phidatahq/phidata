@@ -175,8 +175,12 @@ class GenerateNewsReport(Workflow):
 
         # 2.1: Get cached scraped_articles from the session state if use_scrape_cache is True
         scraped_articles: Dict[str, ScrapedArticle] = {}
-        if use_scrape_cache and "scraped_articles" in self.session_state:
-            for scraped_article in self.session_state["scraped_articles"]:
+        if (
+            use_scrape_cache
+            and "scraped_articles" in self.session_state
+            and isinstance(self.session_state["scraped_articles"], dict)
+        ):
+            for url, scraped_article in self.session_state["scraped_articles"].items():
                 try:
                     validated_scraped_article = ScrapedArticle.model_validate(scraped_article)
                     scraped_articles[validated_scraped_article.url] = validated_scraped_article
@@ -210,7 +214,7 @@ class GenerateNewsReport(Workflow):
         logger.info("Generating final report")
         writer_input = {
             "topic": topic,
-            "articles": {k: v for k, v in scraped_articles.items()},
+            "articles": [v.model_dump() for v in scraped_articles.values()],
         }
         writer_response: RunResponse = self.writer.run(json.dumps(writer_input, indent=4))
 

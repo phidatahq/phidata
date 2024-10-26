@@ -4,13 +4,13 @@ from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.zoom import ZoomTool
 
-# Retrieve Zoom credentials from environment variables
+
 ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")
 CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 
 
-# Create a custom ZoomTool class that processes the API response
+
 class CustomZoomTool(ZoomTool):
     def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
         response = super().schedule_meeting(topic, start_time, duration)
@@ -39,10 +39,10 @@ class CustomZoomTool(ZoomTool):
             return "I'm sorry, but I was unable to schedule the meeting."
 
 
-# Create an instance of CustomZoomTool
+
 zoom_tool = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
 
-# Create the agent
+
 agent = Agent(
     name="Zoom Scheduling Agent",
     agent_id="zoom-scheduling-agent",

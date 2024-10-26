@@ -71,11 +71,11 @@ class GenerateNewsReport(Workflow):
         <article_format>
         ## Engaging Article Title
 
-        ### Overview
+        ### {Overview or Introduction}
         {give a brief introduction of the article and why the user should read this report}
         {make this section engaging and create a hook for the reader}
 
-        ### Section 1
+        ### {Section title}
         {break the article into sections}
         {provide details/facts/processes in this section}
 
@@ -196,10 +196,11 @@ class GenerateNewsReport(Workflow):
                 and article_scraper_response.content
                 and isinstance(article_scraper_response.content, ScrapedArticle)
             ):
-                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content
+                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content.model_dump()
+                logger.info(f"Scraped article: {article_scraper_response.content.url}")
 
         # 2.3: Save the scraped_articles in the session state
-        self.session_state["scraped_articles"] = {k: v.model_dump() for k, v in scraped_articles.items()}
+        self.session_state["scraped_articles"] = {k: v for k, v in scraped_articles.items()}
 
         ####################################################
         # Step 3: Write a report
@@ -209,13 +210,15 @@ class GenerateNewsReport(Workflow):
         logger.info("Generating final report")
         writer_input = {
             "topic": topic,
-            "articles": {k: v.model_dump() for k, v in scraped_articles.items()},
+            "articles": {k: v for k, v in scraped_articles.items()},
         }
         writer_response: RunResponse = self.writer.run(json.dumps(writer_input, indent=4))
 
         # 3.2: Save the writer_response in the session state
         if writer_response.content is not None:
-            self.session_state["reports"] = {"topic": topic, "report": writer_response.content}
+            if "reports" not in self.session_state:
+                self.session_state["reports"] = []
+            self.session_state["reports"].append({"topic": topic, "report": writer_response.content})
 
         return writer_response
 
@@ -231,7 +234,7 @@ generate_news_report = GenerateNewsReport(
 
 # Run workflow
 report: RunResponse = generate_news_report.run(
-    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=True
+    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=False
 )
 
 # Print the response

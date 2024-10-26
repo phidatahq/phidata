@@ -103,7 +103,7 @@ class OpenAIChat(Model):
 
     id: str = "gpt-4o"
     name: str = "OpenAIChat"
-    provider: str = "OpenAI " + id
+    provider: str = "OpenAI"
 
     # Request parameters
     store: Optional[bool] = None

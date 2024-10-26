@@ -164,9 +164,12 @@ class AgentMemory(BaseModel):
         return messages_from_last_n_history
 
     def get_message_pairs(
-        self, user_role: str = "user", assistant_role: str = "assistant"
+        self, user_role: str = "user", assistant_role: Optional[List[str]] = None
     ) -> List[Tuple[Message, Message]]:
         """Returns a list of tuples of (user message, assistant response)."""
+
+        if assistant_role is None:
+            assistant_role = ["assistant", "model", "CHATBOT"]
 
         chats_as_message_pairs: List[Tuple[Message, Message]] = []
         for chat in self.chats:
@@ -182,7 +185,7 @@ class AgentMemory(BaseModel):
 
                 # Start from the end to look for the assistant response
                 for message in chat.response.messages[::-1]:
-                    if message.role == assistant_role:
+                    if message.role in assistant_role:
                         assistant_messages_from_chat = message
                         break
 
@@ -246,6 +249,18 @@ class AgentMemory(BaseModel):
             return True
         return False
 
+    async def ashould_update_memory(self, input: str) -> bool:
+        """Determines if a message should be added to the memory db."""
+
+        if self.classifier is None:
+            self.classifier = MemoryClassifier()
+
+        self.classifier.existing_memories = self.memories
+        classifier_response = await self.classifier.arun(input)
+        if classifier_response == "yes":
+            return True
+        return False
+
     def update_memory(self, input: str, force: bool = False) -> Optional[str]:
         """Creates a memory from a message and adds it to the memory db."""
 
@@ -269,7 +284,43 @@ class AgentMemory(BaseModel):
         if self.manager is None:
             self.manager = MemoryManager(user_id=self.user_id, db=self.db)
 
+        else:
+            self.manager.db = self.db
+            self.manager.user_id = self.user_id
+
         response = self.manager.run(input)
+        self.load_user_memories()
+        self.updating_memory = False
+        return response
+
+    async def aupdate_memory(self, input: str, force: bool = False) -> Optional[str]:
+        """Creates a memory from a message and adds it to the memory db."""
+
+        if input is None or not isinstance(input, str):
+            return "Invalid message content"
+
+        if self.db is None:
+            logger.warning("MemoryDb not provided.")
+            return "Please provide a db to store memories"
+
+        self.updating_memory = True
+
+        # Check if this user message should be added to long term memory
+        should_update_memory = force or await self.ashould_update_memory(input=input)
+        logger.debug(f"Async update memory: {should_update_memory}")
+
+        if not should_update_memory:
+            logger.debug("Memory update not required")
+            return "Memory update not required"
+
+        if self.manager is None:
+            self.manager = MemoryManager(user_id=self.user_id, db=self.db)
+
+        else:
+            self.manager.db = self.db
+            self.manager.user_id = self.user_id
+
+        response = await self.manager.arun(input)
         self.load_user_memories()
         self.updating_memory = False
         return response
@@ -283,6 +334,18 @@ class AgentMemory(BaseModel):
             self.summarizer = MemorySummarizer()
 
         self.summary = self.summarizer.run(self.get_message_pairs())
+        self.updating_memory = False
+        return self.summary
+
+    async def aupdate_summary(self) -> Optional[SessionSummary]:
+        """Creates a summary of the session"""
+
+        self.updating_memory = True
+
+        if self.summarizer is None:
+            self.summarizer = MemorySummarizer()
+
+        self.summary = await self.summarizer.arun(self.get_message_pairs())
         self.updating_memory = False
         return self.summary
 

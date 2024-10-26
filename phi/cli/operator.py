@@ -47,7 +47,7 @@ def authenticate_user() -> None:
 
     auth_token = get_auth_token_from_web_flow(auth_server_port)
     if auth_token is None:
-        logger.error("Could not authenticate, please try again")
+        logger.error("Could not authenticate, please set PHI_API_KEY or try again")
         return
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
@@ -57,14 +57,14 @@ def authenticate_user() -> None:
         user: Optional[UserSchema] = authenticate_and_get_user(auth_token=auth_token, existing_user=existing_user)
     except Exception as e:
         logger.exception(e)
-        logger.error("Could not authenticate, please try again")
+        logger.error("Could not authenticate, please set PHI_API_KEY or try again")
         return
 
     # Save the auth token if user is authenticated
     if user is not None:
         save_auth_token(auth_token)
     else:
-        logger.error("Could not authenticate, please try again")
+        logger.error("Could not authenticate, please set PHI_API_KEY or try again")
         return
 
     if phi_config is None:

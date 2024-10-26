@@ -1,6 +1,9 @@
+import os
+import json
+from typing import Optional
+
 from phi.tools import Toolkit
 from phi.utils.log import logger
-import json
 
 try:
     import tweepy
@@ -8,27 +11,39 @@ except ImportError:
     raise ImportError("`tweepy` not installed. Please install using `pip install tweepy`.")
 
 
-class TwitterToolkit(Toolkit):
+class TwitterTools(Toolkit):
     def __init__(
-        self, bearer_token: str, consumer_key: str, consumer_secret: str, access_token: str, access_token_secret: str
+        self,
+        bearer_token: Optional[str] = None,
+        consumer_key: Optional[str] = None,
+        consumer_secret: Optional[str] = None,
+        access_token: Optional[str] = None,
+        access_token_secret: Optional[str] = None,
     ):
         """
-        Initialize the TwitterToolkit.
+        Initialize the TwitterTools.
 
         Args:
-            bearer_token (str): The bearer token for authentication.
-            consumer_key (str): The consumer key for authentication.
-            consumer_secret (str): The consumer secret for authentication.
-            access_token (str): The access token for authentication.
-            access_token_secret (str): The access token secret for authentication.
+            bearer_token Optional[str]: The bearer token for Twitter API.
+            consumer_key Optional[str]: The consumer key for Twitter API.
+            consumer_secret Optional[str]: The consumer secret for Twitter API.
+            access_token Optional[str]: The access token for Twitter API.
+            access_token_secret Optional[str]: The access token secret for Twitter API.
         """
         super().__init__(name="twitter")
+
+        self.bearer_token = bearer_token or os.getenv("TWITTER_BEARER_TOKEN")
+        self.consumer_key = consumer_key or os.getenv("TWITTER_CONSUMER_KEY")
+        self.consumer_secret = consumer_secret or os.getenv("TWITTER_CONSUMER_SECRET")
+        self.access_token = access_token or os.getenv("TWITTER_ACCESS_TOKEN")
+        self.access_token_secret = access_token_secret or os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+
         self.client = tweepy.Client(
-            bearer_token=bearer_token,
-            consumer_key=consumer_key,
-            consumer_secret=consumer_secret,
-            access_token=access_token,
-            access_token_secret=access_token_secret,
+            bearer_token=self.bearer_token,
+            consumer_key=self.consumer_key,
+            consumer_secret=self.consumer_secret,
+            access_token=self.access_token,
+            access_token_secret=self.access_token_secret,
         )
         self.auth = tweepy.OAuth1UserHandler(consumer_key, consumer_secret, access_token, access_token_secret)
         self.api = tweepy.API(self.auth)

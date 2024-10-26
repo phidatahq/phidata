@@ -1,4 +1,4 @@
-"""Run `pip install duckdb` to install dependencies."""
+"""Build a Data Analyst Agent using xAI."""
 
 from textwrap import dedent
 from phi.agent import Agent

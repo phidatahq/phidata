@@ -647,8 +647,10 @@ class Agent(BaseModel):
         """
 
         # If an agent_session is already loaded, return the session_id from the agent_session
+        # if session_id matches the session_id from the agent_session
         if self._agent_session is not None and not force:
-            return self._agent_session.session_id
+            if self.session_id is not None and self._agent_session.session_id == self.session_id:
+                return self._agent_session.session_id
 
         # Load an existing session or create a new session
         if self.storage is not None:
@@ -873,7 +875,7 @@ class Agent(BaseModel):
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
-                    "You have access to memory from previous interactions with the user that you can use:"
+                    "You have access to memories from previous interactions with the user that you can use:"
                 )
                 system_message_lines.append("### Memories from previous interactions")
                 system_message_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
@@ -884,10 +886,12 @@ class Agent(BaseModel):
                 system_message_lines.append("If you need to update the long-term memory, use the `update_memory` tool.")
             else:
                 system_message_lines.append(
-                    "You also have access to memory from previous interactions with the user but the user has no memories yet."
+                    "You have the capability to retain memories from previous interactions with the user, "
+                    "but have not had any interactions with the user yet."
                 )
                 system_message_lines.append(
-                    "If the user asks about memories, you can let them know that you dont have any memory about the yet, but can add new memories using the `update_memory` tool."
+                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user yet because you have not had any interactions with them yet, "
+                    "but can add new memories using the `update_memory` tool."
                 )
             system_message_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
@@ -1673,8 +1677,8 @@ class Agent(BaseModel):
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add messages from this particular run to memory
-        self.memory.add_messages(messages=run_messages)
+        # Add the user messages and model response messages to memory
+        self.memory.add_messages(messages=(user_messages + messages_for_model[num_input_messages:]))
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)
@@ -2032,8 +2036,8 @@ class Agent(BaseModel):
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add messages from this particular run to memory
-        self.memory.add_messages(messages=run_messages)
+        # Add the user messages and model response messages to memory
+        self.memory.add_messages(messages=(user_messages + messages_for_model[num_input_messages:]))
 
         # Create an AgentChat object to add to memory
         agent_chat = AgentChat(response=self.run_response)
@@ -2047,7 +2051,7 @@ class Agent(BaseModel):
                 agent_chat.message = user_message_for_memory
                 # Update the memories with the user message if needed
                 if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                    self.memory.update_memory(input=user_message_for_memory.get_content_string())
+                    await self.memory.aupdate_memory(input=user_message_for_memory.get_content_string())
         elif messages is not None and len(messages) > 0:
             for _m in messages:
                 _um = None
@@ -2066,7 +2070,7 @@ class Agent(BaseModel):
                         agent_chat.messages = []
                     agent_chat.messages.append(_um)
                     if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                        self.memory.update_memory(input=_um.get_content_string())
+                        await self.memory.aupdate_memory(input=_um.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentChat to memory
@@ -2074,7 +2078,7 @@ class Agent(BaseModel):
 
         # Update the session summary if needed
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
-            self.memory.update_summary()
+            await self.memory.aupdate_summary()
 
         # 7. Save session to storage
         self.write_to_storage()

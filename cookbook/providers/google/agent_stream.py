@@ -11,7 +11,6 @@ agent = Agent(
     instructions=["Use tables where possible."],
     markdown=True,
     show_tool_calls=True,
-    debug_mode=True,
 )
 
 # Get the response in a variable

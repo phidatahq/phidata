@@ -22,5 +22,4 @@ python_agent = PythonAgent(
     pip_install=True,
     show_tool_calls=True,
 )
-
 python_agent.print_response("What is the average rating of movies?")

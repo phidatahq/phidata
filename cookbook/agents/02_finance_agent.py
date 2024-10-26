@@ -6,12 +6,10 @@ from phi.tools.yfinance import YFinanceTools
 
 finance_agent = Agent(
     name="Finance Agent",
-    role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Always use tables to display data"],
-    markdown=True,
+    instructions=["Use tables to display data"],
     show_tool_calls=True,
+    markdown=True,
 )
-
-finance_agent.print_response("Share analyst recommendations for NVDA", stream=True)
+finance_agent.print_response("Summarize analyst recommendations for NVDA", stream=True)

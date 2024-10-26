@@ -72,7 +72,7 @@ class Claude(Model):
         client (Optional[AnthropicClient]): A pre-configured instance of the Anthropic client.
     """
 
-    id: str = "claude-3-5-sonnet-20240620"
+    id: str = "claude-3-5-sonnet-20241022"
     name: str = "Claude"
     provider: str = "Anthropic"
 

@@ -7,13 +7,9 @@ from phi.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[
-        DuckDuckGo(),
-        YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True),
-    ],
-    instructions=["Use tables where possible"],
+    tools=[DuckDuckGo(), YFinanceTools(enable_all=True)],
+    instructions=["Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
 )
-
 agent.print_response("Write a thorough report on NVDA, get all financial information and latest news", stream=True)

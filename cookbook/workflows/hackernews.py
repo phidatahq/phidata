@@ -1,3 +1,7 @@
+"""Please install dependencies using:
+pip install openai newspaper4k lxml_html_clean phidata
+"""
+
 import json
 import httpx
 from typing import Iterator

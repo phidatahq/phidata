@@ -256,7 +256,7 @@ class Agent(BaseModel):
 
     @property
     def identifier(self) -> Optional[str]:
-        """Get the identifier for the agent"""
+        """Get a identifier for the agent"""
         return self.name or self.agent_id
 
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
@@ -531,11 +531,11 @@ class Agent(BaseModel):
 
         # Read agent_data from the database
         if session.agent_data is not None:
-            # Get agent name from database and update the current name if not set
+            # Get name from database and update the agent name if not set
             if self.name is None and "name" in session.agent_data:
                 self.name = session.agent_data.get("name")
 
-            # Update model data from the database
+            # Get model data from the database and update the model
             if "model" in session.agent_data:
                 model_data = session.agent_data.get("model")
                 # Update model metrics from the database
@@ -612,7 +612,6 @@ class Agent(BaseModel):
         Returns:
             Optional[AgentSession]: The loaded AgentSession or None if not found.
         """
-
         if self.storage is not None and self.session_id is not None:
             self._agent_session = self.storage.read(session_id=self.session_id)
             if self._agent_session is not None:
@@ -626,7 +625,6 @@ class Agent(BaseModel):
         Returns:
             Optional[AgentSession]: The saved AgentSession or None if not saved.
         """
-
         if self.storage is not None:
             self._agent_session = self.storage.upsert(session=self.get_agent_session())
         return self._agent_session
@@ -652,7 +650,6 @@ class Agent(BaseModel):
         - If a session exists in the database, load the session.
         - If a session does not exist in the database, create a new session.
         """
-
         # If an agent_session is already loaded, return the session_id from the agent_session
         # if session_id matches the session_id from the agent_session
         if self._agent_session is not None and not force:
@@ -684,12 +681,15 @@ class Agent(BaseModel):
 
         If a session already exists, return the session_id from the existing session.
         """
-
         return self.load_session()
 
     def new_session(self) -> None:
-        """Create a new session"""
-
+        """Create a new session
+        - Clear the model
+        - Clear the memory
+        - Create a new session_id
+        - Load the new session
+        """
         self._agent_session = None
         if self.model is not None:
             self.model.clear()

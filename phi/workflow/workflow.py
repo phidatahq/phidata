@@ -130,7 +130,7 @@ class Workflow(BaseModel):
 
         # Read workflow_data from the database
         if session.workflow_data is not None:
-            # Get the name from database and update the current name if not set
+            # Get name from database and update the workflow name if not set
             if self.name is None and "name" in session.workflow_data:
                 self.name = session.workflow_data.get("name")
 
@@ -206,7 +206,6 @@ class Workflow(BaseModel):
         - If a session exists in the database, load the session.
         - If a session does not exist in the database, create a new session.
         """
-
         # If a workflow_session is already loaded, return the session_id from the workflow_session
         # if session_id matches the session_id from the workflow_session
         if self._workflow_session is not None and not force:
@@ -244,7 +243,9 @@ class Workflow(BaseModel):
         logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
         result = self._subclass_run(*args, **kwargs)
 
-        # Handle both Iterator[RunResponse] and RunResponse
+        # The run_workflow() method handles both Iterator[RunResponse] and RunResponse
+
+        # Case 1: The run method returns an Iterator[RunResponse]
         if isinstance(result, (GeneratorType, collections.abc.Iterator)):
             # Initialize the run_response content
             self.run_response.content = ""
@@ -271,6 +272,7 @@ class Workflow(BaseModel):
                 logger.debug(f"*********** Workflow Run End: {self.run_id} ***********")
 
             return result_generator()
+        # Case 2: The run method returns a RunResponse
         elif isinstance(result, RunResponse):
             # Update the result with the run_id, session_id and workflow_id of the workflow run
             result.run_id = self.run_id
@@ -304,4 +306,4 @@ class Workflow(BaseModel):
             self._subclass_run = self.run
 
     def log_workflow_session(self):
-        logger.debug(f"*********** WorkflowSession logged: {self.session_id} ***********")
+        logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")

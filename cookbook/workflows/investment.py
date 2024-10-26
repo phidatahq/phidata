@@ -1,6 +1,7 @@
 """Please install dependencies using:
 pip install openai yfinance phidata
 """
+
 from typing import Iterator
 from pathlib import Path
 from shutil import rmtree

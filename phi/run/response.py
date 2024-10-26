@@ -20,6 +20,8 @@ class RunEvent(str, Enum):
     reasoning_step = "ReasoningStep"
     reasoning_completed = "ReasoningCompleted"
     updating_memory = "UpdatingMemory"
+    workflow_started = "WorkflowStarted"
+    workflow_completed = "WorkflowCompleted"
 
 
 class RunResponseExtraData(BaseModel):

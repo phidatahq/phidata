@@ -7,7 +7,7 @@ from typing import Any, Optional, Callable, Dict
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
-from phi.run.response import RunResponse
+from phi.run.response import RunResponse, RunEvent  # noqa: F401
 from phi.memory.workflow import WorkflowMemory, WorkflowRun
 from phi.storage.workflow import WorkflowStorage
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info

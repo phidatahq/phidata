@@ -11,11 +11,12 @@ reader = FirecrawlReader(
     api_key=api_key,
     mode="scrape",
     chunk=True,
+    # for crawling
     # params={
-    #     # "timeout": 30000  # Just timeout for now
     #     'limit': 5,
     #     'scrapeOptions': {'formats': ['markdown']}
     # }
+    # for scraping
     params={"formats": ["markdown"]},
 )
 

@@ -1,8 +1,9 @@
 import time
 import requests
+import json
+
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger
-import json
 
 
 class ZoomTool(Toolkit):

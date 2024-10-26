@@ -20,7 +20,7 @@ Build Agents with memory, knowledge, tools and reasoning
 - **Build teams of Agents that can work together.** [example](#team-of-agents)
 - **Chat with your Agents using a beautiful Agent UI.** [example](#agent-ui)
 - **Monitor, evaluate and optimize your Agents.** [example](#monitoring)
-- **Run your Agents as a software application (with a database, vectordb and api).**
+- **Run your Agents behind an API, with a database and vectordb.**
 
 ## Install
 

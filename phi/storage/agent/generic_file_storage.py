@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Union, Any, Optional
+from urllib.parse import quote
 from phi.storage.agent.base import AgentStorage
 from phi.agent import AgentSession
 
@@ -64,7 +65,16 @@ class GenericFileStorage(AgentStorage):
         """Insert or update an AgentSession in the storage."""
         session_file = self.by_id_path / f"{session.session_id}{self.fileExtension}"
         self.serialize(session.dict(), session_file)
-        return session
+        
+        # Create a symlink in the by_name directory
+        if self.by_name_path.exists():
+            name = session.agent_data.get('name', 'unknown')
+            symlink_name = f"{quote(name)}#{quote(session.session_id)}"
+            symlink_path = self.by_name_path / symlink_name
+            if not symlink_path.exists():
+                symlink_path.symlink_to(session_file)
+
+        return session        
 
     def delete_session(self, session_id: Optional[str] = None):
         """Delete a session from the storage."""

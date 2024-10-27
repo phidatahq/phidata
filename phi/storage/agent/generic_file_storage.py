@@ -50,6 +50,18 @@ class GenericFileStorage(AgentStorage):
         return session_ids
         return []
 
+    def get_all_session_ids_and_names(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> list[tuple[str, str]]:
+        """Get all session IDs and their names, optionally filtered by user_id and/or agent_id."""
+        session_files = self.by_id_path.glob("*.json")
+        session_ids_and_names = []
+        for session_file in session_files:
+            data = self.deserialize(session_file)
+            if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
+                session_id = data['session_id']
+                name = data.get('agent_data', {}).get('name', 'unknown')
+                session_ids_and_names.append((session_id, name))
+        return session_ids_and_names
+
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> list[AgentSession]:
         """Get all sessions, optionally filtered by user_id and/or agent_id."""
         session_files = self.by_id_path.glob("*.json")

@@ -12,7 +12,11 @@ class GenericFileStorage(AgentStorage):
         self.by_id_path.mkdir(parents=True, exist_ok=True)
         self.by_name_path.mkdir(parents=True, exist_ok=True)
 
+    @property
     @abstractmethod
+    def fileExtension(self) -> str:
+        """Return the file extension used by the storage."""
+        raise NotImplementedError
     def serialize(self, data: Any) -> str:
         raise NotImplementedError
 
@@ -27,7 +31,7 @@ class GenericFileStorage(AgentStorage):
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """Read an AgentSession from the storage."""
-        session_file = self.by_id_path / f"{session_id}.json"
+        session_file = self.by_id_path / f"{session_id}{self.fileExtension}"
         if session_file.exists():
             data = self.deserialize(session_file)
             return AgentSession.model_validate(data)
@@ -57,7 +61,7 @@ class GenericFileStorage(AgentStorage):
 
     def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
         """Insert or update an AgentSession in the storage."""
-        session_file = self.by_id_path / f"{session.session_id}.json"
+        session_file = self.by_id_path / f"{session.session_id}{self.fileExtension}"
         self.serialize(session.dict(), session_file)
         return session
 
@@ -65,14 +69,14 @@ class GenericFileStorage(AgentStorage):
         """Delete a session from the storage."""
         if session_id is None:
             return
-        session_file = self.by_id_path / f"{session_id}.json"
+        session_file = self.by_id_path / f"{session_id}{self.fileExtension}"
         if session_file.exists():
             session_file.unlink()
 
     def drop(self) -> None:
         """Drop the storage."""
         if self.by_id_path.exists():
-            for session_file in self.by_id_path.glob("*.json"):
+            for session_file in self.by_id_path.glob(f"*{self.fileExtension}"):
                 session_file.unlink()
 
     def upgrade_schema(self) -> None:

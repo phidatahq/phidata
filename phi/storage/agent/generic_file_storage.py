@@ -81,7 +81,8 @@ class GenericFileStorage(AgentStorage):
     def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
         """Insert or update an AgentSession in the storage."""
         session_file = self.by_id_path / f"{session.session_id}{self.fileExtension}"
-        self.serialize(session.dict(), session_file)
+        with session_file.open('w', encoding='utf-8') as f:
+            f.write(self.serialize(session.model_dump()))
 
         # Create a symlink in the by_name directory
         if self.by_name_path.exists():

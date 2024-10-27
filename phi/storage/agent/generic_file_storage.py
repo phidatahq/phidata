@@ -8,6 +8,14 @@ class GenericFileStorage(AgentStorage):
     def __init__(self, path: Union[str, Path]):
         self.path = Path(path)
 
+    @abstractmethod
+    def serialize(self, data: Any) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def deserialize(self) -> Any:
+        raise NotImplementedError
+
     def create(self) -> None:
         """Create the storage if it doesn't exist."""
         if not self.path.exists():

@@ -1,5 +1,5 @@
-from os import getenv
 import requests
+from os import getenv
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -34,30 +34,28 @@ class LinearTool(Toolkit):
             logger.error(f"Unexpected error: {e}")
             raise
 
-    # Issue-related methods
-    def get_issues_by_project(self, project_id):
-        """Fetch all issues associated with a specific project."""
+    # issue related methods
 
-        logger.info(f"Fetching issues for project ID: {project_id}")
+    def get_user_details(self):
+        """Fetch authenticated user details"""
+
         query = """
-        query GetIssuesByProject($projectId: String!) {
-          issues(filter: { projectId: $projectId }) {
-            nodes {
-              id
-              title
-              description
-            }
+        query Me {
+          viewer {
+            id
+            name
+            email
           }
         }
         """
-        variables = {"projectId": project_id}
+
         try:
-            issues = self._execute_query(query, variables)["issues"]["nodes"]
-            logger.info(f"Retrieved {len(issues)} issues for project ID {project_id}")
-            return issues
+            user = self._execute_query(query)["user"]
+            logger.info("Retrieved authenticated user details")
+            return user
 
         except Exception as e:
-            logger.error(f"Error fetching issues for project ID {project_id}: {e}")
+            logger.error(f"Error fetching authenticated user details: {e}")
             raise
 
     def get_issue_details(self, issue_id):
@@ -93,14 +91,15 @@ class LinearTool(Toolkit):
             logger.error(f"Error fetching details for issue ID {issue_id}: {e}")
             raise
 
-    def create_issue(self, title, description, project_id, team_id):
+    def create_issue(self, title, description, team_id):
         """Create a new issue within a specific project and team."""
 
         query = """
-        mutation CreateIssue($title: String!, $description: String, $projectId: String, $teamId: String!) {
+        mutation IssueCreate{
           issueCreate(
-            input: { title: $title, description: $description, projectId: $projectId, teamId: $teamId }
+            input: { title: $title, description: $description, teamId: $teamId }
           ) {
+            success
             issue {
               id
               title
@@ -108,241 +107,152 @@ class LinearTool(Toolkit):
           }
         }
         """
-        variables = {"title": title, "description": description, "projectId": project_id, "teamId": team_id}
+        variables = {"title": title, "description": description, "teamId": team_id}
         try:
-            issue = self._execute_query(query, variables)["issueCreate"]["issue"]
-            logger.info(f"Issue '{title}' created successfully with ID {issue['id']}")
-            return issue
+            response = self._execute_query(query, variables)
+
+            if response["issueCreate"]["success"]:
+                issue = response["issueCreate"]["issue"]
+                logger.info(f"Issue '{issue['title']}' created successfully with ID {issue['id']}")
+                return issue
+            else:
+                logger.error("Issue creation failed.")
+                return None
 
         except Exception as e:
-            logger.error(f"Error creating issue '{title}' for project ID {project_id}: {e}")
+            logger.error(f"Error creating issue '{title}' for team ID {team_id}: {e}")
             raise
 
-    def update_issue(self, issue_id, title=None, description=None, status_id=None):
-        """Update details of an existing issue, such as title, description, or status."""
+    def update_issue(self, issue_id, title=None, state_id=None):
+        """Update details of an existing issue, such as title and state_id."""
 
         query = """
-        mutation UpdateIssue($issueId: String!, $title: String, $description: String, $statusId: String) {
+        mutation IssueUpdate {
           issueUpdate(
             id: $issueId,
-            input: { title: $title, description: $description, statusId: $statusId }
+            input: { title: $title, stateId: $stateId }
           ) {
+            success
             issue {
               id
               title
-              description
-              status {
+              state {
+                id
                 name
               }
             }
           }
         }
         """
-        variables = {"issueId": issue_id, "title": title, "description": description, "statusId": status_id}
+        variables = {"issueId": issue_id, "title": title, "stateId": state_id}
+
         try:
-            issue = self._execute_query(query, variables)["issueUpdate"]["issue"]
-            logger.info(f"Issue ID {issue_id} updated successfully.")
-            return issue
+            response = self._execute_query(query, variables)
+
+            if response["issueUpdate"]["success"]:
+                issue = response["issueUpdate"]["issue"]
+                logger.info(f"Issue ID {issue_id} updated successfully.")
+                return issue
+            else:
+                logger.error(f"Failed to update issue ID {issue_id}. Success flag was false.")
+                return None
 
         except Exception as e:
             logger.error(f"Error updating issue ID {issue_id}: {e}")
             raise
 
-    def delete_issue(self, issue_id):
-        """Delete an issue by its ID."""
+    def get_user_assigned_issues(self, user_id):
+        """Retrieve issues assigned to a specific user by user ID."""
 
         query = """
-        mutation DeleteIssue($issueId: String!) {
-          issueDelete(id: $issueId) {
-            success
-          }
-        }
-        """
-        variables = {"issueId": issue_id}
-        try:
-            issue = self._execute_query(query, variables)["issueDelete"]["success"]
-            logger.info(f"Issue ID {issue_id} deleted successfully.")
-            return issue
-
-        except Exception as e:
-            logger.error(f"Error deleting issue ID {issue_id}: {e}")
-            raise
-
-    # Project-related methods
-    def get_projects(self):
-        """Fetch all projects in the workspace."""
-
-        logger.info("Fetching all projects in the workspace")
-        query = """
-        query GetProjects {
-          projects {
+      query UserAssignedIssues($userId: ID!) {
+        user(id: $userId) {
+          id
+          name
+          assignedIssues {
             nodes {
               id
-              name
-              description
+              title
             }
           }
         }
-        """
+      }
+      """
+        variables = {"userId": user_id}
+
         try:
-            projects = self._execute_query(query)["projects"]["nodes"]
-            logger.info(f"Retrieved {len(projects)} projects")
-            return projects
+            response = self._execute_query(query, variables)
 
-        except Exception as e:
-            logger.error(f"Error fetching projects: {e}")
-            raise
-
-    def get_project_details(self, project_id):
-        """Retrieve details of a specific project."""
-
-        logger.info(f"Fetching details for project ID: {project_id}")
-        query = """
-        query GetProjectDetails($projectId: String!) {
-          project(id: $projectId) {
-            id
-            name
-            description
-            issues {
-              nodes {
-                id
-                title
-              }
-            }
-          }
-        }
-        """
-        variables = {"projectId": project_id}
-        try:
-            project = self._execute_query(query, variables)["project"]
-            logger.info(f"Retrieved details for project ID {project_id}")
-            return project
-        except Exception as e:
-            logger.error(f"Error fetching details for project ID {project_id}: {e}")
-            raise
-
-    def create_project(self, name, description, team_id):
-        """Create a new project within a specific team."""
-
-        logger.info(f"Creating project '{name}' for team ID: {team_id}")
-        query = """
-        mutation CreateProject($name: String!, $description: String, $teamId: String!) {
-          projectCreate(
-            input: { name: $name, description: $description, teamId: $teamId }
-          ) {
-            project {
-              id
-              name
-            }
-          }
-        }
-        """
-        variables = {"name": name, "description": description, "teamId": team_id}
-        try:
-            project = self._execute_query(query, variables)["projectCreate"]["project"]
-            logger.info(f"Project '{name}' created successfully with ID {project['id']}")
-            return project
-        except Exception as e:
-            logger.error(f"Error creating project '{name}': {e}")
-            raise
-
-    def delete_project(self, project_id):
-        """Delete a project by its ID."""
-
-        logger.info(f"Deleting project ID: {project_id}")
-        query = """
-        mutation DeleteProject($projectId: String!) {
-          projectDelete(id: $projectId) {
-            success
-          }
-        }
-        """
-        variables = {"projectId": project_id}
-        try:
-            success = self._execute_query(query, variables)["projectDelete"]["success"]
-            if success:
-                logger.info(f"Project ID {project_id} deleted successfully.")
+            if response.get("user"):
+                user = response["user"]
+                issues = user["assignedIssues"]["nodes"]
+                logger.info(f"Retrieved {len(issues)} issues assigned to user '{user['name']}' (ID: {user['id']}).")
+                return issues
             else:
-                logger.warning(f"Project ID {project_id} could not be deleted.")
-            return success
+                logger.error("Failed to retrieve user or issues.")
+                return None
+
         except Exception as e:
-            logger.error(f"Error deleting project ID {project_id}: {e}")
+            logger.error(f"Error retrieving issues for user ID {user_id}: {e}")
             raise
 
-    # Team-related methods
-    def get_teams(self):
-        """Fetch all teams in the workspace."""
+    def get_workflow_issues(self, workflow_id):
+        """Retrieve issues within a specific workflow state by workflow ID."""
 
-        logger.info("Fetching all teams in the workspace")
         query = """
-        query GetTeams {
-          teams {
+      query WorkflowStateIssues($workflowId: ID!) {
+        workflowState(id: $workflowId) {
+          issues {
             nodes {
-              id
-              name
-              key
+              title
             }
           }
         }
-        """
+      }
+      """
+        variables = {"workflowId": workflow_id}
         try:
-            teams = self._execute_query(query)["teams"]["nodes"]
-            logger.info(f"Retrieved {len(teams)} teams")
-            return teams
+            response = self._execute_query(query, variables)
+
+            if response.get("workflowState"):
+                issues = response["workflowState"]["issues"]["nodes"]
+                logger.info(f"Retrieved {len(issues)} issues in workflow state ID {workflow_id}.")
+                return issues
+            else:
+                logger.error("Failed to retrieve issues for the specified workflow state.")
+                return None
+
         except Exception as e:
-            logger.error(f"Error fetching teams: {e}")
+            logger.error(f"Error retrieving issues for workflow state ID {workflow_id}: {e}")
             raise
 
-    # Comment-related methods
-    def add_comment_to_issue(self, issue_id, body):
-        """Add a comment to a specific issue."""
+    def get_high_priority_issues(self):
+        """Retrieve issues with a high priority (priority <= 2)."""
 
-        logger.info(f"Adding comment to issue ID: {issue_id}")
         query = """
-        mutation AddCommentToIssue($issueId: String!, $body: String!) {
-          commentCreate(
-            input: { issueId: $issueId, body: $body }
-          ) {
-            comment {
-              id
-              body
-            }
+      query HighPriorityIssues {
+        issues(filter: { 
+          priority: { lte: 2 }
+        }) {
+          nodes {
+            id
+            title
+            priority
           }
         }
-        """
-        variables = {"issueId": issue_id, "body": body}
+      }
+      """
         try:
-            comment = self._execute_query(query, variables)["commentCreate"]["comment"]
-            logger.info(f"Comment added to issue ID {issue_id} with comment ID {comment['id']}")
-            return comment
+            response = self._execute_query(query)
+
+            if response.get("issues"):
+                high_priority_issues = response["issues"]["nodes"]
+                logger.info(f"Retrieved {len(high_priority_issues)} high-priority issues.")
+                return high_priority_issues
+            else:
+                logger.error("Failed to retrieve high-priority issues.")
+                return None
 
         except Exception as e:
-            logger.error(f"Error adding comment to issue ID {issue_id}: {e}")
-            raise
-
-    def get_comments_by_issue(self, issue_id):
-        """Retrieve all comments for a specific issue."""
-
-        logger.info(f"Fetching comments for issue ID: {issue_id}")
-        query = """
-        query GetCommentsByIssue($issueId: String!) {
-          issue(id: $issueId) {
-            comments {
-              nodes {
-                id
-                body
-                createdAt
-              }
-            }
-          }
-        }
-        """
-        variables = {"issueId": issue_id}
-        try:
-            comments = self._execute_query(query, variables)["issue"]["comments"]["nodes"]
-            logger.info(f"Retrieved {len(comments)} comments for issue ID {issue_id}")
-            return comments
-
-        except Exception as e:
-            logger.error(f"Error fetching comments for issue ID {issue_id}: {e}")
+            logger.error(f"Error retrieving high-priority issues: {e}")
             raise

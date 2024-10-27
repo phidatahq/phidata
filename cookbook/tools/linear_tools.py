@@ -9,6 +9,6 @@ agent = Agent(
 )
 
 
-agent.print_response("Show all the errors in the project 'DEV'")
+agent.print_response("Show all the assigned to user id '69069")
 agent.print_response("Show the issue with the issue id '6969'")
-agent.print_response("Delete the issue with the issue id '42069'")
+agent.print_response("Update the issue with the issue id '42069'")

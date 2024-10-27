@@ -14,6 +14,6 @@ class JsonFileStorage(GenericFileStorage):
         with path.open('w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-    def deserialize(self):
-        with self.path.open('r', encoding='utf-8') as f:
+    def deserialize(self, path):
+        with path.open('r', encoding='utf-8') as f:
             return json.load(f)

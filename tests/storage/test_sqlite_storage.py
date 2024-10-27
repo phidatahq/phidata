@@ -5,7 +5,7 @@ from tests.storage.test_base_storage import BaseStorageTest
 class TestSqliteStorage(BaseStorageTest):
     def setUp(self):
         self.db_file = "test_db.sqlite"
-        self.storage = SqlAgentStorage(table_name="agent_sessions", db_file=self.db_file)
+        self.storage = SqlAgentStorage(table_name="agent_sessions", db_file=self.db_file, agent_data={})
         self.storage.create()
 
     def tearDown(self):

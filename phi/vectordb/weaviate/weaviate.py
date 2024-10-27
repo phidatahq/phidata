@@ -18,7 +18,10 @@ class WeaviateDB(VectorDb):
         self,
         name: str,
         dimension: int,
-        url: Optional[str] = None,
+        host: Optional[str] = None,
+        port: Optional[int] = 443,
+        grpc_host: Optional[str] = None,
+        grpc_port: Optional[int] = 443,
         api_key: Optional[str] = None,
         additional_headers: Optional[Dict[str, str]] = None,
         vectorizer_config: Optional[Vectorizer] = None,
@@ -30,7 +33,10 @@ class WeaviateDB(VectorDb):
         self._index = None
         self.name: str = name
         self.api_key: Optional[str] = api_key
-        self.url: Optional[str] = url
+        self.host: Optional[str] = host
+        self.port: Optional[int] = port
+        self.grpc_host: Optional[str] = grpc_host
+        self.grpc_port: Optional[int] = grpc_port
         self.dimension: int = dimension
         self.additional_headers: Optional[Dict[str, str]] = additional_headers
         self.vectorizer_config: Optional[Vectorizer] = vectorizer_config
@@ -42,10 +48,15 @@ class WeaviateDB(VectorDb):
     def client(self) -> weaviate:
         if self._client is None:
             logger.debug("Creating Weaviate Client")
-            self._client = weaviate.connect_to_weaviate_cloud(
-                cluster_url=self.url,                                  
-                auth_credentials=wvc.init.Auth.api_key(self.api_key),
-                headers=self.additional_headers 
+            self._client = weaviate.connect_to_custom(
+                http_host=self.host,     
+                http_port=self.port,         
+                http_secure=True,           
+                grpc_host=self.grpc_host,  
+                grpc_port=self.grpc_port,           
+                grpc_secure=True,          
+                auth_credentials=wvc.init.api_key(self.api_key), 
+                headers=self.additional_headers
             )
         return self._client
 
@@ -70,4 +81,23 @@ class WeaviateDB(VectorDb):
         if self.exists():
             logger.debug(f"Deleting collection: {self.name}")
             self.client.collections.delete(self.name)
+    
+    def doc_exists(self, document: Document) -> bool:
+        """Check if a document exists in the collection."""
+        response = self.client.query.get(self.name, document.id)
+        return response is not None
+    
+    def insert(self, documents: List[Document]) -> None:
+        raise NotImplementedError("Not done yet")
+
+    def upsert_available(self) -> bool:
+        """Check if upsert operation is available.
+        Returns:
+            bool: True if upsert is available, False otherwise.
+        """
+        return False
+    
+    def upsert(self, documents: List[Document]) -> None:
+        raise NotImplementedError("Weaviate does not support upsert operations. Use insert instead.")
+
     

@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentChat
+from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentRun
 from phi.agent.session import AgentSession
 from phi.utils.log import logger
 
@@ -41,13 +41,13 @@ def get_session_title(session: AgentSession) -> str:
         return session_name
     memory = session.memory
     if memory is not None:
-        chats = memory.get("chats")
-        if isinstance(chats, list):
-            for _chat in chats:
+        runs = memory.get("runs") or memory.get("chats")
+        if isinstance(runs, list):
+            for _run in runs:
                 try:
-                    chat_parsed = AgentChat.model_validate(_chat)
-                    if chat_parsed.message is not None and chat_parsed.message.role == "user":
-                        content = chat_parsed.message.get_content_string()
+                    run_parsed = AgentRun.model_validate(_run)
+                    if run_parsed.message is not None and run_parsed.message.role == "user":
+                        content = run_parsed.message.get_content_string()
                         if content:
                             return content
                         else:

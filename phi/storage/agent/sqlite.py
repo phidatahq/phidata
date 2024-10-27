@@ -1,18 +1,17 @@
 import time
 from pathlib import Path
-from typing import Optional, Any, List
+from typing import Optional, List
 
 try:
     from sqlalchemy.dialects import sqlite
     from sqlalchemy.engine import create_engine, Engine
-    from sqlalchemy.engine.row import Row
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.schema import MetaData, Table, Column
     from sqlalchemy.sql.expression import select
     from sqlalchemy.types import String
 except ImportError:
-    raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
+    raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
 from phi.agent import AgentSession
 from phi.storage.agent.base import AgentStorage
@@ -30,7 +29,7 @@ class SqlAgentStorage(AgentStorage):
         auto_upgrade_schema: bool = False,
     ):
         """
-        This class provides assistant storage using a sqlite database.
+        This class provides agent storage using a sqlite database.
 
         The following order is used to determine the database connection:
             1. Use the db_engine if provided
@@ -42,7 +41,7 @@ class SqlAgentStorage(AgentStorage):
             table_name: The name of the table to store Agent sessions.
             db_url: The database URL to connect to.
             db_file: The database file to connect to.
-            db_engine: The database engine to use.
+            db_engine: The SQLAlchemy database engine to use.
         """
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -64,6 +63,7 @@ class SqlAgentStorage(AgentStorage):
         self.db_url: Optional[str] = db_url
         self.db_engine: Engine = _engine
         self.metadata: MetaData = MetaData()
+        self.inspector = inspect(self.db_engine)
 
         # Table schema version
         self.schema_version: int = schema_version
@@ -76,6 +76,12 @@ class SqlAgentStorage(AgentStorage):
         self.table: Table = self.get_table()
 
     def get_table_v1(self) -> Table:
+        """
+        Define the table schema for version 1.
+
+        Returns:
+            Table: SQLAlchemy Table object representing the schema.
+        """
         return Table(
             self.table_name,
             self.metadata,
@@ -102,44 +108,60 @@ class SqlAgentStorage(AgentStorage):
         )
 
     def get_table(self) -> Table:
+        """
+        Get the table schema based on the schema version.
+
+        Returns:
+            Table: SQLAlchemy Table object for the current schema version.
+
+        Raises:
+            ValueError: If an unsupported schema version is specified.
+        """
         if self.schema_version == 1:
             return self.get_table_v1()
         else:
             raise ValueError(f"Unsupported schema version: {self.schema_version}")
 
     def table_exists(self) -> bool:
+        """
+        Check if the table exists in the database.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         logger.debug(f"Checking if table exists: {self.table.name}")
         try:
-            return inspect(self.db_engine).has_table(self.table.name)
+            return self.inspector.has_table(self.table.name)
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Error checking if table exists: {e}")
             return False
 
     def create(self) -> None:
+        """
+        Create the table if it doesn't exist.
+        """
         if not self.table_exists():
             logger.debug(f"Creating table: {self.table.name}")
             self.table.create(self.db_engine, checkfirst=True)
 
-    def _read(self, session: Session, session_id: str) -> Optional[Row[Any]]:
-        stmt = select(self.table).where(self.table.c.session_id == session_id)
-        try:
-            return session.execute(stmt).first()
-        except Exception as e:
-            logger.debug(f"Exception reading from table: {e}")
-            logger.debug(f"Table does not exist: {self.table.name}")
-            logger.debug(f"Creating table: {self.table_name}")
-            # Create table if it does not exist
-            self.create()
-        return None
-
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
+        """
+        Read an AgentSession from the database.
+
+        Args:
+            session_id (str): ID of the session to read.
+            user_id (Optional[str]): User ID to filter by. Defaults to None.
+
+        Returns:
+            Optional[AgentSession]: AgentSession object if found, None otherwise.
+        """
         try:
             with self.Session() as sess:
                 stmt = select(self.table).where(self.table.c.session_id == session_id)
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
-                existing_row: Optional[Row[Any]] = sess.execute(stmt).first()
-                return AgentSession.model_validate(existing_row) if existing_row is not None else None
+                result = sess.execute(stmt).fetchone()
+                return AgentSession.model_validate(result) if result is not None else None
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -148,11 +170,20 @@ class SqlAgentStorage(AgentStorage):
         return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
-        session_ids: List[str] = []
+        """
+        Get all session IDs, optionally filtered by user_id and/or agent_id.
+
+        Args:
+            user_id (Optional[str]): The ID of the user to filter by.
+            agent_id (Optional[str]): The ID of the agent to filter by.
+
+        Returns:
+            List[str]: List of session IDs matching the criteria.
+        """
         try:
             with self.Session() as sess, sess.begin():
-                # get all session_ids for this user
-                stmt = select(self.table)
+                # get all session_ids
+                stmt = select(self.table.c.session_id)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if agent_id is not None:
@@ -161,21 +192,28 @@ class SqlAgentStorage(AgentStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row is not None and row.session_id is not None:
-                        session_ids.append(row.session_id)
+                return [row[0] for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
             logger.debug("Creating table for future transactions")
             self.create()
-        return session_ids
+        return []
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
-        sessions: List[AgentSession] = []
+        """
+        Get all sessions, optionally filtered by user_id and/or agent_id.
+
+        Args:
+            user_id (Optional[str]): The ID of the user to filter by.
+            agent_id (Optional[str]): The ID of the agent to filter by.
+
+        Returns:
+            List[AgentSession]: List of AgentSession objects matching the criteria.
+        """
         try:
             with self.Session() as sess, sess.begin():
-                # get all sessions for this user
+                # get all sessions
                 stmt = select(self.table)
                 if user_id is not None:
                     stmt = stmt.where(self.table.c.user_id == user_id)
@@ -185,19 +223,25 @@ class SqlAgentStorage(AgentStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                for row in rows:
-                    if row.session_id is not None:
-                        sessions.append(AgentSession.model_validate(row))
+                return [AgentSession.model_validate(row) for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
             logger.debug("Creating table for future transactions")
             self.create()
-        return sessions
+        return []
 
     def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
-        """Create a new AgentSession if it does not exist, otherwise update the existing AgentSession."""
+        """
+        Insert or update an AgentSession in the database.
 
+        Args:
+            session (AgentSession): The session data to upsert.
+            create_and_retry (bool): Retry upsert if table does not exist.
+
+        Returns:
+            Optional[AgentSession]: The upserted AgentSession, or None if operation failed.
+        """
         try:
             with self.Session() as sess, sess.begin():
                 # Create an insert statement
@@ -229,15 +273,24 @@ class SqlAgentStorage(AgentStorage):
                 sess.execute(stmt)
         except Exception as e:
             logger.debug(f"Exception upserting into table: {e}")
-            logger.debug(f"Table does not exist: {self.table.name}")
-            logger.debug("Creating table for future transactions")
-            self.create()
-            if create_and_retry:
+            if create_and_retry and not self.table_exists():
+                logger.debug(f"Table does not exist: {self.table.name}")
+                logger.debug("Creating table and retrying upsert")
+                self.create()
                 return self.upsert(session, create_and_retry=False)
             return None
         return self.read(session_id=session.session_id)
 
     def delete_session(self, session_id: Optional[str] = None):
+        """
+        Delete a workflow session from the database.
+
+        Args:
+            session_id (Optional[str]): The ID of the session to delete.
+
+        Raises:
+            ValueError: If session_id is not provided.
+        """
         if session_id is None:
             logger.warning("No session_id provided for deletion.")
             return
@@ -247,20 +300,26 @@ class SqlAgentStorage(AgentStorage):
                 # Delete the session with the given session_id
                 delete_stmt = self.table.delete().where(self.table.c.session_id == session_id)
                 result = sess.execute(delete_stmt)
-
                 if result.rowcount == 0:
-                    logger.warning(f"No session found with session_id: {session_id}")
+                    logger.debug(f"No session found with session_id: {session_id}")
                 else:
-                    logger.info(f"Successfully deleted session with session_id: {session_id}")
+                    logger.debug(f"Successfully deleted session with session_id: {session_id}")
         except Exception as e:
             logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
+        """
+        Drop the table from the database if it exists.
+        """
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             self.table.drop(self.db_engine)
 
     def upgrade_schema(self) -> None:
+        """
+        Upgrade the schema of the workflow storage table.
+        This method is currently a placeholder and does not perform any actions.
+        """
         pass
 
     def __deepcopy__(self, memo):

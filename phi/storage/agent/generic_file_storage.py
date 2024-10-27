@@ -5,12 +5,13 @@ from phi.storage.agent.base import AgentStorage
 from phi.agent import AgentSession
 
 class GenericFileStorage(AgentStorage):
-    def __init__(self, path: Union[str, Path]):
+    def __init__(self, path: Union[str, Path], use_by_name: bool = True):
         self.base_path = Path(path)
         self.by_id_path = self.base_path / "by_id"
         self.by_name_path = self.base_path / "by_name"
         self.by_id_path.mkdir(parents=True, exist_ok=True)
-        self.by_name_path.mkdir(parents=True, exist_ok=True)
+        if use_by_name:
+            self.by_name_path.mkdir(parents=True, exist_ok=True)
 
     @property
     @abstractmethod

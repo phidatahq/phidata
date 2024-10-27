@@ -26,7 +26,7 @@ class GenericFileStorage(AgentStorage):
         raise NotImplementedError
 
     @abstractmethod
-    def deserialize(self) -> Any:
+    def deserialize(self, data: str) -> Any:
         raise NotImplementedError
 
     def create(self) -> None:
@@ -38,7 +38,8 @@ class GenericFileStorage(AgentStorage):
         """Read an AgentSession from the storage."""
         session_file = self.by_id_path / f"{session_id}{self.fileExtension}"
         if session_file.exists():
-            data = self.deserialize(session_file)
+            with session_file.open('r', encoding='utf-8') as f:
+                data = self.deserialize(f.read())
             return AgentSession.model_validate(data)
         return None
 
@@ -47,7 +48,8 @@ class GenericFileStorage(AgentStorage):
         session_files = self.by_id_path.glob(f"*{self.fileExtension}")
         session_ids = []
         for session_file in session_files:
-            data = self.deserialize(session_file)
+            with session_file.open('r', encoding='utf-8') as f:
+                data = self.deserialize(f.read())
             if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
                 session_ids.append(data['session_id'])
         return session_ids
@@ -57,7 +59,8 @@ class GenericFileStorage(AgentStorage):
         session_files = self.by_id_path.glob(f"*{self.fileExtension}")
         session_ids_and_names = []
         for session_file in session_files:
-            data = self.deserialize(session_file)
+            with session_file.open('r', encoding='utf-8') as f:
+                data = self.deserialize(f.read())
             if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
                 session_id = data['session_id']
                 name = data.get('agent_data', {}).get('name', 'unknown')
@@ -69,7 +72,8 @@ class GenericFileStorage(AgentStorage):
         session_files = self.by_id_path.glob(f"*{self.fileExtension}")
         sessions = []
         for session_file in session_files:
-            data = self.deserialize(session_file)
+            with session_file.open('r', encoding='utf-8') as f:
+                data = self.deserialize(f.read())
             if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
                 sessions.append(AgentSession.model_validate(data))
         return sessions

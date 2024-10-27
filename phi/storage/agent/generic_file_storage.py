@@ -44,7 +44,7 @@ class GenericFileStorage(AgentStorage):
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> list[str]:
         """Get all session IDs, optionally filtered by user_id and/or agent_id."""
-        session_files = self.by_id_path.glob("*.json")
+        session_files = self.by_id_path.glob(f"*{self.fileExtension}")
         session_ids = []
         for session_file in session_files:
             data = self.deserialize(session_file)
@@ -54,7 +54,7 @@ class GenericFileStorage(AgentStorage):
 
     def get_all_session_ids_and_names(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> list[tuple[str, str]]:
         """Get all session IDs and their names, optionally filtered by user_id and/or agent_id."""
-        session_files = self.by_id_path.glob("*.json")
+        session_files = self.by_id_path.glob(f"*{self.fileExtension}")
         session_ids_and_names = []
         for session_file in session_files:
             data = self.deserialize(session_file)
@@ -66,7 +66,7 @@ class GenericFileStorage(AgentStorage):
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> list[AgentSession]:
         """Get all sessions, optionally filtered by user_id and/or agent_id."""
-        session_files = self.by_id_path.glob("*.json")
+        session_files = self.by_id_path.glob(f"*{self.fileExtension}")
         sessions = []
         for session_file in session_files:
             data = self.deserialize(session_file)

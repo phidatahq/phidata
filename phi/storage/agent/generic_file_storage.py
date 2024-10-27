@@ -51,7 +51,6 @@ class GenericFileStorage(AgentStorage):
             if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
                 session_ids.append(data['session_id'])
         return session_ids
-        return []
 
     def get_all_session_ids_and_names(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> list[tuple[str, str]]:
         """Get all session IDs and their names, optionally filtered by user_id and/or agent_id."""
@@ -74,7 +73,6 @@ class GenericFileStorage(AgentStorage):
             if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
                 sessions.append(AgentSession.model_validate(data))
         return sessions
-        return []
 
     def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
         """Insert or update an AgentSession in the storage."""

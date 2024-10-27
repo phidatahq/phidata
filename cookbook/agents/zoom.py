@@ -10,7 +10,6 @@ CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 
 
-
 class CustomZoomTool(ZoomTool):
     def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
         response = super().schedule_meeting(topic, start_time, duration)
@@ -37,7 +36,6 @@ class CustomZoomTool(ZoomTool):
             )
         else:
             return "I'm sorry, but I was unable to schedule the meeting."
-
 
 
 zoom_tool = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
@@ -67,5 +65,5 @@ agent = Agent(
 )
 
 # Use the agent to schedule a meeting based on user input
-user_input = "Schedule a meeting titled 'Python Automation Meeting' on 2024-10-21 at 11:00 AM UTC for 60 minutes."
+user_input = "Schedule a meeting titled 'Python Automation Meeting' on 2024-10-31 at 11:00 AM UTC for 60 minutes."
 response = agent.run(user_input)

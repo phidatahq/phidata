@@ -1,13 +1,19 @@
 import time
 import requests
 import json
-
+from typing import Optional
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger
 
 
 class ZoomTool(Toolkit):
-    def __init__(self, account_id: str, client_id: str, client_secret: str, name: str = "zoom_tool"):
+    def __init__(
+        self,
+        account_id: Optional[str] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        name: str = "zoom_tool",
+    ):
         """
         Initialize the ZoomTool.
 

@@ -34,6 +34,8 @@ class GenericFileStorage(ABC):
             self.path.unlink()
         else:
             raise FileNotFoundError(f"File {self.path} does not exist.")
+
+    @abstractmethod
     def serialize(self, data) -> None:
         pass
 

@@ -20,6 +20,8 @@ class GenericFileStorage(AgentStorage):
     def fileExtension(self) -> str:
         """Return the file extension used by the storage."""
         raise NotImplementedError
+
+    @abstractmethod
     def serialize(self, data: Any) -> str:
         raise NotImplementedError
 
@@ -78,7 +80,7 @@ class GenericFileStorage(AgentStorage):
         """Insert or update an AgentSession in the storage."""
         session_file = self.by_id_path / f"{session.session_id}{self.fileExtension}"
         self.serialize(session.dict(), session_file)
-        
+
         # Create a symlink in the by_name directory
         if self.by_name_path.exists():
             name = session.agent_data.get('name', 'unknown')
@@ -87,7 +89,7 @@ class GenericFileStorage(AgentStorage):
             if not symlink_path.exists():
                 symlink_path.symlink_to(session_file)
 
-        return session        
+        return session
 
     def delete_session(self, session_id: Optional[str] = None):
         """Delete a session from the storage."""

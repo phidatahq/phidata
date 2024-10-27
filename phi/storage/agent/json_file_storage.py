@@ -7,7 +7,9 @@ class JsonFileStorage(GenericFileStorage):
     def __init__(self, path: Union[str, Path]):
         super().__init__(path)
 
-    def serialize(self, data) -> None:
+    @property
+    def fileExtension(self) -> str:
+        return ".json"
         with self.path.open('w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 

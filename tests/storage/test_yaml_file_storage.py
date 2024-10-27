@@ -6,7 +6,7 @@ from tests.storage.test_base_storage import BaseStorageTest
 class TestYamlFileStorage(BaseStorageTest):
     def setUp(self):
         self.test_dir = Path("test_storage")
-        self.storage = YamlFileStorage(path=self.test_dir, agent_data={})
+        self.storage = YamlFileStorage(path=self.test_dir)
         self.storage.create()
 
     def tearDown(self):

@@ -1,6 +1,7 @@
 import typer
 from rich.prompt import Prompt
 from typing import Optional
+import logging  # New import for logging
 
 from phi.assistant import Assistant
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
@@ -14,6 +15,10 @@ knowledge_base = PDFUrlKnowledgeBase(
 
 # Comment out after first run
 knowledge_base.load(recreate=False)
+
+
+# Set up logging
+logging.basicConfig(filename='assistant_log.txt', level=logging.INFO)  # Log file setup
 
 
 def pdf_assistant(user: str = "user"):
@@ -37,7 +42,8 @@ def pdf_assistant(user: str = "user"):
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
         if message in ("exit", "bye"):
             break
-        assistant.print_response(message)
+        response = assistant.print_response(message)  # Capture the response
+        logging.info(f"{user}: {message} -> Assistant: {response}")  # Log the interaction
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ class ZoomTool(Toolkit):
         Obtain or refresh the access token for Zoom API.
 
         Returns:
-            A string containing the access token, or None if token retrieval fails.
+            A string containing the access token or an empty string if token retrieval fails.
         """
         if self.access_token and time.time() < self.token_expires_at:
             # Token is still valid
@@ -68,7 +68,7 @@ class ZoomTool(Toolkit):
             return self.access_token
         except requests.RequestException as e:
             logger.error(f"Error fetching access token: {e}")
-            return None
+            return ""  # Return empty string instead of None
 
     def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
         """

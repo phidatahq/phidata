@@ -65,5 +65,5 @@ agent = Agent(
 )
 
 # Use the agent to schedule a meeting based on user input
-user_input = "Schedule a meeting titled 'Python Automation Meeting' on 2024-10-31 at 11:00 AM UTC for 60 minutes."
+user_input = "Schedule a meeting titled 'Python Automation Meeting' on 2024-11-01 at 11:00 AM UTC for 60 minutes."
 response = agent.run(user_input)

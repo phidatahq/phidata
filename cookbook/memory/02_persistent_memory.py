@@ -1,8 +1,8 @@
 """
-This recipe shows how an agent maintains long-term memory using a sqlite database.
+This recipe shows how to store agent sessions in a sqlite database.
 Steps:
 1. Run: `pip install openai sqlalchemy phidata` to install dependencies
-2. Run: `python cookbook/memory/01_agent_with_long_term_memory.py` to run the agent
+2. Run: `python cookbook/memory/02_persistent_memory.py` to run the agent
 """
 
 import json
@@ -18,9 +18,9 @@ from phi.storage.agent.sqlite import SqlAgentStorage
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    # Store agent sessions in a database, that persists between runs
+    # Store agent sessions in a database
     storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
-    # add_history_to_messages=true adds the chat history to the messages sent to the Model.
+    # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.
     add_history_to_messages=True,
     # Number of historical responses to add to the messages.
     num_history_responses=3,

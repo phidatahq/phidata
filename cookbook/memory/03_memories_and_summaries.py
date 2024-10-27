@@ -1,8 +1,8 @@
 """
-This recipe shows how an agent stores personalized memories and summaries in a sqlite database.
+This recipe shows how to store personalized memories and summaries in a sqlite database.
 Steps:
 1. Run: `pip install openai sqlalchemy phidata` to install dependencies
-2. Run: `python cookbook/memory/02_agent_with_memories_and_summaries.py` to run the agent
+2. Run: `python cookbook/memory/03_memories_and_summaries.py` to run the agent
 """
 
 import json

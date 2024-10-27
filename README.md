@@ -20,7 +20,7 @@ Build Agents with memory, knowledge, tools and reasoning
 - **Build teams of Agents that can work together.** [example](#team-of-agents)
 - **Chat with your Agents using a beautiful Agent UI.** [example](#agent-ui)
 - **Monitor, evaluate and optimize your Agents.** [example](#monitoring)
-- **Run your Agents behind an API, with a database and vectordb.**
+- **Build Agentic systems with an API, database and vectordb.**
 
 ## Install
 
@@ -328,9 +328,10 @@ agent.print_response("Share a 2 sentence horror story")
 
 ![debugging](https://github.com/user-attachments/assets/c933c787-4a28-4bff-a664-93b29360d9ea)
 
-## More information
+## Getting help
 
 - Read the docs at <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs.phidata.com</a>
+- Post your questions on the [community forum](https://community.phidata.com/)
 - Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 
 ## More examples

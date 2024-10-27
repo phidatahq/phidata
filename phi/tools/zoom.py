@@ -47,7 +47,7 @@ class ZoomTool(Toolkit):
         """
         if self.access_token and time.time() < self.token_expires_at:
             # Token is still valid
-            return self.access_token
+            return str(self.access_token)  # Ensure we return a string
 
         logger.debug("Fetching new access token")
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -65,7 +65,7 @@ class ZoomTool(Toolkit):
             self.token_expires_at = time.time() + expires_in - 60  # Refresh a minute before expiry
 
             logger.info("Access token obtained successfully.")
-            return self.access_token
+            return str(self.access_token)  # Ensure we return a string
         except requests.RequestException as e:
             logger.error(f"Error fetching access token: {e}")
             return ""  # Return empty string instead of None

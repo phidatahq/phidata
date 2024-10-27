@@ -10,7 +10,7 @@ class JsonFileStorage(GenericFileStorage):
     @property
     def fileExtension(self) -> str:
         return ".json"
-    def serialize(self, data):
+    def serialize(self, data, path=None):
         with self.path.open('w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 

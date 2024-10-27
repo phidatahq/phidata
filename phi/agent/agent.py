@@ -858,7 +858,7 @@ class Agent(BaseModel):
         if self.has_team():
             system_message_lines.extend(
                 [
-                    "### You are the leader of a team of AI Agents.",
+                    "## You are the leader of a team of AI Agents.",
                     "  - You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
                     "  - If you transfer tasks, make sure to include a clear description of the task and the expected output.",
                     "  - You must always validate the output of the other Agents before responding to the user, "
@@ -1061,7 +1061,7 @@ class Agent(BaseModel):
         # Return the user message
         return Message(
             role=self.user_message_role,
-            content=self.add_images_to_message_content(message_content=message, images=images),
+            content=self.add_images_to_message_content(message_content=user_prompt, images=images),
             context=context,
             **kwargs,
         )

@@ -1,5 +1,6 @@
-"""Please install dependencies using:
-pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata
+"""
+1. Run: `pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata` to install the dependencies
+2. Run: `python cookbook/teams/02_news_reporter.py` to run the agent
 """
 
 from pathlib import Path
@@ -53,7 +54,6 @@ editor = Agent(
     instructions=[
         "First ask the search journalist to search for the most relevant URLs for that topic.",
         "Then ask the writer to get an engaging draft of the article.",
-        "Note: you must pass the complete list of URLs to the writer.",
         "Edit, proofread, and refine the article to ensure it meets the high standards of the New York Times.",
         "The article should be extremely articulate and well written. "
         "Focus on clarity, coherence, and overall quality.",

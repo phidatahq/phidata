@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Union, Any, Optional
+from abc import abstractmethod
 from urllib.parse import quote
 from phi.storage.agent.base import AgentStorage
 from phi.agent import AgentSession

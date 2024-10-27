@@ -1,6 +1,6 @@
 import os
 from phi.storage.agent.sqlite import SqlAgentStorage
-from tests.storage.test_base_storage import BaseStorageTest
+from .test_base_storage import BaseStorageTest
 
 class TestSqliteStorage(BaseStorageTest):
     def setUp(self):

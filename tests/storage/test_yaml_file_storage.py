@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 from phi.storage.agent.yaml_file_storage import YamlFileStorage
-from tests.storage.test_base_storage import BaseStorageTest
+from .test_base_storage import BaseStorageTest
 
 class TestYamlFileStorage(BaseStorageTest):
     def setUp(self):

@@ -3,7 +3,8 @@ from phi.agent import AgentSession
 
 class BaseStorageTest(unittest.TestCase):
     def setUp(self):
-        self.storage = None  # This should be set in the subclass
+        if self.storage is None:
+            self.skipTest("Storage not initialized in subclass")
 
     def test_create_and_read_session(self):
         session = AgentSession(session_id="test_session", agent_id="agent_1", user_id="user_1")

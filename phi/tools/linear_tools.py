@@ -59,37 +59,33 @@ class LinearTool(Toolkit):
             raise
 
     def get_issue_details(self, issue_id):
-        """Fetch detailed information about a specific issue by its ID."""
+      """Retrieve details of a specific issue by issue ID."""
 
-        query = """
-        query GetIssueDetails($issueId: String!) {
-          issue(id: $issueId) {
-            id
-            title
-            description
-            status {
-              name
-            }
-            assignee {
-              name
-            }
-            comments {
-              nodes {
-                body
-              }
-            }
-          }
+      query = """
+      query IssueDetails($issueId: ID!) {
+        issue(id: $issueId) {
+          id
+          title
+          description
         }
-        """
-        variables = {"issueId": issue_id}
-        try:
-            issue = self._execute_query(query, variables)["issue"]
-            logger.info(f"Retrieved details for issue ID {issue_id}")
-            return issue
+      }
+      """
+      variables = {"issueId": issue_id}
+      try:
+          response = self._execute_query(query, variables)
 
-        except Exception as e:
-            logger.error(f"Error fetching details for issue ID {issue_id}: {e}")
-            raise
+          if response.get("issue"):
+              issue = response["issue"]
+              logger.info(f"Issue '{issue['title']}' retrieved successfully with ID {issue['id']}.")
+              return issue
+          else:
+              logger.error(f"Failed to retrieve issue with ID {issue_id}.")
+              return None
+
+      except Exception as e:
+          logger.error(f"Error retrieving issue with ID {issue_id}: {e}")
+          raise
+
 
     def create_issue(self, title, description, team_id):
         """Create a new issue within a specific project and team."""

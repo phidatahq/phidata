@@ -1041,22 +1041,14 @@ class Agent(BaseModel):
             )
 
         # 6. Build the default user message for the Agent
-        user_prompt = "Respond to the following message from a user:\n"
-        user_prompt += f"USER: {message}\n"
+        user_prompt = message
 
         # 6.1 Add context to user message
         if context and context.docs and len(context.docs) > 0:
-            user_prompt += "\nUse the following information from the knowledge base if it helps:\n"
-            user_prompt += "## Context  \n"
+            user_prompt += "\n\nUse the following information from the knowledge base if it helps:\n"
+            user_prompt += "<context>\n"
             user_prompt += self.convert_documents_to_string(context.docs) + "\n"
-
-        # 6.2 Add the message again at the end of the user message
-        if context:
-            user_prompt += "\nRemember, your task is to respond to the following message:"
-            user_prompt += f"\nUSER: {message}"
-
-        # 6.3 Add the assistant pre-fill at the end of the user prompt
-        user_prompt += "\n\nASSISTANT: "
+            user_prompt += "</context>\n"
 
         # Return the user message
         return Message(

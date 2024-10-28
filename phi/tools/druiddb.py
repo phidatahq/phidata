@@ -1,12 +1,13 @@
 import json
 from typing import Optional
-from phi.tools import Toolkit 
+from phi.tools import Toolkit
 from phi.utils.log import logger
 
 try:
     from pydruid.db import connect
 except ImportError:
     raise ImportError("`pydruid` not installed")
+
 
 class DruidTools(Toolkit):
     def __init__(
@@ -22,23 +23,13 @@ class DruidTools(Toolkit):
         table_stats: bool = True,
     ):
         super().__init__(name="druid_tools")
-        
-        self.connection_params = {
-            "host": host,
-            "port": port,
-            "path": path,
-            "scheme": scheme
-        }
-        
-        self.context = {
-            "last_schema": None,
-            "last_tables": [],
-            "last_query": None,
-            "last_error": None
-        }
-        
+
+        self.connection_params = {"host": host, "port": port, "path": path, "scheme": scheme}
+
+        self.context = {"last_schema": None, "last_tables": [], "last_query": None, "last_error": None}
+
         self._connect()
-        
+
         if list_tables:
             self.register(self.list_tables)
         if describe_table:
@@ -93,26 +84,19 @@ class DruidTools(Toolkit):
             if schema_name:
                 query += f" WHERE TABLE_SCHEMA = '{schema_name}'"
             query += " ORDER BY TABLE_SCHEMA, TABLE_NAME"
-            
+
             results = self._execute_query(query)
-            
+
             schemas = {}
             for row in results:
                 schema = row[0]
                 if schema not in schemas:
                     schemas[schema] = []
-                schemas[schema].append({
-                    "table_name": row[1],
-                    "table_type": row[2]
-                })
-            
-            return json.dumps({
-                "status": "success",
-                "schemas": [
-                    {"schema": k, "tables": v}
-                    for k, v in schemas.items()
-                ]
-            })
+                schemas[schema].append({"table_name": row[1], "table_type": row[2]})
+
+            return json.dumps(
+                {"status": "success", "schemas": [{"schema": k, "tables": v} for k, v in schemas.items()]}
+            )
         except Exception as e:
             return json.dumps({"status": "error", "message": str(e)})
 
@@ -123,7 +107,7 @@ class DruidTools(Toolkit):
             results = self._execute_query(schema_query, (table_name,))
             if not results:
                 return json.dumps({"status": "error", "message": f"Table {table_name} not found"})
-            
+
             schema_name = results[0][0]
             column_query = """
                 SELECT 
@@ -136,23 +120,19 @@ class DruidTools(Toolkit):
                 ORDER BY ORDINAL_POSITION
             """
             columns = self._execute_query(column_query, (schema_name, table_name))
-            
-            return json.dumps({
-                "status": "success",
-                "table_info": {
-                    "schema": schema_name,
-                    "table": table_name,
-                    "columns": [
-                        {
-                            "name": col[0],
-                            "type": col[1],
-                            "nullable": col[2],
-                            "default": col[3]
-                        }
-                        for col in columns
-                    ]
+
+            return json.dumps(
+                {
+                    "status": "success",
+                    "table_info": {
+                        "schema": schema_name,
+                        "table": table_name,
+                        "columns": [
+                            {"name": col[0], "type": col[1], "nullable": col[2], "default": col[3]} for col in columns
+                        ],
+                    },
                 }
-            })
+            )
         except Exception as e:
             return json.dumps({"status": "error", "message": str(e)})
 
@@ -163,16 +143,13 @@ class DruidTools(Toolkit):
             results = self._execute_query(schema_query, (table_name,))
             if not results:
                 return json.dumps({"status": "error", "message": f"Table {table_name} not found"})
-            
+
             schema_name = results[0][0]
             sample_query = f"SELECT * FROM {schema_name}.{table_name} LIMIT {min(limit, 100)}"
             rows = self._execute_query(sample_query)
-            
+
             headers = [desc[0] for desc in self.cursor.description]
-            return json.dumps({
-                "status": "success",
-                "samples": [dict(zip(headers, row)) for row in rows]
-            }, default=str)
+            return json.dumps({"status": "success", "samples": [dict(zip(headers, row)) for row in rows]}, default=str)
         except Exception as e:
             return json.dumps({"status": "error", "message": str(e)})
 
@@ -183,7 +160,7 @@ class DruidTools(Toolkit):
             results = self._execute_query(schema_query, (table_name,))
             if not results:
                 return json.dumps({"status": "error", "message": f"Table {table_name} not found"})
-            
+
             schema_name = results[0][0]
             stats_query = f"""
                 SELECT 
@@ -194,37 +171,33 @@ class DruidTools(Toolkit):
                 FROM {schema_name}.{table_name}
             """
             stats = self._execute_query(stats_query)
-            
-            return json.dumps({
-                "status": "success",
-                "stats": {
-                    "schema": schema_name,
-                    "table": table_name,
-                    "row_count": stats[0][0],
-                    "unique_timestamps": stats[0][1],
-                    "time_range": {
-                        "earliest": str(stats[0][2]),
-                        "latest": str(stats[0][3])
-                    }
+
+            return json.dumps(
+                {
+                    "status": "success",
+                    "stats": {
+                        "schema": schema_name,
+                        "table": table_name,
+                        "row_count": stats[0][0],
+                        "unique_timestamps": stats[0][1],
+                        "time_range": {"earliest": str(stats[0][2]), "latest": str(stats[0][3])},
+                    },
                 }
-            })
+            )
         except Exception as e:
             return json.dumps({"status": "error", "message": str(e)})
 
     def run_query(self, query: str) -> str:
         """Run a SQL query and return the results."""
         try:
-            if 'limit' not in query.lower():
+            if "limit" not in query.lower():
                 query = f"{query} LIMIT 100"
-            
+
             rows = self._execute_query(query)
             if not rows:
                 return json.dumps({"status": "success", "message": "Query returned no results"})
-            
+
             headers = [desc[0] for desc in self.cursor.description]
-            return json.dumps({
-                "status": "success",
-                "results": [dict(zip(headers, row)) for row in rows]
-            }, default=str)
+            return json.dumps({"status": "success", "results": [dict(zip(headers, row)) for row in rows]}, default=str)
         except Exception as e:
             return json.dumps({"status": "error", "message": str(e), "query": query})

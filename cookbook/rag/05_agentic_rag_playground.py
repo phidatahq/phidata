@@ -1,6 +1,6 @@
 """
 1. Run: `./cookbook/run_pgvector.sh` to start a postgres container with pgvector
-2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector 'fastapi[standard]'` to install the dependencies
+2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector 'fastapi[standard]' phidata` to install the dependencies
 3. Run: `python cookbook/rag/05_agentic_rag_playground.py` to run the agent
 """
 

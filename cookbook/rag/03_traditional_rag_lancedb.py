@@ -1,24 +1,22 @@
 """
-1. Run: `./cookbook/run_pgvector.sh` to start a postgres container with pgvector
-2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector` to install the dependencies
-3. Run: `python cookbook/rag/02_agentic_rag_pgvector.py` to run the agent
+1. Run: `pip install openai lancedb tantivy pypdf sqlalchemy phidata` to install the dependencies
+2. Run: `python cookbook/rag/03_traditional_rag_lancedb.py` to run the agent
 """
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.embedder.openai import OpenAIEmbedder
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector, SearchType
+from phi.vectordb.lancedb import LanceDb, SearchType
 
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Use PgVector as the vector database and store embeddings in the `ai.recipes` table
-    vector_db=PgVector(
+    # Use LanceDB as the vector database and store embeddings in the `recipes` table
+    vector_db=LanceDb(
         table_name="recipes",
-        db_url=db_url,
-        search_type=SearchType.hybrid,
+        uri="tmp/lancedb",
+        search_type=SearchType.vector,
         embedder=OpenAIEmbedder(model="text-embedding-3-small"),
     ),
 )
@@ -28,9 +26,10 @@ knowledge_base.load()
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
-    # Add a tool to search the knowledge base which enables agentic RAG.
-    # This is enabled by default when `knowledge` is provided to the Agent.
-    search_knowledge=True,
+    # Enable RAG by adding references from AgentKnowledge to the user prompt.
+    add_context=True,
+    # Set as False because Agents default to `search_knowledge=True`
+    search_knowledge=False,
     show_tool_calls=True,
     markdown=True,
 )

@@ -6,15 +6,21 @@
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
+from phi.embedder.openai import OpenAIEmbedder
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+# Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
-    # Read PDF from this URL
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Store embeddings in the `ai.recipes` table
-    vector_db=PgVector(table_name="recipes", db_url=db_url, search_type=SearchType.hybrid),
+    # Use PgVector as the vector database and store embeddings in the `ai.recipes` table
+    vector_db=PgVector(
+        table_name="recipes",
+        db_url=db_url,
+        search_type=SearchType.hybrid,
+        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+    ),
 )
 # Load the knowledge base: Comment after first run as the knowledge base is already loaded
 knowledge_base.load()
@@ -22,7 +28,7 @@ knowledge_base.load()
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
-    # Enable RAG by adding references from AgentKnowledge to the user prompt.
+    # Enable RAG by adding context from the `knowledge` to the user prompt.
     add_context=True,
     # Set as False because Agents default to `search_knowledge=True`
     search_knowledge=False,

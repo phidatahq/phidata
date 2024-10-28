@@ -9,10 +9,10 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.lancedb import LanceDb, SearchType
 
-# Create a knowledge base from a PDF
+# Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Use LanceDB as the vector database
+    # Use LanceDB as the vector database and store embeddings in the `recipes` table
     vector_db=LanceDb(
         table_name="recipes",
         uri="tmp/lancedb",
@@ -27,9 +27,8 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     # Add a tool to search the knowledge base which enables agentic RAG.
+    # This is enabled by default when `knowledge` is provided to the Agent.
     search_knowledge=True,
-    # Add a tool to read chat history.
-    read_chat_history=True,
     show_tool_calls=True,
     markdown=True,
 )

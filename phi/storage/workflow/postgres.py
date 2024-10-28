@@ -354,7 +354,7 @@ class PgWorkflowStorage(WorkflowStorage):
 
         # Deep copy attributes
         for k, v in self.__dict__.items():
-            if k in {"metadata", "table"}:
+            if k in {"metadata", "table", "inspector"}:
                 continue
             # Reuse db_engine and Session without copying
             elif k in {"db_engine", "Session"}:
@@ -364,6 +364,7 @@ class PgWorkflowStorage(WorkflowStorage):
 
         # Recreate metadata and table for the copied instance
         copied_obj.metadata = MetaData(schema=copied_obj.schema)
+        copied_obj.inspector = inspect(copied_obj.db_engine)
         copied_obj.table = copied_obj.get_table()
 
         return copied_obj

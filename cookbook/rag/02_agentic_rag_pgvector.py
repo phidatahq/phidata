@@ -23,7 +23,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     ),
 )
 # Load the knowledge base: Comment after first run as the knowledge base is already loaded
-knowledge_base.load()
+# knowledge_base.load(upsert=True)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

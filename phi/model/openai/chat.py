@@ -594,6 +594,10 @@ class OpenAIChat(Model):
                 if model_response.content is None:
                     model_response.content = ""
                 model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.parsed is not None:
+                # bubble up the parsed object, so that the final response has the parsed object
+                # that is visible to the agent
+                model_response.parsed = response_after_tool_calls.parsed
             return model_response
 
         # -*- Update model response

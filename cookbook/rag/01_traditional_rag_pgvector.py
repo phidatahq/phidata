@@ -35,3 +35,8 @@ agent = Agent(
     markdown=True,
 )
 agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+# agent.print_response(
+#     "Hi, i want to make a 3 course meal. Can you recommend some recipes. "
+#     "I'd like to start with a soup, then im thinking a thai curry for the main course and finish with a dessert",
+#     stream=True,
+# )

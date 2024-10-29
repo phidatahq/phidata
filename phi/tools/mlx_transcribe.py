@@ -12,6 +12,7 @@ try:
 except ImportError:
     raise ImportError("`mlx_whisper` not installed. Please install using `pip install mlx-whisper`")
 
+
 class MLXTranscribeTools(Toolkit):
     def __init__(self, file_path: str, path_or_hf_repo: Optional[str] = "mlx-community/whisper-large-v3-turbo"):
         super().__init__(name="transcribe")
@@ -22,7 +23,6 @@ class MLXTranscribeTools(Toolkit):
         self.register(self.transcribe)
 
     def transcribe(self, file_path: str) -> str:
-
         """
         Transcribe uses Apple's MLX Whisper model.
 

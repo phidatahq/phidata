@@ -8,7 +8,7 @@ from phi.utils.log import logger
 from typing import Optional
 
 try:
-    import mlx_whisper
+    import mlx_whisper  # type: ignore
 except ImportError:
     raise ImportError("`mlx_whisper` not installed. Please install using `pip install mlx-whisper`")
 

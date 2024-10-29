@@ -21,4 +21,4 @@ agent = Agent(
     markdown=True,
 )
 
-agent.print_response(f"Transcribing file {file_path}", markdown=True)
+agent.print_response(f"Transcribe file {file_path}")

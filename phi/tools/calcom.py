@@ -209,7 +209,7 @@ class CalCom(Toolkit):
             }
 
             response = requests.post(url, json=payload, headers=self._get_headers())
-            if response.status_code == 200:
+            if response.status_code == 201:
                 booking_data = response.json()["data"]
                 user_time = self._convert_to_user_timezone(booking_data["start"])
                 return f"Booking rescheduled to {user_time}. New booking uid: {booking_data['uid']}"

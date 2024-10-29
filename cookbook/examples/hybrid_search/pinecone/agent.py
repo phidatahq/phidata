@@ -7,6 +7,11 @@ from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pineconedb import PineconeDB
 
+import nltk
+
+nltk.download("punkt")
+nltk.download("punkt_tab")
+
 api_key = os.getenv("PINECONE_API_KEY")
 index_name = "thai-recipe-hybrid-search"
 

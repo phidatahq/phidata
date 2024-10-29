@@ -36,7 +36,7 @@ class CalCom(Toolkit):
             logger.error("CALCOM_EVENT_TYPE_ID not set. Please set the CALCOM_EVENT_TYPE_ID environment variable.")
         
         self.event_type_id = int(self.event_type_id)
-        self.user_timezone = user_timezone or "Asia/Kolkata"
+        self.user_timezone = user_timezone or "America/New_York"
 
         # Register all methods
         self.register(self.get_available_slots)

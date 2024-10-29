@@ -1,7 +1,7 @@
 """
 1. Run: `./cookbook/run_pgvector.sh` to start a postgres container with pgvector
 2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector phidata` to install the dependencies
-3. Run: `python cookbook/rag/01_traditional_rag.py` to run the agent
+3. Run: `python cookbook/rag/01_traditional_rag_pgvector.py` to run the agent
 """
 
 from phi.agent import Agent

@@ -7,7 +7,7 @@ from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pineconedb import PineconeDB
 
-import nltk
+import nltk  # type: ignore
 
 nltk.download("punkt")
 nltk.download("punkt_tab")

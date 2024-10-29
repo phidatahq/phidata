@@ -42,4 +42,4 @@ agent = Agent(
 )
 
 # Example usage 
-agent.print_response("Can you please make a booking for tomorrow at 2pm?, my name is Jp and email is jayeshparmar9829@gmail.com")
+agent.print_response("What are my bookings for tomorrow?")

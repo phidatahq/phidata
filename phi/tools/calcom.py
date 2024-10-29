@@ -15,7 +15,7 @@ class CalCom(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        event_type_id: Optional[str] = None,
+        event_type_id: Optional[int] = None,
         user_timezone: Optional[str] = None,
     ):
         """Initialize the Cal.com toolkit.
@@ -29,14 +29,14 @@ class CalCom(Toolkit):
 
         # Get credentials from environment if not provided
         self.api_key = api_key or getenv("CALCOM_API_KEY")
-        self.event_type_id = event_type_id or getenv("CALCOM_EVENT_TYPE_ID")
+        event_type_str = getenv("CALCOM_EVENT_TYPE_ID")
+        self.event_type_id = event_type_id or int(event_type_str) if event_type_str is not None else 0
 
         if not self.api_key:
             logger.error("CALCOM_API_KEY not set. Please set the CALCOM_API_KEY environment variable.")
         if not self.event_type_id:
             logger.error("CALCOM_EVENT_TYPE_ID not set. Please set the CALCOM_EVENT_TYPE_ID environment variable.")
 
-        self.event_type_id = int(self.event_type_id)
         self.user_timezone = user_timezone or "America/New_York"
 
         # Register all methods

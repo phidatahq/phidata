@@ -125,6 +125,7 @@ module = [
   "langchain.*",
   "llama_index.*",
   "mistralai.*",
+  "mlx_whisper.*",
   "nest_asyncio.*",
   "newspaper.*",
   "numpy.*",

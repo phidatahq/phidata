@@ -11,8 +11,7 @@ from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 import os
 
-# file_path = os.path.expanduser("~/path/to/file.mp3")
-file_path = os.path.expanduser("~/labs/phidata/cookbook/tools/geo.mp3")
+file_path = os.path.expanduser("~/path/to/file.mp3")
 
 
 agent = Agent(

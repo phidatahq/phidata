@@ -32,14 +32,12 @@ You can help users by:
 
 agent = Agent(
     name="Calendar Assistant",
-    instructions=[
-        INSTRUCTONS
-    ],
+    instructions=[INSTRUCTONS],
     model=OpenAIChat(id="gpt-4"),
     tools=[CalCom()],
     show_tool_calls=True,
     markdown=True,
 )
 
-# Example usage 
+# Example usage
 agent.print_response("What are my bookings for tomorrow?")

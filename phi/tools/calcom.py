@@ -1,14 +1,15 @@
 from datetime import datetime
-import logging
 from os import getenv
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict
 from phi.tools import Toolkit
 from phi.utils.log import logger
+
 try:
     import requests
     import pytz
 except ImportError:
     raise ImportError("`requests` and `pytz` not installed. Please install using `pip install requests pytz`")
+
 
 class CalCom(Toolkit):
     def __init__(
@@ -34,7 +35,7 @@ class CalCom(Toolkit):
             logger.error("CALCOM_API_KEY not set. Please set the CALCOM_API_KEY environment variable.")
         if not self.event_type_id:
             logger.error("CALCOM_EVENT_TYPE_ID not set. Please set the CALCOM_EVENT_TYPE_ID environment variable.")
-        
+
         self.event_type_id = int(self.event_type_id)
         self.user_timezone = user_timezone or "America/New_York"
 
@@ -72,7 +73,7 @@ class CalCom(Toolkit):
         return {
             "Authorization": f"Bearer {self.api_key}",
             "cal-api-version": api_version,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
     def get_available_slots(
@@ -96,7 +97,7 @@ class CalCom(Toolkit):
             querystring = {
                 "startTime": f"{start_date}T00:00:00Z",
                 "endTime": f"{end_date}T23:59:59Z",
-                "eventTypeId": self.event_type_id
+                "eventTypeId": self.event_type_id,
             }
 
             response = requests.get(url, headers=self._get_headers(), params=querystring)
@@ -131,15 +132,11 @@ class CalCom(Toolkit):
         """
         try:
             url = "https://api.cal.com/v2/bookings"
-            start_time = datetime.fromisoformat(start_time).astimezone(pytz.utc).isoformat(timespec='seconds')
+            start_time = datetime.fromisoformat(start_time).astimezone(pytz.utc).isoformat(timespec="seconds")
             payload = {
                 "start": start_time,
                 "eventTypeId": self.event_type_id,
-                "attendee": {
-                    "name": name,
-                    "email": email,
-                    "timeZone": self.user_timezone
-                }
+                "attendee": {"name": name, "email": email, "timeZone": self.user_timezone},
             }
 
             response = requests.post(url, json=payload, headers=self._get_headers())
@@ -170,7 +167,7 @@ class CalCom(Toolkit):
                 bookings = response.json()["data"]
                 if not bookings:
                     return "No upcoming bookings found."
-                
+
                 booking_info = []
                 for booking in bookings:
                     user_time = self._convert_to_user_timezone(booking["start"])
@@ -202,11 +199,8 @@ class CalCom(Toolkit):
         """
         try:
             url = f"https://api.cal.com/v2/bookings/{booking_uid}/reschedule"
-            new_start_time = datetime.fromisoformat(new_start_time).astimezone(pytz.utc).isoformat(timespec='seconds')
-            payload = {
-                "start": new_start_time,
-                "reschedulingReason": reason
-            }
+            new_start_time = datetime.fromisoformat(new_start_time).astimezone(pytz.utc).isoformat(timespec="seconds")
+            payload = {"start": new_start_time, "reschedulingReason": reason}
 
             response = requests.post(url, json=payload, headers=self._get_headers())
             if response.status_code == 201:

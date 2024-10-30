@@ -30,7 +30,7 @@ class Playground:
     def get_async_router(self) -> APIRouter:
         return get_async_playground_router(self.agents)
 
-    def get_app(self, use_async: bool = True) -> FastAPI:
+    def get_app(self, use_async: bool = True, prefix: str = "/v1") -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware
 
         if not self.api_app:
@@ -45,7 +45,7 @@ class Playground:
             raise Exception("API App could not be created.")
 
         if not self.router:
-            self.router = APIRouter(prefix="/v1")
+            self.router = APIRouter(prefix=prefix)
 
         if not self.router:
             raise Exception("API Router could not be created.")

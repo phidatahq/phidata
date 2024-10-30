@@ -1,121 +1,178 @@
+import tarfile
 from pathlib import Path
 from typing import Optional, Union
-from urllib.parse import quote
 
-from fastapi import FastAPI
 from rich import box
+from rich.text import Text
 from rich.panel import Panel
+from fastapi import FastAPI
 
-from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
-from phi.cli.settings import phi_cli_settings
-from phi.cli.console import console
 from phi.utils.log import logger
+
+
+def create_deployment_info(app: str, mount: Path, elapsed_time: str = "[waiting...]") -> Text:
+    """Create a formatted text display showing deployment information.
+
+    Args:
+        app (str): The name or identifier of the application being deployed
+        mount (Path): The path to the mounted directory
+        elapsed_time (Optional[str], optional): The elapsed deployment time. Defaults to "[waiting...]"
+
+    Returns:
+        Text: A Rich Text object containing formatted deployment information
+    """
+    return Text.assemble(
+        ("📦 App: ", "bold"),
+        (f"{app}\n", "cyan"),
+        ("📂 Mount: ", "bold"),
+        (f"{mount}\n", "cyan"),
+        ("⏱️  Time: ", "bold"),
+        (elapsed_time, "yellow"),
+    )
+
+
+def create_info_panel(deployment_info: Text) -> Panel:
+    """Create a formatted panel to display deployment information.
+
+    Args:
+        deployment_info (Text): The Rich Text object containing deployment information
+
+    Returns:
+        Panel: A Rich Panel object containing the formatted deployment information
+    """
+    return Panel(
+        deployment_info,
+        title="[bold green]🚀 Deploying Playground App[/bold green]",
+        border_style="cyan",
+        box=box.HEAVY,
+        padding=(1, 2),
+    )
+
+
+def create_tar_archive(mount: Path) -> Path:
+    """Create a gzipped tar archive of the playground files.
+
+    Args:
+        mount (Path): The path to the directory to be archived
+
+    Returns:
+        Path: The path to the created tar archive
+
+    Raises:
+        Exception: If archive creation fails
+    """
+    tar_path = mount.with_suffix(".tar.gz")
+    try:
+        logger.debug(f"Creating playground archive: {tar_path.name}")
+        with tarfile.open(tar_path, "w:gz") as tar:
+            tar.add(mount, arcname=mount.name)
+        logger.debug(f"Successfully created playground archive: {tar_path.name}")
+        return tar_path
+    except Exception as e:
+        logger.error(f"Failed to create playground archive: {e}")
+        raise
+
+
+def upload_archive(tar_path: Path) -> None:
+    """Upload the tar archive to the deployment destination.
+
+    Args:
+        tar_path (Path): The path to the tar archive to be uploaded
+
+    Raises:
+        Exception: If the upload process fails
+    """
+    try:
+        logger.debug(f"Uploading playground archive: {tar_path.name}")
+        # Actual upload logic would go here
+        logger.debug(f"Successfully uploaded playground archive: {tar_path.name}")
+    except Exception as e:
+        logger.error(f"Failed to upload playground archive: {e}")
+        raise
+
+
+def cleanup_archive(tar_path: Path) -> None:
+    """Delete the temporary tar archive after deployment.
+
+    Args:
+        tar_path (Path): The path to the tar archive to be deleted
+
+    Raises:
+        Exception: If the deletion process fails
+    """
+    try:
+        logger.debug(f"Deleting playground archive: {tar_path.name}")
+        tar_path.unlink()
+        logger.debug(f"Successfully deleted playground archive: {tar_path.name}")
+    except Exception as e:
+        logger.error(f"Failed to delete playground archive: {e}")
+        raise
 
 
 def deploy_playground_app(
     app: Union[str, FastAPI],
-    root_path: Path,
+    mount: Path,
     **kwargs,
 ):
-    import uvicorn
+    """Deploy a playground application with live status updates.
+
+    This function handles the complete deployment process including:
+    1. Creating a tar archive of the application
+    2. Uploading the archive to the deployment destination
+    3. Cleaning up temporary files
+    4. Displaying real-time progress updates
+
+    Args:
+        app (Union[str, FastAPI]): The application to deploy, either as a string identifier
+            or FastAPI instance
+        mount (Path): The path to the directory containing the application files
+        **kwargs: Additional keyword arguments for deployment configuration
+
+    Raises:
+        Exception: If any step of the deployment process fails
+    """
+
     from time import sleep
-    from rich.text import Text
-    from rich.panel import Panel
     from rich.live import Live
     from rich.console import Group
     from rich.status import Status
     from phi.utils.timer import Timer
 
-    # Print using Live display
     with Live(refresh_per_second=4) as live_display:
-        # Create and start timer
         response_timer = Timer()
         response_timer.start()
 
-        # Initialize panels list with deployment info
-        deployment_info = Text.assemble(
-            ("📦 App: ", "bold"),
-            (f"{app}\n", "cyan"),
-            ("📂 Root Path: ", "bold"),
-            (f"{root_path}\n", "cyan"),
-            ("⏱️  Time: ", "bold"),
-            ("[waiting...]", "yellow"),
-        )
-        panels = [
-            Panel(
-                deployment_info,
-                title="[bold green]🚀 Deploying Playground App[/bold green]",
-                border_style="cyan",
-                box=box.HEAVY,
-                padding=(1, 2),
-            )
-        ]
+        # Initialize display
+        deployment_info = create_deployment_info(app, mount)
+        panels = [create_info_panel(deployment_info)]
 
-        # Add status with custom spinner
         status = Status(
             "[bold blue]Initializing playground...[/bold blue]",
             spinner="aesthetic",
             speed=2,
         )
         panels.append(status)
-
-        # Initial display update
         live_display.update(Group(*panels))
 
-        # Simulate deployment steps
-        for step in ["Configuring server...", "Setting up routes...", "Starting service..."]:
-            sleep(0.7)
-            status.update(f"[bold blue]{step}[/bold blue]")
-            # Update timer in deployment info
-            deployment_info = Text.assemble(
-                ("📦 App: ", "bold"),
-                (f"{app}\n", "cyan"),
-                ("📂 Root Path: ", "bold"),
-                (f"{root_path}\n", "cyan"),
-                ("⏱️  Time: ", "bold"),
-                (f"{response_timer.elapsed:.1f}s", "yellow"),
-            )
-            panels[0] = Panel(
-                deployment_info,
-                title="[bold green]🚀 Deploying Playground App[/bold green]",
-                border_style="cyan",
-                box=box.HEAVY,
-                padding=(1, 2),
-            )
-            live_display.update(Group(*panels))
+        # Step 1: Create archive
+        status.update("[bold blue]Creating playground archive...[/bold blue]")
+        tar_path = create_tar_archive(mount)
+        panels[0] = create_info_panel(create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s"))
+        live_display.update(Group(*panels))
+        sleep(0.7)
 
-        # Clean up status and show final state
+        # Step 2: Upload archive
+        status.update("[bold blue]Uploading playground archive...[/bold blue]")
+        upload_archive(tar_path)
+        panels[0] = create_info_panel(create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s"))
+        live_display.update(Group(*panels))
+        sleep(0.7)
+
+        # Step 3: Cleanup
+        status.update("[bold blue]Deleting playground archive...[/bold blue]")
+        cleanup_archive(tar_path)
+
+        # Final display update
         status.stop()
-        panels.pop()  # Remove status panel
+        panels.pop()
         live_display.update(Group(*panels))
-
-    # try:
-    #     create_playground_endpoint(
-    #         playground=PlaygroundEndpointCreate(
-    #             endpoint=f"{scheme}://{host}:{port}", playground_data={"prefix": prefix}
-    #         ),
-    #     )
-    # except Exception as e:
-    #     logger.error(f"Could not create playground endpoint: {e}")
-    #     logger.error("Please try again.")
-    #     return
-
-    # logger.info(f"Starting playground on {scheme}://{host}:{port}")
-    # # Encode the full endpoint (host:port)
-    # encoded_endpoint = quote(f"{host}:{port}")
-
-    # # Create a panel with the playground URL
-    # url = f"{phi_cli_settings.playground_url}?endpoint={encoded_endpoint}"
-    # panel = Panel(
-    #     f"[bold green]URL:[/bold green] [link={url}]{url}[/link]",
-    #     title="Agent Playground",
-    #     expand=False,
-    #     border_style="cyan",
-    #     box=box.HEAVY,
-    #     padding=(2, 2),
-    # )
-
-    # # Print the panel
-    # console.print(panel)
-
-    # uvicorn.run(app=app, host=host, port=port, reload=reload, **kwargs)

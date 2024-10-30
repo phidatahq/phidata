@@ -32,6 +32,7 @@ def create_workspace_for_user(
             r: Response = api_client.post(
                 ApiRoutes.WORKSPACE_CREATE,
                 json=payload,
+                timeout=2.0,
             )
             if invalid_response(r):
                 try:

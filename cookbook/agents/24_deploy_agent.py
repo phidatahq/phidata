@@ -19,4 +19,4 @@ web_agent = Agent(
 app = Playground(agents=[web_agent]).get_app()
 
 if __name__ == "__main__":
-    deploy_playground_app("24_deploy_agent:app", mount=Path(__file__).parent)
+    deploy_playground_app(app="24_deploy_agent:app", name="agent-test", mount=Path(__file__).parent)

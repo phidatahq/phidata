@@ -6,6 +6,7 @@ from rich import box
 from rich.text import Text
 from rich.panel import Panel
 
+from phi.api.playground import upload_tar_archive
 from phi.utils.log import logger
 
 
@@ -113,7 +114,7 @@ def create_tar_archive(mount: Path) -> Path:
         raise
 
 
-def upload_archive(tar_path: Path) -> None:
+def upload_archive(name: str, tar_path: Path) -> None:
     """Upload the tar archive to phi-cloud.
 
     Args:
@@ -124,10 +125,9 @@ def upload_archive(tar_path: Path) -> None:
     """
     try:
         logger.debug(f"Uploading playground archive: {tar_path.name}")
-        # Actual upload logic would go here
+        upload_tar_archive(name=name, tar_path=tar_path)
         logger.debug(f"Successfully uploaded playground archive: {tar_path.name}")
-    except Exception as e:
-        logger.error(f"Failed to upload playground archive: {e}")
+    except Exception:
         raise
 
 
@@ -151,6 +151,7 @@ def cleanup_archive(tar_path: Path) -> None:
 
 def deploy_playground_app(
     app: str,
+    name: str,
     mount: Path,
 ) -> None:
     """Deploy a playground application to phi-cloud.
@@ -164,6 +165,7 @@ def deploy_playground_app(
     Args:
         app (str): The application to deploy as a string identifier.
                 It should be the name of the module containing the Playground app from the mount path.
+        name (str): The name of the playground app.
         mount (Path): The mount path containing the application files.
 
     Raises:
@@ -181,8 +183,8 @@ def deploy_playground_app(
         response_timer.start()
         try:
             # Initialize display
-            deployment_info = create_deployment_info(app, mount, status="Initializing...")
-            panels: List[Panel] = [create_info_panel(deployment_info)]
+            deployment_info = create_deployment_info(app=app, mount=mount, status="Initializing...")
+            panels: List[Panel] = [create_info_panel(deployment_info=deployment_info)]
 
             status = Status(
                 "[bold blue]Initializing playground...[/bold blue]",
@@ -194,18 +196,22 @@ def deploy_playground_app(
 
             # Step 1: Create archive
             status.update("[bold blue]Creating playground archive...[/bold blue]")
-            tar_path = create_tar_archive(mount)
+            tar_path = create_tar_archive(mount=mount)
             panels[0] = create_info_panel(
-                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", status="Creating archive...")
+                create_deployment_info(
+                    app=app, mount=mount, elapsed_time=f"{response_timer.elapsed:.1f}s", status="Creating archive..."
+                )
             )
             live_display.update(Group(*panels))
             sleep(0.7)
 
             # Step 2: Upload archive
             status.update("[bold blue]Uploading playground archive...[/bold blue]")
-            upload_archive(tar_path)
+            upload_archive(name=name, tar_path=tar_path)
             panels[0] = create_info_panel(
-                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", status="Uploading archive...")
+                create_deployment_info(
+                    app=app, mount=mount, elapsed_time=f"{response_timer.elapsed:.1f}s", status="Uploading archive..."
+                )
             )
             live_display.update(Group(*panels))
             sleep(0.7)
@@ -214,7 +220,9 @@ def deploy_playground_app(
             status.update("[bold blue]Deleting playground archive...[/bold blue]")
             cleanup_archive(tar_path)
             panels[0] = create_info_panel(
-                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", status="Deleting archive...")
+                create_deployment_info(
+                    app=app, mount=mount, elapsed_time=f"{response_timer.elapsed:.1f}s", status="Deleting archive..."
+                )
             )
             live_display.update(Group(*panels))
             sleep(0.7)
@@ -226,7 +234,9 @@ def deploy_playground_app(
         except Exception as e:
             status.update(f"[bold red]Deployment failed: {str(e)}[/bold red]")
             panels[0] = create_error_panel(
-                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", error=str(e))
+                create_deployment_info(
+                    app=app, mount=mount, elapsed_time=f"{response_timer.elapsed:.1f}s", error=str(e)
+                )
             )
             status.stop()
             panels.pop()

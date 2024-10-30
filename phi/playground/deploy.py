@@ -1,34 +1,56 @@
 import tarfile
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, List
 
 from rich import box
 from rich.text import Text
 from rich.panel import Panel
-from fastapi import FastAPI
 
 from phi.utils.log import logger
 
 
-def create_deployment_info(app: str, mount: Path, elapsed_time: str = "[waiting...]") -> Text:
+def create_deployment_info(
+    app: str, mount: Path, elapsed_time: str = "[waiting...]", status: Optional[str] = None, error: Optional[str] = None
+) -> Text:
     """Create a formatted text display showing deployment information.
 
     Args:
-        app (str): The name or identifier of the application being deployed
+        app (str): The name of the application being deployed
         mount (Path): The path to the mounted directory
-        elapsed_time (Optional[str], optional): The elapsed deployment time. Defaults to "[waiting...]"
+        elapsed_time (str): The elapsed deployment time. Defaults to "[waiting...]"
+        status (Optional[str]): The current deployment status. Defaults to None
+        error (Optional[str]): The deployment error message. Defaults to None
 
     Returns:
         Text: A Rich Text object containing formatted deployment information
     """
-    return Text.assemble(
+    # Base info always shown
+    elements = [
         ("📦 App: ", "bold"),
         (f"{app}\n", "cyan"),
         ("📂 Mount: ", "bold"),
         (f"{mount}\n", "cyan"),
         ("⏱️  Time: ", "bold"),
-        (elapsed_time, "yellow"),
-    )
+        (f"{elapsed_time}\n", "yellow"),
+    ]
+
+    # Add either status or error, not both
+    if error is not None:
+        elements.extend(
+            [
+                ("🚨 Error: ", "bold"),
+                (f"{error}", "red"),
+            ]
+        )
+    elif status is not None:
+        elements.extend(
+            [
+                ("🚧 Status: ", "bold"),
+                (f"{status}", "yellow"),
+            ]
+        )
+
+    return Text.assemble(*elements)
 
 
 def create_info_panel(deployment_info: Text) -> Panel:
@@ -44,6 +66,24 @@ def create_info_panel(deployment_info: Text) -> Panel:
         deployment_info,
         title="[bold green]🚀 Deploying Playground App[/bold green]",
         border_style="cyan",
+        box=box.HEAVY,
+        padding=(1, 2),
+    )
+
+
+def create_error_panel(deployment_info: Text) -> Panel:
+    """Create a formatted panel to display deployment error information.
+
+    Args:
+        deployment_info (Text): The Rich Text object containing deployment error information
+
+    Returns:
+        Panel: A Rich Panel object containing the formatted deployment error information
+    """
+    return Panel(
+        deployment_info,
+        title="[bold red]🚨 Deployment Failed[/bold red]",
+        border_style="red",
         box=box.HEAVY,
         padding=(1, 2),
     )
@@ -74,7 +114,7 @@ def create_tar_archive(mount: Path) -> Path:
 
 
 def upload_archive(tar_path: Path) -> None:
-    """Upload the tar archive to the deployment destination.
+    """Upload the tar archive to phi-cloud.
 
     Args:
         tar_path (Path): The path to the tar archive to be uploaded
@@ -110,23 +150,21 @@ def cleanup_archive(tar_path: Path) -> None:
 
 
 def deploy_playground_app(
-    app: Union[str, FastAPI],
+    app: str,
     mount: Path,
-    **kwargs,
-):
-    """Deploy a playground application with live status updates.
+) -> None:
+    """Deploy a playground application to phi-cloud.
 
-    This function handles the complete deployment process including:
-    1. Creating a tar archive of the application
-    2. Uploading the archive to the deployment destination
-    3. Cleaning up temporary files
-    4. Displaying real-time progress updates
+    This function:
+    1. Creates a tar archive of the mount directory.
+    2. Uploades the archive to phi-cloud.
+    3. Cleaning up temporary files.
+    4. Displaying real-time progress updates.
 
     Args:
-        app (Union[str, FastAPI]): The application to deploy, either as a string identifier
-            or FastAPI instance
-        mount (Path): The path to the directory containing the application files
-        **kwargs: Additional keyword arguments for deployment configuration
+        app (str): The application to deploy as a string identifier.
+                It should be the name of the module containing the Playground app from the mount path.
+        mount (Path): The mount path containing the application files.
 
     Raises:
         Exception: If any step of the deployment process fails
@@ -141,38 +179,55 @@ def deploy_playground_app(
     with Live(refresh_per_second=4) as live_display:
         response_timer = Timer()
         response_timer.start()
+        try:
+            # Initialize display
+            deployment_info = create_deployment_info(app, mount, status="Initializing...")
+            panels: List[Panel] = [create_info_panel(deployment_info)]
 
-        # Initialize display
-        deployment_info = create_deployment_info(app, mount)
-        panels = [create_info_panel(deployment_info)]
+            status = Status(
+                "[bold blue]Initializing playground...[/bold blue]",
+                spinner="aesthetic",
+                speed=2,
+            )
+            panels.append(status)  # type: ignore
+            live_display.update(Group(*panels))
 
-        status = Status(
-            "[bold blue]Initializing playground...[/bold blue]",
-            spinner="aesthetic",
-            speed=2,
-        )
-        panels.append(status)
-        live_display.update(Group(*panels))
+            # Step 1: Create archive
+            status.update("[bold blue]Creating playground archive...[/bold blue]")
+            tar_path = create_tar_archive(mount)
+            panels[0] = create_info_panel(
+                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", status="Creating archive...")
+            )
+            live_display.update(Group(*panels))
+            sleep(0.7)
 
-        # Step 1: Create archive
-        status.update("[bold blue]Creating playground archive...[/bold blue]")
-        tar_path = create_tar_archive(mount)
-        panels[0] = create_info_panel(create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s"))
-        live_display.update(Group(*panels))
-        sleep(0.7)
+            # Step 2: Upload archive
+            status.update("[bold blue]Uploading playground archive...[/bold blue]")
+            upload_archive(tar_path)
+            panels[0] = create_info_panel(
+                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", status="Uploading archive...")
+            )
+            live_display.update(Group(*panels))
+            sleep(0.7)
 
-        # Step 2: Upload archive
-        status.update("[bold blue]Uploading playground archive...[/bold blue]")
-        upload_archive(tar_path)
-        panels[0] = create_info_panel(create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s"))
-        live_display.update(Group(*panels))
-        sleep(0.7)
+            # Step 3: Cleanup
+            status.update("[bold blue]Deleting playground archive...[/bold blue]")
+            cleanup_archive(tar_path)
+            panels[0] = create_info_panel(
+                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", status="Deleting archive...")
+            )
+            live_display.update(Group(*panels))
+            sleep(0.7)
 
-        # Step 3: Cleanup
-        status.update("[bold blue]Deleting playground archive...[/bold blue]")
-        cleanup_archive(tar_path)
-
-        # Final display update
-        status.stop()
-        panels.pop()
-        live_display.update(Group(*panels))
+            # Final display update
+            status.stop()
+            panels.pop()
+            live_display.update(Group(*panels))
+        except Exception as e:
+            status.update(f"[bold red]Deployment failed: {str(e)}[/bold red]")
+            panels[0] = create_error_panel(
+                create_deployment_info(app, mount, f"{response_timer.elapsed:.1f}s", error=str(e))
+            )
+            status.stop()
+            panels.pop()
+            live_display.update(Group(*panels))

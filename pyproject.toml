@@ -102,6 +102,7 @@ module = [
   "botocore.*",
   "bs4.*",
   "chromadb.*",
+  "couchbase==4.3.3",
   "clip.*",
   "clip.*",
   "cohere.*",

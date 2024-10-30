@@ -7,6 +7,8 @@ from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_core.core_schema import ValidationInfo
 
+from phi.utils.log import logger
+
 PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
 
 
@@ -23,6 +25,7 @@ class PhiCliSettings(BaseSettings):
 
     api_runtime: str = "prd"
     api_enabled: bool = True
+    alpha_features: bool = False
     api_url: str = Field("https://api.phidata.com", validate_default=True)
     signin_url: str = Field("https://phidata.app/login", validate_default=True)
     playground_url: str = Field("https://phidata.app/playground", validate_default=True)
@@ -72,6 +75,11 @@ class PhiCliSettings(BaseSettings):
             return "https://api.stgphi.com"
         else:
             return "https://api.phidata.com"
+
+    def gate_alpha_feature(self):
+        if not self.alpha_features:
+            logger.error("This is an Alpha feature not for general use.\nPlease message the phidata team for access.")
+            exit(1)
 
 
 phi_cli_settings = PhiCliSettings()

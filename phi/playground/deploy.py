@@ -6,6 +6,7 @@ from rich import box
 from rich.text import Text
 from rich.panel import Panel
 
+from phi.cli.settings import phi_cli_settings
 from phi.api.playground import upload_tar_archive
 from phi.utils.log import logger
 
@@ -171,6 +172,8 @@ def deploy_playground_app(
     Raises:
         Exception: If any step of the deployment process fails
     """
+
+    phi_cli_settings.gate_alpha_feature()
 
     from time import sleep
     from rich.live import Live

@@ -3,7 +3,9 @@ from typing import Optional, Dict, Any
 try:
     import psycopg2
 except ImportError:
-    raise ImportError("`psycopg2` not installed. Please install using `pip install psycopg2`. If you face issues, try `pip install psycopg2-binary`.")
+    raise ImportError(
+        "`psycopg2` not installed. Please install using `pip install psycopg2`. If you face issues, try `pip install psycopg2-binary`."
+    )
 
 from phi.tools import Toolkit
 from phi.utils.log import logger

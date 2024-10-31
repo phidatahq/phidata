@@ -156,14 +156,15 @@ class PhiCliConfig:
         self.save_config()
         return ws_config
 
-    def update_ws_config(
+    def create_or_update_ws_config(
         self,
         ws_root_path: Path,
         ws_schema: Optional[WorkspaceSchema] = None,
         ws_team: Optional[TeamSchema] = None,
-        set_as_active: bool = False,
+        set_as_active: bool = True,
     ) -> Optional[WorkspaceConfig]:
-        """Updates WorkspaceConfig and returns True if successful"""
+        """Creates or updates a WorkspaceConfig and returns the WorkspaceConfig"""
+
         ws_config = self._add_or_update_ws_config(
             ws_root_path=ws_root_path,
             ws_schema=ws_schema,

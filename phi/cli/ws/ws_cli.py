@@ -185,6 +185,7 @@ def up(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
     from phi.workspace.operator import start_workspace, setup_workspace
     from phi.workspace.helpers import get_workspace_dir_path
@@ -192,8 +193,11 @@ def up(
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
+        phi_config = initialize_phi()
+    if not phi_config:
         log_config_not_available_msg()
         return
+    phi_config = cast(PhiCliConfig, phi_config)
 
     # Workspace to start
     ws_to_start: Optional[WorkspaceConfig] = None
@@ -205,7 +209,7 @@ def up(
         logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
         if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
-            phi_config.set_active_ws_dir(str(ws_at_current_path.ws_root_path))
+            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_start = ws_at_current_path
     # If there's no workspace at the current path, check if an active workspace exists
     else:
@@ -221,11 +225,8 @@ def up(
         if workspace_ws_dir_path is not None:
             logger.debug(f"Found workspace directory: {workspace_ws_dir_path}")
             logger.debug(f"Setting up a workspace at: {current_path}")
-            setup_succesful = setup_workspace(ws_root_path=current_path)
+            ws_to_start = setup_workspace(ws_root_path=current_path)
             print_info("")
-            if setup_succesful:
-                phi_config = PhiCliConfig.from_saved_config()
-                ws_to_start = phi_config.get_ws_config_by_path(current_path)
 
     # If there's no workspace to start, raise an error showing available workspaces
     if ws_to_start is None:
@@ -368,12 +369,15 @@ def down(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
     from phi.workspace.operator import stop_workspace, setup_workspace
     from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        phi_config = initialize_phi()
     if not phi_config:
         log_config_not_available_msg()
         return
@@ -388,7 +392,7 @@ def down(
         logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
         if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
-            phi_config.set_active_ws_dir(str(ws_at_current_path.ws_root_path))
+            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_stop = ws_at_current_path
     # If there's no workspace at the current path, check if an active workspace exists
     else:
@@ -404,11 +408,8 @@ def down(
         if workspace_ws_dir_path is not None:
             logger.debug(f"Found workspace directory: {workspace_ws_dir_path}")
             logger.debug(f"Setting up a workspace at: {current_path}")
-            setup_succesful = setup_workspace(ws_root_path=current_path)
+            ws_to_stop = setup_workspace(ws_root_path=current_path)
             print_info("")
-            if setup_succesful:
-                phi_config = PhiCliConfig.from_saved_config()
-                ws_to_stop = phi_config.get_ws_config_by_path(current_path)
 
     # If there's no workspace to stop, raise an error showing available workspaces
     if ws_to_stop is None:
@@ -553,12 +554,15 @@ def patch(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
     from phi.workspace.operator import update_workspace, setup_workspace
     from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        phi_config = initialize_phi()
     if not phi_config:
         log_config_not_available_msg()
         return
@@ -573,7 +577,7 @@ def patch(
         logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
         if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
-            phi_config.set_active_ws_dir(str(ws_at_current_path.ws_root_path))
+            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_patch = ws_at_current_path
     # If there's no workspace at the current path, check if an active workspace exists
     else:
@@ -589,11 +593,8 @@ def patch(
         if workspace_ws_dir_path is not None:
             logger.debug(f"Found workspace directory: {workspace_ws_dir_path}")
             logger.debug(f"Setting up a workspace at: {current_path}")
-            setup_succesful = setup_workspace(ws_root_path=current_path)
+            ws_to_patch = setup_workspace(ws_root_path=current_path)
             print_info("")
-            if setup_succesful:
-                phi_config = PhiCliConfig.from_saved_config()
-                ws_to_patch = phi_config.get_ws_config_by_path(current_path)
 
     # If there's no workspace to patch, raise an error showing available workspaces
     if ws_to_patch is None:
@@ -783,10 +784,13 @@ def config(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
     from phi.utils.load_env import load_env
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        phi_config = initialize_phi()
     if not phi_config:
         log_config_not_available_msg()
         return
@@ -835,9 +839,12 @@ def delete(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.operator import delete_workspace
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        phi_config = initialize_phi()
     if not phi_config:
         log_config_not_available_msg()
         return

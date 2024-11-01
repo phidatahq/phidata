@@ -232,7 +232,7 @@ class PhiCliConfig:
         write_json_file(file_path=phi_cli_settings.config_file_path, data=config_data)
 
     @classmethod
-    def from_saved_config(cls):
+    def from_saved_config(cls) -> Optional["PhiCliConfig"]:
         try:
             config_data = read_json_file(file_path=phi_cli_settings.config_file_path)
             if config_data is None or not isinstance(config_data, dict):
@@ -255,6 +255,7 @@ class PhiCliConfig:
         except Exception as e:
             logger.warning(e)
             logger.warning("Please setup the workspace using `phi ws setup`")
+            return None
 
     ######################################################
     ## Print PhiCliConfig

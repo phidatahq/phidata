@@ -10,10 +10,13 @@ except ImportError:
 
 
 class FastEmbedEmbedder(Embedder):
+    """Using BAAI/bge-small-en-v1.5 model, more models available: https://qdrant.github.io/fastembed/examples/Supported_Models/"""
+
     model: str = "BAAI/bge-small-en-v1.5"
     dimensions: int = 384
 
     def get_embedding(self, text: str) -> List[float]:
+
         model = TextEmbedding(model_name=self.model)
         embeddings = model.embed(text)
         embedding_list = list(embeddings)
@@ -24,5 +27,5 @@ class FastEmbedEmbedder(Embedder):
             logger.warning(e)
             return []
 
-    def get_embedding_and_usage(self, text) -> Tuple[List[float], Optional[Dict]]:
+    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
         return super().get_embedding_and_usage(text)

@@ -2756,6 +2756,8 @@ class Agent(BaseModel):
                 )
                 panels.append(response_panel)
 
+                # Final update to remove the "Thinking..." status
+                panels = [p for p in panels if not isinstance(p, Status)]
                 live_log.update(Group(*panels))
 
     async def aprint_response(
@@ -2972,6 +2974,8 @@ class Agent(BaseModel):
                 )
                 panels.append(response_panel)
 
+                # Final update to remove the "Thinking..." status
+                panels = [p for p in panels if not isinstance(p, Status)]
                 live_log.update(Group(*panels))
 
     def cli_app(

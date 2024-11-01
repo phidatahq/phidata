@@ -58,10 +58,28 @@ class DruidTools(Toolkit):
             logger.error(f"Connection test failed: {e}")
             raise
 
-    def _execute_query(self, query: str, params: Optional[dict] = None) -> list:
+    def _execute_query(self, query: str, params: Optional[tuple] = None) -> list:
         try:
             self.context["last_query"] = query
-            self.cursor.execute(query, params or {})
+            
+            # Handle different parameter cases
+            if params and isinstance(params, tuple):
+                # For schema_query with table_name parameter
+                if "TABLE_NAME = %s" in query:
+                    param_value = params[0]  # Extract value from tuple
+                    modified_query = query.replace("%s", f"'{param_value}'")
+                    self.cursor.execute(modified_query)
+                # For column_query with schema and table parameters
+                elif "TABLE_SCHEMA = %s AND TABLE_NAME = %s" in query:
+                    schema, table = params
+                    modified_query = query.replace("%s", f"'{schema}'", 1)
+                    modified_query = modified_query.replace("%s", f"'{table}'", 1)
+                    self.cursor.execute(modified_query)
+                else:
+                    self.cursor.execute(query)
+            else:
+                self.cursor.execute(query)
+                
             results = self.cursor.fetchall()
             self.context["last_error"] = None
             return results

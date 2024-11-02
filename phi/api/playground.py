@@ -35,21 +35,21 @@ def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
     return False
 
 
-def upload_tar_archive(name: str, tar_path: Path) -> bool:
-    """Upload a tar archive to the playground.
+def deploy_tar_archive(name: str, tar_path: Path) -> bool:
+    """Deploy a tar archive to the playground.
 
     Args:
-        name: Name of the archive
-        tar_path: Path to the tar file
+        name (str): Name of the archive
+        tar_path (Path): Path to the tar file
 
     Returns:
-        bool: True if upload was successful
+        bool: True if deployment was successful
 
     Raises:
         ValueError: If tar_path is invalid or file is too large
-        RuntimeError: If upload fails
+        RuntimeError: If deployment fails
     """
-    logger.debug("--**-- Uploading Tar Archive")
+    logger.debug("--**-- Deploying Tar Archive")
 
     # Validate input
     if not tar_path.exists():
@@ -74,17 +74,17 @@ def upload_tar_archive(name: str, tar_path: Path) -> bool:
         ):
             files = {"file": (tar_path.name, file, "application/gzip")}
             r: Response = api_client.post(
-                ApiRoutes.PLAYGROUND_ARCHIVE_UPLOAD,
+                ApiRoutes.PLAYGROUND_APP_DEPLOY,
                 files=files,
                 data={"name": name},
             )
 
             if invalid_response(r):
-                raise RuntimeError(f"Upload failed with status {r.status_code}: {r.text}")
+                raise RuntimeError(f"Deployment failed with status {r.status_code}: {r.text}")
 
             response_json: Dict = r.json()
             logger.debug(f"Response: {response_json}")
             return True
 
     except Exception as e:
-        raise RuntimeError(f"Failed to upload tar archive: {str(e)}") from e
+        raise RuntimeError(f"Failed to deploy tar archive: {str(e)}") from e

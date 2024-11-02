@@ -7,7 +7,7 @@ from rich.text import Text
 from rich.panel import Panel
 
 from phi.cli.settings import phi_cli_settings
-from phi.api.playground import upload_tar_archive
+from phi.api.playground import deploy_tar_archive
 from phi.utils.log import logger
 
 
@@ -115,19 +115,20 @@ def create_tar_archive(root: Path) -> Path:
         raise
 
 
-def upload_archive(name: str, tar_path: Path) -> None:
-    """Upload the tar archive to phi-cloud.
+def deploy_archive(name: str, tar_path: Path) -> None:
+    """Deploying the tar archive to phi-cloud.
 
     Args:
-        tar_path (Path): The path to the tar archive to be uploaded
+        name (str): The name of the playground app
+        tar_path (Path): The path to the tar archive to be deployed
 
     Raises:
-        Exception: If the upload process fails
+        Exception: If the deployment process fails
     """
     try:
-        logger.debug(f"Uploading playground archive: {tar_path.name}")
-        upload_tar_archive(name=name, tar_path=tar_path)
-        logger.debug(f"Successfully uploaded playground archive: {tar_path.name}")
+        logger.debug(f"Deploying playground archive: {tar_path.name}")
+        deploy_tar_archive(name=name, tar_path=tar_path)
+        logger.debug(f"Successfully deployed playground archive: {tar_path.name}")
     except Exception:
         raise
 
@@ -215,7 +216,7 @@ def deploy_playground_app(
 
             # Step 2: Upload archive
             status.update("[bold blue]Uploading playground archive...[/bold blue]")
-            upload_archive(name=name, tar_path=tar_path)
+            deploy_archive(name=name, tar_path=tar_path)
             panels[0] = create_info_panel(
                 create_deployment_info(
                     app=app, root=root, elapsed_time=f"{response_timer.elapsed:.1f}s", status="Uploading archive..."

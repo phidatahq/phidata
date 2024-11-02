@@ -1,6 +1,6 @@
 """Example for Qdrant FastEmbed"""
 
-from fastembed import TextEmbedding # type: ignore
+from phi.embedder.fastembed import FastEmbedEmbedder
 from typing import List
 
 documents: List[str] = [
@@ -14,8 +14,9 @@ documents: List[str] = [
 
 """FastEmbed supported models can be found here: https://qdrant.github.io/fastembed/examples/Supported_Models/"""
 
-# Initialize the TextEmbedding model
-model = TextEmbedding(model="BAAI/bge-small-en-v1.5")
+embedder = FastEmbedEmbedder(
+    # model="BAAI/bge-small-en-v1.5" 
+)
 
-embeddings = list(model.embed(documents))
+embeddings = list(embedder.get_embedding(documents))
 print(embeddings[0])

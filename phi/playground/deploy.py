@@ -1,6 +1,6 @@
 import tarfile
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, cast
 
 from rich import box
 from rich.text import Text
@@ -189,8 +189,9 @@ def deploy_playground_app(
     with Live(refresh_per_second=4) as live_display:
         response_timer = Timer()
         response_timer.start()
+        root = root or Path.cwd()
+        root = cast(Path, root)
         try:
-            root = root or Path.cwd()
             deployment_info = create_deployment_info(app=app, root=root, status="Initializing...")
             panels: List[Panel] = [create_info_panel(deployment_info=deployment_info)]
 

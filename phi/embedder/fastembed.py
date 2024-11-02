@@ -3,7 +3,7 @@ from phi.embedder.base import Embedder
 from phi.utils.log import logger
 
 try:
-    from fastembed import TextEmbedding # type: ignore
+    from fastembed import TextEmbedding  # type: ignore
 
 except ImportError:
     raise ImportError("fastembed not installed, use pip install fastembed")
@@ -16,7 +16,6 @@ class FastEmbedEmbedder(Embedder):
     dimensions: int = 384
 
     def get_embedding(self, text: str) -> List[float]:
-
         model = TextEmbedding(model_name=self.model)
         embeddings = model.embed(text)
         embedding_list = list(embeddings)

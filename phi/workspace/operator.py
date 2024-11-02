@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, cast
 
 
 from rich.prompt import Prompt
@@ -36,8 +36,10 @@ TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
 }
 
 
-def create_workspace(name: Optional[str] = None, template: Optional[str] = None, url: Optional[str] = None) -> bool:
-    """Creates a new workspace.
+def create_workspace(
+    name: Optional[str] = None, template: Optional[str] = None, url: Optional[str] = None
+) -> Optional[WorkspaceConfig]:
+    """Creates a new workspace and returns the WorkspaceConfig.
 
     This function clones a template or url on the users machine at the path:
         cwd/name
@@ -55,17 +57,11 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     # Phi should be initialized before creating a workspace
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        init_success = initialize_phi()
-        if not init_success:
-            from phi.cli.console import log_phi_init_failed_msg
-
-            log_phi_init_failed_msg()
-            return False
-        phi_config = PhiCliConfig.from_saved_config()
-        # If phi_config is still None, throw an error
+        phi_config = initialize_phi()
         if not phi_config:
             log_config_not_available_msg()
-            return False
+            return None
+    phi_config = cast(PhiCliConfig, phi_config)
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
@@ -112,16 +108,16 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
 
     if ws_dir_name is None:
         logger.error("Workspace name is required")
-        return False
+        return None
     if repo_to_clone is None:
         logger.error("URL or Template is required")
-        return False
+        return None
 
     # Check if we can create the workspace in the current dir
     ws_root_path: Path = current_dir.joinpath(ws_dir_name)
     if ws_root_path.exists():
         logger.error(f"Directory {ws_root_path} exists, please delete directory or choose another name for workspace")
-        return False
+        return None
 
     print_info(f"Creating {str(ws_root_path)}")
     logger.debug("Cloning: {}".format(repo_to_clone))
@@ -133,7 +129,7 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
         )
     except Exception as e:
         logger.error(e)
-        return False
+        return None
 
     # Remove existing .git folder
     _dot_git_folder = ws_root_path.joinpath(".git")
@@ -168,8 +164,8 @@ def create_workspace(name: Optional[str] = None, template: Optional[str] = None,
     return setup_workspace(ws_root_path=ws_root_path)
 
 
-def setup_workspace(ws_root_path: Path) -> bool:
-    """Setup a phi workspace at `ws_root_path`.
+def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
+    """Setup a phi workspace at `ws_root_path` and return the WorkspaceConfig
 
     1. Pre-requisites
     1.1 Check ws_root_path exists and is a directory
@@ -199,22 +195,15 @@ def setup_workspace(ws_root_path: Path) -> bool:
     ws_is_valid: bool = ws_root_path is not None and ws_root_path.exists() and ws_root_path.is_dir()
     if not ws_is_valid:
         logger.error("Invalid directory: {}".format(ws_root_path))
-        return False
+        return None
 
     # 1.2 Create PhiCliConfig if needed
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        # Initialize PhiCliConfig before setting up workspace
-        init_success = initialize_phi()
-        if not init_success:
-            from phi.cli.console import log_phi_init_failed_msg
-
-            log_phi_init_failed_msg()
-            return False
-        phi_config = PhiCliConfig.from_saved_config()
-        # If phi_config is still None, throw an error
+        phi_config = initialize_phi()
         if not phi_config:
-            raise Exception("Failed to initialize phi")
+            log_config_not_available_msg()
+            return None
 
     # 1.3 Create a WorkspaceConfig if needed
     logger.debug(f"Checking for a workspace at {ws_root_path}")
@@ -227,14 +216,11 @@ def setup_workspace(ws_root_path: Path) -> bool:
 
         # Check if the workspace contains a `workspace` dir
         workspace_ws_dir_path = get_workspace_dir_path(ws_root_path)
-        if workspace_ws_dir_path is None:
-            logger.error(f"Could not find a `workspace` directory in: {ws_root_path}")
-            exit(1)
-        logger.debug(f"Found a `workspace` directory: {workspace_ws_dir_path}")
+        logger.debug(f"Found the `workspace` configuration at: {workspace_ws_dir_path}")
         ws_config = phi_config.create_or_update_ws_config(ws_root_path=ws_root_path, set_as_active=True)
         if ws_config is None:
-            logger.error(f"Failed to create workspace at {ws_root_path}")
-            exit(1)
+            logger.error(f"Failed to create WorkspaceConfig for {ws_root_path}")
+            return None
     else:
         logger.debug(f"Found workspace at {ws_root_path}")
 
@@ -379,10 +365,10 @@ def setup_workspace(ws_root_path: Path) -> bool:
                     event_data={"workspace_root_path": str(ws_root_path)},
                 ),
             )
-        return True
+        return ws_config
     else:
         print_info("Workspace setup unsuccessful. Please try again.")
-    return False
+    return None
     ######################################################
     ## End Workspace setup
     ######################################################
@@ -684,17 +670,10 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     ######################################################
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        # Phidata should be initialized before workspace setup
-        init_success = initialize_phi()
-        if not init_success:
-            from phi.cli.console import log_phi_init_failed_msg
-
-            log_phi_init_failed_msg()
-            return
-        phi_config = PhiCliConfig.from_saved_config()
-        # If phi_config is still None, throw an error
+        phi_config = initialize_phi()
         if not phi_config:
-            raise Exception("Failed to initialize phi")
+            log_config_not_available_msg()
+            return
 
     ######################################################
     # 1.2 Check ws_root_path is valid

@@ -35,8 +35,8 @@ def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
     return False
 
 
-def deploy_tar_archive(name: str, tar_path: Path) -> bool:
-    """Deploy a tar archive to the playground.
+def deploy_playground_archive(name: str, tar_path: Path) -> bool:
+    """Deploy a playground archive.
 
     Args:
         name (str): Name of the archive
@@ -49,7 +49,7 @@ def deploy_tar_archive(name: str, tar_path: Path) -> bool:
         ValueError: If tar_path is invalid or file is too large
         RuntimeError: If deployment fails
     """
-    logger.debug("--**-- Deploying Tar Archive")
+    logger.debug("--**-- Deploying Playground App")
 
     # Validate input
     if not tar_path.exists():
@@ -87,4 +87,4 @@ def deploy_tar_archive(name: str, tar_path: Path) -> bool:
             return True
 
     except Exception as e:
-        raise RuntimeError(f"Failed to deploy tar archive: {str(e)}") from e
+        raise RuntimeError(f"Failed to deploy playground app: {str(e)}") from e

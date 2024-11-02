@@ -7,7 +7,7 @@ from rich.text import Text
 from rich.panel import Panel
 
 from phi.cli.settings import phi_cli_settings
-from phi.api.playground import deploy_tar_archive
+from phi.api.playground import deploy_playground_archive
 from phi.utils.log import logger
 
 
@@ -127,7 +127,7 @@ def deploy_archive(name: str, tar_path: Path) -> None:
     """
     try:
         logger.debug(f"Deploying playground archive: {tar_path.name}")
-        deploy_tar_archive(name=name, tar_path=tar_path)
+        deploy_playground_archive(name=name, tar_path=tar_path)
         logger.debug(f"Successfully deployed playground archive: {tar_path.name}")
     except Exception:
         raise

@@ -16,7 +16,7 @@ class Function(BaseModel):
     # To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
     parameters: Dict[str, Any] = {"type": "object", "properties": {}}
     entrypoint: Optional[Callable] = None
-    strict: bool = False
+    strict: Optional[bool] = None
 
     # If True, the arguments are sanitized before being passed to the function.
     sanitize_arguments: bool = True
@@ -29,7 +29,7 @@ class Function(BaseModel):
         from inspect import getdoc
         from phi.utils.json_schema import get_json_schema
 
-        parameters = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+        parameters = {"type": "object", "properties": {}, "required": []}
         try:
             # logger.info(f"Getting type hints for {c}")
             type_hints = get_type_hints(c)

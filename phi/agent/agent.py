@@ -462,7 +462,11 @@ class Agent(BaseModel):
         agent_tools = self.get_tools()
         if agent_tools is not None:
             for tool in agent_tools:
-                if self.response_model is not None and self.structured_outputs:
+                if (
+                    self.response_model is not None
+                    and self.structured_outputs
+                    and self.model.supports_structured_outputs
+                ):
                     self.model.add_tool(tool, structured_outputs=True)
                 else:
                     self.model.add_tool(tool)

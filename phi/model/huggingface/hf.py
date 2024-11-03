@@ -15,17 +15,18 @@ from phi.utils.tools import get_function_call_for_tool_call
 try:
     from huggingface_hub import InferenceClient
     from huggingface_hub import AsyncInferenceClient
-
-    from huggingface_hub import (ChatCompletionOutput,
-                                 ChatCompletionStreamOutputDelta,
-                                 ChatCompletionStreamOutputDeltaToolCall,
-                                 ChatCompletionStreamOutput,
-                                 ChatCompletionOutputMessage,
-                                 ChatCompletionOutputUsage)
-
+    from huggingface_hub import (
+        ChatCompletionOutput,
+        ChatCompletionStreamOutputDelta,
+        ChatCompletionStreamOutputDeltaToolCall,
+        ChatCompletionStreamOutput,
+        ChatCompletionOutputMessage,
+        ChatCompletionOutputUsage,
+    )
 except ImportError:
     logger.error("`huggingface_hub` not installed")
     raise
+
 
 @dataclass
 class Metrics:
@@ -34,7 +35,6 @@ class Metrics:
     total_tokens: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
-
     prompt_tokens_details: Optional[dict] = None
     completion_tokens_details: Optional[dict] = None
     time_to_first_token: Optional[float] = None
@@ -55,10 +55,12 @@ class Metrics:
             logger.debug(f"* Completion tokens details:   {self.completion_tokens_details}")
         logger.debug("**************** METRICS END ******************")
 
+
 @dataclass
 class StreamData:
     response_content: str = ""
     response_tool_calls: Optional[List[ChatCompletionStreamOutputDeltaToolCall]] = None
+
 
 class HuggingFaceChat(Model):
     """
@@ -130,7 +132,6 @@ class HuggingFaceChat(Model):
         _client_params: Dict[str, Any] = {}
         if self.api_key is not None:
             _client_params["api_key"] = self.api_key
-        
         if self.base_url is not None:
             _client_params["base_url"] = self.base_url
         if self.timeout is not None:
@@ -263,7 +264,7 @@ class HuggingFaceChat(Model):
             else:
                 _dict["tool_choice"] = self.tool_choice
         return _dict
-    
+
     def invoke(self, messages: List[Message]) -> Union[ChatCompletionOutput]:
         """
         Send a chat completion request to the HuggingFace Hub.
@@ -274,25 +275,12 @@ class HuggingFaceChat(Model):
         Returns:
             ChatCompletionOutput: The chat completion response from the Inference Client.
         """
-        if self.response_format is not None and self.structured_outputs:
-            try:
-                if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
-                    return self.get_client().chat.completions.create(
-                        model=self.id,
-                        messages=[m.to_dict() for m in messages], 
-                        **self.request_kwargs,
-                    )
-                else:
-                    raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
-            except Exception as e:
-                logger.error(f"Error from HuggingFace Hub: {e}")
-
         return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages],  
+            messages=[m.to_dict() for m in messages],
             **self.request_kwargs,
         )
-    
+
     async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletionOutput]:
         """
         Sends an asynchronous chat completion request to the HuggingFace Hub Inference.
@@ -303,28 +291,15 @@ class HuggingFaceChat(Model):
         Returns:
             ChatCompletionOutput: The chat completion response from the Inference Client.
         """
-        if self.response_format is not None and self.structured_outputs:
-            try:
-                if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
-                    return await self.get_async_client().chat.completions.create(
-                        model=self.id,
-                        messages=[m.to_dict() for m in messages], 
-                        **self.request_kwargs,
-                    )
-                else:
-                    raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
-            except Exception as e:
-                logger.error(f"Error from HuggingFace API: {e}")
-
         return await self.get_async_client().chat.completions.create(
             model=self.id,
             messages=[m.to_dict() for m in messages],
             **self.request_kwargs,
         )
-    
+
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionStreamOutput]:
         """
-        Send a streaming chat completion request to the HuggingFace Hub Inference.
+        Send a streaming chat completion request to the HuggingFace API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -338,11 +313,11 @@ class HuggingFaceChat(Model):
             stream=True,
             stream_options={"include_usage": True},
             **self.request_kwargs,
-        )  
+        )  # type: ignore
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
-        Sends an asynchronous streaming chat completion request to the HuggingFace Hub API.
+        Sends an asynchronous streaming chat completion request to the HuggingFace API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -352,12 +327,12 @@ class HuggingFaceChat(Model):
         """
         async_stream = await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages], 
+            messages=[m.to_dict() for m in messages],
             stream=True,
             stream_options={"include_usage": True},
             **self.request_kwargs,
         )
-        async for chunk in async_stream:  
+        async for chunk in async_stream:  # type: ignore
             yield chunk
 
     def _handle_tool_calls(
@@ -418,7 +393,7 @@ class HuggingFaceChat(Model):
 
             return model_response
         return None
-    
+
     def _update_usage_metrics(
         self, assistant_message: Message, metrics: Metrics, response_usage: Optional[ChatCompletionOutputUsage]
     ) -> None:
@@ -477,6 +452,32 @@ class HuggingFaceChat(Model):
                     for k, v in metrics.completion_tokens_details.items():
                         self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
 
+    def _create_assistant_message(
+        self,
+        response_message: ChatCompletionOutputMessage,
+        metrics: Metrics,
+        response_usage: Optional[ChatCompletionOutputUsage],
+    ) -> Message:
+        """
+        Create an assistant message from the response.
+
+        Args:
+            response_message (ChatCompletionMessage): The response message.
+            metrics (Metrics): The metrics.
+            response_usage (Optional[CompletionUsage]): The response usage.
+
+        Returns:
+            Message: The assistant message.
+        """
+        assistant_message = Message(
+            role=response_message.role or "assistant",
+            content=response_message.content,
+        )
+        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
+            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+
+        return assistant_message
+
     def response(self, messages: List[Message]) -> ModelResponse:
         """
         Generate a response from HuggingFace Hub.
@@ -487,7 +488,7 @@ class HuggingFaceChat(Model):
         Returns:
             ModelResponse: The model response.
         """
-        logger.debug("---------- HuggingFace Hub Response Start ----------")
+        logger.debug("---------- HuggingFace Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -497,23 +498,10 @@ class HuggingFaceChat(Model):
         response: Union[ChatCompletionOutput] = self.invoke(messages=messages)
         metrics.response_timer.stop()
 
+        # -*- Parse response
         response_message: ChatCompletionOutputMessage = response.choices[0].message
         response_usage: Optional[ChatCompletionOutputUsage] = response.usage
 
-        """# -*- Parse structured outputs
-        try:
-            if (
-                self.response_format is not None
-                and self.structured_outputs
-                and issubclass(self.response_format, BaseModel)
-            ):
-                parsed_object = response_message.parsed  # type: ignore
-                if parsed_object is not None:
-                    model_response.parsed = parsed_object
-        except Exception as e:
-            logger.warning(f"Error retrieving structured outputs: {e}")
-        """
-        
         # -*- Create assistant message
         assistant_message = self._create_assistant_message(
             response_message=response_message, metrics=metrics, response_usage=response_usage
@@ -541,7 +529,7 @@ class HuggingFaceChat(Model):
 
         logger.debug("---------- HuggingFace Response End ----------")
         return model_response
-    
+
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         """
         Generate an asynchronous response from HuggingFace.
@@ -606,70 +594,102 @@ class HuggingFaceChat(Model):
 
         logger.debug("---------- HuggingFace Async Response End ----------")
         return model_response
-    
-    def _create_assistant_message(
-        self,
-        response_message: ChatCompletionOutputMessage,
-        metrics: Metrics,
-        response_usage: Optional[ChatCompletionOutputUsage],
-    ) -> Message:
+
+    def _update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
         """
-        Create an assistant message from the response.
+        Update the usage metrics for the assistant message and the model.
 
         Args:
-            response_message (ChatCompletionMessage): The response message.
+            assistant_message (Message): The assistant message.
             metrics (Metrics): The metrics.
-            response_usage (Optional[CompletionUsage]): The response usage.
+        """
+        # Update time taken to generate response
+        assistant_message.metrics["time"] = metrics.response_timer.elapsed
+        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
 
-        Returns:
-            Message: The assistant message.
+        if metrics.time_to_first_token is not None:
+            assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
+            self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
+
+        if metrics.input_tokens is not None:
+            assistant_message.metrics["input_tokens"] = metrics.input_tokens
+            self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
+        if metrics.output_tokens is not None:
+            assistant_message.metrics["output_tokens"] = metrics.output_tokens
+            self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
+        if metrics.prompt_tokens is not None:
+            assistant_message.metrics["prompt_tokens"] = metrics.prompt_tokens
+            self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + metrics.prompt_tokens
+        if metrics.completion_tokens is not None:
+            assistant_message.metrics["completion_tokens"] = metrics.completion_tokens
+            self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + metrics.completion_tokens
+        if metrics.total_tokens is not None:
+            assistant_message.metrics["total_tokens"] = metrics.total_tokens
+            self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
+        if metrics.prompt_tokens_details is not None:
+            assistant_message.metrics["prompt_tokens_details"] = metrics.prompt_tokens_details
+            for k, v in metrics.prompt_tokens_details.items():
+                self.metrics.get("prompt_tokens_details", {}).get(k, 0) + v
+        if metrics.completion_tokens_details is not None:
+            assistant_message.metrics["completion_tokens_details"] = metrics.completion_tokens_details
+            for k, v in metrics.completion_tokens_details.items():
+                self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
+
+    def _handle_stream_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+    ) -> Iterator[ModelResponse]:
         """
-        assistant_message = Message(
-            role=response_message.role or "assistant",
-            content=response_message.content,
-        )
-        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
-            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
-        
-        return assistant_message
-    
-    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionStreamOutput]:
-        """
-        Send a streaming chat completion request to the HuggingFace API.
+        Handle tool calls for response stream.
 
         Args:
-            messages (List[Message]): A list of messages to send to the model.
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
 
         Returns:
-            Iterator[ChatCompletionStreamOutput]: An iterator of chat completion chunks.
+            Iterator[ModelResponse]: An iterator of the model response.
         """
-        yield from self.get_client().chat.completions.create(
-            model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
-            stream=True,
-            stream_options={"include_usage": True},
-            **self.request_kwargs,
-        )  
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            tool_role: str = "tool"
+            function_calls_to_run: List[FunctionCall] = []
+            function_call_results: List[Message] = []
+            for tool_call in assistant_message.tool_calls:
+                _tool_call_id = tool_call.get("id")
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    messages.append(
+                        Message(
+                            role=tool_role,
+                            tool_call_id=_tool_call_id,
+                            content="Could not find function to call.",
+                        )
+                    )
+                    continue
+                if _function_call.error is not None:
+                    messages.append(
+                        Message(
+                            role=tool_role,
+                            tool_call_id=_tool_call_id,
+                            content=_function_call.error,
+                        )
+                    )
+                    continue
+                function_calls_to_run.append(_function_call)
 
-    async def ainvoke_stream(self, messages: List[Message]) -> Any:
-        """
-        Sends an asynchronous streaming chat completion request to the HuggingFace API.
+            if self.show_tool_calls:
+                yield ModelResponse(content="\nRunning:")
+                for _f in function_calls_to_run:
+                    yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                yield ModelResponse(content="\n\n")
 
-        Args:
-            messages (List[Message]): A list of messages to send to the model.
+            for intermediate_model_response in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                yield intermediate_model_response
 
-        Returns:
-            Any: An asynchronous iterator of chat completion chunks.
-        """
-        async_stream = await self.get_async_client().chat.completions.create(
-            model=self.id,
-            messages=[m.to_dict() for m in messages], 
-            stream=True,
-            stream_options={"include_usage": True},
-            **self.request_kwargs,
-        )
-        async for chunk in async_stream: 
-            yield chunk
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
@@ -681,15 +701,15 @@ class HuggingFaceChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of model responses.
         """
-        logger.debug("---------- HuggingFace Hub Response Start ----------")
+        logger.debug("---------- HuggingFace Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
 
         # -*- Generate response
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
-                #metrics.completion_tokens += 1
-                
+                # metrics.completion_tokens += 1
+
                 response_delta: ChatCompletionStreamOutputDelta = response.choices[0].delta
                 response_content: Optional[str] = response_delta.content
                 response_tool_calls: Optional[List[ChatCompletionStreamOutputDeltaToolCall]] = response_delta.tool_calls
@@ -720,7 +740,7 @@ class HuggingFaceChat(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield from self._handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
-        logger.debug("---------- HuggingFace Hub Response End ----------")
+        logger.debug("---------- HuggingFace Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
@@ -757,9 +777,6 @@ class HuggingFaceChat(Model):
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
                     stream_data.response_tool_calls.extend(response_tool_calls)
-
-            if response.usage is not None:
-                self._add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
         metrics.response_timer.stop()
 
         # -*- Create assistant message
@@ -788,3 +805,42 @@ class HuggingFaceChat(Model):
             async for model_response in self.aresponse_stream(messages=messages):
                 yield model_response
         logger.debug("---------- HuggingFace Hub Async Response End ----------")
+
+    def _build_tool_calls(self, tool_calls_data: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Build tool calls from tool call data.
+
+        Args:
+            tool_calls_data (List[ChoiceDeltaToolCall]): The tool call data to build from.
+
+        Returns:
+            List[Dict[str, Any]]: The built tool calls.
+        """
+        tool_calls: List[Dict[str, Any]] = []
+        for _tool_call in tool_calls_data:
+            _index = _tool_call.index
+            _tool_call_id = _tool_call.id
+            _tool_call_type = _tool_call.type
+            _function_name = _tool_call.function.name if _tool_call.function else None
+            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
+
+            if len(tool_calls) <= _index:
+                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
+            tool_call_entry = tool_calls[_index]
+            if not tool_call_entry:
+                tool_call_entry["id"] = _tool_call_id
+                tool_call_entry["type"] = _tool_call_type
+                tool_call_entry["function"] = {
+                    "name": _function_name or "",
+                    "arguments": _function_arguments or "",
+                }
+            else:
+                if _function_name:
+                    tool_call_entry["function"]["name"] += _function_name
+                if _function_arguments:
+                    tool_call_entry["function"]["arguments"] += _function_arguments
+                if _tool_call_id:
+                    tool_call_entry["id"] = _tool_call_id
+                if _tool_call_type:
+                    tool_call_entry["type"] = _tool_call_type
+        return tool_calls

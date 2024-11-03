@@ -15,8 +15,8 @@ documents: List[str] = [
 """FastEmbed supported models can be found here: https://qdrant.github.io/fastembed/examples/Supported_Models/"""
 
 embedder = FastEmbedEmbedder(
-    # model="BAAI/bge-small-en-v1.5" 
+    # model="BAAI/bge-small-en-v1.5"
 )
 
-embeddings = list(embedder.get_embedding(documents))
+embeddings = embedder.get_embedding("\n".join(documents))
 print(embeddings[0])

@@ -1,4 +1,6 @@
 import os
+import json
+from hashlib import md5
 from typing import Optional, List, Union, Dict, Any, cast, ListOfDict
 from pydantic import PrivateAttr
 
@@ -27,8 +29,6 @@ except ImportError:
 from phi.vectordb.base import VectorDB
 from phi.embedder import Embedder
 from phi.document import Document
-# from phi.vectordb.distance import Distance
-# from phi.vectordb.search import SearchType
 from phi.utils.log import logger
 from phi.vectordb.redis.schema import (
     NODE_ID_FIELD_NAME,
@@ -151,18 +151,24 @@ class Redis(VectorDB):
         data: List[Dict[str, Any]] = []
         
         for document in documents:
-            embedding = document.embed()
-            record = {
-                NODE_ID_FIELD_NAME: document.id,
-                DOC_ID_FIELD_NAME: document.ref_id, 
-                TEXT_FIELD_NAME: document.content,
-                VECTOR_FIELD_NAME: array_to_buffer(embedding, dtype="FLOAT32"),
+            document.embed(embedder=self.embedder)
+            cleaned_content = document.content.replace("\x00", "\ufffd")
+            doc_id = str(md5(cleaned_content.encode()).hexdigest())
+            payload = {
+                "name": document.name,
+                "meta_data": document.meta_data,
+                "content": cleaned_content,
+                "usage": document.usage,
             }
-            
-            additional_metadata = document.meta_data
-            data.append({**record, **additional_metadata})
-        keys = self._index.load(data,id_field=NODE_ID_FIELD_NAME)
-        logger.info(f"Added {len(keys)} documents to index {self._index.name}")
+            data.append(
+                {
+                    "id": doc_id,
+                    "vector": document.embedding,
+                    "payload": json.dumps(payload),
+                }
+            )
+            logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
+        self._index.load(data, filters=filters)
     
     
     def doc_exists(self,document: Document)->bool:

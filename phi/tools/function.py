@@ -16,19 +16,20 @@ class Function(BaseModel):
     # To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
     parameters: Dict[str, Any] = {"type": "object", "properties": {}}
     entrypoint: Optional[Callable] = None
+    strict: bool = False
 
     # If True, the arguments are sanitized before being passed to the function.
     sanitize_arguments: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
-        return self.model_dump(exclude_none=True, include={"name", "description", "parameters"})
+        return self.model_dump(exclude_none=True, include={"name", "description", "parameters", "strict"})
 
     @classmethod
     def from_callable(cls, c: Callable) -> "Function":
         from inspect import getdoc
         from phi.utils.json_schema import get_json_schema
 
-        parameters = {"type": "object", "properties": {}}
+        parameters = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
         try:
             # logger.info(f"Getting type hints for {c}")
             type_hints = get_type_hints(c)

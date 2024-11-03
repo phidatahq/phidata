@@ -44,11 +44,12 @@ def get_json_schema_for_arg(t: Any) -> Optional[Any]:
 
 
 def get_json_schema(type_hints: Dict[str, Any]) -> Dict[str, Any]:
-    json_schema: Dict[str, Any] = {"type": "object", "properties": {}}
+    json_schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
     for k, v in type_hints.items():
         # logger.info(f"Parsing arg: {k} | {v}")
         if k == "return":
             continue
+        json_schema["required"].append(k)
         arg_json_schema = get_json_schema_for_arg(v)
         if arg_json_schema is not None:
             # logger.info(f"json_schema: {arg_json_schema}")

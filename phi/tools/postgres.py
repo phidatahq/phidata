@@ -71,12 +71,12 @@ class PostgresTools(Toolkit):
 
         return self._connection
 
-    def show_tables(self) -> str:
+    def show_tables(self, table_schema: str = "public") -> str:
         """Function to show tables in the database
 
         :return: List of tables in the database
         """
-        stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+        stmt = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{table_schema}'"
         tables = self.run_query(stmt)
         logger.debug(f"Tables: {tables}")
         return tables

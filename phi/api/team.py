@@ -18,6 +18,7 @@ def get_teams_for_user(user: UserSchema) -> Optional[List[TeamSchema]]:
                 json={
                     "user": user.model_dump(include={"id_user", "email"}),
                 },
+                timeout=2.0,
             )
             if invalid_response(r):
                 return None

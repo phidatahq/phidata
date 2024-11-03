@@ -20,6 +20,8 @@ class RunEvent(str, Enum):
     reasoning_step = "ReasoningStep"
     reasoning_completed = "ReasoningCompleted"
     updating_memory = "UpdatingMemory"
+    workflow_started = "WorkflowStarted"
+    workflow_completed = "WorkflowCompleted"
 
 
 class RunResponseExtraData(BaseModel):
@@ -28,6 +30,8 @@ class RunResponseExtraData(BaseModel):
     history: Optional[List[Message]] = None
     reasoning_steps: Optional[List[ReasoningStep]] = None
     reasoning_messages: Optional[List[Message]] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
 
 class RunResponse(BaseModel):

@@ -48,14 +48,13 @@ def print_info(msg: str) -> None:
 
 
 def log_config_not_available_msg() -> None:
-    logger.error("phi not initialized, please run `phi init`")
+    logger.error("phidata config not found, please run `phi init` and try again")
 
 
 def log_active_workspace_not_available() -> None:
     logger.error("Could not find an active workspace. You can:")
+    logger.error("- Run `phi ws setup` to setup a workspace at the current path")
     logger.error("- Run `phi ws create` to create a new workspace")
-    logger.error("- OR Run `phi ws setup` from an existing directory to setup the workspace")
-    logger.error("- OR Set an existing workspace as active using `phi set [ws_name]`")
 
 
 def print_available_workspaces(avl_ws_list) -> None:

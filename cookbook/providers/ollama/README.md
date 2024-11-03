@@ -1,14 +1,13 @@
 # Ollama Cookbook
 
 > Note: Fork and clone this repository if needed
-> Ollama Model class has been designed to work with llama models. Support for more model classes coming soon
 
 ### 1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama and run models
 
 Run your chat model
 
 ```shell
-ollama run llama3.2
+ollama run llama3.1:8b
 ```
 
 Message `/bye` to exit the chat model

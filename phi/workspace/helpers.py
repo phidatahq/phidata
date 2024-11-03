@@ -43,13 +43,5 @@ def get_workspace_dir_path(ws_root_path: Path) -> Path:
             if phidata_conf_workspace_dir_path.exists() and phidata_conf_workspace_dir_path.is_dir():
                 return phidata_conf_workspace_dir_path
 
-    logger.error(f"Could not find a `workspace` directory at path: {ws_root_path}")
+    logger.error(f"Could not find a workspace at: {ws_root_path}")
     exit(0)
-
-
-def generate_workspace_name(ws_dir_name: str) -> str:
-    import uuid
-
-    formatted_ws_name = ws_dir_name.replace(" ", "-").replace("_", "-").lower()
-    random_suffix = str(uuid.uuid4())[:4]
-    return f"{formatted_ws_name}-{random_suffix}"

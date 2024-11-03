@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.5.20"
+version = "2.5.29"
 description = "Build AI Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -125,6 +125,7 @@ module = [
   "langchain.*",
   "llama_index.*",
   "mistralai.*",
+  "mlx_whisper.*",
   "nest_asyncio.*",
   "newspaper.*",
   "numpy.*",

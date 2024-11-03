@@ -1,3 +1,7 @@
+"""Please install dependencies using:
+pip install openai newspaper4k lxml_html_clean phidata
+"""
+
 import json
 import httpx
 from typing import Iterator
@@ -40,6 +44,7 @@ class HackerNewsReporter(Workflow):
             f"Share all possible information, including url, score, title and summary if available.",
             show_tool_calls=True,
         )
+
         writer = Agent(
             tools=[Newspaper4k()],
             description=f"Write an engaging report on the top {num_stories} stories from hackernews.",

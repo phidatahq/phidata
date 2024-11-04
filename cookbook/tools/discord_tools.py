@@ -1,5 +1,3 @@
-"""Example showing how to use Discord tools."""
-
 import os
 from phi.agent import Agent
 from phi.tools.discord_tools import DiscordTools

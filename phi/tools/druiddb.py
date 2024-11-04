@@ -6,7 +6,7 @@ from phi.utils.log import logger
 try:
     from pydruid.db import connect
 except ImportError:
-    raise ImportError("`pydruid` not installed")
+    raise ImportError("`pydruid` not installed. Please install using `pip install pydruid` ")
 
 
 class DruidTools(Toolkit):

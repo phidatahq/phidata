@@ -8,7 +8,9 @@ agent = Agent(
     markdown=True,
 )
 
+user_id = "69069"
+issue_id = "6969"
 
-agent.print_response("Show all the assigned to user id '69069")
-agent.print_response("Show the issue with the issue id '6969'")
-agent.print_response("Update the issue with the issue id '42069'")
+agent.print_response(f"Show all the issues assigned to user id: {user_id}")
+agent.print_response(f"Show the issue with the issue id: {issue_id}")
+agent.print_response(f"Update the issue with the issue id: {issue_id}")

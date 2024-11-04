@@ -5,11 +5,41 @@ from phi.utils.log import logger
 
 
 class LinearTool(Toolkit):
-    def __init__(self):
+    def __init__(
+        self,
+        get_user_details: bool = True,
+        get_issue_details: bool = True,
+        create_issue: bool = True,
+        update_issue: bool = True,
+        get_user_assigned_issues: bool = True,
+        get_workflow_issues: bool = True,
+        get_high_priority_issues: bool = True,
+    ):
         super().__init__(name="linear tools")
         self.api_token = getenv("LINEAR_API_KEY")
+
+        if not self.api_token:
+            api_error_message = "API token 'LINEAR_API_KEY' is missing. Please set it as an environment variable."
+            logger.error(api_error_message)
+            raise ValueError(api_error_message)
+
         self.endpoint = "https://api.linear.app/graphql"
         self.headers = {"Authorization": f"Bearer {self.api_token}"}
+
+        if get_user_details:
+            self.register(self.get_user_details)
+        if get_issue_details:
+            self.register(self.get_issue_details)
+        if create_issue:
+            self.register(self.create_issue)
+        if update_issue:
+            self.register(self.update_issue)
+        if get_user_assigned_issues:
+            self.register(self.get_user_assigned_issues)
+        if get_workflow_issues:
+            self.register(self.get_workflow_issues)
+        if get_high_priority_issues:
+            self.register(self.get_high_priority_issues)
 
     def _execute_query(self, query, variables=None):
         """Helper method to execute GraphQL queries with optional variables."""
@@ -34,10 +64,19 @@ class LinearTool(Toolkit):
             logger.error(f"Unexpected error: {e}")
             raise
 
-    # issue related methods
+    def get_user_details(self) -> dict:
+        """
+        Fetch authenticated user details.
 
-    def get_user_details(self):
-        """Fetch authenticated user details"""
+        This method sends a GraphQL query to retrieve details about the currently authenticated user.
+        It will return the user's unique ID, name, and email address from the viewer object in the GraphQL response.
+
+        Returns:
+            dict: A dictionary containing user details with keys `id`, `name`, and `email`.
+
+        Raises:
+            Exception: If an error occurs during the query execution or data retrieval.
+        """
 
         query = """
         query Me {
@@ -58,37 +97,62 @@ class LinearTool(Toolkit):
             logger.error(f"Error fetching authenticated user details: {e}")
             raise
 
-    def get_issue_details(self, issue_id):
-      """Retrieve details of a specific issue by issue ID."""
+    def get_issue_details(self, issue_id: str) -> dict | None:
+        """
+        Retrieve details of a specific issue by issue ID.
 
-      query = """
-      query IssueDetails($issueId: ID!) {
+        Args:
+            issue_id (str): The unique identifier of the issue to retrieve.
+
+        Returns:
+            dict: A dictionary containing issue details with keys `id`, `title`, and `description`.
+                  Returns `None` if the issue is not found.
+
+        Raises:
+            Exception: If an error occurs during the query execution or data retrieval.
+        """
+
+        query = """
+        query IssueDetails($issueId: ID!) {
         issue(id: $issueId) {
           id
           title
           description
+          }
         }
-      }
-      """
-      variables = {"issueId": issue_id}
-      try:
-          response = self._execute_query(query, variables)
+        """
+        variables = {"issueId": issue_id}
+        try:
+            response = self._execute_query(query, variables)
 
-          if response.get("issue"):
-              issue = response["issue"]
-              logger.info(f"Issue '{issue['title']}' retrieved successfully with ID {issue['id']}.")
-              return issue
-          else:
-              logger.error(f"Failed to retrieve issue with ID {issue_id}.")
-              return None
+            if response.get("issue"):
+                issue = response["issue"]
+                logger.info(f"Issue '{issue['title']}' retrieved successfully with ID {issue['id']}.")
+                return issue
+            else:
+                logger.error(f"Failed to retrieve issue with ID {issue_id}.")
+                return None
 
-      except Exception as e:
-          logger.error(f"Error retrieving issue with ID {issue_id}: {e}")
-          raise
+        except Exception as e:
+            logger.error(f"Error retrieving issue with ID {issue_id}: {e}")
+            raise
 
+    def create_issue(self, title: str, description: str, team_id: str) -> dict | None:
+        """
+        Create a new issue within a specific project and team.
 
-    def create_issue(self, title, description, team_id):
-        """Create a new issue within a specific project and team."""
+        Args:
+            title (str): The title of the new issue.
+            description (str): The description of the new issue.
+            team_id (str): The unique identifier of the team in which to create the issue.
+
+        Returns:
+            dict: A dictionary containing the created issue's details with keys `id` and `title`.
+                  Returns `None` if the issue creation fails.
+
+        Raises:
+            Exception: If an error occurs during the mutation execution or data retrieval.
+        """
 
         query = """
         mutation IssueCreate{
@@ -103,6 +167,7 @@ class LinearTool(Toolkit):
           }
         }
         """
+
         variables = {"title": title, "description": description, "teamId": team_id}
         try:
             response = self._execute_query(query, variables)
@@ -119,8 +184,22 @@ class LinearTool(Toolkit):
             logger.error(f"Error creating issue '{title}' for team ID {team_id}: {e}")
             raise
 
-    def update_issue(self, issue_id, title=None, state_id=None):
-        """Update details of an existing issue, such as title and state_id."""
+    def update_issue(self, issue_id: str, title: str | None, state_id: str | None) -> dict | None:
+        """
+        Update the title or state of a specific issue by issue ID.
+
+        Args:
+            issue_id (str): The unique identifier of the issue to update.
+            title (str, optional): The new title for the issue. If None, the title remains unchanged.
+            state_id (str, optional): The new state identifier for the issue. If None, the state remains unchanged.
+
+        Returns:
+            dict: A dictionary containing the updated issue's details with keys `id`, `title`, and `state` (which includes `id` and `name`).
+                  Returns `None` if the update is unsuccessful.
+
+        Raises:
+            Exception: If an error occurs during the mutation execution or data retrieval.
+        """
 
         query = """
         mutation IssueUpdate {
@@ -157,11 +236,24 @@ class LinearTool(Toolkit):
             logger.error(f"Error updating issue ID {issue_id}: {e}")
             raise
 
-    def get_user_assigned_issues(self, user_id):
-        """Retrieve issues assigned to a specific user by user ID."""
+    def get_user_assigned_issues(self, user_id: str) -> list[dict] | None:
+        """
+        Retrieve issues assigned to a specific user by user ID.
+
+        Args:
+            user_id (str): The unique identifier of the user for whom to retrieve assigned issues.
+
+        Returns:
+            list[dict] | None: A list of dictionaries representing the assigned issues,
+            where each dictionary contains issue details (e.g., `id`, `title`).
+            Returns None if the user or issues cannot be retrieved.
+
+        Raises:
+            Exception: If an error occurs while querying for the user's assigned issues.
+        """
 
         query = """
-      query UserAssignedIssues($userId: ID!) {
+        query UserAssignedIssues($userId: ID!) {
         user(id: $userId) {
           id
           name
@@ -169,11 +261,11 @@ class LinearTool(Toolkit):
             nodes {
               id
               title
+              }
             }
           }
         }
-      }
-      """
+        """
         variables = {"userId": user_id}
 
         try:
@@ -192,20 +284,33 @@ class LinearTool(Toolkit):
             logger.error(f"Error retrieving issues for user ID {user_id}: {e}")
             raise
 
-    def get_workflow_issues(self, workflow_id):
-        """Retrieve issues within a specific workflow state by workflow ID."""
+    def get_workflow_issues(self, workflow_id: str) -> list[dict] | None:
+        """
+        Retrieve issues within a specific workflow state by workflow ID.
+
+        Args:
+            workflow_id (str): The unique identifier of the workflow state to retrieve issues from.
+
+        Returns:
+            list[dict] | None: A list of dictionaries representing the issues within the specified workflow state,
+            where each dictionary contains details of an issue (e.g., `title`).
+            Returns None if no issues are found or if the workflow state cannot be retrieved.
+
+        Raises:
+            Exception: If an error occurs while querying issues for the specified workflow state.
+        """
 
         query = """
-      query WorkflowStateIssues($workflowId: ID!) {
+        query WorkflowStateIssues($workflowId: ID!) {
         workflowState(id: $workflowId) {
           issues {
             nodes {
               title
+              }
             }
           }
         }
-      }
-      """
+        """
         variables = {"workflowId": workflow_id}
         try:
             response = self._execute_query(query, variables)
@@ -222,11 +327,20 @@ class LinearTool(Toolkit):
             logger.error(f"Error retrieving issues for workflow state ID {workflow_id}: {e}")
             raise
 
-    def get_high_priority_issues(self):
-        """Retrieve issues with a high priority (priority <= 2)."""
+    def get_high_priority_issues(self) -> list[dict] | None:
+        """
+        Retrieve issues with a high priority (priority <= 2).
+
+        Returns:
+            list[dict] | None: A list of dictionaries representing high-priority issues, where each dictionary
+            contains details of an issue (e.g., `id`, `title`, `priority`). Returns None if no issues are retrieved.
+
+        Raises:
+            Exception: If an error occurs during the query process.
+        """
 
         query = """
-      query HighPriorityIssues {
+        query HighPriorityIssues {
         issues(filter: { 
           priority: { lte: 2 }
         }) {
@@ -234,10 +348,10 @@ class LinearTool(Toolkit):
             id
             title
             priority
+            }
           }
         }
-      }
-      """
+        """
         try:
             response = self._execute_query(query)
 

@@ -67,8 +67,6 @@ class LinearTool(Toolkit):
     def get_user_details(self) -> dict:
         """
         Fetch authenticated user details.
-
-        This method sends a GraphQL query to retrieve details about the currently authenticated user.
         It will return the user's unique ID, name, and email address from the viewer object in the GraphQL response.
 
         Returns:

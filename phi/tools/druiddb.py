@@ -42,6 +42,10 @@ class DruidTools(Toolkit):
             self.register(self.get_table_stats)
 
     def _connect(self) -> None:
+        """Function to establish connection with Druid database
+
+        :return: None
+        """
         try:
             self.connection = connect(**self.connection_params)
             self.cursor = self.connection.cursor()
@@ -51,6 +55,10 @@ class DruidTools(Toolkit):
             raise
 
     def _test_connection(self) -> None:
+        """Function to test the Druid database connection by executing a simple query
+
+        :return: None
+        """
         try:
             self.cursor.execute("SELECT 1")
             self.cursor.fetchone()
@@ -59,9 +67,15 @@ class DruidTools(Toolkit):
             raise
 
     def _execute_query(self, query: str, params: Optional[tuple] = None) -> list:
+        """Function to execute SQL query on Druid database
+
+        :param query: SQL query string to execute
+        :param params: Optional tuple of parameters for the query
+        :return: List of query results
+        """
         try:
             self.context["last_query"] = query
-            
+
             # Handle different parameter cases
             if params and isinstance(params, tuple):
                 # For schema_query with table_name parameter
@@ -79,7 +93,7 @@ class DruidTools(Toolkit):
                     self.cursor.execute(query)
             else:
                 self.cursor.execute(query)
-                
+
             results = self.cursor.fetchall()
             self.context["last_error"] = None
             return results
@@ -90,7 +104,11 @@ class DruidTools(Toolkit):
             raise
 
     def list_tables(self, schema_name: str = "") -> str:
-        """Show available tables in the database. Optionally filter by schema name."""
+        """Function to show available tables in the database
+
+        :param schema_name: Optional schema name to filter tables
+        :return: JSON string containing list of tables grouped by schema
+        """
         try:
             query = """
                 SELECT 
@@ -119,7 +137,11 @@ class DruidTools(Toolkit):
             return json.dumps({"status": "error", "message": str(e)})
 
     def describe_table(self, table_name: str) -> str:
-        """Get detailed information about a specific table."""
+        """Function to describe a specific table
+
+        :param table_name: Name of the table to describe
+        :return: JSON string containing detailed table information
+        """
         try:
             schema_query = "SELECT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = %s"
             results = self._execute_query(schema_query, (table_name,))
@@ -155,7 +177,12 @@ class DruidTools(Toolkit):
             return json.dumps({"status": "error", "message": str(e)})
 
     def get_table_sample(self, table_name: str, limit: int = 5) -> str:
-        """Get a sample of records from a table."""
+        """Function to get sample records from a table
+
+        :param table_name: Name of the table to sample
+        :param limit: Number of records to return (max 100)
+        :return: JSON string containing sample records
+        """
         try:
             schema_query = "SELECT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = %s"
             results = self._execute_query(schema_query, (table_name,))
@@ -172,7 +199,11 @@ class DruidTools(Toolkit):
             return json.dumps({"status": "error", "message": str(e)})
 
     def get_table_stats(self, table_name: str) -> str:
-        """Get basic statistics about a table."""
+        """Function to get basic statistics about a table
+
+        :param table_name: Name of the table to analyze
+        :return: JSON string containing table statistics
+        """
         try:
             schema_query = "SELECT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = %s"
             results = self._execute_query(schema_query, (table_name,))
@@ -206,7 +237,11 @@ class DruidTools(Toolkit):
             return json.dumps({"status": "error", "message": str(e)})
 
     def run_query(self, query: str) -> str:
-        """Run a SQL query and return the results."""
+        """Function to run a custom SQL query
+
+        :param query: SQL query to execute
+        :return: JSON string containing query results
+        """
         try:
             if "limit" not in query.lower():
                 query = f"{query} LIMIT 100"

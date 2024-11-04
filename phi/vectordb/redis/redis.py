@@ -40,9 +40,6 @@ from phi.vectordb.redis.schema import (
 )
 
 class Redis(VectorDB):
-    stores_text:bool = True
-    stores_node: bool = True
-    
     _index: SearchIndex = PrivateAttr()
     _overwrite: bool = PrivateAttr()
     _return_fields: List[str] = PrivateAttr()
@@ -51,7 +48,7 @@ class Redis(VectorDB):
         self,
         redis_url: Optional[str] = None,
         redis_client: Optional[redis.Redis] = None,
-        embedding:Optional[Embedder] = None,
+        embedder:Optional[Embedder] = None,
         index_schema: Optional[Union[Dict[str,ListOfDict],str,os.PathLike]] = None,
         overwrite: bool = False,
         return_fields: Optional[List[str]] = None,
@@ -90,7 +87,7 @@ class Redis(VectorDB):
             from phi.embedder.openai import OpenAIEmbedder
             embedder = OpenAIEmbedder()
             
-        self.embedding: Embedder = embedding
+        self.embedder: Embedder = embedder
                 
     def _flag_old_kwargs(self,**kwargs):
         old_kwargs=[
@@ -198,7 +195,7 @@ class Redis(VectorDB):
             raise e
     
     def upsert(self,documents: List[Document],filters: Optional[Dict[str, Any]] = None)-> None:
-        return self._index.insert(documents, filters=filters)
+        return self.insert(documents, filters=filters)
     
     def search(
         self,
@@ -206,7 +203,7 @@ class Redis(VectorDB):
         limit: int = 5, 
         filters: Optional[Dict[str, Any]] = None
         ) -> List[Document]:
-        query_embedding = self.embedding.get_embedding(query)
+        query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
             return []
@@ -229,7 +226,7 @@ class Redis(VectorDB):
                     name = result.paylor["name"],
                     meta_data=result.payload["meta_data"],
                     content=result.payload["content"],
-                    embedder=self.embedding,
+                    embedder=self.embedder,
                     embedding=result.vector,
                     usage=result.payload["usage"],
                 )

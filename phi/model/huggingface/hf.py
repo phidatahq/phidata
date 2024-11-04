@@ -13,18 +13,18 @@ from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
-    from openai.types.completion_usage import CompletionUsage
-    from openai.types.chat.chat_completion import ChatCompletion
-    from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
-    from openai.types.chat.chat_completion_chunk import (
-        ChatCompletionChunk,
-        ChoiceDelta,
-        ChoiceDeltaToolCall,
+    from huggingface_hub import InferenceClient
+    from huggingface_hub import AsyncInferenceClient
+    from huggingface_hub import (
+        ChatCompletionOutput,
+        ChatCompletionStreamOutputDelta,
+        ChatCompletionStreamOutputDeltaToolCall,
+        ChatCompletionStreamOutput,
+        ChatCompletionOutputMessage,
+        ChatCompletionOutputUsage,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage
 except ImportError:
-    logger.error("`openai` not installed")
+    logger.error("`huggingface_hub` not installed")
     raise
 
 
@@ -59,17 +59,17 @@ class Metrics:
 @dataclass
 class StreamData:
     response_content: str = ""
-    response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
+    response_tool_calls: Optional[List[ChatCompletionStreamOutputDeltaToolCall]] = None
 
 
-class OpenAIChat(Model):
+class HuggingFaceChat(Model):
     """
-    A class for interacting with OpenAI models.
+    A class for interacting with HuggingFace Hub Inference models.
 
     Attributes:
-        id (str): The id of the OpenAI model to use. Default is "gpt-4o".
-        name (str): The name of this chat model instance. Default is "OpenAIChat".
-        provider (str): The provider of the model. Default is "OpenAI".
+        id (str): The id of the HuggingFace model to use. Default is "meta-llama/Meta-Llama-3-8B-Instruct".
+        name (str): The name of this chat model instance. Default is "HuggingFaceChat".
+        provider (str): The provider of the model. Default is "HuggingFace".
         store (Optional[bool]): Whether or not to store the output of this chat completion request for use in the model distillation or evals products.
         frequency_penalty (Optional[float]): Penalizes new tokens based on their frequency in the text so far.
         logit_bias (Optional[Any]): Modifies the likelihood of specified tokens appearing in the completion.
@@ -81,13 +81,9 @@ class OpenAIChat(Model):
         stop (Optional[Union[str, List[str]]]): Up to 4 sequences where the API will stop generating further tokens.
         temperature (Optional[float]): Controls randomness in the model's output.
         top_logprobs (Optional[int]): How many log probability results to return per token.
-        user (Optional[str]): A unique identifier representing your end-user.
         top_p (Optional[float]): Controls diversity via nucleus sampling.
-        extra_headers (Optional[Any]): Additional headers to send with the request.
-        extra_query (Optional[Any]): Additional query parameters to send with the request.
         request_params (Optional[Dict[str, Any]]): Additional parameters to include in the request.
-        api_key (Optional[str]): The API key for authenticating with OpenAI.
-        organization (Optional[str]): The organization to use for API requests.
+        api_key (Optional[str]): The Access Token for authenticating with HuggingFace.
         base_url (Optional[Union[str, httpx.URL]]): The base URL for API requests.
         timeout (Optional[float]): The timeout for API requests.
         max_retries (Optional[int]): The maximum number of retries for failed requests.
@@ -95,15 +91,13 @@ class OpenAIChat(Model):
         default_query (Optional[Any]): Default query parameters to include in all requests.
         http_client (Optional[httpx.Client]): An optional pre-configured HTTP client.
         client_params (Optional[Dict[str, Any]]): Additional parameters for client configuration.
-        client (Optional[OpenAIClient]): The OpenAI client instance.
-        async_client (Optional[AsyncOpenAIClient]): The asynchronous OpenAI client instance.
-        structured_outputs (bool): Whether to use the structured outputs from the Model. Default is False.
-        supports_structured_outputs (bool): Whether the Model supports structured outputs. Default is True.
+        client (Optional[InferenceClient]): The HuggingFace Hub Inference client instance.
+        async_client (Optional[AsyncInferenceClient]): The asynchronous HuggingFace Hub client instance.
     """
 
-    id: str = "gpt-4o"
-    name: str = "OpenAIChat"
-    provider: str = "OpenAI"
+    id: str = "meta-llama/Meta-Llama-3-8B-Instruct"
+    name: str = "HuggingFaceChat"
+    provider: str = "HuggingFace"
 
     # Request parameters
     store: Optional[bool] = None
@@ -117,15 +111,11 @@ class OpenAIChat(Model):
     stop: Optional[Union[str, List[str]]] = None
     temperature: Optional[float] = None
     top_logprobs: Optional[int] = None
-    user: Optional[str] = None
     top_p: Optional[float] = None
-    extra_headers: Optional[Any] = None
-    extra_query: Optional[Any] = None
     request_params: Optional[Dict[str, Any]] = None
 
     # Client parameters
     api_key: Optional[str] = None
-    organization: Optional[str] = None
     base_url: Optional[Union[str, httpx.URL]] = None
     timeout: Optional[float] = None
     max_retries: Optional[int] = None
@@ -134,24 +124,14 @@ class OpenAIChat(Model):
     http_client: Optional[httpx.Client] = None
     client_params: Optional[Dict[str, Any]] = None
 
-    # OpenAI clients
-    client: Optional[OpenAIClient] = None
-    async_client: Optional[AsyncOpenAIClient] = None
-
-    # Internal parameters. Not used for API requests
-    # Whether to use the structured outputs with this Model.
-    structured_outputs: bool = False
-    # Whether the Model supports structured outputs.
-    supports_structured_outputs: bool = True
-    # Whether to add images to the message content.
-    add_images_to_message_content: bool = True
+    # HuggingFace Hub Inference clients
+    client: Optional[InferenceClient] = None
+    async_client: Optional[AsyncInferenceClient] = None
 
     def get_client_params(self) -> Dict[str, Any]:
         _client_params: Dict[str, Any] = {}
         if self.api_key is not None:
             _client_params["api_key"] = self.api_key
-        if self.organization is not None:
-            _client_params["organization"] = self.organization
         if self.base_url is not None:
             _client_params["base_url"] = self.base_url
         if self.timeout is not None:
@@ -166,12 +146,12 @@ class OpenAIChat(Model):
             _client_params.update(self.client_params)
         return _client_params
 
-    def get_client(self) -> OpenAIClient:
+    def get_client(self) -> InferenceClient:
         """
-        Returns an OpenAI client.
+        Returns an HuggingFace Inference client.
 
         Returns:
-            OpenAIClient: An instance of the OpenAI client.
+            InferenceClient: An instance of the Inference client.
         """
         if self.client:
             return self.client
@@ -179,14 +159,14 @@ class OpenAIChat(Model):
         _client_params: Dict[str, Any] = self.get_client_params()
         if self.http_client is not None:
             _client_params["http_client"] = self.http_client
-        return OpenAIClient(**_client_params)
+        return InferenceClient(**_client_params)
 
-    def get_async_client(self) -> AsyncOpenAIClient:
+    def get_async_client(self) -> AsyncInferenceClient:
         """
-        Returns an asynchronous OpenAI client.
+        Returns an asynchronous HuggingFace Hub client.
 
         Returns:
-            AsyncOpenAIClient: An instance of the asynchronous OpenAI client.
+            AsyncInferenceClient: An instance of the asynchronous HuggingFace Inference client.
         """
         if self.async_client:
             return self.async_client
@@ -200,15 +180,15 @@ class OpenAIChat(Model):
             _client_params["http_client"] = httpx.AsyncClient(
                 limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
             )
-        return AsyncOpenAIClient(**_client_params)
+        return AsyncInferenceClient(**_client_params)
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:
         """
-        Returns keyword arguments for API requests.
+        Returns keyword arguments for inference model client requests.
 
         Returns:
-            Dict[str, Any]: A dictionary of keyword arguments for API requests.
+            Dict[str, Any]: A dictionary of keyword arguments for inference model client requests.
         """
         _request_params: Dict[str, Any] = {}
         if self.store is not None:
@@ -233,14 +213,8 @@ class OpenAIChat(Model):
             _request_params["temperature"] = self.temperature
         if self.top_logprobs is not None:
             _request_params["top_logprobs"] = self.top_logprobs
-        if self.user is not None:
-            _request_params["user"] = self.user
         if self.top_p is not None:
             _request_params["top_p"] = self.top_p
-        if self.extra_headers is not None:
-            _request_params["extra_headers"] = self.extra_headers
-        if self.extra_query is not None:
-            _request_params["extra_query"] = self.extra_query
         if self.tools is not None:
             _request_params["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
@@ -281,14 +255,8 @@ class OpenAIChat(Model):
             _dict["temperature"] = self.temperature
         if self.top_logprobs is not None:
             _dict["top_logprobs"] = self.top_logprobs
-        if self.user is not None:
-            _dict["user"] = self.user
         if self.top_p is not None:
             _dict["top_p"] = self.top_p
-        if self.extra_headers is not None:
-            _dict["extra_headers"] = self.extra_headers
-        if self.extra_query is not None:
-            _dict["extra_query"] = self.extra_query
         if self.tools is not None:
             _dict["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
@@ -297,73 +265,47 @@ class OpenAIChat(Model):
                 _dict["tool_choice"] = self.tool_choice
         return _dict
 
-    def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
+    def invoke(self, messages: List[Message]) -> Union[ChatCompletionOutput]:
         """
-        Send a chat completion request to the OpenAI API.
+        Send a chat completion request to the HuggingFace Hub.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
 
         Returns:
-            ChatCompletion: The chat completion response from the API.
+            ChatCompletionOutput: The chat completion response from the Inference Client.
         """
-        if self.response_format is not None and self.structured_outputs:
-            try:
-                if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
-                    return self.get_client().beta.chat.completions.parse(
-                        model=self.id,
-                        messages=[m.to_dict() for m in messages],  # type: ignore
-                        **self.request_kwargs,
-                    )
-                else:
-                    raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
-            except Exception as e:
-                logger.error(f"Error from OpenAI API: {e}")
-
         return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
+            messages=[m.to_dict() for m in messages],
             **self.request_kwargs,
         )
 
-    async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
+    async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletionOutput]:
         """
-        Sends an asynchronous chat completion request to the OpenAI API.
+        Sends an asynchronous chat completion request to the HuggingFace Hub Inference.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
 
         Returns:
-            ChatCompletion: The chat completion response from the API.
+            ChatCompletionOutput: The chat completion response from the Inference Client.
         """
-        if self.response_format is not None and self.structured_outputs:
-            try:
-                if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
-                    return await self.get_async_client().beta.chat.completions.parse(
-                        model=self.id,
-                        messages=[m.to_dict() for m in messages],  # type: ignore
-                        **self.request_kwargs,
-                    )
-                else:
-                    raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
-            except Exception as e:
-                logger.error(f"Error from OpenAI API: {e}")
-
         return await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
+            messages=[m.to_dict() for m in messages],
             **self.request_kwargs,
         )
 
-    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
+    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionStreamOutput]:
         """
-        Send a streaming chat completion request to the OpenAI API.
+        Send a streaming chat completion request to the HuggingFace API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
 
         Returns:
-            Iterator[ChatCompletionChunk]: An iterator of chat completion chunks.
+            Iterator[ChatCompletionStreamOutput]: An iterator of chat completion delta.
         """
         yield from self.get_client().chat.completions.create(
             model=self.id,
@@ -375,7 +317,7 @@ class OpenAIChat(Model):
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
-        Sends an asynchronous streaming chat completion request to the OpenAI API.
+        Sends an asynchronous streaming chat completion request to the HuggingFace API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -385,7 +327,7 @@ class OpenAIChat(Model):
         """
         async_stream = await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
+            messages=[m.to_dict() for m in messages],
             stream=True,
             stream_options={"include_usage": True},
             **self.request_kwargs,
@@ -453,7 +395,7 @@ class OpenAIChat(Model):
         return None
 
     def _update_usage_metrics(
-        self, assistant_message: Message, metrics: Metrics, response_usage: Optional[CompletionUsage]
+        self, assistant_message: Message, metrics: Metrics, response_usage: Optional[ChatCompletionOutputUsage]
     ) -> None:
         """
         Update the usage metrics for the assistant message and the model.
@@ -512,9 +454,9 @@ class OpenAIChat(Model):
 
     def _create_assistant_message(
         self,
-        response_message: ChatCompletionMessage,
+        response_message: ChatCompletionOutputMessage,
         metrics: Metrics,
-        response_usage: Optional[CompletionUsage],
+        response_usage: Optional[ChatCompletionOutputUsage],
     ) -> Message:
         """
         Create an assistant message from the response.
@@ -534,13 +476,11 @@ class OpenAIChat(Model):
         if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
             assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
 
-        # Update metrics
-        self._update_usage_metrics(assistant_message, metrics, response_usage)
         return assistant_message
 
     def response(self, messages: List[Message]) -> ModelResponse:
         """
-        Generate a response from OpenAI.
+        Generate a response from HuggingFace Hub.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -548,32 +488,19 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response.
         """
-        logger.debug("---------- OpenAI Response Start ----------")
+        logger.debug("---------- HuggingFace Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
 
         # -*- Generate response
         metrics.response_timer.start()
-        response: Union[ChatCompletion, ParsedChatCompletion] = self.invoke(messages=messages)
+        response: Union[ChatCompletionOutput] = self.invoke(messages=messages)
         metrics.response_timer.stop()
 
         # -*- Parse response
-        response_message: ChatCompletionMessage = response.choices[0].message
-        response_usage: Optional[CompletionUsage] = response.usage
-
-        # -*- Parse structured outputs
-        try:
-            if (
-                self.response_format is not None
-                and self.structured_outputs
-                and issubclass(self.response_format, BaseModel)
-            ):
-                parsed_object = response_message.parsed  # type: ignore
-                if parsed_object is not None:
-                    model_response.parsed = parsed_object
-        except Exception as e:
-            logger.warning(f"Error retrieving structured outputs: {e}")
+        response_message: ChatCompletionOutputMessage = response.choices[0].message
+        response_usage: Optional[ChatCompletionOutputUsage] = response.usage
 
         # -*- Create assistant message
         assistant_message = self._create_assistant_message(
@@ -594,22 +521,18 @@ class OpenAIChat(Model):
                 if model_response.content is None:
                     model_response.content = ""
                 model_response.content += response_after_tool_calls.content
-            if response_after_tool_calls.parsed is not None:
-                # bubble up the parsed object, so that the final response has the parsed object
-                # that is visible to the agent
-                model_response.parsed = response_after_tool_calls.parsed
             return model_response
 
         # -*- Update model response
         if assistant_message.content is not None:
             model_response.content = assistant_message.get_content_string()
 
-        logger.debug("---------- OpenAI Response End ----------")
+        logger.debug("---------- HuggingFace Response End ----------")
         return model_response
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         """
-        Generate an asynchronous response from OpenAI.
+        Generate an asynchronous response from HuggingFace.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -617,19 +540,19 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response from the API.
         """
-        logger.debug("---------- OpenAI Async Response Start ----------")
+        logger.debug("---------- HuggingFace Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
 
         # -*- Generate response
         metrics.response_timer.start()
-        response: Union[ChatCompletion, ParsedChatCompletion] = await self.ainvoke(messages=messages)
+        response: Union[ChatCompletionOutput] = await self.ainvoke(messages=messages)
         metrics.response_timer.stop()
 
         # -*- Parse response
-        response_message: ChatCompletionMessage = response.choices[0].message
-        response_usage: Optional[CompletionUsage] = response.usage
+        response_message: ChatCompletionOutputMessage = response.choices[0].message
+        response_usage: Optional[ChatCompletionOutputUsage] = response.usage
 
         # -*- Parse structured outputs
         try:
@@ -669,7 +592,7 @@ class OpenAIChat(Model):
         if assistant_message.content is not None:
             model_response.content = assistant_message.get_content_string()
 
-        logger.debug("---------- OpenAI Async Response End ----------")
+        logger.debug("---------- HuggingFace Async Response End ----------")
         return model_response
 
     def _update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
@@ -711,25 +634,6 @@ class OpenAIChat(Model):
             assistant_message.metrics["completion_tokens_details"] = metrics.completion_tokens_details
             for k, v in metrics.completion_tokens_details.items():
                 self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
-
-    def _add_response_usage_to_metrics(self, metrics: Metrics, response_usage: CompletionUsage):
-        metrics.input_tokens = response_usage.prompt_tokens
-        metrics.prompt_tokens = response_usage.prompt_tokens
-        metrics.output_tokens = response_usage.completion_tokens
-        metrics.completion_tokens = response_usage.completion_tokens
-        if response_usage.prompt_tokens_details is not None:
-            if isinstance(response_usage.prompt_tokens_details, dict):
-                metrics.prompt_tokens_details = response_usage.prompt_tokens_details
-            elif isinstance(response_usage.prompt_tokens_details, BaseModel):
-                metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
-        if response_usage.completion_tokens_details is not None:
-            if isinstance(response_usage.completion_tokens_details, dict):
-                metrics.completion_tokens_details = response_usage.completion_tokens_details
-            elif isinstance(response_usage.completion_tokens_details, BaseModel):
-                metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
-                    exclude_none=True
-                )
-        metrics.total_tokens = response_usage.total_tokens
 
     def _handle_stream_tool_calls(
         self,
@@ -789,7 +693,7 @@ class OpenAIChat(Model):
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
-        Generate a streaming response from OpenAI.
+        Generate a streaming response from HuggingFace Hub.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -797,22 +701,18 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of model responses.
         """
-        logger.debug("---------- OpenAI Response Start ----------")
+        logger.debug("---------- HuggingFace Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
-        metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
-                metrics.completion_tokens += 1
-                if metrics.completion_tokens == 1:
-                    metrics.time_to_first_token = metrics.response_timer.elapsed
+                # metrics.completion_tokens += 1
 
-                response_delta: ChoiceDelta = response.choices[0].delta
+                response_delta: ChatCompletionStreamOutputDelta = response.choices[0].delta
                 response_content: Optional[str] = response_delta.content
-                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
+                response_tool_calls: Optional[List[ChatCompletionStreamOutputDeltaToolCall]] = response_delta.tool_calls
 
                 if response_content is not None:
                     stream_data.response_content += response_content
@@ -822,10 +722,6 @@ class OpenAIChat(Model):
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
                     stream_data.response_tool_calls.extend(response_tool_calls)
-
-            if response.usage is not None:
-                self._add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -837,25 +733,18 @@ class OpenAIChat(Model):
             if len(_tool_calls) > 0:
                 assistant_message.tool_calls = _tool_calls
 
-        # -*- Update usage metrics
-        self._update_stream_metrics(assistant_message=assistant_message, metrics=metrics)
-
         # -*- Add assistant message to messages
         messages.append(assistant_message)
-
-        # -*- Log response and metrics
-        assistant_message.log()
-        metrics.log()
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield from self._handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
-        logger.debug("---------- OpenAI Response End ----------")
+        logger.debug("---------- HuggingFace Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
-        Generate an asynchronous streaming response from OpenAI.
+        Generate an asynchronous streaming response from HuggingFace Hub.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -863,7 +752,7 @@ class OpenAIChat(Model):
         Returns:
             Any: An asynchronous iterator of model responses.
         """
-        logger.debug("---------- OpenAI Async Response Start ----------")
+        logger.debug("---------- HuggingFace Hub Async Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -876,7 +765,7 @@ class OpenAIChat(Model):
                 if metrics.completion_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
-                response_delta: ChoiceDelta = response.choices[0].delta
+                response_delta: ChatCompletionStreamOutputDelta = response.choices[0].delta
                 response_content = response_delta.content
                 response_tool_calls = response_delta.tool_calls
 
@@ -888,9 +777,6 @@ class OpenAIChat(Model):
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
                     stream_data.response_tool_calls.extend(response_tool_calls)
-
-            if response.usage is not None:
-                self._add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
         metrics.response_timer.stop()
 
         # -*- Create assistant message
@@ -918,9 +804,9 @@ class OpenAIChat(Model):
                 yield model_response
             async for model_response in self.aresponse_stream(messages=messages):
                 yield model_response
-        logger.debug("---------- OpenAI Async Response End ----------")
+        logger.debug("---------- HuggingFace Hub Async Response End ----------")
 
-    def _build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
+    def _build_tool_calls(self, tool_calls_data: List[Any]) -> List[Dict[str, Any]]:
         """
         Build tool calls from tool call data.
 

@@ -182,7 +182,9 @@ class Gemini(Model):
                 formatted_params[key] = value
         return formatted_params
 
-    def add_tool(self, tool: Union["Tool", "Toolkit", Callable, dict, "Function"]) -> None:
+    def add_tool(
+        self, tool: Union["Tool", "Toolkit", Callable, dict, "Function"], structured_outputs: bool = False
+    ) -> None:
         """
         Adds tools to the model.
 

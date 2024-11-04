@@ -17,6 +17,11 @@ class CalCom(Toolkit):
         api_key: Optional[str] = None,
         event_type_id: Optional[int] = None,
         user_timezone: Optional[str] = None,
+        get_available_slots: bool = True,
+        create_booking: bool = True,
+        get_upcoming_bookings: bool = True,
+        reschedule_booking: bool = True,
+        cancel_booking: bool = True,
     ):
         """Initialize the Cal.com toolkit.
 
@@ -40,11 +45,16 @@ class CalCom(Toolkit):
         self.user_timezone = user_timezone or "America/New_York"
 
         # Register all methods
-        self.register(self.get_available_slots)
-        self.register(self.create_booking)
-        self.register(self.get_upcoming_bookings)
-        self.register(self.reschedule_booking)
-        self.register(self.cancel_booking)
+        if get_available_slots:
+            self.register(self.get_available_slots)
+        if create_booking:
+            self.register(self.create_booking)
+        if get_upcoming_bookings:
+            self.register(self.get_upcoming_bookings)
+        if reschedule_booking:
+            self.register(self.reschedule_booking)
+        if cancel_booking:
+            self.register(self.cancel_booking)
 
     def _convert_to_user_timezone(self, utc_time: str) -> str:
         """Convert UTC time to user's timezone.

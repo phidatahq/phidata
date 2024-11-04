@@ -29,7 +29,7 @@ class ApiRoutes:
 
     # Playground paths
     PLAYGROUND_ENDPOINT_CREATE: str = "/v1/playground/endpoint/create"
-    PLAYGROUND_ARCHIVE_UPLOAD: str = "/v1/playground/archive/upload"
+    PLAYGROUND_APP_DEPLOY: str = "/v1/playground/app/deploy"
 
     # Assistant paths
     ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"

@@ -123,7 +123,7 @@ class Model(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function]) -> None:
+    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function], structured_outputs: bool = False) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -143,12 +143,16 @@ class Model(BaseModel):
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
+                        if structured_outputs and self.supports_structured_outputs:
+                            func.strict = True
                         self.functions[name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
                         logger.debug(f"Function {name} from {tool.name} added to model.")
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
+                    if structured_outputs and self.supports_structured_outputs:
+                        tool.strict = True
                     self.functions[tool.name] = tool
                     self.tools.append({"type": "function", "function": tool.to_dict()})
                     logger.debug(f"Function {tool.name} added to model.")
@@ -158,6 +162,8 @@ class Model(BaseModel):
                     function_name = tool.__name__
                     if function_name not in self.functions:
                         func = Function.from_callable(tool)
+                        if structured_outputs and self.supports_structured_outputs:
+                            func.strict = True
                         self.functions[func.name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
                         logger.debug(f"Function {func.name} added to Model.")

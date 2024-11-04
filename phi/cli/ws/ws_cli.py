@@ -202,7 +202,7 @@ def up(
     # Workspace to start
     ws_to_start: Optional[WorkspaceConfig] = None
 
-    # If there is a workspace at the current path, use that workspace
+    # If there is an existing workspace at current path, use that workspace
     current_path: Path = Path(".").resolve()
     ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
     if ws_at_current_path is not None:
@@ -211,15 +211,9 @@ def up(
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
             phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_start = ws_at_current_path
-    # If there's no workspace at the current path, check if an active workspace exists
-    else:
-        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-        # If there's an active workspace, use that workspace
-        if active_ws_config is not None:
-            ws_to_start = active_ws_config
 
-    # If there's no workspace at current path, and no active workspace
-    # check if there's a `workspace` dir in the current path
+    # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
+    # In that case setup the workspace
     if ws_to_start is None:
         workspace_ws_dir_path = get_workspace_dir_path(current_path)
         if workspace_ws_dir_path is not None:
@@ -227,6 +221,13 @@ def up(
             logger.debug(f"Setting up a workspace at: {current_path}")
             ws_to_start = setup_workspace(ws_root_path=current_path)
             print_info("")
+
+    # If there's no workspace at current path, check if an active workspace exists
+    if ws_to_start is None:
+        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        # If there's an active workspace, use that workspace
+        if active_ws_config is not None:
+            ws_to_start = active_ws_config
 
     # If there's no workspace to start, raise an error showing available workspaces
     if ws_to_start is None:
@@ -385,7 +386,7 @@ def down(
     # Workspace to stop
     ws_to_stop: Optional[WorkspaceConfig] = None
 
-    # If there is a workspace at the current path, use that workspace
+    # If there is an existing workspace at current path, use that workspace
     current_path: Path = Path(".").resolve()
     ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
     if ws_at_current_path is not None:
@@ -394,15 +395,9 @@ def down(
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
             phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_stop = ws_at_current_path
-    # If there's no workspace at the current path, check if an active workspace exists
-    else:
-        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-        # If there's an active workspace, use that workspace
-        if active_ws_config is not None:
-            ws_to_stop = active_ws_config
 
-    # If there's no workspace at current path, and no active workspace
-    # check if there's a `workspace` dir in the current path
+    # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
+    # In that case setup the workspace
     if ws_to_stop is None:
         workspace_ws_dir_path = get_workspace_dir_path(current_path)
         if workspace_ws_dir_path is not None:
@@ -410,6 +405,13 @@ def down(
             logger.debug(f"Setting up a workspace at: {current_path}")
             ws_to_stop = setup_workspace(ws_root_path=current_path)
             print_info("")
+
+    # If there's no workspace at current path, check if an active workspace exists
+    if ws_to_stop is None:
+        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        # If there's an active workspace, use that workspace
+        if active_ws_config is not None:
+            ws_to_stop = active_ws_config
 
     # If there's no workspace to stop, raise an error showing available workspaces
     if ws_to_stop is None:
@@ -570,7 +572,7 @@ def patch(
     # Workspace to patch
     ws_to_patch: Optional[WorkspaceConfig] = None
 
-    # If there is a workspace at the current path, use that workspace
+    # If there is an existing workspace at current path, use that workspace
     current_path: Path = Path(".").resolve()
     ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
     if ws_at_current_path is not None:
@@ -579,15 +581,9 @@ def patch(
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
             phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_patch = ws_at_current_path
-    # If there's no workspace at the current path, check if an active workspace exists
-    else:
-        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-        # If there's an active workspace, use that workspace
-        if active_ws_config is not None:
-            ws_to_patch = active_ws_config
 
-    # If there's no workspace at current path, and no active workspace
-    # check if there's a `workspace` dir in the current path
+    # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
+    # In that case setup the workspace
     if ws_to_patch is None:
         workspace_ws_dir_path = get_workspace_dir_path(current_path)
         if workspace_ws_dir_path is not None:
@@ -595,6 +591,13 @@ def patch(
             logger.debug(f"Setting up a workspace at: {current_path}")
             ws_to_patch = setup_workspace(ws_root_path=current_path)
             print_info("")
+
+    # If there's no workspace at current path, check if an active workspace exists
+    if ws_to_patch is None:
+        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        # If there's an active workspace, use that workspace
+        if active_ws_config is not None:
+            ws_to_patch = active_ws_config
 
     # If there's no workspace to patch, raise an error showing available workspaces
     if ws_to_patch is None:

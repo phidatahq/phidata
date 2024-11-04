@@ -26,8 +26,7 @@ agent = Agent(
         - Sending SMS messages
         - Checking message history
         - getting call details
-        
-        Always confirm before sending messages."""
+        """
     ],
     model=OpenAIChat(id="gpt-4o"),
     tools=[TwilioTools()],

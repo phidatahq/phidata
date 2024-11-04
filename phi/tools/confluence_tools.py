@@ -10,12 +10,16 @@ except ImportError:
 
 
 class ConfluenceTools(Toolkit):
-    def __init__(self, client_id: str, auth_token: str):
+    def __init__(self, url: str, username: str, api_token: str):
         super().__init__(name="confluence_tools")
-        self.client_id = client_id or getenv("CONFLUENCE_CLIENT_ID")
-        self.auth_token = auth_token or getenv("CONFLUENCE_AUTH_TOKEN")
+        self.url = url or getenv("CONFLUENCE_URL")
+        self.username = username or getenv("CONFLUENCE_USERNAME")
+        self.api_token = api_token or getenv("CONFLUENCE_API_TOKEN")
         self.confluence = Confluence(
-            oauth2={'client_id': self.client_id, 'token': self.auth_token}
+            url=self.url,
+            username=self.username,
+            password=self.api_token,
+            cloud=True
         )
         self.register(self.get_page)
         self.register(self.create_page)

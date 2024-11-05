@@ -75,19 +75,13 @@ python cookbook/providers/claude/finance.py
 python cookbook/providers/claude/structured_output.py
 ```
 
-### 7. Run Agent that uses memory
-
-```shell
-python cookbook/providers/claude/memory.py
-```
-
-### 8. Run Agent that uses storage
+### 7. Run Agent that uses storage
 
 ```shell
 python cookbook/providers/claude/storage.py
 ```
 
-### 9. Run Agent that uses knowledge
+### 8. Run Agent that uses knowledge
 
 ```shell
 python cookbook/providers/claude/knowledge.py

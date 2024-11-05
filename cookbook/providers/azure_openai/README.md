@@ -78,19 +78,13 @@ python cookbook/providers/azure_openai/web_search.py
 python cookbook/providers/azure_openai/structured_output.py
 ```
 
-### 7. Run Agent uses memory
-
-```shell
-python cookbook/providers/azure_openai/memory.py
-```
-
-### 8. Run Agent that uses storage
+### 7. Run Agent that uses storage
 
 ```shell
 python cookbook/providers/azure_openai/storage.py
 ```
 
-### 9. Run Agent that uses knowledge
+### 8. Run Agent that uses knowledge
 
 ```shell
 python cookbook/providers/azure_openai/knowledge.py

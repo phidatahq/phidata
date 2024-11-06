@@ -1,4 +1,4 @@
-"""Example for Qdrant FastEmbed"""
+
 
 from phi.embedder.fastembed import FastEmbedEmbedder
 from typing import List

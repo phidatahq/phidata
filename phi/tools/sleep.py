@@ -10,8 +10,9 @@ class Sleep(Toolkit):
 
         self.register(self.sleep)
 
-    def sleep(self, seconds: int) -> None:
+    def sleep(self, seconds: int) -> str:
         """Use this function to sleep for a given number of seconds."""
         logger.info(f"Sleeping for {seconds} seconds")
         time.sleep(seconds)
         logger.info(f"Awake after {seconds} seconds")
+        return f"Slept for {seconds} seconds"

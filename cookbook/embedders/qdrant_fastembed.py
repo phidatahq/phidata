@@ -1,5 +1,3 @@
-
-
 from phi.embedder.fastembed import FastEmbedEmbedder
 from typing import List
 

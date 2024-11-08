@@ -18,7 +18,7 @@ export GOOGLE_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai duckduckgo-search yfinance phidata
+pip install -U openai phidata
 ```
 
 ### 4. Run Agent without Tools

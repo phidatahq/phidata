@@ -1,4 +1,4 @@
-"""Run `pip install yfinance phidata 'fastapi[standard]'` to install dependencies."""
+"""Run `pip install openai yfinance duckduckgo-search phidata 'fastapi[standard]' sqlalchemy` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

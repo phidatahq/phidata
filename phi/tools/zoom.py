@@ -27,48 +27,21 @@ class ZoomTool(Toolkit):
         self.account_id = account_id
         self.client_id = client_id
         self.client_secret = client_secret
-
-        self.token_url = "https://zoom.us/oauth/token"
-        self.access_token = None
-        self.token_expires_at = 0  # Initialize token expiration timestamp
+        self.__access_token = None  # Made private
 
         if not self.account_id or not self.client_id or not self.client_secret:
             logger.error("ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET must be set.")
 
         # Register functions
         self.register(self.schedule_meeting)
+        self.register(self.get_upcoming_meetings)
+        self.register(self.update_meeting)
+        self.register(self.list_meetings)
+        self.register(self.get_meeting_recordings)
 
     def get_access_token(self) -> str:
-        """
-        Obtain or refresh the access token for Zoom API.
-
-        Returns:
-            A string containing the access token or an empty string if token retrieval fails.
-        """
-        if self.access_token and time.time() < self.token_expires_at:
-            # Token is still valid
-            return str(self.access_token)  # Ensure we return a string
-
-        logger.debug("Fetching new access token")
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        data = {"grant_type": "account_credentials", "account_id": self.account_id}
-
-        try:
-            response = requests.post(
-                self.token_url, headers=headers, data=data, auth=(self.client_id, self.client_secret)
-            )
-            response.raise_for_status()
-
-            token_info = response.json()
-            self.access_token = token_info["access_token"]
-            expires_in = token_info["expires_in"]  # Token validity in seconds
-            self.token_expires_at = time.time() + expires_in - 60  # Refresh a minute before expiry
-
-            logger.info("Access token obtained successfully.")
-            return str(self.access_token)  # Ensure we return a string
-        except requests.RequestException as e:
-            logger.error(f"Error fetching access token: {e}")
-            return ""  # Return empty string instead of None
+        """Get the current access token"""
+        return str(self.__access_token) if self.__access_token else ""
 
     def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
         """
@@ -125,6 +98,203 @@ class ZoomTool(Toolkit):
             return json.dumps(result, indent=2)
         except requests.RequestException as e:
             logger.error(f"Error scheduling meeting: {e}")
+            return json.dumps({"error": str(e)})
+
+    def get_upcoming_meetings(self, user_id: str = "me") -> str:
+        """
+        Get a list of upcoming meetings for a specified user.
+
+        Args:
+            user_id (str): The user ID or 'me' for the authenticated user. Defaults to 'me'.
+
+        Returns:
+            A JSON-formatted string containing the upcoming meetings information,
+            or an error message if the request fails.
+        """
+        logger.debug(f"Fetching upcoming meetings for user: {user_id}")
+        token = self.get_access_token()
+        if not token:
+            logger.error("Unable to obtain access token.")
+            return json.dumps({"error": "Failed to obtain access token"})
+
+        url = f"https://api.zoom.us/v2/users/{user_id}/upcoming_meetings"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            meetings = response.json()
+
+            # Format the response to include relevant meeting details
+            result = {
+                "message": "Upcoming meetings retrieved successfully",
+                "meetings": meetings.get("meetings", [])  # Return the full meeting details
+            }
+            logger.info(f"Retrieved {len(result['meetings'])} upcoming meetings")
+            return json.dumps(result, indent=2)
+        except requests.RequestException as e:
+            logger.error(f"Error fetching upcoming meetings: {e}")
+            return json.dumps({"error": str(e)})
+
+    def update_meeting(self, meeting_id: str, **kwargs) -> str:
+        """
+        Update an existing Zoom meeting's details.
+
+        Args:
+            meeting_id (str): The ID of the meeting to update
+            **kwargs: Optional parameters to update, such as:
+                - topic (str): Meeting topic
+                - duration (int): Meeting duration in minutes
+                - start_time (str): Meeting start time in ISO format
+                - timezone (str): Meeting timezone
+                - password (str): Meeting password
+                - agenda (str): Meeting agenda
+                - settings (dict): Meeting settings
+
+        Returns:
+            A JSON-formatted string containing the response from Zoom API with the updated meeting details,
+            or an error message if the update fails.
+        """
+        logger.debug(f"Attempting to update meeting: {meeting_id}")
+        token = self.get_access_token()
+        if not token:
+            logger.error("Unable to obtain access token.")
+            return json.dumps({"error": "Failed to obtain access token"})
+
+        url = f"https://api.zoom.us/v2/meetings/{meeting_id}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        # Filter out None values from kwargs to only update specified fields
+        update_data = {k: v for k, v in kwargs.items() if v is not None}
+
+        try:
+            response = requests.patch(url, json=update_data, headers=headers)
+            response.raise_for_status()
+
+            # For successful updates, Zoom returns 204 No Content
+            if response.status_code == 204:
+                result = {
+                    "message": "Meeting updated successfully!",
+                    "meeting_id": meeting_id,
+                    "updated_fields": list(update_data.keys())
+                }
+            else:
+                result = response.json()
+
+            logger.info(f"Meeting {meeting_id} updated successfully")
+            return json.dumps(result, indent=2)
+        except requests.RequestException as e:
+            logger.error(f"Error updating meeting: {e}")
+            return json.dumps({"error": str(e)})
+
+    def list_meetings(self, user_id: str = "me", type: str = "scheduled") -> str:
+        """
+        List all meetings for a specified user.
+
+        Args:
+            user_id (str): The user ID or 'me' for the authenticated user. Defaults to 'me'.
+            type (str): The type of meetings to return. Options are:
+                       "scheduled" - All valid scheduled meetings
+                       "live" - All live meetings
+                       "upcoming" - All upcoming meetings
+                       "previous" - All previous meetings
+                       Defaults to "scheduled".
+
+        Returns:
+            A JSON-formatted string containing the meetings information,
+            or an error message if the request fails.
+        """
+        logger.debug(f"Fetching meetings for user: {user_id}")
+        token = self.get_access_token()
+        if not token:
+            logger.error("Unable to obtain access token.")
+            return json.dumps({"error": "Failed to obtain access token"})
+
+        url = f"https://api.zoom.us/v2/users/{user_id}/meetings"
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {"type": type}
+
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            meetings = response.json()
+
+            result = {
+                "message": f"Meetings retrieved successfully",
+                "page_count": meetings.get("page_count", 0),
+                "page_number": meetings.get("page_number", 1),
+                "page_size": meetings.get("page_size", 30),
+                "total_records": meetings.get("total_records", 0),
+                "meetings": meetings.get("meetings", [])
+            }
+            logger.info(f"Retrieved {len(result['meetings'])} meetings")
+            return json.dumps(result, indent=2)
+        except requests.RequestException as e:
+            logger.error(f"Error fetching meetings: {e}")
+            return json.dumps({"error": str(e)})
+
+    def get_meeting_recordings(
+        self,
+        meeting_id: str,
+        include_download_token: bool = False,
+        token_ttl: Optional[int] = None
+    ) -> str:
+        """
+        Get all recordings for a specific meeting.
+
+        Args:
+            meeting_id (str): The meeting ID or UUID to get recordings for.
+            include_download_token (bool): Whether to include download access token in response.
+            token_ttl (int, optional): Time to live for download token in seconds (max 604800).
+
+        Returns:
+            A JSON-formatted string containing the meeting recordings information,
+            or an error message if the request fails.
+        """
+        logger.debug(f"Fetching recordings for meeting: {meeting_id}")
+        token = self.get_access_token()
+        if not token:
+            logger.error("Unable to obtain access token.")
+            return json.dumps({"error": "Failed to obtain access token"})
+
+        url = f"https://api.zoom.us/v2/meetings/{meeting_id}/recordings"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Build query parameters
+        params = {}
+        if include_download_token:
+            params["include_fields"] = "download_access_token"
+            if token_ttl is not None:
+                if 0 <= token_ttl <= 604800:  # Validate TTL range
+                    params["ttl"] = token_ttl
+                else:
+                    logger.warning("Invalid TTL value. Must be between 0 and 604800 seconds.")
+
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            recordings = response.json()
+
+            result = {
+                "message": "Meeting recordings retrieved successfully",
+                "meeting_id": recordings.get("id", ""),
+                "uuid": recordings.get("uuid", ""),
+                "host_id": recordings.get("host_id", ""),
+                "topic": recordings.get("topic", ""),
+                "start_time": recordings.get("start_time", ""),
+                "duration": recordings.get("duration", 0),
+                "total_size": recordings.get("total_size", ""),
+                "recording_count": recordings.get("recording_count", 0),
+                "recording_files": recordings.get("recording_files", [])
+            }
+
+            logger.info(f"Retrieved {result['recording_count']} recording files")
+            return json.dumps(result, indent=2)
+        except requests.RequestException as e:
+            logger.error(f"Error fetching meeting recordings: {e}")
             return json.dumps({"error": str(e)})
 
     def instructions(self) -> str:

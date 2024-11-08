@@ -35,9 +35,10 @@ class ZoomTool(Toolkit):
         # Register functions
         self.register(self.schedule_meeting)
         self.register(self.get_upcoming_meetings)
-        self.register(self.update_meeting)
         self.register(self.list_meetings)
         self.register(self.get_meeting_recordings)
+        self.register(self.delete_meeting)
+        self.register(self.get_meeting)
 
     def get_access_token(self) -> str:
         """Get the current access token"""
@@ -117,77 +118,20 @@ class ZoomTool(Toolkit):
             logger.error("Unable to obtain access token.")
             return json.dumps({"error": "Failed to obtain access token"})
 
-        url = f"https://api.zoom.us/v2/users/{user_id}/upcoming_meetings"
+        url = f"https://api.zoom.us/v2/users/{user_id}/meetings"
         headers = {"Authorization": f"Bearer {token}"}
+        params = {"type": "upcoming", "page_size": 30}
 
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
             meetings = response.json()
 
-            # Format the response to include relevant meeting details
-            result = {
-                "message": "Upcoming meetings retrieved successfully",
-                "meetings": meetings.get("meetings", [])  # Return the full meeting details
-            }
+            result = {"message": "Upcoming meetings retrieved successfully", "meetings": meetings.get("meetings", [])}
             logger.info(f"Retrieved {len(result['meetings'])} upcoming meetings")
             return json.dumps(result, indent=2)
         except requests.RequestException as e:
             logger.error(f"Error fetching upcoming meetings: {e}")
-            return json.dumps({"error": str(e)})
-
-    def update_meeting(self, meeting_id: str, **kwargs) -> str:
-        """
-        Update an existing Zoom meeting's details.
-
-        Args:
-            meeting_id (str): The ID of the meeting to update
-            **kwargs: Optional parameters to update, such as:
-                - topic (str): Meeting topic
-                - duration (int): Meeting duration in minutes
-                - start_time (str): Meeting start time in ISO format
-                - timezone (str): Meeting timezone
-                - password (str): Meeting password
-                - agenda (str): Meeting agenda
-                - settings (dict): Meeting settings
-
-        Returns:
-            A JSON-formatted string containing the response from Zoom API with the updated meeting details,
-            or an error message if the update fails.
-        """
-        logger.debug(f"Attempting to update meeting: {meeting_id}")
-        token = self.get_access_token()
-        if not token:
-            logger.error("Unable to obtain access token.")
-            return json.dumps({"error": "Failed to obtain access token"})
-
-        url = f"https://api.zoom.us/v2/meetings/{meeting_id}"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-
-        # Filter out None values from kwargs to only update specified fields
-        update_data = {k: v for k, v in kwargs.items() if v is not None}
-
-        try:
-            response = requests.patch(url, json=update_data, headers=headers)
-            response.raise_for_status()
-
-            # For successful updates, Zoom returns 204 No Content
-            if response.status_code == 204:
-                result = {
-                    "message": "Meeting updated successfully!",
-                    "meeting_id": meeting_id,
-                    "updated_fields": list(update_data.keys())
-                }
-            else:
-                result = response.json()
-
-            logger.info(f"Meeting {meeting_id} updated successfully")
-            return json.dumps(result, indent=2)
-        except requests.RequestException as e:
-            logger.error(f"Error updating meeting: {e}")
             return json.dumps({"error": str(e)})
 
     def list_meetings(self, user_id: str = "me", type: str = "scheduled") -> str:
@@ -228,7 +172,7 @@ class ZoomTool(Toolkit):
                 "page_number": meetings.get("page_number", 1),
                 "page_size": meetings.get("page_size", 30),
                 "total_records": meetings.get("total_records", 0),
-                "meetings": meetings.get("meetings", [])
+                "meetings": meetings.get("meetings", []),
             }
             logger.info(f"Retrieved {len(result['meetings'])} meetings")
             return json.dumps(result, indent=2)
@@ -237,10 +181,7 @@ class ZoomTool(Toolkit):
             return json.dumps({"error": str(e)})
 
     def get_meeting_recordings(
-        self,
-        meeting_id: str,
-        include_download_token: bool = False,
-        token_ttl: Optional[int] = None
+        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
     ) -> str:
         """
         Get all recordings for a specific meeting.
@@ -288,13 +229,96 @@ class ZoomTool(Toolkit):
                 "duration": recordings.get("duration", 0),
                 "total_size": recordings.get("total_size", ""),
                 "recording_count": recordings.get("recording_count", 0),
-                "recording_files": recordings.get("recording_files", [])
+                "recording_files": recordings.get("recording_files", []),
             }
 
             logger.info(f"Retrieved {result['recording_count']} recording files")
             return json.dumps(result, indent=2)
         except requests.RequestException as e:
             logger.error(f"Error fetching meeting recordings: {e}")
+            return json.dumps({"error": str(e)})
+
+    def delete_meeting(self, meeting_id: str, schedule_for_reminder: bool = True) -> str:
+        """
+        Delete a scheduled Zoom meeting.
+
+        Args:
+            meeting_id (str): The ID of the meeting to delete
+            schedule_for_reminder (bool): Send cancellation email to registrants.
+                                        Defaults to True.
+
+        Returns:
+            A JSON-formatted string containing the response status,
+            or an error message if the deletion fails.
+        """
+        logger.debug(f"Attempting to delete meeting: {meeting_id}")
+        token = self.get_access_token()
+        if not token:
+            logger.error("Unable to obtain access token.")
+            return json.dumps({"error": "Failed to obtain access token"})
+
+        url = f"https://api.zoom.us/v2/meetings/{meeting_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {"schedule_for_reminder": schedule_for_reminder}
+
+        try:
+            response = requests.delete(url, headers=headers, params=params)
+            response.raise_for_status()
+
+            # Zoom returns 204 No Content for successful deletion
+            if response.status_code == 204:
+                result = {"message": "Meeting deleted successfully!", "meeting_id": meeting_id}
+                logger.info(f"Meeting {meeting_id} deleted successfully")
+            else:
+                result = response.json()
+
+            return json.dumps(result, indent=2)
+        except requests.RequestException as e:
+            logger.error(f"Error deleting meeting: {e}")
+            return json.dumps({"error": str(e)})
+
+    def get_meeting(self, meeting_id: str) -> str:
+        """
+        Get the details of a specific Zoom meeting.
+
+        Args:
+            meeting_id (str): The ID of the meeting to retrieve
+
+        Returns:
+            A JSON-formatted string containing the meeting details,
+            or an error message if the request fails.
+        """
+        logger.debug(f"Fetching details for meeting: {meeting_id}")
+        token = self.get_access_token()
+        if not token:
+            logger.error("Unable to obtain access token.")
+            return json.dumps({"error": "Failed to obtain access token"})
+
+        url = f"https://api.zoom.us/v2/meetings/{meeting_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            meeting_info = response.json()
+
+            result = {
+                "message": "Meeting details retrieved successfully",
+                "meeting_id": meeting_info.get("id", ""),
+                "topic": meeting_info.get("topic", ""),
+                "type": meeting_info.get("type", ""),
+                "start_time": meeting_info.get("start_time", ""),
+                "duration": meeting_info.get("duration", 0),
+                "timezone": meeting_info.get("timezone", ""),
+                "created_at": meeting_info.get("created_at", ""),
+                "join_url": meeting_info.get("join_url", ""),
+                "settings": meeting_info.get("settings", {}),
+            }
+
+            logger.info(f"Retrieved details for meeting ID: {meeting_id}")
+            return json.dumps(result, indent=2)
+        except requests.RequestException as e:
+            logger.error(f"Error fetching meeting details: {e}")
             return json.dumps({"error": str(e)})
 
     def instructions(self) -> str:

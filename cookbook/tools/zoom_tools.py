@@ -3,12 +3,13 @@ import time
 from phi.utils.log import logger
 import requests
 from typing import Optional
+import json
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.zoom import ZoomTool
 
-
+# Get environment variables
 ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")
 CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
@@ -22,12 +23,7 @@ class CustomZoomTool(ZoomTool):
         client_secret: Optional[str] = None,
         name: str = "zoom_tool",
     ):
-        super().__init__(
-            account_id=account_id,
-            client_id=client_id,
-            client_secret=client_secret,
-            name=name
-        )
+        super().__init__(account_id=account_id, client_id=client_id, client_secret=client_secret, name=name)
         self.token_url = "https://zoom.us/oauth/token"
         self.access_token = None
         self.token_expires_at = 0
@@ -46,10 +42,7 @@ class CustomZoomTool(ZoomTool):
 
         try:
             response = requests.post(
-                self.token_url,
-                headers=headers,
-                data=data,
-                auth=(self.client_id, self.client_secret)
+                self.token_url, headers=headers, data=data, auth=(self.client_id, self.client_secret)
             )
             response.raise_for_status()
 
@@ -70,58 +63,87 @@ class CustomZoomTool(ZoomTool):
         self._ZoomTool__access_token = token  # Access private variable of parent
 
     def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
+        """
+        Override schedule_meeting to maintain JSON format for testing
+        """
         response = super().schedule_meeting(topic, start_time, duration)
 
-        if isinstance(response, str):
-            import json
-
-            try:
+        try:
+            if isinstance(response, str):
                 meeting_info = json.loads(response)
-            except json.JSONDecodeError:
-                return "Failed to parse the meeting information."
-        else:
-            meeting_info = response
+            else:
+                meeting_info = response
 
-        if meeting_info:
-            meeting_id = meeting_info.get("id")
-            join_url = meeting_info.get("join_url")
-            start_time = meeting_info.get("start_time")
-            return (
-                f"Meeting scheduled successfully!\n\n"
-                f"**Meeting ID:** {meeting_id}\n"
-                f"**Join URL:** {join_url}\n"
-                f"**Start Time:** {start_time}"
-            )
-        else:
-            return "I'm sorry, but I was unable to schedule the meeting."
+            # Return JSON format for testing compatibility
+            result = {
+                "message": "Meeting scheduled successfully!",
+                "meeting_id": meeting_info.get("meeting_id"),
+                "join_url": meeting_info.get("join_url"),
+                "start_time": meeting_info.get("start_time"),
+            }
+            return json.dumps(result, indent=2)
+        except (json.JSONDecodeError, AttributeError) as e:
+            return json.dumps({"error": "Failed to process meeting information", "details": str(e)})
 
 
-zoom_tool = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
+
+zoom_tools = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
 
 
 agent = Agent(
-    name="Zoom Scheduling Agent",
-    agent_id="zoom-scheduling-agent",
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[zoom_tool],
+    name="Zoom Meeting Manager",
+    agent_id="zoom-meeting-manager",
+    model=OpenAIChat(model="gpt-4"),
+    tools=[zoom_tools],
     markdown=True,
     debug_mode=True,
     show_tool_calls=True,
     instructions=[
-        "You are an agent designed to schedule Zoom meetings using the Zoom API.",
-        "When asked to schedule a meeting, use the `schedule_meeting` function from the `ZoomTool`.",
-        "Only pass the necessary parameters to the `schedule_meeting` function unless specifically asked for other parameters.",
-        "After scheduling the meeting, provide the meeting details such as Meeting ID, Join URL, and Start Time.",
-        "Ensure that all times are in ISO 8601 format (e.g., '2024-12-28T10:00:00Z').",
-        "Handle any errors gracefully and inform the user if the meeting could not be scheduled.",
+        "You are an expert at managing Zoom meetings using the Zoom API.",
+        "You can:",
+        "1. Schedule new meetings (schedule_meeting)",
+        "2. Get meeting details (get_meeting)",
+        "3. List all meetings (list_meetings)",
+        "4. Get upcoming meetings (get_upcoming_meetings)",
+        "5. Delete meetings (delete_meeting)",
+        "",
+        "Guidelines:",
+        "- Use ISO 8601 format for dates (e.g., '2024-12-28T10:00:00Z')",
+        "- Ensure meeting times are in the future",
+        "- Provide meeting details after scheduling (ID, URL, time)",
+        "- Handle errors gracefully",
+        "- Confirm successful operations",
     ],
     system_message=(
-        "Do not modify any default parameters of the `schedule_meeting` function unless explicitly "
-        "specified in the user's request. Always ensure that the meeting is scheduled successfully "
-        "before confirming to the user."
+        "You are a helpful Zoom meeting management assistant. "
+        "Always verify operations are successful and provide clear, "
+        "formatted responses with relevant meeting details."
     ),
 )
 
-# Use the agent to schedule a meeting based on user input
-user_input = "Schedule a meeting titled 'Python Automation Meeting' on 2024-11-01 at 11:00 AM UTC for 60 minutes."
-response = agent.run(user_input)
+if __name__ == "__main__":
+    # Example usage
+    commands = [
+        "Schedule a meeting titled 'Team Sync' tomorrow at 2 PM UTC for 45 minutes",
+        "List all my scheduled meetings",
+        "What meetings do I have coming up?",
+    ]
+
+    for command in commands:
+        print(f"\nCommand: {command}")
+        agent.print_response(command, markdown=True)
+
+    # Interactive mode
+    while True:
+        try:
+            user_input = input("\nEnter a command (or 'quit' to exit): ")
+            if user_input.lower() in ["quit", "exit", "q"]:
+                break
+
+            agent.print_response(user_input, markdown=True)
+
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            break
+        except Exception as e:
+            print(f"Error: {str(e)}")

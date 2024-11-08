@@ -17,7 +17,7 @@ class GeminiOpenAIChat(OpenAILike):
 
     id: str = "gemini-1.5-flash"
     name: str = "Gemini"
-    provider: str = "Gemini"
+    provider: str = "Google"
 
     api_key: Optional[str] = getenv("GOOGLE_API_KEY")
     base_url: Optional[str] = "https://generativelanguage.googleapis.com/v1beta/"

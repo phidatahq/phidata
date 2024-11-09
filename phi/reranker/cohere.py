@@ -26,22 +26,33 @@ class CohereReranker(Reranker):
         return CohereClient(**_client_params)
 
     def _rerank(self, query: str, documents: List[Document]) -> List[Document]:
-        compressed_docs: list[Document] = []
+        # Validate input documents and top_n
         if not documents:
-            return compressed_docs
+            return []
 
+        top_n = self.top_n
+        if top_n and not (0 < top_n):
+            logger.warning(f"top_n should be a positive integer, got {self.top_n}, setting top_n to None")
+            top_n = None
+
+        compressed_docs: list[Document] = []
         _docs = [doc.content for doc in documents]
-        response = self.client.rerank(query=query, documents=_docs, model=self.model, top_n=self.top_n)
+        response = self.client.rerank(query=query, documents=_docs, model=self.model)
         for r in response.results:
             doc = documents[r.index]
             doc.reranking_score = r.relevance_score
             compressed_docs.append(doc)
 
-        # order by relevance score
+        # Order by relevance score
         compressed_docs.sort(
             key=lambda x: x.reranking_score if x.reranking_score is not None else float("-inf"),
             reverse=True,
         )
+
+        # Limit to top_n if specified
+        if top_n:
+            compressed_docs = compressed_docs[:top_n]
+
         return compressed_docs
 
     def rerank(self, query: str, documents: List[Document]) -> List[Document]:

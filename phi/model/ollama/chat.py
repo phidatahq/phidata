@@ -71,7 +71,7 @@ class Ollama(Model):
 
     id: str = "llama3.1"
     name: str = "Ollama"
-    provider: Optional[str] = None
+    provider: str = "Ollama"
 
     # Request parameters
     format: Optional[str] = None
@@ -551,7 +551,7 @@ class Ollama(Model):
                 tool_call_data = json.loads(tool_call_buffer)
                 message_data.tool_call_blocks.append(tool_call_data)
             except json.JSONDecodeError:
-                logger.error("Failed to parse tool call JSON.")
+                logger.debug("Failed to parse tool call JSON.")
             return "", False
 
         return tool_call_buffer, True
@@ -575,6 +575,7 @@ class Ollama(Model):
         # -*- Generate response
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
+            logger.debug(f"Response: {response.get('message', {}).get('content', '')}")
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
                 metrics.output_tokens += 1

@@ -38,77 +38,6 @@ class Hermes(Ollama):
     name: str = "Hermes"
     provider: str = "Ollama"
 
-    def _update_usage_metrics(
-        self,
-        assistant_message: Message,
-        metrics: Metrics,
-        response: Optional[Mapping[str, Any]] = None,
-    ) -> None:
-        """
-        Update usage metrics for the assistant message.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            metrics (Optional[Metrics]): The metrics for this response.
-            response (Optional[Mapping[str, Any]]): The response from Ollama.
-        """
-        # Update time taken to generate response
-        assistant_message.metrics["time"] = metrics.response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
-        if response:
-            metrics.input_tokens = response.get("prompt_eval_count", 0)
-            metrics.output_tokens = response.get("eval_count", 0)
-            metrics.total_tokens = metrics.input_tokens + metrics.output_tokens
-
-            if metrics.input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = metrics.input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
-            if metrics.output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = metrics.output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
-            if metrics.total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = metrics.total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
-            if metrics.time_to_first_token is not None:
-                assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
-                self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
-
-    def _handle_stream_tool_calls(
-        self,
-        assistant_message: Message,
-        messages: List[Message],
-    ) -> Iterator[ModelResponse]:
-        """
-        Handle tool calls for response stream.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            messages (List[Message]): The list of messages.
-
-        Returns:
-            Iterator[ModelResponse]: An iterator of the model response.
-        """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield ModelResponse(content="\n\n")
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
-            function_call_results: List[Message] = []
-
-            if self.show_tool_calls:
-                if len(function_calls_to_run) == 1:
-                    yield ModelResponse(content=f" - Running: {function_calls_to_run[0].get_call_str()}\n\n")
-                elif len(function_calls_to_run) > 1:
-                    yield ModelResponse(content="Running:")
-                    for _f in function_calls_to_run:
-                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
-                    yield ModelResponse(content="\n\n")
-
-            for intermediate_model_response in self.run_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results
-            ):
-                yield intermediate_model_response
-
-            self._format_function_call_results(function_call_results, messages)
-
     def _handle_tool_call_chunk(self, content, tool_call_buffer, message_data) -> Tuple[str, bool]:
         """
         Handle a tool call chunk for response stream.
@@ -239,6 +168,8 @@ class Hermes(Ollama):
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 message_data.response_content_chunk = message_data.response_message.get("content", "").strip("`")
+                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("<|end_of_text|>")
+                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("<|begin_of_text|>")
 
             if message_data.response_content_chunk:
                 if message_data.response_content_chunk.strip().startswith("</tool_call>"):

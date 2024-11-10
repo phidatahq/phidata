@@ -21,24 +21,27 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-dag = DAG(
+# Using 'schedule' instead of deprecated 'schedule_interval'
+with DAG(
     'example_dag',
     default_args=default_args,
     description='A simple example DAG',
-    schedule_interval=timedelta(days=1),
-)
+    schedule='@daily',  # Changed from schedule_interval
+    catchup=False
+) as dag:
 
-def print_hello():
-    print("Hello from Airflow!")
+    def print_hello():
+        print("Hello from Airflow!")
+        return "Hello task completed"
 
-task = PythonOperator(
-    task_id='hello_task',
-    python_callable=print_hello,
-    dag=dag,
-)
+    task = PythonOperator(
+        task_id='hello_task',
+        python_callable=print_hello,
+        dag=dag,
+    )
 """
 
 agent.run(f"Save this DAG file as 'example_dag.py': {dag_content}")
 
 
-agent.run("Read the contents of 'example_dag.py'")
+agent.print_response("Read the contents of 'example_dag.py'")

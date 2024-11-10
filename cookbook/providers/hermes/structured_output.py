@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.ollama import Ollama
+from phi.model.ollama import Hermes
 
 
 class MovieScript(BaseModel):
@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 # Agent that uses JSON mode
 movie_agent = Agent(
-    model=Ollama(id="hermes3"),
+    model=Hermes(id="hermes3"),
     description="You write movie scripts.",
     response_model=MovieScript,
 )

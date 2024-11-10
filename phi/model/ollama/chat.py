@@ -551,7 +551,7 @@ class Ollama(Model):
                 tool_call_data = json.loads(tool_call_buffer)
                 message_data.tool_call_blocks.append(tool_call_data)
             except json.JSONDecodeError:
-                logger.debug("Failed to parse tool call JSON.")
+                logger.error("Failed to parse tool call JSON.")
             return "", False
 
         return tool_call_buffer, True

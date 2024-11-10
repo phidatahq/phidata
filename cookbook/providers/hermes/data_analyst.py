@@ -2,7 +2,7 @@
 
 from textwrap import dedent
 from phi.agent import Agent
-from phi.model.ollama import Ollama
+from phi.model.ollama import Hermes
 from phi.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=Ollama(id="hermes3"),
+    model=Hermes(id="hermes3"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

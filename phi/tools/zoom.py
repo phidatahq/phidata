@@ -1,4 +1,3 @@
-import time
 import requests
 import json
 from typing import Optional
@@ -167,7 +166,7 @@ class ZoomTool(Toolkit):
             meetings = response.json()
 
             result = {
-                "message": f"Meetings retrieved successfully",
+                "message": "Meetings retrieved successfully",
                 "page_count": meetings.get("page_count", 0),
                 "page_number": meetings.get("page_number", 1),
                 "page_size": meetings.get("page_size", 30),

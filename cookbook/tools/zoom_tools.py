@@ -3,7 +3,6 @@ import time
 from phi.utils.log import logger
 import requests
 from typing import Optional
-import json
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

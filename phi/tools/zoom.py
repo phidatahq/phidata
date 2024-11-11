@@ -181,7 +181,7 @@ class ZoomTool(Toolkit):
 
     def get_meeting_recordings(
         self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
-    ) -> None:
+    ) -> str:
         """
         Get all recordings for a specific meeting.
 
@@ -227,7 +227,7 @@ class ZoomTool(Toolkit):
                 "host_id": recordings.get("host_id", ""),
                 "topic": recordings.get("topic", ""),
                 "start_time": recordings.get("start_time", ""),
-                "duration": recordings.get("duration", 0),
+                "duration": str(recordings.get("duration", "0")),
                 "total_size": str(recordings.get("total_size", 0)),
                 "recording_count": recordings.get("recording_count", 0),
                 "recording_files": recordings.get("recording_files", []),

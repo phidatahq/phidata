@@ -5,7 +5,7 @@ from phi.model.deepseek import DeepSeekChat
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=DeepSeekChat(),
+    model=DeepSeekChat(id="deepseek-chat"),
     tools=[
         YFinanceTools(
             company_info=True,

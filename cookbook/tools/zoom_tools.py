@@ -97,7 +97,7 @@ agent = Agent(
 )
 
 
-# agent.print_response("Schedule a meeting titled 'Team Sync' tomorrow at 2 PM UTC for 45 minutes")
+agent.print_response("Schedule a meeting titled 'Team Sync' 5th december at 2 PM UTC for 45 minutes")
 # agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
 # agent.print_response("What meetings do I have coming up?")
 # agent.print_response("List all my scheduled meetings")

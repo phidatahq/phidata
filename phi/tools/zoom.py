@@ -208,8 +208,9 @@ class ZoomTool(Toolkit):
         if include_download_token:
             params["include_fields"] = "download_access_token"
             if token_ttl is not None:
-                if 0 <= token_ttl <= 604800:  # Validate TTL range
-                    params["ttl"] = token_ttl
+                token_ttl_int = int(token_ttl)
+                if 0 <= token_ttl_int <= 604800:
+                    params["ttl"] = token_ttl_int
                 else:
                     logger.warning("Invalid TTL value. Must be between 0 and 604800 seconds.")
 

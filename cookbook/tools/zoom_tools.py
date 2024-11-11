@@ -58,7 +58,8 @@ class CustomZoomTool(ZoomTool):
 
     def _set_parent_token(self, token: str) -> None:
         """Helper method to set the token in the parent ZoomTool class"""
-        self._ZoomTool__access_token = token
+        if token:
+            self._ZoomTool__access_token = token
 
 
 zoom_tools = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
@@ -97,7 +98,7 @@ agent = Agent(
 )
 
 
-agent.print_response("Schedule a meeting titled 'Team Sync' 5th december at 2 PM UTC for 45 minutes")
+agent.print_response("Schedule a meeting titled 'Team Sync' 6th december at 2 PM UTC for 45 minutes")
 # agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
 # agent.print_response("What meetings do I have coming up?")
 # agent.print_response("List all my scheduled meetings")

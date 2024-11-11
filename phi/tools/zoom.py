@@ -226,7 +226,7 @@ class ZoomTool(Toolkit):
                 "topic": recordings.get("topic", ""),
                 "start_time": recordings.get("start_time", ""),
                 "duration": recordings.get("duration", 0),
-                "total_size": str(recordings.get("total_size", "")),
+                "total_size": str(recordings.get("total_size", 0)),
                 "recording_count": recordings.get("recording_count", 0),
                 "recording_files": recordings.get("recording_files", []),
             }

@@ -56,7 +56,7 @@ class CustomZoomTool(ZoomTool):
             logger.error(f"Error fetching access token: {e}")
             return ""
 
-    def _set_parent_token(self, token: str) -> None:
+    def _set_parent_token(self, token: str) -> str:
         """Helper method to set the token in the parent ZoomTool class"""
         if token:
             self._ZoomTool__access_token = token
@@ -98,7 +98,7 @@ agent = Agent(
 )
 
 
-agent.print_response("Schedule a meeting titled 'Team Sync' 6th december at 2 PM UTC for 45 minutes")
+agent.print_response("Schedule a meeting titled 'Team Sync' 7th december at 2 PM UTC for 45 minutes")
 # agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
 # agent.print_response("What meetings do I have coming up?")
 # agent.print_response("List all my scheduled meetings")

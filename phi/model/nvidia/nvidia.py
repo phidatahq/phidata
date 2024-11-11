@@ -1,5 +1,6 @@
 from os import getenv
 from typing import Optional
+
 from phi.model.openai.like import OpenAILike
 
 
@@ -18,5 +19,6 @@ class Nvidia(OpenAILike):
     id: str = "nvidia/llama-3.1-nemotron-70b-instruct"
     name: str = "Nvidia"
     provider: str = "Nvidia " + id
+
     api_key: Optional[str] = getenv("NVIDIA_API_KEY")
     base_url: str = "https://integrate.api.nvidia.com/v1"

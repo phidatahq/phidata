@@ -51,7 +51,6 @@ class CustomZoomTool(ZoomTool):
             expires_in = token_info["expires_in"]
             self.token_expires_at = time.time() + expires_in - 60
 
-            # Pass token to parent class
             self._set_parent_token(self.access_token)
             return str(self.access_token)
         except requests.RequestException as e:
@@ -60,31 +59,7 @@ class CustomZoomTool(ZoomTool):
 
     def _set_parent_token(self, token: str) -> None:
         """Helper method to set the token in the parent ZoomTool class"""
-        self._ZoomTool__access_token = token  # Access private variable of parent
-
-    def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
-        """
-        Override schedule_meeting to maintain JSON format for testing
-        """
-        response = super().schedule_meeting(topic, start_time, duration)
-
-        try:
-            if isinstance(response, str):
-                meeting_info = json.loads(response)
-            else:
-                meeting_info = response
-
-            # Return JSON format for testing compatibility
-            result = {
-                "message": "Meeting scheduled successfully!",
-                "meeting_id": meeting_info.get("meeting_id"),
-                "join_url": meeting_info.get("join_url"),
-                "start_time": meeting_info.get("start_time"),
-            }
-            return json.dumps(result, indent=2)
-        except (json.JSONDecodeError, AttributeError) as e:
-            return json.dumps({"error": "Failed to process meeting information", "details": str(e)})
-
+        self._ZoomTool__access_token = token
 
 
 zoom_tools = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
@@ -106,6 +81,12 @@ agent = Agent(
         "3. List all meetings (list_meetings)",
         "4. Get upcoming meetings (get_upcoming_meetings)",
         "5. Delete meetings (delete_meeting)",
+        "6. Get meeting recordings (get_meeting_recordings)",
+        "",
+        "For recordings, you can:",
+        "- Retrieve recordings for any past meeting using the meeting ID",
+        "- Include download tokens if needed",
+        "- Get recording details like duration, size, download link and file types",
         "",
         "Guidelines:",
         "- Use ISO 8601 format for dates (e.g., '2024-12-28T10:00:00Z')",
@@ -114,36 +95,13 @@ agent = Agent(
         "- Handle errors gracefully",
         "- Confirm successful operations",
     ],
-    system_message=(
-        "You are a helpful Zoom meeting management assistant. "
-        "Always verify operations are successful and provide clear, "
-        "formatted responses with relevant meeting details."
-    ),
 )
 
-if __name__ == "__main__":
-    # Example usage
-    commands = [
-        "Schedule a meeting titled 'Team Sync' tomorrow at 2 PM UTC for 45 minutes",
-        "List all my scheduled meetings",
-        "What meetings do I have coming up?",
-    ]
 
-    for command in commands:
-        print(f"\nCommand: {command}")
-        agent.print_response(command, markdown=True)
-
-    # Interactive mode
-    while True:
-        try:
-            user_input = input("\nEnter a command (or 'quit' to exit): ")
-            if user_input.lower() in ["quit", "exit", "q"]:
-                break
-
-            agent.print_response(user_input, markdown=True)
-
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            break
-        except Exception as e:
-            print(f"Error: {str(e)}")
+# agent.print_response("Schedule a meeting titled 'Team Sync' tomorrow at 2 PM UTC for 45 minutes")
+# agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
+# agent.print_response("What meetings do I have coming up?")
+# agent.print_response("List all my scheduled meetings")
+# agent.print_response("Get details for my most recent meeting")
+# agent.print_response("Get the recordings for my python automation meeting")
+# agent.print_response("Please delete all my scheduled meetings")

@@ -180,7 +180,7 @@ class ZoomTool(Toolkit):
             return json.dumps({"error": str(e)})
 
     def get_meeting_recordings(
-        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
+        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[str] = None
     ) -> str:
         """
         Get all recordings for a specific meeting.
@@ -189,6 +189,7 @@ class ZoomTool(Toolkit):
             meeting_id (str): The meeting ID or UUID to get recordings for.
             include_download_token (bool): Whether to include download access token in response.
             token_ttl (int, optional): Time to live for download token in seconds (max 604800).
+
 
         Returns:
             A JSON-formatted string containing the meeting recordings information,

@@ -1,23 +1,28 @@
 """Build a Data Analyst Agent using xAI."""
 
-from textwrap import dedent
-from phi.agent import Agent
+import json
 from phi.model.xai import xAI
-from phi.tools.duckdb import DuckDbTools
+from phi.agent.duckdb import DuckDbAgent
 
-duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
-duckdb_tools.create_table_from_path(
-    path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv", table="movies"
-)
-
-agent = Agent(
+data_analyst = DuckDbAgent(
     model=xAI(id="grok-beta"),
-    tools=[duckdb_tools],
+    semantic_model=json.dumps(
+        {
+            "tables": [
+                {
+                    "name": "movies",
+                    "description": "Contains information about movies from IMDB.",
+                    "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+                }
+            ]
+        }
+    ),
     markdown=True,
     show_tool_calls=True,
-    additional_context=dedent("""\
-    You have access to the following tables:
-    - movies: contains information about movies from IMDB.
-    """),
 )
-agent.print_response("What is the average rating of movies?", stream=False)
+data_analyst.print_response(
+    "Show me a histogram of ratings. "
+    "Choose an appropriate bucket size but share how you chose it. "
+    "Show me the result as a pretty ascii diagram",
+    stream=True,
+)

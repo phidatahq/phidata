@@ -180,8 +180,8 @@ class ZoomTool(Toolkit):
             return json.dumps({"error": str(e)})
 
     def get_meeting_recordings(
-        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[str] = None
-    ) -> str:
+        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
+    ) -> None:
         """
         Get all recordings for a specific meeting.
 

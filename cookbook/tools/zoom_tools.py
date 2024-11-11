@@ -50,13 +50,13 @@ class CustomZoomTool(ZoomTool):
             expires_in = token_info["expires_in"]
             self.token_expires_at = time.time() + expires_in - 60
 
-            self._set_parent_token(self.access_token)
+            self._set_parent_token(str(self.access_token))
             return str(self.access_token)
         except requests.RequestException as e:
             logger.error(f"Error fetching access token: {e}")
             return ""
 
-    def _set_parent_token(self, token: str) -> str:
+    def _set_parent_token(self, token: str) -> None:
         """Helper method to set the token in the parent ZoomTool class"""
         if token:
             self._ZoomTool__access_token = token
@@ -98,7 +98,7 @@ agent = Agent(
 )
 
 
-agent.print_response("Schedule a meeting titled 'Team Sync' 7th december at 2 PM UTC for 45 minutes")
+agent.print_response("Schedule a meeting titled 'Team Sync' 8th december at 2 PM UTC for 45 minutes")
 # agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
 # agent.print_response("What meetings do I have coming up?")
 # agent.print_response("List all my scheduled meetings")

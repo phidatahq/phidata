@@ -179,65 +179,64 @@ class ZoomTool(Toolkit):
             logger.error(f"Error fetching meetings: {e}")
             return json.dumps({"error": str(e)})
 
-    def get_meeting_recordings(
-        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
-    ) -> str:
-        """
-        Get all recordings for a specific meeting.
 
-        Args:
-            meeting_id (str): The meeting ID or UUID to get recordings for.
-            include_download_token (bool): Whether to include download access token in response.
-            token_ttl (int, optional): Time to live for download token in seconds (max 604800).
+def get_meeting_recordings(
+    self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
+) -> str:
+    """
+    Get all recordings for a specific meeting.
 
+    Args:
+        meeting_id (str): The meeting ID or UUID to get recordings for.
+        include_download_token (bool): Whether to include download access token in response.
+        token_ttl (int, optional): Time to live for download token in seconds (max 604800).
 
-        Returns:
-            A JSON-formatted string containing the meeting recordings information,
-            or an error message if the request fails.
-        """
-        logger.debug(f"Fetching recordings for meeting: {meeting_id}")
-        token = self.get_access_token()
-        if not token:
-            logger.error("Unable to obtain access token.")
-            return json.dumps({"error": "Failed to obtain access token"})
+    Returns:
+        A JSON-formatted string containing the meeting recordings information,
+        or an error message if the request fails.
+    """
+    logger.debug(f"Fetching recordings for meeting: {meeting_id}")
+    token = self.get_access_token()
+    if not token:
+        logger.error("Unable to obtain access token.")
+        return json.dumps({"error": "Failed to obtain access token"})
 
-        url = f"https://api.zoom.us/v2/meetings/{meeting_id}/recordings"
-        headers = {"Authorization": f"Bearer {token}"}
+    url = f"https://api.zoom.us/v2/meetings/{meeting_id}/recordings"
+    headers = {"Authorization": f"Bearer {token}"}
 
-        # Build query parameters
-        params = {}
-        if include_download_token:
-            params["include_fields"] = "download_access_token"
-            if token_ttl is not None:
-                token_ttl_int = int(token_ttl)
-                if 0 <= token_ttl_int <= 604800:
-                    params["ttl"] = token_ttl_int
-                else:
-                    logger.warning("Invalid TTL value. Must be between 0 and 604800 seconds.")
+    # Build query parameters
+    params = {}
+    if include_download_token:
+        params["include_fields"] = "download_access_token"
+        if token_ttl is not None:
+            if 0 <= token_ttl <= 604800:
+                params["ttl"] = str(token_ttl)  # Convert to string here
+            else:
+                logger.warning("Invalid TTL value. Must be between 0 and 604800 seconds.")
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            recordings = response.json()
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        recordings = response.json()
 
-            result = {
-                "message": "Meeting recordings retrieved successfully",
-                "meeting_id": recordings.get("id", ""),
-                "uuid": recordings.get("uuid", ""),
-                "host_id": recordings.get("host_id", ""),
-                "topic": recordings.get("topic", ""),
-                "start_time": recordings.get("start_time", ""),
-                "duration": str(recordings.get("duration", "0")),
-                "total_size": str(recordings.get("total_size", 0)),
-                "recording_count": recordings.get("recording_count", 0),
-                "recording_files": recordings.get("recording_files", []),
-            }
+        result = {
+            "message": "Meeting recordings retrieved successfully",
+            "meeting_id": recordings.get("id", ""),
+            "uuid": recordings.get("uuid", ""),
+            "host_id": recordings.get("host_id", ""),
+            "topic": recordings.get("topic", ""),
+            "start_time": recordings.get("start_time", ""),
+            "duration": str(recordings.get("duration", 0)),  # Convert to string
+            "total_size": str(recordings.get("total_size", 0)),  # Convert to string
+            "recording_count": str(recordings.get("recording_count", 0)),  # Convert to string
+            "recording_files": recordings.get("recording_files", []),
+        }
 
-            logger.info(f"Retrieved {result['recording_count']} recording files")
-            return json.dumps(result, indent=2)
-        except requests.RequestException as e:
-            logger.error(f"Error fetching meeting recordings: {e}")
-            return json.dumps({"error": str(e)})
+        logger.info(f"Retrieved {result['recording_count']} recording files")
+        return json.dumps(result, indent=2)
+    except requests.RequestException as e:
+        logger.error(f"Error fetching meeting recordings: {e}")
+        return json.dumps({"error": str(e)})
 
     def delete_meeting(self, meeting_id: str, schedule_for_reminder: bool = True) -> str:
         """

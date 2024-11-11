@@ -105,3 +105,6 @@ agent = Agent(
 # agent.print_response("Get details for my most recent meeting")
 # agent.print_response("Get the recordings for my python automation meeting")
 # agent.print_response("Please delete all my scheduled meetings")
+# agent.print_response("Schedule 10 meetings titled 'Daily Standup' for the next 10 days at 5 PM UTC, each for 30 minutes")
+
+

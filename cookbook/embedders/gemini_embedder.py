@@ -1,9 +1,8 @@
-"""Run `pip install google-generativeai` to install dependencies."""
+import os
 
 from phi.agent import Agent, AgentKnowledge
 from phi.vectordb.pgvector import PgVector
 from phi.embedder.google import GeminiEmbedder
-import os
 
 # Create knowledge base
 knowledge_base = AgentKnowledge(
@@ -11,7 +10,7 @@ knowledge_base = AgentKnowledge(
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
         table_name="gemini_embeddings",
         embedder=GeminiEmbedder(
-            api_key=os.environ.get("GOOGLE_API_KEY"),
+            api_key=os.getenv("GOOGLE_API_KEY"),
             dimensions=768,
         ),
     ),

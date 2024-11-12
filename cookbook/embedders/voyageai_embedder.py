@@ -1,7 +1,8 @@
+import os
+
 from phi.agent import Agent, AgentKnowledge
 from phi.vectordb.pgvector import PgVector
 from phi.embedder.voyageai import VoyageAIEmbedder
-import os
 
 # Create knowledge base
 knowledge_base = AgentKnowledge(
@@ -9,7 +10,7 @@ knowledge_base = AgentKnowledge(
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
         table_name="voyageai_embeddings",
         embedder=VoyageAIEmbedder(
-            api_key=os.environ.get("VOYAGE_API_KEY"),
+            api_key=os.getenv("VOYAGE_API_KEY"),
             dimensions=1024,
         ),
     ),

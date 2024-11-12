@@ -1,7 +1,7 @@
+import os
 from phi.agent import Agent, AgentKnowledge
 from phi.vectordb.pgvector import PgVector
 from phi.embedder.mistral import MistralEmbedder
-import os
 
 # Create knowledge base
 knowledge_base = AgentKnowledge(
@@ -9,7 +9,7 @@ knowledge_base = AgentKnowledge(
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
         table_name="mistral_embeddings",
         embedder=MistralEmbedder(
-            api_key=os.environ.get("MISTRAL_API_KEY"),
+            api_key=os.getenv("MISTRAL_API_KEY"),
             dimensions=1024,
         ),
     ),

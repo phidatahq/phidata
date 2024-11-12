@@ -95,19 +95,13 @@ class BlogPostGenerator(Workflow):
             "topic": topic,
             "articles": [v.model_dump() for v in search_results.articles],
         }
-        # Run the writer
-        writer_response_stream: Iterator[RunResponse] = self.writer.run(json.dumps(writer_input, indent=4), stream=True)
-        # Yield and save the writer_response in the session state
-        writer_response = ""
-        for writer_response_chunk in writer_response_stream:
-            if writer_response_chunk.content is not None:
-                writer_response += writer_response_chunk.content
-                yield writer_response_chunk
+        # Run the writer and yield the response
+        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
 
         # Save the blog post in the session state for future runs
         if "blog_posts" not in self.session_state:
             self.session_state["blog_posts"] = []
-        self.session_state["blog_posts"].append({"topic": topic, "blog_post": writer_response})
+        self.session_state["blog_posts"].append({"topic": topic, "blog_post": self.writer.run_response.content})
 
 
 # The topic to generate a blog post on

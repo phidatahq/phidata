@@ -1,7 +1,7 @@
-"""Run `pip install duckduckgo-search sqlalchemy pgvector pypdf anthropic openai` to install dependencies."""
+"""Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai boto3` to install dependencies."""
 
 from phi.agent import Agent
-from phi.model.anthropic import Claude
+from phi.model.aws.claude import Claude
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector
 
@@ -14,7 +14,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
-    model=Claude(id="claude-3-5-sonnet-20241022"),
+    model=Claude(id="anthropic.claude-3-5-sonnet-20240620-v1:0"),
     knowledge_base=knowledge_base,
     use_tools=True,
     show_tool_calls=True,

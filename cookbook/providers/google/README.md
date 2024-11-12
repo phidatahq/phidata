@@ -73,3 +73,14 @@ python cookbook/providers/google/data_analyst.py
 python cookbook/providers/google/structured_output.py
 ```
 
+### 7. Run Agent that uses storage
+
+```shell
+python cookbook/providers/google/storage.py
+```
+
+### 8. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/google/knowledge.py
+```

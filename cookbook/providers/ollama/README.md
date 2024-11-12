@@ -65,14 +65,26 @@ python cookbook/providers/ollama/finance_agent.py
 python cookbook/providers/ollama/data_analyst.py
 ```
 
+- Web Search
+
+```shell
+python cookbook/providers/ollama/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/ollama/structured_output.py
 ```
 
-### 7. Run Agent that uses web search
+### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/ollama/web_search.py
+python cookbook/providers/ollama/storage.py
+```
+
+### 8. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/ollama/knowledge.py
 ```

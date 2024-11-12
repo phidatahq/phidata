@@ -8,7 +8,7 @@ try:
     from mistralai import Mistral
     from mistralai.models.embeddingresponse import EmbeddingResponse
 except ImportError:
-    raise ImportError("`openai` not installed")
+    raise ImportError("`mistralai` not installed")
 
 
 class MistralEmbedder(Embedder):

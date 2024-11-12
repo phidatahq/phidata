@@ -26,13 +26,13 @@ pip install -U openai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/openai/basic_stream.py
+python cookbook/providers/xai/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/openai/basic.py
+python cookbook/providers/xai/basic.py
 ```
 
 ### 5. Run with Tools

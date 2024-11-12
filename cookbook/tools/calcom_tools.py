@@ -1,7 +1,8 @@
-from phi.agent import Agent
-from phi.tools.calcom import CalCom
-from phi.model.openai import OpenAIChat
 from datetime import datetime
+
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.tools.calcom import CalCom
 
 """
 Example showing how to use the Cal.com Tools with Phi.
@@ -34,7 +35,7 @@ agent = Agent(
     name="Calendar Assistant",
     instructions=[INSTRUCTONS],
     model=OpenAIChat(id="gpt-4"),
-    tools=[CalCom()],
+    tools=[CalCom(user_timezone="America/New_York")],
     show_tool_calls=True,
     markdown=True,
 )

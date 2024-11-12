@@ -61,6 +61,12 @@ python cookbook/providers/google/finance_agent.py
 python cookbook/providers/google/web_search.py
 ```
 
+- Data Analysis Agent
+
+```shell
+python cookbook/providers/google/data_analyst.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell

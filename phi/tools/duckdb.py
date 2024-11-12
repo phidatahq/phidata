@@ -81,6 +81,7 @@ class DuckDbTools(Toolkit):
             tables = self.run_query(stmt)
             logger.debug(f"Tables: {tables}")
             return tables
+        return "No tables to show"
 
     def describe_table(self, table: str) -> str:
         """Function to describe a table
@@ -98,7 +99,7 @@ class DuckDbTools(Toolkit):
         """Function to inspect a query and return the query plan. Always inspect your query before running them.
 
         :param query: Query to inspect
-        :return: Qeury plan
+        :return: Query plan
         """
         stmt = f"explain {query};"
         explain_plan = self.run_query(stmt)

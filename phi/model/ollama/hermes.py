@@ -168,8 +168,12 @@ class Hermes(Ollama):
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 message_data.response_content_chunk = message_data.response_message.get("content", "").strip("`")
-                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("<|end_of_text|>")
-                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("<|begin_of_text|>")
+                message_data.response_content_chunk = message_data.response_message.get("content", "").strip(
+                    "<|end_of_text|>"
+                )
+                message_data.response_content_chunk = message_data.response_message.get("content", "").strip(
+                    "<|begin_of_text|>"
+                )
 
             if message_data.response_content_chunk:
                 if message_data.response_content_chunk.strip().startswith("</tool_call>"):

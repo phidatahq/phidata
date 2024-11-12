@@ -15,6 +15,7 @@ class DeepSeekChat(OpenAILike):
     - api_key: Optional[str]: The API key for the model.
     - base_url: str: The base URL for the model. Default: "https://api.deepseek.com".
     """
+
     id: str = "deepseek-chat"
     name: str = "DeepSeekChat"
     provider: str = "DeepSeek"

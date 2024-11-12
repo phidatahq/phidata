@@ -2,14 +2,15 @@
 
 from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.deepseek import DeepSeekChat
+from phi.model.ollama import Hermes
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=DeepSeekChat(id="deepseek-chat"),
+    model=Hermes(id="hermes3"),
     tools=[YFinanceTools(stock_price=True)],
-    show_tool_calls=True,
+    instructions=["Use tables where possible."],
     markdown=True,
+    show_tool_calls=True,
 )
 
 # Get the response in a variable
@@ -17,5 +18,5 @@ agent = Agent(
 # for chunk in run_response:
 #     print(chunk.content)
 
-# Print the response on the terminal
+# Print the response in the terminal
 agent.print_response("What is the stock price of NVDA and TSLA", stream=True)

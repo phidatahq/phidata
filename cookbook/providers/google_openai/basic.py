@@ -1,7 +1,7 @@
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.deepseek import DeepSeekChat
+from phi.model.google import GeminiOpenAIChat
 
-agent = Agent(model=DeepSeekChat(id="deepseek-chat"), markdown=True)
+agent = Agent(model=GeminiOpenAIChat(id="gemini-1.5-flash"), markdown=True)
 
 # Get the response in a variable
 # run: RunResponse = agent.run("Share a 2 sentence horror story")

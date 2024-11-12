@@ -1,4 +1,4 @@
-# Ollama Cookbook
+# Ollama Hermes Cookbook
 
 > Note: Fork and clone this repository if needed
 
@@ -7,7 +7,7 @@
 Run your chat model
 
 ```shell
-ollama run llama3.1:8b
+ollama run hermes3
 ```
 
 Message `/bye` to exit the chat model
@@ -30,13 +30,13 @@ pip install -U ollama duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/ollama/basic_stream.py
+python cookbook/providers/hermes/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/ollama/basic.py
+python cookbook/providers/hermes/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -44,47 +44,35 @@ python cookbook/providers/ollama/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/ollama/agent_stream.py
+python cookbook/providers/hermes/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/ollama/agent.py
+python cookbook/providers/hermes/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/ollama/finance_agent.py
+python cookbook/providers/hermes/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/ollama/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/providers/ollama/web_search.py
+python cookbook/providers/hermes/data_analyst.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/ollama/structured_output.py
+python cookbook/providers/hermes/structured_output.py
 ```
 
-### 7. Run Agent that uses storage
+### 7. Run Agent that uses web search
 
 ```shell
-python cookbook/providers/ollama/storage.py
-```
-
-### 8. Run Agent that uses knowledge
-
-```shell
-python cookbook/providers/ollama/knowledge.py
+python cookbook/providers/hermes/web_search.py
 ```

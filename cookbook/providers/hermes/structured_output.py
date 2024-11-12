@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.deepseek import DeepSeekChat
+from phi.model.ollama import Hermes
 
 
 class MovieScript(BaseModel):
@@ -16,15 +16,15 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-json_mode_agent = Agent(
-    model=DeepSeekChat(id="deepseek-chat"),
-    description="You help people write movie scripts.",
+# Agent that uses JSON mode
+movie_agent = Agent(
+    model=Hermes(id="hermes3"),
+    description="You write movie scripts.",
     response_model=MovieScript,
-    # debug_mode=True,
 )
 
 # Get the response in a variable
-# json_mode_response: RunResponse = json_mode_agent.run("New York")
-# pprint(json_mode_response.content)
+# run: RunResponse = movie_agent.run("New York")
+# pprint(run.content)
 
-json_mode_agent.print_response("New York")
+movie_agent.print_response("New York")

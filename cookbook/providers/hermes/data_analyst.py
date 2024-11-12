@@ -2,7 +2,7 @@
 
 from textwrap import dedent
 from phi.agent import Agent
-from phi.model.deepseek import DeepSeekChat
+from phi.model.ollama import Hermes
 from phi.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
@@ -11,13 +11,13 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=DeepSeekChat(id="deepseek-chat"),
+    model=Hermes(id="hermes3"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,
     additional_context=dedent("""\
     You have access to the following tables:
-    - movies: Contains information about movies from IMDB.
+    - movies: contains information about movies from IMDB.
     """),
 )
 agent.print_response("What is the average rating of movies?", stream=False)

@@ -1,19 +1,13 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.deepseek import DeepSeekChat
+from phi.model.ollama import Hermes
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=DeepSeekChat(id="deepseek-chat"),
-    tools=[
-        YFinanceTools(
-            company_info=True,
-            stock_fundamentals=True,
-        )
-    ],
+    model=Hermes(id="hermes3"),
+    tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
-    debug_mode=True,
     markdown=True,
 )
 
@@ -21,5 +15,5 @@ agent = Agent(
 # run: RunResponse = agent.run("What is the stock price of NVDA and TSLA")
 # print(run.content)
 
-# Print the response on the terminal
-agent.print_response("Give me in-depth analysis of NVDA and TSLA")
+# Print the response in the terminal
+agent.print_response("What is the stock price of NVDA and TSLA")

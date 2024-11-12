@@ -8,9 +8,16 @@ agent = Agent(
     markdown=True,
 )
 
+
 user_id = "69069"
 issue_id = "6969"
+team_id = "69"
+new_title = "Design not updated yet"
 
-agent.print_response(f"Show all the issues assigned to user id: {user_id}")
+agent.print_response("Get all the details of current user")
 agent.print_response(f"Show the issue with the issue id: {issue_id}")
-agent.print_response(f"Update the issue with the issue id: {issue_id}")
+agent.print_response(f"Can you create an issue with the title: {new_title} under the team id: {team_id}")
+agent.print_response(f"Show all the issues assigned to user id: {user_id}")
+agent.print_response("Show all the high priority issues")
+
+

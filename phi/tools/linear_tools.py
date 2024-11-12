@@ -50,7 +50,7 @@ class LinearTool(Toolkit):
             response.raise_for_status()
 
             data = response.json()
-            
+
             if "errors" in data:
                 logger.error(f"GraphQL Error: {data['errors']}")
                 raise Exception(f"GraphQL Error: {data['errors']}")
@@ -66,13 +66,13 @@ class LinearTool(Toolkit):
             logger.error(f"Unexpected error: {e}")
             raise
 
-    def get_user_details(self) -> dict:
+    def get_user_details(self) -> Optional[str]:
         """
         Fetch authenticated user details.
         It will return the user's unique ID, name, and email address from the viewer object in the GraphQL response.
 
         Returns:
-            dict: A dictionary containing user details with keys `id`, `name`, and `email`.
+            str or None: A string containing user details like user id, name, and email.
 
         Raises:
             Exception: If an error occurs during the query execution or data retrieval.
@@ -93,17 +93,19 @@ class LinearTool(Toolkit):
 
             if response.get("viewer"):
                 user = response["viewer"]
-                logger.info(f"Retrieved authenticated user details with name: {user['name']}, ID: {user['id']}, Email: {user['email']}")
+                logger.info(
+                    f"Retrieved authenticated user details with name: {user['name']}, ID: {user['id']}, Email: {user['email']}"
+                )
                 return str(user)
             else:
-                logger.error(f"Failed to retrieve issue with ID {issue_id}.")
+                logger.error("Failed to retrieve the current user details")
                 return None
 
         except Exception as e:
             logger.error(f"Error fetching authenticated user details: {e}")
             raise
 
-    def get_issue_details(self, issue_id: str) -> Optional[dict]:
+    def get_issue_details(self, issue_id: str) -> Optional[str]:
         """
         Retrieve details of a specific issue by issue ID.
 
@@ -111,7 +113,7 @@ class LinearTool(Toolkit):
             issue_id (str): The unique identifier of the issue to retrieve.
 
         Returns:
-            dict: A dictionary containing issue details with keys `id`, `title`, and `description`.
+            str or None: A string containing issue details like issue id, issue title, and issue description.
                   Returns `None` if the issue is not found.
 
         Raises:
@@ -143,7 +145,7 @@ class LinearTool(Toolkit):
             logger.error(f"Error retrieving issue with ID {issue_id}: {e}")
             raise
 
-    def create_issue(self, title: str, description: str, team_id: str) -> Optional[dict]:
+    def create_issue(self, title: str, description: str, team_id: str) -> Optional[str]:
         """
         Create a new issue within a specific project and team.
 
@@ -153,7 +155,7 @@ class LinearTool(Toolkit):
             team_id (str): The unique identifier of the team in which to create the issue.
 
         Returns:
-            dict: A dictionary containing the created issue's details with keys `id` and `title`.
+            str or None: A string containing the created issue's details like issue id and issue title.
                   Returns `None` if the issue creation fails.
 
         Raises:
@@ -190,7 +192,7 @@ class LinearTool(Toolkit):
             logger.error(f"Error creating issue '{title}' for team ID {team_id}: {e}")
             raise
 
-    def update_issue(self, issue_id: str, title: Optional[str], state_id: Optional[str]) -> Optional[dict]:
+    def update_issue(self, issue_id: str, title: Optional[str], state_id: Optional[str]) -> Optional[str]:
         """
         Update the title or state of a specific issue by issue ID.
 
@@ -200,7 +202,7 @@ class LinearTool(Toolkit):
             state_id (str, optional): The new state identifier for the issue. If None, the state remains unchanged.
 
         Returns:
-            dict: A dictionary containing the updated issue's details with keys `id`, `title`, and `state` (which includes `id` and `name`).
+            str or None: A string containing the updated issue's details with issue id, issue title, and issue state (which includes `id` and `name`).
                   Returns `None` if the update is unsuccessful.
 
         Raises:
@@ -242,7 +244,7 @@ class LinearTool(Toolkit):
             logger.error(f"Error updating issue ID {issue_id}: {e}")
             raise
 
-    def get_user_assigned_issues(self, user_id: str) -> Optional[list[dict]]:
+    def get_user_assigned_issues(self, user_id: str) -> Optional[str]:
         """
         Retrieve issues assigned to a specific user by user ID.
 
@@ -250,8 +252,8 @@ class LinearTool(Toolkit):
             user_id (str): The unique identifier of the user for whom to retrieve assigned issues.
 
         Returns:
-            list[dict] or None: A list of dictionaries representing the assigned issues,
-            where each dictionary contains issue details (e.g., `id`, `title`).
+            str or None: A string representing the assigned issues to user id,
+            where each issue contains issue details (e.g., `id`, `title`).
             Returns None if the user or issues cannot be retrieved.
 
         Raises:
@@ -290,7 +292,7 @@ class LinearTool(Toolkit):
             logger.error(f"Error retrieving issues for user ID {user_id}: {e}")
             raise
 
-    def get_workflow_issues(self, workflow_id: str) -> Optional[list[dict]]:
+    def get_workflow_issues(self, workflow_id: str) -> Optional[str]:
         """
         Retrieve issues within a specific workflow state by workflow ID.
 
@@ -298,8 +300,8 @@ class LinearTool(Toolkit):
             workflow_id (str): The unique identifier of the workflow state to retrieve issues from.
 
         Returns:
-            list[dict] or None: A list of dictionaries representing the issues within the specified workflow state,
-            where each dictionary contains details of an issue (e.g., `title`).
+            str or None: A string representing the issues within the specified workflow state,
+            where each issue contains details of an issue (e.g., `title`).
             Returns None if no issues are found or if the workflow state cannot be retrieved.
 
         Raises:
@@ -333,13 +335,14 @@ class LinearTool(Toolkit):
             logger.error(f"Error retrieving issues for workflow state ID {workflow_id}: {e}")
             raise
 
-    def get_high_priority_issues(self) -> Optional[list[dict]]:
+    def get_high_priority_issues(self) -> Optional[str]:
         """
         Retrieve issues with a high priority (priority <= 2).
 
         Returns:
-            list[dict] or None: A list of dictionaries representing high-priority issues, where each dictionary
-            contains details of an issue (e.g., `id`, `title`, `priority`). Returns None if no issues are retrieved.
+            str or None: A str representing high-priority issues, where it
+            contains details of an issue (e.g., `id`, `title`, `priority`).
+            Returns None if no issues are retrieved.
 
         Raises:
             Exception: If an error occurs during the query process.

@@ -70,15 +70,17 @@ class DuckDbTools(Toolkit):
 
         return self._connection
 
-    def show_tables(self) -> str:
+    def show_tables(self, show_tables: bool) -> str:
         """Function to show tables in the database
 
+        :param show_tables: Show tables in the database
         :return: List of tables in the database
         """
-        stmt = "SHOW TABLES;"
-        tables = self.run_query(stmt)
-        logger.debug(f"Tables: {tables}")
-        return tables
+        if show_tables:
+            stmt = "SHOW TABLES;"
+            tables = self.run_query(stmt)
+            logger.debug(f"Tables: {tables}")
+            return tables
 
     def describe_table(self, table: str) -> str:
         """Function to describe a table

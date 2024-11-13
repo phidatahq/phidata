@@ -43,7 +43,7 @@ class ZoomTool(Toolkit):
         """Get the current access token"""
         return str(self.__access_token) if self.__access_token else ""
 
-    def schedule_meeting(self, topic: str, start_time: str, duration: int) -> str:
+    def schedule_meeting(self, topic: str, start_time: str, duration: int, timezone: str = "UTC") -> str:
         """
         Schedule a new Zoom meeting.
 
@@ -51,12 +51,13 @@ class ZoomTool(Toolkit):
             topic (str): The topic or title of the meeting.
             start_time (str): The start time of the meeting in ISO 8601 format.
             duration (int): The duration of the meeting in minutes.
+            timezone (str): The timezone for the meeting (e.g., "America/New_York", "Asia/Tokyo").
 
         Returns:
             A JSON-formatted string containing the response from Zoom API with the scheduled meeting details,
             or an error message if the scheduling fails.
         """
-        logger.debug(f"Attempting to schedule meeting: {topic}")
+        logger.debug(f"Attempting to schedule meeting: {topic} in timezone: {timezone}")
         token = self.get_access_token()
         if not token:
             logger.error("Unable to obtain access token.")
@@ -69,7 +70,7 @@ class ZoomTool(Toolkit):
             "type": 2,
             "start_time": start_time,
             "duration": duration,
-            "timezone": "UTC",
+            "timezone": timezone,
             "settings": {
                 "host_video": True,
                 "participant_video": True,
@@ -180,10 +181,7 @@ class ZoomTool(Toolkit):
             return json.dumps({"error": str(e)})
 
     def get_meeting_recordings(
-        self,
-        meeting_id: str,
-        include_download_token: bool = False,
-        token_ttl: Optional[int] = None
+        self, meeting_id: str, include_download_token: bool = False, token_ttl: Optional[int] = None
     ) -> str:
         """
         Get all recordings for a specific meeting.

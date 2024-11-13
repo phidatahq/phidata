@@ -30,6 +30,12 @@ class CustomZoomTool(ZoomTool):
     def get_access_token(self) -> str:
         """
         Obtain or refresh the access token for Zoom API.
+
+        to get the  account_id  ,client_id  ,client_secret
+        https://developers.zoom.us/docs/internal-apps/create/
+
+        for oauth 2.0
+        https://developers.zoom.us/docs/integrations/oauth/
         Returns:
             A string containing the access token or an empty string if token retrieval fails.
         """
@@ -90,6 +96,8 @@ agent = Agent(
         "",
         "Guidelines:",
         "- Use ISO 8601 format for dates (e.g., '2024-12-28T10:00:00Z')",
+        "- Accept and use user's timezone (e.g., 'America/New_York', 'Asia/Tokyo', 'UTC')",
+        "- If no timezone is specified, default to UTC",
         "- Ensure meeting times are in the future",
         "- Provide meeting details after scheduling (ID, URL, time)",
         "- Handle errors gracefully",
@@ -98,7 +106,7 @@ agent = Agent(
 )
 
 
-agent.print_response("Schedule a meeting titled 'Team Sync' 8th december at 2 PM UTC for 45 minutes")
+agent.print_response("Schedule a meeting titled 'Team Sync' 10th december 2024 at 2 PM IST for 45 minutes")
 # agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
 # agent.print_response("What meetings do I have coming up?")
 # agent.print_response("List all my scheduled meetings")
@@ -106,5 +114,3 @@ agent.print_response("Schedule a meeting titled 'Team Sync' 8th december at 2 PM
 # agent.print_response("Get the recordings for my python automation meeting")
 # agent.print_response("Please delete all my scheduled meetings")
 # agent.print_response("Schedule 10 meetings titled 'Daily Standup' for the next 10 days at 5 PM UTC, each for 30 minutes")
-
-

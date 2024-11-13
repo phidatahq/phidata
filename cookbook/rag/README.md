@@ -68,5 +68,5 @@ python cookbook/rag/04_agentic_rag_lancedb.py
 ### 8. Run the Agentic RAG on Agent UI
 
 ```shell
-python cookbook/rag/05_agentic_rag_playground.py
+python cookbook/rag/05_agentic_rag_agent_ui.py
 ```

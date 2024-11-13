@@ -21,22 +21,22 @@ export OPENAI_API_KEY=***
 pip install -U openai duckduckgo-search duckdb yfinance lancedb tantivy pypdf sqlalchemy 'fastapi[standard]' phidata
 ```
 
-### 4. Web Search Agent
+### 4. Run the Web Search Agent
 
 ```shell
-python cookbook/agents_101/web_search.py
+python cookbook/agents_101/01_web_search.py
 ```
 
-### 5. Finance Agent
+### 5. Run the Finance Agent
 
 ```shell
-python cookbook/agents_101/finance_agent.py
+python cookbook/agents_101/02_finance_agent.py
 ```
 
-### 6. RAG Agent
+### 6. Run the RAG Agent
 
 ```shell
-python cookbook/agents_101/rag_agent.py
+python cookbook/agents_101/03_rag_agent.py
 ```
 
 ### 7. Test in Agent UI
@@ -50,5 +50,5 @@ phi auth
 Run the Agent UI
 
 ```shell
-python cookbook/agents_101/agent_ui.py
+python cookbook/agents_101/04_agent_ui.py
 ```

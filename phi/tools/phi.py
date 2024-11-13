@@ -23,12 +23,12 @@ class PhiTools(Toolkit):
 
     def create_new_app(self, template: str, workspace_name: str) -> str:
         """Creates a new phidata workspace for a given application template.
-        Use this function when the user wants to create a new "llm-app", "api-app", "django-app", or "streamlit-app".
+        Use this function when the user wants to create a new "agent-app" or "agent-api"
         Remember to provide a name for the new workspace.
         You can use the format: "template-name" + name of an interesting person (lowercase, no spaces).
 
         :param template: (required) The template to use for the new application.
-            One of: llm-app, api-app, django-app, streamlit-app
+            One of: agent-app, agent-api
         :param workspace_name: (required) The name of the workspace to create for the new application.
         :return: Status of the function or next steps.
         """
@@ -39,7 +39,7 @@ class PhiTools(Toolkit):
             ws_template = WorkspaceStarterTemplate(template)
 
         if ws_template is None:
-            return f"Error: Invalid template: {template}, must be one of: llm-app, api-app, django-app, streamlit-app"
+            return f"Error: Invalid template: {template}, must be one of: agent-app, agent-api"
 
         ws_dir_name: Optional[str] = workspace_name
         if ws_dir_name is None:

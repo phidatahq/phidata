@@ -36,18 +36,23 @@ class MessageData:
 
 
 @dataclass
-class UsageData:
+class Metrics:
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
-
-
-@dataclass
-class StreamUsageData:
-    completion_tokens: int = 0
     time_to_first_token: Optional[float] = None
-    tokens_per_second: Optional[float] = None
-    time_per_token: Optional[float] = None
+    response_timer: Timer = field(default_factory=Timer)
+
+    def log(self):
+        logger.debug("**************** METRICS START ****************")
+        if self.time_to_first_token is not None:
+            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
+        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
+        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
+        logger.debug(f"* Input tokens:                {self.input_tokens}")
+        logger.debug(f"* Output tokens:               {self.output_tokens}")
+        logger.debug(f"* Total tokens:                {self.total_tokens}")
+        logger.debug("**************** METRICS END ******************")
 
 
 class Claude(Model):
@@ -262,52 +267,43 @@ class Claude(Model):
         self,
         assistant_message: Message,
         usage: Optional[Usage] = None,
-        stream_usage: Optional[StreamUsageData] = None,
+        metrics: Metrics = Metrics(),
     ) -> None:
         """
         Update the usage metrics for the assistant message.
 
         Args:
             assistant_message (Message): The assistant message.
-            usage (Optional[Usage]): The usage metrics.
-            stream_usage (Optional[StreamUsageData]): The stream usage metrics.
+            usage (Optional[Usage]): The usage metrics returned by the model.
+            metrics (Metrics): The metrics to update.
         """
+        assistant_message.metrics["time"] = metrics.response_timer.elapsed
+        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if usage:
-            usage_data = UsageData()
-            usage_data.input_tokens = usage.input_tokens or 0
-            usage_data.output_tokens = usage.output_tokens or 0
-            usage_data.total_tokens = usage_data.input_tokens + usage_data.output_tokens
+            metrics.input_tokens = usage.input_tokens or 0
+            metrics.output_tokens = usage.output_tokens or 0
+            metrics.total_tokens = metrics.input_tokens + metrics.output_tokens
 
-            if usage_data.input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = usage_data.input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + usage_data.input_tokens
-            if usage_data.output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = usage_data.output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + usage_data.output_tokens
-            if usage_data.total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = usage_data.total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + usage_data.total_tokens
+            if metrics.input_tokens is not None:
+                assistant_message.metrics["input_tokens"] = metrics.input_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
+            if metrics.output_tokens is not None:
+                assistant_message.metrics["output_tokens"] = metrics.output_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
+            if metrics.total_tokens is not None:
+                assistant_message.metrics["total_tokens"] = metrics.total_tokens
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
+            if metrics.time_to_first_token is not None:
+                assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
+                self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
 
-            if stream_usage:
-                if stream_usage.time_to_first_token is not None:
-                    assistant_message.metrics["time_to_first_token"] = stream_usage.time_to_first_token
-                    self.metrics.setdefault("time_to_first_token", []).append(stream_usage.time_to_first_token)
-                if stream_usage.tokens_per_second is not None:
-                    assistant_message.metrics["tokens_per_second"] = stream_usage.tokens_per_second
-                    self.metrics.setdefault("tokens_per_second", []).append(stream_usage.tokens_per_second)
-                if stream_usage.time_per_token is not None:
-                    assistant_message.metrics["time_per_token"] = stream_usage.time_per_token
-                    self.metrics.setdefault("time_per_token", []).append(stream_usage.time_per_token)
-
-    def _create_assistant_message(
-        self, response: AnthropicMessage, response_timer: Timer
-    ) -> Tuple[Message, str, List[str]]:
+    def _create_assistant_message(self, response: AnthropicMessage, metrics: Metrics) -> Tuple[Message, str, List[str]]:
         """
         Create an assistant message from the response.
 
         Args:
             response (AnthropicMessage): The response from the model.
-            response_timer (Timer): The timer for the response.
+            metrics (Metrics): The metrics for the response.
 
         Returns:
             Tuple[Message, str, List[str]]: A tuple containing the assistant message, the response content, and the tool ids.
@@ -319,7 +315,7 @@ class Claude(Model):
             message_data.response_block_content = response.content[0]
             message_data.response_usage = response.usage
 
-        # Extract response content
+        # -*- Extract response content
         if message_data.response_block_content is not None:
             if isinstance(message_data.response_block_content, TextBlock):
                 message_data.response_content = message_data.response_block_content.text
@@ -328,13 +324,13 @@ class Claude(Model):
                 if tool_block_input and isinstance(tool_block_input, dict):
                     message_data.response_content = tool_block_input.get("query", "")
 
-        # Create assistant message
+        # -*- Create assistant message
         assistant_message = Message(
             role=response.role or "assistant",
             content=message_data.response_content,
         )
 
-        # Extract tool calls from the response
+        # -*- Extract tool calls from the response
         if response.stop_reason == "tool_use":
             for block in message_data.response_block:
                 if isinstance(block, ToolUseBlock):
@@ -353,15 +349,13 @@ class Claude(Model):
                         }
                     )
 
-        # Update assistant message if tool calls are present
+        # -*- Update assistant message if tool calls are present
         if len(message_data.tool_calls) > 0:
             assistant_message.tool_calls = message_data.tool_calls
             assistant_message.content = message_data.response_block
 
-        # Update usage metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
-        self._update_usage_metrics(assistant_message, message_data.response_usage)
+        # -*- Update usage metrics
+        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
 
         return assistant_message, message_data.response_content, message_data.tool_ids
 
@@ -472,21 +466,24 @@ class Claude(Model):
         logger.debug("---------- Claude Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
+        metrics = Metrics()
 
-        response_timer = Timer()
-        response_timer.start()
+        metrics.response_timer.start()
         response: AnthropicMessage = self.invoke(messages=messages)
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        metrics.response_timer.stop()
 
-        # Create assistant message
+        # -*- Create assistant message
         assistant_message, response_content, tool_ids = self._create_assistant_message(
-            response=response,
-            response_timer=response_timer,
+            response=response, metrics=metrics
         )
+        # -*- Add assistant message to messages
         messages.append(assistant_message)
-        assistant_message.log()
 
+        # -*- Log response and metrics
+        assistant_message.log()
+        metrics.log()
+
+        # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response, response_content, tool_ids):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
@@ -495,6 +492,7 @@ class Claude(Model):
                 model_response.content += response_after_tool_calls.content
             return model_response
 
+        # -*- Update model response
         if assistant_message.content is not None:
             model_response.content = assistant_message.get_content_string()
 
@@ -543,10 +541,10 @@ class Claude(Model):
         logger.debug("---------- Claude Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
-        stream_usage_data = StreamUsageData()
+        metrics = Metrics()
 
-        response_timer = Timer()
-        response_timer.start()
+        # -*- Generate response
+        metrics.response_timer.start()
         response = self.invoke_stream(messages=messages)
         with response as stream:
             for delta in stream:
@@ -554,10 +552,9 @@ class Claude(Model):
                     if isinstance(delta.delta, TextDelta):
                         yield ModelResponse(content=delta.delta.text)
                         message_data.response_content += delta.delta.text
-                        stream_usage_data.completion_tokens += 1
-                        if stream_usage_data.completion_tokens == 1:
-                            stream_usage_data.time_to_first_token = response_timer.elapsed
-                            logger.debug(f"Time to first token: {stream_usage_data.time_to_first_token:.4f}s")
+                        metrics.output_tokens += 1
+                        if metrics.output_tokens == 1:
+                            metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 if isinstance(delta, ContentBlockStopEvent):
                     if isinstance(delta.content_block, ToolUseBlock):
@@ -581,33 +578,28 @@ class Claude(Model):
                     message_data.response_usage = delta.message.usage
         yield ModelResponse(content="\n\n")
 
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        metrics.response_timer.stop()
 
-        if stream_usage_data.completion_tokens > 0:
-            stream_usage_data.tokens_per_second = stream_usage_data.completion_tokens / response_timer.elapsed
-            stream_usage_data.time_per_token = response_timer.elapsed / stream_usage_data.completion_tokens
-            logger.debug(f"Tokens per second: {stream_usage_data.tokens_per_second:.4f}")
-            logger.debug(f"Time per token: {stream_usage_data.time_per_token:.4f}s")
-
-        # Create assistant message
+        # -*- Create assistant message
         assistant_message = Message(
             role="assistant",
             content=message_data.response_content,
         )
 
-        # Update assistant message if tool calls are present
+        # -*- Update assistant message if tool calls are present
         if len(message_data.tool_calls) > 0:
             assistant_message.content = message_data.response_block
             assistant_message.tool_calls = message_data.tool_calls
 
-        # Update usage metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
-        self._update_usage_metrics(assistant_message, message_data.response_usage, stream_usage=stream_usage_data)
+        # -*- Update usage metrics
+        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
 
+        # -*- Add assistant message to messages
         messages.append(assistant_message)
+
+        # -*- Log response and metrics
         assistant_message.log()
+        metrics.log()
 
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield from self._handle_stream_tool_calls(assistant_message, messages, message_data.tool_ids)

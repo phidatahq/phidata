@@ -1,28 +1,27 @@
 from pathlib import Path
 
 from phi.agent import Agent
-from phi.knowledge.json import JSONKnowledgeBase
 from phi.vectordb.pgvector import PgVector
+from phi.knowledge.docx import DocxKnowledgeBase
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
-# Initialize the JSONKnowledgeBase
-knowledge_base = JSONKnowledgeBase(
-    path=Path("data/json"),  # Table name: ai.json_documents
+# Create a knowledge base with the DOCX files from the data/docs directory
+knowledge_base = DocxKnowledgeBase(
+    path=Path("data/docs"),
     vector_db=PgVector(
-        table_name="json_documents",
+        table_name="docx_documents",
         db_url=db_url,
     ),
-    num_documents=5,  # Number of documents to return on search
 )
 # Load the knowledge base
 knowledge_base.load(recreate=False)
 
-# Initialize the Agent with the knowledge_base
+# Create an agent with the knowledge base
 agent = Agent(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,
 )
 
-# Use the agent
+# Ask the agent about the knowledge base
 agent.print_response("Ask me about something from the knowledge base", markdown=True)

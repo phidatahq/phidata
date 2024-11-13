@@ -38,4 +38,4 @@ agent_team = Agent(
 app = Playground(agents=[finance_agent, web_agent, agent_team]).get_app()
 
 if __name__ == "__main__":
-    serve_playground_app("agent_ui:app", reload=True)
+    serve_playground_app("04_agent_ui:app", reload=True)

@@ -498,7 +498,9 @@ class Gemini(Model):
             model_response.content = assistant_message.get_content_string()
 
         # -*- Remove parts from messages
-        [setattr(m, "parts", None) for m in messages if hasattr(m, "parts")]  # type: ignore
+        for m in messages:
+            if hasattr(m, "parts"):
+                m.parts = None
 
         logger.debug("---------- Gemini Response End ----------")
         return model_response
@@ -619,6 +621,8 @@ class Gemini(Model):
             yield from self.response_stream(messages=messages)
 
         # -*- Remove parts from messages
-        [setattr(m, "parts", None) for m in messages if hasattr(m, "parts")]  # type: ignore
+        for m in messages:
+            if hasattr(m, "parts"):
+                m.parts = None
 
         logger.debug("---------- Gemini Response End ----------")

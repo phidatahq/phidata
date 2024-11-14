@@ -575,7 +575,7 @@ class Ollama(Model):
         # -*- Generate response
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
-            logger.debug(f"Response: {response.get('message', {}).get('content', '')}")
+            # logger.debug(f"Response: {response.get('message', {}).get('content', '')}")
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
                 metrics.output_tokens += 1

@@ -202,11 +202,11 @@ class GenerateNewsReport(Workflow):
                 and article_scraper_response.content
                 and isinstance(article_scraper_response.content, ScrapedArticle)
             ):
-                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content.model_dump()
+                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content
                 logger.info(f"Scraped article: {article_scraper_response.content.url}")
 
         # 2.3: Save the scraped_articles in the session state
-        self.session_state["scraped_articles"] = {k: v for k, v in scraped_articles.items()}
+        self.session_state["scraped_articles"] = {k: v.model_dump() for k, v in scraped_articles.items()}
 
         ####################################################
         # Step 3: Write a report

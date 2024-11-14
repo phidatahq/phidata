@@ -17,6 +17,12 @@ class CassandraDb(VectorDb):
         if not table_name:
             raise ValueError("Table name must be provided.")
 
+        if not session:
+            raise ValueError("Session is not provided")
+
+        if not keyspace:
+            raise ValueError("Keyspace must be provided")
+
         if embedder is None:
             from phi.embedder.openai import OpenAIEmbedder
 
@@ -26,8 +32,6 @@ class CassandraDb(VectorDb):
         self.session = session
         self.keyspace: str = keyspace
         self.initialize_table()
-        if self.session is None:
-            self.session = self.table.session
 
     def initialize_table(self):
         self.table = PhiMetadataVectorCassandraTable(

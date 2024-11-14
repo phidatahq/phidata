@@ -45,6 +45,19 @@ finance_agent = Agent(
     markdown=True,
 )
 
+coding_agent = Agent(
+    name="Coding Agent",
+    agent_id="coding_agent",
+    model=Ollama(id="hhao/qwen2.5-coder-tools:32b"),
+    reasoning=True,
+    markdown=True,
+    debug_mode=True,
+    add_history_to_messages=True,
+    description="You are a coding agent",
+    add_datetime_to_instructions=True,
+    storage=SqlAgentStorage(table_name="coding_agent", db_file=local_agent_storage_file),
+)
+
 
 youtube_agent = Agent(
     name="YouTube Agent",
@@ -69,7 +82,7 @@ youtube_agent = Agent(
     markdown=True,
 )
 
-app = Playground(agents=[web_agent, finance_agent, youtube_agent]).get_app()
+app = Playground(agents=[web_agent, finance_agent, youtube_agent, coding_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("ollama_agents:app", reload=True)

@@ -142,6 +142,7 @@ module = [
   "pyarrow.*",
   "pycountry.*",
   "pypdf.*",
+  "pytz.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
   "requests.*",
